@@ -21,7 +21,7 @@ const menuItems = [
   { label: 'People', path: '/people' },
   { label: 'Events', path: '/events' },
   { label: 'Stats', path: '/stats' },
-  { label: 'Financial Reports', path: '/financial-reports' },
+  // { label: 'Financial Reports', path: '/financial-reports' },
   { label: 'Service Check-in', path: '/service-check-in' },
   { label: 'Give Today', path: '/give-today' },
   { label: 'Daily Tasks', path: '/daily-tasks' },

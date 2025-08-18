@@ -49,7 +49,6 @@ export default function ServiceCheckIn() {
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const isDarkMode = theme.palette.mode === "dark";
 
-  // Fetch all events on mount
   useEffect(() => {
     fetch("/events")
       .then((res) => res.json())
@@ -60,7 +59,6 @@ export default function ServiceCheckIn() {
       .catch(() => toast.error("Failed to load events"));
   }, []);
 
-  // Fetch attendees whenever selectedEventId changes
   useEffect(() => {
     if (!selectedEventId) return;
     fetch(`/api/events/${selectedEventId}/attendees`)
@@ -69,7 +67,6 @@ export default function ServiceCheckIn() {
       .catch(() => toast.error("Failed to load attendees"));
   }, [selectedEventId]);
 
-  // Toggle present status (update backend & state)
   const handlePresentToggle = (attendeeId, currentPresent) => {
     fetch(`/api/attendees/${attendeeId}`, {
       method: "PATCH",
@@ -88,7 +85,6 @@ export default function ServiceCheckIn() {
       .catch(() => toast.error("Failed to update attendance"));
   };
 
-  // Add new person and associate with current event
   const handleSaveDetails = () => {
     return new Promise((resolve, reject) => {
       if (!formData.name || !formData.email) {
@@ -142,7 +138,6 @@ export default function ServiceCheckIn() {
     });
   };
 
-  // Filter and paginate attendees
   const filteredAttendees = attendees.filter((a) =>
     a.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -164,7 +159,16 @@ export default function ServiceCheckIn() {
   };
 
   return (
-    <Box p={2} maxWidth="100%" sx={{ maxWidth: 900, margin: "auto" }}>
+    <Box
+      p={{ xs: 2, sm: 3 }}
+      sx={{
+        maxWidth: "1200px",
+        width: "100%",
+        margin: "0 auto",
+        boxSizing: "border-box",
+        marginTop: "50px"
+      }}
+    >
       <ToastContainer />
       <Typography
         variant={isSmDown ? "h6" : "h5"}
@@ -175,22 +179,22 @@ export default function ServiceCheckIn() {
         Service Check-In
       </Typography>
 
-      <Grid container spacing={1.5} mb={3}>
-        <Grid item xs={6} sm={6} sx={{ width: "40%" }}>
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={12} sm={6}>
           <Paper
             variant="outlined"
-            sx={{ p: 1, textAlign: "center", fontWeight: "bold" }}
+            sx={{ p: 2, textAlign: "center", fontWeight: "bold" }}
           >
-            {presentCount}
+            <Typography variant="h6">{presentCount}</Typography>
             <Typography variant="body2">Attendees Present</Typography>
           </Paper>
         </Grid>
-        <Grid item xs={6} sm={6} sx={{ width: "40%" }}>
+        <Grid item xs={12} sm={6}>
           <Paper
             variant="outlined"
-            sx={{ p: 1, textAlign: "center", fontWeight: "bold" }}
+            sx={{ p: 2, textAlign: "center", fontWeight: "bold" }}
           >
-            {attendeesCount}
+            <Typography variant="h6">{attendeesCount}</Typography>
             <Typography variant="body2">Total Attendees</Typography>
           </Paper>
         </Grid>
@@ -238,7 +242,15 @@ export default function ServiceCheckIn() {
         </Grid>
       </Grid>
 
-      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
+      <TableContainer
+        component={Paper}
+        variant="outlined"
+        sx={{
+          overflowX: "auto",
+          width: "100%",
+          maxWidth: "100%",
+        }}
+      >
         <Table size="small" aria-label="service check-in table">
           <TableHead>
             <TableRow>

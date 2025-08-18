@@ -1,8 +1,10 @@
+import React, { useContext } from 'react';
 import { Avatar, IconButton, Tooltip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-
+import { UserContext } from '../contexts/UserContext.jsx'; 
 export default function TopbarProfile() {
   const navigate = useNavigate();
+  const { profilePic } = useContext(UserContext);
 
   const handleProfileClick = () => {
     navigate('/profile');
@@ -22,7 +24,7 @@ export default function TopbarProfile() {
       >
         <Avatar
           alt="Profile"
-          src="/path-to-your-avatar.png" // Replace with actual image path or leave blank
+          src={profilePic}  // Use dynamic profilePic from context
           sx={{
             width: 40,
             height: 40,
