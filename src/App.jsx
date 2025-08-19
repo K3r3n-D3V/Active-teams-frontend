@@ -12,6 +12,8 @@ import ServiceCheckIn from './Pages/ServiceCheckIn';
 import GiveToday from './Pages/GiveToday';
 import DailyTasks from './Pages/DailyTasks';
 import Home from './Pages/Home';
+import Signup from './Pages/Signup';
+import Login from './Pages/Login';
 import TopbarProfile from './components/TopbarProfile';
 
 function App() {
@@ -32,6 +34,9 @@ function App() {
         <Sidebar mode={mode} setMode={setMode} />
         <div style={{ flexGrow: 1 }}>
           <Routes>
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/login" element={<Login />} />
+            {/* Dummy route for testing */}
             <Route path="/" element={<Home />} />
             <Route path="/profile" element={<Profile title="Profile" />} />
             <Route path="/people" element={<People title="People" />} />
