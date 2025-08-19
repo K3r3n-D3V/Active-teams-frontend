@@ -89,7 +89,12 @@ const Events = () => {
         }}
       >
         <div style={styles.headerLeft}>
-          <button style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }}>+ NEW EVENT</button>
+<button
+  style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }}
+  onClick={() => navigate("/create-event")}
+>
+  + NEW EVENT
+</button>
           <button style={{ ...styles.button, ...styles.btnFilter, marginRight: "25px" }}>⚙️ FILTER EVENTS</button>
         </div>
         <div style={styles.headerRight}>

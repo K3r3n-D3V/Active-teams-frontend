@@ -13,7 +13,8 @@ import GiveToday from './Pages/GiveToday';
 import DailyTasks from './Pages/DailyTasks';
 import Home from './Pages/Home';
 import TopbarProfile from './components/TopbarProfile';
-
+import  CreateEvents from './Pages/CreateEvents'
+import CapturePersonEvents from './Pages/CapturePersonEvents'
 function App() {
   const [mode, setMode] = useState('light');
 
@@ -37,6 +38,8 @@ function App() {
             <Route path="/people" element={<People title="People" />} />
             <Route path="/events" element={<Events title="Events" />} />
             <Route path="/stats" element={<Stats title="Stats" />} />
+            <Routes path='/createevents' element={<CreateEvents title="createevents" />} />
+            <Routes path='/capturepersonevents' element={<CapturePersonEvents title="CapturePersonEvents" />} />
             {/* <Route path="/financial-reports" element={<DummyPage title="Financial Reports" />} /> */}
             <Route path="/service-check-in" element={<ServiceCheckIn title="Service Check-in" />} />
             <Route path="/give-today" element={<GiveToday title="Give Today" />} />
