@@ -24,6 +24,9 @@ const GiveToday = () => {
   return (
     <Box sx={{ p: 4, maxWidth: 960, mx: 'auto', fontFamily: 'Arial, sans-serif' }}>
       {/* Top grid: Personal Info & Payment Summary */}
+        <Typography fontWeight={700} fontSize={30} mb={3} sx={{marginTop:5, textAlign: "center"}}>
+              Give Today
+            </Typography>
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
           <Paper
