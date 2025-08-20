@@ -6,9 +6,7 @@ import {
   ListItemIcon,
   IconButton,
   Box,
-  Typography,
   useMediaQuery,
-  Switch,
 } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -22,9 +20,9 @@ import {
   BarChart,
   Assignment,
   VolunteerActivism,
-  HowToReg
+  HowToReg,
 } from '@mui/icons-material';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const menuItems = [
   { label: 'Home', path: '/', icon: Home },
@@ -42,15 +40,56 @@ export default function Sidebar({ mode, setMode }) {
   const isMobile = useMediaQuery('(max-width:900px)');
   const location = useLocation();
 
+  // Load mode from localStorage on mount
+  useEffect(() => {
+    const savedMode = localStorage.getItem('themeMode');
+    if (savedMode) setMode(savedMode);
+  }, [setMode]);
+
   const handleToggleMode = () => {
-    setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
+    setMode((prev) => {
+      const newMode = prev === 'light' ? 'dark' : 'light';
+      localStorage.setItem('themeMode', newMode); // Save mode
+      return newMode;
+    });
   };
 
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
+  const bgColor = mode === 'dark' ? '#121212' : '#ffffff';
+  const textColor = mode === 'dark' ? '#ffffff' : '#000000';
+  const hoverBgColor = mode === 'dark' ? '#ffffff' : '#000000';
+  const hoverTextColor = mode === 'dark' ? '#000000' : '#ffffff';
+
   const drawerContent = (
-    <Box sx={{ width: 240, display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Typography variant="h6" sx={{ padding: 2 }}>
-        THE <i>Active</i> CHURCH
-      </Typography>
+    <Box
+      sx={{
+        width: 240,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        overflowY: 'auto',
+        backgroundColor: bgColor,
+      }}
+    >
+      {/* Logo */}
+      <Box sx={{ padding: 2, display: 'flex', justifyContent: 'center' }}>
+        <img
+          src="/WhatsApp_Image_2025-08-19_at_15.03.15_3411d633-removebg-preview.png"
+          alt="Active Church Logo"
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100px',
+            height: 'auto',
+            borderRadius: 8,
+            filter: mode === 'dark' ? 'invert(1) brightness(2)' : 'none',
+          }}
+        />
+      </Box>
+
+      {/* Menu Items */}
       <List sx={{ flexGrow: 1 }}>
         {menuItems.map(({ label, path, icon: Icon }) => (
           <ListItemButton
@@ -60,41 +99,50 @@ export default function Sidebar({ mode, setMode }) {
             selected={location.pathname === path}
             onClick={() => isMobile && setMobileOpen(false)}
             sx={{
-              '&.Mui-selected': {
-                backgroundColor: 'black',
-                color: 'white',
-                '& .MuiListItemText-primary': {
-                  color: 'white',
-                },
+              mb: 0.5,
+              borderRadius: 2,
+              color: textColor,
+              '&:hover': {
+                backgroundColor: hoverBgColor,
+                color: hoverTextColor,
+                '& .MuiListItemIcon-root': { color: hoverTextColor },
               },
-              '&.Mui-selected:hover': {
-                backgroundColor: '#222',
+              '&.Mui-selected': {
+                backgroundColor: hoverBgColor,
+                color: hoverTextColor,
+                '& .MuiListItemIcon-root': { color: hoverTextColor },
               },
             }}
           >
             <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
               <Icon />
             </ListItemIcon>
-            <ListItemText primary={label} />
+            <ListItemText
+              primary={label}
+              primaryTypographyProps={{
+                fontSize: '0.95rem',
+                fontWeight: location.pathname === path ? 600 : 400,
+              }}
+            />
           </ListItemButton>
         ))}
       </List>
 
-<Box sx={{ padding: 2, display: 'flex', justifyContent: 'center' }}>
-  <IconButton
-    onClick={handleToggleMode}
-    sx={{
-      color: mode === 'dark' ? '#fff' : '#000',
-      backgroundColor: mode === 'dark' ? '#1f1f1f' : '#e0e0e0',
-      '&:hover': {
-        backgroundColor: mode === 'dark' ? '#2c2c2c' : '#c0c0c0',
-      },
-    }}
-  >
-    {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-  </IconButton>
-</Box>
-
+      {/* Dark/Light Toggle */}
+      <Box sx={{ padding: 2, display: 'flex', justifyContent: 'center' }}>
+        <IconButton
+          onClick={handleToggleMode}
+          sx={{
+            color: mode === 'dark' ? '#fff' : '#000',
+            backgroundColor: mode === 'dark' ? '#1f1f1f' : '#e0e0e0',
+            '&:hover': {
+              backgroundColor: mode === 'dark' ? '#2c2c2c' : '#c0c0c0',
+            },
+          }}
+        >
+          {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+        </IconButton>
+      </Box>
     </Box>
   );
 
@@ -103,7 +151,7 @@ export default function Sidebar({ mode, setMode }) {
       {isMobile && (
         <IconButton
           color="inherit"
-          onClick={() => setMobileOpen(true)}
+          onClick={handleDrawerToggle}
           sx={{ position: 'absolute', top: 10, left: 10, zIndex: 1300 }}
         >
           <MenuIcon />
@@ -113,13 +161,15 @@ export default function Sidebar({ mode, setMode }) {
       <Drawer
         variant={isMobile ? 'temporary' : 'permanent'}
         open={isMobile ? mobileOpen : true}
-        onClose={() => setMobileOpen(false)}
+        onClose={handleDrawerToggle}
         sx={{
           width: 240,
           flexShrink: 0,
           '& .MuiDrawer-paper': {
             width: 240,
             boxSizing: 'border-box',
+            height: '100vh',
+            backgroundColor: bgColor,
           },
         }}
       >

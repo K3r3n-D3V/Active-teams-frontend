@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { createTheme, ThemeProvider, CssBaseline } from '@mui/material';
 
@@ -17,17 +17,26 @@ import TopbarProfile from './components/TopbarProfile';
 function App() {
   const [mode, setMode] = useState('light');
 
-  const theme = useMemo(() =>
-    createTheme({
-      palette: {
-        mode: mode,
-      },
-    }), [mode]);
+  // Load saved mode from localStorage on mount
+  useEffect(() => {
+    const savedMode = localStorage.getItem('themeMode');
+    if (savedMode) setMode(savedMode);
+  }, []);
+
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: mode,
+        },
+      }),
+    [mode]
+  );
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <TopbarProfile/>
+      <TopbarProfile />
       <div style={{ display: 'flex' }}>
         <Sidebar mode={mode} setMode={setMode} />
         <div style={{ flexGrow: 1 }}>
@@ -37,7 +46,6 @@ function App() {
             <Route path="/people" element={<People title="People" />} />
             <Route path="/events" element={<Events title="Events" />} />
             <Route path="/stats" element={<Stats title="Stats" />} />
-            {/* <Route path="/financial-reports" element={<DummyPage title="Financial Reports" />} /> */}
             <Route path="/service-check-in" element={<ServiceCheckIn title="Service Check-in" />} />
             <Route path="/give-today" element={<GiveToday title="Give Today" />} />
             <Route path="/daily-tasks" element={<DailyTasks title="Daily Tasks" />} />
