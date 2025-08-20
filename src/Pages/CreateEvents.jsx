@@ -8,12 +8,13 @@ const CreateEvents = ({ onCancel, onEventCreated, userRole = "admin" }) => {
     "Conference",
     "Training",
   ]);
+  
   const [showNewTypeForm, setShowNewTypeForm] = useState(false);
   const [newEventType, setNewEventType] = useState("");
   const [formData, setFormData] = useState({
     eventType: "",
     price: "",
-    date: "",
+    // date: "",
     time: "",
     location: "",
     recurringDays: [],
@@ -581,3 +582,6 @@ const CreateEvents = ({ onCancel, onEventCreated, userRole = "admin" }) => {
 };
 
 export default CreateEvents;
+
+
+
