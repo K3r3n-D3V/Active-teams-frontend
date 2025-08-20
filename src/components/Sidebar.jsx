@@ -3,6 +3,7 @@ import {
   List,
   ListItemButton,
   ListItemText,
+  ListItemIcon,
   IconButton,
   Box,
   Typography,
@@ -13,18 +14,27 @@ import { Link, useLocation } from 'react-router-dom';
 import MenuIcon from '@mui/icons-material/Menu';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import {
+  Home,
+  Person,
+  Group,
+  Event,
+  BarChart,
+  Assignment,
+  VolunteerActivism,
+  HowToReg
+} from '@mui/icons-material';
 import { useState } from 'react';
 
 const menuItems = [
-  { label: 'Home', path: '/' },
-  { label: 'Profile', path: '/profile' },
-  { label: 'People', path: '/people' },
-  { label: 'Events', path: '/events' },
-  { label: 'Stats', path: '/stats' },
-  // { label: 'Financial Reports', path: '/financial-reports' },
-  { label: 'Service Check-in', path: '/service-check-in' },
-  { label: 'Give Today', path: '/give-today' },
-  { label: 'Daily Tasks', path: '/daily-tasks' },
+  { label: 'Home', path: '/', icon: Home },
+  { label: 'Profile', path: '/profile', icon: Person },
+  { label: 'People', path: '/people', icon: Group },
+  { label: 'Events', path: '/events', icon: Event },
+  { label: 'Stats', path: '/stats', icon: BarChart },
+  { label: 'Service Check-in', path: '/service-check-in', icon: HowToReg },
+  { label: 'Give Today', path: '/give-today', icon: VolunteerActivism },
+  { label: 'Daily Tasks', path: '/daily-tasks', icon: Assignment },
 ];
 
 export default function Sidebar({ mode, setMode }) {
@@ -42,37 +52,49 @@ export default function Sidebar({ mode, setMode }) {
         THE <i>Active</i> CHURCH
       </Typography>
       <List sx={{ flexGrow: 1 }}>
-        {menuItems.map(({ label, path }) => (
+        {menuItems.map(({ label, path, icon: Icon }) => (
           <ListItemButton
             key={label}
             component={Link}
             to={path}
             selected={location.pathname === path}
             onClick={() => isMobile && setMobileOpen(false)}
-             sx={{
-    '&.Mui-selected': {
-      backgroundColor: 'black',
-      color: 'white',
-      '& .MuiListItemText-primary': {
-        color: 'white',
-      },
-    },
-    '&.Mui-selected:hover': {
-      backgroundColor: '#222',
-    },
-  }}
+            sx={{
+              '&.Mui-selected': {
+                backgroundColor: 'black',
+                color: 'white',
+                '& .MuiListItemText-primary': {
+                  color: 'white',
+                },
+              },
+              '&.Mui-selected:hover': {
+                backgroundColor: '#222',
+              },
+            }}
           >
+            <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
+              <Icon />
+            </ListItemIcon>
             <ListItemText primary={label} />
           </ListItemButton>
         ))}
       </List>
 
-      <Box sx={{ padding: 2, display: 'flex', alignItems: 'center' }}>
-        <IconButton onClick={handleToggleMode}>
-          {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-        </IconButton>
-        <Switch checked={mode === 'dark'} onChange={handleToggleMode} />
-      </Box>
+<Box sx={{ padding: 2, display: 'flex', justifyContent: 'center' }}>
+  <IconButton
+    onClick={handleToggleMode}
+    sx={{
+      color: mode === 'dark' ? '#fff' : '#000',
+      backgroundColor: mode === 'dark' ? '#1f1f1f' : '#e0e0e0',
+      '&:hover': {
+        backgroundColor: mode === 'dark' ? '#2c2c2c' : '#c0c0c0',
+      },
+    }}
+  >
+    {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+  </IconButton>
+</Box>
+
     </Box>
   );
 
