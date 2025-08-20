@@ -30,15 +30,31 @@ const Signup = ({ onSignup }) => {
     setError("");
     setSuccess("");
 
-    // Basic validation
+    // ✅ Basic validation
     for (const key in initialForm) {
       if (!form[key]) {
         setError("All fields are required.");
         return;
       }
     }
+
+    // ✅ Password match
     if (form.password !== form.confirm_password) {
       setError("Passwords do not match.");
+      return;
+    }
+
+    // ✅ Gender validation
+    if (!["male", "female"].includes(form.gender)) {
+      setError("Please select a valid gender.");
+      return;
+    }
+
+    // ✅ Date of birth cannot be in the future
+    const today = new Date();
+    const dob = new Date(form.date_of_birth);
+    if (dob > today) {
+      setError("Date of Birth cannot be in the future.");
       return;
     }
 
@@ -85,13 +101,15 @@ const Signup = ({ onSignup }) => {
             onChange={handleChange}
             autoComplete="name"
           />
+
           <label>Date Of Birth :</label>
           <input
             name="date_of_birth"
+            type="date"
             value={form.date_of_birth}
             onChange={handleChange}
-            placeholder="DD Month YYYY"
           />
+
           <label>Home Address :</label>
           <input
             name="home_address"
@@ -99,12 +117,14 @@ const Signup = ({ onSignup }) => {
             onChange={handleChange}
             autoComplete="address-line1"
           />
+
           <label>Invited By :</label>
           <input
             name="invited_by"
             value={form.invited_by}
             onChange={handleChange}
           />
+
           <label>New Password :</label>
           <input
             name="password"
@@ -123,6 +143,7 @@ const Signup = ({ onSignup }) => {
             onChange={handleChange}
             autoComplete="family-name"
           />
+
           <label>Email Address :</label>
           <input
             name="email"
@@ -131,6 +152,7 @@ const Signup = ({ onSignup }) => {
             onChange={handleChange}
             autoComplete="email"
           />
+
           <label>Phone Number :</label>
           <input
             name="phone_number"
@@ -138,8 +160,18 @@ const Signup = ({ onSignup }) => {
             onChange={handleChange}
             autoComplete="tel"
           />
+
           <label>Gender :</label>
-          <input name="gender" value={form.gender} onChange={handleChange} />
+          <select
+            name="gender"
+            value={form.gender}
+            onChange={handleChange}
+          >
+            <option value="">Select Gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+
           <label>Confirm New Password :</label>
           <input
             name="confirm_password"
@@ -207,7 +239,8 @@ const Signup = ({ onSignup }) => {
           margin: 6px 0 2px;
           font-size: 16px;
         }
-        input {
+        input,
+        select {
           width: 100%;
           padding: 10px;
           border-radius: 10px;
@@ -261,7 +294,8 @@ const Signup = ({ onSignup }) => {
           label {
             font-size: 14px;
           }
-          input {
+          input,
+          select {
             font-size: 14px;
             padding: 8px;
           }
@@ -274,7 +308,8 @@ const Signup = ({ onSignup }) => {
           }
         }
         @media (max-width: 400px) {
-          input {
+          input,
+          select {
             font-size: 13px;
             padding: 7px;
           }
