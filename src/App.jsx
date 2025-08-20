@@ -5,7 +5,7 @@ import { createTheme, ThemeProvider, CssBaseline } from '@mui/material';
 import Sidebar from './components/Sidebar';
 // import Header from './components/Header';
 import Profile from './Pages/Profile';
-import People from './Pages/People';
+import { PeopleSection as People } from './Pages/People';
 import Events from './Pages/Events';
 import Stats from './Pages/Stats';
 import ServiceCheckIn from './Pages/ServiceCheckIn';
