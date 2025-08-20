@@ -36,6 +36,14 @@ export default function Sidebar({ mode, setMode }) {
     setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
+   if (location.pathname === "/signup") {
+    return null;
+  }
+
+  if (location.pathname === "/login") {
+    return null;
+  }
+
   const drawerContent = (
     <Box sx={{ width: 240, display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Typography variant="h6" sx={{ padding: 2 }}>

@@ -1,14 +1,22 @@
 import React, { useContext } from 'react';
 import { Avatar, IconButton, Tooltip } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { UserContext } from '../contexts/UserContext.jsx'; 
 export default function TopbarProfile() {
   const navigate = useNavigate();
   const { profilePic } = useContext(UserContext);
+  const location = useLocation();
 
   const handleProfileClick = () => {
     navigate('/profile');
   };
+   if (location.pathname === "/signup") {
+    return null;
+  }
+  if (location.pathname === "/login") {
+    return null;
+  }
+
 
   return (
     <Tooltip title="Go to Profile">
