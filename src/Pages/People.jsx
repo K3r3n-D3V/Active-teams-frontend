@@ -6,7 +6,7 @@ import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
   TextField, InputAdornment, Button, Dialog, DialogTitle, DialogContent,
-  DialogActions, Snackbar, Alert, AppBar, Toolbar, Fab
+  DialogActions, Snackbar, Alert, AppBar, Toolbar
 } from '@mui/material';
 import {
   Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
@@ -284,7 +284,7 @@ export const PeopleSection = ({ currentUser }) => {
     <Box sx={{ height:'100%', display:'flex', flexDirection:'column', mt:8, px:2, pb:4 }}>
       <AppBar position="static" color="transparent" elevation={0}>
         <Toolbar sx={{ py:0.5 }}>
-          <Typography variant="h5" sx={{ flexGrow:1 }}>People Management</Typography>
+          <Typography variant="h5" sx={{ flexGrow:1 }}>People</Typography>
           <Button
             variant="contained"
             size="small"
@@ -317,23 +317,6 @@ export const PeopleSection = ({ currentUser }) => {
           loading={loading}
         />
       </Box>
-
-      {isMobile && (
-        <Fab
-          size="small"
-          onClick={()=>{ setEditingPerson(null); setIsModalOpen(true); }}
-          sx={{
-            position:'fixed',
-            bottom:16,
-            right:16,
-            backgroundColor:'#000',
-            color:'#fff',
-            '&:hover':{ backgroundColor:'#222' }
-          }}
-        >
-          <AddIcon fontSize="small"/>
-        </Fab>
-      )}
 
       <PersonModal open={isModalOpen} person={editingPerson} onClose={()=>setIsModalOpen(false)} onSave={handleSavePerson} />
 

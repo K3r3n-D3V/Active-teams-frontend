@@ -49,7 +49,7 @@ export default function Sidebar({ mode, setMode }) {
   const handleToggleMode = () => {
     setMode((prev) => {
       const newMode = prev === 'light' ? 'dark' : 'light';
-      localStorage.setItem('themeMode', newMode); // Save mode
+      localStorage.setItem('themeMode', newMode);
       return newMode;
     });
   };
@@ -60,8 +60,7 @@ export default function Sidebar({ mode, setMode }) {
 
   const bgColor = mode === 'dark' ? '#121212' : '#ffffff';
   const textColor = mode === 'dark' ? '#ffffff' : '#000000';
-  const hoverBgColor = mode === 'dark' ? '#ffffff' : '#000000';
-  const hoverTextColor = mode === 'dark' ? '#000000' : '#ffffff';
+  const activeTextColor = mode === 'dark' ? '#ffffff' : '#000000';
 
   const drawerContent = (
     <Box
@@ -91,41 +90,47 @@ export default function Sidebar({ mode, setMode }) {
 
       {/* Menu Items */}
       <List sx={{ flexGrow: 1 }}>
-        {menuItems.map(({ label, path, icon: Icon }) => (
-          <ListItemButton
-            key={label}
-            component={Link}
-            to={path}
-            selected={location.pathname === path}
-            onClick={() => isMobile && setMobileOpen(false)}
-            sx={{
-              mb: 0.5,
-              borderRadius: 2,
-              color: textColor,
-              '&:hover': {
-                backgroundColor: hoverBgColor,
-                color: hoverTextColor,
-                '& .MuiListItemIcon-root': { color: hoverTextColor },
-              },
-              '&.Mui-selected': {
-                backgroundColor: hoverBgColor,
-                color: hoverTextColor,
-                '& .MuiListItemIcon-root': { color: hoverTextColor },
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
-              <Icon />
-            </ListItemIcon>
-            <ListItemText
-              primary={label}
-              primaryTypographyProps={{
-                fontSize: '0.95rem',
-                fontWeight: location.pathname === path ? 600 : 400,
+        {menuItems.map(({ label, path, icon: Icon }) => {
+          const isActive = location.pathname === path;
+          return (
+            <ListItemButton
+              key={label}
+              component={Link}
+              to={path}
+              selected={isActive}
+              onClick={() => isMobile && setMobileOpen(false)}
+              sx={{
+                mb: 0.5,
+                borderRadius: 2,
+                color: isActive ? activeTextColor : textColor,
+                backgroundColor: isActive
+                  ? mode === 'dark'
+                    ? 'rgba(255,255,255,0.08)' // soft highlight in dark mode
+                    : 'rgba(0,0,0,0.06)' // soft highlight in light mode
+                  : 'transparent',
+                borderLeft: isActive ? '4px solid #1976d2' : '4px solid transparent', // accent bar
+                '&:hover': {
+                  backgroundColor: mode === 'dark'
+                    ? 'rgba(255,255,255,0.15)'
+                    : 'rgba(0,0,0,0.12)',
+                  color: activeTextColor,
+                  '& .MuiListItemIcon-root': { color: activeTextColor },
+                },
               }}
-            />
-          </ListItemButton>
-        ))}
+            >
+              <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
+                <Icon />
+              </ListItemIcon>
+              <ListItemText
+                primary={label}
+                primaryTypographyProps={{
+                  fontSize: '0.95rem',
+                  fontWeight: isActive ? 600 : 400,
+                }}
+              />
+            </ListItemButton>
+          );
+        })}
       </List>
 
       {/* Dark/Light Toggle */}
@@ -136,7 +141,7 @@ export default function Sidebar({ mode, setMode }) {
             color: mode === 'dark' ? '#fff' : '#000',
             backgroundColor: mode === 'dark' ? '#1f1f1f' : '#e0e0e0',
             '&:hover': {
-              backgroundColor: mode === 'dark' ? '#2c2c2c' : '#c0c0c0',
+              backgroundColor: mode === 'dark' ? '#2c2c2c' : '#000000ff',
             },
           }}
         >
