@@ -34,9 +34,9 @@ function App() {
         <Sidebar mode={mode} setMode={setMode} />
         <div style={{ flexGrow: 1 }}>
           <Routes>
+            {/* Dummy route for testing */}
             <Route path="/signup" element={<Signup />} />
             <Route path="/login" element={<Login />} />
-            {/* Dummy route for testing */}
             <Route path="/" element={<Home />} />
             <Route path="/profile" element={<Profile title="Profile" />} />
             <Route path="/people" element={<People title="People" />} />
