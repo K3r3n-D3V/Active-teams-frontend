@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 const initialForm = {
   name: "",
@@ -19,10 +21,51 @@ const Signup = ({ onSignup }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [typingTimeout, setTypingTimeout] = useState(null);
+
+  // 👇 States for password visibility
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+
+    // Auto-suggest logic for invited_by
+    if (e.target.name === "invited_by") {
+      if (typingTimeout) clearTimeout(typingTimeout);
+      const newTimeout = setTimeout(() => {
+        fetchSuggestions(e.target.value);
+      }, 400);
+      setTypingTimeout(newTimeout);
+    }
+  };
+
+  const fetchSuggestions = async (query) => {
+    if (!query) {
+      setSuggestions([]);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `http://localhost:8000/people?name=${encodeURIComponent(
+          query
+        )}&perPage=5`
+      );
+      const data = await res.json();
+      if (res.ok && data.results) {
+        setSuggestions(data.results.map((p) => p.Name));
+      }
+    } catch (err) {
+      console.error("Error fetching suggestions", err);
+    }
+  };
+
+  const handleSuggestionClick = (name) => {
+    setForm({ ...form, invited_by: name });
+    setSuggestions([]);
   };
 
   const handleSubmit = async (e) => {
@@ -30,7 +73,6 @@ const Signup = ({ onSignup }) => {
     setError("");
     setSuccess("");
 
-    // ✅ Basic validation
     for (const key in initialForm) {
       if (!form[key]) {
         setError("All fields are required.");
@@ -38,19 +80,16 @@ const Signup = ({ onSignup }) => {
       }
     }
 
-    // ✅ Password match
     if (form.password !== form.confirm_password) {
       setError("Passwords do not match.");
       return;
     }
 
-    // ✅ Gender validation
     if (!["male", "female"].includes(form.gender)) {
       setError("Please select a valid gender.");
       return;
     }
 
-    // ✅ Date of birth cannot be in the future
     const today = new Date();
     const dob = new Date(form.date_of_birth);
     if (dob > today) {
@@ -119,20 +158,40 @@ const Signup = ({ onSignup }) => {
           />
 
           <label>Invited By :</label>
-          <input
-            name="invited_by"
-            value={form.invited_by}
-            onChange={handleChange}
-          />
+          <div className="autocomplete-wrapper">
+            <input
+              name="invited_by"
+              value={form.invited_by}
+              onChange={handleChange}
+              autoComplete="off"
+            />
+            {suggestions.length > 0 && (
+              <ul className="suggestions-list">
+                {suggestions.map((name, idx) => (
+                  <li key={idx} onClick={() => handleSuggestionClick(name)}>
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
-          <label>New Password :</label>
-          <input
-            name="password"
-            type="password"
-            value={form.password}
-            onChange={handleChange}
-            autoComplete="new-password"
-          />
+          <label>Password :</label>
+          <div className="password-wrapper">
+            <input
+              name="password"
+              type={showPassword ? "text" : "password"}
+              value={form.password}
+              onChange={handleChange}
+              autoComplete="new-password"
+            />
+            <span
+              className="toggle-eye"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <Visibility /> : <VisibilityOff />}
+            </span>
+          </div>
         </div>
 
         <div className="form-col">
@@ -162,24 +221,22 @@ const Signup = ({ onSignup }) => {
           />
 
           <label>Gender :</label>
-          <select
-            name="gender"
-            value={form.gender}
-            onChange={handleChange}
-          >
+          <select name="gender" value={form.gender} onChange={handleChange}>
             <option value="">Select Gender</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
           </select>
 
-          <label>Confirm New Password :</label>
-          <input
-            name="confirm_password"
-            type="password"
-            value={form.confirm_password}
-            onChange={handleChange}
-            autoComplete="new-password"
-          />
+          <label>Confirm Password :</label>
+          <div className="password-wrapper">
+            <input
+              name="confirm_password"
+              type={showConfirmPassword ? "text" : "password"}
+              value={form.confirm_password}
+              onChange={handleChange}
+              autoComplete="new-password"
+            />
+          </div>
         </div>
 
         <div className="form-actions">
@@ -190,14 +247,14 @@ const Signup = ({ onSignup }) => {
           </button>
         </div>
       </form>
-      <p>
+      <p className="login-link">
         Already have an account?{" "}
         <span className="link" onClick={() => navigate("/login")}>
           Log In
         </span>
       </p>
 
-      {/* Responsive CSS */}
+      {/* ✅ CSS */}
       <style jsx>{`
         .signup-container {
           max-width: 1000px;
@@ -234,6 +291,7 @@ const Signup = ({ onSignup }) => {
         .form-col {
           display: flex;
           flex-direction: column;
+          position: relative;
         }
         label {
           margin: 6px 0 2px;
@@ -277,8 +335,50 @@ const Signup = ({ onSignup }) => {
           cursor: pointer;
           text-decoration: underline;
         }
+        .autocomplete-wrapper {
+          position: relative;
+        }
+        .login-link {
+          text-align: center;
+          margin-top: 20px;
+          font-size: 16px;
+        }
 
-        /* ✅ Responsive Breakpoints */
+        .suggestions-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          border: 1px solid #bbb;
+          border-radius: 5px;
+          background: #fff;
+          max-height: 150px;
+          overflow-y: auto;
+          position: absolute;
+          z-index: 1000;
+          width: 100%;
+        }
+        .suggestions-list li {
+          padding: 8px;
+          cursor: pointer;
+        }
+        .suggestions-list li:hover {
+          background: #eee;
+        }
+        .password-wrapper {
+          position: relative;
+        }
+        .password-wrapper input {
+          width: 100%;
+          padding-right: 40px;
+        }
+        .toggle-eye {
+          position: absolute;
+          right: 10px;
+          top: 40%;
+          transform: translateY(-50%);
+          cursor: pointer;
+          color: #555;
+        }
         @media (max-width: 900px) {
           .signup-form {
             grid-template-columns: 1fr;

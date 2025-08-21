@@ -100,11 +100,6 @@ const Login = ({ onLogin }) => {
           </span>
         </p>
         <p>
-          <span className="link" onClick={() => navigate("/reset-password")}>
-            Reset Password
-          </span>
-        </p>
-        <p>
           Don’t have an account?{" "}
           <span className="link" onClick={() => navigate("/signup")}>
             Sign Up
@@ -112,14 +107,21 @@ const Login = ({ onLogin }) => {
         </p>
       </div>
 
-      {/* ✅ Responsive CSS */}
       <style jsx>{`
         .login-container {
           max-width: 500px;
           margin: 0 auto;
           padding: 10px;
           font-family: sans-serif;
+
+          /* ✅ Full height + flex center */
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
         }
+
         .login-header {
           text-align: center;
           margin-bottom: 20px;
@@ -140,6 +142,7 @@ const Login = ({ onLogin }) => {
           font-weight: 700;
           margin: 20px 0;
         }
+
         .login-form {
           display: grid;
           grid-template-columns: 1fr;
@@ -155,13 +158,13 @@ const Login = ({ onLogin }) => {
           font-size: 16px;
         }
         input {
-          width: 70%; 
+          width: 70%;
           padding: 10px;
           border-radius: 10px;
           border: 1px solid #bbb;
-          margin: 0 auto 15px; 
+          margin: 0 auto 15px;
           font-size: 16px;
-          display: block; 
+          display: block;
         }
 
         .form-actions {
@@ -187,9 +190,10 @@ const Login = ({ onLogin }) => {
           width: 100%;
           max-width: 170px;
         }
+
         .login-links {
           text-align: center;
-          margin-top: 15px;
+          margin-top: 5px;
         }
         .link {
           color: blue;
