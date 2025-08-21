@@ -169,31 +169,61 @@ const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loadin
 
 // ================== PersonModal ==================
 const PersonModal = ({ open, onClose, onSave, person }) => {
-  const [form,setForm] = useState(person || { name:'', email:'', phone:'', location:'', gender:'Male', stage:'Win' });
-  useEffect(()=>setForm(person || { name:'', email:'', phone:'', location:'', gender:'Male', stage:'Win' }),[person]);
+  const [form,setForm] = useState(person || { Name:'', Email:'', Phone:'', Location:'', Gender:'Male', Stage:'Win' });
+  useEffect(()=>setForm(person || { Name:'', Email:'', Phone:'', Location:'', Gender:'Male', Stage:'Win' }),[person]);
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
   const handleSubmit = () => onSave(form);
 
   return (
-    <Dialog open={open} onClose={onClose}>
-      <DialogTitle>{person?'Edit Person':'Add Person'}</DialogTitle>
-      <DialogContent>
-        <TextField margin="dense" size="small" name="name" label="Name" value={form.name} onChange={handleChange} fullWidth />
-        <TextField margin="dense" size="small" name="email" label="Email" value={form.email} onChange={handleChange} fullWidth />
-        <TextField margin="dense" size="small" name="phone" label="Phone" value={form.phone} onChange={handleChange} fullWidth />
-        <TextField margin="dense" size="small" name="location" label="Location" value={form.location} onChange={handleChange} fullWidth />
-        <TextField select margin="dense" size="small" name="gender" label="Gender" value={form.gender} onChange={handleChange} fullWidth>
-          <MenuItem value="Male">Male</MenuItem>
-          <MenuItem value="Female">Female</MenuItem>
-          <MenuItem value="Other">Other</MenuItem>
-        </TextField>
-        <TextField select margin="dense" size="small" name="stage" label="Stage" value={form.stage} onChange={handleChange} fullWidth>
-          {stages.map(s=><MenuItem key={s.id} value={s.id}>{s.title}</MenuItem>)}
-        </TextField>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      fullWidth 
+      maxWidth="sm"
+      PaperProps={{
+        sx: { borderRadius: 3, p: 1.5 }
+      }}
+    >
+      <DialogTitle sx={{ fontWeight: 600, pb: 1.5 }}>
+        {person ? 'Edit Person' : 'Add Person'}
+      </DialogTitle>
+
+      <DialogContent dividers sx={{ display:'flex', flexDirection:'column', gap:2, mt:1 }}>
+        <TextField size="small" name="Name" label="Full Name" value={form.name} onChange={handleChange} fullWidth />
+        <TextField size="small" name="Email" label="Email Address" value={form.Email} onChange={handleChange} fullWidth />
+        <TextField size="small" name="Phone" label="Phone Number" value={form.Phone} onChange={handleChange} fullWidth />
+        <TextField size="small" name="Location" label="Location" value={form.Location} onChange={handleChange} fullWidth />
+
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <TextField
+            select size="small" name="Gender" label="Gender" value={form.Gender} onChange={handleChange} fullWidth
+          >
+            <MenuItem value="Male">Male</MenuItem>
+            <MenuItem value="Female">Female</MenuItem>
+          </TextField>
+
+          <TextField
+            select size="small" name="Stage" label="Stage" value={form.Stage} onChange={handleChange} fullWidth
+          >
+            {stages.map(s => <MenuItem key={s.id} value={s.id}>{s.title}</MenuItem>)}
+          </TextField>
+        </Box>
       </DialogContent>
-      <DialogActions>
-        <Button size="small" onClick={onClose}>Cancel</Button>
-        <Button size="small" onClick={handleSubmit} variant="contained">Save</Button>
+
+      <DialogActions sx={{ px:3, py:2 }}>
+        <Button onClick={onClose} sx={{ textTransform:'none' }}>Cancel</Button>
+        <Button 
+          onClick={handleSubmit} 
+          variant="contained" 
+          sx={{ 
+            textTransform:'none',
+            borderRadius: 2,
+            backgroundColor: '#000',
+            '&:hover': { backgroundColor: '#222' }
+          }}
+        >
+          Save
+        </Button>
       </DialogActions>
     </Dialog>
   );
