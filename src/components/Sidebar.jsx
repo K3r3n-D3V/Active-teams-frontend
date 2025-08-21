@@ -136,14 +136,14 @@ export default function Sidebar({ mode, setMode }) {
       </List>
 
       {/* Dark/Light Toggle */}
-      <Box sx={{ padding: 2, display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ margin: 7, display: 'flex', justifyContent: 'center' }}>
         <IconButton
           onClick={handleToggleMode}
           sx={{
             color: mode === 'dark' ? '#fff' : '#000',
             backgroundColor: mode === 'dark' ? '#1f1f1f' : '#e0e0e0',
             '&:hover': {
-              backgroundColor: mode === 'dark' ? '#2c2c2c' : '#000000ff',
+              backgroundColor: mode === 'dark' ? '#615a5aff' : '#a79c9cff',
             },
           }}
         >
