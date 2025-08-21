@@ -108,7 +108,9 @@ export default function Sidebar({ mode, setMode }) {
                     ? 'rgba(255,255,255,0.08)' // soft highlight in dark mode
                     : 'rgba(0,0,0,0.06)' // soft highlight in light mode
                   : 'transparent',
-                borderLeft: isActive ? '4px solid #1976d2' : '4px solid transparent', // accent bar
+                borderLeft: isActive
+                  ? `4px solid ${mode === 'dark' ? '#ffffff' : '#000000'}`
+                  : '4px solid transparent', // accent bar
                 '&:hover': {
                   backgroundColor: mode === 'dark'
                     ? 'rgba(255,255,255,0.15)'
