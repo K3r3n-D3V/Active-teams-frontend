@@ -27,11 +27,17 @@ import axios from "axios";
 export default function AddPersonDialog({ open, onClose, onSave, formData, setFormData }) {
   const theme = useTheme();
   const [peopleList, setPeopleList] = useState([]);
+  const [errors, setErrors] = useState({});
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  // Colors based on theme, or fixed for your UI
+  const inputBg = "#424242"; // dark gray exact as screenshot
+  const inputLabel = "#ddd"; // lighter label color
+  const inputText = "#fff"; // white text
+  const btnBg = "#000"; // black for Save
+  const btnHover = "#222"; // dark hover
+  const cancelBorder = theme.palette.mode === "dark" ? "#666" : "#ccc";
+  const cancelBgHover = theme.palette.mode === "dark" ? "#333" : "#f5f5f5";
+  const cancelText = theme.palette.mode === "dark" ? "#fff" : "#333";
 
   useEffect(() => {
     if (!open) return;
@@ -48,105 +54,135 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     fetchPeople();
   }, [open]);
 
-  const inputBg = theme.palette.mode === "dark" ? "#424242" : "#fafafa";
-  const inputLabel = theme.palette.mode === "dark" ? "#e0e0e0" : "#333";
-  const inputText = theme.palette.mode === "dark" ? "#fff" : "#000";
-  const btnBg = "#000";
-  const btnHover = "#222";
-  const cancelBorder = theme.palette.mode === "dark" ? "#666" : "#ccc";
-  const cancelBgHover = theme.palette.mode === "dark" ? "#333" : "#f5f5f5";
-  const cancelText = theme.palette.mode === "dark" ? "#fff" : "#333";
-
   const leftFields = [
-    { name: "name", label: "Name :", icon: <PersonIcon fontSize="small" /> },
-    { name: "surname", label: "Surname :", icon: <PersonIcon fontSize="small" /> },
-    { name: "dob", label: "Date of Birth :", icon: <CalendarIcon fontSize="small" /> }
+    { name: "name", label: "Name", icon: <PersonIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "surname", label: "Surname", icon: <PersonIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "dob", label: "Date of Birth", icon: <CalendarIcon fontSize="small" sx={{ color: inputText }} />, required: true, type: "date" }
   ];
 
   const rightFields = [
-    { name: "homeAddress", label: "Home Address :", icon: <HomeIcon fontSize="small" /> },
-    { name: "email", label: "Email Address :", icon: <EmailIcon fontSize="small" /> },
-    { name: "phone", label: "Phone Number :", icon: <PhoneIcon fontSize="small" /> },
-    { name: "gender", label: "Gender :", icon: <GenderIcon fontSize="small" />, select: true, options: ["Male", "Female"] }
+    { name: "homeAddress", label: "Home Address", icon: <HomeIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "email", label: "Email Address", icon: <EmailIcon fontSize="small" sx={{ color: inputText }} />, required: true, type: "email" },
+    { name: "phone", label: "Phone Number", icon: <PhoneIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "gender", label: "Gender", icon: <GenderIcon fontSize="small" sx={{ color: inputText }} />, select: true, options: ["Male", "Female"], required: true }
   ];
 
-  const renderTextField = ({ name, label, icon, select, options }) => {
-    if (name === "invitedBy") {
-      return (
-        <Autocomplete
-          key={name}
-          freeSolo
-          options={peopleList}
-          value={formData[name] || ""}
-          onChange={(e, newValue) => setFormData((prev) => ({ ...prev, invitedBy: newValue }))}
-          onInputChange={(e, newInputValue) =>
-            setFormData((prev) => ({ ...prev, invitedBy: newInputValue }))
-          }
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label="Invited By :"
-              size="small"
-              margin="dense"
-              InputProps={{
-                ...params.InputProps,
-                startAdornment: <InputAdornment position="start">{<GroupIcon fontSize="small" />}</InputAdornment>,
-                sx: { borderRadius: 2, backgroundColor: inputBg, color: inputText }
-              }}
-              InputLabelProps={{ sx: { fontWeight: 500, color: inputLabel } }}
-              sx={{ mb: 1 }}
-            />
-          )}
-        />
-      );
-    }
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
 
-    if (select) {
-      return (
-        <TextField
-          key={name}
-          select
-          label={label}
-          name={name}
-          value={formData[name]}
-          onChange={handleInputChange}
-          fullWidth
-          size="small"
-          margin="dense"
-          InputProps={{
-            startAdornment: <InputAdornment position="start">{icon}</InputAdornment>,
-            sx: { borderRadius: 2, backgroundColor: inputBg, color: inputText }
-          }}
-          InputLabelProps={{ sx: { fontWeight: 500, color: inputLabel } }}
-          sx={{ mb: 1 }}
-        >
-          {options.map((opt) => (
-            <MenuItem key={opt} value={opt}>
-              {opt}
-            </MenuItem>
-          ))}
-        </TextField>
-      );
-    }
+  const validate = () => {
+    const newErrors = {};
+    [...leftFields, ...rightFields].forEach(({ name, label, required }) => {
+      if (required) {
+        const value = formData[name];
+        if (!value || (typeof value === "string" && value.trim() === "")) {
+          newErrors[name] = `${label.replace(" :", "")} is required`;
+        }
+      }
+    });
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
+  const handleSaveClick = () => {
+    if (validate()) {
+      onSave();
+    }
+  };
+
+  const inputStyles = (error) => ({
+    borderRadius: 2,
+    backgroundColor: inputBg,
+    color: inputText,
+    border: error ? `1.5px solid ${theme.palette.error.main}` : "1.5px solid transparent",
+    paddingLeft: 0,
+    "& .MuiInputBase-input": {
+      color: inputText,
+      padding: "10.5px 14px"
+    },
+    "& .MuiSelect-icon": {
+      color: "#bbb"
+    }
+  });
+
+  const labelStyles = {
+    fontWeight: 500,
+    color: inputLabel
+  };
+
+const renderTextField = ({ name, label, select, options, type }) => {
+  if (name === "invitedBy") {
     return (
-      <TextField
+      <Autocomplete
         key={name}
-        label={label}
-        name={name}
-        value={formData[name]}
-        onChange={handleInputChange}
-        fullWidth
-        size="small"
-        margin="dense"
-        InputProps={{
-          startAdornment: <InputAdornment position="start">{icon}</InputAdornment>,
-          sx: { borderRadius: 2, backgroundColor: inputBg, color: inputText }
-        }}
-        InputLabelProps={{ sx: { fontWeight: 500, color: inputLabel } }}
-        sx={{ mb: 1 }}
+        freeSolo
+        options={peopleList}
+        value={formData[name] || ""}
+        onChange={(e, newValue) => setFormData((prev) => ({ ...prev, invitedBy: newValue }))}
+        onInputChange={(e, newInputValue) =>
+          setFormData((prev) => ({ ...prev, invitedBy: newInputValue }))
+        }
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Invited By"
+            size="small"
+            margin="dense"
+            InputProps={{
+              ...params.InputProps,
+              sx: inputStyles(false)
+            }}
+            InputLabelProps={{ sx: labelStyles }}
+            sx={{ mb: 1 }}
+          />
+        )}
       />
     );
+  }
+
+  return (
+    <TextField
+      key={name}
+      label={label}
+      name={name}
+      type={type || "text"}
+      select={select}
+      value={formData[name] || ""}
+      onChange={handleInputChange}
+      fullWidth
+      size="small"
+      margin="dense"
+      error={!!errors[name]}
+      helperText={errors[name]}
+      InputProps={{
+        sx: inputStyles(!!errors[name])
+      }}
+      InputLabelProps={{
+        shrink: type === "date" || Boolean(formData[name]),
+        sx: labelStyles
+      }}
+      sx={{ mb: 1 }}
+    >
+      {select &&
+        options.map((opt) => (
+          <MenuItem key={opt} value={opt}>
+            {opt}
+          </MenuItem>
+        ))}
+    </TextField>
+  );
+};
+
+
+  const isFormValid = () => {
+    return [...leftFields, ...rightFields].every(({ name, required }) => {
+      if (!required) return true;
+      const val = formData[name];
+      return val !== undefined && val !== null && val.toString().trim() !== "";
+    });
   };
 
   return (
@@ -158,7 +194,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       PaperProps={{
         sx: {
           borderRadius: 3,
-          overflow: 'hidden',
+          overflow: "hidden",
           boxShadow: 5,
           backgroundColor: theme.palette.background.paper
         }
@@ -174,9 +210,11 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         <Grid container spacing={3} sx={{ mt: 0.5 }}>
           <Grid item xs={12} sm={6}>
             {leftFields.map(renderTextField)}
-            {renderTextField({ name: "invitedBy" })} {/* Autocomplete inserted here */}
+            {renderTextField({ name: "invitedBy" })} {/* Autocomplete */}
           </Grid>
-          <Grid item xs={12} sm={6}>{rightFields.map(renderTextField)}</Grid>
+          <Grid item xs={12} sm={6}>
+            {rightFields.map(renderTextField)}
+          </Grid>
         </Grid>
       </DialogContent>
 
@@ -188,8 +226,11 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
             borderRadius: 2,
             borderColor: cancelBorder,
             color: cancelText,
+            textTransform: "uppercase",
+            fontWeight: "bold",
             "&:hover": { borderColor: cancelBorder, backgroundColor: cancelBgHover },
-            minWidth: 120
+            minWidth: 120,
+            px: 3
           }}
         >
           Cancel
@@ -197,16 +238,19 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
         <Button
           variant="contained"
-          onClick={onSave}
+          onClick={handleSaveClick}
+          disabled={!isFormValid()}
           sx={{
-            backgroundColor: btnBg,
+            backgroundColor: isFormValid() ? btnBg : "#999",
             color: "#fff",
-            "&:hover": { backgroundColor: btnHover },
+            textTransform: "none",
             borderRadius: 2,
             minWidth: 140,
             px: 3,
             boxShadow: 3,
-            textTransform: "none"
+            "&:hover": {
+              backgroundColor: isFormValid() ? btnHover : "#999"
+            }
           }}
         >
           Save Details
