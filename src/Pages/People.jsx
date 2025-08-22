@@ -13,13 +13,14 @@ import {
   Edit as EditIcon, Delete as DeleteIcon, Email as EmailIcon,
   Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon
 } from '@mui/icons-material';
+import AddPersonDialog from '../components/AddPersonDialog';
 
 // ================== Stages ==================
 const stages = [
-  { id:'Win', title:'Win' },
-  { id:'Consolidate', title:'Consolidate' },
-  { id:'Disciple', title:'Disciple' },
-  { id:'Send', title:'Send' }
+  { id: 'Win', title: 'Win' },
+  { id: 'Consolidate', title: 'Consolidate' },
+  { id: 'Disciple', title: 'Disciple' },
+  { id: 'Send', title: 'Send' }
 ];
 
 // ================== PersonCard ==================
@@ -33,10 +34,10 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
   const handleDelete = () => { onDelete(person._id); handleMenuClose(); };
 
   const getInitials = useCallback((name) => name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || "?", []);
-  const getAvatarColor = useCallback((name) => ['#f44336','#e91e63','#9c27b0','#673ab7','#3f51b5','#2196f3'][(name?.length || 0) % 6], []);
+  const getAvatarColor = useCallback((name) => ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3'][(name?.length || 0) % 6], []);
   const formatDate = useCallback((date) => date ? new Date(date).toLocaleDateString() : "-", []);
   const getStageColor = useCallback((stage) => {
-    switch(stage){
+    switch (stage) {
       case 'Win': return 'success.main';
       case 'Consolidate': return 'info.main';
       case 'Disciple': return 'warning.main';
@@ -54,12 +55,12 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
       backgroundColor: isDragging ? 'action.selected' : 'background.paper',
       mb: 1
     }}>
-      <CardContent sx={{ p:1 }}>
-        <Box sx={{ display:'flex', alignItems:'flex-start', mb:1 }}>
-          <Avatar sx={{ width:28, height:28, fontSize:12, backgroundColor: getAvatarColor(person.name), mr:1 }}>
+      <CardContent sx={{ p: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+          <Avatar sx={{ width: 28, height: 28, fontSize: 12, backgroundColor: getAvatarColor(person.name), mr: 1 }}>
             {getInitials(person.name)}
           </Avatar>
-          <Box sx={{ flex:1 }}>
+          <Box sx={{ flex: 1 }}>
             <Typography variant="subtitle2" noWrap>{person.name}</Typography>
             <Typography variant="caption" color="text.secondary">
               {person.gender} • {formatDate(person.dob)}
@@ -68,18 +69,18 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
           <IconButton size="small" onClick={handleMenuClick}><MoreVertIcon fontSize="small" /></IconButton>
         </Box>
 
-        <Box sx={{ mb:1 }}>
-          {person.email && <Box sx={{ display:'flex', alignItems:'center', mb:0.5 }}><EmailIcon fontSize="small" sx={{ mr:0.5 }} /><Typography variant="caption">{person.email}</Typography></Box>}
-          {person.phone && <Box sx={{ display:'flex', alignItems:'center', mb:0.5 }}><PhoneIcon fontSize="small" sx={{ mr:0.5 }} /><Typography variant="caption">{person.phone}</Typography></Box>}
-          {person.location && <Box sx={{ display:'flex', alignItems:'center', mb:0.5 }}><LocationIcon fontSize="small" sx={{ mr:0.5 }} /><Typography variant="caption">{person.location}</Typography></Box>}
-          {person.cellLeader && <Box sx={{ display:'flex', alignItems:'center' }}><GroupIcon fontSize="small" sx={{ mr:0.5 }} /><Typography variant="caption">{person.cellLeader}</Typography></Box>}
+        <Box sx={{ mb: 1 }}>
+          {person.email && <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}><EmailIcon fontSize="small" sx={{ mr: 0.5 }} /><Typography variant="caption">{person.email}</Typography></Box>}
+          {person.phone && <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}><PhoneIcon fontSize="small" sx={{ mr: 0.5 }} /><Typography variant="caption">{person.phone}</Typography></Box>}
+          {person.location && <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}><LocationIcon fontSize="small" sx={{ mr: 0.5 }} /><Typography variant="caption">{person.location}</Typography></Box>}
+          {person.cellLeader && <Box sx={{ display: 'flex', alignItems: 'center' }}><GroupIcon fontSize="small" sx={{ mr: 0.5 }} /><Typography variant="caption">{person.cellLeader}</Typography></Box>}
         </Box>
 
-        <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <Chip 
-            label={person.stage} 
-            size="small" 
-            sx={{ height:20, fontSize:10, backgroundColor: getStageColor(person.stage), color:'#fff' }}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Chip
+            label={person.stage}
+            size="small"
+            sx={{ height: 20, fontSize: 10, backgroundColor: getStageColor(person.stage), color: '#fff' }}
           />
           <Typography variant="caption">Updated: {formatDate(person.lastUpdated)}</Typography>
         </Box>
@@ -89,7 +90,7 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
             <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
             <ListItemText>Edit</ListItemText>
           </MenuItem>
-          <MenuItem onClick={handleDelete} sx={{ color:'error.main' }}>
+          <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
             <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
             <ListItemText>Delete</ListItemText>
           </MenuItem>
@@ -103,32 +104,32 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
 const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loading }) => {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
-  const isMedium = useMediaQuery(theme.breakpoints.between('sm','lg'));
+  const isMedium = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
   const getPeopleByStage = useCallback((stage) => people.filter(p => p.stage === stage), [people]);
 
-  if(loading) return <Typography sx={{ p:2, textAlign:'center' }}>Loading people...</Typography>;
+  if (loading) return <Typography sx={{ p: 2, textAlign: 'center' }}>Loading people...</Typography>;
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <Box sx={{ display:'flex', flexWrap: isSmall||isMedium?'wrap':'nowrap', gap:3, justifyContent:'center', flexDirection:isSmall?'column':'row', py:1 }}>
+      <Box sx={{ display: 'flex', flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap', gap: 3, justifyContent: 'center', flexDirection: isSmall ? 'column' : 'row', py: 1 }}>
         {stages.map(stage => {
           const stagePeople = getPeopleByStage(stage.id);
-          const headerBg = theme.palette.mode==='dark'?'#fff':'#000';
-          const headerText = theme.palette.mode==='dark'?'#000':'#fff';
-          const stageWidth = isSmall?'100%':isMedium?'45%':'250px';
+          const headerBg = theme.palette.mode === 'dark' ? '#fff' : '#000';
+          const headerText = theme.palette.mode === 'dark' ? '#000' : '#fff';
+          const stageWidth = isSmall ? '100%' : isMedium ? '45%' : '250px';
 
           return (
-            <Paper key={stage.id} sx={{ 
-              flex:`0 0 ${stageWidth}`, 
-              minWidth:220, 
-              borderRadius:2, 
-              overflow:'hidden', 
-              mb:isSmall||isMedium?2:0,
-              backgroundColor: theme.palette.mode==='dark' ? '#424242' : '#fff'
+            <Paper key={stage.id} sx={{
+              flex: `0 0 ${stageWidth}`,
+              minWidth: 220,
+              borderRadius: 2,
+              overflow: 'hidden',
+              mb: isSmall || isMedium ? 2 : 0,
+              backgroundColor: theme.palette.mode === 'dark' ? '#424242' : '#fff'
             }}>
-              <Box sx={{ p:1.5, backgroundColor:headerBg, color:headerText, display:'flex', justifyContent:'space-between' }}>
+              <Box sx={{ p: 1.5, backgroundColor: headerBg, color: headerText, display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="subtitle1">{stage.title}</Typography>
-                <Badge badgeContent={stagePeople.length} sx={{ '& .MuiBadge-badge': { backgroundColor:headerText, color:headerBg, fontSize:10 } }} />
+                <Badge badgeContent={stagePeople.length} sx={{ '& .MuiBadge-badge': { backgroundColor: headerText, color: headerBg, fontSize: 10 } }} />
               </Box>
               <Droppable droppableId={stage.id}>
                 {(provided) => (
@@ -136,24 +137,24 @@ const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loadin
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     sx={{
-                      p:1,
-                      minHeight:140,
-                      maxHeight:'400px',
-                      overflowY:'auto',
-                      overflowX:'hidden',
-                      backgroundColor: theme.palette.mode==='dark' ? '#616161' : '#f9f9f9',
+                      p: 1,
+                      minHeight: 140,
+                      maxHeight: '400px',
+                      overflowY: 'auto',
+                      overflowX: 'hidden',
+                      backgroundColor: theme.palette.mode === 'dark' ? '#616161' : '#f9f9f9',
                     }}
                   >
-                    {stagePeople.length > 0 ? stagePeople.map((person,index) => (
+                    {stagePeople.length > 0 ? stagePeople.map((person, index) => (
                       <Draggable key={person._id} draggableId={person._id} index={index}>
-                        {(provided,snapshot) => (
+                        {(provided, snapshot) => (
                           <Box ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
                             <PersonCard person={person} onEdit={onEditPerson} onDelete={onDeletePerson} isDragging={snapshot.isDragging} />
                           </Box>
                         )}
                       </Draggable>
                     )) : (
-                      <Box sx={{ textAlign:'center', border:'1px dashed #aaa', borderRadius:1, p:2, mt:1, color:'text.secondary', fontStyle:'italic' }}>Drop people here</Box>
+                      <Box sx={{ textAlign: 'center', border: '1px dashed #aaa', borderRadius: 1, p: 2, mt: 1, color: 'text.secondary', fontStyle: 'italic' }}>Drop people here</Box>
                     )}
                     {provided.placeholder}
                   </Box>
@@ -167,79 +168,18 @@ const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loadin
   );
 };
 
-// ================== PersonModal ==================
-const PersonModal = ({ open, onClose, onSave, person }) => {
-  const [form,setForm] = useState(person || { Name:'', Email:'', Phone:'', Location:'', Gender:'Male', Stage:'Win' });
-  useEffect(()=>setForm(person || { Name:'', Email:'', Phone:'', Location:'', Gender:'Male', Stage:'Win' }),[person]);
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
-  const handleSubmit = () => onSave(form);
-
-  return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      fullWidth 
-      maxWidth="sm"
-      PaperProps={{
-        sx: { borderRadius: 3, p: 1.5 }
-      }}
-    >
-      <DialogTitle sx={{ fontWeight: 600, pb: 1.5 }}>
-        {person ? 'Edit Person' : 'Add Person'}
-      </DialogTitle>
-
-      <DialogContent dividers sx={{ display:'flex', flexDirection:'column', gap:2, mt:1 }}>
-        <TextField size="small" name="Name" label="Full Name" value={form.name} onChange={handleChange} fullWidth />
-        <TextField size="small" name="Email" label="Email Address" value={form.Email} onChange={handleChange} fullWidth />
-        <TextField size="small" name="Phone" label="Phone Number" value={form.Phone} onChange={handleChange} fullWidth />
-        <TextField size="small" name="Location" label="Location" value={form.Location} onChange={handleChange} fullWidth />
-
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <TextField
-            select size="small" name="Gender" label="Gender" value={form.Gender} onChange={handleChange} fullWidth
-          >
-            <MenuItem value="Male">Male</MenuItem>
-            <MenuItem value="Female">Female</MenuItem>
-          </TextField>
-
-          <TextField
-            select size="small" name="Stage" label="Stage" value={form.Stage} onChange={handleChange} fullWidth
-          >
-            {stages.map(s => <MenuItem key={s.id} value={s.id}>{s.title}</MenuItem>)}
-          </TextField>
-        </Box>
-      </DialogContent>
-
-      <DialogActions sx={{ px:3, py:2 }}>
-        <Button onClick={onClose} sx={{ textTransform:'none' }}>Cancel</Button>
-        <Button 
-          onClick={handleSubmit} 
-          variant="contained" 
-          sx={{ 
-            textTransform:'none',
-            borderRadius: 2,
-            backgroundColor: '#000',
-            '&:hover': { backgroundColor: '#222' }
-          }}
-        >
-          Save
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
 
 // ================== PeopleSection ==================
 export const PeopleSection = ({ currentUser }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [people,setPeople] = useState([]);
-  const [leaders,setLeaders] = useState([]);
-  const [loading,setLoading] = useState(true);
-  const [searchTerm,setSearchTerm] = useState('');
-  const [isModalOpen,setIsModalOpen] = useState(false);
-  const [editingPerson,setEditingPerson] = useState(null);
-  const [snackbar,setSnackbar] = useState({ open:false, message:'', severity:'success' });
+  const [people, setPeople] = useState([]);
+  const [leaders, setLeaders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPerson, setEditingPerson] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   // Fetch people from backend
   useEffect(() => {
@@ -249,9 +189,9 @@ export const PeopleSection = ({ currentUser }) => {
         const res = await axios.get('/api/people');
         const data = res.data.map(p => ({ stage: p.stage || 'Win', ...p }));
         setPeople(data);
-      } catch(err) {
+      } catch (err) {
         console.error('Error fetching people:', err);
-        setSnackbar({ open:true, message:'Failed to load people', severity:'error' });
+        setSnackbar({ open: true, message: 'Failed to load people', severity: 'error' });
       } finally {
         setLoading(false);
       }
@@ -280,50 +220,53 @@ export const PeopleSection = ({ currentUser }) => {
 
   const handleSavePerson = (data) => {
     setPeople(prev => {
-      const idx = prev.findIndex(p => p._id===data._id);
-      if(idx>=0) prev[idx]=data;
-      else prev.push({ ...data, _id:`new-${Date.now()}`, gender:data.gender || 'Male', stage:data.stage || 'Win' });
+      const idx = prev.findIndex(p => p._id === data._id);
+      if (idx >= 0) prev[idx] = data;
+      else prev.push({ ...data, _id: `new-${Date.now()}`, gender: data.gender || 'Male', stage: data.stage || 'Win' });
       return [...prev];
     });
     setIsModalOpen(false);
-    setSnackbar({ open:true, message:'Person saved successfully', severity:'success' });
+    setSnackbar({ open: true, message: 'Person saved successfully', severity: 'success' });
   };
 
   const handleDeletePerson = (id) => {
-    setPeople(prev => prev.filter(p => p._id!==id));
-    setSnackbar({ open:true, message:'Person deleted', severity:'success' });
+    setPeople(prev => prev.filter(p => p._id !== id));
+    setSnackbar({ open: true, message: 'Person deleted', severity: 'success' });
   };
 
   const handleDragEnd = ({ destination, source, draggableId }) => {
-    if(!destination) return;
-    if(destination.droppableId===source.droppableId && destination.index===source.index) return;
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
     setPeople(prev => {
-      const movingPerson = prev.find(p=>p._id===draggableId);
-      const others = prev.filter(p=>p._id!==draggableId);
+      const movingPerson = prev.find(p => p._id === draggableId);
+      const others = prev.filter(p => p._id !== draggableId);
       movingPerson.stage = destination.droppableId;
-      others.splice(destination.index,0,movingPerson);
+      others.splice(destination.index, 0, movingPerson);
       return [...others];
     });
   };
 
   const filteredPeople = useMemo(() => people.filter(p =>
-    [p.name,p.cellLeader,p.location].some(f=>f?.toLowerCase().includes(searchTerm.toLowerCase()))
+    [p.name, p.cellLeader, p.location].some(f => f?.toLowerCase().includes(searchTerm.toLowerCase()))
   ), [people, searchTerm]);
 
   return (
-    <Box sx={{ height:'100%', display:'flex', flexDirection:'column', mt:8, px:2, pb:4 }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
       <AppBar position="static" color="transparent" elevation={0}>
-        <Toolbar sx={{ py:0.5 }}>
-          <Typography variant="h5" sx={{ flexGrow:1 }}>People</Typography>
+        <Toolbar sx={{ py: 0.5 }}>
+          <Typography variant="h5" sx={{ flexGrow: 1 }}>People</Typography>
           <Button
             variant="contained"
             size="small"
             startIcon={<AddIcon />}
             onClick={() => { setEditingPerson(null); setIsModalOpen(true); }}
             sx={{
-              backgroundColor: '#000',
-              color: '#fff',
-              '&:hover': { backgroundColor: '#222' }
+              backgroundColor: theme.palette.mode === 'dark' ? '#fff' : '#000',
+              color: theme.palette.mode === 'dark' ? '#000' : '#fff',
+              '&:hover': {
+                backgroundColor: theme.palette.mode === 'dark' ? '#e0e0e0' : '#222'
+              },
+              textTransform: 'none'
             }}
           >
             Add
@@ -331,27 +274,33 @@ export const PeopleSection = ({ currentUser }) => {
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ my:2 }}>
+      <Box sx={{ my: 2 }}>
         <TextField
-          fullWidth size="small" placeholder="Search..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}
-          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small"/></InputAdornment> }}
+          fullWidth size="small" placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
         />
       </Box>
 
-      <Box sx={{ flex:1, height:'auto', border:'1px solid #e0e0e0', borderRadius:2, mx:0, py:2 }}>
+      <Box sx={{ flex: 1, height: 'auto', border: '1px solid #e0e0e0', borderRadius: 2, mx: 0, py: 2 }}>
         <DragDropBoard
           people={filteredPeople}
           onDragEnd={handleDragEnd}
-          onEditPerson={(p)=>{ setEditingPerson(p); setIsModalOpen(true); }}
+          onEditPerson={(p) => { setEditingPerson(p); setIsModalOpen(true); }}
           onDeletePerson={handleDeletePerson}
           loading={loading}
         />
       </Box>
 
-      <PersonModal open={isModalOpen} person={editingPerson} onClose={()=>setIsModalOpen(false)} onSave={handleSavePerson} />
+      <AddPersonDialog
+        open={isModalOpen}
+        formData={editingPerson || { name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '', invitedBy: '', gender: '' }}
+        setFormData={setEditingPerson}
+        onClose={() => setIsModalOpen(false)}
+        onSave={() => handleSavePerson(editingPerson)}
+      />
 
-      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={()=>setSnackbar({...snackbar, open:false})}>
-        <Alert severity={snackbar.severity} sx={{ width:'100%' }}>{snackbar.message}</Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
   );
