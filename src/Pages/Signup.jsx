@@ -1,5 +1,21 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Box,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  Typography,
+  IconButton,
+  useTheme,
+} from "@mui/material";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
 
 const initialForm = {
   name: "",
@@ -14,312 +30,251 @@ const initialForm = {
   confirm_password: "",
 };
 
-const Signup = ({ onSignup }) => {
-  const [form, setForm] = useState(initialForm);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState("");
+const Signup = ({ onSignup, mode, setMode }) => {
+  const theme = useTheme();
   const navigate = useNavigate();
+  const [form, setForm] = useState(initialForm);
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const validate = () => {
+    const newErrors = {};
+    if (!form.name.trim()) newErrors.name = "Name is required";
+    if (!form.surname.trim()) newErrors.surname = "Surname is required";
+    if (!form.date_of_birth) newErrors.date_of_birth = "Date of Birth is required";
+    else if (new Date(form.date_of_birth) > new Date())
+      newErrors.date_of_birth = "Date cannot be in the future";
+    if (!form.home_address.trim()) newErrors.home_address = "Home Address is required";
+    if (!form.invited_by.trim()) newErrors.invited_by = "Invited By is required";
+    if (!form.phone_number.trim()) newErrors.phone_number = "Phone Number is required";
+    if (!form.email.trim()) newErrors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Invalid email";
+    if (!form.gender) newErrors.gender = "Select a gender";
+    if (!form.password) newErrors.password = "Password is required";
+    else if (form.password.length < 6) newErrors.password = "Password must be at least 6 characters";
+    if (!form.confirm_password) newErrors.confirm_password = "Confirm your password";
+    else if (form.confirm_password !== form.password) newErrors.confirm_password = "Passwords do not match";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!validate()) return;
 
-    // ✅ Basic validation
-    for (const key in initialForm) {
-      if (!form[key]) {
-        setError("All fields are required.");
-        return;
-      }
-    }
+  setLoading(true);
+  try {
+    const res = await fetch("http://localhost:8000/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
 
-    // ✅ Password match
-    if (form.password !== form.confirm_password) {
-      setError("Passwords do not match.");
-      return;
-    }
+    const data = await res.json();
 
-    // ✅ Gender validation
-    if (!["male", "female"].includes(form.gender)) {
-      setError("Please select a valid gender.");
-      return;
+    if (!res.ok) {
+      // Show error from backend or fallback message
+      alert(data?.detail || "Signup failed. Please try again.");
+    } else {
+      alert("User created successfully!");
+      if (onSignup) onSignup(form); // Optional callback
+      setForm(initialForm);
+      navigate("/login"); // redirect after success
     }
-
-    // ✅ Date of birth cannot be in the future
-    const today = new Date();
-    const dob = new Date(form.date_of_birth);
-    if (dob > today) {
-      setError("Date of Birth cannot be in the future.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch("http://localhost:8000/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Signup failed.");
-      } else {
-        setSuccess("User created successfully!");
-        if (onSignup) onSignup(form);
-        setForm(initialForm);
-        navigate("/");
-      }
-    } catch (err) {
-      setError("Network error.");
-    }
+  } catch (error) {
+    console.error("Signup error:", error);
+    alert("Network or server error occurred.");
+  } finally {
     setLoading(false);
-  };
+  }
+};
 
   return (
-    <div className="signup-container">
-      <div className="signup-header">
-        <div className="signup-title">
-          <span className="title-cursive">The Active</span>
-          <br />
-          <span className="title-bold">CHURCH</span>
-        </div>
-        <div className="signup-subtitle">FILL IN YOUR DETAILS</div>
-      </div>
+    <Box
+      sx={{
+        position: "relative",
+        minHeight: "100vh",
+        background: theme.palette.background.default,
+        color: theme.palette.text.primary,
+        p: 2,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      {/* Dark/Light Toggle (Same as Sidebar) */}
+      <Box sx={{ position: "absolute", top: 16, right: 16 }}>
+        <IconButton
+          onClick={() => {
+            const next = mode === "light" ? "dark" : "light";
+            localStorage.setItem("themeMode", next);
+            setMode(next);
+          }}
+          sx={{
+            color: mode === "dark" ? "#fff" : "#000",
+            backgroundColor: mode === "dark" ? "#1f1f1f" : "#e0e0e0",
+            "&:hover": {
+              backgroundColor: mode === "dark" ? "#2c2c2c" : "#c0c0c0",
+            },
+          }}
+        >
+          {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
+        </IconButton>
+      </Box>
 
-      <form className="signup-form" onSubmit={handleSubmit}>
-        <div className="form-col">
-          <label htmlFor="name">Name :</label>
-          <input
-            id="name"
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            autoComplete="name"
-          />
+      <Box
+        sx={{
+          maxWidth: 800,
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
+          p: 3,
+          borderRadius: 4,
+          boxShadow: 3,
+          background: theme.palette.background.paper,
+        }}
+      >
+        <Typography variant="h4" align="center" fontWeight="bold">
+          FILL IN YOUR DETAILS
+        </Typography>
 
-          <label>Date Of Birth :</label>
-          <input
-            name="date_of_birth"
-            type="date"
-            value={form.date_of_birth}
-            onChange={handleChange}
-          />
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          display="grid"
+          gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }}
+          gap={2}
+        >
+          {[
+            ["name", "Name"],
+            ["surname", "Surname"],
+            ["date_of_birth", "Date Of Birth", "date"],
+            ["email", "Email Address", "email"],
+            ["home_address", "Home Address"],
+            ["phone_number", "Phone Number"],
+            ["invited_by", "Invited By"],
+          ].map(([name, label, type]) => (
+            <TextField
+              key={name}
+              label={label}
+              name={name}
+              type={type || "text"}
+              value={form[name]}
+              onChange={handleChange}
+              error={!!errors[name]}
+              helperText={errors[name]}
+              fullWidth
+              InputLabelProps={type === "date" ? { shrink: true } : undefined}
+              sx={{ borderRadius: 3, "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+            />
+          ))}
 
-          <label>Home Address :</label>
-          <input
-            name="home_address"
-            value={form.home_address}
-            onChange={handleChange}
-            autoComplete="address-line1"
-          />
+          <FormControl fullWidth error={!!errors.gender}>
+            <InputLabel>Gender</InputLabel>
+            <Select
+              name="gender"
+              value={form.gender}
+              onChange={handleChange}
+              label="Gender"
+              sx={{ borderRadius: 3 }}
+            >
+              <MenuItem value="">
+                <em>Select Gender</em>
+              </MenuItem>
+              <MenuItem value="male">Male</MenuItem>
+              <MenuItem value="female">Female</MenuItem>
+            </Select>
+            {errors.gender && (
+              <Typography variant="caption" color="error">
+                {errors.gender}
+              </Typography>
+            )}
+          </FormControl>
 
-          <label>Invited By :</label>
-          <input
-            name="invited_by"
-            value={form.invited_by}
-            onChange={handleChange}
-          />
-
-          <label>New Password :</label>
-          <input
+          <TextField
+            label="New Password"
             name="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={form.password}
             onChange={handleChange}
-            autoComplete="new-password"
-          />
-        </div>
-
-        <div className="form-col">
-          <label>Surname :</label>
-          <input
-            name="surname"
-            value={form.surname}
-            onChange={handleChange}
-            autoComplete="family-name"
-          />
-
-          <label>Email Address :</label>
-          <input
-            name="email"
-            type="email"
-            value={form.email}
-            onChange={handleChange}
-            autoComplete="email"
+            error={!!errors.password}
+            helperText={errors.password}
+            fullWidth
+            InputProps={{
+              endAdornment: (
+                <IconButton onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <Visibility /> : <VisibilityOff />}
+                </IconButton>
+              ),
+            }}
+            sx={{ borderRadius: 3, "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
           />
 
-          <label>Phone Number :</label>
-          <input
-            name="phone_number"
-            value={form.phone_number}
-            onChange={handleChange}
-            autoComplete="tel"
-          />
-
-          <label>Gender :</label>
-          <select
-            name="gender"
-            value={form.gender}
-            onChange={handleChange}
-          >
-            <option value="">Select Gender</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
-
-          <label>Confirm New Password :</label>
-          <input
+          <TextField
+            label="Confirm New Password"
             name="confirm_password"
-            type="password"
+            type={showConfirmPassword ? "text" : "password"}
             value={form.confirm_password}
             onChange={handleChange}
-            autoComplete="new-password"
+            error={!!errors.confirm_password}
+            helperText={errors.confirm_password}
+            fullWidth
+            InputProps={{
+              endAdornment: (
+                <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                  {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
+                </IconButton>
+              ),
+            }}
+            sx={{ borderRadius: 3, "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
           />
-        </div>
+        </Box>
 
-        <div className="form-actions">
-          {error && <div className="error">{error}</div>}
-          {success && <div className="success">{success}</div>}
-          <button type="submit" disabled={loading}>
+        <Box textAlign="center" mt={2}>
+          <Button
+            type="submit"
+            variant="contained"
+            size="large"
+            disabled={loading}
+            sx={{
+              backgroundColor: "#000",
+              color: "#fff",
+              borderRadius: 8,
+              px: 4,
+              py: 1.5,
+              fontWeight: "bold",
+              "&:hover": {
+                backgroundColor: "#222",
+              },
+            }}
+          >
             {loading ? "Signing Up..." : "Sign Up"}
-          </button>
-        </div>
-      </form>
-      <p>
-        Already have an account?{" "}
-        <span className="link" onClick={() => navigate("/login")}>
-          Log In
-        </span>
-      </p>
+          </Button>
+        </Box>
 
-      {/* Responsive CSS */}
-      <style jsx>{`
-        .signup-container {
-          max-width: 1000px;
-          margin: 0 auto;
-          padding: 10px;
-          font-family: sans-serif;
-        }
-        .signup-header {
-          text-align: center;
-          margin-bottom: 20px;
-        }
-        .signup-title {
-          font-size: 32px;
-          font-weight: 700;
-        }
-        .title-cursive {
-          font-family: cursive;
-          font-weight: 400;
-        }
-        .title-bold {
-          font-weight: 700;
-        }
-        .signup-subtitle {
-          font-size: 28px;
-          font-weight: 700;
-          margin: 20px 0;
-        }
-        .signup-form {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 20px;
-          width: 100%;
-        }
-        .form-col {
-          display: flex;
-          flex-direction: column;
-        }
-        label {
-          margin: 6px 0 2px;
-          font-size: 16px;
-        }
-        input,
-        select {
-          width: 100%;
-          padding: 10px;
-          border-radius: 10px;
-          border: 1px solid #bbb;
-          margin-bottom: 15px;
-          font-size: 16px;
-        }
-        .form-actions {
-          grid-column: span 2;
-          text-align: center;
-          margin-top: 20px;
-        }
-        .error {
-          color: red;
-          margin-bottom: 10px;
-        }
-        .success {
-          color: green;
-          margin-bottom: 10px;
-        }
-        button {
-          background: #000;
-          color: #fff;
-          border: none;
-          border-radius: 20px;
-          padding: 12px 50px;
-          font-size: 18px;
-          cursor: pointer;
-          width: 100%;
-          max-width: 170px;
-        }
-        .link {
-          color: blue;
-          cursor: pointer;
-          text-decoration: underline;
-        }
-
-        /* ✅ Responsive Breakpoints */
-        @media (max-width: 900px) {
-          .signup-form {
-            grid-template-columns: 1fr;
-          }
-          button {
-            max-width: 100%;
-          }
-          .signup-subtitle {
-            font-size: 22px;
-          }
-        }
-        @media (max-width: 600px) {
-          label {
-            font-size: 14px;
-          }
-          input,
-          select {
-            font-size: 14px;
-            padding: 8px;
-          }
-          button {
-            font-size: 16px;
-            padding: 10px 0;
-          }
-          .signup-subtitle {
-            font-size: 20px;
-          }
-        }
-        @media (max-width: 400px) {
-          input,
-          select {
-            font-size: 13px;
-            padding: 7px;
-          }
-          button {
-            font-size: 14px;
-            padding: 8px 0;
-          }
-        }
-      `}</style>
-    </div>
+        <Box textAlign="center" mt={1}>
+          <Typography>
+            Already have an account?{" "}
+            <Typography
+              component="span"
+              color="primary"
+              sx={{ cursor: "pointer", textDecoration: "underline" }}
+              onClick={() => navigate("/login")}
+            >
+              Log In
+            </Typography>
+          </Typography>
+        </Box>
+      </Box>
+    </Box>  
   );
 };
 
