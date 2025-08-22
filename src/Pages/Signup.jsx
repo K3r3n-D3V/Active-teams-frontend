@@ -11,11 +11,13 @@ import {
   Typography,
   IconButton,
   useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import darkLogo from "../assets/active-teams.png";
 
 const initialForm = {
   name: "",
@@ -27,16 +29,17 @@ const initialForm = {
   email: "",
   gender: "",
   password: "",
-  confirm_password: "",
+  confirm_password: "", // Keep confirm_password for validation only
 };
 
 const Signup = ({ onSignup, mode, setMode }) => {
   const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
+
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -54,9 +57,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
     else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Invalid email";
     if (!form.gender) newErrors.gender = "Select a gender";
     if (!form.password) newErrors.password = "Password is required";
-    else if (form.password.length < 6) newErrors.password = "Password must be at least 6 characters";
+    else if (form.password.length < 6)
+      newErrors.password = "Password must be at least 6 characters";
     if (!form.confirm_password) newErrors.confirm_password = "Confirm your password";
-    else if (form.confirm_password !== form.password) newErrors.confirm_password = "Passwords do not match";
+    else if (form.confirm_password !== form.password)
+      newErrors.confirm_password = "Passwords do not match";
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -65,36 +71,39 @@ const Signup = ({ onSignup, mode, setMode }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validate()) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
 
-  setLoading(true);
-  try {
-    const res = await fetch("http://localhost:8000/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    setLoading(true);
 
-    const data = await res.json();
+    // Exclude confirm_password before sending data to backend
+    const { confirm_password, ...submitData } = form;
 
-    if (!res.ok) {
-      // Show error from backend or fallback message
-      alert(data?.detail || "Signup failed. Please try again.");
-    } else {
-      alert("User created successfully!");
-      if (onSignup) onSignup(form); // Optional callback
-      setForm(initialForm);
-      navigate("/login"); // redirect after success
+    try {
+      const res = await fetch("http://localhost:8000/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submitData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.detail || "Signup failed. Please try again.");
+      } else {
+        alert("User created successfully!");
+        if (onSignup) onSignup(submitData);
+        setForm(initialForm);
+        navigate("/login");
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      alert("Network or server error occurred.");
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Signup error:", error);
-    alert("Network or server error occurred.");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <Box
@@ -109,7 +118,7 @@ const handleSubmit = async (e) => {
         alignItems: "center",
       }}
     >
-      {/* Dark/Light Toggle (Same as Sidebar) */}
+      {/* Theme Toggle */}
       <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
           onClick={() => {
@@ -142,139 +151,175 @@ const handleSubmit = async (e) => {
           background: theme.palette.background.paper,
         }}
       >
-        <Typography variant="h4" align="center" fontWeight="bold">
+        {/* Logo */}
+        <Box display="flex" justifyContent="center" alignItems="center" mb={1}>
+          <img
+            src={darkLogo}
+            alt="The Active Church Logo"
+            style={{
+              maxHeight: isSmallScreen ? 60 : 80,
+              maxWidth: "100%",
+              objectFit: "contain",
+              filter: mode === "dark" ? "invert(1)" : "none",
+              transition: "filter 0.3s ease-in-out",
+            }}
+          />
+        </Box>
+
+        <Typography variant="h5" align="center" fontWeight="bold">
           FILL IN YOUR DETAILS
         </Typography>
 
         <Box
           component="form"
           onSubmit={handleSubmit}
-          display="grid"
-          gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }}
-          gap={2}
+          display="flex"
+          flexDirection="column"
+          gap={3}
         >
-          {[
-            ["name", "Name"],
-            ["surname", "Surname"],
-            ["date_of_birth", "Date Of Birth", "date"],
-            ["email", "Email Address", "email"],
-            ["home_address", "Home Address"],
-            ["phone_number", "Phone Number"],
-            ["invited_by", "Invited By"],
-          ].map(([name, label, type]) => (
-            <TextField
-              key={name}
-              label={label}
-              name={name}
-              type={type || "text"}
-              value={form[name]}
-              onChange={handleChange}
-              error={!!errors[name]}
-              helperText={errors[name]}
-              fullWidth
-              InputLabelProps={type === "date" ? { shrink: true } : undefined}
-              sx={{ borderRadius: 3, "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
-            />
-          ))}
-
-          <FormControl fullWidth error={!!errors.gender}>
-            <InputLabel>Gender</InputLabel>
-            <Select
-              name="gender"
-              value={form.gender}
-              onChange={handleChange}
-              label="Gender"
-              sx={{ borderRadius: 3 }}
-            >
-              <MenuItem value="">
-                <em>Select Gender</em>
-              </MenuItem>
-              <MenuItem value="male">Male</MenuItem>
-              <MenuItem value="female">Female</MenuItem>
-            </Select>
-            {errors.gender && (
-              <Typography variant="caption" color="error">
-                {errors.gender}
-              </Typography>
-            )}
-          </FormControl>
-
-          <TextField
-            label="New Password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            value={form.password}
-            onChange={handleChange}
-            error={!!errors.password}
-            helperText={errors.password}
-            fullWidth
-            InputProps={{
-              endAdornment: (
-                <IconButton onClick={() => setShowPassword(!showPassword)}>
-                  {showPassword ? <Visibility /> : <VisibilityOff />}
-                </IconButton>
-              ),
-            }}
-            sx={{ borderRadius: 3, "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
-          />
-
-          <TextField
-            label="Confirm New Password"
-            name="confirm_password"
-            type={showConfirmPassword ? "text" : "password"}
-            value={form.confirm_password}
-            onChange={handleChange}
-            error={!!errors.confirm_password}
-            helperText={errors.confirm_password}
-            fullWidth
-            InputProps={{
-              endAdornment: (
-                <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                  {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
-                </IconButton>
-              ),
-            }}
-            sx={{ borderRadius: 3, "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
-          />
-        </Box>
-
-        <Box textAlign="center" mt={2}>
-          <Button
-            type="submit"
-            variant="contained"
-            size="large"
-            disabled={loading}
-            sx={{
-              backgroundColor: "#000",
-              color: "#fff",
-              borderRadius: 8,
-              px: 4,
-              py: 1.5,
-              fontWeight: "bold",
-              "&:hover": {
-                backgroundColor: "#222",
-              },
-            }}
+          <Box
+            display="grid"
+            gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }}
+            gap={2.5}
           >
-            {loading ? "Signing Up..." : "Sign Up"}
-          </Button>
-        </Box>
+            {[
+              ["name", "Name"],
+              ["surname", "Surname"],
+              ["date_of_birth", "Date Of Birth", "date"],
+              ["email", "Email Address", "email"],
+              ["home_address", "Home Address"],
+              ["phone_number", "Phone Number"],
+              ["invited_by", "Invited By"],
+            ].map(([name, label, type]) => (
+              <TextField
+                key={name}
+                label={label}
+                name={name}
+                type={type || "text"}
+                value={form[name]}
+                onChange={handleChange}
+                error={!!errors[name]}
+                helperText={errors[name]}
+                fullWidth
+                InputLabelProps={type === "date" ? { shrink: true } : undefined}
+                sx={{
+                  "& .MuiOutlinedInput-root": { borderRadius: 3 },
+                  "& .MuiFormHelperText-root": { color: theme.palette.error.main },
+                }}
+              />
+            ))}
 
-        <Box textAlign="center" mt={1}>
-          <Typography>
-            Already have an account?{" "}
-            <Typography
-              component="span"
-              color="primary"
-              sx={{ cursor: "pointer", textDecoration: "underline" }}
-              onClick={() => navigate("/login")}
-            >
-              Log In
+            <FormControl fullWidth error={!!errors.gender}>
+              <InputLabel>Gender</InputLabel>
+              <Select
+                name="gender"
+                value={form.gender}
+                onChange={handleChange}
+                label="Gender"
+                sx={{ borderRadius: 3 }}
+              >
+                <MenuItem value="">
+                  <em>Select Gender</em>
+                </MenuItem>
+                <MenuItem value="male">Male</MenuItem>
+                <MenuItem value="female">Female</MenuItem>
+              </Select>
+              {errors.gender && (
+                <Typography variant="caption" color="error">
+                  {errors.gender}
+                </Typography>
+              )}
+            </FormControl>
+
+            <TextField
+              label="New Password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              value={form.password}
+              onChange={handleChange}
+              error={!!errors.password}
+              helperText={errors.password}
+              fullWidth
+              InputProps={{
+                endAdornment: (
+                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                    {showPassword ? <Visibility /> : <VisibilityOff />}
+                  </IconButton>
+                ),
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": { borderRadius: 3 },
+                "& .MuiFormHelperText-root": { color: theme.palette.error.main },
+              }}
+            />
+
+            {/* Confirm Password */}
+            <TextField
+              label="Confirm Password"
+              name="confirm_password"
+              type={showConfirmPassword ? "text" : "password"}
+              value={form.confirm_password}
+              onChange={handleChange}
+              error={!!errors.confirm_password}
+              helperText={errors.confirm_password}
+              fullWidth
+              InputProps={{
+                endAdornment: (
+                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
+                    {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
+                  </IconButton>
+                ),
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": { borderRadius: 3 },
+                "& .MuiFormHelperText-root": { color: theme.palette.error.main },
+              }}
+            />
+          </Box>
+
+          {Object.keys(errors).length > 0 && (
+            <Typography color="error" textAlign="center" mt={1}>
+              Please fix the highlighted errors above.
             </Typography>
-          </Typography>
+          )}
+
+          <Box textAlign="center">
+            <Button
+              type="submit"
+              variant="contained"
+              size="large"
+              disabled={loading}
+              sx={{
+                backgroundColor: "#000",
+                color: "#fff",
+                borderRadius: 8,
+                px: 4,
+                py: 1.5,
+                fontWeight: "bold",
+                "&:hover": {
+                  backgroundColor: "#222",
+                },
+              }}
+            >
+              {loading ? "Signing Up..." : "Sign Up"}
+            </Button>
+          </Box>
+
+          <Box textAlign="center" mt={1}>
+            <Typography>
+              Already have an account?{" "}
+              <Typography
+                component="span"
+                sx={{ color: "lightblue", cursor: "pointer", textDecoration: "underline" }}
+                onClick={() => navigate("/login")}
+              >
+                Log In
+              </Typography>
+            </Typography>
+          </Box>
         </Box>
       </Box>
-    </Box>  
+    </Box>
   );
 };
 

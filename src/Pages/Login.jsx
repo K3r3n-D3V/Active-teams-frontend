@@ -7,9 +7,11 @@ import {
   Button,
   IconButton,
   useTheme,
+  useMediaQuery
 } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import darkLogo from "../assets/active-teams.png"; // PNG with transparency
 
 const initialForm = {
   email: "",
@@ -23,6 +25,7 @@ const Login = ({ onLogin, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const theme = useTheme();
   const navigate = useNavigate();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -55,7 +58,7 @@ const Login = ({ onLogin, mode, setMode }) => {
         navigate("/dashboard");
       }
     } catch (err) {
-      setError("Network error.");
+      setError("Network error.", err);
     } finally {
       setLoading(false);
     }
@@ -104,15 +107,24 @@ const Login = ({ onLogin, mode, setMode }) => {
           background: theme.palette.background.paper,
         }}
       >
-        {/* Header */}
-        <Typography variant="h4" align="center" fontWeight="bold" mb={2}>
-          LOGIN
-        </Typography>
+        {/* Logo */}
+        <Box display="flex" justifyContent="center" alignItems="center" textAlign="center" mb={1}>
+          <img
+            src={darkLogo}
+            alt="The Active Church Logo"
+            style={{
+              maxHeight: isSmallScreen ? 60 : 80,
+              maxWidth: "100%",
+              objectFit: "contain",
+              filter: mode === "dark" ? "invert(1)" : "none",
+              transition: "filter 0.3s ease-in-out",
+            }}
+          />
+        </Box>
 
-        <Typography align="center" variant="h6" mb={3}>
-          <span style={{ fontFamily: "cursive" }}>The Active</span>
-          <br />
-          <strong>CHURCH</strong>
+        {/* Header */}
+        <Typography variant="h5" align="center" fontWeight="bold" mb={2} mt={4}>
+          LOGIN
         </Typography>
 
         {/* Form */}
@@ -126,6 +138,7 @@ const Login = ({ onLogin, mode, setMode }) => {
             fullWidth
             error={!!error && !form.email}
             helperText={!form.email && error ? "Email is required" : ""}
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
           />
 
           <TextField
@@ -137,6 +150,7 @@ const Login = ({ onLogin, mode, setMode }) => {
             fullWidth
             error={!!error && !form.password}
             helperText={!form.password && error ? "Password is required" : ""}
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
           />
 
           {/* Error / Success messages */}
@@ -155,16 +169,19 @@ const Login = ({ onLogin, mode, setMode }) => {
           <Button
             type="submit"
             variant="contained"
-            fullWidth
             disabled={loading}
             sx={{
               backgroundColor: "#000",
               color: "#fff",
-              borderRadius: 3,
+              borderRadius: 8,
               fontWeight: "bold",
               py: 1.5,
+              px: 4,
+              width: "30%",
+              justifyContent: "center",
+              alignSelf: "center",
               "&:hover": {
-                backgroundColor: "#222",
+                backgroundColor: "#a09c9cff",
               },
             }}
           >
@@ -176,7 +193,11 @@ const Login = ({ onLogin, mode, setMode }) => {
         <Box textAlign="center" mt={3}>
           <Typography variant="body2">
             <span
-              style={{ color: "blue", cursor: "pointer", textDecoration: "underline" }}
+              style={{
+                color: "#42a5f5",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
               onClick={() => navigate("/forgot-password")}
             >
               Forgot Password?
@@ -186,7 +207,11 @@ const Login = ({ onLogin, mode, setMode }) => {
           <Typography variant="body2" mt={1}>
             Don’t have an account?{" "}
             <span
-              style={{ color: "blue", cursor: "pointer", textDecoration: "underline" }}
+              style={{
+                color: "#42a5f5",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
               onClick={() => navigate("/signup")}
             >
               Sign Up
