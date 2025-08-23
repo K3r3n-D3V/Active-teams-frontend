@@ -9,18 +9,16 @@ import {
   Button,
   Typography,
   useTheme,
-  InputAdornment,
   MenuItem,
-  Autocomplete
+  Autocomplete,
 } from "@mui/material";
 import {
   Person as PersonIcon,
   CalendarToday as CalendarIcon,
   Home as HomeIcon,
-  Group as GroupIcon,
   Email as EmailIcon,
   Phone as PhoneIcon,
-  Wc as GenderIcon
+  Wc as GenderIcon,
 } from "@mui/icons-material";
 import axios from "axios";
 
@@ -29,12 +27,12 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const [peopleList, setPeopleList] = useState([]);
   const [errors, setErrors] = useState({});
 
-  // Colors based on theme, or fixed for your UI
-  const inputBg = "#424242"; // dark gray exact as screenshot
-  const inputLabel = "#ddd"; // lighter label color
-  const inputText = "#fff"; // white text
-  const btnBg = "#000"; // black for Save
-  const btnHover = "#222"; // dark hover
+  // Dynamic colors based on theme mode
+  const inputBg = theme.palette.mode === "dark" ? "#424242" : "#fff";
+  const inputLabel = theme.palette.text.secondary;
+  const inputText = theme.palette.text.primary;
+  const btnBg = theme.palette.mode === "dark" ? "#000" : theme.palette.primary.main;
+  const btnHover = theme.palette.mode === "dark" ? "#222" : theme.palette.primary.dark;
   const cancelBorder = theme.palette.mode === "dark" ? "#666" : "#ccc";
   const cancelBgHover = theme.palette.mode === "dark" ? "#333" : "#f5f5f5";
   const cancelText = theme.palette.mode === "dark" ? "#fff" : "#333";
@@ -57,14 +55,14 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const leftFields = [
     { name: "name", label: "Name", icon: <PersonIcon fontSize="small" sx={{ color: inputText }} />, required: true },
     { name: "surname", label: "Surname", icon: <PersonIcon fontSize="small" sx={{ color: inputText }} />, required: true },
-    { name: "dob", label: "Date of Birth", icon: <CalendarIcon fontSize="small" sx={{ color: inputText }} />, required: true, type: "date" }
+    { name: "dob", label: "Date of Birth", icon: <CalendarIcon fontSize="small" sx={{ color: inputText }} />, required: true, type: "date" },
   ];
 
   const rightFields = [
     { name: "homeAddress", label: "Home Address", icon: <HomeIcon fontSize="small" sx={{ color: inputText }} />, required: true },
     { name: "email", label: "Email Address", icon: <EmailIcon fontSize="small" sx={{ color: inputText }} />, required: true, type: "email" },
     { name: "phone", label: "Phone Number", icon: <PhoneIcon fontSize="small" sx={{ color: inputText }} />, required: true },
-    { name: "gender", label: "Gender", icon: <GenderIcon fontSize="small" sx={{ color: inputText }} />, select: true, options: ["Male", "Female"], required: true }
+    { name: "gender", label: "Gender", icon: <GenderIcon fontSize="small" sx={{ color: inputText }} />, select: true, options: ["Male", "Female"], required: true },
   ];
 
   const handleInputChange = (e) => {
@@ -101,81 +99,78 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     paddingLeft: 0,
     "& .MuiInputBase-input": {
       color: inputText,
-      padding: "10.5px 14px"
+      padding: "10.5px 14px",
     },
     "& .MuiSelect-icon": {
-      color: "#bbb"
-    }
+      color: theme.palette.mode === "dark" ? "#bbb" : "#555",
+    },
   });
 
   const labelStyles = {
     fontWeight: 500,
-    color: inputLabel
+    color: inputLabel,
   };
 
-const renderTextField = ({ name, label, select, options, type }) => {
-  if (name === "invitedBy") {
+  const renderTextField = ({ name, label, select, options, type }) => {
+    if (name === "invitedBy") {
+      return (
+        <Autocomplete
+          key={name}
+          freeSolo
+          options={peopleList}
+          value={formData[name] || ""}
+          onChange={(e, newValue) => setFormData((prev) => ({ ...prev, invitedBy: newValue }))}
+          onInputChange={(e, newInputValue) => setFormData((prev) => ({ ...prev, invitedBy: newInputValue }))}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Invited By"
+              size="small"
+              margin="dense"
+              InputProps={{
+                ...params.InputProps,
+                sx: inputStyles(false),
+              }}
+              InputLabelProps={{ sx: labelStyles }}
+              sx={{ mb: 1 }}
+            />
+          )}
+        />
+      );
+    }
+
     return (
-      <Autocomplete
+      <TextField
         key={name}
-        freeSolo
-        options={peopleList}
+        label={label}
+        name={name}
+        type={type || "text"}
+        select={select}
         value={formData[name] || ""}
-        onChange={(e, newValue) => setFormData((prev) => ({ ...prev, invitedBy: newValue }))}
-        onInputChange={(e, newInputValue) =>
-          setFormData((prev) => ({ ...prev, invitedBy: newInputValue }))
-        }
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label="Invited By"
-            size="small"
-            margin="dense"
-            InputProps={{
-              ...params.InputProps,
-              sx: inputStyles(false)
-            }}
-            InputLabelProps={{ sx: labelStyles }}
-            sx={{ mb: 1 }}
-          />
-        )}
-      />
+        onChange={handleInputChange}
+        fullWidth
+        size="small"
+        margin="dense"
+        error={!!errors[name]}
+        helperText={errors[name]}
+        InputProps={{
+          sx: inputStyles(!!errors[name]),
+        }}
+        InputLabelProps={{
+          shrink: type === "date" || Boolean(formData[name]),
+          sx: labelStyles,
+        }}
+        sx={{ mb: 1 }}
+      >
+        {select &&
+          options.map((opt) => (
+            <MenuItem key={opt} value={opt}>
+              {opt}
+            </MenuItem>
+          ))}
+      </TextField>
     );
-  }
-
-  return (
-    <TextField
-      key={name}
-      label={label}
-      name={name}
-      type={type || "text"}
-      select={select}
-      value={formData[name] || ""}
-      onChange={handleInputChange}
-      fullWidth
-      size="small"
-      margin="dense"
-      error={!!errors[name]}
-      helperText={errors[name]}
-      InputProps={{
-        sx: inputStyles(!!errors[name])
-      }}
-      InputLabelProps={{
-        shrink: type === "date" || Boolean(formData[name]),
-        sx: labelStyles
-      }}
-      sx={{ mb: 1 }}
-    >
-      {select &&
-        options.map((opt) => (
-          <MenuItem key={opt} value={opt}>
-            {opt}
-          </MenuItem>
-        ))}
-    </TextField>
-  );
-};
-
+  };
 
   const isFormValid = () => {
     return [...leftFields, ...rightFields].every(({ name, required }) => {
@@ -196,8 +191,8 @@ const renderTextField = ({ name, label, select, options, type }) => {
           borderRadius: 3,
           overflow: "hidden",
           boxShadow: 5,
-          backgroundColor: theme.palette.background.paper
-        }
+          backgroundColor: theme.palette.background.paper,
+        },
       }}
     >
       <DialogTitle>
@@ -230,7 +225,7 @@ const renderTextField = ({ name, label, select, options, type }) => {
             fontWeight: "bold",
             "&:hover": { borderColor: cancelBorder, backgroundColor: cancelBgHover },
             minWidth: 120,
-            px: 3
+            px: 3,
           }}
         >
           Cancel
@@ -249,8 +244,8 @@ const renderTextField = ({ name, label, select, options, type }) => {
             px: 3,
             boxShadow: 3,
             "&:hover": {
-              backgroundColor: isFormValid() ? btnHover : "#999"
-            }
+              backgroundColor: isFormValid() ? btnHover : "#999",
+            },
           }}
         >
           Save Details
