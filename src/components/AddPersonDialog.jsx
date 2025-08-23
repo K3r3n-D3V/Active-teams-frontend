@@ -1,5 +1,4 @@
-// AddPersonDialog.jsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -8,146 +7,250 @@ import {
   Grid,
   TextField,
   Button,
+  Typography,
+  useTheme,
+  InputAdornment,
+  MenuItem,
+  Autocomplete
 } from "@mui/material";
+import {
+  Person as PersonIcon,
+  CalendarToday as CalendarIcon,
+  Home as HomeIcon,
+  Group as GroupIcon,
+  Email as EmailIcon,
+  Phone as PhoneIcon,
+  Wc as GenderIcon
+} from "@mui/icons-material";
+import axios from "axios";
 
 export default function AddPersonDialog({ open, onClose, onSave, formData, setFormData }) {
+  const theme = useTheme();
+  const [peopleList, setPeopleList] = useState([]);
+  const [errors, setErrors] = useState({});
+
+  // Colors based on theme, or fixed for your UI
+  const inputBg = "#424242"; // dark gray exact as screenshot
+  const inputLabel = "#ddd"; // lighter label color
+  const inputText = "#fff"; // white text
+  const btnBg = "#000"; // black for Save
+  const btnHover = "#222"; // dark hover
+  const cancelBorder = theme.palette.mode === "dark" ? "#666" : "#ccc";
+  const cancelBgHover = theme.palette.mode === "dark" ? "#333" : "#f5f5f5";
+  const cancelText = theme.palette.mode === "dark" ? "#fff" : "#333";
+
+  useEffect(() => {
+    if (!open) return;
+    const fetchPeople = async () => {
+      try {
+        const response = await axios.get("/api/people");
+        const names = response.data.map((person) => person.name);
+        setPeopleList(names);
+      } catch (err) {
+        console.error("Failed to fetch people:", err);
+        setPeopleList([]);
+      }
+    };
+    fetchPeople();
+  }, [open]);
+
+  const leftFields = [
+    { name: "name", label: "Name", icon: <PersonIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "surname", label: "Surname", icon: <PersonIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "dob", label: "Date of Birth", icon: <CalendarIcon fontSize="small" sx={{ color: inputText }} />, required: true, type: "date" }
+  ];
+
+  const rightFields = [
+    { name: "homeAddress", label: "Home Address", icon: <HomeIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "email", label: "Email Address", icon: <EmailIcon fontSize="small" sx={{ color: inputText }} />, required: true, type: "email" },
+    { name: "phone", label: "Phone Number", icon: <PhoneIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "gender", label: "Gender", icon: <GenderIcon fontSize="small" sx={{ color: inputText }} />, select: true, options: ["Male", "Female"], required: true }
+  ];
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    [...leftFields, ...rightFields].forEach(({ name, label, required }) => {
+      if (required) {
+        const value = formData[name];
+        if (!value || (typeof value === "string" && value.trim() === "")) {
+          newErrors[name] = `${label.replace(" :", "")} is required`;
+        }
+      }
+    });
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSaveClick = () => {
+    if (validate()) {
+      onSave();
+    }
+  };
+
+  const inputStyles = (error) => ({
+    borderRadius: 2,
+    backgroundColor: inputBg,
+    color: inputText,
+    border: error ? `1.5px solid ${theme.palette.error.main}` : "1.5px solid transparent",
+    paddingLeft: 0,
+    "& .MuiInputBase-input": {
+      color: inputText,
+      padding: "10.5px 14px"
+    },
+    "& .MuiSelect-icon": {
+      color: "#bbb"
+    }
+  });
+
+  const labelStyles = {
+    fontWeight: 500,
+    color: inputLabel
+  };
+
+const renderTextField = ({ name, label, select, options, type }) => {
+  if (name === "invitedBy") {
+    return (
+      <Autocomplete
+        key={name}
+        freeSolo
+        options={peopleList}
+        value={formData[name] || ""}
+        onChange={(e, newValue) => setFormData((prev) => ({ ...prev, invitedBy: newValue }))}
+        onInputChange={(e, newInputValue) =>
+          setFormData((prev) => ({ ...prev, invitedBy: newInputValue }))
+        }
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Invited By"
+            size="small"
+            margin="dense"
+            InputProps={{
+              ...params.InputProps,
+              sx: inputStyles(false)
+            }}
+            InputLabelProps={{ sx: labelStyles }}
+            sx={{ mb: 1 }}
+          />
+        )}
+      />
+    );
+  }
+
+  return (
+    <TextField
+      key={name}
+      label={label}
+      name={name}
+      type={type || "text"}
+      select={select}
+      value={formData[name] || ""}
+      onChange={handleInputChange}
+      fullWidth
+      size="small"
+      margin="dense"
+      error={!!errors[name]}
+      helperText={errors[name]}
+      InputProps={{
+        sx: inputStyles(!!errors[name])
+      }}
+      InputLabelProps={{
+        shrink: type === "date" || Boolean(formData[name]),
+        sx: labelStyles
+      }}
+      sx={{ mb: 1 }}
+    >
+      {select &&
+        options.map((opt) => (
+          <MenuItem key={opt} value={opt}>
+            {opt}
+          </MenuItem>
+        ))}
+    </TextField>
+  );
+};
+
+
+  const isFormValid = () => {
+    return [...leftFields, ...rightFields].every(({ name, required }) => {
+      if (!required) return true;
+      const val = formData[name];
+      return val !== undefined && val !== null && val.toString().trim() !== "";
+    });
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Add New Person</DialogTitle>
-      <DialogContent>
-        <Grid container spacing={2}>
-          {/* Left column */}
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Name :"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              fullWidth
-              size="small"
-              margin="dense"
-              sx={{
-                borderRadius: 2,
-                "& .MuiOutlinedInput-root": { borderRadius: 2 },
-              }}
-            />
-            <TextField
-              label="Date Of Birth :"
-              name="dob"
-              value={formData.dob}
-              onChange={handleInputChange}
-              fullWidth
-              size="small"
-              margin="dense"
-              sx={{
-                borderRadius: 2,
-                "& .MuiOutlinedInput-root": { borderRadius: 2 },
-              }}
-            />
-            <TextField
-              label="Home Address :"
-              name="homeAddress"
-              value={formData.homeAddress}
-              onChange={handleInputChange}
-              fullWidth
-              size="small"
-              margin="dense"
-              sx={{
-                borderRadius: 2,
-                "& .MuiOutlinedInput-root": { borderRadius: 2 },
-              }}
-            />
-            <TextField
-              label="Invited By :"
-              name="invitedBy"
-              value={formData.invitedBy}
-              onChange={handleInputChange}
-              fullWidth
-              size="small"
-              margin="dense"
-              sx={{
-                borderRadius: 2,
-                "& .MuiOutlinedInput-root": { borderRadius: 2 },
-              }}
-            />
-          </Grid>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          overflow: "hidden",
+          boxShadow: 5,
+          backgroundColor: theme.palette.background.paper
+        }
+      }}
+    >
+      <DialogTitle>
+        <Typography variant="h6" fontWeight={600} color={inputText}>
+          Add New Person
+        </Typography>
+      </DialogTitle>
 
-          {/* Right column */}
+      <DialogContent>
+        <Grid container spacing={3} sx={{ mt: 0.5 }}>
           <Grid item xs={12} sm={6}>
-            <TextField
-              label="Surname :"
-              name="surname"
-              value={formData.surname}
-              onChange={handleInputChange}
-              fullWidth
-              size="small"
-              margin="dense"
-              sx={{
-                borderRadius: 2,
-                "& .MuiOutlinedInput-root": { borderRadius: 2 },
-              }}
-            />
-            <TextField
-              label="Email Address"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              fullWidth
-              size="small"
-              margin="dense"
-              sx={{
-                borderRadius: 2,
-                "& .MuiOutlinedInput-root": { borderRadius: 2 },
-              }}
-            />
-            <TextField
-              label="Phone Number :"
-              name="phone"
-              value={formData.phone}
-              onChange={handleInputChange}
-              fullWidth
-              size="small"
-              margin="dense"
-              sx={{
-                borderRadius: 2,
-                "& .MuiOutlinedInput-root": { borderRadius: 2 },
-              }}
-            />
-            <TextField
-              label="Gender :"
-              name="gender"
-              value={formData.gender}
-              onChange={handleInputChange}
-              fullWidth
-              size="small"
-              margin="dense"
-              sx={{
-                borderRadius: 2,
-                "& .MuiOutlinedInput-root": { borderRadius: 2 },
-              }}
-            />
+            {leftFields.map(renderTextField)}
+            {renderTextField({ name: "invitedBy" })} {/* Autocomplete */}
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            {rightFields.map(renderTextField)}
           </Grid>
         </Grid>
       </DialogContent>
+
       <DialogActions sx={{ justifyContent: "space-between", px: 3, pb: 2 }}>
-        <Button variant="outlined" onClick={onClose}>
+        <Button
+          variant="outlined"
+          onClick={onClose}
+          sx={{
+            borderRadius: 2,
+            borderColor: cancelBorder,
+            color: cancelText,
+            textTransform: "uppercase",
+            fontWeight: "bold",
+            "&:hover": { borderColor: cancelBorder, backgroundColor: cancelBgHover },
+            minWidth: 120,
+            px: 3
+          }}
+        >
           Cancel
         </Button>
+
         <Button
           variant="contained"
-          onClick={onSave}
+          onClick={handleSaveClick}
+          disabled={!isFormValid()}
           sx={{
-            backgroundColor: "black",
-            color: "white",
-            "&:hover": { backgroundColor: "#222" },
+            backgroundColor: isFormValid() ? btnBg : "#999",
+            color: "#fff",
+            textTransform: "none",
             borderRadius: 2,
-            minWidth: 120,
+            minWidth: 140,
             px: 3,
+            boxShadow: 3,
+            "&:hover": {
+              backgroundColor: isFormValid() ? btnHover : "#999"
+            }
           }}
         >
           Save Details
