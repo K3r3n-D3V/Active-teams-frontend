@@ -56,11 +56,20 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit }) => {
           ))}
         </div>
         <div style={styles.actions}>
-          <button onClick={onClose} style={styles.secondaryBtn}>Mark As Did Not Meet</button>
+<button
+  onClick={() => {
+    if (onSubmit) onSubmit(checked);
+    onClose();
+  }}
+  // Rename to indicate: "Mark As Did Not Meet"
+>
+  Mark As Did Not Meet
+</button>
           <button onClick={handleSubmit} style={styles.primaryBtn}>Submit Attendance</button>
         </div>
       </div>
     </div>
+    
   );
 };
 

@@ -1,32 +1,25 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
+
 const Events = () => {
   const navigate = useNavigate();
   const theme = useTheme();
 
-  const [showFilter, setShowFilter] = useState(false); // for popup visibility
-  const [filterType, setFilterType] = useState("all"); // filter state
+  const [showFilter, setShowFilter] = useState(false);
+  const [filterType, setFilterType] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  function getNextWeekday(targetDay) {
-    const today = new Date();
-    const currentDay = today.getDay();
-    let daysUntilTarget = targetDay - currentDay;
-    if (daysUntilTarget <= 0) daysUntilTarget += 7;
-    const nextDate = new Date(today);
-    nextDate.setDate(today.getDate() + daysUntilTarget);
-    nextDate.setHours(19, 0, 0, 0);
-    return nextDate;
-  }
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [events, setEvents] = useState([]); // ✅ Now from backend
 
-  const events = [
-    { _id: "1", service_name: "Forest High School", eventType: "cell", date: new Date("2025-04-30T09:30"), address: "106 Forest Street, Turffontein" },
-    { _id: "2", service_name: "Men's Encounter", eventType: "conference", date: new Date("2025-05-30T19:00"), address: "72 Marlborough Rd, Springfield" },
-    { _id: "3", service_name: "Wednesday Cell Group", eventType: "cell", date: getNextWeekday(3), address: "Community Center, Johannesburg" },
-    { _id: "4", service_name: "Thursday Cell Group", eventType: "cell", date: getNextWeekday(4), address: "Church Hall, Sandton" },
-    { _id: "5", service_name: "Sunday Service", eventType: "service", date: getNextWeekday(0), address: "Main Church, Johannesburg" },
-  ];
+  // ✅ Fetch events from backend
+  useEffect(() => {
+    axios.get("http://localhost:8000/events")
+      .then((res) => setEvents(res.data.events))
+      .catch((err) => console.error("Failed to fetch events", err));
+  }, []);
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
@@ -35,9 +28,12 @@ const Events = () => {
     return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
   };
 
-  // filter events
-  const filteredEvents =
-    filterType === "all" ? events : events.filter((e) => e.eventType === filterType);
+  const filteredEvents = filterType === "all" ? events : events.filter((e) => e.eventType === filterType);
+
+  const handleCaptureClick = (event) => {
+    setSelectedEvent(event); // store clicked event
+    setIsModalOpen(true); // open modal
+  };
 
   return (
     <div
@@ -94,18 +90,7 @@ const Events = () => {
           </div>
         </div>
       )}
-<div>
-      <h1>Event Screen</h1>
-      <button onClick={() => setIsModalOpen(true)}>
-        Capture Attendance
-      </button>
 
-      <AttendanceModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={(data) => console.log("Attendance data:", data)}
-      />
-    </div>
       {/* Events */}
       <div style={styles.eventsGrid}>
         {filteredEvents.map((event) => (
@@ -113,24 +98,28 @@ const Events = () => {
             <div style={styles.eventHeader}>
               <h3 style={styles.eventTitle}>{event.service_name}</h3>
               <span
-                style={{
-                  ...styles.eventBadge,
-                  backgroundColor:
-                    event.eventType === "cell"
-                      ? "#007bff"
-                      : event.eventType === "conference"
-                      ? "#e91e63"
-                      : "#6c757d",
-                }}
-              >
-                {event.eventType.toUpperCase()}
-              </span>
+  style={{
+    ...styles.eventBadge,
+    backgroundColor:
+      event.eventType?.toLowerCase() === "cell"
+        ? "#007bff"
+        : event.eventType?.toLowerCase() === "conference"
+        ? "#e91e63"
+        : "#6c757d",
+  }}
+>
+  {event.eventType?.toUpperCase() || "UNKNOWN"}
+</span>
+
             </div>
             <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
             <p style={styles.eventLocation}>{event.address}</p>
             <div style={styles.eventActions}>
-              <button style={{ ...styles.actionBtn, ...styles.captureBtn }}>
-                {event.eventType === "cell" ? "Capture Cell" : "Capture Attendance"}
+              <button
+                style={{ ...styles.actionBtn, ...styles.captureBtn }}
+                onClick={() => handleCaptureClick(event)}
+              >
+                Capture
               </button>
               <button
                 style={{
@@ -148,9 +137,28 @@ const Events = () => {
           </div>
         ))}
       </div>
+   {/* Floating History Button */}
+<button
+  style={styles.historyButton}
+  onClick={() => navigate("/history")}
+  title="View Event History"
+>
+  🕒 History
+</button>
+      {/* Attendance Modal */}
+      {selectedEvent && (
+        <AttendanceModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          event={selectedEvent} // pass the clicked event to modal
+          onSubmit={(data) => console.log("Attendance data:", data)}
+        />
+      )}
     </div>
   );
 };
+
+          
 
 const styles = {
   container: { minHeight: "100vh", fontFamily: "system-ui, sans-serif" },
@@ -176,6 +184,21 @@ const styles = {
   popupOverlay: { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center" },
   popupContent: { background: "#fff", padding: "2rem", borderRadius: "12px", width: "300px", textAlign: "center" },
   selectBox: { width: "100%", padding: "0.5rem", borderRadius: "6px", marginTop: "1rem" },
+  historyButton: {
+  position: "fixed",
+  bottom: "20px",
+  right: "20px",
+  backgroundColor: "#007bff",
+  color: "#fff",
+  border: "none",
+  borderRadius: "50px",
+  padding: "0.75rem 1.25rem",
+  cursor: "pointer",
+  fontSize: "1rem",
+  boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+  zIndex: 1000
+}
+
 };
 
 export default Events;
