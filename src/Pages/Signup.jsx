@@ -310,7 +310,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               Already have an account?{" "}
               <Typography
                 component="span"
-                sx={{ color: "lightblue", cursor: "pointer", textDecoration: "underline" }}
+                sx={{ color: "#42a5f5", cursor: "pointer", textDecoration: "underline" }}
                 onClick={() => navigate("/login")}
               >
                 Log In
