@@ -1,0 +1,74 @@
+[33mf81c2fd[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32msignup_AM[m[33m)[m HEAD@{0}: rebase (abort): returning to refs/heads/signup_AM
+[33mf455e15[m HEAD@{1}: rebase (pick): made a signup
+[33m0746e81[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{2}: rebase (start): checkout origin/main
+[33mf81c2fd[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32msignup_AM[m[33m)[m HEAD@{3}: commit: adding
+[33m2258540[m[33m ([m[1;31morigin/signup_AM[m[33m)[m HEAD@{4}: checkout: moving from signup_AM to signup_AM
+[33m2258540[m[33m ([m[1;31morigin/signup_AM[m[33m)[m HEAD@{5}: pull: Fast-forward
+[33m9f6f2b8[m HEAD@{6}: rebase (abort): returning to refs/heads/signup_AM
+[33m694f537[m HEAD@{7}: commit: added main code
+[33m4450b77[m HEAD@{8}: rebase (pick): made a signup
+[33m0746e81[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{9}: rebase (start): checkout origin/main
+[33m9f6f2b8[m HEAD@{10}: checkout: moving from signup_AM to signup_AM
+[33m9f6f2b8[m HEAD@{11}: checkout: moving from main to signup_AM
+[33m0746e81[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{12}: checkout: moving from signup_AM to main
+[33m9f6f2b8[m HEAD@{13}: commit: fixed 3 dot menu
+[33m936e744[m HEAD@{14}: checkout: moving from main to signup_AM
+[33m0746e81[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{15}: commit: fixed addperson
+[33m68e5388[m HEAD@{16}: pull: Fast-forward
+[33m28164fc[m HEAD@{17}: checkout: moving from sidebarr to main
+[33m5c1a03a[m[33m ([m[1;31morigin/sidebarr[m[33m, [m[1;32msidebarr[m[33m)[m HEAD@{18}: checkout: moving from realStats to sidebarr
+[33m8ff4cca[m[33m ([m[1;32mrealStats[m[33m)[m HEAD@{19}: commit: added stats
+[33m28164fc[m HEAD@{20}: checkout: moving from StatsKB to realStats
+[33mc38897e[m[33m ([m[1;32mStatsKB[m[33m)[m HEAD@{21}: checkout: moving from realStats to StatsKB
+[33m28164fc[m HEAD@{22}: checkout: moving from main to realStats
+[33m28164fc[m HEAD@{23}: checkout: moving from StatsKB to main
+[33mc38897e[m[33m ([m[1;32mStatsKB[m[33m)[m HEAD@{24}: checkout: moving from sidebarr to StatsKB
+[33m5c1a03a[m[33m ([m[1;31morigin/sidebarr[m[33m, [m[1;32msidebarr[m[33m)[m HEAD@{25}: commit: Fixed addPersonDialog
+[33m5342d53[m HEAD@{26}: checkout: moving from main to sidebarr
+[33m28164fc[m HEAD@{27}: checkout: moving from sidebarr to main
+[33m5342d53[m HEAD@{28}: pull: Fast-forward
+[33md026218[m HEAD@{29}: checkout: moving from signup_AM to sidebarr
+[33m936e744[m HEAD@{30}: commit: Saving data
+[33m6c505b3[m HEAD@{31}: commit (merge): changed the signup and login
+[33m7ca124c[m HEAD@{32}: commit (merge): @adding@
+[33m0ec4e09[m HEAD@{33}: pull: updating HEAD
+[33m0ec4e09[m HEAD@{34}: pull: updating HEAD
+[33m0ec4e09[m HEAD@{35}: checkout: moving from signup_AM to signup_AM
+[33m0ec4e09[m HEAD@{36}: checkout: moving from main to signup_AM
+[33m28164fc[m HEAD@{37}: checkout: moving from main to main
+[33m28164fc[m HEAD@{38}: checkout: moving from main to main
+[33m28164fc[m HEAD@{39}: checkout: moving from sidebarr to main
+[33md026218[m HEAD@{40}: checkout: moving from main to sidebarr
+[33m28164fc[m HEAD@{41}: pull: Fast-forward
+[33m0ac34e7[m[33m ([m[1;32mStats[m[33m)[m HEAD@{42}: checkout: moving from people to main
+[33m7d8a635[m[33m ([m[1;31morigin/people[m[33m, [m[1;32mpeople[m[33m)[m HEAD@{43}: pull: Fast-forward
+[33m4b29f36[m HEAD@{44}: pull: Fast-forward
+[33m9d95685[m HEAD@{45}: checkout: moving from signup_AM to people
+[33m0ec4e09[m HEAD@{46}: commit (merge): saving
+[33mcd7619c[m HEAD@{47}: checkout: moving from people to signup_AM
+[33m9d95685[m HEAD@{48}: pull: Fast-forward
+[33mdb87ffd[m HEAD@{49}: checkout: moving from signup_AM to people
+[33mcd7619c[m HEAD@{50}: commit (merge): adding stuff
+[33m1b34437[m HEAD@{51}: checkout: moving from StatsKB to signup_AM
+[33mc38897e[m[33m ([m[1;32mStatsKB[m[33m)[m HEAD@{52}: commit: created stats page
+[33m0ac34e7[m[33m ([m[1;32mStats[m[33m)[m HEAD@{53}: checkout: moving from main to StatsKB
+[33m0ac34e7[m[33m ([m[1;32mStats[m[33m)[m HEAD@{54}: checkout: moving from Stats to main
+[33m0ac34e7[m[33m ([m[1;32mStats[m[33m)[m HEAD@{55}: checkout: moving from main to Stats
+[33m0ac34e7[m[33m ([m[1;32mStats[m[33m)[m HEAD@{56}: checkout: moving from people to main
+[33mdb87ffd[m HEAD@{57}: pull: Fast-forward
+[33m0af9b6a[m HEAD@{58}: checkout: moving from signup_AM to people
+[33m1b34437[m HEAD@{59}: commit (merge): adding code
+[33mba36bf3[m HEAD@{60}: checkout: moving from main to signup_AM
+[33m0ac34e7[m[33m ([m[1;32mStats[m[33m)[m HEAD@{61}: checkout: moving from signup_AM to main
+[33mba36bf3[m HEAD@{62}: checkout: moving from main to signup_AM
+[33m0ac34e7[m[33m ([m[1;32mStats[m[33m)[m HEAD@{63}: commit: Fixing sidebar
+[33m0af9b6a[m HEAD@{64}: checkout: moving from main to main
+[33m0af9b6a[m HEAD@{65}: pull: Fast-forward
+[33mc49bee4[m[33m ([m[1;32mService_checkin[m[33m)[m HEAD@{66}: checkout: moving from EventsKB to main
+[33m316719c[m[33m ([m[1;31morigin/EventsKB[m[33m, [m[1;32mEventsKB[m[33m)[m HEAD@{67}: commit: created givetoday
+[33mc49bee4[m[33m ([m[1;32mService_checkin[m[33m)[m HEAD@{68}: checkout: moving from main to EventsKB
+[33mc49bee4[m[33m ([m[1;32mService_checkin[m[33m)[m HEAD@{69}: checkout: moving from Service_checkin to main
+[33mc49bee4[m[33m ([m[1;32mService_checkin[m[33m)[m HEAD@{70}: checkout: moving from main to Service_checkin
+[33mc49bee4[m[33m ([m[1;32mService_checkin[m[33m)[m HEAD@{71}: commit: commented out financial reports
+[33m14cb958[m HEAD@{72}: Branch: renamed refs/heads/master to refs/heads/main
+[33m14cb958[m HEAD@{74}: commit (initial): first commit
