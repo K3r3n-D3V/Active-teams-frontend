@@ -83,7 +83,7 @@ export default function Sidebar({ mode, setMode }) {
       {/* Logo */}
       <Box sx={{ padding: 2, display: 'flex', justifyContent: 'center' }}>
         <img
-          src="/WhatsApp_Image_2025-08-19_at_15.03.15_3411d633-removebg-preview.png"
+          src="/src/assets/active-teams.png"
           alt="Active Church Logo"
           style={{
             maxWidth: '100%',
