@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Plus,
   X,
@@ -11,18 +11,17 @@ import {
   Tag,
 } from "lucide-react";
 
-const CreateEvents = ({ onCancel, onEventCreated, userRole = "admin" }) => {
+const CreateEvents = ({ onCancel, onEventCreated }) => {
   const [eventTypes, setEventTypes] = useState([
     "Meeting",
     "Workshop",
     "Conference",
     "Training",
   ]);
-
   const [showNewTypeForm, setShowNewTypeForm] = useState(false);
   const [newEventType, setNewEventType] = useState("");
-  // Example combining date and time strings into ISO datetime string
-// const combinedDateTime = new Date(`${formData.date}T${formData.time}`).toISOString();
+  const [events, setEvents] = useState([]);
+  const [selectedType, setSelectedType] = useState("Conference");
 
   const [formData, setFormData] = useState({
     eventType: "",
@@ -37,205 +36,186 @@ const CreateEvents = ({ onCancel, onEventCreated, userRole = "admin" }) => {
   });
 
   const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  // Styles object with blue for validation highlights, no red borders
- const styles = {
-  container: {
-    padding: "12px 16px",
-    fontFamily: "Arial, sans-serif",
-    background: "#f9fafb",
-    minHeight: "auto", // instead of full viewport height
-    maxWidth: "480px",
-    margin: "auto",
-    borderRadius: "8px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-  },
-  maxWidth: {
-    maxWidth: "480px",
-  },
-  header: {
-    marginBottom: "12px", // less than before
-  },
-  headerContent: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: "1.5rem",
-    margin: 0,
-    lineHeight: 1.2,
-  },
-  headerSubtitle: {
-    fontSize: "0.85rem",
-    marginTop: "2px",
-    color: "#6b7280",
-  },
-  closeBtn: {
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-    padding: "4px",
-  },
-  formContainer: {
-    display: "flex",
-    flexDirection: "column",
-  },
-  formGroup: {
-    marginBottom: "8px", // reduce from 16px
-  },
-  formLabel: {
-    display: "flex",
-    alignItems: "center",
-    fontWeight: "600",
-    fontSize: "0.85rem",
-    marginBottom: "4px",
-  },
-  selectContainer: {
-    display: "flex",
-    alignItems: "center",
-  },
-  selectInput: {
-    flexGrow: 1,
-    padding: "6px 8px", // smaller padding
-    fontSize: "0.9rem",
-    borderRadius: "4px",
-    border: "1px solid #ccc",
-  },
-  addBtn: {
-    marginLeft: "8px",
-    background: "#3b82f6",
-    border: "none",
-    color: "#fff",
-    cursor: "pointer",
-    borderRadius: "4px",
-    padding: "4px 6px",
-  },
-  formInput: {
-    width: "100%",
-    padding: "6px 8px",
-    fontSize: "0.9rem",
-    borderRadius: "4px",
-    border: "1px solid #ccc",
-  },
-  textarea: {
-    width: "100%",
-    padding: "6px 8px",
-    fontSize: "0.9rem",
-    borderRadius: "4px",
-    border: "1px solid #ccc",
-    minHeight: "80px", // smaller height than 5 rows default
-    resize: "vertical",
-  },
-  grid2: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "8px", // smaller gap
-  },
-  dayCard: {
-    border: "1px solid #ccc",
-    borderRadius: "6px",
-    padding: "6px 10px",
-    textAlign: "center",
-    fontSize: "0.8rem",
-    cursor: "pointer",
-    userSelect: "none",
-  },
-  dayCardActive: {
-    backgroundColor: "#3b82f6",
-    color: "#fff",
-    borderColor: "#2563eb",
-  },
-  toggleSwitch: {
-    width: "50px",
-    height: "24px",
-    borderRadius: "12px",
-    position: "relative",
-    cursor: "pointer",
-  },
-  toggleSlider: {
-    position: "absolute",
-    top: "2px",
-    width: "20px",
-    height: "20px",
-    backgroundColor: "#fff",
-    borderRadius: "50%",
-    transition: "left 0.2s",
-  },
-  recurringDaysContainer: {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, 1fr)", // 4 columns for two rows layout (4+3)
-  gap: "6px 12px",
-  marginTop: "4px",
-},
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-checkboxLabel: {
-  display: "flex",
-  alignItems: "center",
-  fontSize: "0.9rem",
-  cursor: "pointer",
-  userSelect: "none",
-},
-
-checkboxInput: {
-  marginRight: "6px",
-  width: "16px",
-  height: "16px",
-  cursor: "pointer",
-},
-
-  actions: {
-    marginTop: "12px",
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "10px",
-  },
-  btn: {
-    padding: "8px 14px",
-    fontSize: "0.9rem",
-    borderRadius: "6px",
-    cursor: "pointer",
-    border: "none",
-  },
-  btnPrimary: {
-    background: "#3b82f6",
-    color: "#fff",
-    disabled: {
-      opacity: 0.6,
-      cursor: "not-allowed",
+  const styles = {
+    container: {
+      padding: "12px 16px",
+      fontFamily: "Arial, sans-serif",
+      background: "#f9fafb",
+      minHeight: "auto",
+      maxWidth: "480px",
+      margin: "auto",
+      borderRadius: "8px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
     },
-  },
-  btnSecondary: {
-    background: "#e5e7eb",
-    color: "#374151",
-  },
-  errorText: {
-    fontSize: "0.75rem",
-    color: "#3b82f6",
-    marginTop: "4px",
-  },
-};
+    maxWidth: {
+      maxWidth: "480px",
+    },
+    header: {
+      marginBottom: "12px",
+    },
+    headerContent: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    headerTitle: {
+      fontSize: "1.5rem",
+      margin: 0,
+      lineHeight: 1.2,
+    },
+    headerSubtitle: {
+      fontSize: "0.85rem",
+      marginTop: "2px",
+      color: "#6b7280",
+    },
+    closeBtn: {
+      background: "transparent",
+      border: "none",
+      cursor: "pointer",
+      padding: "4px",
+    },
+    formContainer: {
+      display: "flex",
+      flexDirection: "column",
+    },
+    formGroup: {
+      marginBottom: "8px",
+    },
+    formLabel: {
+      display: "flex",
+      alignItems: "center",
+      fontWeight: "600",
+      fontSize: "0.85rem",
+      marginBottom: "4px",
+    },
+    selectContainer: {
+      display: "flex",
+      alignItems: "center",
+    },
+    selectInput: {
+      flexGrow: 1,
+      padding: "6px 8px",
+      fontSize: "0.9rem",
+      borderRadius: "4px",
+      border: "1px solid #ccc",
+    },
+    addBtn: {
+      marginLeft: "8px",
+      background: "#3b82f6",
+      border: "none",
+      color: "#fff",
+      cursor: "pointer",
+      borderRadius: "4px",
+      padding: "4px 6px",
+    },
+    formInput: {
+      width: "100%",
+      padding: "6px 8px",
+      fontSize: "0.9rem",
+      borderRadius: "4px",
+      border: "1px solid #ccc",
+    },
+    textarea: {
+      width: "100%",
+      padding: "6px 8px",
+      fontSize: "0.9rem",
+      borderRadius: "4px",
+      border: "1px solid #ccc",
+      minHeight: "80px",
+      resize: "vertical",
+    },
+    grid2: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "8px",
+    },
+    dayCard: {
+      border: "1px solid #ccc",
+      borderRadius: "6px",
+      padding: "6px 10px",
+      textAlign: "center",
+      fontSize: "0.8rem",
+      cursor: "pointer",
+      userSelect: "none",
+    },
+    dayCardActive: {
+      backgroundColor: "#3b82f6",
+      color: "#fff",
+      borderColor: "#2563eb",
+    },
+    toggleSwitch: {
+      width: "50px",
+      height: "24px",
+      borderRadius: "12px",
+      position: "relative",
+      cursor: "pointer",
+    },
+    toggleSlider: {
+      position: "absolute",
+      top: "2px",
+      width: "20px",
+      height: "20px",
+      backgroundColor: "#fff",
+      borderRadius: "50%",
+      transition: "left 0.2s",
+    },
+    recurringDaysContainer: {
+      display: "grid",
+      gridTemplateColumns: "repeat(4, 1fr)",
+      gap: "6px 12px",
+      marginTop: "4px",
+    },
+    checkboxLabel: {
+      display: "flex",
+      alignItems: "center",
+      fontSize: "0.9rem",
+      cursor: "pointer",
+      userSelect: "none",
+    },
+    checkboxInput: {
+      marginRight: "6px",
+      width: "16px",
+      height: "16px",
+      cursor: "pointer",
+    },
+    actions: {
+      marginTop: "12px",
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: "10px",
+    },
+    btn: {
+      padding: "8px 14px",
+      fontSize: "0.9rem",
+      borderRadius: "6px",
+      cursor: "pointer",
+      border: "none",
+    },
+    btnPrimary: {
+      background: "#3b82f6",
+      color: "#fff",
+      disabled: {
+        opacity: 0.6,
+        cursor: "not-allowed",
+      },
+    },
+    btnSecondary: {
+      background: "#e5e7eb",
+      color: "#374151",
+    },
+    errorText: {
+      fontSize: "0.75rem",
+      color: "#3b82f6",
+      marginTop: "4px",
+    },
+  };
 
-
-  if (userRole !== "admin") {
-    return (
-      <div style={styles.accessDenied}>
-        <div style={styles.accessDeniedCard}>
-          <div style={styles.accessDeniedIcon}>
-            <X style={{ width: "24px", height: "24px", color: "#3b82f6" }} />
-          </div>
-          <h2 style={styles.accessDeniedTitle}>Access Denied</h2>
-          <p style={styles.accessDeniedText}>
-            You don't have permission to create events.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // -- Removed user role/access deny logic entirely --
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    // For price, restrict to numbers or 'Free' (case insensitive)
     if (name === "price") {
       if (
         value === "" ||
@@ -246,7 +226,10 @@ checkboxInput: {
       }
       return;
     }
-    setFormData({ ...formData, [name]: type === "checkbox" ? checked : value });
+    setFormData({
+      ...formData,
+      [name]: type === "checkbox" ? checked : value,
+    });
   };
 
   const handleDayChange = (day) => {
@@ -254,7 +237,6 @@ checkboxInput: {
       ? formData.recurringDays.filter((d) => d !== day)
       : [...formData.recurringDays, day];
     setFormData({ ...formData, recurringDays: updatedDays });
-    // Clear date/time errors if any when toggling days
     setErrors((prev) => {
       const newErrors = { ...prev };
       if (updatedDays.length > 0) {
@@ -269,7 +251,8 @@ checkboxInput: {
     if (
       newEventType.trim() &&
       !eventTypes.some(
-        (type) => type.toLowerCase() === newEventType.trim().toLowerCase()
+        (type) =>
+          type.toLowerCase() === newEventType.trim().toLowerCase()
       )
     ) {
       setEventTypes([...eventTypes, newEventType.trim()]);
@@ -302,14 +285,9 @@ checkboxInput: {
       }
     }
 
-    // If no recurring days selected, date and time are required
     if (formData.recurringDays.length === 0) {
-      if (!formData.date) {
-        newErrors.date = "Date is required if no recurring days.";
-      }
-      if (!formData.time) {
-        newErrors.time = "Time is required if no recurring days.";
-      }
+      if (!formData.date) newErrors.date = "Date is required if no recurring days.";
+      if (!formData.time) newErrors.time = "Time is required if no recurring days.";
     }
 
     if (!formData.location.trim()) {
@@ -323,83 +301,78 @@ checkboxInput: {
     }
 
     setErrors(newErrors);
-
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
+    if (!validateForm()) return;
+    setIsSubmitting(true);
 
-  if (!validateForm()) {
-    return;
-  }
+  const recurringDays = formData.recurringDays.map(day => ({
+  ...day,
+  location: formData.location, // ⬅️ move location into each recurring day
+}));
 
-  setIsSubmitting(true);
-  const combinedDateTime = new Date(`${formData.date}T${formData.time}`).toISOString();
-  try {
-    const response = await fetch("http://localhost:8000/event", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        // "Authorization": `Bearer ${yourAuthToken}`, // Replace with actual token if needed
-      },
-   body: JSON.stringify({
+const payload = {
   eventType: formData.eventType,
-  eventName: formData.eventName,  // 👈 allow any event name
-  date: combinedDateTime,         // Combined date + time
-  location: formData.location,
-  recurringDays: formData.recurringDays,
+  eventName: formData.eventName, // ⬅️ correctly using user input
+  price: formData.isTicketed ? Number(formData.price) : 0,
+  date:
+    formData.recurringDays.length === 0
+      ? new Date(`${formData.date}T${formData.time}`).toISOString()
+      : null,
+  recurringDays: recurringDays,
   eventLeader: formData.eventLeader,
   description: formData.description,
   isTicketed: formData.isTicketed,
-  price: formData.price,
-
-      }),
-    });
-
-if (!response.ok) {
-let errorMessage = "Error creating event.";
-
-try {
-  const errorData = await response.json();
-
-  if (errorData.detail) {
-    errorMessage += " " + errorData.detail;
-  } else if (Array.isArray(errorData)) {
-    errorMessage += " " + errorData.map(err => JSON.stringify(err)).join(", ");
-  } else {
-    errorMessage += " " + JSON.stringify(errorData, null, 2);
-  }
-} catch (parseError) {
-  errorMessage += " Unknown error occurred.";
-}
-
-alert(errorMessage);
-
-  setIsSubmitting(false);
-  return;
-}
-
-
-    // ✅ SAFELY PARSE SUCCESS RESPONSE
-    const responseText = await response.text();
-    let data = {};
-
-    try {
-      data = responseText ? JSON.parse(responseText) : {};
-    } catch (parseError) {
-      console.warn("Could not parse success response as JSON");
-    }
-
-    alert("Event created successfully!");
-    onEventCreated(data.event);
-  } catch (error) {
-    alert("Network error: " + error.message);
-  }
-
-  setIsSubmitting(false);
 };
 
+
+    try {
+      const response = await fetch("http://localhost:8000/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const detail = data?.detail || data || "Unknown error occurred";
+        alert(`Error creating event: ${JSON.stringify(detail, null, 2)}`);
+        setIsSubmitting(false);
+        return;
+      }
+      alert("Event created successfully!");
+      onEventCreated?.(data.event || data);
+    } catch (error) {
+      alert("Network error: " + error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const fetchEvents = async (type = formData.eventType) => {
+    if (!type) return;
+    try {
+      // ✅ Correct — passes event_type in the URL
+const res = await fetch(`http://localhost:8000/events/type/${type}`);
+
+;
+      if (!res.ok) {
+  console.error("Failed to fetch events, status:", res.status);
+  throw new Error("Failed to fetch events");
+}
+      const data = await res.json();
+      setEvents(data.events || []);
+    } catch (err) {
+      console.error("Failed to fetch events:", err);
+      setEvents([]);
+    }
+  };
+
+  useEffect(() => {
+    if (formData.eventType) fetchEvents(formData.eventType);
+  }, [formData.eventType]);
 
   return (
     <div style={styles.container}>
@@ -408,9 +381,7 @@ alert(errorMessage);
           <div style={styles.headerContent}>
             <div>
               <h1 style={styles.headerTitle}>Create Event</h1>
-              <p style={styles.headerSubtitle}>
-                Add a new event to your schedule
-              </p>
+              <p style={styles.headerSubtitle}>Add a new event to your schedule</p>
             </div>
             <button
               style={styles.closeBtn}
@@ -422,34 +393,34 @@ alert(errorMessage);
             </button>
           </div>
         </header>
-    <form
-  style={styles.formContainer}
-  onSubmit={handleSubmit}
-  noValidate
-  aria-live="polite"
->
-  <button type="submit" disabled={isSubmitting}>
-    {isSubmitting ? "Creating..." : "Create Event"}
-  </button>
-        
+
+        <form
+          style={styles.formContainer}
+          onSubmit={handleSubmit}
+          noValidate
+          aria-live="polite"
+        >
           {/* Event Type */}
           <div style={styles.formGroup}>
-            <label
-              htmlFor="eventType"
-              style={styles.formLabel}
-            >
-              <Tag size={16} />
-              Event Type <sup style={{ color: "#3b82f6" }}>*</sup>
+            <label htmlFor="eventType" style={styles.formLabel}>
+              <Tag size={16} /> Event Type <sup style={{ color: "#3b82f6" }}>*</sup>
             </label>
             <div style={styles.selectContainer}>
               <select
                 id="eventType"
                 name="eventType"
                 value={formData.eventType}
-                onChange={handleChange}
+                onChange={(e) => {
+                  setFormData({ ...formData, eventType: e.target.value });
+                  setErrors((prev) => {
+                    const newErrors = { ...prev };
+                    delete newErrors.eventType;
+                    return newErrors;
+                  });
+                }}
                 style={{
                   ...styles.selectInput,
-                  ...(errors.eventType ? styles.selectInputError : {}),
+                  ...(errors.eventType ? { borderColor: "#3b82f6" } : {}),
                 }}
                 aria-describedby={errors.eventType ? "eventTypeError" : undefined}
               >
@@ -477,11 +448,8 @@ alert(errorMessage);
             )}
 
             {showNewTypeForm && (
-              <div id="newEventTypeForm" style={styles.newTypeForm}>
-                <label
-                  htmlFor="newEventType"
-                  style={styles.formLabel}
-                >
+              <div id="newEventTypeForm" style={styles.formGroup}>
+                <label htmlFor="newEventType" style={styles.formLabel}>
                   New Event Type
                 </label>
                 <input
@@ -493,16 +461,13 @@ alert(errorMessage);
                   style={styles.formInput}
                   aria-describedby="newEventTypeHelp"
                 />
-                <div
-                  id="newEventTypeHelp"
-                  style={{ fontSize: "0.8rem", color: "#666" }}
-                >
+                <div id="newEventTypeHelp" style={{ fontSize: "0.8rem", color: "#666" }}>
                   Add a new event type to the dropdown
                 </div>
-                <div style={styles.newTypeActions}>
+                <div style={styles.actions}>
                   <button
                     type="button"
-                    style={{ ...styles.btnSmall, ...styles.btnSuccess }}
+                    style={{ ...styles.btn, ...styles.btnPrimary }}
                     onClick={addNewEventType}
                     disabled={!newEventType.trim()}
                   >
@@ -510,12 +475,7 @@ alert(errorMessage);
                   </button>
                   <button
                     type="button"
-                    style={{
-                      ...styles.btnSmall,
-                      background: "#ccc",
-                      color: "#111",
-                      cursor: "pointer",
-                    }}
+                    style={{ ...styles.btn, ...styles.btnSecondary }}
                     onClick={() => {
                       setShowNewTypeForm(false);
                       setNewEventType("");
@@ -528,17 +488,15 @@ alert(errorMessage);
             )}
           </div>
 
-          {/* Ticketed toggle and price */}
+          {/* Ticketed Toggle & Price */}
           <div style={styles.formGroup}>
             <label htmlFor="isTicketed" style={styles.formLabel}>
-              <DollarSign size={16} />
-              Ticketed Event
+              <DollarSign size={16} /> Ticketed Event
             </label>
             <div
               role="switch"
               tabIndex={0}
               aria-checked={formData.isTicketed}
-              aria-labelledby="ticketedLabel"
               style={{
                 ...styles.toggleSwitch,
                 background: formData.isTicketed ? "#3b82f6" : "#ccc",
@@ -562,10 +520,7 @@ alert(errorMessage);
             </div>
             {formData.isTicketed && (
               <div style={{ marginTop: "12px" }}>
-                <label
-                  htmlFor="price"
-                  style={styles.formLabel}
-                >
+                <label htmlFor="price" style={styles.formLabel}>
                   Price <sup style={{ color: "#3b82f6" }}>*</sup>
                 </label>
                 <input
@@ -577,7 +532,7 @@ alert(errorMessage);
                   onChange={handleChange}
                   style={{
                     ...styles.formInput,
-                    ...(errors.price ? styles.formInputError : {}),
+                    ...(errors.price ? { borderColor: "#3b82f6" } : {}),
                   }}
                   aria-describedby={errors.price ? "priceError" : undefined}
                 />
@@ -593,12 +548,8 @@ alert(errorMessage);
           {/* Date and Time */}
           <div style={{ ...styles.formGroup, ...styles.grid2 }}>
             <div>
-              <label
-                htmlFor="date"
-                style={styles.formLabel}
-              >
-                <Calendar size={16} />
-                Date{" "}
+              <label htmlFor="date" style={styles.formLabel}>
+                <Calendar size={16} /> Date{" "}
                 {formData.recurringDays.length === 0 && (
                   <sup style={{ color: "#3b82f6" }}>*</sup>
                 )}
@@ -611,7 +562,7 @@ alert(errorMessage);
                 onChange={handleChange}
                 style={{
                   ...styles.formInput,
-                  ...(errors.date ? styles.formInputError : {}),
+                  ...(errors.date ? { borderColor: "#3b82f6" } : {}),
                 }}
                 disabled={formData.recurringDays.length > 0}
                 aria-describedby={errors.date ? "dateError" : undefined}
@@ -624,12 +575,8 @@ alert(errorMessage);
             </div>
 
             <div>
-              <label
-                htmlFor="time"
-                style={styles.formLabel}
-              >
-                <Clock size={16} />
-                Time{" "}
+              <label htmlFor="time" style={styles.formLabel}>
+                <Clock size={16} /> Time{" "}
                 {formData.recurringDays.length === 0 && (
                   <sup style={{ color: "#3b82f6" }}>*</sup>
                 )}
@@ -642,7 +589,7 @@ alert(errorMessage);
                 onChange={handleChange}
                 style={{
                   ...styles.formInput,
-                  ...(errors.time ? styles.formInputError : {}),
+                  ...(errors.time ? { borderColor: "#3b82f6" } : {}),
                 }}
                 disabled={formData.recurringDays.length > 0}
                 aria-describedby={errors.time ? "timeError" : undefined}
@@ -655,78 +602,43 @@ alert(errorMessage);
             </div>
           </div>
 
-          {/* Location */}
+          {/* Recurring Days */}
           <div style={styles.formGroup}>
-            <label
-              htmlFor="location"
-              style={styles.formLabel}
-            >
-              <MapPin size={16} />
-              Location <sup style={{ color: "#3b82f6" }}>*</sup>
+            <label style={styles.formLabel}>
+              <Calendar size={16} /> Recurring Days
             </label>
-            <input
-              type="text"
-              id="location"
-              name="location"
-              value={formData.location}
-              onChange={handleChange}
-              style={{
-                ...styles.formInput,
-                ...(errors.location ? styles.formInputError : {}),
-              }}
-              aria-describedby={errors.location ? "locationError" : undefined}
-              placeholder="Enter location"
-            />
-            {errors.location && (
-              <div id="locationError" style={styles.errorText}>
-                {errors.location}
-              </div>
-            )}
+            <div style={styles.recurringDaysContainer} role="group" aria-label="Recurring days">
+              {[
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday",
+              ].map((day) => (
+                <label key={day} style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    name="recurringDays"
+                    value={day}
+                    checked={formData.recurringDays.includes(day)}
+                    onChange={() => handleDayChange(day)}
+                    style={styles.checkboxInput}
+                  />
+                  {day}
+                </label>
+              ))}
+            </div>
+            <small style={{ color: "#666", marginTop: "6px", display: "block" }}>
+              Select recurring days to repeat event weekly. Date/time inputs will be disabled.
+            </small>
           </div>
-
-        {/* Recurring Days */}
-<div style={styles.formGroup}>
-  <label style={styles.formLabel}>
-    <Calendar size={16} />
-    Recurring Days
-  </label>
-  <div style={styles.recurringDaysContainer} role="group" aria-label="Recurring days">
-    {[
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ].map((day) => (
-      <label key={day} style={styles.checkboxLabel}>
-        <input
-          type="checkbox"
-          name="recurringDays"
-          value={day}
-          checked={formData.recurringDays.includes(day)}
-          onChange={() => handleDayChange(day)}
-          style={styles.checkboxInput}
-        />
-        {day}
-      </label>
-    ))}
-  </div>
-  <small style={{ color: "#666", marginTop: "6px", display: "block" }}>
-    Select recurring days to repeat event weekly. Date/time inputs will be disabled.
-  </small>
-</div>
-
 
           {/* Event Leader */}
           <div style={styles.formGroup}>
-            <label
-              htmlFor="eventLeader"
-              style={styles.formLabel}
-            >
-              <User size={16} />
-              Event Leader <sup style={{ color: "#3b82f6" }}>*</sup>
+            <label htmlFor="eventLeader" style={styles.formLabel}>
+              <User size={16} /> Event Leader <sup style={{ color: "#3b82f6" }}>*</sup>
             </label>
             <input
               type="text"
@@ -736,10 +648,9 @@ alert(errorMessage);
               onChange={handleChange}
               style={{
                 ...styles.formInput,
-                ...(errors.eventLeader ? styles.formInputError : {}),
+                ...(errors.eventLeader ? { borderColor: "#3b82f6" } : {}),
               }}
               aria-describedby={errors.eventLeader ? "eventLeaderError" : undefined}
-              placeholder="Enter event leader"
             />
             {errors.eventLeader && (
               <div id="eventLeaderError" style={styles.errorText}>
@@ -750,12 +661,8 @@ alert(errorMessage);
 
           {/* Description */}
           <div style={styles.formGroup}>
-            <label
-              htmlFor="description"
-              style={styles.formLabel}
-            >
-              <FileText size={16} />
-              Description <sup style={{ color: "#3b82f6" }}>*</sup>
+            <label htmlFor="description" style={styles.formLabel}>
+              <FileText size={16} /> Description <sup style={{ color: "#3b82f6" }}>*</sup>
             </label>
             <textarea
               id="description"
@@ -764,10 +671,9 @@ alert(errorMessage);
               onChange={handleChange}
               style={{
                 ...styles.textarea,
-                ...(errors.description ? styles.textareaError : {}),
+                ...(errors.description ? { borderColor: "#3b82f6" } : {}),
               }}
               aria-describedby={errors.description ? "descriptionError" : undefined}
-              placeholder="Enter event description"
               rows={5}
             />
             {errors.description && (
@@ -798,9 +704,6 @@ alert(errorMessage);
             >
               {isSubmitting ? "Creating..." : "Create Event"}
             </button>
-          </div>
-          <div style={styles.footerNote}>
-            * Required fields
           </div>
         </form>
       </div>

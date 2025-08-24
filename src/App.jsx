@@ -30,7 +30,7 @@ function App() {
   // 🔐 Simulated logged-in user (replace with real auth later)
   const user = {
     name: "John Doe",
-    role: "admin", // or "admin", "leader", etc.
+    role: "member", // or "admin", "leader", etc.
   };
 
   // 📅 Shared event state across pages
@@ -88,7 +88,7 @@ function App() {
               }
             />
             <Route path="/stats" element={<Stats title="Stats" />} />
-            <Route path="/create-events" element={<CreateEvents title="createevents" />} />
+             <Route path="/create-events" element={<CreateEvents title="createevents" />} />
             <Route path="/attenance" element={<AttendanceModal title="AttendanceModal" />} />
             <Route
               path="/history"

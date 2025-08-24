@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 
@@ -45,13 +45,16 @@ const Events = () => {
   const filteredEvents =
     filterType === "all"
       ? events
-      : events.filter((e) => e.eventType === filterType);
+: events.filter((e) => e.eventType?.toLowerCase() === filterType.toLowerCase());
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
     setIsModalOpen(true);
   };
-
+ const capitalize = (str) => {
+    if (!str) return "";
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  };
   return (
     <div
       style={{
@@ -74,7 +77,7 @@ const Events = () => {
               ...styles.btnNewEvent,
               marginLeft: "25px",
             }}
-            onClick={() => navigate("/create-events")}
+             onClick={() => navigate("/create-events")}
           >
             + NEW EVENT
           </button>
@@ -153,53 +156,52 @@ const Events = () => {
 
       {/* Events Grid */}
       <div style={styles.eventsGrid}>
-        {filteredEvents.map((event) => (
-          <div key={event._id} style={styles.eventCard}>
-            <div style={styles.eventHeader}>
-              <h3 style={styles.eventTitle}>{event.service_name}</h3>
-              <span
-                style={{
-                  ...styles.eventBadge,
-                  backgroundColor:
-                    event.eventType?.toLowerCase() === "cell"
-                      ? "#007bff"
-                      : event.eventType?.toLowerCase() === "conference"
-                      ? "#e91e63"
-                      : "#6c757d",
-                }}
-              >
-                {event.eventType?.toUpperCase() || "UNKNOWN"}
-              </span>
-            </div>
-            <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
-            <p style={styles.eventLocation}>{event.address}</p>
-            <div style={styles.eventActions}>
-              <button
-                style={{ ...styles.actionBtn, ...styles.captureBtn }}
-                onClick={() => handleCaptureClick(event)}
-              >
-                Capture
-              </button>
-              <button
-                style={{
-                  ...styles.actionBtn,
-                  ...styles.paymentBtn,
-                  ...(event.eventType === "cell" ||
-                  event.eventType === "service"
-                    ? styles.disabledBtn
-                    : {}),
-                }}
-                disabled={
-                  event.eventType === "cell" || event.eventType === "service"
-                }
-              >
-                {event.eventType === "cell" || event.eventType === "service"
-                  ? "No Payment"
-                  : "Payment"}
-              </button>
-            </div>
-          </div>
-        ))}
+      {filteredEvents.map((event) => (
+  <div key={event._id} style={styles.eventCard}>
+    <div style={styles.eventHeader}>
+      <h3 style={styles.eventTitle}>{event.name || event.service_name || "Untitled Event"}</h3>
+      <span
+        style={{
+          ...styles.eventBadge,
+          backgroundColor:
+            event.eventType?.toLowerCase() === "cell"
+              ? "#007bff"
+              : event.eventType?.toLowerCase() === "conference"
+              ? "#e91e63"
+              : event.eventType?.toLowerCase() === "service"
+              ? "#28a745"
+              : "#6c757d",
+        }}
+      >
+        {capitalize(event.eventType) || "Unknown"}
+      </span>
+    </div>
+    <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
+    <p style={styles.eventLocation}>{event.address || "Location not specified"}</p>
+    <div style={styles.eventActions}>
+      <button
+        style={{ ...styles.actionBtn, ...styles.captureBtn }}
+        onClick={() => handleCaptureClick(event)}
+      >
+        Capture
+      </button>
+      <button
+        style={{
+          ...styles.actionBtn,
+          ...styles.paymentBtn,
+          ...(event.eventType === "cell" || event.eventType === "service"
+            ? styles.disabledBtn
+            : {}),
+        }}
+        disabled={event.eventType === "cell" || event.eventType === "service"}
+      >
+        {event.eventType === "cell" || event.eventType === "service"
+          ? "No Payment"
+          : "Payment"}
+      </button>
+    </div>
+  </div>
+))}
       </div>
 
       {/* Floating History Button */}
