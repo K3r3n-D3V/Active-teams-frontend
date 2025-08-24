@@ -13,6 +13,8 @@ import GiveToday from './Pages/GiveToday';
 import DailyTasks from './Pages/DailyTasks';
 import Home from './Pages/Home';
 import TopbarProfile from './components/TopbarProfile';
+import Login from "./Pages/Login";
+import Signup from "./Pages/Signup";
 
 function App() {
   const [mode, setMode] = useState('light');
@@ -42,6 +44,8 @@ function App() {
         <div style={{ flexGrow: 1 }}>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login title="Login" />} />
+            <Route path="/signup" element={<Signup title="Signup" />} />
             <Route path="/profile" element={<Profile title="Profile" />} />
             <Route path="/people" element={<People title="People" />} />
             <Route path="/events" element={<Events title="Events" />} />
