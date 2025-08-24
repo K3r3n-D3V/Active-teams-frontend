@@ -6,6 +6,7 @@ const Home = () => {
         <div>
     <Header/>
     <Hero/>
+    hubhhy
     </div>
   )
 }

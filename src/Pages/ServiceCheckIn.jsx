@@ -28,7 +28,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const BASE_URL = "http://localhost:8000";
 
-export default function ServiceCheckIn() {
+function ServiceCheckIn() {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [attendees, setAttendees] = useState([]);
@@ -387,3 +387,4 @@ export default function ServiceCheckIn() {
     </Box>
   );
 }
+export default ServiceCheckIn
