@@ -23,6 +23,7 @@ import {
   HowToReg,
 } from '@mui/icons-material';
 import { useState, useEffect } from 'react';
+import logo from "../assets/active-teams.png"
 
 const menuItems = [
   { label: 'Home', path: '/', icon: Home },
@@ -83,7 +84,7 @@ export default function Sidebar({ mode, setMode }) {
       {/* Logo */}
       <Box sx={{ padding: 2, display: 'flex', justifyContent: 'center' }}>
         <img
-          src="/src/assets/active-teams.png"
+          src={logo}
           alt="Active Church Logo"
           style={{
             maxWidth: '100%',
