@@ -117,8 +117,8 @@ function App() {
         <div style={{ flexGrow: 1 }}>
           <Routes>
             <Route path="/" element={<ProtectedHome />} />
-            <Route path="/login" element={<Login title="Login" />} />
-            <Route path="/signup" element={<Signup title="Signup" />} />
+            <Route path="/login" element={<Login title="Login" mode={mode} setMode={setMode}/>} />
+            <Route path="/signup" element={<Signup title="Signup" mode={mode} setMode={setMode}/>} />
             <Route path="/profile" element={<ProtectedProfile title="Profile" />} />
             <Route path="/people" element={<ProtectedPeople title="People" />} />
             <Route path="/events" element={<ProtectedEvents title="Events" />} />
