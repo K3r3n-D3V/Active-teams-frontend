@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { createTheme, ThemeProvider, CssBaseline } from '@mui/material';
 
@@ -6,7 +6,7 @@ import EventsHistory from './Pages/EventHistory';
 import Sidebar from './components/Sidebar';
 // import Header from './components/Header';
 import Profile from './Pages/Profile';
-import People from './Pages/People';
+import { PeopleSection as People } from './Pages/People';
 import Events from './Pages/Events';
 import Stats from './Pages/Stats';
 import ServiceCheckIn from './Pages/ServiceCheckIn';
@@ -14,18 +14,29 @@ import GiveToday from './Pages/GiveToday';
 import DailyTasks from './Pages/DailyTasks';
 import Home from './Pages/Home';
 import TopbarProfile from './components/TopbarProfile';
+import Login from "./Pages/Login";
+import Signup from "./Pages/Signup";
 import CreateEvents from './Pages/CreateEvents';
 import AttendanceModal from './Pages/AttendanceModal';
 
 function App() {
   const [mode, setMode] = useState('light');
 
-  const theme = useMemo(() =>
-    createTheme({
-      palette: {
-        mode: mode,
-      },
-    }), [mode]);
+  // Load saved mode from localStorage on mount
+  useEffect(() => {
+    const savedMode = localStorage.getItem('themeMode');
+    if (savedMode) setMode(savedMode);
+  }, []);
+
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: mode,
+        },
+      }),
+    [mode]
+  );
 
   // 🔐 Simulated logged-in user (replace with real auth later)
   const user = {
@@ -75,6 +86,8 @@ function App() {
         <div style={{ flexGrow: 1 }}>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login title="Login" />} />
+            <Route path="/signup" element={<Signup title="Signup" />} />
             <Route path="/profile" element={<Profile title="Profile" />} />
             <Route path="/people" element={<People title="People" />} />
             <Route
@@ -88,8 +101,8 @@ function App() {
               }
             />
             <Route path="/stats" element={<Stats title="Stats" />} />
-             <Route path="/create-events" element={<CreateEvents title="createevents" />} />
-            <Route path="/attenance" element={<AttendanceModal title="AttendanceModal" />} />
+            <Route path="/create-events" element={<CreateEvents title="Create Events" />} />
+            <Route path="/attendance" element={<AttendanceModal title="Attendance Modal" />} />
             <Route
               path="/history"
               element={<EventsHistory events={events} user={user} />}

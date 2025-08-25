@@ -16,7 +16,8 @@ import {
 } from "@mui/material";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
-import { UserContext } from '../contexts/UserContext.jsx'; 
+import { UserContext } from "../contexts/UserContext.jsx";
+import LogoutIcon from '@mui/icons-material/Logout';
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
@@ -31,7 +32,7 @@ const carouselTexts = [
 export default function Profile() {
   const theme = useTheme();
   const isMdUp = useMediaQuery(theme.breakpoints.up("md"));
-  const { profilePic, setProfilePic } = useContext(UserContext);
+  const { user, setUser, profilePic, setProfilePic } = useContext(UserContext);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -54,7 +55,11 @@ export default function Profile() {
   });
 
   const [errors, setErrors] = useState({});
-  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
 
   const [carouselIndex, setCarouselIndex] = useState(0);
   useEffect(() => {
@@ -69,7 +74,8 @@ export default function Profile() {
     if (!form.name.trim()) newErrors.name = "Name is required";
     if (!form.surname.trim()) newErrors.surname = "Surname is required";
     if (!form.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Email is invalid";
+    else if (!/\S+@\S+\.\S+/.test(form.email))
+      newErrors.email = "Email is invalid";
     if (form.newPassword || form.confirmPassword) {
       if (form.newPassword !== form.confirmPassword)
         newErrors.confirmPassword = "Passwords do not match";
@@ -111,10 +117,18 @@ export default function Profile() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validate()) {
-      setSnackbar({ open: true, message: "Profile updated successfully!", severity: "success" });
+      setSnackbar({
+        open: true,
+        message: "Profile updated successfully!",
+        severity: "success",
+      });
       // API call here if needed
     } else {
-      setSnackbar({ open: true, message: "Please fix errors", severity: "error" });
+      setSnackbar({
+        open: true,
+        message: "Please fix errors",
+        severity: "error",
+      });
     }
   };
 
@@ -135,11 +149,21 @@ export default function Profile() {
           alignItems: "center",
           justifyContent: "center",
           px: 2,
-          position: 'relative',
+          position: "relative",
         }}
       >
         {carouselTexts[carouselIndex].split(" ").map((word, i) => {
-          const boldWords = ["THE", "ACTIVE", "CHURCH", "NEW", "GENERATION", "CHANGE", "THIS", "NATION", "GLORY"];
+          const boldWords = [
+            "THE",
+            "ACTIVE",
+            "CHURCH",
+            "NEW",
+            "GENERATION",
+            "CHANGE",
+            "THIS",
+            "NATION",
+            "GLORY",
+          ];
           if (boldWords.includes(word.toUpperCase())) {
             return (
               <Typography
@@ -152,11 +176,7 @@ export default function Profile() {
             );
           }
           return (
-            <Typography
-              key={i}
-              component="span"
-              sx={{ mr: 0.5 }}
-            >
+            <Typography key={i} component="span" sx={{ mr: 0.5 }}>
               {word}{" "}
             </Typography>
           );
@@ -179,12 +199,19 @@ export default function Profile() {
             zIndex: 10,
             cursor: "pointer", // Make it clickable to trigger file input
           }}
-          onClick={() => document.getElementById("profile-image-upload").click()}  // Triggers file input on click
+          onClick={() =>
+            document.getElementById("profile-image-upload").click()
+          } // Triggers file input on click
         >
           <Avatar
             src={profilePic}
             alt="Profile Picture"
-            sx={{ width: "100%", height: "200%", position: "relative", top: "-50%" }}
+            sx={{
+              width: "100%",
+              height: "200%",
+              position: "relative",
+              top: "-50%",
+            }}
           />
         </Box>
 
@@ -215,7 +242,7 @@ export default function Profile() {
         autoComplete="off"
       >
         <Typography variant="h5" sx={{ fontWeight: "bold", mb: 3 }}>
-         {form.name} {form.surname}
+          {form.name} {form.surname}
         </Typography>
         <Typography variant="body2" sx={{ mb: 3 }}>
           You can edit your profile right here.
@@ -227,7 +254,12 @@ export default function Profile() {
             { label: "Surname", field: "surname" },
             { label: "Date Of Birth", field: "dob", type: "date" },
             { label: "Email Address", field: "email" },
-            { label: "Home Address", field: "address", multiline: true, rows: 2 },
+            {
+              label: "Home Address",
+              field: "address",
+              multiline: true,
+              rows: 2,
+            },
             { label: "Phone Number", field: "phone" },
             { label: "Invited By", field: "invitedBy" },
             { label: "Gender", field: "gender" },
@@ -295,12 +327,15 @@ export default function Profile() {
             </Grid>
           </Grid>
         </Box>
-
-        <Box sx={{ mt: 5, display: "flex", gap: 2, maxWidth: 350 }}>
+        <Box sx={{ mt: 5, display: "flex", gap: 2, maxWidth: 500 }}>
           <Button
             variant="outlined"
             disabled
-            sx={{ flex: 1, color: "text.disabled", borderColor: "text.disabled" }}
+            sx={{
+              flex: 1,
+              color: "text.disabled",
+              borderColor: "text.disabled",
+            }}
           >
             Cancel
           </Button>
@@ -310,6 +345,42 @@ export default function Profile() {
             type="submit"
           >
             Change Password
+          </Button>
+          <Button
+            variant="contained"
+            sx={{ flex: 1, bgcolor: "black", color: "white"  }}
+            onClick={async () => {
+              try {
+                if (user?._id) {
+                  await axios.post("http://localhost:8000/logout", {
+                    user_id: user._id,
+                  });
+                }
+
+                // Clear UserContext state
+                setUser(null);
+                setProfilePic(null);
+
+                // Show snackbar
+                setSnackbar({
+                  open: true,
+                  message: "Logged out successfully!",
+                  severity: "info",
+                });
+
+                // Redirect to login
+                navigate("/login");
+              } catch (error) {
+                console.error("Logout failed:", error);
+                setSnackbar({
+                  open: true,
+                  message: "Logout failed",
+                  severity: "error",
+                });
+              }
+            }}
+          >
+          <LogoutIcon fontSize="small" />
           </Button>
         </Box>
       </Box>

@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
+import { saveToEventHistory } from "./EventHistory"; // ✅ Using this now
 
 const Events = () => {
   const navigate = useNavigate();
@@ -28,7 +29,10 @@ const Events = () => {
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
-    if (isNaN(dateObj.getTime())) return "Date not set";
+    if (isNaN(dateObj.getTime())) {
+      console.warn("Invalid date for event:", date);
+      return "Date not set";
+    }
     const options = {
       weekday: "short",
       year: "numeric",
@@ -45,16 +49,63 @@ const Events = () => {
   const filteredEvents =
     filterType === "all"
       ? events
-: events.filter((e) => e.eventType?.toLowerCase() === filterType.toLowerCase());
+      : events.filter((e) => e.eventType?.toLowerCase() === filterType.toLowerCase());
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
     setIsModalOpen(true);
   };
- const capitalize = (str) => {
+
+  const handleAttendanceSubmit = (data) => {
+    if (!selectedEvent) return;
+
+    const eventId = selectedEvent._id;
+    const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
+    const eventType = selectedEvent.eventType;
+
+    if (
+      data === "did-not-meet" ||
+      data === "Mark As Did Not Meet" ||
+      (data && data.toString().toLowerCase().includes("did not meet"))
+    ) {
+      saveToEventHistory({
+        eventId,
+        service_name,
+        eventType,
+        status: "did-not-meet",
+        reason: "Marked as did not meet",
+      });
+    } else if (data && typeof data === "object" && !Array.isArray(data)) {
+      const attendeeNames = Object.keys(data).filter((key) => data[key]);
+      if (attendeeNames.length > 0) {
+        saveToEventHistory({
+          eventId,
+          service_name,
+          eventType,
+          status: "attended",
+          attendees: attendeeNames,
+        });
+      }
+    } else if (Array.isArray(data) && data.length > 0) {
+      saveToEventHistory({
+        eventId,
+        service_name,
+        eventType,
+        status: "attended",
+        attendees: data,
+      });
+    }
+
+    setIsModalOpen(false);
+    setSelectedEvent(null);
+    navigate("/history");
+  };
+
+  const capitalize = (str) => {
     if (!str) return "";
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
   };
+
   return (
     <div
       style={{
@@ -72,21 +123,13 @@ const Events = () => {
       >
         <div style={styles.headerLeft}>
           <button
-            style={{
-              ...styles.button,
-              ...styles.btnNewEvent,
-              marginLeft: "25px",
-            }}
-             onClick={() => navigate("/create-events")}
+            style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }}
+            onClick={() => navigate("/create-events")}
           >
             + NEW EVENT
           </button>
           <button
-            style={{
-              ...styles.button,
-              ...styles.btnFilter,
-              marginRight: "25px",
-            }}
+            style={{ ...styles.button, ...styles.btnFilter, marginRight: "25px" }}
             onClick={() => setShowFilter(true)}
           >
             ⚙️ FILTER EVENTS
@@ -97,14 +140,13 @@ const Events = () => {
         </div>
       </div>
 
-      {/* ✅ SERVICE CHECK-IN Styled Button */}
+      {/* Center Avatar Section */}
       <div style={styles.centerAvatarSection}>
         <button
           style={styles.avatarButton}
           onClick={() => navigate("/service-check-in")}
         >
           <span style={styles.labelText}>SERVICE</span>
-
           <div style={styles.avatars}>
             <span style={{ ...styles.avatarCircle, backgroundColor: "#cce6ff" }}>🧑🏻‍🎓</span>
             <span style={{ ...styles.avatarCircle, backgroundColor: "#ffedcc" }}>👵🏼</span>
@@ -112,7 +154,6 @@ const Events = () => {
             <span style={{ ...styles.avatarCircle, backgroundColor: "#ffe6cc" }}>🧑🏽‍🦱</span>
             <span style={{ ...styles.avatarCircle, backgroundColor: "#ccf2d1" }}>👩🏾</span>
           </div>
-
           <span style={styles.labelText}>CHECK-IN</span>
         </button>
       </div>
@@ -156,52 +197,56 @@ const Events = () => {
 
       {/* Events Grid */}
       <div style={styles.eventsGrid}>
-      {filteredEvents.map((event) => (
-  <div key={event._id} style={styles.eventCard}>
-    <div style={styles.eventHeader}>
-      <h3 style={styles.eventTitle}>{event.name || event.service_name || "Untitled Event"}</h3>
-      <span
-        style={{
-          ...styles.eventBadge,
-          backgroundColor:
-            event.eventType?.toLowerCase() === "cell"
-              ? "#007bff"
-              : event.eventType?.toLowerCase() === "conference"
-              ? "#e91e63"
-              : event.eventType?.toLowerCase() === "service"
-              ? "#28a745"
-              : "#6c757d",
-        }}
-      >
-        {capitalize(event.eventType) || "Unknown"}
-      </span>
-    </div>
-    <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
-    <p style={styles.eventLocation}>{event.address || "Location not specified"}</p>
-    <div style={styles.eventActions}>
-      <button
-        style={{ ...styles.actionBtn, ...styles.captureBtn }}
-        onClick={() => handleCaptureClick(event)}
-      >
-        Capture
-      </button>
-      <button
-        style={{
-          ...styles.actionBtn,
-          ...styles.paymentBtn,
-          ...(event.eventType === "cell" || event.eventType === "service"
-            ? styles.disabledBtn
-            : {}),
-        }}
-        disabled={event.eventType === "cell" || event.eventType === "service"}
-      >
-        {event.eventType === "cell" || event.eventType === "service"
-          ? "No Payment"
-          : "Payment"}
-      </button>
-    </div>
-  </div>
-))}
+        {filteredEvents.map((event) => {
+          return (
+            <div key={event._id} style={styles.eventCard}>
+              <div style={styles.eventHeader}>
+                <h3 style={styles.eventTitle}>
+                  {event.eventName || event.service_name || "Untitled Event"}
+                </h3>
+                <span
+                  style={{
+                    ...styles.eventBadge,
+                    backgroundColor:
+                      event.eventType?.toLowerCase() === "cell"
+                        ? "#007bff"
+                        : event.eventType?.toLowerCase() === "conference"
+                        ? "#e91e63"
+                        : event.eventType?.toLowerCase() === "service"
+                        ? "#28a745"
+                        : "#6c757d",
+                  }}
+                >
+                  {capitalize(event.eventType) || "Unknown"}
+                </span>
+              </div>
+              <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
+              <p style={styles.eventLocation}>{event.address || "Location not specified"}</p>
+              <div style={styles.eventActions}>
+                <button
+                  style={{ ...styles.actionBtn, ...styles.captureBtn }}
+                  onClick={() => handleCaptureClick(event)}
+                >
+                  Capture
+                </button>
+                <button
+                  style={{
+                    ...styles.actionBtn,
+                    ...styles.paymentBtn,
+                    ...(event.eventType === "cell" || event.eventType === "service"
+                      ? styles.disabledBtn
+                      : {}),
+                  }}
+                  disabled={event.eventType === "cell" || event.eventType === "service"}
+                >
+                  {event.eventType === "cell" || event.eventType === "service"
+                    ? "No Payment"
+                    : "Payment"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Floating History Button */}
@@ -219,19 +264,15 @@ const Events = () => {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           event={selectedEvent}
-          onSubmit={(data) => console.log("Attendance data:", data)}
+          onSubmit={handleAttendanceSubmit}
         />
       )}
     </div>
   );
 };
 
-// ✅ Styles
 const styles = {
-  container: {
-    minHeight: "100vh",
-    fontFamily: "system-ui, sans-serif",
-  },
+  container: { minHeight: "100vh", fontFamily: "system-ui, sans-serif" },
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -240,194 +281,33 @@ const styles = {
     borderBottom: "1px solid #e9ecef",
     flexWrap: "wrap",
   },
-  headerLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.75rem",
-    flexWrap: "wrap",
-  },
-  headerRight: {
-    display: "flex",
-    alignItems: "center",
-  },
-  profileIcon: {
-    width: "2.25rem",
-    height: "2.25rem",
-    borderRadius: "50%",
-    background: "#ddd",
-  },
-  button: {
-    borderRadius: "6px",
-    fontWeight: 500,
-    padding: "0.5rem 1rem",
-    cursor: "pointer",
-    fontSize: "0.875rem",
-    border: "none",
-  },
-  btnNewEvent: {
-    backgroundColor: "#000",
-    color: "#fff",
-  },
-  btnFilter: {
-    backgroundColor: "#fff",
-    border: "1px solid #dee2e6",
-    color: "#6c757d",
-  },
-  eventsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-    gap: "1.5rem",
-    padding: "1.5rem",
-  },
-  eventCard: {
-    backgroundColor: "#fff",
-    borderRadius: "16px",
-    padding: "1.5rem",
-    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-  },
-  eventHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "0.75rem",
-    flexWrap: "wrap",
-    gap: "0.5rem",
-  },
-  eventTitle: {
-    margin: 0,
-    fontSize: "1.25rem",
-    fontWeight: 600,
-    color: "#212529",
-  },
-  eventBadge: {
-    fontSize: "0.75rem",
-    fontWeight: 600,
-    padding: "0.25rem 0.75rem",
-    borderRadius: "50px",
-    color: "#fff",
-    textTransform: "uppercase",
-    whiteSpace: "nowrap",
-  },
-  eventDate: {
-    margin: "0.25rem 0",
-    fontSize: "1rem",
-    color: "#495057",
-  },
-  eventLocation: {
-    margin: "0.25rem 0",
-    fontSize: "0.95rem",
-    color: "#6c757d",
-  },
-  eventActions: {
-    marginTop: "1rem",
-    display: "flex",
-    gap: "0.5rem",
-    flexWrap: "wrap",
-  },
-  actionBtn: {
-    flex: 1,
-    padding: "0.5rem 1rem",
-    border: "none",
-    borderRadius: "8px",
-    fontWeight: 600,
-    cursor: "pointer",
-    fontSize: "0.9rem",
-  },
-  captureBtn: {
-    backgroundColor: "#000",
-    color: "#fff",
-  },
-  paymentBtn: {
-    backgroundColor: "#e9ecef",
-    color: "#6c757d",
-  },
-  disabledBtn: {
-    opacity: 0.6,
-    cursor: "not-allowed",
-  },
-  popupOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    background: "rgba(0,0,0,0.5)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 999,
-  },
-  popupContent: {
-    background: "#fff",
-    padding: "2rem",
-    borderRadius: "12px",
-    width: "300px",
-    textAlign: "center",
-  },
-  selectBox: {
-    width: "100%",
-    padding: "0.5rem",
-    borderRadius: "6px",
-    marginTop: "1rem",
-  },
-  historyButton: {
-    position: "fixed",
-    bottom: "20px",
-    right: "20px",
-    backgroundColor: "#007bff",
-    color: "#fff",
-    border: "none",
-    borderRadius: "50px",
-    padding: "0.75rem 1.25rem",
-    cursor: "pointer",
-    fontSize: "1rem",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    zIndex: 1000,
-  },
-  centerAvatarSection: {
-    display: "flex",
-    justifyContent: "center",
-    marginTop: "60px",
-    padding: "0 20px",
-    flexWrap: "wrap",
-  },
-  avatarButton: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-    padding: "24px 40px",
-    border: "none",
-    borderRadius: "24px",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-    cursor: "pointer",
-    flexWrap: "wrap",
-    maxWidth: "100%",
-  },
-  labelText: {
-    fontWeight: "bold",
-    fontSize: "20px",
-    color: "#000",
-    margin: "0 20px",
-  },
-  avatars: {
-    display: "flex",
-    alignItems: "center",
-    flexWrap: "nowrap",
-    overflowX: "auto",
-  },
-  avatarCircle: {
-    width: "50px",
-    height: "50px",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "22px",
-    marginLeft: "-10px",
-    border: "2px solid #fff",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-  },
+  headerLeft: { display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" },
+  headerRight: { display: "flex", alignItems: "center" },
+  profileIcon: { width: "2.25rem", height: "2.25rem", borderRadius: "50%", background: "#ddd" },
+  button: { borderRadius: "6px", fontWeight: 500, padding: "0.5rem 1rem", cursor: "pointer", fontSize: "0.875rem", border: "none" },
+  btnNewEvent: { backgroundColor: "#000", color: "#fff" },
+  btnFilter: { backgroundColor: "#fff", border: "1px solid #dee2e6", color: "#6c757d" },
+  eventsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.5rem", padding: "1.5rem" },
+  eventCard: { backgroundColor: "#fff", borderRadius: "16px", padding: "1.5rem", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" },
+  eventHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" },
+  eventTitle: { margin: 0, fontSize: "1.25rem", fontWeight: 600, color: "#212529" },
+  eventBadge: { fontSize: "0.75rem", fontWeight: 600, padding: "0.25rem 0.75rem", borderRadius: "50px", color: "#fff", textTransform: "uppercase", whiteSpace: "nowrap" },
+  eventDate: { margin: "0.25rem 0", fontSize: "1rem", color: "#495057" },
+  eventLocation: { margin: "0.25rem 0", fontSize: "0.95rem", color: "#6c757d" },
+  eventActions: { marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" },
+  actionBtn: { flex: 1, padding: "0.5rem 1rem", border: "none", borderRadius: "8px", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem" },
+  captureBtn: { backgroundColor: "#000", color: "#fff" },
+  paymentBtn: { backgroundColor: "#e9ecef", color: "#6c757d" },
+  disabledBtn: { opacity: 0.6, cursor: "not-allowed" },
+  popupOverlay: { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 999 },
+  popupContent: { background: "#fff", padding: "2rem", borderRadius: "12px", width: "300px", textAlign: "center" },
+  selectBox: { width: "100%", padding: "0.5rem", borderRadius: "6px", marginTop: "1rem" },
+  historyButton: { position: "fixed", bottom: "20px", right: "20px", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "50px", padding: "0.75rem 1.25rem", cursor: "pointer", fontSize: "1rem", boxShadow: "0 4px 8px rgba(0,0,0,0.2)", zIndex: 1000 },
+  centerAvatarSection: { display: "flex", justifyContent: "center", marginTop: "60px", padding: "0 20px", flexWrap: "wrap" },
+  avatarButton: { display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fff", padding: "24px 40px", border: "none", borderRadius: "24px", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", flexWrap: "wrap", maxWidth: "100%" },
+  labelText: { fontWeight: "bold", fontSize: "20px", color: "#000", margin: "0 20px" },
+  avatars: { display: "flex", alignItems: "center", flexWrap: "nowrap", overflowX: "auto" },
+  avatarCircle: { width: "50px", height: "50px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", marginLeft: "-10px", border: "2px solid #fff", boxShadow: "0 2px 6px rgba(0,0,0,0.1)" },
 };
 
 export default Events;
