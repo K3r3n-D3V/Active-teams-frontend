@@ -207,7 +207,7 @@ export default function DailyTasks() {
               <input type="text" name="assignedTo" value={taskData.assignedTo} onChange={handleChange} required />
 
               <label>Due Date & Time</label>
-              <input type="datetime-local" name="dueDate" value={taskData.dueDate} onChange={handleChange} required />
+              <input type="datetime-local" name="dueDate" value={taskData.dueDate} onChange={handleChange}  disabled />
 
               <label>Task Stage</label>
               <select name="taskStage" value={taskData.taskStage} onChange={handleChange}>
@@ -230,12 +230,14 @@ export default function DailyTasks() {
         </Modal>
 
         {/* Date Filter */}
-        <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
-          <option value="today">Today</option>
-          <option value="thisWeek">This Week</option>
-          <option value="previous7">Previous 7 Days</option>
-          <option value="previousMonth">Previous Month</option>
-        </select>
+        <div className="date-filter">
+          <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
+            <option value="today">Today</option>
+            <option value="thisWeek">This Week</option>
+            <option value="previous7">Previous 7 Days</option>
+            <option value="previousMonth">Previous Month</option>
+          </select>
+        </div>
       </div>
 
       {/* Type Filter */}

@@ -1,3 +1,6 @@
+/* ===================== */
+/* Base Layout */
+/* ===================== */
 .daily-container {
   max-width: 800px;
   margin: 2rem auto;
@@ -5,18 +8,17 @@
   color: #333;
 }
 
-/* Counter card */
+/* ===================== */
+/* Counter Card */
+/* ===================== */
 .counter-card {
   padding: 2rem;
   border-radius: 20px;
   box-shadow: 0 6px 15px rgba(0,0,0,0.2);
   text-align: center;
-  color: #000;
   margin-bottom: 2rem;
-}
-
-.phone-right {
-  transform: rotate(90deg); /* rotates to face right */
+  background: #fff; /* default light background */
+  color: #000;
 }
 
 .counter-card h1 {
@@ -30,65 +32,179 @@
   opacity: 0.9;
 }
 
+/* ===================== */
+/* Actions (Buttons + Dropdown) */
+/* ===================== */
 .actions {
-  margin-top: 1rem;
+  margin-top: 1.5rem;
   display: flex;
   justify-content: center;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 1.5rem; /* more space */
 }
 
+.btn-primary,
+.btn-secondary {
+  padding: 0.75rem 1.6rem;
+  border-radius: 50px;   /* pill-style for modern look */
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15); /* lift */
+}
+
+/* Primary */
 .btn-primary {
   background: #111;
   color: #fff;
-  padding: 0.6rem 1.2rem;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: 0.2s;
 }
 
 .btn-primary:hover {
   background: #000;
 }
 
+/* Secondary */
 .btn-secondary {
   background: #fff;
   color: #333;
-  padding: 0.6rem 1.2rem;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: 0.2s;
 }
 
 .btn-secondary:hover {
   background: #f0f0f0;
 }
 
-.date-filter {
-  margin-top: 1.2rem;
-}
-
+/* Dropdown */
 .date-filter select {
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 12px;
+  border: 1px solid #ccc;
   font-size: 0.95rem;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-/* Task type filter */
+/* ===================== */
+/* Task Actions Container */
+/* ===================== */
+.task-actions {
+  display: flex;
+  gap: 1rem;                 /* space between buttons */
+  margin-top: 1rem;
+  justify-content: center;   /* center align */
+}
+
+/* ===================== */
+/* Icon Buttons */
+/* ===================== */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;                /* spacing between icon + text */
+  padding: 0.7rem 1.4rem;
+  border: none;
+  border-radius: 50px;        /* pill shape */
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  background: #111;           /* default background */
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+.icon-btn:hover {
+  background: #000;           /* darker on hover */
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+}
+
+/* ===================== */
+/* Icons */
+/* ===================== */
+.icon {
+  font-size: 1.2rem;
+}
+
+/* Rotate phone icon 90° */
+.phone-right {
+  transform: rotate(90deg);
+}
+
+/* ===================== */
+/* Dark Mode Overrides */
+/* ===================== */
+body.dark-mode .icon-btn {
+  background: #f1f1f1;
+  color: #111;
+}
+
+body.dark-mode .icon-btn:hover {
+  background: #ddd;
+}
+
+/* ===================== */
+/* Date Filter Select */
+/* ===================== */
+.date-filter select {
+  padding: 0.7rem 1.2rem;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  font-size: 0.95rem;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+  outline: none;
+  appearance: none;         /* removes default arrow (optional) */
+}
+
+/* Hover & focus */
+.date-filter select:hover {
+  /* border-color: #111; */
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+.date-filter select:focus {
+  /* border-color: #111; */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+/* Dark mode */
+body.dark-mode .date-filter select {
+  background: #333;
+  color: #eee;
+  border: 1px solid #555;
+}
+
+body.dark-mode .date-filter select:hover,
+body.dark-mode .date-filter select:focus {
+  border-color: #f1f1f1;
+  box-shadow: 0 4px 10px rgba(255,255,255,0.15);
+}
+
+.date-filter {
+  margin-top: 1.2rem;   /* pushes it down */
+  display: block;       /* ensures it sits on its own line */
+}
+
+/* ===================== */
+/* Task Type Filter */
+/* ===================== */
 .type-filter {
   display: flex;
   justify-content: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 1.2rem;
+  margin: 2rem 0 1.5rem;
 }
 
 .type-filter button {
   background: #eee;
   border: none;
-  padding: 0.5rem 1.2rem;
-  border-radius: 10px;
+  padding: 0.6rem 1.6rem;
+  border-radius: 50px;
   cursor: pointer;
   font-weight: 500;
   transition: 0.2s;
@@ -100,7 +216,9 @@
   color: #fff;
 }
 
-/* Task list */
+/* ===================== */
+/* Task List */
+/* ===================== */
 .task-list {
   background: #fff;
   border-radius: 16px;
@@ -108,65 +226,93 @@
   padding: 1.5rem;
 }
 
+/* ===================== */
+/* Dark Mode Overrides */
+/* ===================== */
+body.dark-mode {
+  background: #181818;
+  color: #f1f1f1;
+}
+
+body.dark-mode .counter-card {
+  background: #242424;
+  color: #f1f1f1;
+}
+
+body.dark-mode .task-list {
+  background: #242424;
+  color: #f1f1f1;
+}
+
+body.dark-mode .btn-primary {
+  background: #f1f1f1;
+  color: #111;
+}
+
+body.dark-mode .btn-secondary {
+  background: #333;
+  color: #eee;
+}
+
+body.dark-mode .date-filter select {
+  background: #333;
+  color: #eee;
+  border: 1px solid #555;
+}
+
+body.dark-mode .type-filter button {
+  background: #444;
+  color: #ddd;
+}
+
+body.dark-mode .type-filter button.active,
+body.dark-mode .type-filter button:hover {
+  background: #f1f1f1;
+  color: #111;
+}
+
+/* ===================== */
+/* Task Item Styling */
+/* ===================== */
 .task-item {
-  display: flex;
+  background: #fff;                 /* Light card background */
+  border: 1px solid #ddd;           /* Subtle border */
+  border-radius: 12px;              /* Rounded corners */
+  padding: 1rem 1.5rem;             /* Space inside */
+  margin-bottom: 1rem;              /* Space between tasks */
+  display: flex;                     /* Flexible layout */
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
-  border-bottom: 1px solid #eee;
-  padding: 1rem 0;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08); /* Soft shadow for depth */
+  transition: all 0.2s ease;        /* Smooth hover transition */
+  cursor: pointer;
 }
 
-.task-item:last-child {
-  border-bottom: none;
+.task-item:hover {
+  border-color: #111;               /* Darker border on hover */
+  box-shadow: 0 6px 15px rgba(0,0,0,0.15); /* Slightly stronger shadow */
+  transform: translateY(-2px);       /* Subtle lift effect */
 }
 
-.task-title {
-  font-weight: 600;
-  font-size: 1.1rem;
+/* Optional: task text styling */
+.task-item .task-text {
+  font-size: 1rem;
+  color: #333;
 }
 
-.task-subtitle {
-  font-size: 0.9rem;
-  color: #666;
+.task-item .task-text.completed {
+  text-decoration: line-through;
+  opacity: 0.6;
 }
 
-.task-email {
-  font-size: 0.8rem;
-  color: #999;
+/* Dark mode overrides */
+body.dark-mode .task-item {
+  background: #242424;
+  border: 1px solid #444;
+  color: #f1f1f1;
 }
 
-.task-meta {
-  text-align: right;
-}
-
-.status {
-  padding: 0.3rem 0.8rem;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  display: inline-block;
-}
-
-.status.completed {
-  background: #d4f7d0;
-  color: #187a0f;
-}
-
-.status.pending {
-  background: #ffe4b5;
-  color: #a87000;
-}
-
-.task-date {
-  display: block;
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
-  color: #666;
-}
-
-.loading,
-.no-tasks {
-  text-align: center;
-  color: #777;
-  padding: 1rem;
+body.dark-mode .task-item:hover {
+  border-color: #f1f1f1;
+  box-shadow: 0 6px 15px rgba(255,255,255,0.1);
 }
