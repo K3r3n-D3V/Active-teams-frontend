@@ -1,4 +1,4 @@
-// import React, { useState } from "react";
+// import React, { useState, useContext } from "react";
 // import { useNavigate } from "react-router-dom";
 // import {
 //   Box,
@@ -7,18 +7,20 @@
 //   Button,
 //   IconButton,
 //   useTheme,
-//   useMediaQuery
+//   useMediaQuery,
 // } from "@mui/material";
 // import Brightness4Icon from "@mui/icons-material/Brightness4";
 // import Brightness7Icon from "@mui/icons-material/Brightness7";
 // import darkLogo from "../assets/active-teams.png";
+// import { AuthContext } from "../contexts/AuthContext";
+// import { ThemeContext } from "../contexts/ThemeContext";  // NEW
 
 // const initialForm = {
 //   email: "",
 //   password: "",
 // };
 
-// const Login = ({ onLogin, mode, setMode }) => {
+// const Login = () => {
 //   const [form, setForm] = useState(initialForm);
 //   const [error, setError] = useState("");
 //   const [success, setSuccess] = useState("");
@@ -26,6 +28,9 @@
 //   const theme = useTheme();
 //   const navigate = useNavigate();
 //   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
+
+//   const { login } = useContext(AuthContext);
+//   const { mode, setMode } = useContext(ThemeContext);  // NEW
 
 //   const handleChange = (e) => {
 //     setForm({ ...form, [e.target.name]: e.target.value });
@@ -43,22 +48,12 @@
 
 //     setLoading(true);
 //     try {
-//       const res = await fetch("http://localhost:8000/login", {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify(form),
-//       });
-//       const data = await res.json();
-//       if (!res.ok) {
-//         setError(data.detail || "Login failed.");
-//       } else {
-//         setSuccess("Login successful!");
-//         if (onLogin) onLogin(data);
-//         setForm(initialForm);
-//         navigate("/");
-//       }
+//       await login(form.email, form.password);
+//       setSuccess("Login successful!");
+//       setForm(initialForm);
+//       navigate("/");
 //     } catch (err) {
-//       setError("Network error.", err);
+//       setError(err.message || "Login failed.");
 //     } finally {
 //       setLoading(false);
 //     }
@@ -108,7 +103,13 @@
 //         }}
 //       >
 //         {/* Logo */}
-//         <Box display="flex" justifyContent="center" alignItems="center" textAlign="center" mb={1}>
+//         <Box
+//           display="flex"
+//           justifyContent="center"
+//           alignItems="center"
+//           textAlign="center"
+//           mb={1}
+//         >
 //           <img
 //             src={darkLogo}
 //             alt="The Active Church Logo"
@@ -128,7 +129,13 @@
 //         </Typography>
 
 //         {/* Form */}
-//         <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={3}>
+//         <Box
+//           component="form"
+//           onSubmit={handleSubmit}
+//           display="flex"
+//           flexDirection="column"
+//           gap={3}
+//         >
 //           <TextField
 //             label="Email Address"
 //             name="email"
@@ -153,7 +160,6 @@
 //             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
 //           />
 
-//           {/* Error / Success messages */}
 //           {error && (
 //             <Typography color="error" textAlign="center">
 //               {error}
@@ -165,7 +171,6 @@
 //             </Typography>
 //           )}
 
-//           {/* Submit Button */}
 //           <Button
 //             type="submit"
 //             variant="contained"
@@ -189,7 +194,6 @@
 //           </Button>
 //         </Box>
 
-//         {/* Links */}
 //         <Box textAlign="center" mt={3}>
 //           <Typography variant="body2">
 //             <span
@@ -225,6 +229,7 @@
 
 // export default Login;
 
+
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -238,8 +243,8 @@ import {
 } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
-import darkLogo from "../assets/active-teams.png"; // PNG with transparency
-import { AuthContext } from "../contexts/AuthContext"; // Import AuthContext
+import darkLogo from "../assets/active-teams.png";
+import { AuthContext } from "../contexts/AuthContext";
 
 const initialForm = {
   email: "",
@@ -255,7 +260,7 @@ const Login = ({ mode, setMode }) => {
   const navigate = useNavigate();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const { login } = useContext(AuthContext); // Get login function from context
+  const { login } = useContext(AuthContext);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -273,10 +278,10 @@ const Login = ({ mode, setMode }) => {
 
     setLoading(true);
     try {
-      await login(form.email, form.password); // Use AuthContext login
+      await login(form.email, form.password);
       setSuccess("Login successful!");
       setForm(initialForm);
-      navigate("/"); // Redirect to home on success
+      navigate("/");
     } catch (err) {
       setError(err.message || "Login failed.");
     } finally {
@@ -385,7 +390,6 @@ const Login = ({ mode, setMode }) => {
             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
           />
 
-          {/* Error / Success messages */}
           {error && (
             <Typography color="error" textAlign="center">
               {error}
@@ -397,7 +401,6 @@ const Login = ({ mode, setMode }) => {
             </Typography>
           )}
 
-          {/* Submit Button */}
           <Button
             type="submit"
             variant="contained"
@@ -421,7 +424,6 @@ const Login = ({ mode, setMode }) => {
           </Button>
         </Box>
 
-        {/* Links */}
         <Box textAlign="center" mt={3}>
           <Typography variant="body2">
             <span

@@ -1,266 +1,231 @@
-// import React, { useContext, useState } from 'react';
-// import {
-//   Avatar,
-//   IconButton,
-//   Tooltip,
-//   Menu,
-//   MenuItem,
-//   Divider,
-//   ListItemIcon,
-// } from '@mui/material';
-// import { useNavigate, useLocation } from 'react-router-dom';
-// import { UserContext } from '../contexts/UserContext.jsx';
-// import MoreVertIcon from '@mui/icons-material/MoreVert';
-// import LogoutIcon from '@mui/icons-material/Logout';
-// import axios from 'axios';
-
-// export default function TopbarProfile() {
-//   const navigate = useNavigate();
-//   const { user, setUser, profilePic } = useContext(UserContext); // pull user from context
-//   const location = useLocation();
-
-//   const [anchorEl, setAnchorEl] = useState(null);
-//   const open = Boolean(anchorEl);
-
-//   const handleProfileClick = () => {
-//     navigate('/profile');
-//   };
-
-//   const handleMenuOpen = (event) => {
-//     setAnchorEl(event.currentTarget);
-//   };
-
-//   const handleMenuClose = () => {
-//     setAnchorEl(null);
-//   };
-
-//   const handleLogout = async () => {
-//     try {
-//       if (user?._id) {
-//         // call backend to invalidate refresh tokens
-//         await axios.post('http://localhost:8000/logout', { user_id: user._id });
-//       }
-
-//       // Clear user context & storage
-//       setUser(null);
-//       localStorage.removeItem('user');
-
-//       // Redirect
-//       navigate('/login');
-//     } catch (err) {
-//       console.error('Logout failed:', err);
-//     } finally {
-//       handleMenuClose();
-//     }
-//   };
-
-//   if (location.pathname === '/signup' || location.pathname === '/login') {
-//     return null;
-//   }
-
-//   return (
-//     <>
-//       <Tooltip title="Go to Profile">
-//         <IconButton
-//           onClick={handleProfileClick}
-//           sx={{
-//             position: 'absolute',
-//             top: 16,
-//             right: 32, // push avatar left so dots can be on the edge
-//             zIndex: 1200,
-//             p: 0,
-//           }}
-//         >
-//           <Avatar
-//             alt="Profile"
-//             src={profilePic}
-//             sx={{
-//               width: 40,
-//               height: 40,
-//               border: '2px solid white',
-//             }}
-//           />
-//         </IconButton>
-//       </Tooltip>
-
-//       <IconButton
-//         onClick={handleMenuOpen}
-//         sx={{
-//           position: 'absolute',
-//           top: 16,
-//           right: 5,
-//           zIndex: 1200,
-//         }}
-//       >
-//         <MoreVertIcon />
-//       </IconButton>
-
-//       <Menu
-//         anchorEl={anchorEl}
-//         open={open}
-//         onClose={handleMenuClose}
-//         anchorOrigin={{
-//           vertical: 'bottom',
-//           horizontal: 'right',
-//         }}
-//         transformOrigin={{
-//           vertical: 'top',
-//           horizontal: 'right',
-//         }}
-//       >
-//         <Divider />
-//         <MenuItem onClick={handleLogout}>
-//           <ListItemIcon>
-//             <LogoutIcon fontSize="small" />
-//           </ListItemIcon>
-//           Logout
-//         </MenuItem>
-//       </Menu>
-//     </>
-//   );
-// }
-
-
-import React, { useContext, useState } from 'react';
+import React, { useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  Avatar,
+  Box,
+  TextField,
+  Typography,
+  Button,
   IconButton,
-  Tooltip,
-  Menu,
-  MenuItem,
-  Divider,
-  ListItemIcon,
   useTheme,
-} from '@mui/material';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { UserContext } from '../contexts/UserContext.jsx';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import LogoutIcon from '@mui/icons-material/Logout';
-import axios from 'axios';
+  useMediaQuery,
+} from "@mui/material";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
+import darkLogo from "../assets/active-teams.png";
+import { AuthContext } from "../contexts/AuthContext";     // Your AuthContext
+import { ThemeContext } from "../contexts/ThemeContext";   // Your ThemeContext
 
-export default function TopbarProfile() {
-  const navigate = useNavigate();
-  const { user, setUser, profilePic } = useContext(UserContext);
-  const location = useLocation();
+const initialForm = {
+  email: "",
+  password: "",
+};
+
+const Login = () => {
+  const [form, setForm] = useState(initialForm);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
   const theme = useTheme();
+  const navigate = useNavigate();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const [anchorEl, setAnchorEl] = useState(null);
-  const open = Boolean(anchorEl);
+  const { login } = useContext(AuthContext);          // login function from AuthContext
+  const { mode, setMode } = useContext(ThemeContext);  // mode and setMode from ThemeContext
 
-  const handleProfileClick = () => {
-    navigate('/profile');
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleMenuToggle = (event) => {
-    if (anchorEl) {
-      setAnchorEl(null); // close if already open
-    } else {
-      setAnchorEl(event.currentTarget); // open if closed
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!form.email || !form.password) {
+      setError("Email and password are required.");
+      return;
     }
-  };
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLogout = async () => {
+    setLoading(true);
     try {
-      if (user?._id) {
-        await axios.post('http://localhost:8000/logout', { user_id: user._id });
-      }
-
-      setUser(null);
-      localStorage.removeItem('user');
-      navigate('/login');
+      await login(form.email, form.password);
+      setSuccess("Login successful!");
+      setForm(initialForm);
+      navigate("/");
     } catch (err) {
-      console.error('Logout failed:', err);
+      setError(err.message || "Login failed.");
     } finally {
-      handleMenuClose();
+      setLoading(false);
     }
   };
-
-  if (location.pathname === '/signup' || location.pathname === '/login') {
-    return null;
-  }
 
   return (
-    <>
-      <Tooltip title="Go to Profile">
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background: theme.palette.background.default,
+        color: theme.palette.text.primary,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        px: 2,
+        position: "relative",
+      }}
+    >
+      {/* Dark/Light Toggle */}
+      <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
-          onClick={handleProfileClick}
+          onClick={() => {
+            const next = mode === "light" ? "dark" : "light";
+            localStorage.setItem("themeMode", next);
+            setMode(next);
+          }}
           sx={{
-            position: 'absolute',
-            top: 16,
-            right: 32,
-            zIndex: 1200,
-            p: 0,
+            color: mode === "dark" ? "#fff" : "#000",
+            backgroundColor: mode === "dark" ? "#1f1f1f" : "#e0e0e0",
+            "&:hover": {
+              backgroundColor: mode === "dark" ? "#2c2c2c" : "#c0c0c0",
+            },
           }}
         >
-          <Avatar
-            alt="Profile"
-            src={profilePic}
-            sx={{
-              width: 40,
-              height: 40,
-              border: '2px solid white',
+          {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
+        </IconButton>
+      </Box>
+
+      <Box
+        sx={{
+          maxWidth: 500,
+          width: "100%",
+          p: 4,
+          borderRadius: 4,
+          boxShadow: 3,
+          background: theme.palette.background.paper,
+        }}
+      >
+        {/* Logo */}
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          textAlign="center"
+          mb={1}
+        >
+          <img
+            src={darkLogo}
+            alt="The Active Church Logo"
+            style={{
+              maxHeight: isSmallScreen ? 60 : 80,
+              maxWidth: "100%",
+              objectFit: "contain",
+              filter: mode === "dark" ? "invert(1)" : "none",
+              transition: "filter 0.3s ease-in-out",
             }}
           />
-        </IconButton>
-      </Tooltip>
+        </Box>
 
-      <IconButton
-        onClick={handleMenuToggle}
-        sx={{
-          position: 'absolute',
-          top: 16,
-          right: 5,
-          zIndex: 1200,
-        }}
-      >
-        <MoreVertIcon />
-      </IconButton>
+        {/* Header */}
+        <Typography variant="h5" align="center" fontWeight="bold" mb={2} mt={4}>
+          LOGIN
+        </Typography>
 
-      <Menu
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleMenuClose}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        PaperProps={{
-          elevation: 4,
-          sx: {
-            minWidth: 160,
-            borderRadius: 2,
-            backgroundColor: theme.palette.background.paper,
-            color: theme.palette.text.primary,
-            boxShadow: theme.shadows[6],
-          },
-        }}
-      >
-        <MenuItem
-          onClick={handleLogout}
-          sx={{
-            "&:hover": {
-              backgroundColor:
-                theme.palette.mode === "dark" ? "#333" : theme.palette.grey[200],
-            },
-            px: 2,
-            py: 1.2,
-            fontSize: 14,
-          }}
+        {/* Form */}
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          display="flex"
+          flexDirection="column"
+          gap={3}
         >
-          <ListItemIcon>
-            <LogoutIcon fontSize="small" />
-          </ListItemIcon>
-          Logout
-        </MenuItem>
-      </Menu>
-    </>
+          <TextField
+            label="Email Address"
+            name="email"
+            type="email"
+            value={form.email}
+            onChange={handleChange}
+            fullWidth
+            error={!!error && !form.email}
+            helperText={!form.email && error ? "Email is required" : ""}
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+          />
+
+          <TextField
+            label="Password"
+            name="password"
+            type="password"
+            value={form.password}
+            onChange={handleChange}
+            fullWidth
+            error={!!error && !form.password}
+            helperText={!form.password && error ? "Password is required" : ""}
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+          />
+
+          {error && (
+            <Typography color="error" textAlign="center">
+              {error}
+            </Typography>
+          )}
+          {success && (
+            <Typography color="success.main" textAlign="center">
+              {success}
+            </Typography>
+          )}
+
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={loading}
+            sx={{
+              backgroundColor: "#000",
+              color: "#fff",
+              borderRadius: 8,
+              fontWeight: "bold",
+              py: 1.5,
+              px: 4,
+              width: "30%",
+              justifyContent: "center",
+              alignSelf: "center",
+              "&:hover": {
+                backgroundColor: "#a09c9cff",
+              },
+            }}
+          >
+            {loading ? "Logging In..." : "Login"}
+          </Button>
+        </Box>
+
+        {/* Links */}
+        <Box textAlign="center" mt={3}>
+          <Typography variant="body2">
+            <span
+              style={{
+                color: "#42a5f5",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+              onClick={() => navigate("/forgot-password")}
+            >
+              Forgot Password?
+            </span>
+          </Typography>
+
+          <Typography variant="body2" mt={1}>
+            Don’t have an account?{" "}
+            <span
+              style={{
+                color: "#42a5f5",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+              onClick={() => navigate("/signup")}
+            >
+              Sign Up
+            </span>
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
   );
-}
+};
+
+export default Login;
