@@ -1,0 +1,172 @@
+.daily-container {
+  max-width: 800px;
+  margin: 2rem auto;
+  font-family: "Segoe UI", sans-serif;
+  color: #333;
+}
+
+/* Counter card */
+.counter-card {
+  padding: 2rem;
+  border-radius: 20px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+  text-align: center;
+  color: #000;
+  margin-bottom: 2rem;
+}
+
+.phone-right {
+  transform: rotate(90deg); /* rotates to face right */
+}
+
+.counter-card h1 {
+  font-size: 4rem;
+  margin: 0;
+  font-weight: bold;
+}
+
+.counter-card p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+.actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.btn-primary {
+  background: #111;
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-primary:hover {
+  background: #000;
+}
+
+.btn-secondary {
+  background: #fff;
+  color: #333;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f0f0f0;
+}
+
+.date-filter {
+  margin-top: 1.2rem;
+}
+
+.date-filter select {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.95rem;
+}
+
+/* Task type filter */
+.type-filter {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.type-filter button {
+  background: #eee;
+  border: none;
+  padding: 0.5rem 1.2rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: 0.2s;
+}
+
+.type-filter button.active,
+.type-filter button:hover {
+  background: #111;
+  color: #fff;
+}
+
+/* Task list */
+.task-list {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+  padding: 1.5rem;
+}
+
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid #eee;
+  padding: 1rem 0;
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+.task-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.task-subtitle {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.task-email {
+  font-size: 0.8rem;
+  color: #999;
+}
+
+.task-meta {
+  text-align: right;
+}
+
+.status {
+  padding: 0.3rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.status.completed {
+  background: #d4f7d0;
+  color: #187a0f;
+}
+
+.status.pending {
+  background: #ffe4b5;
+  color: #a87000;
+}
+
+.task-date {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.loading,
+.no-tasks {
+  text-align: center;
+  color: #777;
+  padding: 1rem;
+}
