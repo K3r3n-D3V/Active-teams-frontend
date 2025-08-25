@@ -38,6 +38,15 @@ export default function DailyTasks() {
       "No Answer",
     ];
 
+  const handleEditTask = (task) => {
+    // You can open a modal or redirect to an edit page
+    console.log("Editing task:", task);
+
+    // Example: open your TaskModal with the task data
+    setSelectedTask(task);
+    setIsModalOpen(true);
+  };
+
   const [taskData, setTaskData] = useState({
     taskType: "",
     recipient: "",
@@ -92,49 +101,61 @@ export default function DailyTasks() {
     setTaskData({ ...taskData, [name]: value });
   };
 
-  // ✅ Submit Form
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    const sanitizedEmail = taskData.recipient
-      .toLowerCase()
-      .replace(/\s+/g, "") + "@gmail.com";
-    const newTask = {
-      memberID: "12345",
-      name: taskData.assignedTo,  // use recipient as name
-      taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
-      contacted_person: {
-        name: taskData.recipient,
-        phone: "0786655753",
-        email: sanitizedEmail,
-      },
-      followup_date: new Date(taskData.dueDate).toISOString(), // proper ISO datetime
-      status: taskData.taskStage,
-      type: formType,
-    };
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setSubmitting(true);
 
+  const sanitizedEmail = taskData.recipient
+    .toLowerCase()
+    .replace(/\s+/g, "") + "@gmail.com";
 
-    try {
-      await axios.post(API_URL, newTask);
-      setTasks((prev) => [...prev, newTask]);
-      fetchTasks();
-      setIsModalOpen(false);
-      setTaskData({
-        taskType: "",
-        recipient: "",
-        assignedTo: "",
-        dueDate: getCurrentDateTime(),
-        taskStage: "Open",
-        comments: "",
-      });
-    } catch (err) {
-      console.error("Error adding task:", err);
-    } finally {
-      console.log("Task payload:", JSON.stringify(newTask, null, 2));
+  // Build the task payload
+  const taskPayload = {
+    ...selectedTask, // preserve existing task data if editing
+    name: taskData.assignedTo,
+    taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
+    contacted_person: {
+      name: taskData.recipient,
+      phone: selectedTask.contacted_person?.phone || "0786655753",
+      email: sanitizedEmail,
+    },
+    followup_date: new Date(taskData.dueDate).toISOString(),
+    status: taskData.taskStage,
+    type: formType,
+    comments: taskData.comments || "",
+  };
 
-      setSubmitting(false);
+  try {
+    if (selectedTask._id) {
+      // ✅ Editing an existing task
+      await axios.put(`${API_URL}/${selectedTask._id}`, taskPayload);
+
+      // ✅ Update the task in local state
+      setTasks((prev) =>
+        prev.map((task) => (task._id === selectedTask._id ? taskPayload : task))
+      );
+    } else {
+      // ✅ Creating a new task
+      await axios.post(API_URL, taskPayload);
+      setTasks((prev) => [...prev, taskPayload]);
     }
 
+    // ✅ Reset form & close modal
+    setTaskData({
+      taskType: "",
+      recipient: "",
+      assignedTo: "",
+      dueDate: getCurrentDateTime(),
+      taskStage: "Open",
+      comments: "",
+    });
+      setIsModalOpen(false);
+      setSelectedTask({}); // reset selected task
+    } catch (err) {
+      console.error("Error saving task:", err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // ✅ Filtering logic
@@ -262,7 +283,30 @@ export default function DailyTasks() {
                 <p className="task-email">{task.contacted_person?.email}</p>
               </div>
               <div className="task-meta">
-                <span className={`status ${task.status === "Completed" ? "completed" : "pending"}`}>
+                <span
+                  className={`status ${
+                    task.status === "Completed" ? "completed" : "pending"
+                  } ${task.status === "In Progress" ? "editable" : ""}`}
+                  onClick={() => {
+                    if (task.status === "In Progress") {
+                      setSelectedTask(task); // keeps all existing task data
+
+                      // ✅ Populate form fields from the selected task
+                      setTaskData({
+                        taskType: task.taskType || "",
+                        recipient: task.contacted_person?.name || "",
+                        assignedTo: task.name || "",
+                        dueDate: task.followup_date
+                          ? dayjs(task.followup_date).format("YYYY-MM-DDTHH:mm")
+                          : getCurrentDateTime(),
+                        taskStage: task.status || "Open",
+                        comments: task.comments || "",
+                      });
+
+                      setIsModalOpen(true);  // opens the modal
+                    }
+                  }}
+                >
                   {task.status}
                 </span>
                 <span className="task-date">{dayjs(task.followup_date).format("MMM D, YYYY")}</span>

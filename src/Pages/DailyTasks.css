@@ -316,3 +316,126 @@ body.dark-mode .task-item:hover {
   border-color: #f1f1f1;
   box-shadow: 0 6px 15px rgba(255,255,255,0.1);
 }
+
+.task-meta {
+  display: flex;
+  justify-content: space-between; /* puts status left, date right */
+  align-items: center;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.task-meta .status {
+  padding: 0.3rem 0.6rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.task-meta .status.completed {
+  background-color: #d4f8e8;
+  color: #1b7f4b;
+}
+
+.task-meta .status.pending {
+  background-color: #ffe6e6;
+  color: #c0392b;
+}
+
+.task-meta .task-date {
+  font-size: 0.85rem;
+  color: #888;
+  margin-left: 1rem; /* spacing from status */
+}
+
+.edit-btn {
+  margin-left: 10px;
+  padding: 5px 12px;
+  font-size: 0.85rem;
+  background-color: #6a5acd; /* violet */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.edit-btn:hover {
+  background-color: #483d8b; /* darker violet */
+}
+
+
+/* ===================== */
+/* Media Queries */
+/* ===================== */
+
+/* Tablets (<= 768px) */
+@media (max-width: 768px) {
+  .daily-container {
+    padding: 0 1rem;
+  }
+
+  .counter-card h1 {
+    font-size: 3rem; /* smaller counter number */
+  }
+
+  .actions,
+  .task-actions {
+    flex-direction: column;  /* stack vertically */
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .type-filter {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .icon-btn,
+  .btn-primary,
+  .btn-secondary,
+  .date-filter select {
+    width: 100%;   /* full width on small screens */
+    max-width: 400px;
+    justify-content: center;
+  }
+
+  .task-item {
+    flex-direction: column;   /* stack content */
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+}
+
+/* Mobile (<= 480px) */
+@media (max-width: 480px) {
+  .counter-card {
+    padding: 1.5rem;
+  }
+
+  .counter-card h1 {
+    font-size: 2.5rem;
+  }
+
+  .counter-card p {
+    font-size: 1rem;
+  }
+
+  .icon {
+    font-size: 1rem; /* smaller icons */
+  }
+
+  .task-item {
+    padding: 0.8rem 1rem;
+  }
+
+  .task-item .task-text {
+    font-size: 0.9rem;
+  }
+
+  .type-filter button {
+    padding: 0.5rem 1.2rem;
+    font-size: 0.9rem;
+  }
+}
