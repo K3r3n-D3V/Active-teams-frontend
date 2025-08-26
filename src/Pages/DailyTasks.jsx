@@ -100,18 +100,15 @@ export default function DailyTasks() {
     const { name, value } = e.target;
     setTaskData({ ...taskData, [name]: value });
   };
-
- const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
   e.preventDefault();
   setSubmitting(true);
 
-  const sanitizedEmail = taskData.recipient
-    .toLowerCase()
-    .replace(/\s+/g, "") + "@gmail.com";
+  const sanitizedEmail =
+    taskData.recipient.toLowerCase().replace(/\s+/g, "") + "@gmail.com";
 
-  // Build the task payload
   const taskPayload = {
-    ...selectedTask, // preserve existing task data if editing
+    memberID: "1234",
     name: taskData.assignedTo,
     taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
     contacted_person: {
@@ -122,63 +119,50 @@ export default function DailyTasks() {
     followup_date: new Date(taskData.dueDate).toISOString(),
     status: taskData.taskStage,
     type: formType,
-    comments: taskData.comments || "",
   };
 
-  try {
-    if (selectedTask._id) {
-      // ✅ Editing an existing task
-      await axios.put(`${API_URL}/${selectedTask._id}`, taskPayload);
-
-      // ✅ Update the task in local state
-      setTasks((prev) =>
-        prev.map((task) => (task._id === selectedTask._id ? taskPayload : task))
-      );
-    } else {
-      // ✅ Creating a new task
-      await axios.post(API_URL, taskPayload);
-      setTasks((prev) => [...prev, taskPayload]);
-    }
-
-    // ✅ Reset form & close modal
-    setTaskData({
-      taskType: "",
-      recipient: "",
-      assignedTo: "",
-      dueDate: getCurrentDateTime(),
-      taskStage: "Open",
-      comments: "",
-    });
-      setIsModalOpen(false);
-      setSelectedTask({}); // reset selected task
-    } catch (err) {
-      console.error("Error saving task:", err);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+try {
+  await axios.post(API_URL, taskPayload); // send taskPayload to backend
+  setTasks((prev) => [...prev, taskPayload]); // instantly show in UI
+  setIsModalOpen(false);
+  setTaskData({
+    taskType: "",
+    recipient: "",
+    assignedTo: "",
+    dueDate: getCurrentDateTime(),
+    taskStage: "Open",
+    comments: "",
+  });
+  fetchTasks(); // sync with backend
+} catch (err) {
+  console.error("Error adding task:", err);
+} finally {
+  setSubmitting(false);
+}
+};
 
   // ✅ Filtering logic
-  const filteredTasks = tasks.filter((task) => {
-    let matchesType = filterType === "all" || task.type === filterType;
+const filteredTasks = tasks.filter((task) => {
+  let matchesType = filterType === "all" || task.type === filterType;
 
-    // Date filtering
-    let matchesDate = true;
-    const today = dayjs();
-    const taskDate = dayjs(task.followup_date);
+  // Date filtering
+  let matchesDate = true;
+  const today = dayjs();
+  const taskDate = dayjs(task.followup_date); // <-- convert to local
 
-    if (dateRange === "today") {
-      matchesDate = taskDate.isSame(today, "day");
-    } else if (dateRange === "thisWeek") {
-      matchesDate = taskDate.isSame(today, "week");
-    } else if (dateRange === "previous7") {
-      matchesDate = taskDate.isAfter(today.subtract(7, "day"));
-    } else if (dateRange === "previousMonth") {
-      matchesDate = taskDate.isAfter(today.subtract(1, "month"));
-    }
+  if (dateRange === "today") {
+    matchesDate = taskDate.isSame(today, "day");
+  } else if (dateRange === "thisWeek") {
+    matchesDate = taskDate.isSame(today, "week");
+  } else if (dateRange === "previous7") {
+    matchesDate = taskDate.isAfter(today.subtract(7, "day"));
+  } else if (dateRange === "previousMonth") {
+    matchesDate = taskDate.isAfter(today.subtract(1, "month"));
+  }
 
-    return matchesType && matchesDate;
-  });
+  return matchesType && matchesDate;
+});
+
 
   // ✅ Dynamic counters
   const completedCount = filteredTasks.filter((t) => t.status === "Completed").length;
@@ -275,44 +259,40 @@ export default function DailyTasks() {
         ) : filteredTasks.length === 0 ? (
           <p className="no-tasks">No tasks yet.</p>
         ) : (
-          filteredTasks.map((task, index) => (
-            <div key={index} className="task-item">
-              <div>
-                <p className="task-title">{task.contacted_person?.name}</p>
-                <p className="task-subtitle">{task.name}</p>
-                <p className="task-email">{task.contacted_person?.email}</p>
-              </div>
-              <div className="task-meta">
-                <span
-                  className={`status ${
-                    task.status === "Completed" ? "completed" : "pending"
-                  } ${task.status === "In Progress" ? "editable" : ""}`}
-                  onClick={() => {
-                    if (task.status === "In Progress") {
-                      setSelectedTask(task); // keeps all existing task data
+          filteredTasks.map((task) => (
+        <div key={task._id} className="task-item">
+          <div>
+            <p className="task-title">{task.contacted_person?.name}</p>
+            <p className="task-subtitle">{task.name}</p>
+            <p className="task-email">{task.contacted_person?.email}</p>
+          </div>
+          <div className="task-meta">
+           <span
+            className={`status ${task.status} ${task.status === "In Progress" ? "editable" : ""}`}
+            onClick={() => {
+              if (task.status === "In Progress") {
+                setSelectedTask(task);
+                setTaskData({
+                  taskType: task.taskType || "",
+                  recipient: task.contacted_person?.name || "",
+                  assignedTo: task.name || "",
+                  dueDate: task.followup_date
+                    ? dayjs(task.followup_date).format("YYYY-MM-DDTHH:mm")
+                    : getCurrentDateTime(),
+                  taskStage: task.status || "Open",
+                  comments: task.comments || "",
+                });
+                setIsModalOpen(true);
+              }
+            }}
+          >
+            {task.status}
+          </span>
+            <span className="task-date">{dayjs(task.followup_date).format("MMM D, YYYY")}</span>
+          </div>
+        </div>
+      ))
 
-                      // ✅ Populate form fields from the selected task
-                      setTaskData({
-                        taskType: task.taskType || "",
-                        recipient: task.contacted_person?.name || "",
-                        assignedTo: task.name || "",
-                        dueDate: task.followup_date
-                          ? dayjs(task.followup_date).format("YYYY-MM-DDTHH:mm")
-                          : getCurrentDateTime(),
-                        taskStage: task.status || "Open",
-                        comments: task.comments || "",
-                      });
-
-                      setIsModalOpen(true);  // opens the modal
-                    }
-                  }}
-                >
-                  {task.status}
-                </span>
-                <span className="task-date">{dayjs(task.followup_date).format("MMM D, YYYY")}</span>
-              </div>
-            </div>
-          ))
         )}
       </div>
     </div>
