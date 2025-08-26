@@ -101,7 +101,8 @@ function App() {
               }
             />
             <Route path="/stats" element={<Stats title="Stats" />} />
-            <Route path="/create-events" element={<CreateEvents title="Create Events" />} />
+           <Route path="/create-events" element={<CreateEvents title="Create Events" />} />
+
             <Route path="/attendance" element={<AttendanceModal title="Attendance Modal" />} />
             <Route
               path="/history"

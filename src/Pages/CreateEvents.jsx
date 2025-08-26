@@ -1,285 +1,88 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from 'react';
 import {
-  Plus,
-  X,
-  Calendar,
-  Clock,
-  MapPin,
-  User,
-  FileText,
-  DollarSign,
-  Tag,
-} from "lucide-react";
+  Button,
+  TextField,
+  Checkbox,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Card,
+  CardContent,
+  FormControlLabel,
+  Chip,
+  Box,
+  InputAdornment
+} from '@mui/material';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import PersonIcon from '@mui/icons-material/Person';
+import DescriptionIcon from '@mui/icons-material/Description';
+import AddIcon from '@mui/icons-material/Add';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
-const CreateEvents = ({ onCancel, onEventCreated }) => {
-  const [eventTypes, setEventTypes] = useState([
-    "Meeting",
-    "Workshop",
-    "Conference",
-    "Training",
-  ]);
-  const [showNewTypeForm, setShowNewTypeForm] = useState(false);
-  const [newEventType, setNewEventType] = useState("");
-  const [events, setEvents] = useState([]);
-  const [selectedType, setSelectedType] = useState("Conference");
+const CreateEvents = () => {
+  const navigate = useNavigate();
+  const toast = ({ title, description }) => alert(`${title}\n${description}`);
 
-  const [formData, setFormData] = useState({
-    eventType: "",
-    eventName: "",
-    price: "",
-    date: "",
-    time: "",
-    location: "",
-    recurringDays: [],
-    eventLeader: "",
-    description: "",
-    isTicketed: false,
-  });
-
-  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [showNewTypeForm, setShowNewTypeForm] = useState(false);
+  const [newEventType, setNewEventType] = useState('');
+  const [eventTypes, setEventTypes] = useState([
+    'Workshop', 'Seminar', 'Conference', 'Meetup', 'Training', 'Social Event'
+  ]);
+  const [formData, setFormData] = useState({
+    eventType: '', eventName: '', isTicketed: false, price: '', date: '', time: '',
+    recurringDays: [], location: '', eventLeader: '', description: ''
+  });
+  const [errors, setErrors] = useState({});
 
-  const styles = {
-    container: {
-      padding: "12px 16px",
-      fontFamily: "Arial, sans-serif",
-      background: "#f9fafb",
-      minHeight: "auto",
-      maxWidth: "600px",
-      width: "100%",
-      margin: "auto",
-      borderRadius: "8px",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-    },
-    header: {
-      marginBottom: "12px",
-    },
-    headerContent: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      flexWrap: "wrap",
-    },
-    headerTitle: {
-      fontSize: "1.5rem",
-      margin: 0,
-      lineHeight: 1.2,
-    },
-    headerSubtitle: {
-      fontSize: "0.85rem",
-      marginTop: "2px",
-      color: "#6b7280",
-    },
-    closeBtn: {
-      background: "transparent",
-      border: "none",
-      cursor: "pointer",
-      padding: "4px",
-    },
-    formContainer: {
-      display: "flex",
-      flexDirection: "column",
-    },
-    formGroup: {
-      marginBottom: "8px",
-    },
-    formLabel: {
-      display: "flex",
-      alignItems: "center",
-      fontWeight: "600",
-      fontSize: "0.85rem",
-      marginBottom: "4px",
-      gap: "4px",
-    },
-    selectContainer: {
-      display: "flex",
-      alignItems: "center",
-    },
-    selectInput: {
-      flexGrow: 1,
-      padding: "6px 8px",
-      fontSize: "0.9rem",
-      borderRadius: "4px",
-      border: "1px solid #ccc",
-    },
-    addBtn: {
-      marginLeft: "8px",
-      background: "#3b82f6",
-      border: "none",
-      color: "#fff",
-      cursor: "pointer",
-      borderRadius: "4px",
-      padding: "4px 6px",
-    },
-    formInput: {
-      width: "100%",
-      padding: "6px 8px",
-      fontSize: "0.9rem",
-      borderRadius: "4px",
-      border: "1px solid #ccc",
-    },
-    textarea: {
-      width: "100%",
-      padding: "6px 8px",
-      fontSize: "0.9rem",
-      borderRadius: "4px",
-      border: "1px solid #ccc",
-      minHeight: "80px",
-      resize: "vertical",
-    },
-    grid2: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: "8px",
-    },
-    toggleSwitch: {
-      width: "50px",
-      height: "24px",
-      borderRadius: "12px",
-      position: "relative",
-      cursor: "pointer",
-    },
-    toggleSlider: {
-      position: "absolute",
-      top: "2px",
-      width: "20px",
-      height: "20px",
-      backgroundColor: "#fff",
-      borderRadius: "50%",
-      transition: "left 0.2s",
-    },
-    recurringDaysContainer: {
-      display: "grid",
-      gridTemplateColumns: "repeat(2, 1fr)",
-      gap: "6px 12px",
-      marginTop: "4px",
-    },
-    checkboxLabel: {
-      display: "flex",
-      alignItems: "center",
-      fontSize: "0.9rem",
-      cursor: "pointer",
-      userSelect: "none",
-    },
-    checkboxInput: {
-      marginRight: "6px",
-      width: "16px",
-      height: "16px",
-      cursor: "pointer",
-    },
-    actions: {
-      marginTop: "12px",
-      display: "flex",
-      justifyContent: "flex-end",
-      gap: "10px",
-      flexWrap: "wrap",
-    },
-    btn: {
-      padding: "8px 14px",
-      fontSize: "0.9rem",
-      borderRadius: "6px",
-      cursor: "pointer",
-      border: "none",
-    },
-    btnPrimary: {
-      background: "#3b82f6",
-      color: "#fff",
-    },
-    btnPrimarySubmitting: {
-      background: "#000",
-      color: "#fff",
-    },
-    btnSecondary: {
-      background: "#e5e7eb",
-      color: "#374151",
-    },
-    errorText: {
-      fontSize: "0.75rem",
-      color: "#3b82f6",
-      marginTop: "4px",
-    },
-    successAlert: {
-      backgroundColor: "#34d399",
-      color: "#fff",
-      padding: "8px",
-      marginBottom: "12px",
-      borderRadius: "6px",
-      textAlign: "center",
-    },
-  };
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    if (name === "price") {
-      if (
-        value === "" ||
-        /^[0-9]*$/.test(value) ||
-        /^free$/i.test(value.trim())
-      ) {
-        setFormData({ ...formData, [name]: value });
-      }
-      return;
-    }
-    setFormData({
-      ...formData,
-      [name]: type === "checkbox" ? checked : value,
-    });
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
   };
 
   const handleDayChange = (day) => {
-    const updatedDays = formData.recurringDays.includes(day)
-      ? formData.recurringDays.filter((d) => d !== day)
-      : [...formData.recurringDays, day];
-    setFormData({ ...formData, recurringDays: updatedDays });
-    setErrors((prev) => {
-      const newErrors = { ...prev };
-      if (updatedDays.length > 0) {
-        delete newErrors.date;
-        delete newErrors.time;
-      }
-      return newErrors;
-    });
+    setFormData(prev => ({
+      ...prev,
+      recurringDays: prev.recurringDays.includes(day)
+        ? prev.recurringDays.filter(d => d !== day)
+        : [...prev.recurringDays, day]
+    }));
   };
 
   const addNewEventType = () => {
-    if (
-      newEventType.trim() &&
-      !eventTypes.some(
-        (type) =>
-          type.toLowerCase() === newEventType.trim().toLowerCase()
-      )
-    ) {
-      setEventTypes([...eventTypes, newEventType.trim()]);
-      setFormData({ ...formData, eventType: newEventType.trim() });
-      setNewEventType("");
+    if (newEventType.trim() && !eventTypes.includes(newEventType.trim())) {
+      setEventTypes(prev => [...prev, newEventType.trim()]);
+      setFormData(prev => ({ ...prev, eventType: newEventType.trim() }));
+      setNewEventType('');
       setShowNewTypeForm(false);
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors.eventType;
-        return newErrors;
-      });
     }
   };
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.eventType.trim()) newErrors.eventType = "Please select or add an event type.";
-    if (!formData.eventName.trim()) newErrors.eventName = "Please enter an event name.";
-    if (formData.isTicketed) {
-      if (!formData.price.trim() || (!/^[0-9]+$/.test(formData.price.trim()) && !/^free$/i.test(formData.price.trim()))) {
-        newErrors.price = "Please enter a valid price (numbers only) or 'Free'.";
-      }
-    }
+    if (!formData.eventType) newErrors.eventType = 'Event type is required';
+    if (!formData.eventName) newErrors.eventName = 'Event name is required';
+    if (!formData.location) newErrors.location = 'Location is required';
+    if (!formData.eventLeader) newErrors.eventLeader = 'Event leader is required';
+    if (!formData.description) newErrors.description = 'Description is required';
+
     if (formData.recurringDays.length === 0) {
-      if (!formData.date) newErrors.date = "Date is required if no recurring days.";
-      if (!formData.time) newErrors.time = "Time is required if no recurring days.";
+      if (!formData.date) newErrors.date = 'Date is required';
+      if (!formData.time) newErrors.time = 'Time is required';
     }
-    if (!formData.location.trim()) newErrors.location = "Please enter a location.";
-    if (!formData.eventLeader.trim()) newErrors.eventLeader = "Please enter an event leader.";
-    if (!formData.description.trim()) newErrors.description = "Please enter a description.";
+    if (formData.isTicketed && !formData.price) newErrors.price = 'Price is required for ticketed events';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const resetForm = () => {
+    setFormData({
+      eventType: '', eventName: '', isTicketed: false, price: '', date: '', time: '',
+      recurringDays: [], location: '', eventLeader: '', description: ''
+    });
+    setErrors({});
   };
 
   const handleSubmit = async (e) => {
@@ -287,95 +90,218 @@ const CreateEvents = ({ onCancel, onEventCreated }) => {
     if (!validateForm()) return;
     setIsSubmitting(true);
 
-    const payload = {
-      eventType: formData.eventType,
-      eventName: formData.eventName,
-      price: formData.isTicketed ? (formData.price.toLowerCase() === 'free' ? 0 : Number(formData.price)) : 0,
-      date: formData.recurringDays.length === 0 ? new Date(`${formData.date}T${formData.time}`).toISOString() : null,
-      recurringDays: formData.recurringDays,
-      location: formData.location,
-      eventLeader: formData.eventLeader,
-      description: formData.description,
-      isTicketed: formData.isTicketed,
-    };
-
     try {
-      const response = await fetch("http://localhost:8000/api/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      // Prepare payload for backend
+      const payload = { ...formData };
 
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        const detail = data?.detail || data || "Unknown error occurred";
-        alert(`Error creating event: ${JSON.stringify(detail, null, 2)}`);
-        setIsSubmitting(false);
-        return;
+      // Combine date + time into ISO string if not recurring
+      if (payload.recurringDays.length === 0 && payload.date && payload.time) {
+        payload.date = new Date(`${payload.date}T${payload.time}`).toISOString();
       }
 
-      setSuccessMessage("Event created successfully! Redirecting...");
-      alert("✅ Event created successfully!");
+      // Remove time field (backend does not need it)
+      delete payload.time;
 
-      if (onEventCreated) {
-        onEventCreated(data.event || data);
-      }
+      // Convert price to number or remove if empty
+      if (payload.price) payload.price = parseFloat(payload.price);
+      else delete payload.price;
 
-      setTimeout(() => {
-        if (onCancel) {
-          onCancel();
-        }
-      }, 1500);
-    } catch (error) {
-      alert("Network error: " + error.message);
+      // Send POST request
+      await axios.post("http://localhost:8000/event", payload);
+
+      toast({ title: "Event Created Successfully!", description: `${formData.eventName} has been scheduled.` });
+      resetForm();
+      navigate("/events");
+    } catch (err) {
+      console.error(err.response || err);
+      toast({ title: "Error", description: "Failed to create event" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const fetchEvents = async (type = formData.eventType) => {
-    if (!type) return;
-    try {
-      const res = await fetch(`http://localhost:8000/events/type/${type}`);
-      if (!res.ok) throw new Error("Failed to fetch events");
-      const data = await res.json();
-      setEvents(data.events || []);
-    } catch (err) {
-      console.error("Failed to fetch events:", err);
-      setEvents([]);
-    }
-  };
-
-  useEffect(() => {
-    if (formData.eventType) fetchEvents(formData.eventType);
-  }, [formData.eventType]);
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
-    <div style={styles.container}>
-      {/* ... existing header and form content remains unchanged ... */}
-      {/* Form actions */}
-      <div style={styles.actions}>
-        <button
-          type="button"
-          style={{ ...styles.btn, ...styles.btnSecondary }}
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          style={{
-            ...styles.btn,
-            ...(isSubmitting ? styles.btnPrimarySubmitting : styles.btnPrimary),
-          }}
-          disabled={isSubmitting}
-          onClick={handleSubmit}
-        >
-          {isSubmitting ? "Creating..." : "Create Event"}
-        </button>
-      </div>
-    </div>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'flex-start',
+        pt: 8,
+        pb: 8,
+        backgroundColor: '#f8fafc',
+        px: 4
+      }}
+    >
+      <Card
+        sx={{
+          width: { xs: '100%', sm: '80%', md: '550px' },
+          minHeight: { xs: 'auto', sm: '90vh' },
+          p: 5,
+          borderRadius: '16px',
+          boxShadow: '0 6px 18px rgba(0,0,0,0.1)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center'
+        }}
+      >
+        <CardContent className="space-y-4">
+          {/* New Event Type */}
+          <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }}>
+            <Button
+              variant="outlined"
+              onClick={() => setShowNewTypeForm(!showNewTypeForm)}
+              startIcon={<AddIcon />}
+              sx={{ minWidth: 80, height: 36 }}
+            >
+              New
+            </Button>
+            {showNewTypeForm && (
+              <>
+                <TextField
+                  placeholder="Enter new event type"
+                  value={newEventType}
+                  onChange={(e) => setNewEventType(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+                <Button variant="contained" onClick={addNewEventType} sx={{ minWidth: 60, height: 36 }}>
+                  Add
+                </Button>
+              </>
+            )}
+          </Box>
+
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Event Type */}
+            <FormControl fullWidth size="small">
+              <InputLabel>Event Type</InputLabel>
+              <Select
+                value={formData.eventType}
+                onChange={(e) => handleChange('eventType', e.target.value)}
+                label="Event Type"
+              >
+                {eventTypes.map((type) => <MenuItem key={type} value={type}>{type}</MenuItem>)}
+              </Select>
+              {errors.eventType && <p className="text-sm text-red-500">{errors.eventType}</p>}
+            </FormControl>
+
+            {/* Event Name */}
+            <TextField
+              label="Event Name"
+              value={formData.eventName}
+              onChange={(e) => handleChange('eventName', e.target.value)}
+              fullWidth size="small"
+              error={!!errors.eventName}
+              helperText={errors.eventName}
+            />
+
+            {/* Ticketed */}
+            <FormControlLabel
+              control={<Checkbox checked={formData.isTicketed} onChange={(e) => handleChange('isTicketed', e.target.checked)} />}
+              label="Ticketed Event"
+            />
+
+            {formData.isTicketed && (
+              <TextField
+                label="Price"
+                type="number"
+                value={formData.price}
+                onChange={(e) => handleChange('price', e.target.value)}
+                fullWidth size="small"
+                error={!!errors.price}
+                helperText={errors.price}
+                InputProps={{ startAdornment: <InputAdornment position="start">R</InputAdornment> }}
+              />
+            )}
+
+            {/* Date & Time */}
+            <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }}>
+              <TextField
+                label="Date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => handleChange('date', e.target.value)}
+                fullWidth size="small"
+                InputLabelProps={{ shrink: true }}
+                error={!!errors.date}
+                helperText={errors.date}
+              />
+              <TextField
+                label="Time"
+                type="time"
+                value={formData.time}
+                onChange={(e) => handleChange('time', e.target.value)}
+                fullWidth size="small"
+                InputLabelProps={{ shrink: true }}
+                error={!!errors.time}
+                helperText={errors.time}
+              />
+            </Box>
+
+            {/* Recurring Days */}
+            <Box>
+              <p className="font-medium mb-1">Recurring Days</p>
+              <Box display="flex" gap={1} flexWrap="wrap">
+                {days.map((day) => (
+                  <Chip
+                    key={day}
+                    label={day}
+                    color={formData.recurringDays.includes(day) ? 'primary' : 'default'}
+                    onClick={() => handleDayChange(day)}
+                    clickable
+                    size="small"
+                  />
+                ))}
+              </Box>
+            </Box>
+
+            {/* Location */}
+            <TextField
+              label="Location"
+              value={formData.location}
+              onChange={(e) => handleChange('location', e.target.value)}
+              fullWidth size="small"
+              error={!!errors.location}
+              helperText={errors.location}
+              InputProps={{ startAdornment: <LocationOnIcon fontSize="small" /> }}
+            />
+
+            {/* Event Leader */}
+            <TextField
+              label="Event Leader"
+              value={formData.eventLeader}
+              onChange={(e) => handleChange('eventLeader', e.target.value)}
+              fullWidth size="small"
+              error={!!errors.eventLeader}
+              helperText={errors.eventLeader}
+              InputProps={{ startAdornment: <PersonIcon fontSize="small" /> }}
+            />
+
+            {/* Description */}
+            <TextField
+              label="Description"
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              fullWidth multiline minRows={2} size="small"
+              error={!!errors.description}
+              helperText={errors.description}
+              InputProps={{ startAdornment: <DescriptionIcon fontSize="small" /> }}
+            />
+
+            {/* Submit Buttons */}
+            <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }}>
+              <Button variant="outlined" fullWidth disabled={isSubmitting} onClick={resetForm} size="small">Cancel</Button>
+              <Button variant="contained" type="submit" fullWidth disabled={isSubmitting} size="small">
+                {isSubmitting ? "Creating..." : "Create"}
+              </Button>
+            </Box>
+          </form>
+        </CardContent>
+      </Card>
+    </Box>
   );
 };
 

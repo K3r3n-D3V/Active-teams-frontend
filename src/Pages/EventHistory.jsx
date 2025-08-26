@@ -317,7 +317,7 @@ const styles = {
   },
   attendedCard: {
     backgroundColor: "#fff",
-    border: "1px solid #000",
+    // border: "1px solid #000",
     padding: "1.5rem",
     borderRadius: "12px",
     boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
@@ -408,7 +408,7 @@ const styles = {
   },
   summaryCard: {
     flex: "1 1 200px",
-    border: "1px solid #000",
+    // border: "1px solid #000",
     borderRadius: "8px",
     padding: "1rem",
     textAlign: "center",

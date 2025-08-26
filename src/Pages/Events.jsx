@@ -15,17 +15,18 @@ const Events = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [events, setEvents] = useState([]);
 
-  useEffect(() => {
-    axios
-      .get("http://localhost:8000/events")
-      .then((res) => {
-        const sortedEvents = res.data.events.sort(
-          (a, b) => new Date(b.date) - new Date(a.date)
-        );
-        setEvents(sortedEvents);
-      })
-      .catch((err) => console.error("Failed to fetch events", err));
-  }, []);
+ useEffect(() => {
+  axios
+    .get("http://localhost:8000/events")
+    .then((res) => {
+      const sortedEvents = res.data.events.sort(
+        (a, b) => new Date(b.date) - new Date(a.date)
+      );
+      setEvents(sortedEvents);
+    })
+    .catch((err) => console.error("Failed to fetch events", err));
+}, []);
+
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
@@ -124,12 +125,16 @@ if (
         }}
       >
         <div style={styles.headerLeft}>
-          <button
-            style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }}
-            onClick={() => navigate("/create-events")}
-          >
-            + NEW EVENT
-          </button>
+        <button
+  style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }}
+  onClick={() => {
+    console.log("Navigating to Create Events");
+    navigate("/create-events");
+  }}
+>
+  + NEW EVENT
+</button>
+
           <button
             style={{ ...styles.button, ...styles.btnFilter, marginRight: "25px" }}
             onClick={() => setShowFilter(true)}
