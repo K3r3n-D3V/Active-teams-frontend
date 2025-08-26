@@ -1,16 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Grid,
-  TextField,
-  Button,
-  Typography,
-  useTheme,
-  MenuItem,
-  Autocomplete,
+  Dialog, DialogTitle, DialogContent, DialogActions, Grid,
+  TextField, Button, Typography, useTheme, MenuItem, Autocomplete
 } from "@mui/material";
 import {
   Person as PersonIcon,
@@ -27,7 +18,6 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const [peopleList, setPeopleList] = useState([]);
   const [errors, setErrors] = useState({});
 
-  // Dynamic colors based on theme mode
   const inputBg = theme.palette.mode === "dark" ? "#424242" : "#fff";
   const inputLabel = theme.palette.text.secondary;
   const inputText = theme.palette.text.primary;
@@ -37,12 +27,13 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const cancelBgHover = theme.palette.mode === "dark" ? "#333" : "#f5f5f5";
   const cancelText = theme.palette.mode === "dark" ? "#fff" : "#333";
 
+  // Fetch people names for "Invited By" field
   useEffect(() => {
     if (!open) return;
     const fetchPeople = async () => {
       try {
         const response = await axios.get("/api/people");
-        const names = response.data.map((person) => person.name);
+        const names = response.data.results.map((person) => person.Name);
         setPeopleList(names);
       } catch (err) {
         console.error("Failed to fetch people:", err);
@@ -85,9 +76,35 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSaveClick = () => {
-    if (validate()) {
-      onSave();
+  const handleSaveClick = async () => {
+    if (!validate()) return;
+
+    try {
+      const now = new Date().toISOString();
+      const payload = {
+        _id: formData._id,  // Include for update
+        Name: formData.name,
+        Surname: formData.surname,
+        DateOfBirth: formData.dob,
+        HomeAddress: formData.homeAddress,
+        Email: formData.email,
+        Phone: formData.phone,
+        Gender: formData.gender,
+        InvitedBy: formData.invitedBy,
+        Leader: formData.invitedBy || formData.cellLeader || "",
+        Stage: formData.stage || "Win",
+        CreatedAt: formData._id ? undefined : now,
+        UpdatedAt: now,
+      };
+
+      // Always POST for both create and update
+      const res = await axios.post("http://localhost:8000/people", payload);
+
+      onSave(res.data);
+      onClose();
+    } catch (err) {
+      console.error("Failed to save person:", err);
+      alert("Failed to save person. Check console for details.");
     }
   };
 
@@ -97,19 +114,11 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     color: inputText,
     border: error ? `1.5px solid ${theme.palette.error.main}` : "1.5px solid transparent",
     paddingLeft: 0,
-    "& .MuiInputBase-input": {
-      color: inputText,
-      padding: "10.5px 14px",
-    },
-    "& .MuiSelect-icon": {
-      color: theme.palette.mode === "dark" ? "#bbb" : "#555",
-    },
+    "& .MuiInputBase-input": { color: inputText, padding: "10.5px 14px" },
+    "& .MuiSelect-icon": { color: theme.palette.mode === "dark" ? "#bbb" : "#555" },
   });
 
-  const labelStyles = {
-    fontWeight: 500,
-    color: inputLabel,
-  };
+  const labelStyles = { fontWeight: 500, color: inputLabel };
 
   const renderTextField = ({ name, label, select, options, type }) => {
     if (name === "invitedBy") {
@@ -127,10 +136,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
               label="Invited By"
               size="small"
               margin="dense"
-              InputProps={{
-                ...params.InputProps,
-                sx: inputStyles(false),
-              }}
+              InputProps={{ ...params.InputProps, sx: inputStyles(false) }}
               InputLabelProps={{ sx: labelStyles }}
               sx={{ mb: 1 }}
             />
@@ -153,99 +159,58 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         margin="dense"
         error={!!errors[name]}
         helperText={errors[name]}
-        InputProps={{
-          sx: inputStyles(!!errors[name]),
-        }}
-        InputLabelProps={{
-          shrink: type === "date" || Boolean(formData[name]),
-          sx: labelStyles,
-        }}
+        InputProps={{ sx: inputStyles(!!errors[name]) }}
+        InputLabelProps={{ shrink: type === "date" || Boolean(formData[name]), sx: labelStyles }}
         sx={{ mb: 1 }}
       >
-        {select &&
-          options.map((opt) => (
-            <MenuItem key={opt} value={opt}>
-              {opt}
-            </MenuItem>
-          ))}
+        {select && options.map((opt) => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
       </TextField>
     );
   };
 
-  const isFormValid = () => {
-    return [...leftFields, ...rightFields].every(({ name, required }) => {
-      if (!required) return true;
-      const val = formData[name];
-      return val !== undefined && val !== null && val.toString().trim() !== "";
-    });
-  };
+  const isFormValid = () => [...leftFields, ...rightFields].every(({ name, required }) => {
+    if (!required) return true;
+    const val = formData[name];
+    return val !== undefined && val !== null && val.toString().trim() !== "";
+  });
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          overflow: "hidden",
-          boxShadow: 5,
-          backgroundColor: theme.palette.background.paper,
-        },
-      }}
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", boxShadow: 5, backgroundColor: theme.palette.background.paper } }}>
       <DialogTitle>
-        <Typography variant="h6" fontWeight={600} color={inputText}>
-          Add New Person
-        </Typography>
+        <Typography variant="h6" fontWeight={600} color={inputText}>Add New Person</Typography>
       </DialogTitle>
-
       <DialogContent>
         <Grid container spacing={3} sx={{ mt: 0.5 }}>
           <Grid item xs={12} sm={6}>
             {leftFields.map(renderTextField)}
-            {renderTextField({ name: "invitedBy" })} {/* Autocomplete */}
+            {renderTextField({ name: "invitedBy" })}
           </Grid>
           <Grid item xs={12} sm={6}>
             {rightFields.map(renderTextField)}
           </Grid>
         </Grid>
       </DialogContent>
-
       <DialogActions sx={{ justifyContent: "space-between", px: 3, pb: 2 }}>
         <Button
           variant="outlined"
           onClick={onClose}
           sx={{
-            borderRadius: 2,
-            borderColor: cancelBorder,
-            color: cancelText,
-            textTransform: "uppercase",
-            fontWeight: "bold",
+            borderRadius: 2, borderColor: cancelBorder, color: cancelText,
+            textTransform: "uppercase", fontWeight: "bold",
             "&:hover": { borderColor: cancelBorder, backgroundColor: cancelBgHover },
-            minWidth: 120,
-            px: 3,
+            minWidth: 120, px: 3,
           }}
         >
           Cancel
         </Button>
-
         <Button
           variant="contained"
           onClick={handleSaveClick}
           disabled={!isFormValid()}
           sx={{
-            backgroundColor: isFormValid() ? btnBg : "#999",
-            color: "#fff",
-            textTransform: "none",
-            borderRadius: 2,
-            minWidth: 140,
-            px: 3,
-            boxShadow: 3,
-            "&:hover": {
-              backgroundColor: isFormValid() ? btnHover : "#999",
-            },
+            backgroundColor: isFormValid() ? btnBg : "#999", color: "#fff",
+            textTransform: "none", borderRadius: 2, minWidth: 140, px: 3, boxShadow: 3,
+            "&:hover": { backgroundColor: isFormValid() ? btnHover : "#999" },
           }}
         >
           Save Details

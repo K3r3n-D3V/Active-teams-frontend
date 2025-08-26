@@ -5,8 +5,7 @@ import axios from 'axios';
 import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
-  TextField, InputAdornment, Button, Dialog, DialogTitle, DialogContent,
-  DialogActions, Snackbar, Alert, AppBar, Toolbar
+  TextField, InputAdornment, Button, Snackbar, Alert, AppBar, Toolbar
 } from '@mui/material';
 import {
   Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
@@ -14,8 +13,10 @@ import {
   Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
+import { Slide } from '@mui/material';
 
-// ================== Stages ==================
+const slideTransition = (props) => <Slide {...props} direction="down" />;
+
 const stages = [
   { id: 'Win', title: 'Win' },
   { id: 'Consolidate', title: 'Consolidate' },
@@ -23,7 +24,6 @@ const stages = [
   { id: 'Send', title: 'Send' }
 ];
 
-// ================== PersonCard ==================
 const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -33,10 +33,10 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
   const handleEdit = () => { onEdit(person); handleMenuClose(); };
   const handleDelete = () => { onDelete(person._id); handleMenuClose(); };
 
-  const getInitials = useCallback((name) => name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || "?", []);
-  const getAvatarColor = useCallback((name) => ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3'][(name?.length || 0) % 6], []);
-  const formatDate = useCallback((date) => date ? new Date(date).toLocaleDateString() : "-", []);
-  const getStageColor = useCallback((stage) => {
+  const getInitials = useCallback(name => name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || "?", []);
+  const getAvatarColor = useCallback(name => ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3'][(name?.length || 0) % 6], []);
+  const formatDate = useCallback(date => date ? new Date(date).toLocaleDateString() : "-", []);
+  const getStageColor = useCallback(stage => {
     switch (stage) {
       case 'Win': return 'success.main';
       case 'Consolidate': return 'info.main';
@@ -77,11 +77,7 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
         </Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Chip
-            label={person.stage}
-            size="small"
-            sx={{ height: 20, fontSize: 10, backgroundColor: getStageColor(person.stage), color: '#fff' }}
-          />
+          <Chip label={person.stage} size="small" sx={{ height: 20, fontSize: 10, backgroundColor: getStageColor(person.stage), color: '#fff' }} />
           <Typography variant="caption">Updated: {formatDate(person.lastUpdated)}</Typography>
         </Box>
 
@@ -100,12 +96,11 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
   );
 });
 
-// ================== DragDropBoard ==================
 const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loading }) => {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isMedium = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
-  const getPeopleByStage = useCallback((stage) => people.filter(p => p.stage === stage), [people]);
+  const getPeopleByStage = useCallback(stage => people.filter(p => p.stage === stage), [people]);
 
   if (loading) return <Typography sx={{ p: 2, textAlign: 'center' }}>Loading people...</Typography>;
 
@@ -119,32 +114,14 @@ const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loadin
           const stageWidth = isSmall ? '100%' : isMedium ? '45%' : '250px';
 
           return (
-            <Paper key={stage.id} sx={{
-              flex: `0 0 ${stageWidth}`,
-              minWidth: 220,
-              borderRadius: 2,
-              overflow: 'hidden',
-              mb: isSmall || isMedium ? 2 : 0,
-              backgroundColor: theme.palette.mode === 'dark' ? '#424242' : '#fff'
-            }}>
+            <Paper key={stage.id} sx={{ flex: `0 0 ${stageWidth}`, minWidth: 220, borderRadius: 2, overflow: 'hidden', mb: isSmall || isMedium ? 2 : 0, backgroundColor: theme.palette.mode === 'dark' ? '#424242' : '#fff' }}>
               <Box sx={{ p: 1.5, backgroundColor: headerBg, color: headerText, display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="subtitle1">{stage.title}</Typography>
-                <Badge badgeContent={stagePeople.length} sx={{ '& .MuiBadge-badge': { backgroundColor: headerText, color: headerBg, fontSize: 10 } }} />
+                <Badge badgeContent={stagePeople.length} sx={{ '& .MuiBadge-badge': { backgroundColor: headerText, color: headerBg, fontSize: 10, transform: 'translateY(4px)' } }} />
               </Box>
               <Droppable droppableId={stage.id}>
                 {(provided) => (
-                  <Box
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    sx={{
-                      p: 1,
-                      minHeight: 140,
-                      maxHeight: '400px',
-                      overflowY: 'auto',
-                      overflowX: 'hidden',
-                      backgroundColor: theme.palette.mode === 'dark' ? '#616161' : '#f9f9f9',
-                    }}
-                  >
+                  <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ p: 1, minHeight: 140, maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden', backgroundColor: theme.palette.mode === 'dark' ? '#616161' : '#f9f9f9' }}>
                     {stagePeople.length > 0 ? stagePeople.map((person, index) => (
                       <Draggable key={person._id} draggableId={person._id} index={index}>
                         {(provided, snapshot) => (
@@ -168,71 +145,110 @@ const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loadin
   );
 };
 
-
-// ================== PeopleSection ==================
-export const PeopleSection = ({ currentUser }) => {
+export const PeopleSection = () => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [people, setPeople] = useState([]);
-  const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
+  const [formData, setFormData] = useState({ name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '', invitedBy: '', gender: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Fetch people from backend
+  // Fetch ALL people
   useEffect(() => {
     const fetchPeople = async () => {
       setLoading(true);
       try {
-        const res = await axios.get('/api/people');
-        const data = res.data.map(p => ({ stage: p.stage || 'Win', ...p }));
+        const res = await axios.get('http://localhost:8000/people');
+        const data = Array.isArray(res.data?.results) ? res.data.results.map(p => ({
+          _id: p._id,
+          name: p.Name || "",
+          gender: p.Gender || "",
+          dob: p.DateOfBirth || "",
+          location: p.Location || "",
+          cellLeader: p.Leader || "",
+          stage: p.Stage || "Win",
+          email: p.Email || "",
+          phone: p.Phone || "",
+          lastUpdated: p.UpdatedAt || null
+        })) : [];
+
         setPeople(data);
+
+        if (data.length === 0) {
+          setSnackbar({ open: true, message: 'No people found', severity: 'info' });
+        }
       } catch (err) {
         console.error('Error fetching people:', err);
         setSnackbar({ open: true, message: 'Failed to load people', severity: 'error' });
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     };
     fetchPeople();
   }, []);
 
-  // Hard-coded admin logic for leaders
+  // Prepare form data for editing
   useEffect(() => {
-    let uniqueLeaders = [...new Set(people.map(person => person.cellLeader))];
-    const superAdmins = ['Gavin Ensline', 'Vicky Ensline'];
-    if (!superAdmins.includes(currentUser)) {
-      uniqueLeaders = uniqueLeaders.filter(l => l === currentUser);
+    if (editingPerson) {
+      setFormData({
+        name: editingPerson.name || '',
+        surname: editingPerson.surname || '',
+        dob: editingPerson.dob || '',
+        email: editingPerson.email || '',
+        phone: editingPerson.phone || '',
+        homeAddress: editingPerson.homeAddress || '',
+        invitedBy: editingPerson.cellLeader || '',
+        gender: editingPerson.gender || '',
+      });
+    } else {
+      setFormData({ name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '', invitedBy: '', gender: '' });
     }
-    setLeaders(uniqueLeaders);
-  }, [people, currentUser]);
+  }, [editingPerson, isModalOpen]);
 
-  const getLeaderStats = (leader) => {
-    const leaderPeople = people.filter(person => person.cellLeader === leader);
-    const stats = stages.map(stage => ({
-      stage,
-      count: leaderPeople.filter(p => p.stage === stage.id).length
-    }));
-    return { total: leaderPeople.length, stages: stats };
-  };
+  // Save (Create or Update)
+const handleSavePerson = async (data) => {
+  try {
+    let res;
+    if (editingPerson && editingPerson._id) {
+      // Update existing person
+      res = await axios.put(`http://localhost:8000/people/${editingPerson._id}`, data);
+    } else {
+      // Create new person
+      res = await axios.post('http://localhost:8000/people', data);
+    }
 
-  const handleSavePerson = (data) => {
+    const savedPerson = res.data;
+
     setPeople(prev => {
-      const idx = prev.findIndex(p => p._id === data._id);
-      if (idx >= 0) prev[idx] = data;
-      else prev.push({ ...data, _id: `new-${Date.now()}`, gender: data.gender || 'Male', stage: data.stage || 'Win' });
+      const idx = prev.findIndex(p => p._id === savedPerson._id);
+      if (idx >= 0) {
+        prev[idx] = savedPerson;
+      } else {
+        prev.push(savedPerson);
+      }
       return [...prev];
     });
-    setIsModalOpen(false);
-    setSnackbar({ open: true, message: 'Person saved successfully', severity: 'success' });
-  };
 
-  const handleDeletePerson = (id) => {
+    setIsModalOpen(false);
+    setEditingPerson(null);
+    setSnackbar({ open: true, message: 'Person saved successfully', severity: 'success' });
+  } catch (err) {
+    console.error("Error saving person:", err);
+    setSnackbar({ open: true, message: 'Failed to save person', severity: 'error' });
+  }
+};
+
+// Delete
+const handleDeletePerson = async (id) => {
+  try {
+    await axios.delete(`http://localhost:8000/people/${id}`);
     setPeople(prev => prev.filter(p => p._id !== id));
-    setSnackbar({ open: true, message: 'Person deleted', severity: 'success' });
-  };
+    setSnackbar({ open: true, message: 'Person deleted successfully', severity: 'success' });
+  } catch (err) {
+    console.error("Error deleting person:", err);
+    setSnackbar({ open: true, message: 'Failed to delete person', severity: 'error' });
+  }
+};
 
   const handleDragEnd = ({ destination, source, draggableId }) => {
     if (!destination) return;
@@ -246,9 +262,19 @@ export const PeopleSection = ({ currentUser }) => {
     });
   };
 
-  const filteredPeople = useMemo(() => people.filter(p =>
-    [p.name, p.cellLeader, p.location].some(f => f?.toLowerCase().includes(searchTerm.toLowerCase()))
-  ), [people, searchTerm]);
+  // Search filter only
+  const filteredPeople = useMemo(() => {
+    return people.filter(p =>
+      [p.name, p.cellLeader, p.location].some(f => f?.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [people, searchTerm]);
+
+  // Show alert if search yields no matches
+  useEffect(() => {
+    if (!loading && people.length > 0 && filteredPeople.length === 0) {
+      setSnackbar({ open: true, message: 'No matching people found', severity: 'info' });
+    }
+  }, [filteredPeople, loading, people]);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
@@ -261,16 +287,13 @@ export const PeopleSection = ({ currentUser }) => {
             startIcon={<AddIcon />}
             onClick={() => { setEditingPerson(null); setIsModalOpen(true); }}
             sx={{
+              ml: 2,
               backgroundColor: theme.palette.mode === 'dark' ? '#fff' : '#000',
               color: theme.palette.mode === 'dark' ? '#000' : '#fff',
-              '&:hover': {
-                backgroundColor: theme.palette.mode === 'dark' ? '#e0e0e0' : '#222'
-              },
+              '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#e0e0e0' : '#222' },
               textTransform: 'none'
             }}
-          >
-            Add
-          </Button>
+          >Add</Button>
         </Toolbar>
       </AppBar>
 
@@ -293,14 +316,40 @@ export const PeopleSection = ({ currentUser }) => {
 
       <AddPersonDialog
         open={isModalOpen}
-        formData={editingPerson || { name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '', invitedBy: '', gender: '' }}
-        setFormData={setEditingPerson}
-        onClose={() => setIsModalOpen(false)}
-        onSave={() => handleSavePerson(editingPerson)}
+        formData={formData}
+        setFormData={setFormData}
+        onClose={() => { setIsModalOpen(false); setEditingPerson(null); }}
+        onSave={() => handleSavePerson(formData)}
       />
 
-      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        TransitionComponent={slideTransition}
+        sx={{
+          mt: 2,
+          ml: { xs: '5%', sm: '10%', md: '15%' },
+          width: { xs: '90%', sm: 'auto' }
+        }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{
+            width: '100%',
+            borderRadius: 2,
+            boxShadow: 3,
+            px: 3,
+            py: 1.5,
+            textAlign: 'center',
+            fontWeight: 500
+          }}
+        >
+          {snackbar.message}
+        </Alert>
       </Snackbar>
     </Box>
   );
