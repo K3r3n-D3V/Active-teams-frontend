@@ -62,31 +62,33 @@ const Events = () => {
     const eventId = selectedEvent._id;
     const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
     const eventType = selectedEvent.eventType;
+if (
+  data === "did-not-meet" ||
+  data === "Mark As Did Not Meet" ||
+  (data && data.toString().toLowerCase().includes("did not meet"))
+) {
+  const now = new Date();
+  const formattedDate = now.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+  const formattedTime = now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  });
 
-    if (
-      data === "did-not-meet" ||
-      data === "Mark As Did Not Meet" ||
-      (data && data.toString().toLowerCase().includes("did not meet"))
-    ) {
-      saveToEventHistory({
-        eventId,
-        service_name,
-        eventType,
-        status: "did-not-meet",
-        reason: "Marked as did not meet",
-      });
-    } else if (data && typeof data === "object" && !Array.isArray(data)) {
-      const attendeeNames = Object.keys(data).filter((key) => data[key]);
-      if (attendeeNames.length > 0) {
-        saveToEventHistory({
-          eventId,
-          service_name,
-          eventType,
-          status: "attended",
-          attendees: attendeeNames,
-        });
-      }
-    } else if (Array.isArray(data) && data.length > 0) {
+  saveToEventHistory({
+    eventId,
+    service_name,
+    eventType,
+    status: "did-not-meet",
+    reason: "Marked as did not meet",
+    closedAt: `${formattedDate}, ${formattedTime}` // ⬅️ added date and time
+  });
+}
+    else if (Array.isArray(data) && data.length > 0) {
       saveToEventHistory({
         eventId,
         service_name,
@@ -132,7 +134,7 @@ const Events = () => {
             style={{ ...styles.button, ...styles.btnFilter, marginRight: "25px" }}
             onClick={() => setShowFilter(true)}
           >
-            ⚙️ FILTER EVENTS
+           FILTER EVENTS
           </button>
         </div>
         <div style={styles.headerRight}>

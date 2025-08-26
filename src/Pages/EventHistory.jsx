@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 // Utility to save history — this can be imported in other components
-export const saveToEventHistory = ({ eventId, service_name, eventType, status, attendees = [], reason = "" }) => {
+export const saveToEventHistory = ({
+  eventId,
+  service_name,
+  eventType,
+  status,
+  attendees = [],
+  reason = "",
+}) => {
   const currentHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
 
   const newEntry = {
@@ -21,15 +28,16 @@ export const saveToEventHistory = ({ eventId, service_name, eventType, status, a
 
 const EventHistory = ({ user }) => {
   const navigate = useNavigate();
-  const [events, setEvents] = useState([]);
+  const location = useLocation();
 
-  // Load event history from localStorage
+  const [events, setEvents] = useState([]);
+  const [expandedDidNotMeet, setExpandedDidNotMeet] = useState(null);
+
   const getEventHistory = () => {
     const history = localStorage.getItem("eventHistory");
     return history ? JSON.parse(history) : [];
   };
 
-  // Group history entries by event
   const groupHistoryByEvent = () => {
     const rawHistory = getEventHistory();
     const grouped = {};
@@ -60,8 +68,27 @@ const EventHistory = ({ user }) => {
     setEvents(groupHistoryByEvent());
   }, []);
 
-  const didNotMeetEvents = events.filter((e) =>
-    e.history?.some((h) => h.status.toLowerCase() === "did-not-meet")
+  useEffect(() => {
+    if (location.state && location.state.expandEventId) {
+      setExpandedDidNotMeet(location.state.expandEventId);
+    }
+  }, [location.state]);
+
+  const toggleExpandDidNotMeet = (id) => {
+    setExpandedDidNotMeet((prev) => (prev === id ? null : id));
+  };
+
+  const handleDeleteEvent = (eventKey) => {
+    const currentHistory = getEventHistory();
+    const updatedHistory = currentHistory.filter(
+      (entry) => (entry.eventId || entry.service_name) !== eventKey
+    );
+    localStorage.setItem("eventHistory", JSON.stringify(updatedHistory));
+    setEvents(groupHistoryByEvent());
+  };
+
+  const didNotMeetEvents = events.filter((event) =>
+    event.history.some((h) => h.status === "did-not-meet")
   );
 
   const attendedEvents = events.filter((e) =>
@@ -84,7 +111,7 @@ const EventHistory = ({ user }) => {
         </div>
       ) : (
         <>
-          {/* ❌ Events Marked as Did Not Meet */}
+          {/* ❌ Did Not Meet Events */}
           <section style={styles.section}>
             <h2 style={styles.missedHeader}>❌ Events Marked as "Did Not Meet"</h2>
             {didNotMeetEvents.length === 0 ? (
@@ -93,35 +120,57 @@ const EventHistory = ({ user }) => {
               <ul style={styles.cardList}>
                 {didNotMeetEvents.map((event) => (
                   <li key={event._id} style={styles.missedCard}>
-                    <div style={styles.cardHeader}>
+                    <div
+                      style={{ ...styles.cardHeader, cursor: "pointer" }}
+                      onClick={() => toggleExpandDidNotMeet(event._id)}
+                      aria-expanded={expandedDidNotMeet === event._id}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleExpandDidNotMeet(event._id);
+                        }
+                      }}
+                    >
                       <strong style={styles.cardTitle}>
                         {event.service_name} <small>({event.eventType})</small>
                       </strong>
                     </div>
-                    <ul style={styles.historyList}>
-                      {event.history
-                        .filter((h) => h.status === "did-not-meet")
-                        .map((h, index) => (
-                          <li key={index} style={styles.historyItem}>
-                            <div style={styles.statusRow}>
-                              <span style={styles.missedText}>❌ Did Not Meet</span>
-                              <span style={styles.timestamp}>
-                                {new Date(h.timestamp).toLocaleString()}
-                              </span>
-                            </div>
-                            {h.reason && (
-                              <div style={styles.reasonText}>Reason: {h.reason}</div>
-                            )}
-                          </li>
-                        ))}
-                    </ul>
+
+                    <button
+                      style={styles.deleteBtn}
+                      onClick={() => handleDeleteEvent(event._id)}
+                    >
+                      🗑️ Delete
+                    </button>
+
+                    {expandedDidNotMeet === event._id && (
+                      <ul style={styles.historyList}>
+                        {event.history
+                          .filter((h) => h.status === "did-not-meet")
+                          .map((h, index) => (
+                            <li key={index} style={styles.historyItem}>
+                              <div style={styles.statusRow}>
+                                <span style={styles.missedText}>❌ Did Not Meet</span>
+                                <span style={styles.timestamp}>
+                                  {new Date(h.timestamp).toLocaleString()}
+                                </span>
+                              </div>
+                              {h.reason && (
+                                <div style={styles.reasonText}>Reason: {h.reason}</div>
+                              )}
+                            </li>
+                          ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
           </section>
 
-          {/* ✅ Events with Attendance */}
+          {/* ✅ Attended Events */}
           <section style={styles.section}>
             <h2 style={styles.attendedHeader}>✅ Events with Attendance</h2>
             {attendedEvents.length === 0 ? (
@@ -135,6 +184,14 @@ const EventHistory = ({ user }) => {
                         {event.service_name} <small>({event.eventType})</small>
                       </strong>
                     </div>
+
+                    <button
+                      style={styles.deleteBtn}
+                      onClick={() => handleDeleteEvent(event._id)}
+                    >
+                      🗑️ Delete
+                    </button>
+
                     <ul style={styles.historyList}>
                       {event.history
                         .filter((h) => h.status === "attended")
@@ -167,7 +224,7 @@ const EventHistory = ({ user }) => {
             )}
           </section>
 
-          {/* 📊 All Events Summary */}
+          {/* 📊 Summary */}
           <section style={styles.section}>
             <h2 style={styles.summaryHeader}>📊 Summary</h2>
             <div style={styles.summaryGrid}>
@@ -200,17 +257,18 @@ const styles = {
     padding: "2rem",
     maxWidth: "1200px",
     margin: "0 auto",
-    color: "#f0f0f0",
+    color: "#000",
     fontFamily: "Arial, sans-serif",
+    backgroundColor: "#fff",
   },
   header: {
     fontSize: "2.5rem",
     marginBottom: "2rem",
-    color: "#fff",
+    color: "#000",
     textAlign: "center",
   },
   missedHeader: {
-    color: "#ef5350",
+    color: "#000",
     fontSize: "1.5rem",
     marginBottom: "1rem",
     display: "flex",
@@ -218,7 +276,7 @@ const styles = {
     gap: "0.5rem",
   },
   attendedHeader: {
-    color: "#4caf50",
+    color: "#000",
     fontSize: "1.5rem",
     marginBottom: "1rem",
     display: "flex",
@@ -226,7 +284,7 @@ const styles = {
     gap: "0.5rem",
   },
   summaryHeader: {
-    color: "#42a5f5",
+    color: "#000",
     fontSize: "1.5rem",
     marginBottom: "1rem",
     display: "flex",
@@ -237,7 +295,7 @@ const styles = {
     marginBottom: "3rem",
   },
   noData: {
-    color: "#aaa",
+    color: "#000",
     fontStyle: "italic",
     textAlign: "center",
     padding: "2rem",
@@ -250,25 +308,36 @@ const styles = {
     gap: "1rem",
   },
   missedCard: {
-    backgroundColor: "#2d1b1b",
-    border: "1px solid #ef5350",
+    backgroundColor: "#fff",
+    border: "1px solid #000",
     padding: "1.5rem",
     borderRadius: "12px",
-    boxShadow: "0 4px 8px rgba(239, 83, 80, 0.2)",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+    color: "#000",
   },
   attendedCard: {
-    backgroundColor: "#1b2d1b",
-    border: "1px solid #4caf50",
+    backgroundColor: "#fff",
+    border: "1px solid #000",
     padding: "1.5rem",
     borderRadius: "12px",
-    boxShadow: "0 4px 8px rgba(76, 175, 80, 0.2)",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+    color: "#000",
+  },
+  deleteBtn: {
+    backgroundColor: "#000",
+    color: "#fff",
+    border: "none",
+    padding: "0.4rem 1rem",
+    borderRadius: "6px",
+    cursor: "pointer",
+    marginBottom: "1rem",
   },
   cardHeader: {
     marginBottom: "1rem",
   },
   cardTitle: {
     fontSize: "1.3rem",
-    color: "#fff",
+    color: "#000",
     display: "block",
   },
   historyList: {
@@ -279,7 +348,7 @@ const styles = {
   historyItem: {
     marginBottom: "1rem",
     padding: "0.5rem 0",
-    borderBottom: "1px solid #333",
+    borderBottom: "1px solid #ccc",
   },
   statusRow: {
     display: "flex",
@@ -288,94 +357,70 @@ const styles = {
     marginBottom: "0.5rem",
   },
   missedText: {
-    color: "#ef5350",
-    fontSize: "1rem",
+    color: "#000",
     fontWeight: "bold",
   },
   attendedText: {
-    color: "#4caf50",
-    fontSize: "1rem",
+    color: "#42a5f5",
     fontWeight: "bold",
   },
   timestamp: {
-    color: "#aaa",
-    fontSize: "0.9rem",
+    fontSize: "0.85rem",
+    color: "#000",
   },
   reasonText: {
-    color: "#ffb74d",
-    fontSize: "0.9rem",
     fontStyle: "italic",
+    color: "#000",
   },
   attendeesSection: {
     marginTop: "0.5rem",
   },
   attendeesTitle: {
-    color: "#fff",
-    fontSize: "0.9rem",
-    marginBottom: "0.5rem",
+    fontWeight: "bold",
   },
   attendeesList: {
+    marginTop: "0.3rem",
     display: "flex",
-    flexWrap: "wrap",
     gap: "0.5rem",
+    flexWrap: "wrap",
   },
   attendeeBadge: {
-    backgroundColor: "#4caf50",
-    color: "#fff",
-    padding: "0.2rem 0.8rem",
-    borderRadius: "16px",
-    fontSize: "0.8rem",
-    fontWeight: "500",
-  },
-  summaryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-    gap: "1rem",
-  },
-  summaryCard: {
-    backgroundColor: "#1e1e1e",
-    padding: "1.5rem",
-    borderRadius: "12px",
-    textAlign: "center",
-    border: "1px solid #333",
-  },
-  summaryNumber: {
-    fontSize: "2rem",
-    fontWeight: "bold",
-    color: "#42a5f5",
-    marginBottom: "0.5rem",
-  },
-  summaryLabel: {
-    color: "#aaa",
+    backgroundColor: "#eee",
+    padding: "0.2rem 0.5rem",
+    borderRadius: "6px",
     fontSize: "0.9rem",
-  },
-  emptyState: {
-    textAlign: "center",
-    padding: "4rem 2rem",
-    color: "#aaa",
-  },
-  emptyTitle: {
-    fontSize: "2rem",
-    marginBottom: "1rem",
-    color: "#666",
-  },
-  emptyText: {
-    fontSize: "1.1rem",
-    marginBottom: "2rem",
-    lineHeight: "1.6",
-    maxWidth: "500px",
-    margin: "0 auto 2rem auto",
+    color: "#000",
   },
   backBtn: {
-    padding: "12px 24px",
-    backgroundColor: "#1565c0",
+    marginTop: "2rem",
+    padding: "0.8rem 1.6rem",
+    fontSize: "1rem",
+    backgroundColor: "#42a5f5",
     color: "#fff",
     border: "none",
     borderRadius: "8px",
     cursor: "pointer",
-    fontSize: "1rem",
+  },
+  summaryGrid: {
+    display: "flex",
+    gap: "1rem",
+    flexWrap: "wrap",
+  },
+  summaryCard: {
+    flex: "1 1 200px",
+    border: "1px solid #000",
+    borderRadius: "8px",
+    padding: "1rem",
+    textAlign: "center",
+    backgroundColor: "#f9f9f9",
+  },
+  summaryNumber: {
+    fontSize: "2rem",
     fontWeight: "bold",
-    transition: "background-color 0.3s",
+  },
+  summaryLabel: {
+    marginTop: "0.5rem",
+    fontSize: "1rem",
   },
 };
 
