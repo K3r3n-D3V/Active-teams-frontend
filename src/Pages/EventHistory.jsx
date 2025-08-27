@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-// Utility to save history — this can be imported in other components
+// Utility to save history
 export const saveToEventHistory = ({
   eventId,
   service_name,
@@ -16,7 +16,7 @@ export const saveToEventHistory = ({
     eventId,
     service_name,
     eventType,
-    status, // "attended" or "did-not-meet"
+    status,
     attendees,
     reason,
     timestamp: new Date().toISOString(),
@@ -32,6 +32,8 @@ const EventHistory = ({ user }) => {
 
   const [events, setEvents] = useState([]);
   const [expandedDidNotMeet, setExpandedDidNotMeet] = useState(null);
+  const [filterName, setFilterName] = useState("");
+  const [filterDate, setFilterDate] = useState("");
 
   const getEventHistory = () => {
     const history = localStorage.getItem("eventHistory");
@@ -41,7 +43,6 @@ const EventHistory = ({ user }) => {
   const groupHistoryByEvent = () => {
     const rawHistory = getEventHistory();
     const grouped = {};
-
     rawHistory.forEach((entry) => {
       const eventKey = entry.eventId || entry.service_name;
       if (!grouped[eventKey]) {
@@ -52,7 +53,6 @@ const EventHistory = ({ user }) => {
           history: [],
         };
       }
-
       grouped[eventKey].history.push({
         status: entry.status,
         timestamp: entry.timestamp,
@@ -60,7 +60,6 @@ const EventHistory = ({ user }) => {
         reason: entry.reason,
       });
     });
-
     return Object.values(grouped);
   };
 
@@ -87,23 +86,54 @@ const EventHistory = ({ user }) => {
     setEvents(groupHistoryByEvent());
   };
 
-  const didNotMeetEvents = events.filter((event) =>
+  const filteredEvents = events.filter((event) => {
+    const matchesName = filterName
+      ? event.service_name.toLowerCase().includes(filterName.toLowerCase())
+      : true;
+
+    const matchesDate = filterDate
+      ? event.history.some((h) =>
+          new Date(h.timestamp).toISOString().startsWith(filterDate)
+        )
+      : true;
+
+    return matchesName && matchesDate;
+  });
+
+  const didNotMeetEvents = filteredEvents.filter((event) =>
     event.history.some((h) => h.status === "did-not-meet")
   );
 
-  const attendedEvents = events.filter((e) =>
-    e.history?.some((h) => h.status === "attended")
+  const attendedEvents = filteredEvents.filter((event) =>
+    event.history.some((h) => h.status === "attended")
   );
 
   return (
     <div style={styles.container}>
       <h1 style={styles.header}>📜 Event History</h1>
 
+      {/* Filter Section */}
+      <div style={styles.filterSection}>
+        <input
+          type="text"
+          placeholder="Search by event name..."
+          value={filterName}
+          onChange={(e) => setFilterName(e.target.value)}
+          style={styles.filterInput}
+        />
+        <input
+          type="date"
+          value={filterDate}
+          onChange={(e) => setFilterDate(e.target.value)}
+          style={styles.filterInput}
+        />
+      </div>
+
       {events.length === 0 ? (
         <div style={styles.emptyState}>
-          <h2 style={styles.emptyTitle}>🕐 No Event History Yet</h2>
+          <h2 style={styles.emptyTitle}>🕐 No Event History</h2>
           <p style={styles.emptyText}>
-            Start capturing attendance or marking events as "did not meet" to see your history here.
+            Capture attendance or mark events as "did not meet" to see your history.
           </p>
           <button style={styles.backBtn} onClick={() => navigate("/events")}>
             🔙 Go to Events
@@ -111,9 +141,9 @@ const EventHistory = ({ user }) => {
         </div>
       ) : (
         <>
-          {/* ❌ Did Not Meet Events */}
+          {/* Did Not Meet Events */}
           <section style={styles.section}>
-            <h2 style={styles.missedHeader}>❌ Events Marked as "Did Not Meet"</h2>
+            <h2 style={styles.missedHeader}>❌ Events Did Not Meet</h2>
             {didNotMeetEvents.length === 0 ? (
               <p style={styles.noData}>No events marked as did not meet.</p>
             ) : (
@@ -142,7 +172,7 @@ const EventHistory = ({ user }) => {
                       style={styles.deleteBtn}
                       onClick={() => handleDeleteEvent(event._id)}
                     >
-                      🗑️ Delete
+                      🗑️
                     </button>
 
                     {expandedDidNotMeet === event._id && (
@@ -170,7 +200,7 @@ const EventHistory = ({ user }) => {
             )}
           </section>
 
-          {/* ✅ Attended Events */}
+          {/* Attended Events */}
           <section style={styles.section}>
             <h2 style={styles.attendedHeader}>✅ Events with Attendance</h2>
             {attendedEvents.length === 0 ? (
@@ -189,7 +219,7 @@ const EventHistory = ({ user }) => {
                       style={styles.deleteBtn}
                       onClick={() => handleDeleteEvent(event._id)}
                     >
-                      🗑️ Delete
+                      🗑️
                     </button>
 
                     <ul style={styles.historyList}>
@@ -224,13 +254,13 @@ const EventHistory = ({ user }) => {
             )}
           </section>
 
-          {/* 📊 Summary */}
+          {/* Summary */}
           <section style={styles.section}>
             <h2 style={styles.summaryHeader}>📊 Summary</h2>
             <div style={styles.summaryGrid}>
               <div style={styles.summaryCard}>
                 <div style={styles.summaryNumber}>{attendedEvents.length}</div>
-                <div style={styles.summaryLabel}>Events with Attendance</div>
+                <div style={styles.summaryLabel}>Events Attended</div>
               </div>
               <div style={styles.summaryCard}>
                 <div style={styles.summaryNumber}>{didNotMeetEvents.length}</div>
@@ -252,53 +282,59 @@ const EventHistory = ({ user }) => {
   );
 };
 
+// Modern responsive styles
 const styles = {
   container: {
-    padding: "2rem",
-    maxWidth: "1200px",
+    padding: "2rem 1rem",
+    maxWidth: "1100px",
     margin: "0 auto",
-    color: "#000",
-    fontFamily: "Arial, sans-serif",
-    backgroundColor: "#fff",
+    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    backgroundColor: "#f5f6fa",
+    color: "#333",
   },
   header: {
-    fontSize: "2.5rem",
-    marginBottom: "2rem",
-    color: "#000",
+    fontSize: "2.2rem",
     textAlign: "center",
+    marginBottom: "2rem",
+    color: "#2f3640",
   },
-  missedHeader: {
-    color: "#000",
-    fontSize: "1.5rem",
-    marginBottom: "1rem",
+  filterSection: {
     display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
+    gap: "1rem",
+    marginBottom: "2rem",
+    flexWrap: "wrap",
+    justifyContent: "center",
   },
-  attendedHeader: {
-    color: "#000",
-    fontSize: "1.5rem",
-    marginBottom: "1rem",
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-  },
-  summaryHeader: {
-    color: "#000",
-    fontSize: "1.5rem",
-    marginBottom: "1rem",
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
+  filterInput: {
+    padding: "0.6rem 1rem",
+    fontSize: "1rem",
+    borderRadius: "12px",
+    border: "1px solid #dcdde1",
+    flex: "1 1 200px",
+    minWidth: "150px",
+    outline: "none",
+    transition: "all 0.2s",
   },
   section: {
     marginBottom: "3rem",
   },
-  noData: {
-    color: "#000",
-    fontStyle: "italic",
-    textAlign: "center",
-    padding: "2rem",
+  missedHeader: {
+    fontSize: "1.4rem",
+    marginBottom: "1rem",
+    color: "#e84118",
+    fontWeight: "600",
+  },
+  attendedHeader: {
+    fontSize: "1.4rem",
+    marginBottom: "1rem",
+    color: "#44bd32",
+    fontWeight: "600",
+  },
+  summaryHeader: {
+    fontSize: "1.4rem",
+    marginBottom: "1rem",
+    color: "#40739e",
+    fontWeight: "600",
   },
   cardList: {
     listStyle: "none",
@@ -309,36 +345,25 @@ const styles = {
   },
   missedCard: {
     backgroundColor: "#fff",
-    border: "1px solid #000",
-    padding: "1.5rem",
+    borderLeft: "6px solid #e84118",
+    padding: "1rem",
     borderRadius: "12px",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-    color: "#000",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.05)",
   },
   attendedCard: {
     backgroundColor: "#fff",
-    // border: "1px solid #000",
-    padding: "1.5rem",
+    borderLeft: "6px solid #44bd32",
+    padding: "1rem",
     borderRadius: "12px",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-    color: "#000",
-  },
-  deleteBtn: {
-    backgroundColor: "#000",
-    color: "#fff",
-    border: "none",
-    padding: "0.4rem 1rem",
-    borderRadius: "6px",
-    cursor: "pointer",
-    marginBottom: "1rem",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.05)",
   },
   cardHeader: {
-    marginBottom: "1rem",
+    marginBottom: "0.8rem",
   },
   cardTitle: {
-    fontSize: "1.3rem",
-    color: "#000",
-    display: "block",
+    fontSize: "1.1rem",
+    fontWeight: "600",
+    color: "#2f3640",
   },
   historyList: {
     listStyle: "none",
@@ -346,60 +371,60 @@ const styles = {
     margin: 0,
   },
   historyItem: {
-    marginBottom: "1rem",
+    marginBottom: "0.8rem",
     padding: "0.5rem 0",
-    borderBottom: "1px solid #ccc",
+    borderBottom: "1px solid #dcdde1",
   },
   statusRow: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "0.5rem",
-  },
-  missedText: {
-    color: "#000",
-    fontWeight: "bold",
-  },
-  attendedText: {
-    color: "#42a5f5",
-    fontWeight: "bold",
-  },
-  timestamp: {
-    fontSize: "0.85rem",
-    color: "#000",
-  },
-  reasonText: {
-    fontStyle: "italic",
-    color: "#000",
-  },
-  attendeesSection: {
-    marginTop: "0.5rem",
-  },
-  attendeesTitle: {
-    fontWeight: "bold",
-  },
-  attendeesList: {
-    marginTop: "0.3rem",
-    display: "flex",
-    gap: "0.5rem",
     flexWrap: "wrap",
+    gap: "0.5rem",
+    alignItems: "center",
+  },
+  missedText: { color: "#e84118", fontWeight: "600" },
+  attendedText: { color: "#44bd32", fontWeight: "600" },
+  timestamp: { fontSize: "0.85rem", color: "#718093" },
+  reasonText: { fontStyle: "italic", color: "#718093" },
+  attendeesSection: { marginTop: "0.5rem" },
+  attendeesTitle: { fontWeight: "600" },
+  attendeesList: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.5rem",
+    marginTop: "0.3rem",
   },
   attendeeBadge: {
-    backgroundColor: "#eee",
-    padding: "0.2rem 0.5rem",
-    borderRadius: "6px",
-    fontSize: "0.9rem",
-    color: "#000",
+    backgroundColor: "#f1f2f6",
+    color: "#2f3640",
+    padding: "0.2rem 0.6rem",
+    borderRadius: "12px",
+    fontSize: "0.85rem",
+  },
+  deleteBtn: {
+   backgroundColor: "#fff",
+  color: "#e84118", 
+    border: "none",
+    padding: "0.4rem 1rem",
+    borderRadius: "8px",
+    cursor: "pointer",
+    marginTop: "0.5rem",
+    fontWeight: "600",
+    transition: "all 0.2s",
   },
   backBtn: {
     marginTop: "2rem",
     padding: "0.8rem 1.6rem",
     fontSize: "1rem",
-    backgroundColor: "#42a5f5",
+    backgroundColor: "#40739e",
     color: "#fff",
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "12px",
     cursor: "pointer",
+    display: "block",
+    marginLeft: "auto",
+    marginRight: "auto",
+    width: "fit-content",
   },
   summaryGrid: {
     display: "flex",
@@ -408,20 +433,22 @@ const styles = {
   },
   summaryCard: {
     flex: "1 1 200px",
-    // border: "1px solid #000",
-    borderRadius: "8px",
+    borderRadius: "12px",
     padding: "1rem",
     textAlign: "center",
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "#fff",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.05)",
   },
   summaryNumber: {
-    fontSize: "2rem",
-    fontWeight: "bold",
+    fontSize: "1.8rem",
+    fontWeight: "700",
+    color: "#2f3640",
   },
-  summaryLabel: {
-    marginTop: "0.5rem",
-    fontSize: "1rem",
-  },
+  summaryLabel: { marginTop: "0.3rem", fontSize: "1rem", color: "#718093" },
+  emptyState: { textAlign: "center", padding: "2rem 1rem" },
+  emptyTitle: { fontSize: "1.6rem", color: "#2f3640", marginBottom: "1rem" },
+  emptyText: { color: "#718093", fontSize: "1rem" },
+  noData: { textAlign: "center", color: "#718093", padding: "1rem 0" },
 };
 
 export default EventHistory;

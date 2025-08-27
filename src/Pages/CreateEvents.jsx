@@ -36,10 +36,12 @@ const CreateEvents = () => {
   const [eventTypes, setEventTypes] = useState([
     'Workshop', 'Encouter', 'Conference', 'J-Activation', 'Training', 'Social Event'
   ]);
+
   const [formData, setFormData] = useState({
     eventType: '', eventName: '', isTicketed: false, price: '', date: '', time: '',
     recurringDays: [], location: '', eventLeader: '', description: ''
   });
+
   const [errors, setErrors] = useState({});
 
   const handleChange = (field, value) => {
@@ -65,40 +67,31 @@ const CreateEvents = () => {
     }
   };
 
-const isFormValid = () => {
-  if (!formData.eventType || !formData.eventName || !formData.location) return false;
-  if (!formData.eventLeader || !/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(formData.eventLeader.trim())) return false;
-  if (!formData.description) return false;
-  if (formData.recurringDays.length === 0 && (!formData.date || !formData.time)) return false;
-  if (formData.isTicketed && !formData.price) return false;
-  return true;
-};
-
+  const isFormValid = () => {
+    if (!formData.eventType || !formData.eventName || !formData.location) return false;
+    if (!formData.eventLeader || !/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(formData.eventLeader.trim())) return false;
+    if (!formData.description) return false;
+    if (formData.recurringDays.length === 0 && (!formData.date || !formData.time)) return false;
+    if (formData.isTicketed && !formData.price) return false;
+    return true;
+  };
 
   const validateForm = () => {
-  const newErrors = {};
-  if (!formData.eventType) newErrors.eventType = 'Event type is required';
-  if (!formData.eventName) newErrors.eventName = 'Event name is required';
-  if (!formData.location) newErrors.location = 'Location is required';
-
-  if (!formData.eventLeader) {
-    newErrors.eventLeader = 'Event leader is required';
-  } else if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(formData.eventLeader.trim())) {
-    newErrors.eventLeader = 'No numbers or double spaces allowed';
-  }
-
-  if (!formData.description) newErrors.description = 'Description is required';
-
-  if (formData.recurringDays.length === 0) {
-    if (!formData.date) newErrors.date = 'Date is required';
-    if (!formData.time) newErrors.time = 'Time is required';
-  }
-  if (formData.isTicketed && !formData.price) newErrors.price = 'Price is required for ticketed events';
-
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
-
+    const newErrors = {};
+    if (!formData.eventType) newErrors.eventType = 'Event type is required';
+    if (!formData.eventName) newErrors.eventName = 'Event name is required';
+    if (!formData.location) newErrors.location = 'Location is required';
+    if (!formData.eventLeader) newErrors.eventLeader = 'Event leader is required';
+    else if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(formData.eventLeader.trim())) newErrors.eventLeader = 'No numbers or double spaces allowed';
+    if (!formData.description) newErrors.description = 'Description is required';
+    if (formData.recurringDays.length === 0) {
+      if (!formData.date) newErrors.date = 'Date is required';
+      if (!formData.time) newErrors.time = 'Time is required';
+    }
+    if (formData.isTicketed && !formData.price) newErrors.price = 'Price is required for ticketed events';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const resetForm = () => {
     setFormData({
@@ -116,14 +109,18 @@ const isFormValid = () => {
     try {
       const payload = { ...formData };
 
+      // Convert date & time to ISO if not recurring
       if (payload.recurringDays.length === 0 && payload.date && payload.time) {
         payload.date = new Date(`${payload.date}T${payload.time}`).toISOString();
       }
-
       delete payload.time;
 
+      // Convert price to number if exists
       if (payload.price) payload.price = parseFloat(payload.price);
       else delete payload.price;
+
+      // ✅ Add default status for all new events
+      payload.status = "open";
 
       await axios.post("http://localhost:8000/event", payload);
 
@@ -131,7 +128,15 @@ const isFormValid = () => {
       resetForm();
       setTimeout(() => navigate("/events"), 1500);
     } catch (err) {
-      console.error(err.response || err);
+      if (err.response) {
+  console.error("Backend error:", err.response.data);
+  console.error("Status code:", err.response.status);
+} else if (err.request) {
+  console.error("No response received:", err.request);
+} else {
+  console.error("Error setting up request:", err.message);
+}
+
       setErrorAlert(true);
     } finally {
       setIsSubmitting(false);
@@ -141,26 +146,8 @@ const isFormValid = () => {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        bgcolor: '#f5f5f5',
-        px: 2
-      }}
-    >
-      <Card
-        sx={{
-          width: { xs: '100%', sm: '85%', md: '700px' },
-          p: 5,
-          borderRadius: '20px',
-          bgcolor: 'white',
-          color: 'black',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-        }}
-      >
+    <Box sx={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', bgcolor: '#f5f5f5', px: 2 }}>
+      <Card sx={{ width: { xs: '100%', sm: '85%', md: '700px' }, p: 5, borderRadius: '20px', bgcolor: 'white', color: 'black', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
         <CardContent>
           <Typography variant="h4" fontWeight="bold" textAlign="center" mb={4} color="primary">
             Create New Event
@@ -320,20 +307,19 @@ const isFormValid = () => {
                 Cancel
               </Button>
               <Button 
-              variant="contained" 
-              type="submit" 
-              fullWidth 
-              disabled={isSubmitting || !isFormValid()}
-                    >           
-  {isSubmitting ? "Creating..." : "Create Event"}
-</Button>
-
+                variant="contained" 
+                type="submit" 
+                fullWidth 
+                disabled={isSubmitting || !isFormValid()}
+              >           
+                {isSubmitting ? "Creating..." : "Create Event"}
+              </Button>
             </Box>
           </form>
         </CardContent>
       </Card>
 
-      {/* ✅ Snackbar Alerts - moved to top center */}
+      {/* ✅ Snackbar Alerts */}
       <Snackbar 
         open={successAlert} 
         autoHideDuration={3000} 

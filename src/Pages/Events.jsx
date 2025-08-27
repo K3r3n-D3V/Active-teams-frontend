@@ -23,8 +23,9 @@ const Events = () => {
 
   useEffect(() => {
     axios
-      .get("http://localhost:8000/events")
+      .get("http://localhost:8000/events") // backend returns only open events
       .then((res) => {
+        // Sort by newest first
         const sortedEvents = res.data.events.sort(
           (a, b) => new Date(b.date) - new Date(a.date)
         );
@@ -54,48 +55,60 @@ const Events = () => {
     setIsModalOpen(true);
   };
 
-const handleAttendanceSubmit = (data) => {
-  if (!selectedEvent) return;
+  const handleAttendanceSubmit = async (data) => {
+    if (!selectedEvent) return;
 
-  const eventId = selectedEvent._id;
-  const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
-  const eventType = selectedEvent.eventType;
+    const eventId = selectedEvent._id;
+    const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
+    const eventType = selectedEvent.eventType;
 
-  if (
-    data === "did-not-meet" ||
-    data === "Mark As Did Not Meet" ||
-    (data && data.toString().toLowerCase().includes("did not meet"))
-  ) {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-    const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    try {
+      if (
+        data === "did-not-meet" ||
+        data === "Mark As Did Not Meet" ||
+        (data && data.toString().toLowerCase().includes("did not meet"))
+      ) {
+        const now = new Date();
+        const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+        const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
-    saveToEventHistory({
-      eventId,
-      service_name,
-      eventType,
-      status: "did-not-meet",
-      reason: "Marked as did not meet",
-      closedAt: `${formattedDate}, ${formattedTime}`,
-    });
-  } else if (Array.isArray(data) && data.length > 0) {
-    saveToEventHistory({
-      eventId,
-      service_name,
-      eventType,
-      status: "attended",
-      attendees: data,
-    });
-  }
+        saveToEventHistory({
+          eventId,
+          service_name,
+          eventType,
+          status: "did-not-meet",
+          reason: "Marked as did not meet",
+          closedAt: `${formattedDate}, ${formattedTime}`,
+        });
 
-  // ✅ Remove event from Events screen
-  setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
+        // Update backend to mark event closed
+        await axios.put(`http://localhost:8000/events/${eventId}`, { status: "closed" });
 
-  setIsModalOpen(false);
-  setSelectedEvent(null);
-  navigate("/history");
-};
+      } else if (Array.isArray(data) && data.length > 0) {
+        saveToEventHistory({
+          eventId,
+          service_name,
+          eventType,
+          status: "attended",
+          attendees: data,
+        });
 
+        await axios.patch(`http://localhost:8000/allevents/${eventId}`, {
+          attendees: data,
+          did_not_meet: false,
+        });
+      }
+
+      // Remove from frontend state
+      setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
+
+      setIsModalOpen(false);
+      setSelectedEvent(null);
+      navigate("/history");
+    } catch (err) {
+      console.error("Failed to update event status", err);
+    }
+  };
 
   const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
 
@@ -236,20 +249,26 @@ const handleAttendanceSubmit = (data) => {
             <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
             <p style={styles.eventLocation}>{event.location || "Location not specified"}</p>
 
+            {/* ✅ Ticketed event price display */}
+            {event.isTicketed && event.price && (
+              <p style={styles.eventPrice}>Price: R{event.price}</p>
+            )}
+
             <div style={styles.eventActions}>
               <button style={{ ...styles.actionBtn, ...styles.captureBtn }} onClick={() => handleCaptureClick(event)}>
                 Capture
               </button>
-              <button
-                style={{
-                  ...styles.actionBtn,
-                  ...styles.paymentBtn,
-                  ...(event.eventType === "cell" || event.eventType === "service" ? styles.disabledBtn : {}),
-                }}
-                disabled={event.eventType === "cell" || event.eventType === "service"}
-              >
-                {event.eventType === "cell" || event.eventType === "service" ? "No Payment" : "Payment"}
-              </button>
+             <button
+  style={{
+    ...styles.actionBtn,
+    ...styles.paymentBtn,
+    ...(event.eventType === "cell" || event.eventType === "service" ? styles.disabledBtn : {}),
+  }}
+  disabled={event.eventType === "cell" || event.eventType === "service"}
+>
+  {event.eventType === "cell" || event.eventType === "service" ? "No Payment" : "Payment"}
+</button>
+
             </div>
           </div>
         ))}
@@ -261,14 +280,14 @@ const handleAttendanceSubmit = (data) => {
       </button>
 
       {/* Attendance Modal */}
-      {selectedEvent && (
-        <AttendanceModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          event={selectedEvent}
-          onSubmit={handleAttendanceSubmit}
-        />
-      )}
+     {selectedEvent && (
+  <AttendanceModal
+    isOpen={isModalOpen}
+    onClose={() => setIsModalOpen(false)}
+    event={selectedEvent}
+    onSubmit={handleAttendanceSubmit}
+  />
+)}
     </div>
   );
 };
@@ -289,6 +308,7 @@ const styles = {
   eventBadge: { fontSize: "0.75rem", fontWeight: 600, padding: "0.25rem 0.75rem", borderRadius: "50px", color: "#fff", textTransform: "uppercase", whiteSpace: "nowrap" },
   eventDate: { margin: "0.25rem 0", fontSize: "1rem", color: "#495057" },
   eventLocation: { margin: "0.25rem 0", fontSize: "0.95rem", color: "#6c757d" },
+  eventPrice: { margin: "0.25rem 0", fontSize: "0.95rem", color: "#28a745", fontWeight: 600 },
   eventActions: { marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" },
   actionBtn: { flex: 1, padding: "0.5rem 1rem", border: "none", borderRadius: "8px", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem" },
   captureBtn: { backgroundColor: "#000", color: "#fff" },

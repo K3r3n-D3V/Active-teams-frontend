@@ -31,7 +31,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
       return;
     }
 
-    if (onSubmit) onSubmit(selected);
+    if (onSubmit) onSubmit(selected); // This will be handleMarkDidNotMeet or attendance handler
 
     setAlert({
       open: true,
@@ -54,7 +54,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
     listItem: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", color: theme.palette.text.primary, cursor: "pointer" },
     actions: { display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" },
     primaryBtn: { background: theme.palette.mode === "dark" ? "#eee" : "#111", color: theme.palette.mode === "dark" ? "#111" : "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", flex: 1 },
-    secondaryBtn: { background: theme.palette.mode === "dark" ? "#444" : "#f3f4f6", color: theme.palette.mode === "dark" ? "#eee" : "#111", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", flex: 1 }
+    secondaryBtn: { background: "#e84118", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", flex: 1 }
   };
 
   return (
@@ -85,17 +85,18 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
             ))}
           </div>
           <div style={styles.actions}>
-            <button
-              style={styles.secondaryBtn}
-              onClick={() => {
-                if (onSubmit) onSubmit("did-not-meet");
-                onClose();
-              }}
-            >
-              Mark As Did Not Meet
-            </button>
-            <button onClick={handleSubmit} style={styles.primaryBtn}>Submit Attendance</button>
-          </div>
+  <button
+    style={styles.secondaryBtn}
+    onClick={() => {
+      if (onSubmit) onSubmit("did-not-meet");
+      onClose();
+    }}
+  >
+    Mark As Did Not Meet
+  </button>
+  <button onClick={handleSubmit} style={styles.primaryBtn}>Submit Attendance</button>
+</div>
+
         </div>
       </div>
 
