@@ -3,6 +3,8 @@ import { useTheme } from "@mui/material/styles"; // ⬅️ Import the MUI theme
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit }) => {
   const theme = useTheme(); // ⬅️ Access theme from context
+const [searchName, setSearchName] = useState("");
+const [filteredPeople, setFilteredPeople] = useState([]);
 
   const [attendeeName, setAttendeeName] = useState("");
   const [attendees, setAttendees] = useState([
@@ -16,6 +18,18 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit }) => {
       setAttendeeName("");
     }
   };
+
+  const fetchFilteredPeople = async (name) => {
+  try {
+    const res = await fetch(`http://localhost:8000/people?name=${name}`);
+    const data = await res.json();
+    if (data.people) {
+      setFilteredPeople(data.people);
+    }
+  } catch (err) {
+    console.error("Error fetching people:", err);
+  }
+};
 
   const handleToggle = (name) => {
     setChecked({ ...checked, [name]: !checked[name] });
