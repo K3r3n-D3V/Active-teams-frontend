@@ -12,7 +12,10 @@ import {
   FormControlLabel,
   Chip,
   Box,
-  InputAdornment
+  InputAdornment,
+  Snackbar,
+  Alert,
+  Typography
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PersonIcon from '@mui/icons-material/Person';
@@ -23,13 +26,15 @@ import { useNavigate } from 'react-router-dom';
 
 const CreateEvents = () => {
   const navigate = useNavigate();
-  const toast = ({ title, description }) => alert(`${title}\n${description}`);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewTypeForm, setShowNewTypeForm] = useState(false);
   const [newEventType, setNewEventType] = useState('');
+  const [successAlert, setSuccessAlert] = useState(false);
+  const [errorAlert, setErrorAlert] = useState(false);
+
   const [eventTypes, setEventTypes] = useState([
-    'Workshop', 'Seminar', 'Conference', 'Meetup', 'Training', 'Social Event'
+    'Workshop', 'Encouter', 'Conference', 'J-Activation', 'Training', 'Social Event'
   ]);
   const [formData, setFormData] = useState({
     eventType: '', eventName: '', isTicketed: false, price: '', date: '', time: '',
@@ -60,22 +65,40 @@ const CreateEvents = () => {
     }
   };
 
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.eventType) newErrors.eventType = 'Event type is required';
-    if (!formData.eventName) newErrors.eventName = 'Event name is required';
-    if (!formData.location) newErrors.location = 'Location is required';
-    if (!formData.eventLeader) newErrors.eventLeader = 'Event leader is required';
-    if (!formData.description) newErrors.description = 'Description is required';
+const isFormValid = () => {
+  if (!formData.eventType || !formData.eventName || !formData.location) return false;
+  if (!formData.eventLeader || !/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(formData.eventLeader.trim())) return false;
+  if (!formData.description) return false;
+  if (formData.recurringDays.length === 0 && (!formData.date || !formData.time)) return false;
+  if (formData.isTicketed && !formData.price) return false;
+  return true;
+};
 
-    if (formData.recurringDays.length === 0) {
-      if (!formData.date) newErrors.date = 'Date is required';
-      if (!formData.time) newErrors.time = 'Time is required';
-    }
-    if (formData.isTicketed && !formData.price) newErrors.price = 'Price is required for ticketed events';
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+
+  const validateForm = () => {
+  const newErrors = {};
+  if (!formData.eventType) newErrors.eventType = 'Event type is required';
+  if (!formData.eventName) newErrors.eventName = 'Event name is required';
+  if (!formData.location) newErrors.location = 'Location is required';
+
+  if (!formData.eventLeader) {
+    newErrors.eventLeader = 'Event leader is required';
+  } else if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(formData.eventLeader.trim())) {
+    newErrors.eventLeader = 'No numbers or double spaces allowed';
+  }
+
+  if (!formData.description) newErrors.description = 'Description is required';
+
+  if (formData.recurringDays.length === 0) {
+    if (!formData.date) newErrors.date = 'Date is required';
+    if (!formData.time) newErrors.time = 'Time is required';
+  }
+  if (formData.isTicketed && !formData.price) newErrors.price = 'Price is required for ticketed events';
+
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
+
 
   const resetForm = () => {
     setFormData({
@@ -91,30 +114,25 @@ const CreateEvents = () => {
     setIsSubmitting(true);
 
     try {
-      // Prepare payload for backend
       const payload = { ...formData };
 
-      // Combine date + time into ISO string if not recurring
       if (payload.recurringDays.length === 0 && payload.date && payload.time) {
         payload.date = new Date(`${payload.date}T${payload.time}`).toISOString();
       }
 
-      // Remove time field (backend does not need it)
       delete payload.time;
 
-      // Convert price to number or remove if empty
       if (payload.price) payload.price = parseFloat(payload.price);
       else delete payload.price;
 
-      // Send POST request
       await axios.post("http://localhost:8000/event", payload);
 
-      toast({ title: "Event Created Successfully!", description: `${formData.eventName} has been scheduled.` });
+      setSuccessAlert(true);
       resetForm();
-      navigate("/events");
+      setTimeout(() => navigate("/events"), 1500);
     } catch (err) {
       console.error(err.response || err);
-      toast({ title: "Error", description: "Failed to create event" });
+      setErrorAlert(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -128,35 +146,35 @@ const CreateEvents = () => {
         minHeight: '100vh',
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'flex-start',
-        pt: 8,
-        pb: 8,
-        backgroundColor: '#f8fafc',
-        px: 4
+        alignItems: 'center',
+        bgcolor: '#f5f5f5',
+        px: 2
       }}
     >
       <Card
         sx={{
-          width: { xs: '100%', sm: '80%', md: '550px' },
-          minHeight: { xs: 'auto', sm: '90vh' },
+          width: { xs: '100%', sm: '85%', md: '700px' },
           p: 5,
-          borderRadius: '16px',
-          boxShadow: '0 6px 18px rgba(0,0,0,0.1)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center'
+          borderRadius: '20px',
+          bgcolor: 'white',
+          color: 'black',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
         }}
       >
-        <CardContent className="space-y-4">
+        <CardContent>
+          <Typography variant="h4" fontWeight="bold" textAlign="center" mb={4} color="primary">
+            Create New Event
+          </Typography>
+
           {/* New Event Type */}
-          <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }}>
+          <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }} mb={2}>
             <Button
               variant="outlined"
               onClick={() => setShowNewTypeForm(!showNewTypeForm)}
               startIcon={<AddIcon />}
-              sx={{ minWidth: 80, height: 36 }}
+              sx={{ borderColor: 'primary.main', color: 'primary.main' }}
             >
-              New
+              New Type
             </Button>
             {showNewTypeForm && (
               <>
@@ -164,28 +182,26 @@ const CreateEvents = () => {
                   placeholder="Enter new event type"
                   value={newEventType}
                   onChange={(e) => setNewEventType(e.target.value)}
-                  fullWidth
-                  size="small"
+                  fullWidth size="small"
                 />
-                <Button variant="contained" onClick={addNewEventType} sx={{ minWidth: 60, height: 36 }}>
+                <Button variant="contained" onClick={addNewEventType} sx={{ bgcolor: 'primary.main' }}>
                   Add
                 </Button>
               </>
             )}
           </Box>
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit}>
             {/* Event Type */}
-            <FormControl fullWidth size="small">
+            <FormControl fullWidth size="small" sx={{ mb: 3 }}>
               <InputLabel>Event Type</InputLabel>
               <Select
                 value={formData.eventType}
                 onChange={(e) => handleChange('eventType', e.target.value)}
-                label="Event Type"
               >
                 {eventTypes.map((type) => <MenuItem key={type} value={type}>{type}</MenuItem>)}
               </Select>
-              {errors.eventType && <p className="text-sm text-red-500">{errors.eventType}</p>}
+              {errors.eventType && <p style={{ color: 'red', fontSize: 12 }}>{errors.eventType}</p>}
             </FormControl>
 
             {/* Event Name */}
@@ -194,6 +210,7 @@ const CreateEvents = () => {
               value={formData.eventName}
               onChange={(e) => handleChange('eventName', e.target.value)}
               fullWidth size="small"
+              sx={{ mb: 3 }}
               error={!!errors.eventName}
               helperText={errors.eventName}
             />
@@ -202,6 +219,7 @@ const CreateEvents = () => {
             <FormControlLabel
               control={<Checkbox checked={formData.isTicketed} onChange={(e) => handleChange('isTicketed', e.target.checked)} />}
               label="Ticketed Event"
+              sx={{ mb: 2 }}
             />
 
             {formData.isTicketed && (
@@ -213,12 +231,13 @@ const CreateEvents = () => {
                 fullWidth size="small"
                 error={!!errors.price}
                 helperText={errors.price}
+                sx={{ mb: 3 }}
                 InputProps={{ startAdornment: <InputAdornment position="start">R</InputAdornment> }}
               />
             )}
 
             {/* Date & Time */}
-            <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }}>
+            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
               <TextField
                 label="Date"
                 type="date"
@@ -242,8 +261,8 @@ const CreateEvents = () => {
             </Box>
 
             {/* Recurring Days */}
-            <Box>
-              <p className="font-medium mb-1">Recurring Days</p>
+            <Box mb={3}>
+              <Typography variant="body2" mb={1}>Recurring Days</Typography>
               <Box display="flex" gap={1} flexWrap="wrap">
                 {days.map((day) => (
                   <Chip
@@ -261,11 +280,13 @@ const CreateEvents = () => {
             {/* Location */}
             <TextField
               label="Location"
+              name="location"   
               value={formData.location}
               onChange={(e) => handleChange('location', e.target.value)}
               fullWidth size="small"
               error={!!errors.location}
               helperText={errors.location}
+              sx={{ mb: 3 }}
               InputProps={{ startAdornment: <LocationOnIcon fontSize="small" /> }}
             />
 
@@ -277,6 +298,7 @@ const CreateEvents = () => {
               fullWidth size="small"
               error={!!errors.eventLeader}
               helperText={errors.eventLeader}
+              sx={{ mb: 3 }}
               InputProps={{ startAdornment: <PersonIcon fontSize="small" /> }}
             />
 
@@ -285,22 +307,54 @@ const CreateEvents = () => {
               label="Description"
               value={formData.description}
               onChange={(e) => handleChange('description', e.target.value)}
-              fullWidth multiline minRows={2} size="small"
+              fullWidth multiline minRows={3} size="small"
               error={!!errors.description}
               helperText={errors.description}
+              sx={{ mb: 3 }}
               InputProps={{ startAdornment: <DescriptionIcon fontSize="small" /> }}
             />
 
             {/* Submit Buttons */}
-            <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }}>
-              <Button variant="outlined" fullWidth disabled={isSubmitting} onClick={resetForm} size="small">Cancel</Button>
-              <Button variant="contained" type="submit" fullWidth disabled={isSubmitting} size="small">
-                {isSubmitting ? "Creating..." : "Create"}
+            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
+              <Button variant="outlined" fullWidth disabled={isSubmitting} onClick={resetForm}>
+                Cancel
               </Button>
+              <Button 
+              variant="contained" 
+              type="submit" 
+              fullWidth 
+              disabled={isSubmitting || !isFormValid()}
+                    >           
+  {isSubmitting ? "Creating..." : "Create Event"}
+</Button>
+
             </Box>
           </form>
         </CardContent>
       </Card>
+
+      {/* ✅ Snackbar Alerts - moved to top center */}
+      <Snackbar 
+        open={successAlert} 
+        autoHideDuration={3000} 
+        onClose={() => setSuccessAlert(false)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert onClose={() => setSuccessAlert(false)} severity="success" variant="filled">
+          Event Created Successfully!
+        </Alert>
+      </Snackbar>
+
+      <Snackbar 
+        open={errorAlert} 
+        autoHideDuration={3000} 
+        onClose={() => setErrorAlert(false)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert onClose={() => setErrorAlert(false)} severity="error" variant="filled">
+          Failed to create event
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

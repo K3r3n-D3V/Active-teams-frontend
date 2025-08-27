@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
-import { saveToEventHistory } from "./EventHistory"; // ✅ Using this now
+import { saveToEventHistory } from "./EventHistory"; 
+import IconButton from "@mui/material/IconButton";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 
 const Events = () => {
   const navigate = useNavigate();
@@ -14,19 +18,20 @@ const Events = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [events, setEvents] = useState([]);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [currentEvent, setCurrentEvent] = useState(null);
 
- useEffect(() => {
-  axios
-    .get("http://localhost:8000/events")
-    .then((res) => {
-      const sortedEvents = res.data.events.sort(
-        (a, b) => new Date(b.date) - new Date(a.date)
-      );
-      setEvents(sortedEvents);
-    })
-    .catch((err) => console.error("Failed to fetch events", err));
-}, []);
-
+  useEffect(() => {
+    axios
+      .get("http://localhost:8000/events")
+      .then((res) => {
+        const sortedEvents = res.data.events.sort(
+          (a, b) => new Date(b.date) - new Date(a.date)
+        );
+        setEvents(sortedEvents);
+      })
+      .catch((err) => console.error("Failed to fetch events", err));
+  }, []);
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
@@ -34,17 +39,9 @@ const Events = () => {
       console.warn("Invalid date for event:", date);
       return "Date not set";
     }
-    const options = {
-      weekday: "short",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    };
+    const options = { weekday: "short", year: "numeric", month: "short", day: "numeric" };
     const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
-    return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString(
-      "en-US",
-      timeOptions
-    )}`;
+    return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
   };
 
   const filteredEvents =
@@ -57,89 +54,97 @@ const Events = () => {
     setIsModalOpen(true);
   };
 
-  const handleAttendanceSubmit = (data) => {
-    if (!selectedEvent) return;
+const handleAttendanceSubmit = (data) => {
+  if (!selectedEvent) return;
 
-    const eventId = selectedEvent._id;
-    const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
-    const eventType = selectedEvent.eventType;
-if (
-  data === "did-not-meet" ||
-  data === "Mark As Did Not Meet" ||
-  (data && data.toString().toLowerCase().includes("did not meet"))
-) {
-  const now = new Date();
-  const formattedDate = now.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  });
-  const formattedTime = now.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true
-  });
+  const eventId = selectedEvent._id;
+  const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
+  const eventType = selectedEvent.eventType;
 
-  saveToEventHistory({
-    eventId,
-    service_name,
-    eventType,
-    status: "did-not-meet",
-    reason: "Marked as did not meet",
-    closedAt: `${formattedDate}, ${formattedTime}` // ⬅️ added date and time
-  });
-}
-    else if (Array.isArray(data) && data.length > 0) {
-      saveToEventHistory({
-        eventId,
-        service_name,
-        eventType,
-        status: "attended",
-        attendees: data,
-      });
-    }
+  if (
+    data === "did-not-meet" ||
+    data === "Mark As Did Not Meet" ||
+    (data && data.toString().toLowerCase().includes("did not meet"))
+  ) {
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
-    setIsModalOpen(false);
-    setSelectedEvent(null);
-    navigate("/history");
+    saveToEventHistory({
+      eventId,
+      service_name,
+      eventType,
+      status: "did-not-meet",
+      reason: "Marked as did not meet",
+      closedAt: `${formattedDate}, ${formattedTime}`,
+    });
+  } else if (Array.isArray(data) && data.length > 0) {
+    saveToEventHistory({
+      eventId,
+      service_name,
+      eventType,
+      status: "attended",
+      attendees: data,
+    });
+  }
+
+  // ✅ Remove event from Events screen
+  setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
+
+  setIsModalOpen(false);
+  setSelectedEvent(null);
+  navigate("/history");
+};
+
+
+  const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
+
+  // --- Menu Handlers ---
+  const handleMenuOpen = (event, eventData) => {
+    setAnchorEl(event.currentTarget);
+    setCurrentEvent(eventData);
   };
 
-  const capitalize = (str) => {
-    if (!str) return "";
-    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    setCurrentEvent(null);
+  };
+
+  const handleEditEvent = () => {
+    if (currentEvent) {
+      navigate(`/edit-event/${currentEvent._id}`);
+    }
+    handleMenuClose();
+  };
+
+  const handleDeleteEvent = () => {
+    if (currentEvent) {
+      axios
+        .delete(`http://localhost:8000/events/${currentEvent._id}`)
+        .then(() => {
+          setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
+        })
+        .catch((err) => console.error("Failed to delete event:", err));
+    }
+    handleMenuClose();
   };
 
   return (
-    <div
-      style={{
-        ...styles.container,
-        backgroundColor: theme.palette.background.default,
-        color: theme.palette.text.primary,
-      }}
-    >
+    <div style={{ ...styles.container, backgroundColor: theme.palette.background.default, color: theme.palette.text.primary }}>
       {/* Header */}
-      <div
-        style={{
-          ...styles.header,
-          backgroundColor: theme.palette.background.paper,
-        }}
-      >
+      <div style={{ ...styles.header, backgroundColor: theme.palette.background.paper }}>
         <div style={styles.headerLeft}>
-        <button
-  style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }}
-  onClick={() => {
-    console.log("Navigating to Create Events");
-    navigate("/create-events");
-  }}
->
-  + NEW EVENT
-</button>
-
+          <button
+            style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }}
+            onClick={() => navigate("/create-events")}
+          >
+            + NEW EVENT
+          </button>
           <button
             style={{ ...styles.button, ...styles.btnFilter, marginRight: "25px" }}
             onClick={() => setShowFilter(true)}
           >
-           FILTER EVENTS
+            FILTER EVENTS
           </button>
         </div>
         <div style={styles.headerRight}>
@@ -149,10 +154,7 @@ if (
 
       {/* Center Avatar Section */}
       <div style={styles.centerAvatarSection}>
-        <button
-          style={styles.avatarButton}
-          onClick={() => navigate("/service-check-in")}
-        >
+        <button style={styles.avatarButton} onClick={() => navigate("/service-check-in")}>
           <span style={styles.labelText}>SERVICE</span>
           <div style={styles.avatars}>
             <span style={{ ...styles.avatarCircle, backgroundColor: "#cce6ff" }}>🧑🏻‍🎓</span>
@@ -170,29 +172,18 @@ if (
         <div style={styles.popupOverlay}>
           <div style={styles.popupContent}>
             <h3>Filter Events</h3>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              style={styles.selectBox}
-            >
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={styles.selectBox}>
               <option value="all">All</option>
               <option value="cell">Cell</option>
               <option value="conference">Conference</option>
               <option value="service">Service</option>
             </select>
             <div style={{ marginTop: "1rem" }}>
-              <button
-                style={{ ...styles.button, ...styles.btnNewEvent }}
-                onClick={() => setShowFilter(false)}
-              >
+              <button style={{ ...styles.button, ...styles.btnNewEvent }} onClick={() => setShowFilter(false)}>
                 Apply
               </button>
               <button
-                style={{
-                  ...styles.button,
-                  ...styles.btnFilter,
-                  marginLeft: "10px",
-                }}
+                style={{ ...styles.button, ...styles.btnFilter, marginLeft: "10px" }}
                 onClick={() => setShowFilter(false)}
               >
                 Close
@@ -204,64 +195,68 @@ if (
 
       {/* Events Grid */}
       <div style={styles.eventsGrid}>
-        {filteredEvents.map((event) => {
-          return (
-            <div key={event._id} style={styles.eventCard}>
-              <div style={styles.eventHeader}>
-                <h3 style={styles.eventTitle}>
-                  {event.eventName || event.service_name || "Untitled Event"}
-                </h3>
-                <span
-                  style={{
-                    ...styles.eventBadge,
-                    backgroundColor:
-                      event.eventType?.toLowerCase() === "cell"
-                        ? "#007bff"
-                        : event.eventType?.toLowerCase() === "conference"
-                        ? "#e91e63"
-                        : event.eventType?.toLowerCase() === "service"
-                        ? "#28a745"
-                        : "#6c757d",
-                  }}
+        {filteredEvents.map((event) => (
+          <div key={event._id} style={styles.eventCard}>
+            <div style={styles.eventHeader}>
+              <h3 style={styles.eventTitle}>
+                {event.eventName || event.service_name || "Untitled Event"}
+              </h3>
+
+              {/* Edit/Delete Menu */}
+              <div>
+                <IconButton size="small" onClick={(e) => handleMenuOpen(e, event)} style={{ float: "right" }}>
+                  <MoreVertIcon />
+                </IconButton>
+                <Menu
+                  anchorEl={anchorEl}
+                  open={Boolean(anchorEl) && currentEvent?._id === event._id}
+                  onClose={handleMenuClose}
                 >
-                  {capitalize(event.eventType) || "Unknown"}
-                </span>
+                  <MenuItem onClick={handleEditEvent}>Edit</MenuItem>
+                  <MenuItem onClick={handleDeleteEvent}>Delete</MenuItem>
+                </Menu>
               </div>
-              <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
-              <p style={styles.eventLocation}>{event.address || "Location not specified"}</p>
-              <div style={styles.eventActions}>
-                <button
-                  style={{ ...styles.actionBtn, ...styles.captureBtn }}
-                  onClick={() => handleCaptureClick(event)}
-                >
-                  Capture
-                </button>
-                <button
-                  style={{
-                    ...styles.actionBtn,
-                    ...styles.paymentBtn,
-                    ...(event.eventType === "cell" || event.eventType === "service"
-                      ? styles.disabledBtn
-                      : {}),
-                  }}
-                  disabled={event.eventType === "cell" || event.eventType === "service"}
-                >
-                  {event.eventType === "cell" || event.eventType === "service"
-                    ? "No Payment"
-                    : "Payment"}
-                </button>
-              </div>
+
+              <span
+                style={{
+                  ...styles.eventBadge,
+                  backgroundColor:
+                    event.eventType?.toLowerCase() === "cell"
+                      ? "#007bff"
+                      : event.eventType?.toLowerCase() === "conference"
+                      ? "#e91e63"
+                      : event.eventType?.toLowerCase() === "service"
+                      ? "#28a745"
+                      : "#6c757d",
+                }}
+              >
+                {capitalize(event.eventType) || "Unknown"}
+              </span>
             </div>
-          );
-        })}
+            <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
+            <p style={styles.eventLocation}>{event.location || "Location not specified"}</p>
+
+            <div style={styles.eventActions}>
+              <button style={{ ...styles.actionBtn, ...styles.captureBtn }} onClick={() => handleCaptureClick(event)}>
+                Capture
+              </button>
+              <button
+                style={{
+                  ...styles.actionBtn,
+                  ...styles.paymentBtn,
+                  ...(event.eventType === "cell" || event.eventType === "service" ? styles.disabledBtn : {}),
+                }}
+                disabled={event.eventType === "cell" || event.eventType === "service"}
+              >
+                {event.eventType === "cell" || event.eventType === "service" ? "No Payment" : "Payment"}
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Floating History Button */}
-      <button
-        style={styles.historyButton}
-        onClick={() => navigate("/history")}
-        title="View Event History"
-      >
+      <button style={styles.historyButton} onClick={() => navigate("/history")} title="View Event History">
         🕒 History
       </button>
 
@@ -280,14 +275,7 @@ if (
 
 const styles = {
   container: { minHeight: "100vh", fontFamily: "system-ui, sans-serif" },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "1rem 1.5rem",
-    borderBottom: "1px solid #e9ecef",
-    flexWrap: "wrap",
-  },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.5rem", borderBottom: "1px solid #e9ecef", flexWrap: "wrap" },
   headerLeft: { display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" },
   headerRight: { display: "flex", alignItems: "center" },
   profileIcon: { width: "2.25rem", height: "2.25rem", borderRadius: "50%", background: "#ddd" },
