@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -18,6 +18,7 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import darkLogo from "../assets/active-teams.png";
+import { UserContext } from "../contexts/UserContext";
 
 const initialForm = {
   name: "",
@@ -36,6 +37,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
+  const { setUserProfile } = useContext(UserContext);
 
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
@@ -78,7 +80,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
     setLoading(true);
 
     // Exclude confirm_password before sending data to backend
-    const { confirm_password, ...submitData } = form;
+    const { confirm_password: _, ...submitData } = form;
 
     try {
       const res = await fetch("http://localhost:8000/signup", {
@@ -92,10 +94,23 @@ const Signup = ({ onSignup, mode, setMode }) => {
       if (!res.ok) {
         alert(data?.detail || "Signup failed. Please try again.");
       } else {
+        // Store user profile data in context
+        const userData = {
+          name: submitData.name,
+          surname: submitData.surname,
+          date_of_birth: submitData.date_of_birth,
+          home_address: submitData.home_address,
+          invited_by: submitData.invited_by,
+          phone_number: submitData.phone_number,
+          email: submitData.email,
+          gender: submitData.gender,
+        };
+        setUserProfile(userData);
+        
         alert("User created successfully!");
         if (onSignup) onSignup(submitData);
         setForm(initialForm);
-        navigate("/login");
+        navigate("/");
       }
     } catch (error) {
       console.error("Signup error:", error);
