@@ -12,7 +12,7 @@ import MenuItem from "@mui/material/MenuItem";
 const Events = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const [showFilter, setShowFilter] = useState(false);
   const [filterType, setFilterType] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);

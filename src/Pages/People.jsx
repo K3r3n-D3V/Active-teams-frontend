@@ -158,9 +158,10 @@ export const PeopleSection = () => {
   // Fetch ALL people
   useEffect(() => {
     const fetchPeople = async () => {
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
       setLoading(true);
       try {
-        const res = await axios.get('${import.meta.env.VITE_BACKEND_URL}/people');
+        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/people`);
         const data = Array.isArray(res.data?.results) ? res.data.results.map(p => ({
           _id: p._id,
           name: p.Name || "",
