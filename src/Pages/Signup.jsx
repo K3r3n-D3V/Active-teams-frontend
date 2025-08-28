@@ -19,6 +19,98 @@ import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
+import { AuthContext } from "../contexts/AuthContext";
+
+// Lightweight welcome overlay with CSS confetti
+const WelcomeOverlay = ({ name, mode }) => {
+  const pieces = Array.from({ length: 90 }).map((_, index) => {
+    const left = Math.random() * 100; // percent
+    const size = 6 + Math.random() * 8; // px
+    const height = size * (1.4 + Math.random());
+    const rotate = Math.random() * 360;
+    const dur = 2 + Math.random() * 1.5; // seconds
+    const delay = Math.random() * 0.6; // seconds
+    const colors = [
+      "#f94144",
+      "#f3722c",
+      "#f8961e",
+      "#f9844a",
+      "#f9c74f",
+      "#90be6d",
+      "#43aa8b",
+      "#577590",
+      "#9b5de5",
+      "#00bbf9",
+    ];
+    const backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    const borderRadius = Math.random() > 0.6 ? `${size / 2}px` : "2px";
+
+    return (
+      <Box
+        key={index}
+        sx={{
+          position: "absolute",
+          top: -20,
+          left: `${left}%`,
+          width: `${size}px`,
+          height: `${height}px`,
+          backgroundColor,
+          borderRadius,
+          opacity: 0.95,
+          transform: `rotate(${rotate}deg)`,
+          animation: `fall ${dur}s linear ${delay}s 1`,
+        }}
+      />
+    );
+  });
+
+  return (
+    <Box
+      sx={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: mode === "dark" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.65)",
+        backdropFilter: "blur(2px)",
+        overflow: "hidden",
+        "@keyframes fall": {
+          "0%": { transform: "translate3d(0, -10vh, 0) rotate(0deg)", opacity: 1 },
+          "80%": { opacity: 1 },
+          "100%": { transform: "translate3d(0, 110vh, 0) rotate(360deg)", opacity: 0.6 },
+        },
+      }}
+    >
+      {/* Confetti pieces */}
+      <Box sx={{ position: "absolute", inset: 0, pointerEvents: "none" }}>{pieces}</Box>
+
+      {/* Center card */}
+      <Box
+        sx={{
+          position: "relative",
+          px: 4,
+          py: 3,
+          borderRadius: 4,
+          boxShadow: 6,
+          textAlign: "center",
+          backgroundColor: mode === "dark" ? "#121212" : "#ffffff",
+          color: mode === "dark" ? "#fff" : "#111",
+          border: mode === "dark" ? "1px solid #2a2a2a" : "1px solid #eaeaea",
+          minWidth: 280,
+        }}
+      >
+        <Typography variant="h5" fontWeight="bold" gutterBottom>
+          Welcome{name ? ", " : ""}{name || "Friend"}!
+        </Typography>
+        <Typography variant="body1">
+          Your account is ready. Taking you to your dashboard…
+        </Typography>
+      </Box>
+    </Box>
+  );
+};
 
 const initialForm = {
   name: "",
@@ -38,6 +130,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
   const { setUserProfile } = useContext(UserContext);
+  const { login } = useContext(AuthContext);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeName, setWelcomeName] = useState("");
 
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
@@ -109,8 +204,24 @@ const Signup = ({ onSignup, mode, setMode }) => {
         
         alert("User created successfully!");
         if (onSignup) onSignup(submitData);
-        setForm(initialForm);
-        navigate("/");
+
+        // Auto-login then redirect like Login page
+        try {
+          await login(submitData.email, submitData.password);
+        } catch (loginErr) {
+          console.error("Auto-login failed:", loginErr);
+          // If auto-login fails, still redirect to login page as a fallback
+          navigate("/login");
+          return;
+        }
+        // Show welcome + confetti, then navigate home
+        setWelcomeName(submitData.name || submitData.email);
+        setShowWelcome(true);
+        setTimeout(() => {
+          setForm(initialForm);
+          setShowWelcome(false);
+          navigate("/");
+        }, 2000);
       }
     } catch (error) {
       console.error("Signup error:", error);
@@ -133,6 +244,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
         alignItems: "center",
       }}
     >
+      {showWelcome && (
+        <WelcomeOverlay name={welcomeName} mode={mode} />
+      )}
       {/* Theme Toggle */}
       <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
