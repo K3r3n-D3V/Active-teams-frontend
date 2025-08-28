@@ -1,16 +1,3 @@
-// import React from 'react'
-// import TopbarProfile from '../components/TopbarProfile'
-
-// const Stats = () => {
-//   return (
-//     <div>
-//         <TopbarProfile/>
-//     </div>
-//   )
-// }
-
-// export default Stats
-
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -57,8 +44,6 @@ const StatsDashboard = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isTablet = useMediaQuery(theme.breakpoints.between("sm", "md"));
 
-  // Decide view based on screen size
-  // const schedulerView = isMobile || isTablet ? "week" : "month";
   const schedulerView = isMobile ? "day" : isTablet ? "week" : "month";
 
   const [chartData, setChartData] = useState({
@@ -135,250 +120,237 @@ const StatsDashboard = () => {
     >
       <CssBaseline />
       <Box sx={{ width: '100%', maxWidth: 1200 }}>
-        <Grid container spacing={3}>
-          
-{/* Service Growth */}
-<Grid item xs={12} md={6}>
-  <Paper sx={{ p: 3, borderRadius: 2, bgcolor: cardColor }}>
-    <Typography variant="subtitle2">August</Typography>
-    <Typography variant="h4" fontWeight="bold" mt={2}>
-      87.5%
-    </Typography>
-    <Typography>Service Growth</Typography>
-    {/* <Typography variant="caption" color="text.secondary">
-      Compare To Last Month
-    </Typography>
-    <Typography mt={1} mb={2}>August</Typography> */}
+        <Grid container spacing={3} justifyContent="center" alignItems="center">
 
-    <Pie
-      data={{
-        labels: ["August", "July"],
-        datasets: [
-          {
-            data: [87.5, 12.5],
-            backgroundColor: ["#3f51b5", "#e0e0e0"],
-            hoverOffset: 4,
-          },
-        ],
-      }}
-    />
-  </Paper>
-</Grid>
+          {/* Service Growth */}
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 3, borderRadius: 2, bgcolor: cardColor, textAlign: 'center' }}>
+              <Typography variant="subtitle2">August</Typography>
+              <Typography variant="h4" fontWeight="bold" mt={2}>
+                87.5%
+              </Typography>
+              <Typography>Service Growth</Typography>
+              <Pie
+                data={{
+                  labels: ["August", "July"],
+                  datasets: [
+                    {
+                      data: [87.5, 12.5],
+                      backgroundColor: ["#3f51b5", "#e0e0e0"],
+                      hoverOffset: 4,
+                    },
+                  ],
+                }}
+              />
+            </Paper>
+          </Grid>
 
           {/* Charts */}
-       <Grid container spacing={3} direction="column">
-  <Grid item xs={12}>
-    <Paper sx={{ p: 2, borderRadius: 2, bgcolor: cardColor }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center">
-        <Typography>Weekend Services</Typography>
-        <EditIcon fontSize="small" />
-      </Box>
-      <Typography variant="caption">August</Typography>
-      <Bar
-        data={{
-          labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-          datasets: [
-            {
-              label: 'Attendance',
-              data: [120, 150, 100, 180],
-              backgroundColor: theme.palette.primary.main,
-              borderRadius: 6
-            }
-          ]
-        }}
-        options={{
-          responsive: true,
-          maintainAspectRatio: true,
-          aspectRatio: 2,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                stepSize: 50,
-                color: theme.palette.text.secondary
-              },
-              grid: { color: theme.palette.divider }
-            },
-            x: {
-              ticks: { color: theme.palette.text.secondary },
-              grid: { display: false }
-            }
-          }
-        }}
-      />
-    </Paper>
-  </Grid>
-
-  <Grid item xs={12}>
-    <Paper sx={{ p: 2, borderRadius: 2, bgcolor: cardColor }}>
-      <Typography>
-        Amount of Calls
-        <br />
-        And Cells Captured
-      </Typography>
-      <Typography variant="caption">August</Typography>
-      <Line
-        data={chartData}
-        options={{
-          responsive: true,
-          maintainAspectRatio: true,
-          aspectRatio: 2,
-          plugins: {
-            legend: {
-              labels: {
-                usePointStyle: true,
-                pointStyle: 'rectRounded',
-                color: theme.palette.text.primary
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                stepSize: 50,
-                color: theme.palette.text.secondary
-              },
-              grid: { color: theme.palette.divider }
-            },
-            x: {
-              ticks: { color: theme.palette.text.secondary },
-              grid: { display: false }
-            }
-          }
-        }}
-      />
-    </Paper>
-  </Grid>
-</Grid>
-
-
-          {/* Outstanding Cells & Tasks */}
-          <Grid item xs={12}>
-            <Grid container spacing={5} sx={{ width: '100%' }}>
-              {/* Outstanding Cells */}
-              <Grid item xs={12} md={6}>
-                <Paper
-                  sx={{
-                    p: 4,
-                    borderRadius: 2,
-                    bgcolor: cardColor,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: 'auto',
-                    minHeight: 500,
-                    overflowY: 'auto',
-                    boxShadow: 6
+          <Grid container spacing={3} direction="column" justifyContent="center" alignItems="center">
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, borderRadius: 2, bgcolor: cardColor, textAlign: 'center' }}>
+                <Box display="flex" justifyContent="center" alignItems="center">
+                  <Typography>Weekend Services</Typography>
+                  <EditIcon fontSize="small" sx={{ ml: 1 }} />
+                </Box>
+                <Typography variant="caption">August</Typography>
+                <Bar
+                  data={{
+                    labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+                    datasets: [
+                      {
+                        label: 'Attendance',
+                        data: [120, 150, 100, 180],
+                        backgroundColor: theme.palette.primary.main,
+                        borderRadius: 6
+                      }
+                    ]
                   }}
-                >
-                  <Typography variant="h5" gutterBottom>
-                    Outstanding Cells
-                  </Typography>
-                  <Box sx={{ flexGrow: 1 }}>
-                    {cells.map((item, i) => (
-                      <Box key={i} display="flex" alignItems="center" mb={2}>
-                        <Avatar sx={{ mr: 3, width: 48, height: 48, fontSize: 24 }}>
-                          {item.name[0]}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="subtitle1">{item.name}</Typography>
-                          <Typography variant="caption">{item.location}</Typography>
-                        </Box>
-                      </Box>
-                    ))}
-                  </Box>
-                </Paper>
-              </Grid>
-
-              {/* Outstanding Tasks */}
-              <Grid item xs={12} md={6}>
-                <Paper
-                  sx={{
-                    p: 4,
-                    borderRadius: 2,
-                    bgcolor: cardColor,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: 'auto',
-                    minHeight: 500,
-                    overflowY: 'auto',
-                    boxShadow: 6
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        ticks: {
+                          stepSize: 50,
+                          color: theme.palette.text.secondary
+                        },
+                        grid: { color: theme.palette.divider }
+                      },
+                      x: {
+                        ticks: { color: theme.palette.text.secondary },
+                        grid: { display: false }
+                      }
+                    }
                   }}
-                >
-                  <Typography variant="h5" gutterBottom>
-                    Outstanding Tasks
-                  </Typography>
-                  <Box sx={{ flexGrow: 1 }}>
-                    {tasks.map((item, i) => (
-                      <Box key={i} display="flex" alignItems="center" mb={2}>
-                        <Avatar sx={{ mr: 3, width: 48, height: 48, fontSize: 24 }}>
-                          {item.name[0]}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="subtitle1">{item.name}</Typography>
-                          <Typography variant="caption">{item.email}</Typography>
-                        </Box>
-                        <Typography sx={{ ml: 'auto', fontWeight: 'bold', fontSize: 18 }}>
-                          {item.count.toString().padStart(2, '0')}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                </Paper>
-              </Grid>
+                />
+              </Paper>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, borderRadius: 2, bgcolor: cardColor, textAlign: 'center' }}>
+                <Typography>
+                  Amount of Calls
+                  <br />
+                  And Cells Captured
+                </Typography>
+                <Typography variant="caption">August</Typography>
+                <Line
+                  data={chartData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2,
+                    plugins: {
+                      legend: {
+                        labels: {
+                          usePointStyle: true,
+                          pointStyle: 'rectRounded',
+                          color: theme.palette.text.primary
+                        }
+                      }
+                    },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        ticks: {
+                          stepSize: 50,
+                          color: theme.palette.text.secondary
+                        },
+                        grid: { color: theme.palette.divider }
+                      },
+                      x: {
+                        ticks: { color: theme.palette.text.secondary },
+                        grid: { display: false }
+                      }
+                    }
+                  }}
+                />
+              </Paper>
             </Grid>
           </Grid>
 
-{/* Scheduler */}
-<Grid item xs={12} md={2}>
-  <Paper
-    sx={{
-      p: { xs: 2, sm: 3 },
-      borderRadius: 2,
-      bgcolor: cardColor,
-      display: "flex",
-      flexDirection: "column",
-      boxShadow: 6,
-      width: "100%",
-      height: "100%",
-    }}
-  >
-    <Typography
-      variant="h5"
-      gutterBottom
-      fontSize={{ xs: "1rem", sm: "1.25rem" }}
-    >
-      Church Scheduler
-    </Typography>
+          {/* Outstanding Cells & Tasks */}
+          <Grid item xs={12} container spacing={5} justifyContent="center" alignItems="stretch">
+            {/* Outstanding Cells */}
+            <Grid item xs={12} md={6}>
+              <Paper
+                sx={{
+                  p: 4,
+                  borderRadius: 2,
+                  bgcolor: cardColor,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                  overflowY: 'auto',
+                  boxShadow: 6,
+                  textAlign: 'center'
+                }}
+              >
+                <Typography variant="h5" gutterBottom>
+                  Outstanding Cells
+                </Typography>
+                <Box sx={{ flexGrow: 1 }}>
+                  {cells.map((item, i) => (
+                    <Box key={i} display="flex" flexDirection="column" alignItems="center" mb={2}>
+                      <Avatar sx={{ mr: 0, width: 48, height: 48, fontSize: 24, mb: 1 }}>
+                        {item.name[0]}
+                      </Avatar>
+                      <Typography variant="subtitle1">{item.name}</Typography>
+                      <Typography variant="caption">{item.location}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Paper>
+            </Grid>
 
-    <Box
-      sx={{
-        flexGrow: 1,
-        width: "100%",
-        height: "100%",
-        "& .rs__root": {
-          width: "100% !important",
-          height: "100% !important",
-        },
-      }}
-    >
-      <Scheduler
-        view={schedulerView}
-        events={events}
-        onEventsChange={setEvents}
-        config={{
-          defaultTheme: mode,
-          adaptive: true,
-          cellHeight: isMobile ? 30 : 50,
-          headerHeight: isMobile ? 30 : 50,
-          fontSize: isMobile ? 10 : 13,
-          //  weekDays: isMobile ? [1, 2, 3] : [1, 2, 3, 4, 5, 6, 0], 
-        }}
-      />
-    </Box>
-  </Paper>
-</Grid>
+            {/* Outstanding Tasks */}
+            <Grid item xs={12} md={6}>
+              <Paper
+                sx={{
+                  p: 4,
+                  borderRadius: 2,
+                  bgcolor: cardColor,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                  overflowY: 'auto',
+                  boxShadow: 6,
+                  textAlign: 'center'
+                }}
+              >
+                <Typography variant="h5" gutterBottom>
+                  Outstanding Tasks
+                </Typography>
+                <Box sx={{ flexGrow: 1 }}>
+                  {tasks.map((item, i) => (
+                    <Box key={i} display="flex" flexDirection="column" alignItems="center" mb={2}>
+                      <Avatar sx={{ mr: 0, width: 48, height: 48, fontSize: 24, mb: 1 }}>
+                        {item.name[0]}
+                      </Avatar>
+                      <Typography variant="subtitle1">{item.name}</Typography>
+                      <Typography variant="caption">{item.email}</Typography>
+                      <Typography sx={{ fontWeight: 'bold', fontSize: 18 }}>
+                        {item.count.toString().padStart(2, '0')}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+
+          {/* Scheduler (restored original) */}
+          <Grid item xs={12} md={2}>
+            <Paper
+              sx={{
+                p: { xs: 2, sm: 3 },
+                borderRadius: 2,
+                bgcolor: cardColor,
+                display: "flex",
+                flexDirection: "column",
+                boxShadow: 6,
+                width: "100%",
+                height: "100%",
+              }}
+            >
+              <Typography
+                variant="h5"
+                gutterBottom
+                fontSize={{ xs: "1rem", sm: "1.25rem" }}
+              >
+                Church Scheduler
+              </Typography>
+
+              <Box
+                sx={{
+                  flexGrow: 1,
+                  width: "100%",
+                  height: "100%",
+                  "& .rs__root": {
+                    width: "100% !important",
+                    height: "100% !important",
+                  },
+                }}
+              >
+                <Scheduler
+                  view={schedulerView}
+                  events={events}
+                  onEventsChange={setEvents}
+                  config={{
+                    defaultTheme: mode,
+                    adaptive: true,
+                    cellHeight: isMobile ? 30 : 50,
+                    headerHeight: isMobile ? 30 : 50,
+                    fontSize: isMobile ? 10 : 13,
+                  }}
+                />
+              </Box>
+            </Paper>
+          </Grid>
 
         </Grid>
       </Box>

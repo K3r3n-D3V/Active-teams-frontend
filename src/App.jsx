@@ -158,6 +158,7 @@ function App() {
         <Sidebar mode={mode} setMode={setMode} />
         <div style={{ flexGrow: 1 }}>
           <Routes>
+<<<<<<< HEAD
             <Route path="/" element={<ProtectedHome />} />
             <Route path="/login" element={<Login title="Login" mode={mode} setMode={setMode}/>} />
             <Route path="/signup" element={<Signup title="Signup" mode={mode} setMode={setMode}/>} />
@@ -168,6 +169,35 @@ function App() {
             <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
             <Route path="/give-today" element={<ProtectedGiveToday title="Give Today" />} />
             <Route path="/daily-tasks" element={<ProtectedDailyTasks title="Daily Tasks" />} />
+=======
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login title="Login" />} />
+            <Route path="/signup" element={<Signup title="Signup" />} />
+            <Route path="/profile" element={<Profile title="Profile" />} />
+            <Route path="/people" element={<People title="People" />} />
+            <Route
+              path="/events"
+              element={
+                <Events
+                  title="Events"
+                  events={events}
+                  onMarkDidNotMeet={handleMarkDidNotMeet}
+                />
+              }
+            />
+            <Route path="/stats" element={<Stats title="Stats" />} />
+           <Route path="/create-events" element={<CreateEvents title="Create Events" />} />
+           <Route path="/edit-event/:id" element={<CreateEvents title="Create Events Edit" />} />
+
+            <Route path="/attendance" element={<AttendanceModal title="Attendance Modal" />} />
+            <Route
+              path="/history"
+              element={<EventsHistory events={events} user={user} />}
+            />
+            <Route path="/service-check-in" element={<ServiceCheckIn title="Service Check-in" />} />
+            <Route path="/give-today" element={<GiveToday title="Give Today" />} />
+            <Route path="/daily-tasks" element={<DailyTasks title="Daily Tasks" />} />
+>>>>>>> d702974035f0cfff6da887277eaa696381036330
           </Routes>
         </div>
       </div>
