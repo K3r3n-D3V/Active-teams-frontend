@@ -155,13 +155,14 @@ export const PeopleSection = () => {
   const [formData, setFormData] = useState({ name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '', invitedBy: '', gender: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  console.log("Backend URL:", BACKEND_URL);
   // Fetch ALL people
   useEffect(() => {
     const fetchPeople = async () => {
       
       setLoading(true);
       try {
-        console.log("Backend URL:", BACKEND_URL);
+        
         const res = await axios.get(`${BACKEND_URL}/people`)
         const data = Array.isArray(res.data?.results) ? res.data.results.map(p => ({
           _id: p._id,
