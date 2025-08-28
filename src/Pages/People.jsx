@@ -161,6 +161,7 @@ export const PeopleSection = () => {
       
       setLoading(true);
       try {
+        console.log("Backend URL:", BACKEND_URL);
         const res = await axios.get(`${BACKEND_URL}/people`)
         const data = Array.isArray(res.data?.results) ? res.data.results.map(p => ({
           _id: p._id,
