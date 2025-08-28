@@ -2,6 +2,11 @@
 # yarn lockfile v1
 
 
+"@aldabil/react-scheduler@^3.1.2":
+  version "3.1.2"
+  resolved "https://registry.npmjs.org/@aldabil/react-scheduler/-/react-scheduler-3.1.2.tgz"
+  integrity sha512-icx6O729BaxQG3gynF7Eaj9TBIXj4kM19vF23HOq88CcTqFtb2z+EGQN+L1afkrAHJaxlj4PQg9KXH2gNyRLWA==
+
 "@ampproject/remapping@^2.2.0":
   version "2.3.0"
   resolved "https://registry.npmjs.org/@ampproject/remapping/-/remapping-2.3.0.tgz"
