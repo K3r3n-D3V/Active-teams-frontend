@@ -1,17 +1,15 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
-import "./DailyTasks.css";
 import { FaPhone, FaUserPlus } from "react-icons/fa";
-import Modal from "../components/TaskModal";
-import "../components/TaskModal.css";
+import TaskModal from "../components/TaskModal";
+import "./DailyTasks.css";
 
 export default function DailyTasks() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedTask, setSelectedTask] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
-
   const [formType, setFormType] = useState(""); // "call" | "visit"
   const [dateRange, setDateRange] = useState("today");
   const [filterType, setFilterType] = useState("all");
@@ -19,53 +17,11 @@ export default function DailyTasks() {
 
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}/tasks`;
 
-  // ✅ Helper to format datetime for <input type="datetime-local">
   const getCurrentDateTime = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset();
     const localDate = new Date(now.getTime() - offset * 60000);
     return localDate.toISOString().slice(0, 16);
-  };
-
-  const [taskType, setTaskType] = useState("Awaiting Call");
-  const taskOptions = [
-      "Proper connect - Cell request",
-      "Proper connect - Visit",
-      "Proper call - Service Invitation",
-      "Follow Up",
-      "Wrong Number",
-      "Awaiting Call",
-      "No Answer",
-    ];
-
-  const [searchResults, setSearchResults] = useState([]);
-  const fetchPeople = async (q) => {
-  if (!q.trim()) {
-    setSearchResults([]);
-    return;
-  }
-  try {
-    const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/people`, {
-      params: { page: 1, perPage: 10, name: q },
-    });
-    setSearchResults(res.data.results);
-  } catch (err) {
-    console.error("Error fetching people:", err);
-  }
-};
-
-const handleRecipientChange = (e) => {
-  const value = e.target.value;
-  setTaskData({ ...taskData, recipient: value });
-  fetchPeople(value);
-};
-  const handleEditTask = (task) => {
-    // You can open a modal or redirect to an edit page
-    console.log("Editing task:", task);
-
-    // Example: open your TaskModal with the task data
-    setSelectedTask(task);
-    setIsModalOpen(true);
   };
 
   const [taskData, setTaskData] = useState({
@@ -75,18 +31,18 @@ const handleRecipientChange = (e) => {
     dueDate: getCurrentDateTime(),
     taskStage: "Open",
     comments: "",
+    contacted_person: { name: "", phone: "", email: "" },
   });
 
-  const [submitting, setSubmitting] = useState(false);
-
-  // ✅ Fetch Tasks
   const fetchTasks = async () => {
     try {
       setLoading(true);
       const res = await axios.get(API_URL);
-      setTasks(res.data);
+      const taskArray = Array.isArray(res.data) ? res.data : res.data.tasks || [];
+      setTasks(taskArray);
     } catch (err) {
       console.error("Error fetching tasks:", err);
+      setTasks([]);
     } finally {
       setLoading(false);
     }
@@ -94,19 +50,13 @@ const handleRecipientChange = (e) => {
 
   useEffect(() => {
     fetchTasks();
-
-    // ✅ Reset completed count when day changes
     const interval = setInterval(() => {
       const today = dayjs().format("YYYY-MM-DD");
-      if (today !== currentDay) {
-        setCurrentDay(today);
-      }
-    }, 60 * 1000); // check every minute
-
+      if (today !== currentDay) setCurrentDay(today);
+    }, 60 * 1000);
     return () => clearInterval(interval);
   }, [currentDay]);
 
-  // ✅ Open Modal
   const handleOpen = (type) => {
     setFormType(type);
     setIsModalOpen(true);
@@ -116,85 +66,62 @@ const handleRecipientChange = (e) => {
     }));
   };
 
-  // ✅ Controlled inputs
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setTaskData({ ...taskData, [name]: value });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const sanitizedEmail =
+      taskData.recipient.toLowerCase().replace(/\s+/g, "") + "@gmail.com";
+
+    const taskPayload = {
+      memberID: "1234",
+      name: taskData.assignedTo,
+      taskType:
+        taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
+      contacted_person: {
+        name: taskData.recipient,
+        phone: selectedTask.contacted_person?.phone || "0786655753",
+        email: sanitizedEmail,
+      },
+      followup_date: new Date(taskData.dueDate).toISOString(),
+      status: taskData.taskStage,
+      type: formType,
+    };
+
+    try {
+      await axios.post(API_URL, taskPayload);
+      setTasks((prev) => [...prev, taskPayload]);
+      setIsModalOpen(false);
+      setTaskData({
+        taskType: "",
+        recipient: "",
+        assignedTo: "",
+        dueDate: getCurrentDateTime(),
+        taskStage: "Open",
+        comments: "",
+        contacted_person: { name: "", phone: "", email: "" },
+      });
+      fetchTasks();
+    } catch (err) {
+      console.error("Error adding task:", err);
+    }
   };
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setSubmitting(true);
 
-  const sanitizedEmail =
-    taskData.recipient.toLowerCase().replace(/\s+/g, "") + "@gmail.com";
-
-  const taskPayload = {
-    memberID: "1234",
-    name: taskData.assignedTo,
-    taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
-    contacted_person: {
-      name: taskData.recipient,
-      phone: selectedTask.contacted_person?.phone || "0786655753",
-      email: sanitizedEmail,
-    },
-    followup_date: new Date(taskData.dueDate).toISOString(),
-    status: taskData.taskStage,
-    type: formType,
-  };
-
-try {
-  await axios.post(API_URL, taskPayload); // send taskPayload to backend
-  setTasks((prev) => [...prev, taskPayload]); // instantly show in UI
-  setIsModalOpen(false);
-  setTaskData({
-    taskType: "",
-    recipient: "",
-    assignedTo: "",
-    dueDate: getCurrentDateTime(),
-    taskStage: "Open",
-    comments: "",
+  const filteredTasks = tasks.filter((task) => {
+    let matchesType = filterType === "all" || task.type === filterType;
+    let matchesDate = true;
+    const today = dayjs();
+    const taskDate = dayjs(task.followup_date);
+    if (dateRange === "today") matchesDate = taskDate.isSame(today, "day");
+    else if (dateRange === "thisWeek") matchesDate = taskDate.isSame(today, "week");
+    else if (dateRange === "previous7") matchesDate = taskDate.isAfter(today.subtract(7, "day"));
+    else if (dateRange === "previousMonth") matchesDate = taskDate.isAfter(today.subtract(1, "month"));
+    return matchesType && matchesDate;
   });
-  fetchTasks(); // sync with backend
-} catch (err) {
-  console.error("Error adding task:", err);
-} finally {
-  setSubmitting(false);
-}
-};
-
-  // ✅ Filtering logic
-const filteredTasks = tasks.filter((task) => {
-  let matchesType = filterType === "all" || task.type === filterType;
-
-  // Date filtering
-  let matchesDate = true;
-  const today = dayjs();
-  const taskDate = dayjs(task.followup_date); // <-- convert to local
-
-  if (dateRange === "today") {
-    matchesDate = taskDate.isSame(today, "day");
-  } else if (dateRange === "thisWeek") {
-    matchesDate = taskDate.isSame(today, "week");
-  } else if (dateRange === "previous7") {
-    matchesDate = taskDate.isAfter(today.subtract(7, "day"));
-  } else if (dateRange === "previousMonth") {
-    matchesDate = taskDate.isAfter(today.subtract(1, "month"));
-  }
-
-  return matchesType && matchesDate;
-});
-
-
-  // ✅ Dynamic counters
-  const completedCount = filteredTasks.filter((t) => t.status === "Completed").length;
-  const totalCount = filteredTasks.length;
 
   return (
     <div className="daily-container">
-      {/* Counter */}
       <div className="counter-card">
-        <h1> {totalCount}</h1>
-        <p>Tasks Complete</p>
+        <h1>{filteredTasks.length}</h1>
+        <p>Tasks</p>
 
         <div className="task-actions">
           <button className="icon-btn" onClick={() => handleOpen("call")}>
@@ -205,93 +132,6 @@ const filteredTasks = tasks.filter((task) => {
           </button>
         </div>
 
-        {/* Modal */}
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-          <form className="task-form" onSubmit={handleSubmit}>
-            <div className="task-info">
-              <h3>Task Information</h3>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Task Type</label>
-                  <select
-                    className="w-full border rounded-md p-2"
-                    value={taskType}
-                    onChange={(e) => setTaskType(e.target.value)}
-                  >
-                    {taskOptions.map((option, idx) => (
-                      <option key={idx} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-          <div className="recipient-field">
-             <label>Recipient</label>
-              <input
-                type="text"
-                name="recipient"
-                value={taskData.recipient}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setTaskData({ ...taskData, recipient: value });
-                  fetchPeople(value); // live search
-                }}
-                autoComplete="off"
-                required
-              />
-              {searchResults.length > 0 && (
-              <ul className="autocomplete-list">
-                {searchResults.map((person) => (
-                  <li
-                    key={person._id}
-                    onClick={() => {
-                      setTaskData({
-                        ...taskData,
-                        recipient: `${person.Name} ${person.Surname}`,
-                        contacted_person: {
-                          name: person.Name,
-                          phone: person.Phone || "",
-                          email: person.Email || "",
-                        },
-                      });
-                      setSearchResults([]); // hide dropdown
-                    }}
-                  >
-                    {person.Name} {person.Location ? `(${person.Location})` : ""}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-              <label>Assigned To</label>
-              <input type="text" name="assignedTo" value={taskData.assignedTo} onChange={handleChange} required />
-
-              <label>Due Date & Time</label>
-              <input type="datetime-local" name="dueDate" value={taskData.dueDate} onChange={handleChange}  disabled />
-
-              <label>Task Stage</label>
-              <select name="taskStage" value={taskData.taskStage} onChange={handleChange}>
-                <option value="Open">Open</option>
-                <option value="Awaiting task">Awaiting task</option>
-                <option value="Completed">Completed</option>
-              </select>
-            </div>
-
-            {/* Footer */}
-            <div className="modal-footer">
-              <button type="button" className="cancel-btn" onClick={() => setIsModalOpen(false)} disabled={submitting}>
-                Cancel
-              </button>
-              <button type="submit" className="finish-btn" disabled={submitting}>
-                {submitting ? <span className="loader"></span> : "Finish"}
-              </button>
-            </div>
-          </form>
-        </Modal>
-
-        {/* Date Filter */}
         <div className="date-filter">
           <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
             <option value="today">Today</option>
@@ -302,56 +142,41 @@ const filteredTasks = tasks.filter((task) => {
         </div>
       </div>
 
-      {/* Type Filter */}
       <div className="type-filter">
         <button className={filterType === "all" ? "active" : ""} onClick={() => setFilterType("all")}>All</button>
         <button className={filterType === "call" ? "active" : ""} onClick={() => setFilterType("call")}>Calls</button>
         <button className={filterType === "visit" ? "active" : ""} onClick={() => setFilterType("visit")}>Visits</button>
       </div>
 
-      {/* Task List */}
       <div className="task-list">
         {loading ? (
-          <p className="loading">Loading tasks...</p>
+          <p>Loading tasks...</p>
         ) : filteredTasks.length === 0 ? (
-          <p className="no-tasks">No tasks yet.</p>
+          <p>No tasks yet.</p>
         ) : (
-          filteredTasks.map((task) => (
-        <div key={task._id} className="task-item">
-          <div>
-            <p className="task-title">{task.contacted_person?.name}</p>
-            <p className="task-subtitle">{task.name}</p>
-           
-          </div>
-          <div className="task-meta">
-           <span
-            className={`status ${task.status} ${task.status === "Awaiting task" ? "editable" : ""}`}
-            onClick={() => {
-              if (task.status === "Awaiting task") {
-                setSelectedTask(task);
-                setTaskData({
-                  taskType: task.taskType || "",
-                  recipient: task.contacted_person?.name || "",
-                  assignedTo: task.name || "",
-                  dueDate: task.followup_date
-                    ? dayjs(task.followup_date).format("YYYY-MM-DDTHH:mm")
-                    : getCurrentDateTime(),
-                  taskStage: task.status || "Open",
-                  comments: task.comments || "",
-                });
-                setIsModalOpen(true);
-              }
-            }}
-          >
-            {task.status}
-          </span>
-            <span className="task-date">{dayjs(task.followup_date).format("MMM D, YYYY")}</span>
-          </div>
-        </div>
-      ))
-
+          filteredTasks.map((task, idx) => (
+            <div key={idx} className="task-item">
+              <div>
+                <p className="task-text">{task.contacted_person?.name}</p>
+                <p className="task-text">{task.name}</p>
+              </div>
+              <div className="task-meta">
+                <span className={`status ${task.status?.toLowerCase()}`}>{task.status}</span>
+                <span className="task-date">{dayjs(task.followup_date).format("MMM D, YYYY")}</span>
+              </div>
+            </div>
+          ))
         )}
       </div>
+
+      <TaskModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        formType={formType}
+        taskData={taskData}
+        setTaskData={setTaskData}
+        handleSubmit={handleSubmit}
+      />
     </div>
   );
 }

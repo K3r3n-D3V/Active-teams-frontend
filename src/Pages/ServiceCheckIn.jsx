@@ -1,5 +1,4 @@
-// Keep your imports the same
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -17,280 +16,330 @@ import {
   useTheme,
   useMediaQuery,
   TablePagination,
+  MenuItem,
+  Select,
+  Chip,
+  CircularProgress,
+  Tooltip,
+  Alert,
 } from "@mui/material";
-import AddPersonDialog from "../components/AddPersonDialog";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CancelIcon from "@mui/icons-material/Cancel";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import axios from "axios";
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
-const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
+// Change this once, use everywhere
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-function ServiceCheckIn({ currentEvent }) { // ensure you pass the event as a prop
+const formatDate = (iso) => {
+  try {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleString();
+  } catch {
+    return iso || "";
+  }
+};
+
+const ServiceCheckIn = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState("");
+
+  const [selectedEventId, setSelectedEventId] = useState("");
   const [attendees, setAttendees] = useState([]);
+  const [attLoading, setAttLoading] = useState(false);
+  const [attError, setAttError] = useState("");
+
   const [search, setSearch] = useState("");
+  const [newName, setNewName] = useState("");
+  const [actionBusyName, setActionBusyName] = useState(""); // show spinner per-row
+  const [globalBusy, setGlobalBusy] = useState(false);
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [openDialog, setOpenDialog] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    surname: "",
-    dob: "",
-    address: "",
-    invitedBy: "",
-    email: "",
-    phone: "",
-    gender: "",
-  });
-
-  const theme = useTheme();
-  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
-  const isDarkMode = theme.palette.mode === "dark";
-
-  // Fetch all people
+  // --- Load all events ---
   useEffect(() => {
-    const fetchAllPeople = async () => {
+    let active = true;
+    (async () => {
+      setEventsLoading(true);
+      setEventsError("");
       try {
-        let allPeople = [];
-        let page = 1;
-        const perPage = 100;
-        let total = 0;
-
-        do {
-          const res = await axios.get(`${BASE_URL}/people?page=${page}&perPage=${perPage}`);
-          const peoplePage = Array.isArray(res.data.results)
-            ? res.data.results.map(p => ({
-                _id: p._id,
-                name: p.Name || "",
-                surname: p.Surname || "",
-                email: p.Email || "",
-                phone: p.Phone || "",
-                leader: p.Leader || "",
-                present: p.Present || false,
-                firstTime: p.FirstTime || false,
-              }))
-            : [];
-
-          allPeople = [...allPeople, ...peoplePage];
-          total = res.data.total || 0;
-          page++;
-        } while (allPeople.length < total);
-
-        setAttendees(allPeople);
-      } catch (error) {
-        console.error(error);
-        toast.error(error.response?.data?.detail || error.message);
+        const res = await axios.get(`${BASE_URL}/events`);
+        const list = (res.data?.events || []).map((e) => ({
+          id: e._id || e.id,
+          service_name: e.service_name || e.type || "Event",
+          date: e.date || e.start_date || e.created_at,
+          label:
+            (e.service_name ? e.service_name : e.type || "Event") +
+            (e.date || e.start_date ? ` — ${formatDate(e.date || e.start_date)}` : ""),
+        }));
+        if (!active) return;
+        setEvents(list);
+        if (list.length && !selectedEventId) setSelectedEventId(list[0].id);
+      } catch (err) {
+        if (!active) return;
+        setEventsError(err?.response?.data?.detail || "Failed to load events.");
+      } finally {
+        if (active) setEventsLoading(false);
       }
+    })();
+    return () => {
+      active = false;
     };
-
-    fetchAllPeople();
   }, []);
 
-  // Filter attendees based on search
-  const filteredAttendees = attendees.filter(
-    (a) =>
-      (a.name && a.name.toLowerCase().includes(search.toLowerCase())) ||
-      (a.surname && a.surname.toLowerCase().includes(search.toLowerCase())) ||
-      (a.email && a.email.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  const paginatedAttendees = filteredAttendees.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
-
-  const presentCount = filteredAttendees.filter((a) => a.present).length;
-  const attendeesCount = filteredAttendees.length;
-
-  const buttonStyles = {
-    backgroundColor: isDarkMode ? "white" : "black",
-    color: isDarkMode ? "black" : "white",
-    "&:hover": {
-      backgroundColor: isDarkMode ? "#ddd" : "#222",
-    },
+  // --- Load attendees for selected event ---
+  const fetchAttendees = async (eventId) => {
+    if (!eventId) return;
+    setAttLoading(true);
+    setAttError("");
+    try {
+      const res = await axios.get(`${BASE_URL}/checkins/${eventId}`);
+      const raw = res.data?.attendees || [];
+      const mapped = raw.map((a) => ({
+        id: a.name,
+        name: a.name,
+        time: a.time,
+        checkedIn: true,
+        event: res.data?.service_name || "Service",
+      }));
+      setAttendees(mapped);
+    } catch (err) {
+      setAttError(err?.response?.data?.detail || "Failed to load check-ins.");
+      setAttendees([]);
+    } finally {
+      setAttLoading(false);
+    }
   };
 
-  const handleSaveDetails = async () => {
-    if (!formData.name || !formData.email) {
-      toast.error("Name and Email are required");
-      return;
-    }
+  useEffect(() => {
+    setPage(0); // reset pagination on event change
+    fetchAttendees(selectedEventId);
+  }, [selectedEventId]);
 
-    const newPerson = {
-      ...formData,
-      leader: "New",
-      present: false,
-      firstTime: true,
-      eventId: null,
-    };
+  // --- Actions ---
+  const handleRefresh = () => fetchAttendees(selectedEventId);
 
+  const handleCheckIn = async () => {
+    if (!selectedEventId || !newName.trim()) return;
+    setGlobalBusy(true);
     try {
-      const res = await axios.post(`${BASE_URL}/people`, newPerson);
-      const addedPerson = {
-        ...newPerson,
-        _id: res.data.id || Date.now().toString(),
-      };
-      setAttendees((prev) => [...(Array.isArray(prev) ? prev : []), addedPerson]);
-      setFormData({
-        name: "",
-        surname: "",
-        dob: "",
-        address: "",
-        invitedBy: "",
-        email: "",
-        phone: "",
-        gender: "",
+      await axios.post(`${BASE_URL}/checkin`, {
+        event_id: selectedEventId,
+        name: newName.trim(),
       });
-      setOpenDialog(false);
-      toast.success("Person added");
+      setNewName("");
+      await fetchAttendees(selectedEventId);
     } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.message || err.message);
+      alert(err?.response?.data?.detail || "Check-in failed.");
+    } finally {
+      setGlobalBusy(false);
     }
   };
 
-  // Toggle check-in / uncapture
-  const handleToggleCheckIn = async (attendee) => {
-    if (!currentEvent) {
-      toast.error("No event selected");
-      return;
-    }
-
+  const handleUncheck = async (name) => {
+    if (!selectedEventId || !name) return;
+    setActionBusyName(name);
     try {
-      if (!attendee.present) {
-        // Check-in
-        const res = await axios.post(`${BASE_URL}/checkin`, {
-          event_id: currentEvent._id,
-          name: attendee.name,
-        });
-        toast.success(res.data.message);
-
-        setAttendees(prev =>
-          prev.map(a => a._id === attendee._id ? { ...a, present: true } : a)
-        );
-      } else {
-        // Uncapture
-        const res = await axios.post(`${BASE_URL}/uncapture`, {
-          event_id: currentEvent._id,
-          name: attendee.name,
-        });
-        toast.info(res.data.message);
-
-        setAttendees(prev =>
-          prev.map(a => a._id === attendee._id ? { ...a, present: false } : a)
-        );
-      }
+      await axios.post(`${BASE_URL}/uncapture`, {
+        event_id: selectedEventId,
+        name,
+      });
+      setAttendees((prev) => prev.filter((p) => p.name !== name));
     } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.detail || err.message);
+      alert(err?.response?.data?.detail || "Remove failed.");
+    } finally {
+      setActionBusyName("");
     }
+  };
+
+  // --- Filters & pagination ---
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    if (!s) return attendees;
+    return attendees.filter((p) => p.name.toLowerCase().includes(s));
+  }, [attendees, search]);
+
+  const paged = useMemo(
+    () => filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filtered, page, rowsPerPage]
+  );
+
+  const handleChangePage = (_, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = (e) => {
+    setRowsPerPage(+e.target.value);
+    setPage(0);
   };
 
   return (
-    <Box p={{ xs: 2, sm: 3 }} sx={{ maxWidth: "1200px", margin: "0 auto", mt: 5 }}>
-      <ToastContainer />
-      <Typography variant={isSmDown ? "h6" : "h5"} fontWeight={700} gutterBottom textAlign="center">
-        Service Check-In
-      </Typography>
+    <Box p={isMobile ? 2 : 4} mt={4}> {/* Added mt={4} to move the board down */}
+      <Paper elevation={3} sx={{ p: isMobile ? 2 : 4, borderRadius: 3, mt: 2 }}> {/* Added mt: 2 inside Paper for extra spacing */}
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} gap={2}>
+          <Typography variant={isMobile ? "h6" : "h5"}>Service Check-In</Typography>
+          <Box display="flex" gap={1}>
+            <Tooltip title="Refresh">
+              <span>
+                <IconButton onClick={handleRefresh} disabled={!selectedEventId || attLoading}>
+                  <RefreshIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
+        </Box>
 
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={6}>
-          <Paper variant="outlined" sx={{ p: 2, textAlign: "center" }}>
-            <Typography variant="h6">{presentCount}</Typography>
-            <Typography variant="body2">Attendees Present</Typography>
-          </Paper>
+        {eventsError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {eventsError}
+          </Alert>
+        )}
+
+        {/* Controls */}
+        <Grid container spacing={2} mb={2}>
+          <Grid item xs={12} sm={6}>
+            <Select
+              fullWidth
+              size="small"
+              value={selectedEventId}
+              displayEmpty
+              onChange={(e) => setSelectedEventId(e.target.value)}
+            >
+              <MenuItem value="">
+                {eventsLoading ? "Loading events..." : "Select Event"}
+              </MenuItem>
+              {events.map((ev) => (
+                <MenuItem key={ev.id} value={ev.id}>
+                  {ev.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Search Attendee (by name)"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              disabled={!selectedEventId}
+            />
+          </Grid>
+
+          {/* Quick check-in input */}
+          <Grid item xs={12} sm={8}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Enter name to check-in"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              disabled={!selectedEventId || globalBusy}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Button
+              fullWidth
+              variant="contained"
+              size="medium"
+              startIcon={<CheckCircleIcon />}
+              onClick={handleCheckIn}
+              disabled={!selectedEventId || !newName.trim() || globalBusy}
+            >
+              {globalBusy ? "Checking in..." : "Check In"}
+            </Button>
+          </Grid>
         </Grid>
-        <Grid item xs={6}>
-          <Paper variant="outlined" sx={{ p: 2, textAlign: "center" }}>
-            <Typography variant="h6">{attendeesCount}</Typography>
-            <Typography variant="body2">Total Attendees</Typography>
-          </Paper>
-        </Grid>
-      </Grid>
 
-      <Grid container spacing={2} mb={2} alignItems="center">
-        <Grid item xs={12} sm={8}>
-          <TextField
-            size="small"
-            placeholder="Search members by name, surname, or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            fullWidth
-          />
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <Button
-            variant="contained"
-            fullWidth
-            sx={buttonStyles}
-            onClick={() => setOpenDialog(true)}
-          >
-            Add Person
-          </Button>
-        </Grid>
-      </Grid>
+        {/* Loader & Errors */}
+        {attError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {attError}
+          </Alert>
+        )}
 
-      <TableContainer component={Paper} variant="outlined">
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Phone</TableCell>
-              <TableCell align="center">Present</TableCell>
-              <TableCell>Leader</TableCell>
-              <TableCell>First Time</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {paginatedAttendees.length > 0 ? (
-              paginatedAttendees.map((attendee) => (
-                <TableRow key={attendee._id || attendee.id}>
-                  <TableCell>{attendee.name} {attendee.surname}</TableCell>
-                  <TableCell>{attendee.email}</TableCell>
-                  <TableCell>{attendee.phone}</TableCell>
-                  <TableCell align="center">
-                    <IconButton onClick={() => handleToggleCheckIn(attendee)} color="success">
-                      {attendee.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
-                    </IconButton>
-                  </TableCell>
-                  <TableCell>{attendee.leader}</TableCell>
-                  <TableCell>{attendee.firstTime ? "Yes" : "No"}</TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} align="center">No attendees found.</TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+        {attLoading ? (
+          <Box display="flex" justifyContent="center" py={4}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <>
+            {/* Table */}
+            <TableContainer>
+              <Table size={isMobile ? "small" : "medium"}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    {!isMobile && <TableCell>Checked-in Time</TableCell>}
+                    {!isMobile && <TableCell>Event</TableCell>}
+                    <TableCell>Status</TableCell>
+                    <TableCell align="right">Action</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {paged.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">
+                        {selectedEventId
+                          ? "No attendees match your search."
+                          : "Select an event to view check-ins."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paged.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell>{p.name}</TableCell>
+                        {!isMobile && <TableCell>{formatDate(p.time)}</TableCell>}
+                        {!isMobile && <TableCell>{p.event}</TableCell>}
+                        <TableCell>
+                          <Chip
+                            label={p.checkedIn ? "Present" : "Absent"}
+                            color={p.checkedIn ? "success" : "default"}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="Remove check-in">
+                            <span>
+                              <IconButton
+                                color="error"
+                                onClick={() => handleUncheck(p.name)}
+                                disabled={actionBusyName === p.name}
+                              >
+                                {actionBusyName === p.name ? (
+                                  <CircularProgress size={22} />
+                                ) : (
+                                  <CancelIcon />
+                                )}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
-      <TablePagination
-        component="div"
-        count={filteredAttendees.length}
-        page={page}
-        onPageChange={(event, newPage) => setPage(newPage)}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={(event) => {
-          setRowsPerPage(parseInt(event.target.value, 10));
-          setPage(0);
-        }}
-        rowsPerPageOptions={[5, 10, 20, 50]}
-      />
-
-      <AddPersonDialog
-        open={openDialog}
-        onClose={() => setOpenDialog(false)}
-        onSave={handleSaveDetails}
-        formData={formData}
-        setFormData={setFormData}
-      />
+            {/* Pagination */}
+            <TablePagination
+              component="div"
+              count={filtered.length}
+              page={page}
+              onPageChange={handleChangePage}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              rowsPerPageOptions={[5, 10, 25, 50]}
+            />
+          </>
+        )}
+      </Paper>
     </Box>
   );
-}
+};
 
 export default ServiceCheckIn;

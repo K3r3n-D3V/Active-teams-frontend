@@ -5,25 +5,28 @@ import axios from 'axios';
 import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
-  TextField, InputAdornment, Button, Snackbar, Alert, AppBar, Toolbar
+  TextField, InputAdornment, Button, Snackbar, Alert, AppBar, Toolbar, Slide, Popover
 } from '@mui/material';
 import {
   Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
   Edit as EditIcon, Delete as DeleteIcon, Email as EmailIcon,
-  Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon
+  Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon,
+  Visibility as VisibilityIcon
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
-import { Slide } from '@mui/material';
 
+// Slide transition for Snackbar
 const slideTransition = (props) => <Slide {...props} direction="down" />;
 
+// Define stages
 const stages = [
-  { id: 'Win', title: 'Win' },
-  { id: 'Consolidate', title: 'Consolidate' },
-  { id: 'Disciple', title: 'Disciple' },
-  { id: 'Send', title: 'Send' }
+  { id: 'Win', title: 'Win', description: 'This is the first stage where people are won to the ministry.' },
+  { id: 'Consolidate', title: 'Consolidate', description: 'People are consolidated in the group and connected to leaders.' },
+  { id: 'Disciple', title: 'Disciple', description: 'Focused teaching and growth to become strong in faith.' },
+  { id: 'Send', title: 'Send', description: 'Mature people are sent out to lead or minister to others.' }
 ];
 
+// Individual Person Card
 const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -96,55 +99,89 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
   );
 });
 
-const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loading }) => {
+// DragDrop board component
+const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loading, currentPage, setCurrentPage, pageSize }) => {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isMedium = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
-  const getPeopleByStage = useCallback(stage => people.filter(p => p.stage === stage), [people]);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [currentStage, setCurrentStage] = useState(null);
+
+  const getPeopleByStage = useCallback(
+    stage => people.filter(p => (p.stage || '').toLowerCase() === stage.toLowerCase()),
+    [people]
+  );
+  const handlePopoverOpen = (event, stage) => { setAnchorEl(event.currentTarget); setCurrentStage(stage); };
+  const handlePopoverClose = () => { setAnchorEl(null); setCurrentStage(null); };
+  const popoverOpen = Boolean(anchorEl);
 
   if (loading) return <Typography sx={{ p: 2, textAlign: 'center' }}>Loading people...</Typography>;
 
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
-      <Box sx={{ display: 'flex', flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap', gap: 3, justifyContent: 'center', flexDirection: isSmall ? 'column' : 'row', py: 1 }}>
-        {stages.map(stage => {
-          const stagePeople = getPeopleByStage(stage.id);
-          const headerBg = theme.palette.mode === 'dark' ? '#fff' : '#000';
-          const headerText = theme.palette.mode === 'dark' ? '#000' : '#fff';
-          const stageWidth = isSmall ? '100%' : isMedium ? '45%' : '250px';
+    <>
+      <DragDropContext onDragEnd={onDragEnd}>
+        <Box sx={{ display: 'flex', flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap', gap: 3, justifyContent: 'center', flexDirection: isSmall ? 'column' : 'row', py: 1 }}>
+          {stages.map(stage => {
+            const stagePeopleAll = getPeopleByStage(stage.id);
+            const start = (currentPage - 1) * pageSize;
+            const stagePeople = stagePeopleAll.slice(start, start + pageSize);
+            const stageWidth = isSmall ? '100%' : isMedium ? '45%' : '250px';
 
-          return (
-            <Paper key={stage.id} sx={{ flex: `0 0 ${stageWidth}`, minWidth: 220, borderRadius: 2, overflow: 'hidden', mb: isSmall || isMedium ? 2 : 0, backgroundColor: theme.palette.mode === 'dark' ? '#424242' : '#fff' }}>
-              <Box sx={{ p: 1.5, backgroundColor: headerBg, color: headerText, display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="subtitle1">{stage.title}</Typography>
-                <Badge badgeContent={stagePeople.length} sx={{ '& .MuiBadge-badge': { backgroundColor: headerText, color: headerBg, fontSize: 10, transform: 'translateY(4px)' } }} />
-              </Box>
-              <Droppable droppableId={stage.id}>
-                {(provided) => (
-                  <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ p: 1, minHeight: 140, maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden', backgroundColor: theme.palette.mode === 'dark' ? '#616161' : '#f9f9f9' }}>
-                    {stagePeople.length > 0 ? stagePeople.map((person, index) => (
-                      <Draggable key={person._id} draggableId={person._id} index={index}>
-                        {(provided, snapshot) => (
-                          <Box ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                            <PersonCard person={person} onEdit={onEditPerson} onDelete={onDeletePerson} isDragging={snapshot.isDragging} />
-                          </Box>
-                        )}
-                      </Draggable>
-                    )) : (
-                      <Box sx={{ textAlign: 'center', border: '1px dashed #aaa', borderRadius: 1, p: 2, mt: 1, color: 'text.secondary', fontStyle: 'italic' }}>Drop people here</Box>
-                    )}
-                    {provided.placeholder}
+            return (
+              <Paper key={stage.id} sx={{ flex: `0 0 ${stageWidth}`, minWidth: 220, borderRadius: 2, overflow: 'hidden', mb: isSmall || isMedium ? 2 : 0, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.common.white }}>
+                <Box sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[100], color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : theme.palette.grey[900] }}>
+                  <Typography variant="subtitle1">{stage.title}</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Badge badgeContent={stagePeopleAll.length} sx={{ '& .MuiBadge-badge': { backgroundColor: theme.palette.mode === 'dark' ? '#fff' : '#000', color: theme.palette.mode === 'dark' ? '#000' : '#fff', fontSize: 10, transform: 'translateY(1px)', minWidth: 16, height: 16 } }} >
+                      <Box sx={{ width: 18, height: 18 }} />
+                    </Badge>
+                    <IconButton size="small" onClick={(e) => handlePopoverOpen(e, stage)}>
+                      <VisibilityIcon fontSize="small" sx={{ color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : theme.palette.grey[900] }} />
+                    </IconButton>
                   </Box>
-                )}
-              </Droppable>
-            </Paper>
-          );
-        })}
+                </Box>
+
+                <Droppable droppableId={stage.id}>
+                  {(provided) => (
+                    <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ p: 1, minHeight: 140, maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden', backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.grey[50] }}>
+                      {stagePeople.length > 0 ? stagePeople.map((person, index) => (
+                        <Draggable key={person._id} draggableId={person._id} index={index}>
+                          {(provided, snapshot) => (
+                            <Box ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                              <PersonCard person={person} onEdit={onEditPerson} onDelete={onDeletePerson} isDragging={snapshot.isDragging} />
+                            </Box>
+                          )}
+                        </Draggable>
+                      )) : <Box sx={{ textAlign: 'center', border: '1px dashed', borderColor: theme.palette.mode === 'dark' ? theme.palette.grey[500] : '#aaa', borderRadius: 1, p: 3, mt: 1, color: 'text.secondary', fontStyle: 'italic' }}>Drop people here</Box>}
+                      {provided.placeholder}
+                    </Box>
+                  )}
+                </Droppable>
+              </Paper>
+            );
+          })}
+        </Box>
+      </DragDropContext>
+
+      <Popover open={popoverOpen} anchorEl={anchorEl} onClose={handlePopoverClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }} transformOrigin={{ vertical: 'top', horizontal: 'center' }} PaperProps={{ sx: { p: 2, borderRadius: 2, boxShadow: 4, minWidth: 220, backgroundColor: theme.palette.mode === 'dark' ? '#333' : '#fff' } }}>
+        {currentStage && (
+          <Box>
+            <Typography variant="subtitle2">{currentStage.title}</Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>{currentStage.description}</Typography>
+          </Box>
+        )}
+      </Popover>
+
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, gap: 1 }}>
+        <Button size="small" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>Previous</Button>
+        <Typography sx={{ alignSelf: 'center' }}>Page {currentPage} of {Math.ceil(people.length / pageSize)}</Typography>
+        <Button size="small" disabled={currentPage >= Math.ceil(people.length / pageSize)} onClick={() => setCurrentPage(prev => prev + 1)}>Next</Button>
       </Box>
-    </DragDropContext>
+    </>
   );
 };
 
+// Main People Section
 export const PeopleSection = () => {
   const theme = useTheme();
   const [people, setPeople] = useState([]);
@@ -154,128 +191,79 @@ export const PeopleSection = () => {
   const [editingPerson, setEditingPerson] = useState(null);
   const [formData, setFormData] = useState({ name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '', invitedBy: '', gender: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 100;
 
-  // Fetch ALL people
-  useEffect(() => {
-    const fetchPeople = async () => {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-      setLoading(true);
-      try {
-        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/people`);
-        const data = Array.isArray(res.data?.results) ? res.data.results.map(p => ({
-          _id: p._id,
-          name: p.Name || "",
-          gender: p.Gender || "",
-          dob: p.DateOfBirth || "",
-          location: p.Location || "",
-          cellLeader: p.Leader || "",
-          stage: p.Stage || "Win",
-          email: p.Email || "",
-          phone: p.Phone || "",
-          lastUpdated: p.UpdatedAt || null
-        })) : [];
-
-        setPeople(data);
-
-        if (data.length === 0) {
-          setSnackbar({ open: true, message: 'No people found', severity: 'info' });
-        }
-      } catch (err) {
-        console.error('Error fetching people:', err);
-        setSnackbar({ open: true, message: 'Failed to load people', severity: 'error' });
-      } finally { setLoading(false); }
-    };
-    fetchPeople();
-  }, []);
-
-  // Prepare form data for editing
-  useEffect(() => {
-    if (editingPerson) {
-      setFormData({
-        name: editingPerson.name || '',
-        surname: editingPerson.surname || '',
-        dob: editingPerson.dob || '',
-        email: editingPerson.email || '',
-        phone: editingPerson.phone || '',
-        homeAddress: editingPerson.homeAddress || '',
-        invitedBy: editingPerson.cellLeader || '',
-        gender: editingPerson.gender || '',
-      });
-    } else {
-      setFormData({ name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '', invitedBy: '', gender: '' });
+  const fetchPeople = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get('http://localhost:8000/people?perPage=0');
+      const data = Array.isArray(res.data?.results) ? res.data.results.map(p => ({
+        _id: p._id,
+        name: p.Name || "",
+        surname: p.Surname || "",
+        gender: p.Gender || "",
+        dob: p.DateOfBirth || "",
+        location: p.Location || "",
+        email: p.Email || "",
+        phone: p.Phone || "",
+        homeAddress: p.HomeAddress || "",
+        stage: p.Stage || "Win",
+        lastUpdated: p.UpdatedAt || null,
+        cellLeader: p.Leader || ""
+      })) : [];
+      setPeople(data);
+    } catch (err) {
+      console.error('Error fetching people:', err);
+      setSnackbar({ open: true, message: 'Failed to load people', severity: 'error' });
+    } finally {
+      setLoading(false);
     }
-  }, [editingPerson, isModalOpen]);
-
-  // Save (Create or Update)
-const handleSavePerson = async (data) => {
-  try {
-    let res;
-    if (editingPerson && editingPerson._id) {
-      // Update existing person
-      res = await axios.put(`${import.meta.env.VITE_BACKEND_URL}/people/${editingPerson._id}`, data);
-    } else {
-      // Create new person
-      res = await axios.post('${import.meta.env.VITE_BACKEND_URL}/people', data);
-    }
-
-    const savedPerson = res.data;
-
-    setPeople(prev => {
-      const idx = prev.findIndex(p => p._id === savedPerson._id);
-      if (idx >= 0) {
-        prev[idx] = savedPerson;
-      } else {
-        prev.push(savedPerson);
-      }
-      return [...prev];
-    });
-
-    setIsModalOpen(false);
-    setEditingPerson(null);
-    setSnackbar({ open: true, message: 'Person saved successfully', severity: 'success' });
-  } catch (err) {
-    console.error("Error saving person:", err);
-    setSnackbar({ open: true, message: 'Failed to save person', severity: 'error' });
-  }
-};
-
-// Delete
-const handleDeletePerson = async (id) => {
-  try {
-    await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/people/${id}`);
-    setPeople(prev => prev.filter(p => p._id !== id));
-    setSnackbar({ open: true, message: 'Person deleted successfully', severity: 'success' });
-  } catch (err) {
-    console.error("Error deleting person:", err);
-    setSnackbar({ open: true, message: 'Failed to delete person', severity: 'error' });
-  }
-};
-
-  const handleDragEnd = ({ destination, source, draggableId }) => {
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-    setPeople(prev => {
-      const movingPerson = prev.find(p => p._id === draggableId);
-      const others = prev.filter(p => p._id !== draggableId);
-      movingPerson.stage = destination.droppableId;
-      others.splice(destination.index, 0, movingPerson);
-      return [...others];
-    });
   };
 
-  // Search filter only
-  const filteredPeople = useMemo(() => {
-    return people.filter(p =>
-      [p.name, p.cellLeader, p.location].some(f => f?.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [people, searchTerm]);
+  useEffect(() => { fetchPeople(); }, []);
 
-  // Show alert if search yields no matches
+const filteredPeople = useMemo(() => {
+  const search = searchTerm.toLowerCase().trim().split(/\s+/); // split search into words
+  return people.filter(p => {
+    const fullName = `${p.name} ${p.surname}`.toLowerCase();
+    const leader = p.cellLeader?.toLowerCase() || "";
+
+    // Check if every word in the search exists in either full name or leader
+    return search.every(word =>
+      fullName.includes(word) || leader.includes(word)
+    );
+  });
+}, [people, searchTerm]);
+
+  // Reset page if filtered list is shorter
   useEffect(() => {
-    if (!loading && people.length > 0 && filteredPeople.length === 0) {
-      setSnackbar({ open: true, message: 'No matching people found', severity: 'info' });
+    if (currentPage > Math.ceil(filteredPeople.length / pageSize)) setCurrentPage(1);
+  }, [filteredPeople]);
+
+  const handleDragEnd = async ({ destination, source, draggableId }) => {
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
+    setPeople(prev => {
+      const idx = prev.findIndex(p => p._id === draggableId);
+      if (idx === -1) return prev;
+      const movingPerson = { ...prev[idx], stage: destination.droppableId };
+      const updatedList = [...prev];
+      updatedList.splice(idx, 1);
+      updatedList.splice(destination.index, 0, movingPerson);
+      return updatedList;
+    });
+
+    try {
+      await axios.post("http://localhost:8000/people", { _id: draggableId, Stage: destination.droppableId });
+      setSnackbar({ open: true, message: "Stage updated successfully", severity: "success" });
+    } catch (err) {
+      console.error("Error updating stage:", err);
+      setSnackbar({ open: true, message: "Failed to update stage", severity: "error" });
+      fetchPeople();
     }
-  }, [filteredPeople, loading, people]);
+  };
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
@@ -287,31 +275,30 @@ const handleDeletePerson = async (id) => {
             size="small"
             startIcon={<AddIcon />}
             onClick={() => { setEditingPerson(null); setIsModalOpen(true); }}
-            sx={{
-              ml: 2,
-              backgroundColor: theme.palette.mode === 'dark' ? '#fff' : '#000',
-              color: theme.palette.mode === 'dark' ? '#000' : '#fff',
-              '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#e0e0e0' : '#222' },
-              textTransform: 'none'
-            }}
+            sx={{ ml: 2, backgroundColor: theme.palette.mode === 'dark' ? '#fff' : '#000', color: theme.palette.mode === 'dark' ? '#000' : '#fff', '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#e0e0e0' : '#222' }, textTransform: 'none' }}
           >Add</Button>
         </Toolbar>
       </AppBar>
 
       <Box sx={{ my: 2 }}>
         <TextField
-          fullWidth size="small" placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+          fullWidth size="small" placeholder="Search..."
+          value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
           InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
         />
       </Box>
 
-      <Box sx={{ flex: 1, height: 'auto', border: '1px solid #e0e0e0', borderRadius: 2, mx: 0, py: 2 }}>
+      <Typography variant="h6" sx={{ px: 1, mb: 1 }}>My People</Typography>
+      <Box sx={{ flex: 1, border: '1px solid #e0e0e0', borderRadius: 2, py: 2, mb: 4 }}>
         <DragDropBoard
           people={filteredPeople}
           onDragEnd={handleDragEnd}
           onEditPerson={(p) => { setEditingPerson(p); setIsModalOpen(true); }}
-          onDeletePerson={handleDeletePerson}
+          onDeletePerson={(id) => setPeople(prev => prev.filter(p => p._id !== id))}
           loading={loading}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          pageSize={pageSize}
         />
       </Box>
 
@@ -320,38 +307,19 @@ const handleDeletePerson = async (id) => {
         formData={formData}
         setFormData={setFormData}
         onClose={() => { setIsModalOpen(false); setEditingPerson(null); }}
-        onSave={() => handleSavePerson(formData)}
+        onSave={() => {
+          const newPerson = { ...formData, _id: Date.now().toString(), stage: 'Win', lastUpdated: new Date() };
+          setPeople(prev => [newPerson, ...prev]);
+          setIsModalOpen(false);
+          setSnackbar({ open: true, message: editingPerson ? 'Person updated' : 'Person added', severity: 'success' });
+        }}
+        editingPerson={editingPerson}
       />
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        TransitionComponent={slideTransition}
-        sx={{
-          mt: 2,
-          ml: { xs: '5%', sm: '10%', md: '15%' },
-          width: { xs: '90%', sm: 'auto' }
-        }}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          variant="filled"
-          sx={{
-            width: '100%',
-            borderRadius: 2,
-            boxShadow: 3,
-            px: 3,
-            py: 1.5,
-            textAlign: 'center',
-            fontWeight: 500
-          }}
-        >
-          {snackbar.message}
-        </Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} TransitionComponent={slideTransition}>
+        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
   );
 };
+
