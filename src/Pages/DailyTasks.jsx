@@ -38,6 +38,27 @@ export default function DailyTasks() {
       "No Answer",
     ];
 
+  const [searchResults, setSearchResults] = useState([]);
+  const fetchPeople = async (q) => {
+  if (!q.trim()) {
+    setSearchResults([]);
+    return;
+  }
+  try {
+    const res = await axios.get(`http://localhost:8000/people`, {
+      params: { page: 1, perPage: 10, name: q },
+    });
+    setSearchResults(res.data.results);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+  }
+};
+
+const handleRecipientChange = (e) => {
+  const value = e.target.value;
+  setTaskData({ ...taskData, recipient: value });
+  fetchPeople(value);
+};
   const handleEditTask = (task) => {
     // You can open a modal or redirect to an edit page
     console.log("Editing task:", task);
@@ -205,8 +226,44 @@ const filteredTasks = tasks.filter((task) => {
                   </select>
                 </div>
 
-              <label>Recipient</label>
-              <input type="text" name="recipient" value={taskData.recipient} onChange={handleChange} required />
+          <div className="recipient-field">
+             <label>Recipient</label>
+              <input
+                type="text"
+                name="recipient"
+                value={taskData.recipient}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTaskData({ ...taskData, recipient: value });
+                  fetchPeople(value); // live search
+                }}
+                autoComplete="off"
+                required
+              />
+              {searchResults.length > 0 && (
+              <ul className="autocomplete-list">
+                {searchResults.map((person) => (
+                  <li
+                    key={person._id}
+                    onClick={() => {
+                      setTaskData({
+                        ...taskData,
+                        recipient: `${person.Name} ${person.Surname}`,
+                        contacted_person: {
+                          name: person.Name,
+                          phone: person.Phone || "",
+                          email: person.Email || "",
+                        },
+                      });
+                      setSearchResults([]); // hide dropdown
+                    }}
+                  >
+                    {person.Name} {person.Location ? `(${person.Location})` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
               <label>Assigned To</label>
               <input type="text" name="assignedTo" value={taskData.assignedTo} onChange={handleChange} required />
@@ -217,7 +274,7 @@ const filteredTasks = tasks.filter((task) => {
               <label>Task Stage</label>
               <select name="taskStage" value={taskData.taskStage} onChange={handleChange}>
                 <option value="Open">Open</option>
-                <option value="In Progress">In Progress</option>
+                <option value="Awaiting task">Awaiting task</option>
                 <option value="Completed">Completed</option>
               </select>
             </div>
@@ -264,13 +321,13 @@ const filteredTasks = tasks.filter((task) => {
           <div>
             <p className="task-title">{task.contacted_person?.name}</p>
             <p className="task-subtitle">{task.name}</p>
-            <p className="task-email">{task.contacted_person?.email}</p>
+           
           </div>
           <div className="task-meta">
            <span
-            className={`status ${task.status} ${task.status === "In Progress" ? "editable" : ""}`}
+            className={`status ${task.status} ${task.status === "Awaiting task" ? "editable" : ""}`}
             onClick={() => {
-              if (task.status === "In Progress") {
+              if (task.status === "Awaiting task") {
                 setSelectedTask(task);
                 setTaskData({
                   taskType: task.taskType || "",

@@ -85,6 +85,47 @@
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
+.recipient-field {
+  position: relative; /* anchor dropdown to this field */
+  display: flex;
+  flex-direction: column;
+}
+
+.recipient-field input {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: 100%; /* sit right below the input */
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #dcdcdc;
+  border-radius: 6px;
+  margin-top: 4px; /* small gap below input */
+  max-height: 200px; /* scroll if too many */
+  overflow-y: auto;
+  z-index: 1000; /* ensure it floats above */
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  text-align: start;
+}
+
+.autocomplete-list li {
+  /* padding: 8px 12px; */
+  list-style: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.autocomplete-list li:hover {
+  background: #f2f2f2;
+}
+
 /* ===================== */
 /* Task Actions Container */
 /* ===================== */
