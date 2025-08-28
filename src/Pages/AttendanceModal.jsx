@@ -11,16 +11,17 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
   const [searchName, setSearchName] = useState("");
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
-  const BACKEND_URL = import.meta.env.BACKEND_URL;
+ 
   // Generic fetch function
   const fetchPeople = async (filter = "", setter = setPeople) => {
+     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (filter) params.append("name", filter);
       params.append("perPage", "100");
 
-      const res = await fetch(`${import.meta.env.BACKEND_URL}/people?${params.toString()}`);
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/people?${params.toString()}`);
       const data = await res.json();
 
       if (data && data.people) {
