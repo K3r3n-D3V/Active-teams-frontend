@@ -17,7 +17,7 @@ export default function DailyTasks() {
   const [filterType, setFilterType] = useState("all");
   const [currentDay, setCurrentDay] = useState(dayjs().format("YYYY-MM-DD"));
 
-  const API_URL = "http://127.0.0.1:8000/tasks";
+  const API_URL = `${import.meta.env.VITE_BACKEND_URL}/tasks`;
 
   // ✅ Helper to format datetime for <input type="datetime-local">
   const getCurrentDateTime = () => {
@@ -45,7 +45,7 @@ export default function DailyTasks() {
     return;
   }
   try {
-    const res = await axios.get(`http://localhost:8000/people`, {
+    const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/people`, {
       params: { page: 1, perPage: 10, name: q },
     });
     setSearchResults(res.data.results);

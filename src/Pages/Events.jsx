@@ -23,7 +23,7 @@ const Events = () => {
 
   useEffect(() => {
     axios
-      .get("http://localhost:8000/events") // backend returns only open events
+      .get(`${import.meta.env.VITE_BACKEND_URL}/events`) // backend returns only open events
       .then((res) => {
         const sortedEvents = res.data.events.sort(
           (a, b) => new Date(b.date) - new Date(a.date)
@@ -77,7 +77,7 @@ const Events = () => {
           closedAt: `${formattedDate}, ${formattedTime}`,
         });
 
-        await axios.put(`http://localhost:8000/events/${eventId}`, { status: "closed" });
+        await axios.put(`${import.meta.env.VITE_BACKEND_URL}/events/${eventId}`, { status: "closed" });
 
       } else if (Array.isArray(data) && data.length > 0) {
         saveToEventHistory({
@@ -88,7 +88,7 @@ const Events = () => {
           attendees: data,
         });
 
-        await axios.patch(`http://localhost:8000/allevents/${eventId}`, {
+        await axios.patch(`${import.meta.env.VITE_BACKEND_URL}/allevents/${eventId}`, {
           attendees: data,
           did_not_meet: false,
         });
@@ -123,7 +123,7 @@ const Events = () => {
   const handleDeleteEvent = async () => {
     if (!currentEvent) return;
     try {
-      await axios.delete(`http://localhost:8000/events/${currentEvent._id}`);
+      await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/events/${currentEvent._id}`);
       setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
     } catch (err) {
       console.error("Failed to delete event:", err);

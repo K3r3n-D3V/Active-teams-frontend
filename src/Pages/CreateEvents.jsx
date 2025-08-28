@@ -37,7 +37,7 @@ const CreateEvents = () => {
 
   useEffect(() => {
     if (eventId) {
-      axios.get(`http://localhost:8000/events/${eventId}`)
+      axios.get(`${import.meta.env.VITE_BACKEND_URL}/events/${eventId}`)
         .then(res => {
           const data = res.data;
           if (data.date) {
@@ -129,9 +129,9 @@ const CreateEvents = () => {
       else delete payload.price;
 
       if (eventId) {
-        await axios.put(`http://localhost:8000/events/${eventId}`, payload);
+        await axios.put(`${import.meta.env.VITE_BACKEND_URL}/events/${eventId}`, payload);
       } else {
-        await axios.post("http://localhost:8000/event", payload);
+        await axios.post(`${import.meta.env.VITE_BACKEND_URL}/event`, payload);
       }
 
       setSuccessMessage(isCell ? `The ${formData.eventName} Cell has been created successfully!`
