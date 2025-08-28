@@ -158,8 +158,8 @@ function App() {
         <Sidebar mode={mode} setMode={setMode} />
         <div style={{ flexGrow: 1 }}>
           <Routes>
-            <Route path="/" element={<Login title="Login" />} />
-            <Route path="/home" element={<Home />} />
+            <Route path="/login" element={<Login title="Login" />} />
+            <Route path="/" element={<Home />} />
             <Route path="/signup" element={<Signup title="Signup" />} />
             <Route path="/profile" element={<Profile title="Profile" />} />
             <Route path="/people" element={<People title="People" />} />

@@ -281,7 +281,7 @@ const Login = ({ mode, setMode }) => {
       await login(form.email, form.password);
       setSuccess("Login successful!");
       setForm(initialForm);
-      navigate("/home");
+      navigate("/");
     } catch (err) {
       setError(err.message || "Login failed.");
     } finally {
