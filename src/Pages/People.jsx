@@ -154,14 +154,14 @@ export const PeopleSection = () => {
   const [editingPerson, setEditingPerson] = useState(null);
   const [formData, setFormData] = useState({ name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '', invitedBy: '', gender: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   // Fetch ALL people
   useEffect(() => {
     const fetchPeople = async () => {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+      
       setLoading(true);
       try {
-        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/people`);
+        const res = await axios.get(`${BACKEND_URL}/people`)
         const data = Array.isArray(res.data?.results) ? res.data.results.map(p => ({
           _id: p._id,
           name: p.Name || "",
@@ -212,10 +212,10 @@ const handleSavePerson = async (data) => {
     let res;
     if (editingPerson && editingPerson._id) {
       // Update existing person
-      res = await axios.put(`${import.meta.env.VITE_BACKEND_URL}/people/${editingPerson._id}`, data);
+      res = await axios.put(`${BACKEND_URL}/people/${editingPerson._id}`, data);
     } else {
       // Create new person
-      res = await axios.post('${import.meta.env.VITE_BACKEND_URL}/people', data);
+      res = await axios.post(`${BACKEND_URL}/people`, data);
     }
 
     const savedPerson = res.data;
@@ -242,7 +242,7 @@ const handleSavePerson = async (data) => {
 // Delete
 const handleDeletePerson = async (id) => {
   try {
-    await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/people/${id}`);
+    await axios.delete(`${BACKEND_URL}/people/${id}`);
     setPeople(prev => prev.filter(p => p._id !== id));
     setSnackbar({ open: true, message: 'Person deleted successfully', severity: 'success' });
   } catch (err) {

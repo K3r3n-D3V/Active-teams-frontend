@@ -34,10 +34,10 @@ const CreateEvents = () => {
   });
 
   const [errors, setErrors] = useState({});
-
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   useEffect(() => {
     if (eventId) {
-      axios.get(`${import.meta.env.VITE_BACKEND_URL}/events/${eventId}`)
+      axios.get(`${BACKEND_URL}/events/${eventId}`)
         .then(res => {
           const data = res.data;
           if (data.date) {
@@ -129,9 +129,9 @@ const CreateEvents = () => {
       else delete payload.price;
 
       if (eventId) {
-        await axios.put(`${import.meta.env.VITE_BACKEND_URL}/events/${eventId}`, payload);
+        await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
       } else {
-        await axios.post(`${import.meta.env.VITE_BACKEND_URL}/event`, payload);
+        await axios.post(`${BACKEND_URL}/event`, payload);
       }
 
       setSuccessMessage(isCell ? `The ${formData.eventName} Cell has been created successfully!`

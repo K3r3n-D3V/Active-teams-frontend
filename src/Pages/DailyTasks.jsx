@@ -83,7 +83,7 @@ const handleRecipientChange = (e) => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(API_URL);
+      const res = await axios.get(`${BACKEND_URL}/tasks`);
       setTasks(res.data);
     } catch (err) {
       console.error("Error fetching tasks:", err);

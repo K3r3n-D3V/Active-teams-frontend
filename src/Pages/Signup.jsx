@@ -42,7 +42,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const validate = () => {
     const newErrors = {};
     if (!form.name.trim()) newErrors.name = "Name is required";
@@ -79,9 +78,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
     // Exclude confirm_password before sending data to backend
     const { confirm_password, ...submitData } = form;
+    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/signup`, {
+      const res = await fetch(`${BACKEND_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(submitData),

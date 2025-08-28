@@ -12,7 +12,6 @@ import MenuItem from "@mui/material/MenuItem";
 const Events = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const [showFilter, setShowFilter] = useState(false);
   const [filterType, setFilterType] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,10 +19,11 @@ const Events = () => {
   const [events, setEvents] = useState([]);
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentEvent, setCurrentEvent] = useState(null);
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
   useEffect(() => {
     axios
-      .get(`${import.meta.env.VITE_BACKEND_URL}/events`) // backend returns only open events
+      .get(`${BACKEND_URL}/events`) // backend returns only open events
       .then((res) => {
         const sortedEvents = res.data.events.sort(
           (a, b) => new Date(b.date) - new Date(a.date)
@@ -77,7 +77,7 @@ const Events = () => {
           closedAt: `${formattedDate}, ${formattedTime}`,
         });
 
-        await axios.put(`${import.meta.env.VITE_BACKEND_URL}/events/${eventId}`, { status: "closed" });
+        await axios.put(`${BACKEND_URL}/events/${eventId}`, { status: "closed" });
 
       } else if (Array.isArray(data) && data.length > 0) {
         saveToEventHistory({
@@ -88,7 +88,7 @@ const Events = () => {
           attendees: data,
         });
 
-        await axios.patch(`${import.meta.env.VITE_BACKEND_URL}/allevents/${eventId}`, {
+        await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
           attendees: data,
           did_not_meet: false,
         });
