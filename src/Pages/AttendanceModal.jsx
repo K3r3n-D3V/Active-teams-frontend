@@ -21,7 +21,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
       if (filter) params.append("name", filter);
       params.append("perPage", "100");
 
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/people?${params.toString()}`);
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
       const data = await res.json();
 
       if (data && data.people) {

@@ -194,76 +194,79 @@ export const PeopleSection = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 100;
 
-  const fetchPeople = async () => {
-    setLoading(true);
-    try {
-      const res = await axios.get('http://localhost:8000/people?perPage=0');
-      const data = Array.isArray(res.data?.results) ? res.data.results.map(p => ({
-        _id: p._id,
-        name: p.Name || "",
-        surname: p.Surname || "",
-        gender: p.Gender || "",
-        dob: p.DateOfBirth || "",
-        location: p.Location || "",
-        email: p.Email || "",
-        phone: p.Phone || "",
-        homeAddress: p.HomeAddress || "",
-        stage: p.Stage || "Win",
-        lastUpdated: p.UpdatedAt || null,
-        cellLeader: p.Leader || ""
-      })) : [];
-      setPeople(data);
-    } catch (err) {
-      console.error('Error fetching people:', err);
-      setSnackbar({ open: true, message: 'Failed to load people', severity: 'error' });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-  useEffect(() => { fetchPeople(); }, []);
+// Fetch ALL people
+const fetchPeople = async () => {
+  setLoading(true);
+  try {
+    const res = await axios.get(`${BACKEND_URL}/people?perPage=0`);
+    const data = Array.isArray(res.data?.results)
+      ? res.data.results.map(p => ({
+          _id: p._id,
+          name: p.Name || "",
+          surname: p.Surname || "",
+          gender: p.Gender || "",
+          dob: p.DateOfBirth || "",
+          location: p.Location || "",
+          email: p.Email || "",
+          phone: p.Phone || "",
+          homeAddress: p.HomeAddress || "",
+          stage: p.Stage || "Win",
+          lastUpdated: p.UpdatedAt || null,
+          cellLeader: p.Leader || ""
+        }))
+      : [];
+    setPeople(data);
+  } catch (err) {
+    console.error('Error fetching people:', err);
+    setSnackbar({ open: true, message: 'Failed to load people', severity: 'error' });
+  } finally {
+    setLoading(false);
+  }
+};
+
+useEffect(() => { fetchPeople(); }, []);
 
 const filteredPeople = useMemo(() => {
-  const search = searchTerm.toLowerCase().trim().split(/\s+/); // split search into words
+  const search = searchTerm.toLowerCase().trim().split(/\s+/);
   return people.filter(p => {
     const fullName = `${p.name} ${p.surname}`.toLowerCase();
     const leader = p.cellLeader?.toLowerCase() || "";
-
-    // Check if every word in the search exists in either full name or leader
     return search.every(word =>
       fullName.includes(word) || leader.includes(word)
     );
   });
 }, [people, searchTerm]);
 
-  // Reset page if filtered list is shorter
-  useEffect(() => {
-    if (currentPage > Math.ceil(filteredPeople.length / pageSize)) setCurrentPage(1);
-  }, [filteredPeople]);
+// Reset page if filtered list is shorter
+useEffect(() => {
+  if (currentPage > Math.ceil(filteredPeople.length / pageSize)) setCurrentPage(1);
+}, [filteredPeople]);
 
-  const handleDragEnd = async ({ destination, source, draggableId }) => {
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+const handleDragEnd = async ({ destination, source, draggableId }) => {
+  if (!destination) return;
+  if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-    setPeople(prev => {
-      const idx = prev.findIndex(p => p._id === draggableId);
-      if (idx === -1) return prev;
-      const movingPerson = { ...prev[idx], stage: destination.droppableId };
-      const updatedList = [...prev];
-      updatedList.splice(idx, 1);
-      updatedList.splice(destination.index, 0, movingPerson);
-      return updatedList;
-    });
+  setPeople(prev => {
+    const idx = prev.findIndex(p => p._id === draggableId);
+    if (idx === -1) return prev;
+    const movingPerson = { ...prev[idx], stage: destination.droppableId };
+    const updatedList = [...prev];
+    updatedList.splice(idx, 1);
+    updatedList.splice(destination.index, 0, movingPerson);
+    return updatedList;
+  });
 
-    try {
-      await axios.post("http://localhost:8000/people", { _id: draggableId, Stage: destination.droppableId });
-      setSnackbar({ open: true, message: "Stage updated successfully", severity: "success" });
-    } catch (err) {
-      console.error("Error updating stage:", err);
-      setSnackbar({ open: true, message: "Failed to update stage", severity: "error" });
-      fetchPeople();
-    }
-  };
+  try {
+    await axios.post(`${BACKEND_URL}/people`, { _id: draggableId, Stage: destination.droppableId });
+    setSnackbar({ open: true, message: "Stage updated successfully", severity: "success" });
+  } catch (err) {
+    console.error("Error updating stage:", err);
+    setSnackbar({ open: true, message: "Failed to update stage", severity: "error" });
+    fetchPeople();
+  }
+};
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>

@@ -37,9 +37,8 @@ export default function DailyTasks() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(API_URL);
-      const taskArray = Array.isArray(res.data) ? res.data : res.data.tasks || [];
-      setTasks(taskArray);
+      const res = await axios.get(`${BACKEND_URL}/tasks`);
+      setTasks(res.data);
     } catch (err) {
       console.error("Error fetching tasks:", err);
       setTasks([]);
