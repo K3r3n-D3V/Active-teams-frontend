@@ -25,7 +25,6 @@ const Events = () => {
     axios
       .get("http://localhost:8000/events") // backend returns only open events
       .then((res) => {
-        // Sort by newest first
         const sortedEvents = res.data.events.sort(
           (a, b) => new Date(b.date) - new Date(a.date)
         );
@@ -36,10 +35,7 @@ const Events = () => {
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
-    if (isNaN(dateObj.getTime())) {
-      console.warn("Invalid date for event:", date);
-      return "Date not set";
-    }
+    if (isNaN(dateObj.getTime())) return "Date not set";
     const options = { weekday: "short", year: "numeric", month: "short", day: "numeric" };
     const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
     return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
@@ -81,7 +77,6 @@ const Events = () => {
           closedAt: `${formattedDate}, ${formattedTime}`,
         });
 
-        // Update backend to mark event closed
         await axios.put(`http://localhost:8000/events/${eventId}`, { status: "closed" });
 
       } else if (Array.isArray(data) && data.length > 0) {
@@ -99,9 +94,7 @@ const Events = () => {
         });
       }
 
-      // Remove from frontend state
       setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
-
       setIsModalOpen(false);
       setSelectedEvent(null);
       navigate("/history");
@@ -112,7 +105,6 @@ const Events = () => {
 
   const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
 
-  // --- Menu Handlers ---
   const handleMenuOpen = (event, eventData) => {
     setAnchorEl(event.currentTarget);
     setCurrentEvent(eventData);
@@ -124,20 +116,17 @@ const Events = () => {
   };
 
   const handleEditEvent = () => {
-    if (currentEvent) {
-      navigate(`/edit-event/${currentEvent._id}`);
-    }
+    if (currentEvent) navigate(`/edit-event/${currentEvent._id}`);
     handleMenuClose();
   };
 
-  const handleDeleteEvent = () => {
-    if (currentEvent) {
-      axios
-        .delete(`http://localhost:8000/events/${currentEvent._id}`)
-        .then(() => {
-          setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
-        })
-        .catch((err) => console.error("Failed to delete event:", err));
+  const handleDeleteEvent = async () => {
+    if (!currentEvent) return;
+    try {
+      await axios.delete(`http://localhost:8000/events/${currentEvent._id}`);
+      setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
+    } catch (err) {
+      console.error("Failed to delete event:", err);
     }
     handleMenuClose();
   };
@@ -147,16 +136,10 @@ const Events = () => {
       {/* Header */}
       <div style={{ ...styles.header, backgroundColor: theme.palette.background.paper }}>
         <div style={styles.headerLeft}>
-          <button
-            style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }}
-            onClick={() => navigate("/create-events")}
-          >
+          <button style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }} onClick={() => navigate("/create-events")}>
             + NEW EVENT
           </button>
-          <button
-            style={{ ...styles.button, ...styles.btnFilter, marginRight: "25px" }}
-            onClick={() => setShowFilter(true)}
-          >
+          <button style={{ ...styles.button, ...styles.btnFilter, marginRight: "25px" }} onClick={() => setShowFilter(true)}>
             FILTER EVENTS
           </button>
         </div>
@@ -192,15 +175,8 @@ const Events = () => {
               <option value="service">Service</option>
             </select>
             <div style={{ marginTop: "1rem" }}>
-              <button style={{ ...styles.button, ...styles.btnNewEvent }} onClick={() => setShowFilter(false)}>
-                Apply
-              </button>
-              <button
-                style={{ ...styles.button, ...styles.btnFilter, marginLeft: "10px" }}
-                onClick={() => setShowFilter(false)}
-              >
-                Close
-              </button>
+              <button style={{ ...styles.button, ...styles.btnNewEvent }} onClick={() => setShowFilter(false)}>Apply</button>
+              <button style={{ ...styles.button, ...styles.btnFilter, marginLeft: "10px" }} onClick={() => setShowFilter(false)}>Close</button>
             </div>
           </div>
         </div>
@@ -211,9 +187,7 @@ const Events = () => {
         {filteredEvents.map((event) => (
           <div key={event._id} style={styles.eventCard}>
             <div style={styles.eventHeader}>
-              <h3 style={styles.eventTitle}>
-                {event.eventName || event.service_name || "Untitled Event"}
-              </h3>
+              <h3 style={styles.eventTitle}>{event.eventName || event.service_name || "Untitled Event"}</h3>
 
               {/* Edit/Delete Menu */}
               <div>
@@ -230,45 +204,47 @@ const Events = () => {
                 </Menu>
               </div>
 
-              <span
-                style={{
-                  ...styles.eventBadge,
-                  backgroundColor:
-                    event.eventType?.toLowerCase() === "cell"
-                      ? "#007bff"
-                      : event.eventType?.toLowerCase() === "conference"
-                      ? "#e91e63"
-                      : event.eventType?.toLowerCase() === "service"
-                      ? "#28a745"
-                      : "#6c757d",
-                }}
-              >
+              <span style={{
+                ...styles.eventBadge,
+                backgroundColor:
+                  event.eventType?.toLowerCase() === "cell" ? "#007bff" :
+                  event.eventType?.toLowerCase() === "conference" ? "#e91e63" :
+                  event.eventType?.toLowerCase() === "service" ? "#28a745" : "#6c757d",
+              }}>
                 {capitalize(event.eventType) || "Unknown"}
               </span>
             </div>
+
             <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
             <p style={styles.eventLocation}>{event.location || "Location not specified"}</p>
 
-            {/* ✅ Ticketed event price display */}
-            {event.isTicketed && event.price && (
-              <p style={styles.eventPrice}>Price: R{event.price}</p>
+            {event.isTicketed && event.price && <p style={styles.eventPrice}>Price: R{event.price}</p>}
+
+            {/* Show recurring days if any */}
+            {event.recurringDays && event.recurringDays.length > 0 && (
+              <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
+                {event.recurringDays.map((day, idx) => (
+                  <span key={idx} style={{ backgroundColor: "#6c757d", color: "#fff", padding: "4px 8px", borderRadius: "6px", fontSize: "0.8rem" }}>
+                    {day}
+                  </span>
+                ))}
+              </div>
             )}
 
             <div style={styles.eventActions}>
-              <button style={{ ...styles.actionBtn, ...styles.captureBtn }} onClick={() => handleCaptureClick(event)}>
-                Capture
-              </button>
-             <button
-  style={{
-    ...styles.actionBtn,
-    ...styles.paymentBtn,
-    ...(event.eventType === "cell" || event.eventType === "service" ? styles.disabledBtn : {}),
-  }}
-  disabled={event.eventType === "cell" || event.eventType === "service"}
->
-  {event.eventType === "cell" || event.eventType === "service" ? "No Payment" : "Payment"}
-</button>
+              <button style={{ ...styles.actionBtn, ...styles.captureBtn }} onClick={() => handleCaptureClick(event)}>Capture</button>
 
+              <button
+                style={{
+                  ...styles.actionBtn,
+                  ...styles.paymentBtn,
+                  ...(event.isTicketed ? {} : styles.disabledBtn),
+                }}
+                disabled={!event.isTicketed}
+                onClick={() => event.isTicketed && navigate(`/payment/${event._id}`)}
+              >
+                {event.isTicketed ? "Payment" : "No Payment"}
+              </button>
             </div>
           </div>
         ))}
@@ -280,14 +256,14 @@ const Events = () => {
       </button>
 
       {/* Attendance Modal */}
-     {selectedEvent && (
-  <AttendanceModal
-    isOpen={isModalOpen}
-    onClose={() => setIsModalOpen(false)}
-    event={selectedEvent}
-    onSubmit={handleAttendanceSubmit}
-  />
-)}
+      {selectedEvent && (
+        <AttendanceModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          event={selectedEvent}
+          onSubmit={handleAttendanceSubmit}
+        />
+      )}
     </div>
   );
 };
@@ -308,12 +284,12 @@ const styles = {
   eventBadge: { fontSize: "0.75rem", fontWeight: 600, padding: "0.25rem 0.75rem", borderRadius: "50px", color: "#fff", textTransform: "uppercase", whiteSpace: "nowrap" },
   eventDate: { margin: "0.25rem 0", fontSize: "1rem", color: "#495057" },
   eventLocation: { margin: "0.25rem 0", fontSize: "0.95rem", color: "#6c757d" },
-  eventPrice: { margin: "0.25rem 0", fontSize: "0.95rem", color: "#28a745", fontWeight: 600 },
+  eventPrice: { margin: "0.25rem 0", fontSize: "0.95rem", color: "#000000", fontWeight: 600 },
   eventActions: { marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" },
   actionBtn: { flex: 1, padding: "0.5rem 1rem", border: "none", borderRadius: "8px", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem" },
   captureBtn: { backgroundColor: "#000", color: "#fff" },
-  paymentBtn: { backgroundColor: "#e9ecef", color: "#6c757d" },
-  disabledBtn: { opacity: 0.6, cursor: "not-allowed" },
+  paymentBtn: { backgroundColor: "#007bff", color: "#fff" },
+  disabledBtn: { opacity: 0.6, cursor: "not-allowed", backgroundColor: "#e9ecef", color: "#6c757d" },
   popupOverlay: { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 999 },
   popupContent: { background: "#fff", padding: "2rem", borderRadius: "12px", width: "300px", textAlign: "center" },
   selectBox: { width: "100%", padding: "0.5rem", borderRadius: "6px", marginTop: "1rem" },
