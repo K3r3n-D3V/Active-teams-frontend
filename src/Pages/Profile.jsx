@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -32,7 +33,8 @@ const carouselTexts = [
 export default function Profile() {
   const theme = useTheme();
   const isMdUp = useMediaQuery(theme.breakpoints.up("md"));
-  const { user, setUser, profilePic, setProfilePic } = useContext(UserContext);
+  const navigate = useNavigate();
+  const { userProfile, setUserProfile, profilePic, setProfilePic, clearUserData } = useContext(UserContext);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -41,14 +43,14 @@ export default function Profile() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
   const [form, setForm] = useState({
-    name: "Kevin",
-    surname: "Cyberg",
-    dob: "2024-03-18", // ISO format for date input
-    email: "kavas1908@cybtric.co.za",
-    address: "107 Graig Street Melrose",
-    phone: "073 668 1055",
-    invitedBy: "Nash Bobo Mbakumuna",
-    gender: "Male",
+    name: userProfile?.name || "",
+    surname: userProfile?.surname || "",
+    dob: userProfile?.date_of_birth || "",
+    email: userProfile?.email || "",
+    address: userProfile?.home_address || "",
+    phone: userProfile?.phone_number || "",
+    invitedBy: userProfile?.invited_by || "",
+    gender: userProfile?.gender || "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
@@ -68,6 +70,25 @@ export default function Profile() {
     }, 3000);
     return () => clearInterval(timer);
   }, []);
+
+  // Update form when userProfile changes
+  useEffect(() => {
+    if (userProfile) {
+      setForm({
+        name: userProfile.name || "",
+        surname: userProfile.surname || "",
+        dob: userProfile.date_of_birth || "",
+        email: userProfile.email || "",
+        address: userProfile.home_address || "",
+        phone: userProfile.phone_number || "",
+        invitedBy: userProfile.invited_by || "",
+        gender: userProfile.gender || "",
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+    }
+  }, [userProfile]);
 
   const validate = () => {
     const newErrors = {};
@@ -117,6 +138,19 @@ export default function Profile() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validate()) {
+      // Update user profile in context
+      const updatedProfile = {
+        name: form.name,
+        surname: form.surname,
+        date_of_birth: form.dob,
+        email: form.email,
+        home_address: form.address,
+        phone_number: form.phone,
+        invited_by: form.invitedBy,
+        gender: form.gender,
+      };
+      setUserProfile(updatedProfile);
+      
       setSnackbar({
         open: true,
         message: "Profile updated successfully!",
@@ -182,47 +216,53 @@ export default function Profile() {
           );
         })}
 
-        {/* Profile pic overlapping top half */}
-        <Box
-          sx={{
-            position: "absolute",
-            bottom: -60, // half of avatar height (~120/2)
-            left: "20%",
-            transform: "translateX(-50%)",
-            width: 120,
-            height: 120,
-            borderRadius: "50%",
-            overflow: "hidden",
-            boxShadow: "0 0 12px rgba(0,0,0,0.3)",
-            border: "4px solid white",
-            bgcolor: "#e8a6a4",
-            zIndex: 10,
-            cursor: "pointer", // Make it clickable to trigger file input
-          }}
-          onClick={() =>
-            document.getElementById("profile-image-upload").click()
-          } // Triggers file input on click
-        >
-          <Avatar
-            src={profilePic}
-            alt="Profile Picture"
-            sx={{
-              width: "100%",
-              height: "200%",
-              position: "relative",
-              top: "-50%",
-            }}
-          />
-        </Box>
+        {/* Profile pic overlapping top half - only show when user has profile */}
+        {userProfile && (
+          <>
+            <Box
+              sx={{
+                position: "absolute",
+                bottom: -60, // half of avatar height (~120/2)
+                left: "20%",
+                transform: "translateX(-50%)",
+                width: 120,
+                height: 120,
+                borderRadius: "50%",
+                overflow: "hidden",
+                boxShadow: "0 0 12px rgba(0,0,0,0.3)",
+                border: "4px solid white",
+                bgcolor: "#e8a6a4",
+                zIndex: 10,
+                cursor: "pointer", // Make it clickable to trigger file input
+              }}
+              onClick={() =>
+                document.getElementById("profile-image-upload").click()
+              } // Triggers file input on click
+            >
+              <Avatar
+                src={profilePic}
+                alt="Profile Picture"
+                sx={{
+                  width: "100%",
+                  height: "200%",
+                  position: "relative",
+                  top: "-50%",
+                }}
+              >
+                {!profilePic && userProfile && `${userProfile.name?.charAt(0)}${userProfile.surname?.charAt(0)}`}
+              </Avatar>
+            </Box>
 
-        {/* Hidden file input to update the profile picture */}
-        <input
-          id="profile-image-upload"
-          hidden
-          accept="image/*"
-          type="file"
-          onChange={onFileChange}
-        />
+            {/* Hidden file input to update the profile picture */}
+            <input
+              id="profile-image-upload"
+              hidden
+              accept="image/*"
+              type="file"
+              onChange={onFileChange}
+            />
+          </>
+        )}
       </Box>
 
       {/* Form Section */}
@@ -242,151 +282,153 @@ export default function Profile() {
         autoComplete="off"
       >
         <Typography variant="h5" sx={{ fontWeight: "bold", mb: 3 }}>
-          {form.name} {form.surname}
+          {userProfile ? `${userProfile.name} ${userProfile.surname}` : "Profile"}
         </Typography>
         <Typography variant="body2" sx={{ mb: 3 }}>
-          You can edit your profile right here.
+          {userProfile ? "Welcome! You can edit your profile right here." : "Please sign up to view your profile."}
         </Typography>
 
-        <Grid container spacing={4}>
-          {[
-            { label: "Name", field: "name" },
-            { label: "Surname", field: "surname" },
-            { label: "Date Of Birth", field: "dob", type: "date" },
-            { label: "Email Address", field: "email" },
-            {
-              label: "Home Address",
-              field: "address",
-              multiline: true,
-              rows: 2,
-            },
-            { label: "Phone Number", field: "phone" },
-            { label: "Invited By", field: "invitedBy" },
-            { label: "Gender", field: "gender" },
-          ].map(({ label, field, type, multiline, rows }) => (
-            <Grid item xs={12} sm={6} key={field}>
-              <TextField
-                label={label}
-                value={form[field]}
-                onChange={handleChange(field)}
-                fullWidth
-                size="small"
+        {!userProfile ? (
+          <Box sx={{ textAlign: "center", py: 4 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              No profile data available
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={() => navigate("/signup")}
+              sx={{ bgcolor: "black", color: "white" }}
+            >
+              Sign Up
+            </Button>
+          </Box>
+        ) : (
+          <>
+            <Grid container spacing={4}>
+              {[
+                { label: "Name", field: "name" },
+                { label: "Surname", field: "surname" },
+                { label: "Date Of Birth", field: "dob", type: "date" },
+                { label: "Email Address", field: "email" },
+                {
+                  label: "Home Address",
+                  field: "address",
+                  multiline: true,
+                  rows: 2,
+                },
+                { label: "Phone Number", field: "phone" },
+                { label: "Invited By", field: "invitedBy" },
+                { label: "Gender", field: "gender" },
+              ].map(({ label, field, type, multiline, rows }) => (
+                <Grid item xs={12} sm={6} key={field}>
+                  <TextField
+                    label={label}
+                    value={form[field]}
+                    onChange={handleChange(field)}
+                    fullWidth
+                    size="small"
+                    variant="outlined"
+                    type={type || "text"}
+                    multiline={multiline || false}
+                    rows={rows || 1}
+                    sx={{
+                      borderRadius: 2,
+                      bgcolor: "background.paper",
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                    InputLabelProps={type === "date" ? { shrink: true } : undefined}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+
+            <Box sx={{ mt: 5 }}>
+              <Typography sx={{ mb: 1 }}>
+                Please enter your current password to change your password
+              </Typography>
+
+              <Grid container spacing={4}>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    label="Current Password"
+                    value={form.currentPassword}
+                    onChange={handleChange("currentPassword")}
+                    type="password"
+                    fullWidth
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    label="New Password"
+                    value={form.newPassword}
+                    onChange={handleChange("newPassword")}
+                    type="password"
+                    fullWidth
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    label="Confirm Password"
+                    value={form.confirmPassword}
+                    onChange={handleChange("confirmPassword")}
+                    error={!!errors.confirmPassword}
+                    helperText={errors.confirmPassword}
+                    type="password"
+                    fullWidth
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+            <Box sx={{ mt: 5, display: "flex", gap: 2, maxWidth: 500 }}>
+              <Button
                 variant="outlined"
-                type={type || "text"}
-                multiline={multiline || false}
-                rows={rows || 1}
+                disabled
                 sx={{
-                  borderRadius: 2,
-                  bgcolor: "background.paper",
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: 2,
-                  },
+                  flex: 1,
+                  color: "text.disabled",
+                  borderColor: "text.disabled",
                 }}
-                InputLabelProps={type === "date" ? { shrink: true } : undefined}
-              />
-            </Grid>
-          ))}
-        </Grid>
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                sx={{ flex: 1, bgcolor: "black", color: "white" }}
+                type="submit"
+              >
+                Update Profile
+              </Button>
+              <Button
+                variant="contained"
+                sx={{ flex: 1, bgcolor: "black", color: "white"  }}
+                onClick={() => {
+                  // Clear all user data
+                  clearUserData();
 
-        <Box sx={{ mt: 5 }}>
-          <Typography sx={{ mb: 1 }}>
-            Please enter your current password to change your password
-          </Typography>
-
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="Current Password"
-                value={form.currentPassword}
-                onChange={handleChange("currentPassword")}
-                type="password"
-                fullWidth
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="New Password"
-                value={form.newPassword}
-                onChange={handleChange("newPassword")}
-                type="password"
-                fullWidth
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="Confirm Password"
-                value={form.confirmPassword}
-                onChange={handleChange("confirmPassword")}
-                error={!!errors.confirmPassword}
-                helperText={errors.confirmPassword}
-                type="password"
-                fullWidth
-              />
-            </Grid>
-          </Grid>
-        </Box>
-        <Box sx={{ mt: 5, display: "flex", gap: 2, maxWidth: 500 }}>
-          <Button
-            variant="outlined"
-            disabled
-            sx={{
-              flex: 1,
-              color: "text.disabled",
-              borderColor: "text.disabled",
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            sx={{ flex: 1, bgcolor: "black", color: "white" }}
-            type="submit"
-          >
-            Change Password
-          </Button>
-          <Button
-            variant="contained"
-            sx={{ flex: 1, bgcolor: "black", color: "white"  }}
-            onClick={async () => {
-              try {
-                if (user?._id) {
-                  await axios.post("http://localhost:8000/logout", {
-                    user_id: user._id,
+                  // Show snackbar
+                  setSnackbar({
+                    open: true,
+                    message: "Logged out successfully!",
+                    severity: "info",
                   });
-                }
 
-                // Clear UserContext state
-                setUser(null);
-                setProfilePic(null);
-
-                // Show snackbar
-                setSnackbar({
-                  open: true,
-                  message: "Logged out successfully!",
-                  severity: "info",
-                });
-
-                // Redirect to login
-                navigate("/login");
-              } catch (error) {
-                console.error("Logout failed:", error);
-                setSnackbar({
-                  open: true,
-                  message: "Logout failed",
-                  severity: "error",
-                });
-              }
-            }}
-          >
-          <LogoutIcon fontSize="small" />
-          </Button>
-        </Box>
+                  // Redirect to login
+                  navigate("/login");
+                }}
+              >
+                <LogoutIcon fontSize="small" />
+                Logout
+              </Button>
+            </Box>
+          </>
+        )}
       </Box>
 
-      {/* Cropper Modal */}
-      {croppingOpen && (
+      {/* Cropper Modal - only show when user has profile */}
+      {croppingOpen && userProfile && (
         <Box
           sx={{
             position: "fixed",
