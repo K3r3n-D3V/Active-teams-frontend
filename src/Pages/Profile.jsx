@@ -468,6 +468,6 @@ export default function Profile() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </>
-  );
+    </>
+  );
 }
