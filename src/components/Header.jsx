@@ -1,137 +1,63 @@
-import React, { useState, useEffect } from "react";
+// components/Home.jsx
+import React, { useState } from "react";
+import EventRegistrationForm from "./EventRegistrationForm";
 
-const slides = [
-  {
-    title: (
-      <>
-        THE <span style={{ fontStyle: "italic", fontSize: "4rem" }}>Active</span> CHURCH
-      </>
-    ),
-    subtitle: (
-      <>
-        We are THE ACTIVE CHURCH
-        <br />
-        A church raising a NEW GENERATION.
-        <br />
-        A generation that will CHANGE THIS NATION.
-        <br />
-        To God be the GLORY
-        <br />
-        Amen.
-      </>
-    ),
-    footer: "– a church that is as alive and vibrant as its name.",
-  },
-  {
-    title: "Raising Kingdom Leaders",
-    subtitle: "Empowering people to lead with love, courage, and vision.",
-    footer: "– serving the next generation of world changers.",
-  },
-  {
-    title: "Community | Worship | Purpose",
-    subtitle: "Join a movement of people growing together in faith and action.",
-    footer: "– more than a church, it’s a family.",
-  },
-];
+export default function Home() {
+  const [openPopup, setOpenPopup] = useState(false);
 
-export default function Header() {
-  const [current, setCurrent] = useState(0);
-  const [fade, setFade] = useState(true);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFade(false); // start fade out
-      setTimeout(() => {
-        setCurrent((prev) => (prev + 1) % slides.length);
-        setFade(true); // fade in
-      }, 300); // fade duration must match CSS
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const sections = [
+    { image: "/banner.jpg" },
+    { image: "/homebanner1.jpg" },
+    { image: "/event.jpg" },
+    { image: "/home.jpg" },
+  ];
 
   return (
     <div style={styles.container}>
-      <div
-        style={{
-          ...styles.slide,
-          opacity: fade ? 1 : 0,
-          transition: "opacity 0.4s ease-in-out",
-        }}
-      >
-        <h1 style={styles.title}>{slides[current].title}</h1>
-        <p style={styles.subtitle}>{slides[current].subtitle}</p>
-        <p style={styles.footer}>{slides[current].footer}</p>
-      </div>
+      {sections.map((sec, index) => (
+        <section
+          key={index}
+          onClick={() => setOpenPopup(true)} 
+          style={{
+            ...styles.section,
+            backgroundImage: `url(${sec.image})`,
+            cursor: "pointer",
+          }}
+        >
+          {/* <h1 style={styles.text}>Click Anywhere to Register</h1> */}
+        </section>
+      ))}
 
-      <div style={styles.indicators}>
-        {slides.map((_, index) => (
-          <span
-            key={index}
-            style={{
-              ...styles.dot,
-              opacity: index === current ? 1 : 0.3,
-            }}
-            onClick={() => {
-              setFade(false);
-              setTimeout(() => {
-                setCurrent(index);
-                setFade(true);
-              }, 300);
-            }}
-          />
-        ))}
-      </div>
+      {/* Registration Popup */}
+      <EventRegistrationForm open={openPopup} onClose={() => setOpenPopup(false)} />
     </div>
   );
 }
 
 const styles = {
   container: {
-    height: "50vh",
-    backgroundColor: "#B9A6D3",
-    color: "#fff",
-    textAlign: "center",
-    padding: "2rem",
+    height: "100vh",
+    overflowY: "scroll",
+    scrollBehavior: "smooth",
+  },
+  section: {
+    height: "100vh",
+    width: "100%",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
     display: "flex",
-    flexDirection: "column",
+    alignItems: "center",
     justifyContent: "center",
-    position: "relative",
-    overflow: "hidden",
+    padding: "20px",
+    boxSizing: "border-box",
+    transition: "0.3s",
   },
-  slide: {
-    maxWidth: "800px",
-    margin: "0 auto",
-  },
-  title: {
-    margin: 0,
-    fontFamily: "serif",
-    fontSize: "3rem",
-  },
-  subtitle: {
-    fontWeight: "bold",
-    marginTop: "1rem",
-    fontSize: "1.1rem",
-    lineHeight: "1.6",
-  },
-  footer: {
-    fontStyle: "italic",
-    color: "#eee",
-    marginTop: "1rem",
-  },
-  indicators: {
-    position: "absolute",
-    bottom: "1.5rem",
-    left: "50%",
-    transform: "translateX(-50%)",
-    display: "flex",
-    gap: "10px",
-  },
-  dot: {
-    width: "10px",
-    height: "10px",
-    backgroundColor: "#fff",
-    borderRadius: "50%",
-    cursor: "pointer",
-    transition: "opacity 0.3s ease",
+  text: {
+    color: "#fff",
+    fontSize: "clamp(1.5rem, 5vw, 3rem)",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    padding: "20px",
+    borderRadius: "10px",
+    textAlign: "center",
   },
 };
