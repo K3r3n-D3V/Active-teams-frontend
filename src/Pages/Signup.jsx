@@ -42,7 +42,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const validate = () => {
     const newErrors = {};
     if (!form.name.trim()) newErrors.name = "Name is required";
@@ -81,7 +81,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
     const { confirm_password, ...submitData } = form;
 
     try {
-      const res = await fetch("http://localhost:8000/signup", {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(submitData),
