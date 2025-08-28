@@ -33,8 +33,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     const fetchPeople = async () => {
       try {
         const response = await axios.get("/api/people");
-        const names = response.data.results.map((person) => person.Name);
-        setPeopleList(names);
+        setPeopleList(response.data.results || []);
       } catch (err) {
         console.error("Failed to fetch people:", err);
         setPeopleList([]);
@@ -58,7 +57,9 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Trim all input and remove spaces for name/surname
+    const newValue = (name === "name" || name === "surname") ? value.replace(/\s+/g, "") : value.trimStart();
+    setFormData((prev) => ({ ...prev, [name]: newValue }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
@@ -68,10 +69,23 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       if (required) {
         const value = formData[name];
         if (!value || (typeof value === "string" && value.trim() === "")) {
-          newErrors[name] = `${label.replace(" :", "")} is required`;
+          newErrors[name] = `${label} is required`;
         }
       }
     });
+
+    // Email format validation
+    if (formData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        newErrors.email = "Enter a valid email address";
+      } else {
+        // Check for duplicate email
+        const duplicate = peopleList.find(p => p.Email === formData.email && p._id !== formData._id);
+        if (duplicate) newErrors.email = "Email already exists";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -82,23 +96,24 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     try {
       const now = new Date().toISOString();
       const payload = {
-        _id: formData._id,  // Include for update
-        Name: formData.name,
-        Surname: formData.surname,
+        _id: formData._id,
+        Name: formData.name.trim(),
+        Surname: formData.surname.trim(),
         DateOfBirth: formData.dob,
-        HomeAddress: formData.homeAddress,
-        Email: formData.email,
-        Phone: formData.phone,
+        HomeAddress: formData.homeAddress.trim(),
+        Email: formData.email.trim(),
+        Phone: formData.phone.trim(),
         Gender: formData.gender,
-        InvitedBy: formData.invitedBy,
-        Leader: formData.invitedBy || formData.cellLeader || "",
+        InvitedBy: formData.invitedBy?.trim() || "",
+        Leader: formData.invitedBy?.trim() || formData.cellLeader || "",
         Stage: formData.stage || "Win",
         CreatedAt: formData._id ? undefined : now,
         UpdatedAt: now,
       };
 
-      // Always POST for both create and update
-      const res = await axios.post("http://localhost:8000/people", payload);
+      const res = formData._id
+        ? await axios.put(`http://localhost:8000/people/${formData._id}`, payload)
+        : await axios.post("http://localhost:8000/people", payload);
 
       onSave(res.data);
       onClose();
@@ -126,10 +141,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         <Autocomplete
           key={name}
           freeSolo
-          options={peopleList}
+          options={peopleList.map(p => p.Name)}
           value={formData[name] || ""}
-          onChange={(e, newValue) => setFormData((prev) => ({ ...prev, invitedBy: newValue }))}
-          onInputChange={(e, newInputValue) => setFormData((prev) => ({ ...prev, invitedBy: newInputValue }))}
+          onChange={(e, newValue) => setFormData((prev) => ({ ...prev, invitedBy: newValue?.trim() }))}
+          onInputChange={(e, newInputValue) => setFormData((prev) => ({ ...prev, invitedBy: newInputValue?.trim() }))}
           renderInput={(params) => (
             <TextField
               {...params}
@@ -171,13 +186,15 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const isFormValid = () => [...leftFields, ...rightFields].every(({ name, required }) => {
     if (!required) return true;
     const val = formData[name];
-    return val !== undefined && val !== null && val.toString().trim() !== "";
+    return val !== undefined && val !== null && val.toString().trim() !== "" && !errors[name];
   });
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", boxShadow: 5, backgroundColor: theme.palette.background.paper } }}>
       <DialogTitle>
-        <Typography variant="h6" fontWeight={600} color={inputText}>Add New Person</Typography>
+        <Typography variant="h6" fontWeight={600} color={inputText}>
+          {formData._id ? "Edit Person" : "Add New Person"}
+        </Typography>
       </DialogTitle>
       <DialogContent>
         <Grid container spacing={3} sx={{ mt: 0.5 }}>
