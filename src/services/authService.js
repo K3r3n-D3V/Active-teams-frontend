@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8000"; // replace with your backend API URL
+const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`; // replace with your backend API URL
 
 export const login = async (email, password) => {
   const response = await fetch(`${API_BASE_URL}/login`, {

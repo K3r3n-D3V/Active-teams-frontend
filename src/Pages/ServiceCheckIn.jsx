@@ -25,7 +25,7 @@ import axios from "axios";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
 function ServiceCheckIn({ currentEvent }) { // ensure you pass the event as a prop
   const [attendees, setAttendees] = useState([]);
