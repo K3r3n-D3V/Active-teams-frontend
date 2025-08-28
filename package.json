@@ -10,11 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-<<<<<<< HEAD
     "@chakra-ui/react": "^3.25.0",
-=======
-    "@aldabil/react-scheduler": "^3.1.2",
->>>>>>> main
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@hello-pangea/dnd": "^18.0.1",
