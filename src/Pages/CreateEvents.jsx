@@ -109,44 +109,67 @@ const CreateEvents = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  e.preventDefault();
+  if (!validateForm()) return;
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    try {
-      const isCell = formData.eventType.toLowerCase().includes("cell");
-      const payload = { ...formData };
+  try {
+    const isCell = formData.eventType.toLowerCase().includes("cell");
+    const payload = { ...formData };
 
-      if (!isCell && payload.date && payload.time) {
-        payload.date = new Date(`${payload.date}T${payload.time}`).toISOString();
-      } else if (isCell) {
-        payload.date = null;
-      }
-      delete payload.time;
+    // ✅ Rename recurringDays to recurring_day for backend compatibility
+    payload.recurring_day = formData.recurringDays;
+    delete payload.recurringDays;
 
-      if (payload.price) payload.price = parseFloat(payload.price);
-      else delete payload.price;
-
-      if (eventId) {
-        await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
-      } else {
-        await axios.post(`${BACKEND_URL}/event`, payload);
-      }
-
-      setSuccessMessage(isCell ? `The ${formData.eventName} Cell has been created successfully!`
-        : (eventId ? "Event updated successfully!" : "Event created successfully!"));
-      setSuccessAlert(true);
-      if (!eventId) resetForm();
-
-      setTimeout(() => navigate("/events"), 1800);
-    } catch (err) {
-      console.error("Error creating/updating event:", err.response || err);
-      setErrorAlert(true);
-    } finally {
-      setIsSubmitting(false);
+    // ✅ Format date-time if not a cell
+    if (!isCell && payload.date && payload.time) {
+      payload.date = new Date(`${payload.date}T${payload.time}`).toISOString();
+    } else if (isCell) {
+      payload.date = null;
     }
-  };
+
+    // ✅ Remove time from payload (already merged into date)
+    delete payload.time;
+
+    // ✅ Handle ticket price
+    if (payload.price) {
+      payload.price = parseFloat(payload.price);
+    } else {
+      delete payload.price;
+    }
+
+    // ✅ Submit: PUT if editing, POST if creating
+    if (eventId) {
+      await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
+    } else {
+      await axios.post(`${BACKEND_URL}/events`, payload);
+    }
+
+    setSuccessMessage(
+      isCell
+        ? `The ${formData.eventName} Cell has been created successfully!`
+        : eventId
+        ? "Event updated successfully!"
+        : "Event created successfully!"
+    );
+    setSuccessAlert(true);
+    if (!eventId) resetForm();
+
+    setTimeout(() => navigate("/events"), 1800);
+  } catch (err) {
+  if (err.response) {
+    console.error("Backend error response:", err.response.data);
+  } else {
+    console.error("Error:", err.message);
+  }
+  setErrorAlert(true);
+}
+ finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 

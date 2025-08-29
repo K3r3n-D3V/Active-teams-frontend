@@ -9,6 +9,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 
+
 const Events = () => {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -21,17 +22,18 @@ const Events = () => {
   const [currentEvent, setCurrentEvent] = useState(null);
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-  useEffect(() => {
-    axios
-      .get(`${BACKEND_URL}/events`) // backend returns only open events
-      .then((res) => {
-        const sortedEvents = res.data.events.sort(
-          (a, b) => new Date(b.date) - new Date(a.date)
-        );
-        setEvents(sortedEvents);
-      })
-      .catch((err) => console.error("Failed to fetch events", err));
-  }, []);
+ useEffect(() => {
+  axios
+    .get(`${BACKEND_URL}/events`)  // backend should return a list of events
+    .then((res) => {
+      const sortedEvents = res.data.events.sort(
+        (a, b) => new Date(b.date) - new Date(a.date)  // sorting events by date
+      );
+      setEvents(sortedEvents);  // updating state with sorted events
+    })
+    .catch((err) => console.error("Failed to fetch events", err));
+}, []);
+
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
@@ -52,56 +54,66 @@ const Events = () => {
   };
 
   const handleAttendanceSubmit = async (data) => {
-    if (!selectedEvent) return;
+  if (!selectedEvent) return;
 
-    const eventId = selectedEvent._id;
-    const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
-    const eventType = selectedEvent.eventType;
+  const eventId = selectedEvent._id;
+  const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
+  const eventType = selectedEvent.eventType;
 
-    try {
-      if (
-        data === "did-not-meet" ||
-        data === "Mark As Did Not Meet" ||
-        (data && data.toString().toLowerCase().includes("did not meet"))
-      ) {
-        const now = new Date();
-        const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-        const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  try {
+    // Remove the event immediately from the events state
+    setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
 
-        saveToEventHistory({
-          eventId,
-          service_name,
-          eventType,
-          status: "did-not-meet",
-          reason: "Marked as did not meet",
-          closedAt: `${formattedDate}, ${formattedTime}`,
-        });
+    // Close modal
+    setIsModalOpen(false);
+    setSelectedEvent(null);
 
-        await axios.put(`${BACKEND_URL}/events/${eventId}`, { status: "closed" });
+    if (
+      data === "did-not-meet" ||
+      data === "Mark As Did Not Meet" ||
+      (data && data.toString().toLowerCase().includes("did not meet"))
+    ) {
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+      const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
-      } else if (Array.isArray(data) && data.length > 0) {
-        saveToEventHistory({
-          eventId,
-          service_name,
-          eventType,
-          status: "attended",
-          attendees: data,
-        });
+      saveToEventHistory({
+        eventId,
+        service_name,
+        eventType,
+        status: "did-not-meet",
+        reason: "Marked as did not meet",
+        closedAt: `${formattedDate}, ${formattedTime}`,
+      });
 
-        await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
-          attendees: data,
-          did_not_meet: false,
-        });
-      }
+      await axios.put(`${BACKEND_URL}/events/${eventId}`, { status: "closed" });
 
-      setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
-      setIsModalOpen(false);
-      setSelectedEvent(null);
-      navigate("/history");
-    } catch (err) {
-      console.error("Failed to update event status", err);
+    } else if (Array.isArray(data) && data.length > 0) {
+      saveToEventHistory({
+        eventId,
+        service_name,
+        eventType,
+        status: "attended",
+        attendees: data,
+      });
+
+      await axios.patch(`${BACKEND_URL}/events/${eventId}`, {
+        attendees: data,
+        did_not_meet: false,
+        status: "closed",
+      });
     }
-  };
+
+    // Navigate to history after submission
+    navigate("/history");
+
+  } catch (err) {
+    console.error("Failed to update event status", err);
+    // If backend fails, you may want to re-add the event to the events state
+    setEvents((prev) => [...prev, selectedEvent]);
+  }
+};
+
 
   const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
 
@@ -123,7 +135,8 @@ const Events = () => {
   const handleDeleteEvent = async () => {
     if (!currentEvent) return;
     try {
-      await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/events/${currentEvent._id}`);
+      await axios.delete(`${BACKEND_URL}/events/${currentEvent._id}`);
+
       setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
     } catch (err) {
       console.error("Failed to delete event:", err);
