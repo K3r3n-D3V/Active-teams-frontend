@@ -17,6 +17,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const theme = useTheme();
   const [peopleList, setPeopleList] = useState([]);
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submission
 
   const inputBg = theme.palette.mode === "dark" ? "#424242" : "#fff";
   const inputLabel = theme.palette.text.secondary;
@@ -27,14 +28,22 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const cancelBgHover = theme.palette.mode === "dark" ? "#333" : "#f5f5f5";
   const cancelText = theme.palette.mode === "dark" ? "#fff" : "#333";
 
-  // Fetch people names for "Invited By" field
+  // Reset form and submission state when dialog opens/closes
+  useEffect(() => {
+    if (!open) {
+      setIsSubmitting(false);
+      setErrors({});
+    }
+  }, [open]);
+
+  // Fetch people data for "Invited By" field
   useEffect(() => {
     if (!open) return;
     const fetchPeople = async () => {
       try {
-        const response = await axios.get("/api/people");
-        const names = response.data.results.map((person) => person.Name);
-        setPeopleList(names);
+        const response = await axios.get("http://localhost:8000/people?perPage=16000");
+        console.log("Fetched people for invitedBy:", response.data.results); // Debug log
+        setPeopleList(response.data.results || []);
       } catch (err) {
         console.error("Failed to fetch people:", err);
         setPeopleList([]);
@@ -62,6 +71,45 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  // Handle invited by selection and auto-populate leader fields
+  const handleInvitedByChange = (selectedPerson) => {
+    if (selectedPerson) {
+      // Find the full person object
+      const person = peopleList.find(p => 
+        `${p.Name} ${p.Surname}`.trim() === selectedPerson ||
+        p.Name === selectedPerson
+      );
+      
+      if (person) {
+        setFormData((prev) => ({
+          ...prev,
+          invitedBy: selectedPerson,
+          leader12: person["Leader @12"] || "",
+          leader144: person["Leader @144"] || "",
+          leader1728: person["Leader @ 1728"] || ""
+        }));
+      } else {
+        // If not found in list, just set the invitedBy field
+        setFormData((prev) => ({
+          ...prev,
+          invitedBy: selectedPerson,
+          leader12: "",
+          leader144: "",
+          leader1728: ""
+        }));
+      }
+    } else {
+      // Clear all fields if nothing selected
+      setFormData((prev) => ({
+        ...prev,
+        invitedBy: "",
+        leader12: "",
+        leader144: "",
+        leader1728: ""
+      }));
+    }
+  };
+
   const validate = () => {
     const newErrors = {};
     [...leftFields, ...rightFields].forEach(({ name, label, required }) => {
@@ -77,35 +125,74 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   };
 
   const handleSaveClick = async () => {
-    if (!validate()) return;
+    if (!validate() || isSubmitting) return;
+
+    setIsSubmitting(true); // Disable button and prevent double submission
 
     try {
-      const now = new Date().toISOString();
+      // Send data in the format expected by your backend
       const payload = {
-        _id: formData._id,  // Include for update
-        Name: formData.name,
-        Surname: formData.surname,
-        DateOfBirth: formData.dob,
-        HomeAddress: formData.homeAddress,
-        Email: formData.email,
-        Phone: formData.phone,
-        Gender: formData.gender,
-        InvitedBy: formData.invitedBy,
-        Leader: formData.invitedBy || formData.cellLeader || "",
-        Stage: formData.stage || "Win",
-        CreatedAt: formData._id ? undefined : now,
-        UpdatedAt: now,
+        name: formData.name,
+        surname: formData.surname,
+        dob: formData.dob,
+        homeAddress: formData.homeAddress,
+        email: formData.email,
+        phone: formData.phone,
+        gender: formData.gender,
+        invitedBy: formData.invitedBy,
+        leader12: formData.leader12,
+        leader144: formData.leader144,
+        leader1728: formData.leader1728,
       };
 
-      // Always POST for both create and update
+      console.log("Submitting payload:", payload);
       const res = await axios.post("http://localhost:8000/people", payload);
-
+      
+      console.log("Person created successfully:", res.data);
+      
+      // Call parent success handler FIRST
       onSave(res.data);
+      
+      // Clear the form data
+      setFormData({
+        name: "",
+        surname: "",
+        dob: "",
+        homeAddress: "",
+        email: "",
+        phone: "",
+        gender: "",
+        invitedBy: "",
+        leader12: "",
+        leader144: "",
+        leader1728: ""
+      });
+      
+      // Close the dialog
       onClose();
+      
     } catch (err) {
       console.error("Failed to save person:", err);
-      alert("Failed to save person. Check console for details.");
+      
+      if (err.response?.status === 400) {
+        if (err.response?.data?.detail?.includes("email")) {
+          alert(`Error: ${err.response.data.detail}`);
+        } else {
+          alert(`Error: ${err.response.data.detail || "Bad request"}`);
+        }
+      } else if (err.response?.status === 500) {
+        alert("Server error occurred. Please try again.");
+      } else {
+        alert("Failed to save person. Please check your connection and try again.");
+      }
+    } finally {
+      setIsSubmitting(false); // Re-enable the button
     }
+  };
+
+  const handleClose = () => {
+    if (isSubmitting) return; // Prevent closing while submitting
+    onClose();
   };
 
   const inputStyles = (error) => ({
@@ -122,24 +209,68 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
   const renderTextField = ({ name, label, select, options, type }) => {
     if (name === "invitedBy") {
+      // Create options with full names for better searching
+      const peopleOptions = peopleList.map(person => {
+        const fullName = `${person.Name || ''} ${person.Surname || ''}`.trim();
+        return {
+          label: fullName || person.Name || 'Unknown',
+          person: person
+        };
+      });
+
+      console.log("People options for invitedBy:", peopleOptions); // Debug log
+
       return (
         <Autocomplete
           key={name}
           freeSolo
-          options={peopleList}
+          disabled={isSubmitting}
+          options={peopleOptions}
+          getOptionLabel={(option) => typeof option === 'string' ? option : option.label}
           value={formData[name] || ""}
-          onChange={(e, newValue) => setFormData((prev) => ({ ...prev, invitedBy: newValue }))}
-          onInputChange={(e, newInputValue) => setFormData((prev) => ({ ...prev, invitedBy: newInputValue }))}
+          onChange={(e, newValue) => {
+            if (typeof newValue === 'object' && newValue !== null) {
+              // Selected from dropdown - auto-populate leader fields
+              handleInvitedByChange(newValue.label);
+            } else {
+              // Typed freely - just set the value
+              handleInvitedByChange(newValue);
+            }
+          }}
+          onInputChange={(e, newInputValue) => {
+            setFormData((prev) => ({ ...prev, invitedBy: newInputValue }));
+          }}
+          filterOptions={(options, { inputValue }) => {
+            if (!inputValue) return options; // Show all options when no input
+            return options.filter(option =>
+              option.label.toLowerCase().includes(inputValue.toLowerCase())
+            );
+          }}
           renderInput={(params) => (
             <TextField
               {...params}
               label="Invited By"
               size="small"
               margin="dense"
+              placeholder="Type to search or select from list"
               InputProps={{ ...params.InputProps, sx: inputStyles(false) }}
               InputLabelProps={{ sx: labelStyles }}
               sx={{ mb: 1 }}
             />
+          )}
+          renderOption={(props, option) => (
+            <li {...props}>
+              <div>
+                <Typography variant="body2">
+                  {option.label}
+                </Typography>
+                {option.person["Leader @12"] && (
+                  <Typography variant="caption" color="text.secondary">
+                    Leader @12: {option.person["Leader @12"]}
+                  </Typography>
+                )}
+              </div>
+            </li>
           )}
         />
       );
@@ -152,6 +283,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         name={name}
         type={type || "text"}
         select={select}
+        disabled={isSubmitting}
         value={formData[name] || ""}
         onChange={handleInputChange}
         fullWidth
@@ -175,7 +307,14 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   });
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", boxShadow: 5, backgroundColor: theme.palette.background.paper } }}>
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="md" 
+      fullWidth 
+      disableEscapeKeyDown={isSubmitting} // Prevent closing with ESC while submitting
+      PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", boxShadow: 5, backgroundColor: theme.palette.background.paper } }}
+    >
       <DialogTitle>
         <Typography variant="h6" fontWeight={600} color={inputText}>Add New Person</Typography>
       </DialogTitle>
@@ -187,18 +326,92 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           </Grid>
           <Grid item xs={12} sm={6}>
             {rightFields.map(renderTextField)}
+            
+            {/* Auto-populated Leader Fields - Read Only */}
+            {(formData.leader12 || formData.leader144 || formData.leader1728) && (
+              <>
+                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: inputLabel }}>
+                  Leader Information (Auto-populated)
+                </Typography>
+                
+                {formData.leader12 && (
+                  <TextField
+                    label="Leader @12"
+                    value={formData.leader12}
+                    fullWidth
+                    size="small"
+                    margin="dense"
+                    disabled={isSubmitting}
+                    InputProps={{ 
+                      readOnly: true,
+                      sx: { 
+                        ...inputStyles(false), 
+                        backgroundColor: theme.palette.action.hover,
+                        opacity: 0.8
+                      } 
+                    }}
+                    InputLabelProps={{ sx: labelStyles }}
+                    sx={{ mb: 1 }}
+                  />
+                )}
+                
+                {formData.leader144 && (
+                  <TextField
+                    label="Leader @144"
+                    value={formData.leader144}
+                    fullWidth
+                    size="small"
+                    margin="dense"
+                    disabled={isSubmitting}
+                    InputProps={{ 
+                      readOnly: true,
+                      sx: { 
+                        ...inputStyles(false), 
+                        backgroundColor: theme.palette.action.hover,
+                        opacity: 0.8
+                      } 
+                    }}
+                    InputLabelProps={{ sx: labelStyles }}
+                    sx={{ mb: 1 }}
+                  />
+                )}
+                
+                {formData.leader1728 && (
+                  <TextField
+                    label="Leader @1728"
+                    value={formData.leader1728}
+                    fullWidth
+                    size="small"
+                    margin="dense"
+                    disabled={isSubmitting}
+                    InputProps={{ 
+                      readOnly: true,
+                      sx: { 
+                        ...inputStyles(false), 
+                        backgroundColor: theme.palette.action.hover,
+                        opacity: 0.8
+                      } 
+                    }}
+                    InputLabelProps={{ sx: labelStyles }}
+                    sx={{ mb: 1 }}
+                  />
+                )}
+              </>
+            )}
           </Grid>
         </Grid>
       </DialogContent>
       <DialogActions sx={{ justifyContent: "space-between", px: 3, pb: 2 }}>
         <Button
           variant="outlined"
-          onClick={onClose}
+          onClick={handleClose}
+          disabled={isSubmitting}
           sx={{
             borderRadius: 2, borderColor: cancelBorder, color: cancelText,
             textTransform: "uppercase", fontWeight: "bold",
             "&:hover": { borderColor: cancelBorder, backgroundColor: cancelBgHover },
             minWidth: 120, px: 3,
+            opacity: isSubmitting ? 0.6 : 1,
           }}
         >
           Cancel
@@ -206,14 +419,18 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         <Button
           variant="contained"
           onClick={handleSaveClick}
-          disabled={!isFormValid()}
+          disabled={!isFormValid() || isSubmitting}
           sx={{
-            backgroundColor: isFormValid() ? btnBg : "#999", color: "#fff",
+            backgroundColor: (isFormValid() && !isSubmitting) ? btnBg : "#999", 
+            color: "#fff",
             textTransform: "none", borderRadius: 2, minWidth: 140, px: 3, boxShadow: 3,
-            "&:hover": { backgroundColor: isFormValid() ? btnHover : "#999" },
+            "&:hover": { 
+              backgroundColor: (isFormValid() && !isSubmitting) ? btnHover : "#999" 
+            },
+            opacity: isSubmitting ? 0.7 : 1,
           }}
         >
-          Save Details
+          {isSubmitting ? "Saving..." : "Save Details"}
         </Button>
       </DialogActions>
     </Dialog>
