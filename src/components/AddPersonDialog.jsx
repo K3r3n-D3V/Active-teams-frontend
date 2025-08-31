@@ -13,7 +13,7 @@ import {
 } from "@mui/icons-material";
 import axios from "axios";
 
-export default function AddPersonDialog({ open, onClose, onSave, formData, setFormData }) {
+export default function AddPersonDialog({ open, onClose, onSave, formData, setFormData, isEdit = false, personId = null }) {
   const theme = useTheme();
   const [peopleList, setPeopleList] = useState([]);
   const [errors, setErrors] = useState({});
@@ -124,75 +124,147 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSaveClick = async () => {
-    if (!validate() || isSubmitting) return;
+  // const handleSaveClick = async () => {
+  //   if (!validate() || isSubmitting) return;
 
-    setIsSubmitting(true); // Disable button and prevent double submission
+  //   setIsSubmitting(true); // Disable button and prevent double submission
 
-    try {
-      // Send data in the format expected by your backend
-      const payload = {
-        name: formData.name,
-        surname: formData.surname,
-        dob: formData.dob,
-        homeAddress: formData.homeAddress,
-        email: formData.email,
-        phone: formData.phone,
-        gender: formData.gender,
-        invitedBy: formData.invitedBy,
-        leader12: formData.leader12,
-        leader144: formData.leader144,
-        leader1728: formData.leader1728,
-      };
+  //   try {
+  //     // Send data in the format expected by your backend
+  //     const payload = {
+  //       name: formData.name,
+  //       surname: formData.surname,
+  //       dob: formData.dob,
+  //       homeAddress: formData.homeAddress,
+  //       email: formData.email,
+  //       phone: formData.phone,
+  //       gender: formData.gender,
+  //       invitedBy: formData.invitedBy,
+  //       leader12: formData.leader12,
+  //       leader144: formData.leader144,
+  //       leader1728: formData.leader1728,
+  //     };
 
-      console.log("Submitting payload:", payload);
-      const res = await axios.post("http://localhost:8000/people", payload);
+  //     console.log("Submitting payload:", payload);
+  //     const res = await axios.post("http://localhost:8000/people", payload);
       
+  //     console.log("Person created successfully:", res.data);
+      
+  //     // Call parent success handler FIRST
+  //     onSave(res.data);
+      
+  //     // Clear the form data
+  //     setFormData({
+  //       name: "",
+  //       surname: "",
+  //       dob: "",
+  //       homeAddress: "",
+  //       email: "",
+  //       phone: "",
+  //       gender: "",
+  //       invitedBy: "",
+  //       leader12: "",
+  //       leader144: "",
+  //       leader1728: ""
+  //     });
+      
+  //     // Close the dialog
+  //     onClose();
+      
+  //   } catch (err) {
+  //     console.error("Failed to save person:", err);
+      
+  //     if (err.response?.status === 400) {
+  //       if (err.response?.data?.detail?.includes("email")) {
+  //         alert(`Error: ${err.response.data.detail}`);
+  //       } else {
+  //         alert(`Error: ${err.response.data.detail || "Bad request"}`);
+  //       }
+  //     } else if (err.response?.status === 500) {
+  //       alert("Server error occurred. Please try again.");
+  //     } else {
+  //       alert("Failed to save person. Please check your connection and try again.");
+  //     }
+  //   } finally {
+  //     setIsSubmitting(false); // Re-enable the button
+  //   }
+  // };
+
+const handleSaveClick = async () => {
+  if (!validate() || isSubmitting) return;
+
+  setIsSubmitting(true);
+
+  try {
+    const payload = {
+      name: formData.name,
+      surname: formData.surname,
+      dob: formData.dob,
+      homeAddress: formData.homeAddress,
+      email: formData.email,
+      phone: formData.phone,
+      gender: formData.gender,
+      invitedBy: formData.invitedBy,
+      leader12: formData.leader12,
+      leader144: formData.leader144,
+      leader1728: formData.leader1728,
+    };
+
+    let res;
+
+    if (isEdit && personId) {
+      // PATCH for update
+      res = await axios.patch(`http://localhost:8000/people/${personId}`, payload);
+      console.log("Person updated successfully:", res.data);
+      
+      // Call onSave with updated form data + id, since backend does not return updated person
+      onSave({ ...payload, _id: personId });
+    } else {
+      // POST for create
+      res = await axios.post("http://localhost:8000/people", payload);
       console.log("Person created successfully:", res.data);
-      
-      // Call parent success handler FIRST
+
       onSave(res.data);
-      
-      // Clear the form data
-      setFormData({
-        name: "",
-        surname: "",
-        dob: "",
-        homeAddress: "",
-        email: "",
-        phone: "",
-        gender: "",
-        invitedBy: "",
-        leader12: "",
-        leader144: "",
-        leader1728: ""
-      });
-      
-      // Close the dialog
-      onClose();
-      
-    } catch (err) {
-      console.error("Failed to save person:", err);
-      
-      if (err.response?.status === 400) {
-        if (err.response?.data?.detail?.includes("email")) {
-          alert(`Error: ${err.response.data.detail}`);
-        } else {
-          alert(`Error: ${err.response.data.detail || "Bad request"}`);
-        }
-      } else if (err.response?.status === 500) {
-        alert("Server error occurred. Please try again.");
-      } else {
-        alert("Failed to save person. Please check your connection and try again.");
-      }
-    } finally {
-      setIsSubmitting(false); // Re-enable the button
     }
-  };
+
+    // Clear form
+    setFormData({
+      name: "",
+      surname: "",
+      dob: "",
+      homeAddress: "",
+      email: "",
+      phone: "",
+      gender: "",
+      invitedBy: "",
+      leader12: "",
+      leader144: "",
+      leader1728: ""
+    });
+
+    // Close dialog
+    onClose();
+
+  } catch (err) {
+    console.error("Failed to save person:", err);
+
+    if (err.response?.status === 400) {
+      alert(`Error: ${err.response.data?.detail || "Bad request"}`);
+    } else if (err.response?.status === 500) {
+      alert("Server error occurred. Please try again.");
+    } else {
+      alert("Failed to save person. Please check your connection and try again.");
+    }
+
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleClose = () => {
     if (isSubmitting) return; // Prevent closing while submitting
     onClose();
+     setFormData(initialFormState);
   };
 
   const inputStyles = (error) => ({
