@@ -41,6 +41,8 @@ import { PersonAdd as PersonAddIcon } from "@mui/icons-material";
 import { EmojiPeople } from "@mui/icons-material"
 import { Tooltip } from "@mui/material";
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import ConsolidationModal from "../components/ConsolidationModal";
 
 const BASE_URL = "http://localhost:8000";
 
@@ -227,11 +229,11 @@ const handleEditClick = (person) => {
   }, []);
 
   
-  const handleAddClick = () => {
-    setEditingPerson(null); // Reset to Add mode
-    setFormData(initialFormState);
-    setOpenDialog(true);
-  };
+  // const handleAddClick = () => {
+  //   setEditingPerson(null); // Reset to Add mode
+  //   setFormData(initialFormState);
+  //   setOpenDialog(true);
+  // };
 
   // Updated handler for when a new person is successfully created
 //   const handlePersonSave = (responseData) => {
@@ -433,7 +435,7 @@ const handlePersonSave = (responseData) => {
           }));
         }
       } catch (err) {
-        console.log("Could not fetch existing check-ins, using local state");
+        console.log("Could not fetch existing check-ins, using local state", err);
         // If API call fails, we'll rely on the localStorage state
       }
     };
@@ -524,6 +526,27 @@ const handlePersonSave = (responseData) => {
     "& th": {
       fontWeight: 600,
       backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+    }
+  };
+
+   const handleDelete = async (personId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/people/${personId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.erorr(`Delete failed: ${errorData.detail}`);
+        return;
+      }
+
+      // Remove the deleted person from state so UI updates
+      setAttendees(prevPeople => prevPeople.filter(p => p._id !== personId));
+      toast.success('Person deleted successfully');
+    } catch (error) {
+      console.error('Error deleting person:', error);
+      toast.error('An error occurred while deleting the person');
     }
   };
 
@@ -729,7 +752,7 @@ const handlePersonSave = (responseData) => {
                 <TableCell>Leader @12</TableCell>
                 <TableCell>Leader @144</TableCell>
                 <TableCell>Leader @1728</TableCell>
-                <TableCell align="center">Present</TableCell>
+                <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -760,11 +783,21 @@ const handlePersonSave = (responseData) => {
                       )}
                     </TableCell>
                     {/* <TableCell>{attendee.email || "-"}</TableCell> */}
-                    <TableCell>{attendee.phone || "-"}</TableCell>
+                    <TableCell>{attendee.Number || "-"}</TableCell>
                     <TableCell>{attendee.leader12 || "-"}</TableCell>
                     <TableCell>{attendee.leader144 || "-"}</TableCell>
                     <TableCell>{attendee.leader1728 || "-"}</TableCell>
                     <TableCell align="center">
+                      
+ <IconButton
+    onClick={() => handleDelete(attendee._id)}
+    color="error"
+    size="small"
+    title="Edit person"
+    sx={{ ml: 1 }}
+  >
+    <DeleteIcon />
+  </IconButton>
                         <IconButton
     onClick={() => handleEditClick(attendee)}
     color="primary"
@@ -826,6 +859,15 @@ const handlePersonSave = (responseData) => {
           }
         }}
       />
+      {/* <ConsolidationModal 
+        open={openDialog}
+        onClose={() => setOpenDialog(false)}
+        onSave={handlePersonSave}
+        formData={formData}
+        setFormData={setFormData}
+        isEdit={Boolean(editingPerson)} 
+        personId={editingPerson?._id || null}
+      /> */}
 
       <AddPersonDialog
         open={openDialog}

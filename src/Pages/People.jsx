@@ -194,7 +194,7 @@ export const PeopleSection = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 100;
 
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  const BACKEND_URL = "http://localhost:8000"; // Replace with your backend URL
 
 // Fetch ALL people
 const fetchPeople = async () => {
