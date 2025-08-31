@@ -21,18 +21,22 @@ const Events = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentEvent, setCurrentEvent] = useState(null);
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+ 
 
- useEffect(() => {
+useEffect(() => {
   axios
-    .get(`${BACKEND_URL}/events`)  // backend should return a list of events
+    .get(`${BACKEND_URL}/events`)
     .then((res) => {
-      const sortedEvents = res.data.events.sort(
-        (a, b) => new Date(b.date) - new Date(a.date)  // sorting events by date
+      const openEvents = res.data.events.filter((e) => e.status !== "closed");
+      const sortedEvents = openEvents.sort(
+        (a, b) => new Date(b.date) - new Date(a.date)
       );
-      setEvents(sortedEvents);  // updating state with sorted events
+      setEvents(sortedEvents);
     })
     .catch((err) => console.error("Failed to fetch events", err));
 }, []);
+
+
 
 
   const formatDateTime = (date) => {
@@ -43,10 +47,14 @@ const Events = () => {
     return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
   };
 
-  const filteredEvents =
-    filterType === "all"
-      ? events
-      : events.filter((e) => e.eventType?.toLowerCase() === filterType.toLowerCase());
+const filteredEvents =
+  filterType === "all"
+    ? events.filter((e) => e.status !== "closed")
+    : events.filter(
+        (e) =>
+          e.status !== "closed" &&
+          e.eventType?.toLowerCase() === filterType.toLowerCase()
+      );
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
@@ -143,6 +151,24 @@ const Events = () => {
     }
     handleMenuClose();
   };
+
+  app.get("/events", async (req, res) => {
+  const { status } = req.query;
+
+  let query = {};
+  if (status === "open") {
+    query.status = { $ne: "closed" }; // Exclude closed events
+  }
+
+  try {
+    const events = await Event.find(query);
+    res.json({ events });
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
   return (
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default, color: theme.palette.text.primary }}>
