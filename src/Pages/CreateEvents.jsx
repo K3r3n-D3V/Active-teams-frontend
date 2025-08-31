@@ -25,13 +25,14 @@ const CreateEvents = () => {
   const [errorAlert, setErrorAlert] = useState(false);
 
   const [eventTypes, setEventTypes] = useState([
-    ' Sunday Service', 'Friday Service',' Workshop', 'Encouter', 'Conference', 'J-Activation', 'Destiny Training', 'Social Event', 'Cell'
+    ' Sunday Service', 'Friday Service', ' Workshop', 'Encouter', 'Conference', 'J-Activation', 'Destiny Training', 'Social Event', 'Cell'
   ]);
 
   const [formData, setFormData] = useState({
-    eventType: '', eventName: '', isTicketed: false, price: '', date: '', time: '',
+    eventType: '', eventName: '', isTicketed: false, price: '', date: '', time: '', timePeriod: 'AM',
     recurringDays: [], location: '', eventLeader: '', description: ''
   });
+
 
   const [errors, setErrors] = useState({});
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -43,7 +44,7 @@ const CreateEvents = () => {
           if (data.date) {
             const dt = new Date(data.date);
             data.date = dt.toISOString().split('T')[0];
-            data.time = dt.toTimeString().split(' ')[0].slice(0,5);
+            data.time = dt.toTimeString().split(' ')[0].slice(0, 5);
           }
           setFormData(data);
         })
@@ -55,6 +56,7 @@ const CreateEvents = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
   };
+
 
   const handleDayChange = (day) => {
     setFormData(prev => ({
@@ -109,66 +111,66 @@ const CreateEvents = () => {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  setIsSubmitting(true);
+    setIsSubmitting(true);
 
-  try {
-    const isCell = formData.eventType.toLowerCase().includes("cell");
-    const payload = { ...formData };
+    try {
+      const isCell = formData.eventType.toLowerCase().includes("cell");
+      const payload = { ...formData };
 
-    // ✅ Rename recurringDays to recurring_day for backend compatibility
-    payload.recurring_day = formData.recurringDays;
-    delete payload.recurringDays;
+      // ✅ Rename recurringDays to recurring_day for backend compatibility
+      payload.recurring_day = formData.recurringDays;
+      delete payload.recurringDays;
 
-    // ✅ Format date-time if not a cell
-    if (!isCell && payload.date && payload.time) {
-      payload.date = new Date(`${payload.date}T${payload.time}`).toISOString();
-    } else if (isCell) {
-      payload.date = null;
+      // ✅ Format date-time if not a cell
+      if (!isCell && payload.date && payload.time) {
+        payload.date = new Date(`${payload.date}T${payload.time}`).toISOString();
+      } else if (isCell) {
+        payload.date = null;
+      }
+
+      // ✅ Remove time from payload (already merged into date)
+      delete payload.time;
+
+      // ✅ Handle ticket price
+      if (payload.price) {
+        payload.price = parseFloat(payload.price);
+      } else {
+        delete payload.price;
+      }
+
+      // ✅ Submit: PUT if editing, POST if creating
+      if (eventId) {
+        await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
+      } else {
+        await axios.post(`${BACKEND_URL}/events`, payload);
+      }
+
+      setSuccessMessage(
+        isCell
+          ? `The ${formData.eventName} Cell has been created successfully!`
+          : eventId
+            ? "Event updated successfully!"
+            : "Event created successfully!"
+      );
+      setSuccessAlert(true);
+      if (!eventId) resetForm();
+
+      setTimeout(() => navigate("/events"), 1800);
+    } catch (err) {
+      if (err.response) {
+        console.error("Backend error response:", err.response.data);
+      } else {
+        console.error("Error:", err.message);
+      }
+      setErrorAlert(true);
     }
-
-    // ✅ Remove time from payload (already merged into date)
-    delete payload.time;
-
-    // ✅ Handle ticket price
-    if (payload.price) {
-      payload.price = parseFloat(payload.price);
-    } else {
-      delete payload.price;
+    finally {
+      setIsSubmitting(false);
     }
-
-    // ✅ Submit: PUT if editing, POST if creating
-    if (eventId) {
-      await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
-    } else {
-      await axios.post(`${BACKEND_URL}/events`, payload);
-    }
-
-    setSuccessMessage(
-      isCell
-        ? `The ${formData.eventName} Cell has been created successfully!`
-        : eventId
-        ? "Event updated successfully!"
-        : "Event created successfully!"
-    );
-    setSuccessAlert(true);
-    if (!eventId) resetForm();
-
-    setTimeout(() => navigate("/events"), 1800);
-  } catch (err) {
-  if (err.response) {
-    console.error("Backend error response:", err.response.data);
-  } else {
-    console.error("Error:", err.message);
-  }
-  setErrorAlert(true);
-}
- finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -252,18 +254,18 @@ const CreateEvents = () => {
   };
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      bgcolor: isDarkMode ? '#121212' : '#f5f5f5', 
-      px: 2 
+    <Box sx={{
+      minHeight: '100vh',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      bgcolor: isDarkMode ? '#121212' : '#f5f5f5',
+      px: 2
     }}>
-      <Card sx={{ 
-        width: { xs: '100%', sm: '85%', md: '700px' }, 
-        p: 5, 
-        borderRadius: '20px', 
+      <Card sx={{
+        width: { xs: '100%', sm: '85%', md: '700px' },
+        p: 5,
+        borderRadius: '20px',
         boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
         ...darkModeStyles.card
       }}>
@@ -273,21 +275,21 @@ const CreateEvents = () => {
           </Typography>
 
           <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }} mb={2}>
-            <Button 
-              variant="outlined" 
-              onClick={() => setShowNewTypeForm(!showNewTypeForm)} 
-              startIcon={<AddIcon />} 
+            <Button
+              variant="outlined"
+              onClick={() => setShowNewTypeForm(!showNewTypeForm)}
+              startIcon={<AddIcon />}
               sx={darkModeStyles.button.outlined}
             >
               New Type
             </Button>
             {showNewTypeForm && (
               <>
-                <TextField 
-                  placeholder="Enter new event type" 
-                  value={newEventType} 
-                  onChange={(e) => setNewEventType(e.target.value)} 
-                  fullWidth 
+                <TextField
+                  placeholder="Enter new event type"
+                  value={newEventType}
+                  onChange={(e) => setNewEventType(e.target.value)}
+                  fullWidth
                   size="small"
                   sx={darkModeStyles.textField}
                 />
@@ -306,8 +308,8 @@ const CreateEvents = () => {
           <form onSubmit={handleSubmit}>
             <FormControl fullWidth size="small" sx={{ mb: 3, ...darkModeStyles.select }}>
               <InputLabel>Event Type</InputLabel>
-              <Select 
-                value={formData.eventType} 
+              <Select
+                value={formData.eventType}
                 onChange={(e) => handleChange('eventType', e.target.value)}
                 MenuProps={{
                   PaperProps: {
@@ -328,73 +330,85 @@ const CreateEvents = () => {
               {errors.eventType && <p style={darkModeStyles.errorText}>{errors.eventType}</p>}
             </FormControl>
 
-            <TextField 
-              label="Event Name" 
-              value={formData.eventName} 
-              onChange={(e) => handleChange('eventName', e.target.value)} 
-              fullWidth 
-              size="small" 
-              sx={{ mb: 3, ...darkModeStyles.textField }} 
-              error={!!errors.eventName} 
-              helperText={errors.eventName} 
+            <TextField
+              label="Event Name"
+              value={formData.eventName}
+              onChange={(e) => handleChange('eventName', e.target.value)}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              error={!!errors.eventName}
+              helperText={errors.eventName}
             />
 
-            <FormControlLabel 
+            <FormControlLabel
               control={
-                <Checkbox 
-                  checked={formData.isTicketed} 
-                  onChange={(e) => handleChange('isTicketed', e.target.checked)} 
+                <Checkbox
+                  checked={formData.isTicketed}
+                  onChange={(e) => handleChange('isTicketed', e.target.checked)}
                   sx={darkModeStyles.checkbox}
                 />
-              } 
-              label="Ticketed Event" 
-              sx={{ mb: 2, ...darkModeStyles.formControlLabel }} 
+              }
+              label="Ticketed Event"
+              sx={{ mb: 2, ...darkModeStyles.formControlLabel }}
             />
 
-            {formData.isTicketed && 
-              <TextField 
-                label="Price" 
-                type="number" 
-                value={formData.price} 
-                onChange={(e) => handleChange('price', e.target.value)} 
-                fullWidth 
-                size="small" 
-                error={!!errors.price} 
-                helperText={errors.price} 
-                sx={{ mb: 3, ...darkModeStyles.textField }} 
-                InputProps={{ 
-                  startAdornment: <InputAdornment position="start">R</InputAdornment> 
-                }} 
+            {formData.isTicketed &&
+              <TextField
+                label="Price"
+                type="number"
+                value={formData.price}
+                onChange={(e) => handleChange('price', e.target.value)}
+                fullWidth
+                size="small"
+                error={!!errors.price}
+                helperText={errors.price}
+                sx={{ mb: 3, ...darkModeStyles.textField }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">R</InputAdornment>
+                }}
               />
             }
 
             {/* Date & Time */}
-            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
-              <TextField 
-                label="Date" 
-                type="date" 
-                value={formData.date} 
-                onChange={(e) => handleChange('date', e.target.value)} 
-                fullWidth 
-                size="small" 
-                InputLabelProps={{ shrink: true }} 
-                disabled={formData.eventType.toLowerCase().includes("cell")} 
-                error={!!errors.date} 
+            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3} alignItems="center">
+              <TextField
+                label="Date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => handleChange('date', e.target.value)}
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                disabled={formData.eventType.toLowerCase().includes("cell")}
+                error={!!errors.date}
                 helperText={errors.date}
                 sx={darkModeStyles.textField}
               />
-              <TextField 
-                label="Time" 
-                type="time" 
-                value={formData.time} 
-                onChange={(e) => handleChange('time', e.target.value)} 
-                fullWidth 
-                size="small" 
-                InputLabelProps={{ shrink: true }} 
-                error={!!errors.time} 
+              <TextField
+                label="Time"
+                type="time"
+                value={formData.time}
+                onChange={(e) => handleChange('time', e.target.value)}
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                error={!!errors.time}
                 helperText={errors.time}
                 sx={darkModeStyles.textField}
               />
+              <FormControl size="small" sx={{ minWidth: 80 }}>
+                <InputLabel>AM/PM</InputLabel>
+                <Select
+                  value={formData.timePeriod}
+                  label="AM/PM"
+                  onChange={(e) => handleChange('timePeriod', e.target.value)}
+                  sx={darkModeStyles.select}
+                >
+                  <MenuItem value="AM">AM</MenuItem>
+                  <MenuItem value="PM">PM</MenuItem>
+                </Select>
+              </FormControl>
             </Box>
 
             {/* Recurring Days - always show */}
@@ -407,9 +421,9 @@ const CreateEvents = () => {
                   <FormControlLabel
                     key={day}
                     control={
-                      <Checkbox 
-                        checked={formData.recurringDays.includes(day)} 
-                        onChange={() => handleDayChange(day)} 
+                      <Checkbox
+                        checked={formData.recurringDays.includes(day)}
+                        onChange={() => handleDayChange(day)}
                         sx={darkModeStyles.checkbox}
                       />
                     }
@@ -421,63 +435,63 @@ const CreateEvents = () => {
               {errors.recurringDays && <p style={darkModeStyles.errorText}>{errors.recurringDays}</p>}
             </Box>
 
-            <TextField 
-              label="Location" 
-              value={formData.location} 
-              onChange={(e) => handleChange('location', e.target.value)} 
-              fullWidth 
-              size="small" 
-              sx={{ mb: 3, ...darkModeStyles.textField }} 
-              InputProps={{ 
-                startAdornment: <InputAdornment position="start"><LocationOnIcon /></InputAdornment> 
-              }} 
-              error={!!errors.location} 
-              helperText={errors.location} 
+            <TextField
+              label="Location"
+              value={formData.location}
+              onChange={(e) => handleChange('location', e.target.value)}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><LocationOnIcon /></InputAdornment>
+              }}
+              error={!!errors.location}
+              helperText={errors.location}
             />
 
-            <TextField 
-              label="Event Leader" 
-              value={formData.eventLeader} 
-              onChange={(e) => handleChange('eventLeader', e.target.value)} 
-              fullWidth 
-              size="small" 
-              sx={{ mb: 3, ...darkModeStyles.textField }} 
-              InputProps={{ 
-                startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment> 
-              }} 
-              error={!!errors.eventLeader} 
-              helperText={errors.eventLeader} 
+            <TextField
+              label="Event Leader"
+              value={formData.eventLeader}
+              onChange={(e) => handleChange('eventLeader', e.target.value)}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>
+              }}
+              error={!!errors.eventLeader}
+              helperText={errors.eventLeader}
             />
 
-            <TextField 
-              label="Description" 
-              value={formData.description} 
-              onChange={(e) => handleChange('description', e.target.value)} 
-              fullWidth 
-              multiline 
-              minRows={3} 
-              size="small" 
-              sx={{ mb: 3, ...darkModeStyles.textField }} 
-              InputProps={{ 
-                startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment> 
-              }} 
-              error={!!errors.description} 
-              helperText={errors.description} 
+            <TextField
+              label="Description"
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              fullWidth
+              multiline
+              minRows={3}
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
+              }}
+              error={!!errors.description}
+              helperText={errors.description}
             />
 
             <Box display="flex" gap={2}>
-              <Button 
-                variant="outlined" 
-                fullWidth 
+              <Button
+                variant="outlined"
+                fullWidth
                 onClick={() => navigate("/events")}
                 sx={darkModeStyles.button.outlined}
               >
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
-                variant="contained" 
-                fullWidth 
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (eventId ? "Updating..." : "Creating...") : (eventId ? "Update Event" : "Create Event")}
