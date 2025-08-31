@@ -323,8 +323,6 @@ const handlePersonSave = (responseData) => {
   }
 };
 
-
-
   // Get attendees with present status for current event
   const attendeesWithStatus = getAttendeesWithPresentStatus();
 
@@ -726,7 +724,7 @@ const handlePersonSave = (responseData) => {
             <TableHead>
               <TableRow>
                 <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
+                {/* <TableCell>Email</TableCell> */}
                 <TableCell>Phone</TableCell>
                 <TableCell>Leader @12</TableCell>
                 <TableCell>Leader @144</TableCell>
@@ -761,7 +759,7 @@ const handlePersonSave = (responseData) => {
                         />
                       )}
                     </TableCell>
-                    <TableCell>{attendee.email || "-"}</TableCell>
+                    {/* <TableCell>{attendee.email || "-"}</TableCell> */}
                     <TableCell>{attendee.phone || "-"}</TableCell>
                     <TableCell>{attendee.leader12 || "-"}</TableCell>
                     <TableCell>{attendee.leader144 || "-"}</TableCell>
