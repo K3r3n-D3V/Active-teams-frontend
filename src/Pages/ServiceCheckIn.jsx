@@ -38,11 +38,11 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import PersonIcon from "@mui/icons-material/Person";
 import GroupIcon from "@mui/icons-material/Group";
 import { PersonAdd as PersonAddIcon } from "@mui/icons-material";
-import { EmojiPeople } from "@mui/icons-material"
+// import { EmojiPeople } from "@mui/icons-material"
 import { Tooltip } from "@mui/material";
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ConsolidationModal from "../components/ConsolidationModal";
+// import ConsolidationModal from "../components/ConsolidationModal";
 
 const BASE_URL = "http://localhost:8000";
 
@@ -690,7 +690,7 @@ const handlePersonSave = (responseData) => {
           />
         </Grid>
         
-       
+{/*        
 <Grid item xs={12} md={3}>
   <Tooltip title="Add Person">
     <EmojiPeople
@@ -705,7 +705,7 @@ const handlePersonSave = (responseData) => {
       }}
     />
   </Tooltip>
-</Grid>
+</Grid> */}
 
 <Grid item xs={12} md={3}>
   <Tooltip title="Add Person">

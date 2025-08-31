@@ -12,19 +12,22 @@ import {
   Wc as GenderIcon,
 } from "@mui/icons-material";
 import axios from "axios";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const initialFormState = {
   name: "",
   surname: "",
   dob: "",
-  homeAddress: "",
+  address: "",
   email: "",
-  phone: "",
+  number: "",
   gender: "",
   invitedBy: "",
   leader12: "",
   leader144: "",
-  leader1728: ""
+  leader1728: "",
+  stage: "Win",  // <-- add this
 };
 
 export default function AddPersonDialog({ open, onClose, onSave, formData, setFormData, isEdit = false, personId = null }) {
@@ -91,9 +94,9 @@ useEffect(() => {
   ];
 
   const rightFields = [
-    { name: "homeAddress", label: "Home Address", icon: <HomeIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "address", label: "Home Address", icon: <HomeIcon fontSize="small" sx={{ color: inputText }} />, required: true },
     { name: "email", label: "Email Address", icon: <EmailIcon fontSize="small" sx={{ color: inputText }} />, required: true, type: "email" },
-    { name: "phone", label: "Phone Number", icon: <PhoneIcon fontSize="small" sx={{ color: inputText }} />, required: true },
+    { name: "number", label: "Phone Number", icon: <PhoneIcon fontSize="small" sx={{ color: inputText }} />, required: true },
     { name: "gender", label: "Gender", icon: <GenderIcon fontSize="small" sx={{ color: inputText }} />, select: true, options: ["Male", "Female"], required: true },
   ];
 
@@ -146,7 +149,22 @@ useEffect(() => {
     setIsSubmitting(true);
 
     try {
-      const payload = { ...formData };
+    const payload = {
+      invitedBy: formData.invitedBy,
+      name: formData.name,
+      surname: formData.surname,
+      gender: formData.gender,
+      email: formData.email,
+      number: formData.number,
+      dob: formData.dob,
+      address: formData.address,
+      leaders: [
+        formData.leader12,
+        formData.leader144,
+        formData.leader1728,
+      ].filter(Boolean),
+      stage: formData.stage || "Win", 
+    };
       let res;
 
       if (isEdit && personId) {
@@ -162,7 +180,7 @@ useEffect(() => {
     } catch (err) {
       console.error("Failed to save person:", err);
       const msg = err.response?.data?.detail || "An error occurred";
-      alert(`Error: ${msg}`);
+      toast.error(`Error: ${msg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -187,40 +205,6 @@ useEffect(() => {
   const labelStyles = { fontWeight: 500, color: inputLabel };
 
   const renderTextField = ({ name, label, select, options, type }) => {
-    // if (name === "invitedBy") {
-    //   const peopleOptions = peopleList.map(person => {
-    //     const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
-    //     return { label: fullName, person };
-    //   });
-
-    //   return (
-    //     <Autocomplete
-    //       key={name}
-    //       freeSolo
-    //       disabled={isSubmitting}
-    //       options={peopleOptions}
-    //       getOptionLabel={(option) => typeof option === "string" ? option : option.label}
-    //       value={formData[name] || ""}
-    //       onChange={(e, newValue) => handleInvitedByChange(newValue)}
-    //       onInputChange={(e, newInputValue, reason) => {
-    //         if (reason === "input") {
-    //           setFormData(prev => ({ ...prev, invitedBy: newInputValue }));
-    //         }
-    //       }}
-    //       renderInput={(params) => (
-    //         <TextField
-    //           {...params}
-    //           label="Invited By"
-    //           size="small"
-    //           margin="dense"
-    //           InputProps={{ ...params.InputProps, sx: inputStyles(false) }}
-    //           InputLabelProps={{ sx: labelStyles }}
-    //           sx={{ mb: 1 }}
-    //         />
-    //       )}
-    //     />
-    //   );
-    // }
 if (name === "invitedBy") {
   const peopleOptions = peopleList.map(person => {
     const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();

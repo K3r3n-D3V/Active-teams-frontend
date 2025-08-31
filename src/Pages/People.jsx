@@ -14,6 +14,7 @@ import {
   Visibility as VisibilityIcon
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
+import InfoIcon from '@mui/icons-material/Info';
 
 // Slide transition for Snackbar
 const slideTransition = (props) => <Slide {...props} direction="down" />;
@@ -136,7 +137,7 @@ const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loadin
                       <Box sx={{ width: 18, height: 18 }} />
                     </Badge>
                     <IconButton size="small" onClick={(e) => handlePopoverOpen(e, stage)}>
-                      <VisibilityIcon fontSize="small" sx={{ color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : theme.palette.grey[900] }} />
+                      <InfoIcon fontSize="small" sx={{ color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : theme.palette.grey[900] }} />
                     </IconButton>
                   </Box>
                 </Box>
