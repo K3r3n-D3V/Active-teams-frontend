@@ -23,15 +23,18 @@ const Events = () => {
 
   useEffect(() => {
     axios
-      .get(`${BACKEND_URL}/events`) // backend returns only open events
+      .get(`${BACKEND_URL}/events`)
       .then((res) => {
-        const sortedEvents = res.data.events.sort(
+        const openEvents = res.data.events.filter((e) => e.status !== "closed");
+        const sortedEvents = openEvents.sort(
           (a, b) => new Date(b.date) - new Date(a.date)
         );
         setEvents(sortedEvents);
       })
       .catch((err) => console.error("Failed to fetch events", err));
   }, []);
+
+
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
@@ -42,9 +45,32 @@ const Events = () => {
   };
 
   const filteredEvents =
-    filterType === "all"
-      ? events
-      : events.filter((e) => e.eventType?.toLowerCase() === filterType.toLowerCase());
+  filterType === "all"
+    ? events.filter((e) => e.status !== "closed")
+    : events.filter(
+        (e) =>
+          e.status !== "closed" &&
+          e.eventType?.toLowerCase() === filterType.toLowerCase()
+      );
+
+  const getBadgeColor = (eventType) => {
+    const type = eventType?.toLowerCase();
+    switch (type) {
+      case "cell":
+        return "#007bff"; // Blue
+      case "conference":
+        return "#dc3545"; // Red
+      case "j-activation":
+      case "service":
+        return "#28a745"; // Green
+      case "meeting":
+        return "#6c757d"; // Gray
+      case "social event":
+        return "#fd7e14"; // Orange
+      default:
+        return "#6c757d"; // Default gray
+    }
+  };
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
@@ -52,56 +78,63 @@ const Events = () => {
   };
 
   const handleAttendanceSubmit = async (data) => {
-    if (!selectedEvent) return;
+  if (!selectedEvent) return;
+  const eventId = selectedEvent._id;
 
-    const eventId = selectedEvent._id;
-    const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
-    const eventType = selectedEvent.eventType;
+  // Remove immediately from events
+  setEvents((prev) => prev.filter((e) => e._id !== eventId));
 
-    try {
-      if (
-        data === "did-not-meet" ||
-        data === "Mark As Did Not Meet" ||
-        (data && data.toString().toLowerCase().includes("did not meet"))
-      ) {
-        const now = new Date();
-        const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-        const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  // Close modal ASAP
+  setIsModalOpen(false);
+  setSelectedEvent(null);
 
-        saveToEventHistory({
-          eventId,
-          service_name,
-          eventType,
-          status: "did-not-meet",
-          reason: "Marked as did not meet",
-          closedAt: `${formattedDate}, ${formattedTime}`,
-        });
+  try {
+    if (
+      data === "did-not-meet" ||
+      data === "Mark As Did Not Meet" ||
+      (data && data.toString().toLowerCase().includes("did not meet"))
+    ) {
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+      const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
-        await axios.put(`${BACKEND_URL}/events/${eventId}`, { status: "closed" });
+      saveToEventHistory({
+        eventId,
+        service_name: selectedEvent.eventName || selectedEvent.service_name || "Untitled Event",
+        eventType: selectedEvent.eventType,
+        status: "did-not-meet",
+        reason: "Marked as did not meet",
+        closedAt: `${formattedDate}, ${formattedTime}`,
+      });
 
-      } else if (Array.isArray(data) && data.length > 0) {
-        saveToEventHistory({
-          eventId,
-          service_name,
-          eventType,
-          status: "attended",
-          attendees: data,
-        });
+      await axios.put(`${BACKEND_URL}/events/${eventId}`, { status: "closed" });
 
-        await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
-          attendees: data,
-          did_not_meet: false,
-        });
-      }
+    } else if (Array.isArray(data) && data.length > 0) {
+      saveToEventHistory({
+        eventId,
+        service_name: selectedEvent.eventName || selectedEvent.service_name || "Untitled Event",
+        eventType: selectedEvent.eventType,
+        status: "attended",
+        attendees: data,
+      });
 
-      setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
-      setIsModalOpen(false);
-      setSelectedEvent(null);
-      navigate("/history");
-    } catch (err) {
-      console.error("Failed to update event status", err);
+      await axios.patch(`${BACKEND_URL}/events/${eventId}`, {
+        attendees: data,
+        did_not_meet: false,
+        status: "closed",
+      });
     }
-  };
+
+    // Navigate after successful backend update
+    navigate("/history");
+
+  } catch (error) {
+    console.error("Error updating event:", error);
+
+    // Re-add event if update fails
+    setEvents((prev) => [...prev, selectedEvent]);
+  }
+};
 
   const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
 
@@ -123,7 +156,8 @@ const Events = () => {
   const handleDeleteEvent = async () => {
     if (!currentEvent) return;
     try {
-      await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/events/${currentEvent._id}`);
+      await axios.delete(`${BACKEND_URL}/events/${currentEvent._id}`);
+
       setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
     } catch (err) {
       console.error("Failed to delete event:", err);
@@ -173,6 +207,9 @@ const Events = () => {
               <option value="cell">Cell</option>
               <option value="conference">Conference</option>
               <option value="service">Service</option>
+              <option value="j-activation">J-Activation</option>
+              <option value="meeting">Meeting</option>
+              <option value="social event">Social Event</option>
             </select>
             <div style={{ marginTop: "1rem" }}>
               <button style={{ ...styles.button, ...styles.btnNewEvent }} onClick={() => setShowFilter(false)}>Apply</button>
@@ -185,13 +222,22 @@ const Events = () => {
       {/* Events Grid */}
       <div style={styles.eventsGrid}>
         {filteredEvents.map((event) => (
-          <div key={event._id} style={styles.eventCard}>
+          <div key={event._id} style={{ ...styles.eventCard, backgroundColor: theme.palette.background.paper }}>
             <div style={styles.eventHeader}>
-              <h3 style={styles.eventTitle}>{event.eventName || event.service_name || "Untitled Event"}</h3>
+              <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
+                {event.eventName || event.service_name || "Untitled Event"}
+              </h3>
 
-              {/* Edit/Delete Menu */}
+              {/* Edit/Delete Menu - Fixed for dark mode */}
               <div>
-                <IconButton size="small" onClick={(e) => handleMenuOpen(e, event)} style={{ float: "right" }}>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => handleMenuOpen(e, event)} 
+                  style={{ 
+                    float: "right",
+                    color: theme.palette.text.primary // This ensures visibility in both light and dark mode
+                  }}
+                >
                   <MoreVertIcon />
                 </IconButton>
                 <Menu
@@ -206,19 +252,24 @@ const Events = () => {
 
               <span style={{
                 ...styles.eventBadge,
-                backgroundColor:
-                  event.eventType?.toLowerCase() === "cell" ? "#007bff" :
-                  event.eventType?.toLowerCase() === "conference" ? "#e91e63" :
-                  event.eventType?.toLowerCase() === "service" ? "#28a745" : "#6c757d",
+                backgroundColor: getBadgeColor(event.eventType),
               }}>
                 {capitalize(event.eventType) || "Unknown"}
               </span>
             </div>
 
-            <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
-            <p style={styles.eventLocation}>{event.location || "Location not specified"}</p>
+            <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>
+              {formatDateTime(event.date)}
+            </p>
+            <p style={{ ...styles.eventLocation, color: theme.palette.text.secondary }}>
+              {event.location || "Location not specified"}
+            </p>
 
-            {event.isTicketed && event.price && <p style={styles.eventPrice}>Price: R{event.price}</p>}
+            {event.isTicketed && event.price && (
+              <p style={{ ...styles.eventPrice, color: theme.palette.text.primary }}>
+                Price: R{event.price}
+              </p>
+            )}
 
             {/* Show recurring days if any */}
             {event.recurringDays && event.recurringDays.length > 0 && (
@@ -269,36 +320,242 @@ const Events = () => {
 };
 
 const styles = {
-  container: { minHeight: "100vh", fontFamily: "system-ui, sans-serif" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.5rem", borderBottom: "1px solid #e9ecef", flexWrap: "wrap" },
-  headerLeft: { display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" },
-  headerRight: { display: "flex", alignItems: "center" },
-  profileIcon: { width: "2.25rem", height: "2.25rem", borderRadius: "50%", background: "#ddd" },
-  button: { borderRadius: "6px", fontWeight: 500, padding: "0.5rem 1rem", cursor: "pointer", fontSize: "0.875rem", border: "none" },
-  btnNewEvent: { backgroundColor: "#000", color: "#fff" },
-  btnFilter: { backgroundColor: "#fff", border: "1px solid #dee2e6", color: "#6c757d" },
-  eventsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.5rem", padding: "1.5rem" },
-  eventCard: { backgroundColor: "#fff", borderRadius: "16px", padding: "1.5rem", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" },
-  eventHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" },
-  eventTitle: { margin: 0, fontSize: "1.25rem", fontWeight: 600, color: "#212529" },
-  eventBadge: { fontSize: "0.75rem", fontWeight: 600, padding: "0.25rem 0.75rem", borderRadius: "50px", color: "#fff", textTransform: "uppercase", whiteSpace: "nowrap" },
-  eventDate: { margin: "0.25rem 0", fontSize: "1rem", color: "#495057" },
-  eventLocation: { margin: "0.25rem 0", fontSize: "0.95rem", color: "#6c757d" },
-  eventPrice: { margin: "0.25rem 0", fontSize: "0.95rem", color: "#000000", fontWeight: 600 },
-  eventActions: { marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" },
-  actionBtn: { flex: 1, padding: "0.5rem 1rem", border: "none", borderRadius: "8px", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem" },
-  captureBtn: { backgroundColor: "#000", color: "#fff" },
-  paymentBtn: { backgroundColor: "#007bff", color: "#fff" },
-  disabledBtn: { opacity: 0.6, cursor: "not-allowed", backgroundColor: "#e9ecef", color: "#6c757d" },
-  popupOverlay: { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 999 },
-  popupContent: { background: "#fff", padding: "2rem", borderRadius: "12px", width: "300px", textAlign: "center" },
-  selectBox: { width: "100%", padding: "0.5rem", borderRadius: "6px", marginTop: "1rem" },
-  historyButton: { position: "fixed", bottom: "20px", right: "20px", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "50px", padding: "0.75rem 1.25rem", cursor: "pointer", fontSize: "1rem", boxShadow: "0 4px 8px rgba(0,0,0,0.2)", zIndex: 1000 },
-  centerAvatarSection: { display: "flex", justifyContent: "center", marginTop: "60px", padding: "0 20px", flexWrap: "wrap" },
-  avatarButton: { display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fff", padding: "24px 40px", border: "none", borderRadius: "24px", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", flexWrap: "wrap", maxWidth: "100%" },
-  labelText: { fontWeight: "bold", fontSize: "20px", color: "#000", margin: "0 20px" },
-  avatars: { display: "flex", alignItems: "center", flexWrap: "nowrap", overflowX: "auto" },
-  avatarCircle: { width: "50px", height: "50px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", marginLeft: "-10px", border: "2px solid #fff", boxShadow: "0 2px 6px rgba(0,0,0,0.1)" },
+  container: {
+    minHeight: "100vh",
+    fontFamily: "system-ui, sans-serif",
+    padding: "1rem",
+    boxSizing: "border-box",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "1rem 1.5rem",
+    borderBottom: "1px solid #e9ecef",
+    flexWrap: "wrap",
+    gap: "1rem",
+  },
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+    flexWrap: "wrap",
+  },
+  headerRight: {
+    display: "flex",
+    alignItems: "center",
+    marginLeft: "auto",
+  },
+  profileIcon: {
+    width: "2.25rem",
+    height: "2.25rem",
+    borderRadius: "50%",
+    background: "transparent",
+  },
+  button: {
+    borderRadius: "6px",
+    fontWeight: 500,
+    padding: "0.5rem 1rem",
+    cursor: "pointer",
+    fontSize: "0.875rem",
+    border: "none",
+    whiteSpace: "nowrap",
+  },
+  btnNewEvent: {
+    backgroundColor: "#000",
+    color: "#fff",
+  },
+  btnFilter: {
+    backgroundColor: "#fff",
+    border: "1px solid #dee2e6",
+    color: "#6c757d",
+  },
+  eventsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: "1.5rem",
+    padding: "1.5rem 0",
+  },
+  eventCard: {
+    backgroundColor: "#fff",
+    borderRadius: "16px",
+    padding: "1.5rem",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    minWidth: 0,
+  },
+  eventHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: "0.75rem",
+    flexWrap: "wrap",
+    gap: "0.5rem",
+    position: "relative",
+  },
+  eventTitle: {
+    margin: 0,
+    fontSize: "1.2rem",
+    fontWeight: 600,
+    color: "#212529",
+    flex: 1,
+    wordBreak: "break-word",
+    paddingRight: "2rem", // Give space for the menu button
+  },
+  eventBadge: {
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    padding: "0.25rem 0.75rem",
+    borderRadius: "50px",
+    color: "#fff",
+    textTransform: "uppercase",
+    whiteSpace: "nowrap",
+    position: "absolute",
+    top: "0",
+    right: "2.5rem", // Position next to the menu button
+  },
+  eventDate: {
+    margin: "0.25rem 0",
+    fontSize: "1rem",
+    color: "#495057",
+  },
+  eventLocation: {
+    margin: "0.25rem 0",
+    fontSize: "0.95rem",
+    color: "#6c757d",
+  },
+  eventPrice: {
+    margin: "0.25rem 0",
+    fontSize: "0.95rem",
+    color: "#000000",
+    fontWeight: 600,
+  },
+  eventActions: {
+    marginTop: "1rem",
+    display: "flex",
+    gap: "0.5rem",
+    flexWrap: "wrap",
+  },
+  actionBtn: {
+    flex: 1,
+    padding: "0.5rem 1rem",
+    border: "none",
+    borderRadius: "8px",
+    fontWeight: 600,
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    minWidth: "120px",
+  },
+  captureBtn: {
+    backgroundColor: "#000",
+    color: "#fff",
+  },
+  paymentBtn: {
+    backgroundColor: "#007bff",
+    color: "#fff",
+  },
+  disabledBtn: {
+    opacity: 0.6,
+    cursor: "not-allowed",
+    backgroundColor: "#e9ecef",
+    color: "#6c757d",
+  },
+  popupOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    background: "rgba(0,0,0,0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+    padding: "1rem",
+    boxSizing: "border-box",
+  },
+  popupContent: {
+    background: "#fff",
+    padding: "2rem",
+    borderRadius: "12px",
+    width: "100%",
+    maxWidth: "350px",
+    textAlign: "center",
+  },
+  selectBox: {
+    width: "100%",
+    padding: "0.5rem",
+    borderRadius: "6px",
+    marginTop: "1rem",
+    fontSize: "1rem",
+  },
+  historyButton: {
+    position: "fixed",
+    bottom: "20px",
+    right: "20px",
+    backgroundColor: "#007bff",
+    color: "#fff",
+    border: "none",
+    borderRadius: "50px",
+    padding: "0.75rem 1.25rem",
+    cursor: "pointer",
+    fontSize: "1rem",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+    zIndex: 1000,
+    whiteSpace: "nowrap",
+  },
+  centerAvatarSection: {
+    display: "flex",
+    justifyContent: "center",
+    marginTop: "40px",
+    padding: "0 10px",
+    flexWrap: "wrap",
+    gap: "1rem",
+  },
+  avatarButton: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    borderRadius: "12px",
+    padding: "10px 20px",
+    gap: "15px",
+    cursor: "pointer",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+    border: "none",
+    backgroundColor: "#fff",
+    fontWeight: "600",
+    fontSize: "1rem",
+    width: "100%",
+    maxWidth: "420px",
+    justifyContent: "center",
+    textAlign: "center",
+  },
+  labelText: {
+    fontWeight: "600",
+    fontSize: "0.9rem",
+    userSelect: "none",
+    width: "100%",
+    textAlign: "center",
+  },
+  avatars: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    width: "100%",
+  },
+  avatarCircle: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "40px",
+    height: "40px",
+    borderRadius: "50%",
+    fontSize: "1.3rem",
+    userSelect: "none",
+  },
 };
 
 export default Events;
