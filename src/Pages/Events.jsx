@@ -9,7 +9,6 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 
-
 const Events = () => {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -21,23 +20,23 @@ const Events = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentEvent, setCurrentEvent] = useState(null);
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
- 
 
-useEffect(() => {
-  axios
-    .get(`${BACKEND_URL}/events`)
-    .then((res) => {
-      const openEvents = res.data.events.filter((e) => e.status !== "closed");
-      const sortedEvents = openEvents.sort(
-        (a, b) => new Date(b.date) - new Date(a.date)
-      );
-      setEvents(sortedEvents);
-    })
-    .catch((err) => console.error("Failed to fetch events", err));
-}, []);
+  useEffect(() => {
+    axios
+      .get(`${BACKEND_URL}/events`)
+      .then((res) => {
+        const openEvents = res.data.events.filter((e) => e.status !== "closed");
+        const sortedEvents = openEvents.sort(
+          (a, b) => new Date(b.date) - new Date(a.date)
+        );
+        setEvents(sortedEvents);
+      })
+      .catch((err) => console.error("Failed to fetch events", err));
+  }, []);
 
-
-
+  const removeFromMainEventList = (eventId) => {
+    setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
+  };
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
@@ -47,7 +46,7 @@ useEffect(() => {
     return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
   };
 
-const filteredEvents =
+  const filteredEvents =
   filterType === "all"
     ? events.filter((e) => e.status !== "closed")
     : events.filter(
@@ -56,6 +55,7 @@ const filteredEvents =
           e.eventType?.toLowerCase() === filterType.toLowerCase()
       );
 
+
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
     setIsModalOpen(true);
@@ -63,19 +63,16 @@ const filteredEvents =
 
   const handleAttendanceSubmit = async (data) => {
   if (!selectedEvent) return;
-
   const eventId = selectedEvent._id;
-  const service_name = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
-  const eventType = selectedEvent.eventType;
+
+  // Remove immediately from events
+  setEvents((prev) => prev.filter((e) => e._id !== eventId));
+
+  // Close modal ASAP
+  setIsModalOpen(false);
+  setSelectedEvent(null);
 
   try {
-    // Remove the event immediately from the events state
-    setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
-
-    // Close modal
-    setIsModalOpen(false);
-    setSelectedEvent(null);
-
     if (
       data === "did-not-meet" ||
       data === "Mark As Did Not Meet" ||
@@ -87,8 +84,8 @@ const filteredEvents =
 
       saveToEventHistory({
         eventId,
-        service_name,
-        eventType,
+        service_name: selectedEvent.eventName || selectedEvent.service_name || "Untitled Event",
+        eventType: selectedEvent.eventType,
         status: "did-not-meet",
         reason: "Marked as did not meet",
         closedAt: `${formattedDate}, ${formattedTime}`,
@@ -99,8 +96,8 @@ const filteredEvents =
     } else if (Array.isArray(data) && data.length > 0) {
       saveToEventHistory({
         eventId,
-        service_name,
-        eventType,
+        service_name: selectedEvent.eventName || selectedEvent.service_name || "Untitled Event",
+        eventType: selectedEvent.eventType,
         status: "attended",
         attendees: data,
       });
@@ -112,12 +109,13 @@ const filteredEvents =
       });
     }
 
-    // Navigate to history after submission
+    // Navigate after successful backend update
     navigate("/history");
 
-  } catch (err) {
-    console.error("Failed to update event status", err);
-    // If backend fails, you may want to re-add the event to the events state
+  } catch (error) {
+    console.error("Error updating event:", error);
+
+    // Re-add event if update fails
     setEvents((prev) => [...prev, selectedEvent]);
   }
 };
@@ -151,24 +149,6 @@ const filteredEvents =
     }
     handleMenuClose();
   };
-
-  app.get("/events", async (req, res) => {
-  const { status } = req.query;
-
-  let query = {};
-  if (status === "open") {
-    query.status = { $ne: "closed" }; // Exclude closed events
-  }
-
-  try {
-    const events = await Event.find(query);
-    res.json({ events });
-  } catch (err) {
-    console.error("Error fetching events:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
 
   return (
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default, color: theme.palette.text.primary }}>
@@ -334,10 +314,10 @@ const styles = {
   selectBox: { width: "100%", padding: "0.5rem", borderRadius: "6px", marginTop: "1rem" },
   historyButton: { position: "fixed", bottom: "20px", right: "20px", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "50px", padding: "0.75rem 1.25rem", cursor: "pointer", fontSize: "1rem", boxShadow: "0 4px 8px rgba(0,0,0,0.2)", zIndex: 1000 },
   centerAvatarSection: { display: "flex", justifyContent: "center", marginTop: "60px", padding: "0 20px", flexWrap: "wrap" },
-  avatarButton: { display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fff", padding: "24px 40px", border: "none", borderRadius: "24px", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)", cursor: "pointer", flexWrap: "wrap", maxWidth: "100%" },
-  labelText: { fontWeight: "bold", fontSize: "20px", color: "#000", margin: "0 20px" },
-  avatars: { display: "flex", alignItems: "center", flexWrap: "nowrap", overflowX: "auto" },
-  avatarCircle: { width: "50px", height: "50px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", marginLeft: "-10px", border: "2px solid #fff", boxShadow: "0 2px 6px rgba(0,0,0,0.1)" },
+  avatarButton: { display: "flex", alignItems: "center", borderRadius: "12px", padding: "10px 30px", gap: "20px", cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.1)", border: "none", backgroundColor: "#fff", fontWeight: "600", fontSize: "1rem", flexWrap: "wrap" },
+  labelText: { fontWeight: "600", fontSize: "0.9rem", userSelect: "none" },
+  avatars: { display: "flex", gap: "8px" },
+  avatarCircle: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: "40px", height: "40px", borderRadius: "50%", fontSize: "1.3rem", userSelect: "none" },
 };
 
 export default Events;
