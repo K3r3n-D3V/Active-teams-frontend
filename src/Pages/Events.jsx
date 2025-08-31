@@ -34,9 +34,6 @@ const Events = () => {
       .catch((err) => console.error("Failed to fetch events", err));
   }, []);
 
-  const removeFromMainEventList = (eventId) => {
-    setEvents((prevEvents) => prevEvents.filter((e) => e._id !== eventId));
-  };
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
