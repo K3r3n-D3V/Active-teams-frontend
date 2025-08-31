@@ -292,7 +292,7 @@ const styles = {
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.5rem", borderBottom: "1px solid #e9ecef", flexWrap: "wrap" },
   headerLeft: { display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" },
   headerRight: { display: "flex", alignItems: "center" },
-  profileIcon: { width: "2.25rem", height: "2.25rem", borderRadius: "50%", background: "#ddd" },
+profileIcon: { width: "2.25rem", height: "2.25rem", borderRadius: "50%", background: "transparent" },
   button: { borderRadius: "6px", fontWeight: 500, padding: "0.5rem 1rem", cursor: "pointer", fontSize: "0.875rem", border: "none" },
   btnNewEvent: { backgroundColor: "#000", color: "#fff" },
   btnFilter: { backgroundColor: "#fff", border: "1px solid #dee2e6", color: "#6c757d" },
