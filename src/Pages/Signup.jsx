@@ -175,7 +175,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
     setLoading(true);
 
     // Exclude confirm_password before sending data to backend
-    const { confirm_password, ...submitData } = form;
+    const { confirm_password: _, ...submitData } = form;
     try {
       const res = await fetch(`${BACKEND_URL}/signup`, {
         method: "POST",

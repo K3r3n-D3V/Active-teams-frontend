@@ -1,7 +1,7 @@
 const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`; // replace with your backend API URL
 
 export const login = async (email, password) => {
-  const response = await fetch(`${API_BASE_URL}/login`, {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

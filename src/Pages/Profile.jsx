@@ -7,8 +7,6 @@ import {
   Grid,
   Button,
   Avatar,
-  useTheme,
-  useMediaQuery,
   Snackbar,
   Alert,
   Slider,
@@ -31,8 +29,6 @@ const carouselTexts = [
 ];
 
 export default function Profile() {
-  const theme = useTheme();
-  const isMdUp = useMediaQuery(theme.breakpoints.up("md"));
   const navigate = useNavigate();
   const { userProfile, setUserProfile, profilePic, setProfilePic, clearUserData } = useContext(UserContext);
 
@@ -396,14 +392,16 @@ export default function Profile() {
               </Button>
               <Button
                 variant="contained"
-                sx={{ flex: 1, bgcolor: "black", color: "white" }}
+                sx={{ flex: 1, bgcolor: "black", color: "white",px: 2,
+                  py: 0.5, }}
                 type="submit"
               >
                 Update Profile
               </Button>
               <Button
                 variant="contained"
-                sx={{ flex: 1, bgcolor: "black", color: "white"  }}
+                sx={{ flex: 1, bgcolor: "black", color: "white",px: 2,
+                  py: 0.5, }}
                 onClick={() => {
                   // Clear all user data
                   clearUserData();
@@ -510,6 +508,6 @@ export default function Profile() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </>
-  );
+    </>
+  );
 }
