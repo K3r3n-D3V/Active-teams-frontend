@@ -110,46 +110,6 @@ function App() {
       }),
     [mode]
   );
-
-  // 🔐 Simulated logged-in user (replace with real auth later)
-  const user = {
-    name: "John Doe",
-    role: "member", // or "admin", "leader", etc.
-  };
-
-  // 📅 Shared event state across pages
-  const [events, setEvents] = useState([
-    {
-      _id: "1",
-      service_name: "Cell Group A",
-      eventType: "cell",
-      history: [],
-    },
-    {
-      _id: "2",
-      service_name: "Sunday Service",
-      eventType: "service",
-      history: [],
-    },
-  ]);
-
-  // ✅ Handler to update a cell group as "did-not-meet"
-  const handleMarkDidNotMeet = (eventId, timestamp) => {
-    setEvents(prev =>
-      prev.map(ev =>
-        ev._id === eventId
-          ? {
-              ...ev,
-              history: [
-                ...(ev.history || []),
-                { status: "did-not-meet", timestamp },
-              ],
-            }
-          : ev
-      )
-    );
-  };
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -158,33 +118,26 @@ function App() {
         <Sidebar mode={mode} setMode={setMode} />
         <div style={{ flexGrow: 1 }}>
           <Routes>
-            <Route path="/login" element={<Login title="Login" />} />
-            <Route path="/" element={<Home />} />
-            <Route path="/signup" element={<Signup title="Signup" />} />
-            <Route path="/profile" element={<Profile title="Profile" />} />
-            <Route path="/people" element={<People title="People" />} />
+            <Route path="/login" element={<Login title="Login" mode={mode} setMode={setMode}/>} />
+            <Route path="/signup" element={<Signup title="Signup" mode={mode} setMode={setMode}/>} />
+            <Route path="/" element={<ProtectedHome />} />
+            <Route path="/profile" element={<ProtectedProfile title="Profile" />} />
+            <Route path="/people" element={<ProtectedPeople title="People" />} />
             <Route
               path="/events"
-              element={
-                <Events
-                  title="Events"
-                  events={events}
-                  onMarkDidNotMeet={handleMarkDidNotMeet}
-                />
-              }
-            />
-            <Route path="/stats" element={<Stats title="Stats" />} />
+              element={<ProtectedEvents title="Events"/>}/>
+            <Route path="/stats" element={<ProtectedStats title="Stats" />} />
            <Route path="/create-events" element={<CreateEvents title="Create Events" />} />
            <Route path="/edit-event/:id" element={<CreateEvents title="Create Events Edit" />} />
 
             <Route path="/attendance" element={<AttendanceModal title="Attendance Modal" />} />
             <Route
               path="/history"
-              element={<EventsHistory events={events} user={user} />}
+              element={<EventsHistory />}
             />
-            <Route path="/service-check-in" element={<ServiceCheckIn title="Service Check-in" />} />
-            <Route path="/give-today" element={<GiveToday title="Give Today" />} />
-            <Route path="/daily-tasks" element={<DailyTasks title="Daily Tasks" />} />
+            <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
+            <Route path="/give-today" element={<ProtectedGiveToday title="Give Today" />} />
+            <Route path="/daily-tasks" element={<ProtectedDailyTasks title="Daily Tasks" />} />
           </Routes>
         </div>
       </div>
