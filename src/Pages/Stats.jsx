@@ -126,7 +126,7 @@ const StatsDashboard = () => {
 
           {/* Service Growth */}
           <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3, borderRadius: 2, bgcolor: cardColor, height: 580 }}>
+            <Paper sx={{ p: 3, borderRadius: 2, bgcolor: cardColor, height: 545 }}>
               <Typography variant="subtitle2">August</Typography>
               <Typography variant="h4" fontWeight="bold" mt={2}>
                 87.5%

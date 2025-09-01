@@ -44,7 +44,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 // import ConsolidationModal from "../components/ConsolidationModal";
 
-const BASE_URL = "http://localhost:8000";
+const BASE_URL =  `${import.meta.env.VITE_BACKEND_URL}`;
 
 function ServiceCheckIn() {
   const [attendees, setAttendees] = useState(() => {
@@ -531,7 +531,7 @@ const handlePersonSave = (responseData) => {
 
    const handleDelete = async (personId) => {
     try {
-      const response = await fetch(`http://localhost:8000/people/${personId}`, {
+      const response = await fetch(`${BASE_URL}/people/${personId}`, {
         method: 'DELETE',
       });
 

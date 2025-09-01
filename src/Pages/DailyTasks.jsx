@@ -15,7 +15,7 @@ export default function DailyTasks() {
   const [filterType, setFilterType] = useState("all");
   const [currentDay, setCurrentDay] = useState(dayjs().format("YYYY-MM-DD"));
 
-  const API_URL = `${import.meta.env.VITE_BACKEND_URL}/tasks`;
+  const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
   const getCurrentDateTime = () => {
     const now = new Date();
@@ -37,7 +37,7 @@ export default function DailyTasks() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${BACKEND_URL}/tasks`);
+      const res = await axios.get(`${API_URL}/tasks`);
       setTasks(res.data);
     } catch (err) {
       console.error("Error fetching tasks:", err);

@@ -21,6 +21,7 @@ import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 // Lightweight welcome overlay with CSS confetti
 const WelcomeOverlay = ({ name, mode }) => {
   const pieces = Array.from({ length: 90 }).map((_, index) => {
@@ -175,7 +176,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
     // Exclude confirm_password before sending data to backend
     const { confirm_password, ...submitData } = form;
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
     try {
       const res = await fetch(`${BACKEND_URL}/signup`, {
         method: "POST",
@@ -201,7 +201,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
         };
         setUserProfile(userData);
         
-        alert("User created successfully!");
+        // alert("User created successfully!");
         if (onSignup) onSignup(submitData);
 
         // Auto-login then redirect like Login page
