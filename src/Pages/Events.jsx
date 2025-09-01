@@ -52,6 +52,24 @@ const Events = () => {
           e.eventType?.toLowerCase() === filterType.toLowerCase()
       );
 
+  const getBadgeColor = (eventType) => {
+    const type = eventType?.toLowerCase();
+    switch (type) {
+      case "cell":
+        return "#007bff"; // Blue
+      case "conference":
+        return "#dc3545"; // Red
+      case "j-activation":
+      case "service":
+        return "#28a745"; // Green
+      case "meeting":
+        return "#6c757d"; // Gray
+      case "social event":
+        return "#fd7e14"; // Orange
+      default:
+        return "#6c757d"; // Default gray
+    }
+  };
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
@@ -116,7 +134,6 @@ const Events = () => {
     setEvents((prev) => [...prev, selectedEvent]);
   }
 };
-
 
   const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
 
@@ -189,6 +206,9 @@ const Events = () => {
               <option value="cell">Cell</option>
               <option value="conference">Conference</option>
               <option value="service">Service</option>
+              <option value="j-activation">J-Activation</option>
+              <option value="meeting">Meeting</option>
+              <option value="social event">Social Event</option>
             </select>
             <div style={{ marginTop: "1rem" }}>
               <button style={{ ...styles.button, ...styles.btnNewEvent }} onClick={() => setShowFilter(false)}>Apply</button>
@@ -201,13 +221,22 @@ const Events = () => {
       {/* Events Grid */}
       <div style={styles.eventsGrid}>
         {filteredEvents.map((event) => (
-          <div key={event._id} style={styles.eventCard}>
+          <div key={event._id} style={{ ...styles.eventCard, backgroundColor: theme.palette.background.paper }}>
             <div style={styles.eventHeader}>
-              <h3 style={styles.eventTitle}>{event.eventName || event.service_name || "Untitled Event"}</h3>
+              <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
+                {event.eventName || event.service_name || "Untitled Event"}
+              </h3>
 
-              {/* Edit/Delete Menu */}
+              {/* Edit/Delete Menu - Fixed for dark mode */}
               <div>
-                <IconButton size="small" onClick={(e) => handleMenuOpen(e, event)} style={{ float: "right" }}>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => handleMenuOpen(e, event)} 
+                  style={{ 
+                    float: "right",
+                    color: theme.palette.text.primary // This ensures visibility in both light and dark mode
+                  }}
+                >
                   <MoreVertIcon />
                 </IconButton>
                 <Menu
@@ -222,19 +251,24 @@ const Events = () => {
 
               <span style={{
                 ...styles.eventBadge,
-                backgroundColor:
-                  event.eventType?.toLowerCase() === "cell" ? "#007bff" :
-                  event.eventType?.toLowerCase() === "conference" ? "#e91e63" :
-                  event.eventType?.toLowerCase() === "service" ? "#28a745" : "#6c757d",
+                backgroundColor: getBadgeColor(event.eventType),
               }}>
                 {capitalize(event.eventType) || "Unknown"}
               </span>
             </div>
 
-            <p style={styles.eventDate}>{formatDateTime(event.date)}</p>
-            <p style={styles.eventLocation}>{event.location || "Location not specified"}</p>
+            <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>
+              {formatDateTime(event.date)}
+            </p>
+            <p style={{ ...styles.eventLocation, color: theme.palette.text.secondary }}>
+              {event.location || "Location not specified"}
+            </p>
 
-            {event.isTicketed && event.price && <p style={styles.eventPrice}>Price: R{event.price}</p>}
+            {event.isTicketed && event.price && (
+              <p style={{ ...styles.eventPrice, color: theme.palette.text.primary }}>
+                Price: R{event.price}
+              </p>
+            )}
 
             {/* Show recurring days if any */}
             {event.recurringDays && event.recurringDays.length > 0 && (
@@ -354,10 +388,11 @@ const styles = {
   eventHeader: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: "0.75rem",
     flexWrap: "wrap",
     gap: "0.5rem",
+    position: "relative",
   },
   eventTitle: {
     margin: 0,
@@ -366,6 +401,7 @@ const styles = {
     color: "#212529",
     flex: 1,
     wordBreak: "break-word",
+    paddingRight: "2rem", // Give space for the menu button
   },
   eventBadge: {
     fontSize: "0.75rem",
@@ -375,6 +411,9 @@ const styles = {
     color: "#fff",
     textTransform: "uppercase",
     whiteSpace: "nowrap",
+    position: "absolute",
+    top: "0",
+    right: "2.5rem", // Position next to the menu button
   },
   eventDate: {
     margin: "0.25rem 0",
@@ -517,6 +556,5 @@ const styles = {
     userSelect: "none",
   },
 };
-
 
 export default Events;

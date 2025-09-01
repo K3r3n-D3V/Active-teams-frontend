@@ -21,6 +21,7 @@ import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 // Lightweight welcome overlay with CSS confetti
 const WelcomeOverlay = ({ name, mode }) => {
   const pieces = Array.from({ length: 90 }).map((_, index) => {
@@ -175,9 +176,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
     // Exclude confirm_password before sending data to backend
     const { confirm_password, ...submitData } = form;
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
     try {
-      const res = await fetch(`${BACKEND_URL}/auth/signup`, {
+      const res = await fetch(`${BACKEND_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(submitData),
@@ -201,7 +201,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
         };
         setUserProfile(userData);
         
-        alert("User created successfully!");
+        // alert("User created successfully!");
         if (onSignup) onSignup(submitData);
 
         // Auto-login then redirect like Login page
@@ -247,7 +247,25 @@ const Signup = ({ onSignup, mode, setMode }) => {
         <WelcomeOverlay name={welcomeName} mode={mode} />
       )}
       {/* Theme Toggle */}
-      <Box sx={{ position: "absolute", top: 16, right: 16 }}>
+      {/* <Box sx={{ position: "absolute", top: 16, right: 16 }}>
+        <IconButton
+          onClick={() => {
+            const next = mode === "light" ? "dark" : "light";
+            localStorage.setItem("themeMode", next);
+            setMode(next);
+          }}
+          sx={{
+            color: mode === "dark" ? "#fff" : "#000",
+            backgroundColor: mode === "dark" ? "#1f1f1f" : "#e0e0e0",
+            "&:hover": {
+              backgroundColor: mode === "dark" ? "#2c2c2c" : "#c0c0c0",
+            },
+          }}
+        >
+          {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
+        </IconButton>
+      </Box> */}
+     <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
           onClick={() => {
             const next = mode === "light" ? "dark" : "light";
@@ -265,7 +283,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
           {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
         </IconButton>
       </Box>
-
       <Box
         sx={{
           maxWidth: 800,
