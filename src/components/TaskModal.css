@@ -1,3 +1,4 @@
+/* modal.css */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -8,45 +9,29 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 9999;
+  z-index: 999;
 }
 
 .modal-content {
   background: #fff;
   color: #000;
-  padding: 25px 30px;
-  width: 550px;
-  border-radius: 12px;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+  padding: 20px;
+  width: 400px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
   position: relative;
-  max-height: 90vh;
-  overflow-y: auto;
 }
 
 .close-btn {
   position: absolute;
-  top: 15px;
-  right: 20px;
+  top: 10px;
+  right: 15px;
   background: none;
   border: none;
-  font-size: 26px;
-  font-weight: bold;
+  font-size: 22px;
   cursor: pointer;
-  color: #333;
-  transition: color 0.2s;
 }
 
-.close-btn:hover {
-  color: #000;
-}
-
-.modal-title {
-  text-align: center;
-  font-size: 1.6rem;
-  margin-bottom: 20px;
-  font-weight: 600;
-  color: #111;
-}
 
 .task-form {
   display: flex;
@@ -64,77 +49,72 @@
   flex: 1;
 }
 
-.task-info label,
-.task-comments label {
-  display: block;
+.task-info h3,
+.task-comments h3 {
   margin-bottom: 10px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.task-info label {
+  display: block;
+  margin-top: 10px;
   font-size: 14px;
-  color: #333;
+  font-weight: 500;
+  text-align: left;
 }
 
 .task-info input,
 .task-info select,
 .task-comments textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px;
   margin-top: 5px;
   border: 1px solid #ccc;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 14px;
-  transition: border 0.2s;
-}
-
-.task-info input:focus,
-.task-comments textarea:focus {
-  border-color: #000;
-  outline: none;
 }
 
 .task-comments textarea {
-  min-height: 180px;
+  min-height: 200px;
   resize: vertical;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
+  gap: 10px;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+}
+
+.cancel-btn,
+.finish-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
 }
 
 .cancel-btn {
   background: #eee;
-  color: #333;
-  padding: 10px 18px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-
-.cancel-btn:hover {
-  background: #ddd;
 }
 
 .finish-btn {
-  background: #111;
+  background: #007bff;
   color: #fff;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: background 0.3s;
 }
 
-.finish-btn:hover {
-  background: #000;
+.finish-btn {
+  background: black;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
 }
 
 .finish-btn:disabled {
@@ -153,17 +133,7 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .modal-content {
-    width: 90%;
-    padding: 20px;
-  }
-
-  .task-form-body {
-    flex-direction: column;
+  to {
+    transform: rotate(360deg);
   }
 }
