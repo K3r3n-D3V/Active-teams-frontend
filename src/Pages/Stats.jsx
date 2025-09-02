@@ -242,6 +242,7 @@ const StatsDashboard = () => {
 
 
           {/* Outstanding Cells & Tasks */}
+<<<<<<< HEAD
           <Grid item xs={12}>
             <Grid container spacing={5} sx={{ width: '100%' }}>
               {/* Outstanding Cells */}
@@ -316,6 +317,84 @@ const StatsDashboard = () => {
               </Grid>
             </Grid>
           </Grid>
+=======
+{/* Outstanding Cells & Tasks aligned under Service Growth and Charts */}
+<Grid item xs={12}>
+  <Grid container spacing={3}>
+    {/* Outstanding Cells */}
+    <Grid item xs={12} md={6}>
+      <Paper
+        sx={{
+          p: 5,
+          borderRadius: 2,
+          bgcolor: cardColor,
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          minHeight: 500,
+          overflowY: 'auto',
+          boxShadow: 6
+        }}
+      >
+        <Typography variant="h5" gutterBottom>
+          Outstanding Cells
+        </Typography>
+        <Box sx={{ flexGrow: 1 }}>
+          {cells.map((item, i) => (
+            <Box key={i} display="flex" alignItems="center" mb={2}>
+              <Avatar sx={{ mr: 3, width: 48, height: 48, fontSize: 24 }}>
+                {item.name[0]}
+              </Avatar>
+              <Box>
+                <Typography variant="subtitle1">{item.name}</Typography>
+                <Typography variant="caption">{item.location}</Typography>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      </Paper>
+    </Grid>
+
+    {/* Outstanding Tasks */}
+    <Grid item xs={12} md={6}>
+      <Paper
+        sx={{
+          p: 5,
+          borderRadius: 2,
+          bgcolor: cardColor,
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          minHeight: 500,
+          overflowY: 'auto',
+          boxShadow: 6
+        }}
+      >
+        <Typography variant="h5" gutterBottom>
+          Outstanding Tasks
+        </Typography>
+        <Box sx={{ flexGrow: 1 }}>
+          {tasks.map((item, i) => (
+            <Box key={i} display="flex" alignItems="center" mb={2}>
+              <Avatar sx={{ mr: 3, width: 48, height: 48, fontSize: 24 }}>
+                {item.name[0]}
+              </Avatar>
+              <Box>
+                <Typography variant="subtitle1">{item.name}</Typography>
+                <Typography variant="caption">{item.email}</Typography>
+              </Box>
+              <Typography sx={{ ml: 'auto', fontWeight: 'bold', fontSize: 18 }}>
+                {item.count.toString().padStart(2, '0')}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </Paper>
+    </Grid>
+  </Grid>
+</Grid>
+
+>>>>>>> 06cdc983d6138e1669d3756d3382a1e0df21c926
 
           {/* Scheduler */}
           <Grid item xs={12} md={2}>

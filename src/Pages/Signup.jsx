@@ -377,7 +377,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
             </FormControl>
 
             <TextField
-              label="New Password"
+              label="Password"
               name="password"
               type={showPassword ? "text" : "password"}
               value={form.password}
