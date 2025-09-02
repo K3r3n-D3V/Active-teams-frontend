@@ -247,24 +247,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
         <WelcomeOverlay name={welcomeName} mode={mode} />
       )}
       {/* Theme Toggle */}
-      {/* <Box sx={{ position: "absolute", top: 16, right: 16 }}>
-        <IconButton
-          onClick={() => {
-            const next = mode === "light" ? "dark" : "light";
-            localStorage.setItem("themeMode", next);
-            setMode(next);
-          }}
-          sx={{
-            color: mode === "dark" ? "#fff" : "#000",
-            backgroundColor: mode === "dark" ? "#1f1f1f" : "#e0e0e0",
-            "&:hover": {
-              backgroundColor: mode === "dark" ? "#2c2c2c" : "#c0c0c0",
-            },
-          }}
-        >
-          {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
-        </IconButton>
-      </Box> */}
      <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
           onClick={() => {
