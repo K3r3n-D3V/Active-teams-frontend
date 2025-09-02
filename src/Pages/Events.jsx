@@ -35,7 +35,6 @@ const Events = () => {
   }, []);
 
 
-
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
     if (isNaN(dateObj.getTime())) return "Date not set";
