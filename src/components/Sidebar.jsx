@@ -82,7 +82,7 @@ export default function Sidebar({ mode, setMode }) {
       }}
     >
       {/* Logo */}
-      <Box sx={{ padding: 2, display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ padding: 2, display: 'flex', justifyContent: 'center', mt: "15px" }}>
         <img
           src={logo}
           alt="Active Church Logo"
