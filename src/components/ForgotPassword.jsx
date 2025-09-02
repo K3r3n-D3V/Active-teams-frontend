@@ -19,6 +19,8 @@ const ForgotPassword = ({ mode }) => {
 
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,7 +29,7 @@ const ForgotPassword = ({ mode }) => {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:8000/forgot-password", {
+      const response = await fetch(`${BACKEND_URL}/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -70,11 +72,12 @@ const ForgotPassword = ({ mode }) => {
         sx={{
           width: "100%",
           maxWidth: 400,
-          backgroundColor: "#fff", // Match login
-          color: "#000",
+          backgroundColor:
+            mode === "dark" ? theme.palette.background.paper : "#fff",
+          color: theme.palette.text.primary,
           p: 4,
-          borderRadius: "16px",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+          borderRadius: 4,
+          boxShadow: 3,
           textAlign: "center",
         }}
       >
@@ -93,7 +96,8 @@ const ForgotPassword = ({ mode }) => {
               maxHeight: isSmallScreen ? 60 : 80,
               maxWidth: "100%",
               objectFit: "contain",
-              // No filter here
+              filter: mode === "dark" ? "invert(1)" : "none",
+              transition: "filter 0.3s ease-in-out",
             }}
           />
         </Box>
@@ -103,7 +107,11 @@ const ForgotPassword = ({ mode }) => {
           Forgot Password
         </Typography>
 
-        <Typography variant="body2" mb={2} sx={{ textAlign: "left", display: "block" }}>
+        <Typography
+          variant="body2"
+          mb={2}
+          sx={{ textAlign: "left", display: "block" }}
+        >
           Enter your email address to reset your password.
         </Typography>
 
@@ -118,8 +126,19 @@ const ForgotPassword = ({ mode }) => {
           sx={{
             mb: 2,
             "& .MuiOutlinedInput-root": {
-              borderRadius: "999px", // Rounded input
+              borderRadius: "999px",
+              backgroundColor:
+                mode === "dark"
+                  ? theme.palette.background.default
+                  : "#fff",
+              color: theme.palette.text.primary,
             },
+            "& .MuiInputLabel-root": {
+              color: theme.palette.text.secondary,
+            },
+          }}
+          InputLabelProps={{
+            style: { color: theme.palette.text.secondary },
           }}
         />
 
@@ -142,14 +161,14 @@ const ForgotPassword = ({ mode }) => {
           fullWidth
           disabled={loading}
           sx={{
-            backgroundColor: "#000",
-            color: "#fff",
+            backgroundColor: mode === "dark" ? "#fff" : "#000",
+            color: mode === "dark" ? "#000" : "#fff",
             fontWeight: "bold",
             borderRadius: "999px",
             py: 1.2,
             mb: 2,
             "&:hover": {
-              backgroundColor: "#222",
+              backgroundColor: mode === "dark" ? "#e0e0e0" : "#222",
             },
           }}
         >

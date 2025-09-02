@@ -11,6 +11,8 @@ import {
 } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import darkLogo from "../assets/active-teams.png";
 import { AuthContext } from "../contexts/AuthContext";
 
@@ -24,6 +26,7 @@ const Login = ({ mode, setMode }) => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const theme = useTheme();
   const navigate = useNavigate();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -149,13 +152,23 @@ const Login = ({ mode, setMode }) => {
           <TextField
             label="Password"
             name="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={form.password}
             onChange={handleChange}
             fullWidth
             error={!!error && !form.password}
             helperText={!form.password && error ? "Password is required" : ""}
             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+            InputProps={{
+              endAdornment: (
+                <IconButton
+                  onClick={() => setShowPassword(!showPassword)}
+                  edge="end"
+                >
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              ),
+            }}
           />
 
           {error && (
