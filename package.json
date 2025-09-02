@@ -12,6 +12,7 @@
   "dependencies": {
     "@aldabil/react-scheduler": "^3.1.2",
     "@chakra-ui/react": "^3.25.0",
+    "@emailjs/browser": "^4.4.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@hello-pangea/dnd": "^18.0.1",

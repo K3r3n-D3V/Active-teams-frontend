@@ -82,6 +82,8 @@ import Login from "./Pages/Login";
 import Signup from "./Pages/Signup";
 import CreateEvents from './Pages/CreateEvents';
 import AttendanceModal from './Pages/AttendanceModal';
+import ForgotPassword from './components/ForgotPassword'; 
+import ResetPassword from './components/ResetPassword';
 
 import withAuthCheck from "./components/withAuthCheck"; // adjust the path if needed
 
@@ -119,6 +121,8 @@ function App() {
         <div style={{ flexGrow: 1 }}>
           <Routes>
             <Route path="/login" element={<Login title="Login" mode={mode} setMode={setMode}/>} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/signup" element={<Signup title="Signup" mode={mode} setMode={setMode}/>} />
             <Route path="/" element={<ProtectedHome />} />
             <Route path="/profile" element={<ProtectedProfile title="Profile" />} />
