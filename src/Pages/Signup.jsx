@@ -500,6 +500,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 "&:hover": {
                   backgroundColor: "#222",
                 },
+                "&:active": {
+                  backgroundColor: "#444",
+                },
               }}
             >
               {loading ? "Signing Up..." : "Sign Up"}

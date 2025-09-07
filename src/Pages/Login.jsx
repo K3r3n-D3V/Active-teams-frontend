@@ -199,6 +199,9 @@ const Login = ({ mode, setMode }) => {
               "&:hover": {
                 backgroundColor: "#a09c9cff",
               },
+              "&:active": {
+                backgroundColor: "#c0c0c0",
+              },
             }}
           >
             {loading ? "Logging In..." : "Login"}
