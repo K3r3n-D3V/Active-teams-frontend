@@ -38,12 +38,16 @@ export const refreshToken = async (refreshTokenId, refreshTokenValue) => {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ refreshTokenId, refreshTokenValue }),
+    body: JSON.stringify({
+      refresh_token_id: refreshTokenId,
+      refresh_token: refreshTokenValue,
+    }),
   });
 
   if (!response.ok) {
-    throw new Error("Token refresh failed");
+    const errorData = await response.json();
+    throw new Error(errorData.message || "Token refresh failed");
   }
 
-  return response.json(); // Should return new tokens as well
+  return response.json(); // Should return new access and refresh tokens
 };

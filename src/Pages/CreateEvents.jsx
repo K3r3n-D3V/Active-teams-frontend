@@ -87,8 +87,13 @@ const CreateEvents = () => {
     else if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(formData.eventLeader.trim())) newErrors.eventLeader = 'No numbers or double spaces allowed';
     if (!formData.description) newErrors.description = 'Description is required';
 
-    // Recurring days must always have at least 1 selected
-    if (formData.recurringDays.length === 0) newErrors.recurringDays = 'Select at least one recurring day';
+    // ✅ Only require recurring days if the event is a Cell group
+const requiresRecurringDays = formData.eventType.toLowerCase().includes("cell");
+if (requiresRecurringDays && formData.recurringDays.length === 0) {
+  newErrors.recurringDays = 'Select at least one recurring day';
+}
+
+
 
     // Only validate date/time if not a cell
     if (!isCell) {

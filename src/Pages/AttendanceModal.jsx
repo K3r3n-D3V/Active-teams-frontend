@@ -4,17 +4,16 @@ import { useTheme, Snackbar, Alert } from "@mui/material";
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
   const theme = useTheme();
 
-  // Attendance state
-  const [attendees, setAttendees] = useState([]);
   const [checked, setChecked] = useState({});
   const [people, setPeople] = useState([]);
+  const [commonAttendees, setCommonAttendees] = useState([]);
   const [searchName, setSearchName] = useState("");
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
 
-  // Generic fetch function
-  const fetchPeople = async (filter = "", setter = setPeople) => {
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+  const fetchPeople = async (filter = "") => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -23,14 +22,14 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
 
       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
       const data = await res.json();
+      const peopleArray = data.people || data.results || [];
 
-      if (data && data.people) {
-        const formatted = data.people.map((p) => ({
-          id: p._id,
-          fullName: `${p.Name} ${p.Surname || ""}`.trim(),
-        }));
-        setter(formatted);
-      }
+      const formatted = peopleArray.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      }));
+
+      setPeople(formatted);
     } catch (err) {
       console.error("Error fetching people:", err);
     } finally {
@@ -38,32 +37,63 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
     }
   };
 
-  // Fetch people when modal opens
-  useEffect(() => {
-    if (isOpen) fetchPeople();
-  }, [isOpen]);
+  const fetchCommonAttendees = async (cellId) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/events/cell/${cellId}/common-attendees`);
+      const data = await res.json();
+      const attendeesArray = data.common_attendees || [];
 
-  // Debounced search
+      const formatted = attendeesArray.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      }));
+
+      setCommonAttendees(formatted);
+
+      // Auto-check common attendees by default
+      const initialChecked = {};
+      formatted.forEach((p) => {
+        initialChecked[p.id] = true;
+      });
+
+      setChecked(initialChecked);
+    } catch (err) {
+      console.error("Failed to fetch common attendees:", err);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
-      const delay = setTimeout(() => fetchPeople(searchName), 200);
-      return () => clearTimeout(delay);
+      fetchPeople();
+      setChecked({});
+      setSearchName("");
+
+      // Only fetch common attendees for CELL events
+      if (event && event.eventType === "cell") {
+        fetchCommonAttendees(event._id || event.id);
+      } else {
+        setCommonAttendees([]);
+      }
     }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      if (isOpen) fetchPeople(searchName);
+    }, 300);
+    return () => clearTimeout(delay);
   }, [searchName, isOpen]);
 
-  const handleAddAttendee = () => {
-    if (searchName.trim() && !attendees.includes(searchName.trim())) {
-      setAttendees([...attendees, searchName.trim()]);
-      setSearchName("");
-    }
+  const handleToggle = (id) => {
+    setChecked((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   };
 
-  const handleToggle = (name) => {
-    setChecked({ ...checked, [name]: !checked[name] });
-  };
+  const handleSubmit = async () => {
+    const selected = people.filter(p => checked[p.id]);
 
-  const handleSubmit = () => {
-    const selected = Object.keys(checked).filter((name) => checked[name]);
     if (selected.length === 0) {
       setAlert({
         open: true,
@@ -72,13 +102,46 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
       });
       return;
     }
-    if (onSubmit) onSubmit(selected);
-    setAlert({
-      open: true,
-      type: "success",
-      message: `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
-    });
-    onClose();
+
+    if (onSubmit) {
+      const result = await onSubmit(selected);
+
+      if (result?.success) {
+        setAlert({
+          open: true,
+          type: "success",
+          message: result.message || `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
+        });
+        onClose();
+      } else {
+        setAlert({
+          open: true,
+          type: "error",
+          message: result?.message || `Failed to submit attendance for "${event.eventName || event.service_name || "this event"}".`,
+        });
+      }
+    }
+  };
+
+  const handleMarkDidNotMeet = async () => {
+    if (onSubmit) {
+      const result = await onSubmit("did-not-meet");
+
+      if (result?.success) {
+        setAlert({
+          open: true,
+          type: "success",
+          message: result.message || `${event.eventName || event.service_name || "Event"} captured as did not meet.`,
+        });
+        onClose();
+      } else {
+        setAlert({
+          open: true,
+          type: "error",
+          message: result?.message || `Failed to capture did not meet status for "${event.eventName || event.service_name || "this event"}".`,
+        });
+      }
+    }
   };
 
   if (!isOpen) return null;
@@ -120,42 +183,40 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
       color: theme.palette.text.primary,
       cursor: "pointer",
     },
-    addContainer: {
-      display: "flex",
-      marginBottom: "16px",
-      gap: "8px",
-      flexWrap: "wrap",
-      alignItems: "center",
-    },
     input: {
-      flex: 1,
-      padding: "8px",
+      width: "100%",
+      padding: "12px",
+      fontSize: "16px",
       borderRadius: "6px",
       border: `1px solid ${theme.palette.divider}`,
       backgroundColor: theme.palette.background.default,
       color: theme.palette.text.primary,
       outline: "none",
-    },
-    addBtn: {
-      background: "#007bff",
-      color: "#fff",
-      border: "none",
-      padding: "8px 12px",
-      borderRadius: "6px",
-      cursor: "pointer",
-    },
-    list: {
-      maxHeight: "250px",
-      overflowY: "auto",
       marginBottom: "16px",
-      color: theme.palette.text.primary,
+      boxSizing: "border-box",
     },
-    listItem: {
+    peopleList: {
+      maxHeight: "300px",
+      overflowY: "auto",
+      border: "1px solid #ccc",
+      borderRadius: "6px",
+      backgroundColor: "#fff",
+      padding: 0,
+    },
+    personItem: {
       display: "flex",
       alignItems: "center",
-      gap: "8px",
-      marginBottom: "6px",
-      color: theme.palette.text.primary,
+      gap: "12px",
+      padding: "6px 8px",
+      fontSize: "16px",
+      cursor: "pointer",
+      userSelect: "none",
+      borderBottom: "1px solid #eee",
+    },
+    checkbox: {
+      width: "20px",
+      height: "20px",
+      accentColor: "#007bff",
       cursor: "pointer",
     },
     actions: {
@@ -163,12 +224,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
       justifyContent: "space-between",
       flexWrap: "wrap",
       gap: "8px",
+      marginTop: "20px",
     },
     primaryBtn: {
       background: "#007bff",
       color: "#fff",
       border: "none",
-      padding: "8px 16px",
+      padding: "10px 16px",
       borderRadius: "6px",
       cursor: "pointer",
       flex: 1,
@@ -177,71 +239,67 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
       background: "#e84118",
       color: "#fff",
       border: "none",
-      padding: "8px 16px",
+      padding: "10px 16px",
       borderRadius: "6px",
       cursor: "pointer",
       flex: 1,
     },
   };
 
+  // Merge commonAttendees and people, without duplicates
+  const combinedPeople = [
+    ...commonAttendees,
+    ...people.filter((p) => !commonAttendees.some((c) => c.id === p.id)),
+  ];
+
+  const filteredPeople = combinedPeople.filter(
+    (person) =>
+      person.fullName &&
+      person.fullName.toLowerCase().includes(searchName.toLowerCase())
+  );
+
   return (
     <>
       <div style={styles.overlay}>
         <div style={styles.modal}>
-          {/* Close Button */}
           <button style={styles.closeBtn} onClick={onClose}>
             &times;
           </button>
 
           <h2>Capture Attendance - {event.eventName || event.service_name || "Event"}</h2>
 
-          <div style={styles.addContainer}>
-            <input
-              type="text"
-              placeholder="Search people..."
-              value={searchName}
-              onChange={(e) => setSearchName(e.target.value)}
-              style={styles.input}
-            />
-            <button onClick={handleAddAttendee} style={styles.addBtn}>
-              Add
-            </button>
-          </div>
+          <input
+            type="text"
+            placeholder="Search people..."
+            value={searchName}
+            onChange={(e) => setSearchName(e.target.value)}
+            style={styles.input}
+          />
 
-          <div style={styles.list}>
-            {attendees.map((name, index) => (
-              <label key={index} style={styles.listItem}>
+          <div style={styles.peopleList}>
+            {loading && <p>Loading...</p>}
+            {!loading && filteredPeople.length === 0 && <p>No people found.</p>}
+            {filteredPeople.map((person) => (
+              <div
+                key={person.id}
+                style={styles.personItem}
+                onClick={() => handleToggle(person.id)}
+              >
                 <input
                   type="checkbox"
-                  checked={!!checked[name]}
-                  onChange={() => handleToggle(name)}
+                  checked={!!checked[person.id]}
+                  readOnly
+                  style={styles.checkbox}
                 />
-                {name}
-              </label>
+                {person.fullName}
+              </div>
             ))}
-            {loading ? (
-              <p>Loading...</p>
-            ) : (
-              people.map((person) => (
-                <label key={person.id} style={styles.listItem}>
-                  <input
-                    type="checkbox"
-                    checked={!!checked[person.fullName]}
-                    onChange={() => handleToggle(person.fullName)}
-                  />
-                  {person.fullName}
-                </label>
-              ))
-            )}
           </div>
 
           <div style={styles.actions}>
             <button
               style={styles.secondaryBtn}
-              onClick={() => {
-                if (onSubmit) onSubmit("did-not-meet");
-                onClose();
-              }}
+              onClick={handleMarkDidNotMeet}
             >
               Mark As Did Not Meet
             </button>
@@ -254,7 +312,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
 
       <Snackbar
         open={alert.open}
-        autoHideDuration={4000}
+        autoHideDuration={5000}
         onClose={() => setAlert({ ...alert, open: false })}
         anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
