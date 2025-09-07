@@ -74,6 +74,11 @@ function ServiceCheckIn() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [consolidationOpen, setConsolidationOpen] = React.useState(false);
 
+  // NEW: modal search & pagination state
+  const [modalSearch, setModalSearch] = useState("");
+  const [modalPage, setModalPage] = useState(0);
+  const [modalRowsPerPage, setModalRowsPerPage] = useState(10);
+
   const [formData, setFormData] = useState({
     name: "",
     surname: "",
@@ -206,9 +211,9 @@ function ServiceCheckIn() {
 
   const handleConsolidationClick = () => setConsolidationOpen(true);
   const handleFinishConsolidation = (task) => {
-  console.log("Consolidation task:", task);
-  // Save to DB here
-};
+    console.log("Consolidation task:", task);
+    // Save to DB here
+  };
 
   // Handle edit
   const handleEditClick = (person) => {
@@ -367,151 +372,79 @@ function ServiceCheckIn() {
   const paginatedAttendees = filteredAttendees.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const presentCount = attendeesWithStatus.filter((a) => a.present).length;
 
+  // Data for modal (present attendees only)
+  const modalBaseList = attendeesWithStatus.filter((a) => a.present);
+  const modalFilteredAttendees = modalBaseList.filter((a) => {
+    const lc = modalSearch.toLowerCase();
+    const bag = [a.name, a.surname, a.email, a.phone, a.leader12, a.leader144, a.leader1728]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return bag.includes(lc);
+  });
+  const modalPaginatedAttendees = modalFilteredAttendees.slice(
+    modalPage * modalRowsPerPage,
+    modalPage * modalRowsPerPage + modalRowsPerPage
+  );
+
   // Reusable card for mobile
   const AttendeeCard = ({ attendee }) => (
-    // <Card
-    //   variant="outlined"
-    //   sx={{
-    //     mb: 1,
-    //     "&:last-child": { mb: 0 },
-    //     ...(firstTimeAddedIds.includes(attendee._id) && {
-    //       border: `2px solid ${theme.palette.success.main}`,
-    //       backgroundColor: theme.palette.success.light + "0a",
-    //     }),
-    //   }}
-    // >
-    //   <CardContent sx={{ p: 2 }}>
-    //     <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-    //       <Box flex={1}>
-    //         <Typography variant="subtitle2" fontWeight={600}>
-    //           {attendee.name} {attendee.surname}
-    //           {firstTimeAddedIds.includes(attendee._id) && (
-    //             <Chip label="First Time" size="small" sx={{ ml: 1, fontSize: "0.7rem", height: 20 }} color="success" />
-    //           )}
-    //         </Typography>
-    //         {attendee.email && <Typography variant="body2" color="text.secondary">{attendee.email}</Typography>}
-    //         {attendee.phone && <Typography variant="body2" color="text.secondary">{attendee.phone}</Typography>}
-    //       </Box>
-    //       <IconButton
-    //         onClick={() => handleToggleCheckIn(attendee)}
-    //         color="success"
-    //         disabled={!currentEventId}
-    //         size="small"
-    //         title={currentEventId ? "Toggle present" : "Select an event first"}
-    //       >
-    //         {attendee.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
-    //       </IconButton>
-    //     </Box>
-    //     {(attendee.leader12 || attendee.leader144 || attendee.leader1728) && (
-    //       <>
-    //         <Divider sx={{ my: 1 }} />
-    //         <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
-    //           {attendee.leader12 && <Chip label={`@12: ${attendee.leader12}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />}
-    //           {attendee.leader144 && <Chip label={`@144: ${attendee.leader144}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />}
-    //           {attendee.leader1728 && <Chip label={`@1728: ${attendee.leader1728}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />}
-    //         </Stack>
-    //       </>
-    //     )}
-    //   </CardContent>
-    // </Card>
-    // Inside AttendeeCard
-<Card
-  variant="outlined"
-  sx={{
-    mb: 1,
-    "&:last-child": { mb: 0 },
-    ...(firstTimeAddedIds.includes(attendee._id) && {
-      border: `2px solid ${theme.palette.success.main}`,
-      backgroundColor: theme.palette.success.light + "0a",
-    }),
-  }}
->
-  <CardContent sx={{ p: 2 }}>
-    <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-      <Box flex={1}>
-        <Typography variant="subtitle2" fontWeight={600}>
-          {attendee.name} {attendee.surname}
-          {firstTimeAddedIds.includes(attendee._id) && (
-            <Chip
-              label="First Time"
-              size="small"
-              sx={{ ml: 1, fontSize: "0.7rem", height: 20 }}
-              color="success"
-            />
-          )}
-        </Typography>
-        {attendee.email && (
-          <Typography variant="body2" color="text.secondary">
-            {attendee.email}
-          </Typography>
-        )}
-        {attendee.phone && (
-          <Typography variant="body2" color="text.secondary">
-            {attendee.phone}
-          </Typography>
-        )}
-      </Box>
-    </Box>
+    <Card
+      variant="outlined"
+      sx={{
+        mb: 1,
+        "&:last-child": { mb: 0 },
+        ...(firstTimeAddedIds.includes(attendee._id) && {
+          border: `2px solid ${theme.palette.success.main}`,
+          backgroundColor: theme.palette.success.light + "0a",
+        }),
+      }}
+    >
+      <CardContent sx={{ p: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <Box flex={1}>
+            <Typography variant="subtitle2" fontWeight={600}>
+              {attendee.name} {attendee.surname}
+              {firstTimeAddedIds.includes(attendee._id) && (
+                <Chip label="First Time" size="small" sx={{ ml: 1, fontSize: "0.7rem", height: 20 }} color="success" />
+              )}
+            </Typography>
+            {attendee.email && <Typography variant="body2" color="text.secondary">{attendee.email}</Typography>}
+            {attendee.phone && <Typography variant="body2" color="text.secondary">{attendee.phone}</Typography>}
+          </Box>
+        </Box>
 
-    {/* Actions row */}
-    <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
-      <IconButton
-        onClick={() => handleEditClick(attendee)}
-        color="primary"
-        size="small"
-      >
-        <EditIcon fontSize="small" />
-      </IconButton>
-      <IconButton
-        onClick={() => handleDelete(attendee._id)}
-        color="error"
-        size="small"
-      >
-        <DeleteIcon fontSize="small" />
-      </IconButton>
-      <IconButton
-        onClick={() => handleToggleCheckIn(attendee)}
-        color="success"
-        disabled={!currentEventId}
-        size="small"
-      >
-        {attendee.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
-      </IconButton>
-    </Stack>
-
-    {(attendee.leader12 || attendee.leader144 || attendee.leader1728) && (
-      <>
-        <Divider sx={{ my: 1 }} />
-        <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
-          {attendee.leader12 && (
-            <Chip
-              label={`@12: ${attendee.leader12}`}
-              size="small"
-              variant="outlined"
-              sx={{ fontSize: "0.7rem", height: 20 }}
-            />
-          )}
-          {attendee.leader144 && (
-            <Chip
-              label={`@144: ${attendee.leader144}`}
-              size="small"
-              variant="outlined"
-              sx={{ fontSize: "0.7rem", height: 20 }}
-            />
-          )}
-          {attendee.leader1728 && (
-            <Chip
-              label={`@1728: ${attendee.leader1728}`}
-              size="small"
-              variant="outlined"
-              sx={{ fontSize: "0.7rem", height: 20 }}
-            />
-          )}
+        {/* Actions row */}
+        <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
+          <IconButton onClick={() => handleEditClick(attendee)} color="primary" size="small">
+            <EditIcon fontSize="small" />
+          </IconButton>
+          <IconButton onClick={() => handleDelete(attendee._id)} color="error" size="small">
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+          <IconButton onClick={() => handleToggleCheckIn(attendee)} color="success" disabled={!currentEventId} size="small">
+            {attendee.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
+          </IconButton>
         </Stack>
-      </>
-    )}
-  </CardContent>
-</Card>
+
+        {(attendee.leader12 || attendee.leader144 || attendee.leader1728) && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+              {attendee.leader12 && (
+                <Chip label={`@12: ${attendee.leader12}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+              {attendee.leader144 && (
+                <Chip label={`@144: ${attendee.leader144}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+              {attendee.leader1728 && (
+                <Chip label={`@1728: ${attendee.leader1728}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+            </Stack>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 
   return (
@@ -524,7 +457,11 @@ function ServiceCheckIn() {
       {/* Stats Cards */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
         <Grid item xs={6}>
-          <Paper variant="outlined" sx={{ p: getResponsiveValue(1.5, 2, 2.5, 3, 3), textAlign: "center", cursor: "pointer", "&:hover": { boxShadow: theme.shadows[2], transform: "translateY(-1px)" } }} onClick={() => setModalOpen(true)}>
+          <Paper
+            variant="outlined"
+            sx={{ p: getResponsiveValue(1.5, 2, 2.5, 3, 3), textAlign: "center", cursor: "pointer", "&:hover": { boxShadow: theme.shadows[2], transform: "translateY(-1px)" } }}
+            onClick={() => { setModalOpen(true); setModalSearch(""); setModalPage(0); }}
+          >
             <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
               <GroupIcon color="primary" sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
               <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color="primary">{presentCount}</Typography>
@@ -550,13 +487,7 @@ function ServiceCheckIn() {
       {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={6} md={4}>
-          <Select
-            size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-            value={currentEventId}
-            onChange={(e) => setCurrentEventId(e.target.value)}
-            displayEmpty
-            fullWidth
-          >
+          <Select size={getResponsiveValue("small", "small", "medium", "medium", "medium")} value={currentEventId} onChange={(e) => setCurrentEventId(e.target.value)} displayEmpty fullWidth>
             <MenuItem value="">Select Event</MenuItem>
             {events.map((ev) => (
               <MenuItem key={ev.id} value={ev.id}>{ev.eventName}</MenuItem>
@@ -564,39 +495,32 @@ function ServiceCheckIn() {
           </Select>
         </Grid>
         <Grid item xs={12} sm={6} md={5}>
-          <TextField
-            size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-            placeholder="Search attendees..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            fullWidth
-          />
+          <TextField size={getResponsiveValue("small", "small", "medium", "medium", "medium")} placeholder="Search attendees..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} fullWidth />
         </Grid>
         <Grid item xs={12} md={3}>
           <Tooltip title="Add Person">
             <PersonAddIcon onClick={() => setOpenDialog(true)} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "primary.dark" } }} />
           </Tooltip>
         </Grid>
-          {/* Consolidation */}
-  <Tooltip title="Consolidation">
-    <EmojiPeopleIcon
-      onClick={handleConsolidationClick}
-      sx={{
-        cursor: "pointer",
-        fontSize: 36,
-        color: isDarkMode ? "white" : "black",
-        "&:hover": { color: "secondary.dark" },
-        pb: 0.2,
-      }}
-    />
-  </Tooltip>
+        {/* Consolidation */}
+        <Tooltip title="Consolidation">
+          <EmojiPeopleIcon onClick={handleConsolidationClick} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "secondary.dark" }, pb: 0.2 }} />
+        </Tooltip>
       </Grid>
 
       {/* Mobile vs Desktop */}
       {isMdDown ? (
-        <Box>{paginatedAttendees.map((att) => <AttendeeCard key={att._id} attendee={att} />)}</Box>
+        <Box>
+          {/* Dedicated Mobile Search just above cards (optional, shares same state) */}
+          <TextField size="small" placeholder="Search attendees..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} fullWidth sx={{ mb: 2 }} />
+
+          {paginatedAttendees.map((att) => <AttendeeCard key={att._id} attendee={att} />)}
+
+          {/* Pagination under cards */}
+          <TablePagination component="div" count={filteredAttendees.length} page={page} onPageChange={(e, newPage) => setPage(newPage)} rowsPerPage={rowsPerPage} onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} rowsPerPageOptions={[5, 10, 20, 50]} />
+        </Box>
       ) : (
-        <TableContainer component={Paper} variant="outlined"  sx={{maxHeight: 500, overflowY: "auto"}}>
+        <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500, overflowY: "auto" }}>
           <Table size={getResponsiveValue("small", "small", "medium", "medium", "medium")} stickyHeader>
             <TableHead>
               <TableRow>
@@ -630,87 +554,83 @@ function ServiceCheckIn() {
         </TableContainer>
       )}
 
-      {/* Pagination */}
-      <TablePagination
-        component="div"
-        count={filteredAttendees.length}
-        page={page}
-        onPageChange={(e, newPage) => setPage(newPage)}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-        rowsPerPageOptions={[5, 10, 20, 50]}
-      />
+      {/* Pagination (desktop table or global) */}
+      {!isMdDown && (
+        <TablePagination component="div" count={filteredAttendees.length} page={page} onPageChange={(e, newPage) => setPage(newPage)} rowsPerPage={rowsPerPage} onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} rowsPerPageOptions={[5, 10, 20, 50]} />
+      )}
 
+      {/* Add / Edit Dialog */}
       <AddPersonDialog open={openDialog} onClose={() => setOpenDialog(false)} onSave={handlePersonSave} formData={formData} setFormData={setFormData} isEdit={Boolean(editingPerson)} personId={editingPerson?._id || null} />
-<Dialog
-  open={modalOpen}
-  onClose={() => setModalOpen(false)}
-  fullWidth
-  maxWidth="md"
-  fullScreen={isSmDown}
->
-  <DialogTitle>Attendees Present: {presentCount}</DialogTitle>
-  <DialogContent
-    dividers
-    sx={{
-      maxHeight: 400, // 👈 adjust to taste
-      overflowY: "auto",
-    }}
-  >
-    <Table size="small" stickyHeader>
-      <TableHead>
-        <TableRow>
-          <TableCell>Name</TableCell>
-          {/* <TableCell>Email</TableCell> */}
-          <TableCell>Leader@12</TableCell>
-          <TableCell>Leader@144</TableCell>
-          <TableCell>Leader@1728</TableCell>
-          <TableCell align="center">Action</TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {attendeesWithStatus
-          .filter((a) => a.present)
-          .map((a) => (
-            <TableRow key={a._id} hover>
-              <TableCell>{a.name} {a.surname}</TableCell>
-              {/* <TableCell>{a.email || "-"}</TableCell> */}
-              <TableCell>{a.leader12 || "—"}</TableCell>
-              <TableCell>{a.leader144 || "—"}</TableCell>
-              <TableCell>{a.leader1728 || "—"}</TableCell>
-              <TableCell align="center">
-                <IconButton
-                  color="error"
-                  size="small"
-                  onClick={() => handleToggleCheckIn(a)}
-                >
-                  <CheckCircleOutlineIcon />
-                </IconButton>
-              </TableCell>
-            </TableRow>
-          ))}
-      </TableBody>
-    </Table>
-  </DialogContent>
-  <DialogActions>
-    <Button
-      onClick={() => setModalOpen(false)}
-      variant="outlined"
-      fullWidth={isSmDown}
-    >
-      Close
-    </Button>
-  </DialogActions>
-</Dialog>
 
+      {/* PRESENT Attendees Modal with its own search + pagination */}
+      <Dialog open={modalOpen} onClose={() => setModalOpen(false)} fullWidth maxWidth="md" fullScreen={isSmDown}>
+        <DialogTitle>
+          Attendees Present: {presentCount}
+        </DialogTitle>
+        <DialogContent dividers sx={{ maxHeight: 500, overflowY: "auto" }}>
+          {/* Modal Search */}
+          <TextField
+            size="small"
+            placeholder="Search present attendees..."
+            value={modalSearch}
+            onChange={(e) => { setModalSearch(e.target.value); setModalPage(0); }}
+            fullWidth
+            sx={{ mb: 2 }}
+          />
 
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Leader@12</TableCell>
+                <TableCell>Leader@144</TableCell>
+                <TableCell>Leader@1728</TableCell>
+                <TableCell align="center">Action</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {modalPaginatedAttendees.map((a) => (
+                <TableRow key={a._id} hover>
+                  <TableCell>{a.name} {a.surname}</TableCell>
+                  <TableCell>{a.leader12 || "—"}</TableCell>
+                  <TableCell>{a.leader144 || "—"}</TableCell>
+                  <TableCell>{a.leader1728 || "—"}</TableCell>
+                  <TableCell align="center">
+                    <IconButton color="error" size="small" onClick={() => handleToggleCheckIn(a)}>
+                      <CheckCircleOutlineIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {modalPaginatedAttendees.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">No matching attendees</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
 
-      <ConsolidationModal
-  open={consolidationOpen}
-  onClose={() => setConsolidationOpen(false)}
- attendeesWithStatus={attendeesWithStatus}
-  onFinish={handleFinishConsolidation}
-/>
+          {/* Modal Pagination */}
+          <Box mt={1}>
+            <TablePagination
+              component="div"
+              count={modalFilteredAttendees.length}
+              page={modalPage}
+              onPageChange={(e, newPage) => setModalPage(newPage)}
+              rowsPerPage={modalRowsPerPage}
+              onRowsPerPageChange={(e) => { setModalRowsPerPage(parseInt(e.target.value, 10)); setModalPage(0); }}
+              rowsPerPageOptions={[5, 10, 20, 50]}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setModalOpen(false)} variant="outlined" fullWidth={isSmDown}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <ConsolidationModal open={consolidationOpen} onClose={() => setConsolidationOpen(false)} attendeesWithStatus={attendeesWithStatus} onFinish={handleFinishConsolidation} />
     </Box>
   );
 }
