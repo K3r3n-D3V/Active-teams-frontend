@@ -17,7 +17,8 @@ export default function DailyTasks() {
   const [filterType, setFilterType] = useState("all");
   const [currentDay, setCurrentDay] = useState(dayjs().format("YYYY-MM-DD"));
 
-  const API_URL = "https://active-teams-backend.onrender.com";
+  // const API_URL = "https://active-teams-backend.onrender.com";
+   const API_URL = "http://127.0.0.1:8000";
 
   // ✅ Helper to format datetime for <input type="datetime-local">
   const getCurrentDateTime = () => {
