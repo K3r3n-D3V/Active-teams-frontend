@@ -132,7 +132,6 @@ export default function Profile() {
   const [editMode, setEditMode] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
-
   const [form, setForm] = useState({
     name: userProfile?.name || "",
     surname: userProfile?.surname || "",
