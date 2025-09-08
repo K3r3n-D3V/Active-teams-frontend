@@ -12,7 +12,6 @@ import {
   TextField,
   Grid,
   Button,
-  Avatar,
   useTheme,
   Snackbar,
   Alert,
@@ -32,7 +31,6 @@ import getCroppedImg from "../components/cropImageHelper";
 import { UserContext } from "../contexts/UserContext.jsx";
 import {
   Logout,
-  PhotoCamera,
   Edit,
   Save,
   Cancel,
@@ -58,20 +56,30 @@ const carouselTexts = [
 ];
 
 /** API helpers */
-const API_BASE = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL  = import.meta.env.VITE_BACKEND_URL;
 
 async function fetchUserProfile() {
   const token = localStorage.getItem("token");
-  const res = await fetch(`${API_BASE}/users/me`, {
+  const res = await fetch(`${BACKEND_URL}/users/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+
   if (!res.ok) throw new Error("Failed to fetch profile");
-  return res.json();
+
+  const data = await res.json();
+  console.log("Fetched profile:", data);
+
+  // ✅ Make sure to return _id (normalize it)
+  return {
+    ...data,
+    _id: data._id || data.id || null,
+  };
 }
+
 
 async function updateUserProfile(userId, data) {
   const token = localStorage.getItem("token");
-  const res = await fetch(`${API_BASE}/profile/${userId}`, {
+  const res = await fetch(`${BACKEND_URL}/profile/${userId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -79,9 +87,17 @@ async function updateUserProfile(userId, data) {
     },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to update profile");
+
+  // Extract backend error details for better feedback
+  if (!res.ok) {
+    const errorBody = await res.json().catch(() => ({}));
+    const errorMessage = errorBody?.detail || errorBody?.message || "Unknown error";
+    throw new Error(errorMessage);
+  }
+
   return res.json();
 }
+
 
 async function uploadAvatarFromDataUrl(dataUrl) {
   const token = localStorage.getItem("token");
@@ -89,7 +105,7 @@ async function uploadAvatarFromDataUrl(dataUrl) {
   const form = new FormData();
   form.append("avatar", blob, "avatar.png");
 
-  const res = await fetch(`${API_BASE}/users/me/avatar`, {
+  const res = await fetch(`${BACKEND_URL }/users/me/avatar`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -102,7 +118,7 @@ export default function Profile() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const navigate = useNavigate();
-  const { userProfile, setUserProfile, profilePic, setProfilePic } =
+  const { userProfile, setUserProfile,  setProfilePic } =
     useContext(UserContext);
 
   const fileInputRef = useRef(null);
@@ -111,6 +127,7 @@ export default function Profile() {
   const [croppingSrc, setCroppingSrc] = useState(null);
   const [croppingOpen, setCroppingOpen] = useState(false);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+ const [,setLoadingProfile] = useState(true);
 
   const [editMode, setEditMode] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -152,57 +169,40 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const data = await fetchUserProfile();
-        setUserProfile(data);
-        const pic =
-          data?.profile_picture ||
-          data?.avatarUrl ||
-          data?.profilePicUrl ||
-          null;
-        if (pic) setProfilePic(pic);
+  (async () => {
+    try {
+      const data = await fetchUserProfile();
+      setUserProfile(data);
 
-        const synced = {
-          name: data?.name || "",
-          surname: data?.surname || "",
-          dob: data?.date_of_birth || "",
-          email: data?.email || "",
-          address: data?.home_address || "",
-          phone: data?.phone_number || "",
-          invitedBy: data?.invited_by || "",
-          gender: data?.gender || "",
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        };
-        setForm(synced);
-        setOriginalForm(synced);
-      } catch (e) {
-        console.warn("Profile fetch failed:", e);
-      }
-    })();
-  }, [setUserProfile, setProfilePic]);
+      const pic =
+        data?.profile_picture ||
+        data?.avatarUrl ||
+        data?.profilePicUrl ||
+        null;
+      if (pic) setProfilePic(pic);
 
-  useEffect(() => {
-    if (userProfile) {
-      const n = {
-        name: userProfile.name || "",
-        surname: userProfile.surname || "",
-        dob: userProfile.date_of_birth || "",
-        email: userProfile.email || "",
-        address: userProfile.home_address || "",
-        phone: userProfile.phone_number || "",
-        invitedBy: userProfile.invited_by || "",
-        gender: userProfile.gender || "",
+      const synced = {
+        name: data?.name || "",
+        surname: data?.surname || "",
+        dob: data?.date_of_birth || "",
+        email: data?.email || "",
+        address: data?.home_address || "",
+        phone: data?.phone_number || "",
+        invitedBy: data?.invited_by || "",
+        gender: data?.gender || "",
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       };
-      setForm(n);
-      setOriginalForm(n);
+      setForm(synced);
+      setOriginalForm(synced);
+    } catch (e) {
+      console.warn("Profile fetch failed:", e);
+    } finally {
+      setLoadingProfile(false); // 🟢 Ensure we wait for fetch
     }
-  }, [userProfile]);
+  })();
+}, [setUserProfile, setProfilePic]);
 
   useEffect(() => {
     const changed = Object.keys(form).some((k) => {
@@ -286,52 +286,75 @@ export default function Profile() {
       });
     }
   };
+  
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-      console.log("Submitting form data:", form);
-    if (!validate()) return;
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    try {
-      const payload = {
-        name: form.name,
-        surname: form.surname,
-        date_of_birth: form.dob,
-        email: form.email,
-        home_address: form.address,
-        phone_number: form.phone,
-        invited_by: form.invitedBy,
-        gender: form.gender,
-      };
+  // Validate input fields
+  if (!validate()) return;
 
-      const updated = await updateUserProfile(userProfile?._id, payload);
+  const userId = userProfile?._id || userProfile?.id;
+  if (!userId) {
+    console.error("UserProfile:", userProfile);
+    setSnackbar({
+      open: true,
+      message: "User ID is missing. Cannot update profile.",
+      severity: "error",
+    });
+    return;
+  }
 
-      setSnackbar({
-        open: true,
-        message: updated.message || "Profile updated successfully",
-        severity: "success",
-      });
-      setEditMode(false);
-      setOriginalForm(form);
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: `Failed to update profile: ${err.message}`,
-        severity: "error",
-      });
-    }
+  const payload = {
+    name: form.name,
+    surname: form.surname,
+    date_of_birth: form.dob,
+    email: form.email,
+    home_address: form.address,
+    phone_number: form.phone,
+    invited_by: form.invitedBy,
+    gender: form.gender,
   };
+
+  try {
+    // Send the update to the server
+    const updated = await updateUserProfile(userId, payload);
+
+    // Update context and localStorage via UserContext with full updated user profile
+    setUserProfile(updated);
+
+    // Reset edit state
+    setEditMode(false);
+    setOriginalForm({ ...form });
+
+    // Show success message
+    setSnackbar({
+      open: true,
+      message: updated.message || "Profile updated successfully",
+      severity: "success",
+    });
+  } catch (err) {
+    console.error("Update failed:", err);
+    setSnackbar({
+      open: true,
+      message: `Failed to update profile: ${err.message}`,
+      severity: "error",
+    });
+  }
+};
+
+
 
   /** Styles */
   const sx = {
     root: {
-      minHeight: "90vh",
+      minHeight: "70vh",
       bgcolor: isDark ? "#000" : "#fff",
       color: isDark ? "#fff" : "#000",
     },
     heroSection: {
       position: "relative",
-      height: "30vh",
+      height: "25vh",
       bgcolor: isDark ? "#f2f2f2ff" : "#0c377bff",
       display: "flex",
       alignItems: "center",
@@ -373,7 +396,7 @@ export default function Profile() {
     cardHeader: {
       bgcolor: "#000",
       color: "#fff",
-      p: 4,
+      p:2,
       textAlign: "center",
     },
     sectionHeader: {
@@ -450,15 +473,7 @@ export default function Profile() {
         <Zoom in timeout={500}>
           <Box sx={sx.profileAvatarContainer}>
             <Box sx={{ position: "relative" }}>
-              <Avatar
-                src={profilePic || undefined}
-                sx={sx.profileAvatar}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {!profilePic &&
-                  (form?.name?.charAt(0) || "") +
-                    (form?.surname?.charAt(0) || "")}
-              </Avatar>
+              
               <input
                 ref={fileInputRef}
                 hidden
