@@ -41,19 +41,25 @@ export default function DailyTasks() {
 
   const [searchResults, setSearchResults] = useState([]);
   const fetchPeople = async (q) => {
-  if (!q.trim()) {
-    setSearchResults([]);
-    return;
-  }
-  try {
-    const res = await axios.get(`${API_URL}/people`, {
-      params: { page: 1, perPage: 10, name: q },
-    });
-    setSearchResults(res.data);
-  } catch (err) {
-    console.error("Error fetching people:", err);
-  }
-};
+    if (!q.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const res = await axios.get(`${API_URL}/people`, {
+        params: { name: q },
+      });
+
+      console.log("Fetched people:", res.data);
+
+      const people = res.data.results || [];
+      setSearchResults(people); // Keep full objects
+
+    } catch (err) {
+      console.error("Error fetching people:", err);
+    }
+  };
 
   const handleEditTask = (task) => {
     // You can open a modal or redirect to an edit page
@@ -239,28 +245,28 @@ const filteredTasks = tasks.filter((task) => {
                 required
               />
               {searchResults.length > 0 && (
-              <ul className="autocomplete-list">
-                {searchResults.map((person) => (
-                  <li
-                    key={person._id}
-                    onClick={() => {
-                      setTaskData({
-                        ...taskData,
-                        recipient: `${person.Name} ${person.Surname}`,
-                        contacted_person: {
-                          name: person.Name,
-                          phone: person.Phone || "",
-                          email: person.Email || "",
-                        },
-                      });
-                      setSearchResults([]); // hide dropdown
-                    }}
-                  >
-                    {person.Name} {person.Location ? `(${person.Location})` : ""}
-                  </li>
-                ))}
-              </ul>
-            )}
+                <ul className="autocomplete-list">
+                  {searchResults.map((person) => (
+                    <li
+                      key={person._id}
+                      onClick={() => {
+                        setTaskData({
+                          ...taskData,
+                          recipient: `${person.Name} ${person.Surname}`,
+                          contacted_person: {
+                            name: person.Name,
+                            phone: person.Phone || "",
+                            email: person.Email || "",
+                          },
+                        });
+                        setSearchResults([]); // hide dropdown
+                      }}
+                    >
+                      {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
           </div>
 
               <label>Assigned To</label>
