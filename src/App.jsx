@@ -19,6 +19,7 @@ import Login from "./Pages/Login";
 import Signup from "./Pages/Signup";
 import CreateEvents from './Pages/CreateEvents';
 import AttendanceModal from './Pages/AttendanceModal';
+import EventDetails from './Pages/EventDetails';
 import ForgotPassword from './components/ForgotPassword'; 
 import ResetPassword from './components/ResetPassword';
 
@@ -79,6 +80,11 @@ const hideLayout = noLayoutRoutes.includes(location.pathname);
             <Route path="/create-events" element={<CreateEvents title="Create Events" />} />
             <Route path="/edit-event/:id" element={<CreateEvents title="Create Events Edit" />} />
             <Route path="/attendance" element={<AttendanceModal title="Attendance Modal" />} />
+            <Route
+              path="/history"
+              element={<EventsHistory />}
+            />
+            <Route path="/event-details" element={<EventDetails title="event-details-screen" />} />
             <Route path="/history" element={<EventsHistory />} />
             <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
             <Route path="/give-today" element={<ProtectedGiveToday title="Give Today" />} />

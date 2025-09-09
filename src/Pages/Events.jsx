@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
-import { saveToEventHistory } from "./EventHistory"; 
+import { saveToEventHistory } from "./EventHistory";
 import IconButton from "@mui/material/IconButton";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import Menu from "@mui/material/Menu";
@@ -25,7 +25,9 @@ const Events = () => {
     axios
       .get(`${BACKEND_URL}/events`)
       .then((res) => {
+        console.log('Response data:', res.data); // Add this line
         const openEvents = res.data.events.filter((e) => e.status !== "closed");
+
         const sortedEvents = openEvents.sort(
           (a, b) => new Date(b.date) - new Date(a.date)
         );
@@ -44,9 +46,9 @@ const Events = () => {
   };
 
   const filteredEvents =
-  filterType === "all"
-    ? events.filter((e) => e.status !== "closed")
-    : events.filter(
+    filterType === "all"
+      ? events.filter((e) => e.status !== "closed")
+      : events.filter(
         (e) =>
           e.status !== "closed" &&
           e.eventType?.toLowerCase() === filterType.toLowerCase()
@@ -77,63 +79,77 @@ const Events = () => {
   };
 
   const handleAttendanceSubmit = async (data) => {
-  if (!selectedEvent) return;
+  if (!selectedEvent) return { success: false, message: "No event selected." };
+
   const eventId = selectedEvent._id;
-
-  // Remove immediately from events
-  setEvents((prev) => prev.filter((e) => e._id !== eventId));
-
-  // Close modal ASAP
-  setIsModalOpen(false);
-  setSelectedEvent(null);
+  const eventName = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
+  const eventType = selectedEvent.eventType || "Event";
 
   try {
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+
+    // 🟥 CASE 1: Event did not meet
     if (
       data === "did-not-meet" ||
       data === "Mark As Did Not Meet" ||
-      (data && data.toString().toLowerCase().includes("did not meet"))
+      (typeof data === "string" && data.toLowerCase().includes("did not meet"))
     ) {
-      const now = new Date();
-      const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-      const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+      await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
+        did_not_meet: true,
+      });
 
-      saveToEventHistory({
+      await saveToEventHistory({
         eventId,
-        service_name: selectedEvent.eventName || selectedEvent.service_name || "Untitled Event",
-        eventType: selectedEvent.eventType,
+        service_name: eventName,
+        eventType,
         status: "did-not-meet",
         reason: "Marked as did not meet",
         closedAt: `${formattedDate}, ${formattedTime}`,
       });
 
-      await axios.put(`${BACKEND_URL}/events/${eventId}`, { status: "closed" });
+      setEvents((prev) =>
+        prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+      );
 
-    } else if (Array.isArray(data) && data.length > 0) {
-      saveToEventHistory({
-        eventId,
-        service_name: selectedEvent.eventName || selectedEvent.service_name || "Untitled Event",
-        eventType: selectedEvent.eventType,
-        status: "attended",
-        attendees: data,
-      });
-
-      await axios.patch(`${BACKEND_URL}/events/${eventId}`, {
-        attendees: data,
-        did_not_meet: false,
-        status: "closed",
-      });
+      return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
     }
 
-    // Navigate after successful backend update
-    navigate("/history");
+    // 🟩 CASE 2: Submit attendance
+    if (Array.isArray(data) && data.length > 0) {
+      await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
+        attendees: data,
+        did_not_meet: false,
+      });
 
+      await saveToEventHistory({
+        eventId,
+        service_name: eventName,
+        eventType,
+        status: "attended",
+        attendees: data,
+        closedAt: `${formattedDate}, ${formattedTime}`,
+      });
+
+      setEvents((prev) =>
+        prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+      );
+
+      return { success: true, message: `Successfully captured attendance for ${eventName}` };
+    }
+
+    // 🟨 No data
+    return { success: false, message: "No attendees selected." };
   } catch (error) {
     console.error("Error updating event:", error);
-
-    // Re-add event if update fails
-    setEvents((prev) => [...prev, selectedEvent]);
+    return {
+      success: false,
+      message: "Something went wrong while capturing the event.",
+    };
   }
 };
+
 
   const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
 
@@ -223,38 +239,37 @@ const Events = () => {
         {filteredEvents.map((event) => (
           <div key={event._id} style={{ ...styles.eventCard, backgroundColor: theme.palette.background.paper }}>
             <div style={styles.eventHeader}>
-              <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
-                {event.eventName || event.service_name || "Untitled Event"}
-              </h3>
-
-              {/* Edit/Delete Menu - Fixed for dark mode */}
-              <div>
-                <IconButton 
-                  size="small" 
-                  onClick={(e) => handleMenuOpen(e, event)} 
-                  style={{ 
-                    float: "right",
-                    color: theme.palette.text.primary // This ensures visibility in both light and dark mode
-                  }}
-                >
-                  <MoreVertIcon />
-                </IconButton>
-                <Menu
-                  anchorEl={anchorEl}
-                  open={Boolean(anchorEl) && currentEvent?._id === event._id}
-                  onClose={handleMenuClose}
-                >
-                  <MenuItem onClick={handleEditEvent}>Edit</MenuItem>
-                  <MenuItem onClick={handleDeleteEvent}>Delete</MenuItem>
-                </Menu>
+              <div style={styles.titleAndBadgeContainer}>
+                <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
+                  {event.eventName || event.service_name || "Untitled Event"}
+                </h3>
+                <span style={{
+                  ...styles.eventBadge,
+                  backgroundColor: getBadgeColor(event.eventType),
+                }}>
+                  {capitalize(event.eventType) || "Unknown"}
+                </span>
               </div>
 
-              <span style={{
-                ...styles.eventBadge,
-                backgroundColor: getBadgeColor(event.eventType),
-              }}>
-                {capitalize(event.eventType) || "Unknown"}
-              </span>
+              {/* Edit/Delete Menu */}
+              <IconButton
+                size="small"
+                onClick={(e) => handleMenuOpen(e, event)}
+                style={{
+                  color: theme.palette.text.primary,
+                  flexShrink: 0
+                }}
+              >
+                <MoreVertIcon />
+              </IconButton>
+              <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl) && currentEvent?._id === event._id}
+                onClose={handleMenuClose}
+              >
+                <MenuItem onClick={handleEditEvent}>Edit</MenuItem>
+                <MenuItem onClick={handleDeleteEvent}>Delete</MenuItem>
+              </Menu>
             </div>
 
             <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>
@@ -387,21 +402,24 @@ const styles = {
   },
   eventHeader: {
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: "0.75rem",
-    flexWrap: "wrap",
     gap: "0.5rem",
-    position: "relative",
+  },
+  titleAndBadgeContainer: {
+    flex: 1,
+    minWidth: 0, // Allows flexbox to shrink
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
   },
   eventTitle: {
     margin: 0,
     fontSize: "1.2rem",
     fontWeight: 600,
     color: "#212529",
-    flex: 1,
     wordBreak: "break-word",
-    paddingRight: "2rem", // Give space for the menu button
+    lineHeight: "1.3",
   },
   eventBadge: {
     fontSize: "0.75rem",
@@ -411,9 +429,8 @@ const styles = {
     color: "#fff",
     textTransform: "uppercase",
     whiteSpace: "nowrap",
-    position: "absolute",
-    top: "0",
-    right: "2.5rem", // Position next to the menu button
+    alignSelf: "flex-start", // Aligns to the left
+    width: "fit-content",
   },
   eventDate: {
     margin: "0.25rem 0",
