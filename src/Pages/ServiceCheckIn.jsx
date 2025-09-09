@@ -706,7 +706,6 @@ const handlePersonSave = (responseData) => {
     />
   </Tooltip>
 </Grid> */}
-
 <Grid item xs={12} md={3}>
   <Tooltip title="Add Person">
     <PersonAddIcon
