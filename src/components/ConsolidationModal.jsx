@@ -13,43 +13,68 @@ import dayjs from "dayjs";
 import axios from "axios";
 import Autocomplete from "@mui/material/Autocomplete";
 
-const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
+const BASE_URL = "http://localhost:8000";
 
-const ConsolidationModal = ({ open, onClose, attendeesWithStatus, onFinish }) => {
-  const [recipient, setRecipient] = useState("");
+const ConsolidationModal = ({ open, onClose, onFinish }) => {
+  const [recipient, setRecipient] = useState(null); 
   const [assignedTo, setAssignedTo] = useState("");
   const [dateTime, setDateTime] = useState("");
   const [taskStage, setTaskStage] = useState("First-time Commitment");
   const [loading, setLoading] = useState(false);
 
-  // Set real-time datetime when modal opens
+  const [recipients, setRecipients] = useState([]);
+  const [loadingRecipients, setLoadingRecipients] = useState(false);
+
+  // set datetime when modal opens
   useEffect(() => {
     if (open) {
       setDateTime(dayjs().format("YYYY/MM/DD, HH:mm"));
+      setRecipient(null);
+      setAssignedTo("");
     }
   }, [open]);
 
-  // Auto-fill leader when recipient changes
+  // fetch recipients from backend
+  const fetchRecipients = async (query) => {
+    if (!query) {
+      setRecipients([]);
+      return;
+    }
+    try {
+      setLoadingRecipients(true);
+      const res = await axios.get(`${BASE_URL}/people/search`, {
+        params: { query, limit: 20 },
+      });
+      setRecipients(res.data.results || []);
+    } catch (err) {
+      console.error("Error fetching recipients:", err);
+    } finally {
+      setLoadingRecipients(false);
+    }
+  };
+
+  // update assignedTo whenever recipient changes
   useEffect(() => {
-    const selected = attendeesWithStatus.find((a) => a._id === recipient);
-    if (selected) {
+    if (recipient) {
       setAssignedTo(
-        selected.leader1728 ||
-          selected.leader144 ||
-          selected.leader12 ||
+        recipient["Leader @ 1728"] ||
+          recipient["Leader @144"] ||
+          recipient["Leader @12"] ||
           "No Leader"
       );
     } else {
       setAssignedTo("");
     }
-  }, [recipient, attendeesWithStatus]);
+  }, [recipient]);
 
+  // submit consolidation task
   const handleFinish = async () => {
+    if (!recipient) return;
+
     const task = {
       taskType: "Church - Consolidation",
-      recipientId: recipient,
-      recipientName:
-        attendeesWithStatus.find((a) => a._id === recipient)?.name || "",
+      recipientId: recipient._id,
+      recipientName: `${recipient.Name} ${recipient.Surname}`,
       assignedTo,
       dateTime,
       taskStage,
@@ -69,7 +94,7 @@ const ConsolidationModal = ({ open, onClose, attendeesWithStatus, onFinish }) =>
     }
   };
 
-  // ✅ shared style for round inputs
+  // shared style for round inputs
   const roundedInput = {
     "& .MuiOutlinedInput-root": {
       borderRadius: "15px",
@@ -77,7 +102,18 @@ const ConsolidationModal = ({ open, onClose, attendeesWithStatus, onFinish }) =>
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="xs" // ✅ keeps popup small on all screens
+      PaperProps={{
+        sx: {
+          borderRadius: 3, // ✅ rounded popup
+          m: 2,            // ✅ margin so it doesn’t stick to screen edges
+        },
+      }}
+    >
       <DialogTitle>Consolidation</DialogTitle>
       <DialogContent dividers>
         {/* Task Type */}
@@ -90,14 +126,16 @@ const ConsolidationModal = ({ open, onClose, attendeesWithStatus, onFinish }) =>
           sx={roundedInput}
         />
 
-        {/* Recipient */}
+        {/* Recipient (searchable) */}
         <Autocomplete
-          options={attendeesWithStatus.filter((a) => a.present)}
-          getOptionLabel={(option) => `${option.name} ${option.surname}`}
-          value={attendeesWithStatus.find((a) => a._id === recipient) || null}
-          onChange={(e, newValue) => {
-            setRecipient(newValue ? newValue._id : "");
-          }}
+          options={recipients}
+          loading={loadingRecipients}
+          getOptionLabel={(option) =>
+            `${option.Name || ""} ${option.Surname || ""}`
+          }
+          value={recipient}
+          onChange={(e, newValue) => setRecipient(newValue)}
+          onInputChange={(e, newInput) => fetchRecipients(newInput)}
           renderInput={(params) => (
             <TextField
               {...params}
@@ -130,7 +168,7 @@ const ConsolidationModal = ({ open, onClose, attendeesWithStatus, onFinish }) =>
           sx={roundedInput}
         />
 
-        {/* Task Stage dropdown */}
+        {/* Task Stage */}
         <TextField
           select
           label="Task Stage"

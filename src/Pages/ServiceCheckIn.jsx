@@ -511,47 +511,70 @@ function ServiceCheckIn() {
       {/* Mobile vs Desktop */}
       {isMdDown ? (
         <Box>
-          {/* Dedicated Mobile Search just above cards (optional, shares same state) */}
-          <TextField size="small" placeholder="Search attendees..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} fullWidth sx={{ mb: 2 }} />
-
-          {paginatedAttendees.map((att) => <AttendeeCard key={att._id} attendee={att} />)}
+          {/* Mobile Cards with Fixed Height and Scroll */}
+          <Box 
+            sx={{ 
+              maxHeight: 500, 
+              overflowY: "auto",
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 1,
+              p: 1
+            }}
+          >
+            {paginatedAttendees.map((att) => <AttendeeCard key={att._id} attendee={att} />)}
+          </Box>
 
           {/* Pagination under cards */}
-          <TablePagination component="div" count={filteredAttendees.length} page={page} onPageChange={(e, newPage) => setPage(newPage)} rowsPerPage={rowsPerPage} onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} rowsPerPageOptions={[5, 10, 20, 50]} />
+          <TablePagination 
+            component="div" 
+            count={filteredAttendees.length} 
+            page={page} 
+            onPageChange={(e, newPage) => setPage(newPage)} 
+            rowsPerPage={rowsPerPage} 
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} 
+            rowsPerPageOptions={[5, 10, 20, 50]} 
+          />
         </Box>
       ) : (
-        <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500, overflowY: "auto" }}>
-          <Table size={getResponsiveValue("small", "small", "medium", "medium", "medium")} stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Phone</TableCell>
-                <TableCell>Leader @12</TableCell>
-                <TableCell>Leader @144</TableCell>
-                <TableCell>Leader @1728</TableCell>
-                <TableCell align="center">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {paginatedAttendees.map((att) => (
-                <TableRow key={att._id} hover>
-                  <TableCell>{att.name} {att.surname}</TableCell>
-                  <TableCell>{att.phone || "-"}</TableCell>
-                  <TableCell>{att.leader12 || "-"}</TableCell>
-                  <TableCell>{att.leader144 || "-"}</TableCell>
-                  <TableCell>{att.leader1728 || "-"}</TableCell>
-                  <TableCell align="center">
-                    <IconButton onClick={() => handleDelete(att._id)} color="error" size="small"><DeleteIcon /></IconButton>
-                    <IconButton onClick={() => handleEditClick(att)} color="primary" size="small"><EditIcon /></IconButton>
-                    <IconButton onClick={() => handleToggleCheckIn(att)} color="success" size="small" disabled={!currentEventId}>
-                      {att.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
-                    </IconButton>
-                  </TableCell>
+        <Box>
+          {/* Page Info for Desktop */}
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>
+            Showing {Math.min(page * rowsPerPage + 1, filteredAttendees.length)}-{Math.min((page + 1) * rowsPerPage, filteredAttendees.length)} of {filteredAttendees.length} attendees
+          </Typography>
+          
+          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500, overflowY: "auto" }}>
+            <Table size={getResponsiveValue("small", "small", "medium", "medium", "medium")} stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Phone</TableCell>
+                  <TableCell>Leader @12</TableCell>
+                  <TableCell>Leader @144</TableCell>
+                  <TableCell>Leader @1728</TableCell>
+                  <TableCell align="center">Actions</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {paginatedAttendees.map((att) => (
+                  <TableRow key={att._id} hover>
+                    <TableCell>{att.name} {att.surname}</TableCell>
+                    <TableCell>{att.phone || "-"}</TableCell>
+                    <TableCell>{att.leader12 || "-"}</TableCell>
+                    <TableCell>{att.leader144 || "-"}</TableCell>
+                    <TableCell>{att.leader1728 || "-"}</TableCell>
+                    <TableCell align="center">
+                      <IconButton onClick={() => handleDelete(att._id)} color="error" size="small"><DeleteIcon /></IconButton>
+                      <IconButton onClick={() => handleEditClick(att)} color="primary" size="small"><EditIcon /></IconButton>
+                      <IconButton onClick={() => handleToggleCheckIn(att)} color="success" size="small" disabled={!currentEventId}>
+                        {att.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
       )}
 
       {/* Pagination (desktop table or global) */}
@@ -563,11 +586,25 @@ function ServiceCheckIn() {
       <AddPersonDialog open={openDialog} onClose={() => setOpenDialog(false)} onSave={handlePersonSave} formData={formData} setFormData={setFormData} isEdit={Boolean(editingPerson)} personId={editingPerson?._id || null} />
 
       {/* PRESENT Attendees Modal with its own search + pagination */}
-      <Dialog open={modalOpen} onClose={() => setModalOpen(false)} fullWidth maxWidth="md" fullScreen={isSmDown}>
-        <DialogTitle>
+      <Dialog 
+        open={modalOpen} 
+        onClose={() => setModalOpen(false)} 
+        fullWidth 
+        maxWidth="md"
+        PaperProps={{
+          sx: {
+            ...(isSmDown && {
+              margin: 2,
+              maxHeight: '80vh',
+              width: 'calc(100% - 32px)',
+            })
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
           Attendees Present: {presentCount}
         </DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: 500, overflowY: "auto" }}>
+        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
           {/* Modal Search */}
           <TextField
             size="small"
@@ -578,37 +615,76 @@ function ServiceCheckIn() {
             sx={{ mb: 2 }}
           />
 
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Leader@12</TableCell>
-                <TableCell>Leader@144</TableCell>
-                <TableCell>Leader@1728</TableCell>
-                <TableCell align="center">Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
+          {isSmDown ? (
+            /* Mobile Card View for Modal */
+            <Box>
               {modalPaginatedAttendees.map((a) => (
-                <TableRow key={a._id} hover>
-                  <TableCell>{a.name} {a.surname}</TableCell>
-                  <TableCell>{a.leader12 || "—"}</TableCell>
-                  <TableCell>{a.leader144 || "—"}</TableCell>
-                  <TableCell>{a.leader1728 || "—"}</TableCell>
-                  <TableCell align="center">
-                    <IconButton color="error" size="small" onClick={() => handleToggleCheckIn(a)}>
-                      <CheckCircleOutlineIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
+                <Card key={a._id} variant="outlined" sx={{ mb: 1, "&:last-child": { mb: 0 } }}>
+                  <CardContent sx={{ p: 1.5 }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                      <Box flex={1}>
+                        <Typography variant="subtitle2" fontWeight={600} sx={{ fontSize: '0.9rem' }}>
+                          {a.name} {a.surname}
+                        </Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5} mt={0.5}>
+                          {a.leader12 && (
+                            <Chip label={`@12: ${a.leader12}`} size="small" variant="outlined" sx={{ fontSize: "0.6rem", height: 18 }} />
+                          )}
+                          {a.leader144 && (
+                            <Chip label={`@144: ${a.leader144}`} size="small" variant="outlined" sx={{ fontSize: "0.6rem", height: 18 }} />
+                          )}
+                          {a.leader1728 && (
+                            <Chip label={`@1728: ${a.leader1728}`} size="small" variant="outlined" sx={{ fontSize: "0.6rem", height: 18 }} />
+                          )}
+                        </Stack>
+                      </Box>
+                      <IconButton color="error" size="small" onClick={() => handleToggleCheckIn(a)}>
+                        <CheckCircleOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </CardContent>
+                </Card>
               ))}
               {modalPaginatedAttendees.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} align="center">No matching attendees</TableCell>
-                </TableRow>
+                <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+                  No matching attendees
+                </Typography>
               )}
-            </TableBody>
-          </Table>
+            </Box>
+          ) : (
+            /* Desktop Table View for Modal */
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Leader@12</TableCell>
+                  <TableCell>Leader@144</TableCell>
+                  <TableCell>Leader@1728</TableCell>
+                  <TableCell align="center">Action</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {modalPaginatedAttendees.map((a) => (
+                  <TableRow key={a._id} hover>
+                    <TableCell>{a.name} {a.surname}</TableCell>
+                    <TableCell>{a.leader12 || "—"}</TableCell>
+                    <TableCell>{a.leader144 || "—"}</TableCell>
+                    <TableCell>{a.leader1728 || "—"}</TableCell>
+                    <TableCell align="center">
+                      <IconButton color="error" size="small" onClick={() => handleToggleCheckIn(a)}>
+                        <CheckCircleOutlineIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {modalPaginatedAttendees.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center">No matching attendees</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
 
           {/* Modal Pagination */}
           <Box mt={1}>
@@ -619,12 +695,24 @@ function ServiceCheckIn() {
               onPageChange={(e, newPage) => setModalPage(newPage)}
               rowsPerPage={modalRowsPerPage}
               onRowsPerPageChange={(e) => { setModalRowsPerPage(parseInt(e.target.value, 10)); setModalPage(0); }}
-              rowsPerPageOptions={[5, 10, 20, 50]}
+              rowsPerPageOptions={[5, 10, 20]}
+              sx={{
+                ...(isSmDown && {
+                  '& .MuiTablePagination-toolbar': {
+                    minHeight: 40,
+                    paddingLeft: 1,
+                    paddingRight: 1,
+                  },
+                  '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                    fontSize: '0.8rem',
+                  }
+                })
+              }}
             />
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setModalOpen(false)} variant="outlined" fullWidth={isSmDown}>
+        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+          <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
             Close
           </Button>
         </DialogActions>
