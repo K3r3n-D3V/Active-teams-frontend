@@ -98,7 +98,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isMedium = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
-  const BACKEND_URL = `http://127.0.0.1:8000`;
+  const BACKEND_URL = `import.meta.env.VITE_BACKEND_URL`;
 
   const handleDragEnd = async (result) => {
     if (!result.destination) return;
