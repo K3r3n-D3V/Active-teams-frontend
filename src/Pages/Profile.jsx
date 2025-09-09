@@ -45,7 +45,7 @@ import {
   Star,
   Church,
 } from "@mui/icons-material";
-
+import axios from "axios";
 /** Texts */
 const carouselTexts = [
   "We are THE ACTIVE CHURCH",
@@ -56,47 +56,52 @@ const carouselTexts = [
 ];
 
 /** API helpers */
-const BACKEND_URL  = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 async function fetchUserProfile() {
-  const token = localStorage.getItem("token");
-  const res = await fetch(`${BACKEND_URL}/users/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const userId = localStorage.getItem("userId");
+  if (!userId) throw new Error("User ID not found");
 
+  const res = await fetch(`${BACKEND_URL}/profile/${userId}`);
   if (!res.ok) throw new Error("Failed to fetch profile");
 
   const data = await res.json();
   console.log("Fetched profile:", data);
 
-  // ✅ Make sure to return _id (normalize it)
+  // Store in localStorage
+  localStorage.setItem("userId", data.id); // Or _id if backend returns that
+  localStorage.setItem("userProfile", JSON.stringify(data));
+
   return {
     ...data,
-    _id: data._id || data.id || null,
+    _id: data._id || data.id,
   };
 }
 
 
-async function updateUserProfile(userId, data) {
-  const token = localStorage.getItem("token");
-  const res = await fetch(`${BACKEND_URL}/profile/${userId}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
-  });
+async function updateUserProfile(data) {
+  const userId = localStorage.getItem("userId");
+  if (!userId) throw new Error("User ID not found");
 
-  // Extract backend error details for better feedback
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({}));
-    const errorMessage = errorBody?.detail || errorBody?.message || "Unknown error";
+  try {
+    const res = await axios.put(`${BACKEND_URL}/profile/${userId}`, data, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    return res.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      error.message ||
+      "Unknown error";
     throw new Error(errorMessage);
   }
-
-  return res.json();
 }
+
+
 
 
 async function uploadAvatarFromDataUrl(dataUrl) {
@@ -105,7 +110,7 @@ async function uploadAvatarFromDataUrl(dataUrl) {
   const form = new FormData();
   form.append("avatar", blob, "avatar.png");
 
-  const res = await fetch(`${BACKEND_URL }/users/me/avatar`, {
+  const res = await fetch(`${BACKEND_URL}/users/me/avatar`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -118,7 +123,7 @@ export default function Profile() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const navigate = useNavigate();
-  const { userProfile, setUserProfile,  setProfilePic } =
+  const { userProfile, setUserProfile, setProfilePic } =
     useContext(UserContext);
 
   const fileInputRef = useRef(null);
@@ -127,7 +132,7 @@ export default function Profile() {
   const [croppingSrc, setCroppingSrc] = useState(null);
   const [croppingOpen, setCroppingOpen] = useState(false);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
- const [,setLoadingProfile] = useState(true);
+  const [, setLoadingProfile] = useState(true);
 
   const [editMode, setEditMode] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -168,40 +173,78 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-  (async () => {
-    try {
-      const data = await fetchUserProfile();
-      setUserProfile(data);
+    (async () => {
+      try {
+        // Try to load from localStorage first (for refresh persistence)
+        const storedProfile = localStorage.getItem("userProfile");
+        const storedUserId = localStorage.getItem("userId");
+        
+        if (storedProfile && storedUserId) {
+          const parsedProfile = JSON.parse(storedProfile);
+          setUserProfile(parsedProfile);
+          
+          // Sync form with stored data
+          const synced = {
+            name: parsedProfile?.name || "",
+            surname: parsedProfile?.surname || "",
+            dob: parsedProfile?.date_of_birth || "",
+            email: parsedProfile?.email || "",
+            address: parsedProfile?.home_address || "",
+            phone: parsedProfile?.phone_number || "",
+            invitedBy: parsedProfile?.invited_by || "",
+            gender: parsedProfile?.gender || "",
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: "",
+          };
+          setForm(synced);
+          setOriginalForm(synced);
+        }
+        
+        // Always fetch fresh data from server
+        const data = await fetchUserProfile();
+        setUserProfile(data);
 
-      const pic =
-        data?.profile_picture ||
-        data?.avatarUrl ||
-        data?.profilePicUrl ||
-        null;
-      if (pic) setProfilePic(pic);
+        const pic =
+          data?.profile_picture ||
+          data?.avatarUrl ||
+          data?.profilePicUrl ||
+          null;
+        if (pic) setProfilePic(pic);
 
-      const synced = {
-        name: data?.name || "",
-        surname: data?.surname || "",
-        dob: data?.date_of_birth || "",
-        email: data?.email || "",
-        address: data?.home_address || "",
-        phone: data?.phone_number || "",
-        invitedBy: data?.invited_by || "",
-        gender: data?.gender || "",
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      };
-      setForm(synced);
-      setOriginalForm(synced);
-    } catch (e) {
-      console.warn("Profile fetch failed:", e);
-    } finally {
-      setLoadingProfile(false); // 🟢 Ensure we wait for fetch
-    }
-  })();
-}, [setUserProfile, setProfilePic]);
+        const synced = {
+          name: data?.name || "",
+          surname: data?.surname || "",
+          dob: data?.date_of_birth || "",
+          email: data?.email || "",
+          address: data?.home_address || "",
+          phone: data?.phone_number || "",
+          invitedBy: data?.invited_by || "",
+          gender: data?.gender || "",
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        };
+        setForm(synced);
+        setOriginalForm(synced);
+        
+        // Store in localStorage for persistence
+        localStorage.setItem("userProfile", JSON.stringify(data));
+        
+      } catch (e) {
+        console.warn("Profile fetch failed:", e);
+        // If fetch fails but we have stored data, keep using it
+        const storedProfile = localStorage.getItem("userProfile");
+        if (storedProfile) {
+          console.log("Using stored profile data");
+          const parsedProfile = JSON.parse(storedProfile);
+          setUserProfile(parsedProfile);
+        }
+      } finally {
+        setLoadingProfile(false);
+      }
+    })();
+  }, [setUserProfile, setProfilePic]);
 
   useEffect(() => {
     const changed = Object.keys(form).some((k) => {
@@ -285,24 +328,11 @@ export default function Profile() {
       });
     }
   };
-  
 
 const handleSubmit = async (e) => {
   e.preventDefault();
 
-  // Validate input fields
   if (!validate()) return;
-
-  const userId = userProfile?._id || userProfile?.id;
-  if (!userId) {
-    console.error("UserProfile:", userProfile);
-    setSnackbar({
-      open: true,
-      message: "User ID is missing. Cannot update profile.",
-      severity: "error",
-    });
-    return;
-  }
 
   const payload = {
     name: form.name,
@@ -316,20 +346,40 @@ const handleSubmit = async (e) => {
   };
 
   try {
-    // Send the update to the server
-    const updated = await updateUserProfile(userId, payload);
+    console.log("Updating profile with payload:", payload);
 
-    // Update context and localStorage via UserContext with full updated user profile
-    setUserProfile(updated);
+    const updated = await updateUserProfile(payload);
+    console.log("Update response:", updated);
 
-    // Reset edit state
+    const updatedUserProfile = {
+      ...updated,
+      _id: updated.id || updated._id,
+    };
+
+    setUserProfile(updatedUserProfile);
+    localStorage.setItem("userProfile", JSON.stringify(updatedUserProfile));
+
     setEditMode(false);
-    setOriginalForm({ ...form });
+    const newFormData = {
+      name: updated.name || "",
+      surname: updated.surname || "",
+      dob: updated.date_of_birth || "",
+      email: updated.email || "",
+      address: updated.home_address || "",
+      phone: updated.phone_number || "",
+      invitedBy: updated.invited_by || "",
+      gender: updated.gender || "",
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    };
 
-    // Show success message
+    setForm(newFormData);
+    setOriginalForm(newFormData);
+
     setSnackbar({
       open: true,
-      message: updated.message || "Profile updated successfully",
+      message: "Profile updated successfully",
       severity: "success",
     });
   } catch (err) {
@@ -395,7 +445,7 @@ const handleSubmit = async (e) => {
     cardHeader: {
       bgcolor: "#000",
       color: "#fff",
-      p:2,
+      p: 2,
       textAlign: "center",
     },
     sectionHeader: {
@@ -412,12 +462,7 @@ const handleSubmit = async (e) => {
     passwordField: {
       "& .MuiOutlinedInput-root": { borderRadius: 3 },
     },
-    topRightLogout: {
-      position: "fixed",
-      top: 12,
-      right: 16,
-      zIndex: 1000,
-    },
+  
     cropperModal: {
       position: "fixed",
       inset: 0,
@@ -440,25 +485,10 @@ const handleSubmit = async (e) => {
     },
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    setSnackbar({ open: true, message: "Logged out", severity: "info" });
-    navigate("/login");
-  };
-
   return (
     <Box sx={sx.root}>
-      {/* Logout button */}
-      <Tooltip title="Logout">
-        <IconButton
-          onClick={handleLogout}
-          sx={sx.topRightLogout}
-          aria-label="logout"
-          size="large"
-        >
-          <Logout />
-        </IconButton>
-      </Tooltip>
+    
+     
 
       {/* Hero Section */}
       <Box sx={sx.heroSection}>
@@ -472,7 +502,7 @@ const handleSubmit = async (e) => {
         <Zoom in timeout={500}>
           <Box sx={sx.profileAvatarContainer}>
             <Box sx={{ position: "relative" }}>
-              
+
               <input
                 ref={fileInputRef}
                 hidden
@@ -516,7 +546,7 @@ const handleSubmit = async (e) => {
                       variant={editMode ? "contained" : "outlined"}
                       onClick={() => {
                         if (editMode && hasChanges) {
-                          handleSubmit({ preventDefault: () => {} });
+                          handleSubmit({ preventDefault: () => { } });
                         } else {
                           setEditMode((e) => !e);
                         }
