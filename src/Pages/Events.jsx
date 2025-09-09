@@ -315,7 +315,7 @@ const Events = () => {
         ))}
       </div>
 
-      {/* Floating History Button */}
+  
       <button style={styles.historyButton} onClick={() => navigate("/history")} title="View Event History">
         🕒 History
       </button>
