@@ -30,7 +30,6 @@ import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
 import { UserContext } from "../contexts/UserContext.jsx";
 import {
-  Logout,
   Edit,
   Save,
   Cancel,
@@ -122,7 +121,6 @@ async function uploadAvatarFromDataUrl(dataUrl) {
 export default function Profile() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const navigate = useNavigate();
   const { userProfile, setUserProfile, setProfilePic } =
     useContext(UserContext);
 
@@ -777,4 +775,4 @@ const handleSubmit = async (e) => {
       </Snackbar>
     </Box>
   );
-
+}
