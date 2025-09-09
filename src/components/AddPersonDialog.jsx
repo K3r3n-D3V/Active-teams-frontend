@@ -14,6 +14,7 @@ import {
 import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
 const initialFormState = {
   name: "",
@@ -63,7 +64,7 @@ useEffect(() => {
 
     try {
       while (moreData) {
-        const response = await axios.get(`http://localhost:8000/people?page=${page}&perPage=${perPage}`);
+        const response = await axios.get(`${BASE_URL}/people?page=${page}&perPage=${perPage}`);
         const results = response.data?.results || [];
 
         allPeople.push(...results);
@@ -168,10 +169,10 @@ useEffect(() => {
       let res;
 
       if (isEdit && personId) {
-        res = await axios.patch(`http://localhost:8000/people/${personId}`, payload);
+        res = await axios.patch(`${BASE_URL}/people/${personId}`, payload);
         onSave({ ...payload, _id: personId });
       } else {
-        res = await axios.post("http://localhost:8000/people", payload);
+        res = await axios.post(`${BASE_URL}/people`, payload);
         onSave(res.data);
       }
 

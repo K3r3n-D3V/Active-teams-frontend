@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -12,6 +12,7 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
+  Autocomplete, // Add this import
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
@@ -20,28 +21,22 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
+import axios from "axios"; // Add this import
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-// Lightweight welcome overlay with CSS confetti
+
+// WelcomeOverlay component remains the same...
 const WelcomeOverlay = ({ name, mode }) => {
   const pieces = Array.from({ length: 90 }).map((_, index) => {
-    const left = Math.random() * 100; // percent
-    const size = 6 + Math.random() * 8; // px
+    const left = Math.random() * 100;
+    const size = 6 + Math.random() * 8;
     const height = size * (1.4 + Math.random());
     const rotate = Math.random() * 360;
-    const dur = 2 + Math.random() * 1.5; // seconds
-    const delay = Math.random() * 0.6; // seconds
+    const dur = 2 + Math.random() * 1.5;
+    const delay = Math.random() * 0.6;
     const colors = [
-      "#f94144",
-      "#f3722c",
-      "#f8961e",
-      "#f9844a",
-      "#f9c74f",
-      "#90be6d",
-      "#43aa8b",
-      "#577590",
-      "#9b5de5",
-      "#00bbf9",
+      "#f94144", "#f3722c", "#f8961e", "#f9844a", "#f9c74f",
+      "#90be6d", "#43aa8b", "#577590", "#9b5de5", "#00bbf9",
     ];
     const backgroundColor = colors[Math.floor(Math.random() * colors.length)];
     const borderRadius = Math.random() > 0.6 ? `${size / 2}px` : "2px";
@@ -84,10 +79,7 @@ const WelcomeOverlay = ({ name, mode }) => {
         },
       }}
     >
-      {/* Confetti pieces */}
       <Box sx={{ position: "absolute", inset: 0, pointerEvents: "none" }}>{pieces}</Box>
-
-      {/* Center card */}
       <Box
         sx={{
           position: "relative",
@@ -123,7 +115,7 @@ const initialForm = {
   email: "",
   gender: "",
   password: "",
-  confirm_password: "", // Keep confirm_password for validation only
+  confirm_password: "",
 };
 
 const Signup = ({ onSignup, mode, setMode }) => {
@@ -140,6 +132,45 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Add state for people list
+  const [peopleList, setPeopleList] = useState([]);
+  const [loadingPeople, setLoadingPeople] = useState(false);
+
+  // Fetch people when component mounts
+  useEffect(() => {
+    const fetchAllPeople = async () => {
+      setLoadingPeople(true);
+      const allPeople = [];
+      let page = 1;
+      const perPage = 1000;
+      let moreData = true;
+
+      try {
+        while (moreData) {
+          const response = await axios.get(`${BACKEND_URL}/people?page=${page}&perPage=${perPage}`);
+          const results = response.data?.results || [];
+          allPeople.push(...results);
+          
+          if (results.length < perPage) {
+            moreData = false;
+          } else {
+            page += 1;
+          }
+        }
+        setPeopleList(allPeople);
+        console.log("Total people fetched for signup:", allPeople.length);
+      } catch (err) {
+        console.error("Failed to fetch people for signup:", err);
+        setPeopleList([]);
+      } finally {
+        setLoadingPeople(false);
+      }
+    };
+
+    fetchAllPeople();
+  }, []);
+
   const validate = () => {
     const newErrors = {};
     if (!form.name.trim()) newErrors.name = "Name is required";
@@ -168,14 +199,26 @@ const Signup = ({ onSignup, mode, setMode }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  // Handle autocomplete change for invited_by
+  const handleInvitedByChange = (value) => {
+    const invitedByValue = typeof value === "string" ? value : (value?.label || "");
+    setForm(prev => ({ ...prev, invited_by: invitedByValue }));
+    
+    // Clear error when user selects/types something
+    if (errors.invited_by) {
+      setErrors(prev => ({ ...prev, invited_by: "" }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     setLoading(true);
 
-    // Exclude confirm_password before sending data to backend
-    const { confirm_password, ...submitData } = form;
+    const submitData = { ...form };
+    delete submitData.confirm_password;
+    
     try {
       const res = await fetch(`${BACKEND_URL}/signup`, {
         method: "POST",
@@ -188,7 +231,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
       if (!res.ok) {
         alert(data?.detail || "Signup failed. Please try again.");
       } else {
-        // Store user profile data in context
         const userData = {
           name: submitData.name,
           surname: submitData.surname,
@@ -201,19 +243,16 @@ const Signup = ({ onSignup, mode, setMode }) => {
         };
         setUserProfile(userData);
         
-        // alert("User created successfully!");
         if (onSignup) onSignup(submitData);
 
-        // Auto-login then redirect like Login page
         try {
           await login(submitData.email, submitData.password);
         } catch (loginErr) {
           console.error("Auto-login failed:", loginErr);
-          // If auto-login fails, still redirect to login page as a fallback
           navigate("/login");
           return;
         }
-        // Show welcome + confetti, then navigate home
+        
         setWelcomeName(submitData.name || submitData.email);
         setShowWelcome(true);
         setTimeout(() => {
@@ -230,6 +269,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
+  // Create people options for autocomplete
+  const peopleOptions = peopleList.map(person => {
+    const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
+    return { label: fullName, person };
+  });
+
   return (
     <Box
       sx={{
@@ -243,29 +288,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
         alignItems: "center",
       }}
     >
-      {showWelcome && (
-        <WelcomeOverlay name={welcomeName} mode={mode} />
-      )}
-      {/* Theme Toggle */}
-      {/* <Box sx={{ position: "absolute", top: 16, right: 16 }}>
-        <IconButton
-          onClick={() => {
-            const next = mode === "light" ? "dark" : "light";
-            localStorage.setItem("themeMode", next);
-            setMode(next);
-          }}
-          sx={{
-            color: mode === "dark" ? "#fff" : "#000",
-            backgroundColor: mode === "dark" ? "#1f1f1f" : "#e0e0e0",
-            "&:hover": {
-              backgroundColor: mode === "dark" ? "#2c2c2c" : "#c0c0c0",
-            },
-          }}
-        >
-          {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
-        </IconButton>
-      </Box> */}
-     <Box sx={{ position: "absolute", top: 16, right: 16 }}>
+      {showWelcome && <WelcomeOverlay name={welcomeName} mode={mode} />}
+      
+      <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
           onClick={() => {
             const next = mode === "light" ? "dark" : "light";
@@ -283,6 +308,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
         </IconButton>
       </Box>
+      
       <Box
         sx={{
           maxWidth: 800,
@@ -296,7 +322,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
           background: theme.palette.background.paper,
         }}
       >
-        {/* Logo */}
         <Box display="flex" justifyContent="center" alignItems="center" mb={1}>
           <img
             src={darkLogo}
@@ -334,7 +359,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               ["email", "Email Address", "email"],
               ["home_address", "Home Address"],
               ["phone_number", "Phone Number"],
-              ["invited_by", "Invited By"],
             ].map(([name, label, type]) => (
               <TextField
                 key={name}
@@ -353,6 +377,39 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 }}
               />
             ))}
+
+            {/* Replace the invited_by TextField with Autocomplete */}
+            <Autocomplete
+              freeSolo
+              disabled={loading || loadingPeople}
+              options={peopleOptions}
+              getOptionLabel={(option) => typeof option === "string" ? option : option.label}
+              value={
+                peopleOptions.find(option => option.label === form.invited_by) || null
+              }
+              onChange={(e, newValue) => handleInvitedByChange(newValue)}
+              onInputChange={(e, newInputValue, reason) => {
+                if (reason === "input") {
+                  setForm(prev => ({ ...prev, invited_by: newInputValue }));
+                }
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Invited By"
+                  name="invited_by"
+                  error={!!errors.invited_by}
+                  helperText={errors.invited_by || (loadingPeople ? "Loading people..." : "")}
+                  fullWidth
+                  sx={{
+                    "& .MuiOutlinedInput-root": { borderRadius: 3 },
+                    "& .MuiFormHelperText-root": { 
+                      color: errors.invited_by ? theme.palette.error.main : theme.palette.text.secondary 
+                    },
+                  }}
+                />
+              )}
+            />
 
             <FormControl fullWidth error={!!errors.gender}>
               <InputLabel>Gender</InputLabel>
@@ -377,7 +434,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
             </FormControl>
 
             <TextField
-              label="New Password"
+              label="Password"
               name="password"
               type={showPassword ? "text" : "password"}
               value={form.password}
@@ -398,7 +455,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               }}
             />
 
-            {/* Confirm Password */}
             <TextField
               label="Confirm Password"
               name="confirm_password"
@@ -443,6 +499,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 fontWeight: "bold",
                 "&:hover": {
                   backgroundColor: "#222",
+                },
+                "&:active": {
+                  backgroundColor: "#444",
                 },
               }}
             >
