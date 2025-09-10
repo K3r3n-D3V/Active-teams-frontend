@@ -33,30 +33,51 @@ const CreateEvents = () => {
     recurringDays: [], location: '', eventLeader: '', description: ''
   });
 
-
   const [errors, setErrors] = useState({});
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  
+  
   useEffect(() => {
     if (eventId) {
       axios.get(`${BACKEND_URL}/events/${eventId}`)
         .then(res => {
           const data = res.data;
+          
+          // Handle date and time parsing for editing
           if (data.date) {
             const dt = new Date(data.date);
             data.date = dt.toISOString().split('T')[0];
-            data.time = dt.toTimeString().split(' ')[0].slice(0, 5);
+            const timeStr = dt.toTimeString().split(' ')[0].slice(0, 5);
+            data.time = timeStr;
+            
+            // Set AM/PM based on time
+            const hours = dt.getHours();
+            data.timePeriod = hours >= 12 ? 'PM' : 'AM';
           }
+          
+          // Handle recurring days - convert from recurring_day to recurringDays
+          if (data.recurring_day) {
+            data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
+          }
+          
+          // Ensure price is string for form input
+          if (data.price) {
+            data.price = data.price.toString();
+          }
+          
           setFormData(data);
         })
-        .catch(err => console.error("Failed to fetch event:", err));
+        .catch(err => {
+          console.error("Failed to fetch event:", err);
+          setErrorAlert(true);
+        });
     }
-  }, [eventId]);
+  }, [eventId, BACKEND_URL]);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
   };
-
 
   const handleDayChange = (day) => {
     setFormData(prev => ({
@@ -87,13 +108,11 @@ const CreateEvents = () => {
     else if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(formData.eventLeader.trim())) newErrors.eventLeader = 'No numbers or double spaces allowed';
     if (!formData.description) newErrors.description = 'Description is required';
 
-    // ✅ Only require recurring days if the event is a Cell group
-const requiresRecurringDays = formData.eventType.toLowerCase().includes("cell");
-if (requiresRecurringDays && formData.recurringDays.length === 0) {
-  newErrors.recurringDays = 'Select at least one recurring day';
-}
-
-
+    // Only require recurring days if the event is a Cell group
+    const requiresRecurringDays = formData.eventType.toLowerCase().includes("cell");
+    if (requiresRecurringDays && formData.recurringDays.length === 0) {
+      newErrors.recurringDays = 'Select at least one recurring day';
+    }
 
     // Only validate date/time if not a cell
     if (!isCell) {
@@ -109,7 +128,7 @@ if (requiresRecurringDays && formData.recurringDays.length === 0) {
 
   const resetForm = () => {
     setFormData({
-      eventType: '', eventName: '', isTicketed: false, price: '', date: '', time: '',
+      eventType: '', eventName: '', isTicketed: false, price: '', date: '', time: '', timePeriod: 'AM',
       recurringDays: [], location: '', eventLeader: '', description: ''
     });
     setErrors({});
@@ -125,28 +144,38 @@ if (requiresRecurringDays && formData.recurringDays.length === 0) {
       const isCell = formData.eventType.toLowerCase().includes("cell");
       const payload = { ...formData };
 
-      // ✅ Rename recurringDays to recurring_day for backend compatibility
+      // Rename recurringDays to recurring_day for backend compatibility
       payload.recurring_day = formData.recurringDays;
       delete payload.recurringDays;
 
-      // ✅ Format date-time if not a cell
+      // Format date-time if not a cell
       if (!isCell && payload.date && payload.time) {
-        payload.date = new Date(`${payload.date}T${payload.time}`).toISOString();
+        // Convert time to 24-hour format based on AM/PM
+        let [hours, minutes] = payload.time.split(':').map(Number);
+        if (payload.timePeriod === 'PM' && hours !== 12) {
+          hours += 12;
+        } else if (payload.timePeriod === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        payload.date = new Date(`${payload.date}T${timeStr}`).toISOString();
       } else if (isCell) {
         payload.date = null;
       }
 
-      // ✅ Remove time from payload (already merged into date)
+      // Remove time and timePeriod from payload (already merged into date)
       delete payload.time;
+      delete payload.timePeriod;
 
-      // ✅ Handle ticket price
+      // Handle ticket price
       if (payload.price) {
         payload.price = parseFloat(payload.price);
       } else {
         delete payload.price;
       }
 
-      // ✅ Submit: PUT if editing, POST if creating
+      // Submit: PUT if editing, POST if creating
       if (eventId) {
         await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
       } else {
@@ -155,7 +184,7 @@ if (requiresRecurringDays && formData.recurringDays.length === 0) {
 
       setSuccessMessage(
         isCell
-          ? `The ${formData.eventName} Cell has been created successfully!`
+          ? `The ${formData.eventName} Cell has been ${eventId ? 'updated' : 'created'} successfully!`
           : eventId
             ? "Event updated successfully!"
             : "Event created successfully!"
@@ -176,7 +205,6 @@ if (requiresRecurringDays && formData.recurringDays.length === 0) {
       setIsSubmitting(false);
     }
   };
-
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -398,17 +426,31 @@ if (requiresRecurringDays && formData.recurringDays.length === 0) {
                 fullWidth
                 size="small"
                 InputLabelProps={{ shrink: true }}
+                disabled={formData.eventType.toLowerCase().includes("cell")}
                 error={!!errors.time}
                 helperText={errors.time}
                 sx={darkModeStyles.textField}
               />
-              <FormControl size="small" sx={{ minWidth: 80 }}>
+              <FormControl size="small" sx={{ minWidth: 80, ...darkModeStyles.select }}>
                 <InputLabel>AM/PM</InputLabel>
                 <Select
                   value={formData.timePeriod}
                   label="AM/PM"
                   onChange={(e) => handleChange('timePeriod', e.target.value)}
-                  sx={darkModeStyles.select}
+                  disabled={formData.eventType.toLowerCase().includes("cell")}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        bgcolor: isDarkMode ? '#2d2d2d' : 'white',
+                        '& .MuiMenuItem-root': {
+                          color: isDarkMode ? '#ffffff' : 'inherit',
+                          '&:hover': {
+                            bgcolor: isDarkMode ? '#3d3d3d' : 'rgba(0, 0, 0, 0.04)',
+                          },
+                        },
+                      },
+                    },
+                  }}
                 >
                   <MenuItem value="AM">AM</MenuItem>
                   <MenuItem value="PM">PM</MenuItem>

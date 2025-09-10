@@ -24,6 +24,7 @@ import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 
 import withAuthCheck from "./components/withAuthCheck"; // adjust the path if needed
+import EventRegistrationForm from './components/EventRegistrationForm';
 
 // Wrap protected pages
 const ProtectedProfile = withAuthCheck(Profile);
@@ -89,6 +90,7 @@ const hideLayout = noLayoutRoutes.includes(location.pathname);
             <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
             <Route path="/give-today" element={<ProtectedGiveToday title="Give Today" />} />
             <Route path="/daily-tasks" element={<ProtectedDailyTasks title="Daily Tasks" />} />
+            <Route path="/event-payment/:eventId" element={< EventRegistrationForm title="Event register" />} />
           </Routes>
         </div>
       </div>

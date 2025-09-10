@@ -8,34 +8,101 @@ import IconButton from "@mui/material/IconButton";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import Eventsfilter from "./Eventsfilter"
 
 const Events = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const [showFilter, setShowFilter] = useState(false);
-  const [filterType, setFilterType] = useState("all");
+  const [filterType] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [events, setEvents] = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentEvent, setCurrentEvent] = useState(null);
+  const [activeFilters, setActiveFilters] = useState({});
+  const [eventTypes, setEventTypes] = useState([
+    'Sunday Service', 'Friday Service', 'Workshop', 'Encounter', 'Conference', 
+    'J-Activation', 'Destiny Training', 'Social Event', 'Cell', 'Meeting'
+  ]);
+  
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
   useEffect(() => {
     axios
       .get(`${BACKEND_URL}/events`)
       .then((res) => {
-        console.log('Response data:', res.data); // Add this line
+        console.log('Response data:', res.data);
         const openEvents = res.data.events.filter((e) => e.status !== "closed");
 
         const sortedEvents = openEvents.sort(
           (a, b) => new Date(b.date) - new Date(a.date)
         );
         setEvents(sortedEvents);
+        setFilteredEvents(sortedEvents); // Initialize filtered events
+        
+        // Extract unique event types from fetched events
+        const fetchedEventTypes = [...new Set(sortedEvents.map(event => event.eventType).filter(Boolean))];
+        const allEventTypes = [...new Set([...eventTypes, ...fetchedEventTypes])];
+        setEventTypes(allEventTypes);
       })
       .catch((err) => console.error("Failed to fetch events", err));
   }, []);
 
+  // Apply filters to events
+  const applyFilters = (filters) => {
+    setActiveFilters(filters);
+    
+    if (Object.keys(filters).length === 0) {
+      setFilteredEvents(events.filter((e) => e.status !== "closed"));
+      return;
+    }
+
+    const filtered = events.filter(event => {
+      if (event.status === "closed") return false;
+      
+      let matches = true;
+
+      // Event Type filter
+      if (filters.eventType && event.eventType !== filters.eventType) {
+        matches = false;
+      }
+
+      // Location filter
+      if (filters.location && event.location !== filters.location) {
+        matches = false;
+      }
+
+      // Event Leader filter
+      if (filters.eventLeader && event.eventLeader !== filters.eventLeader) {
+        matches = false;
+      }
+
+      // Ticketed filter
+      if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
+        const isTicketed = filters.isTicketed === 'true';
+        if (event.isTicketed !== isTicketed) {
+          matches = false;
+        }
+      }
+
+      // Recurring Day filter
+      if (filters.recurringDay) {
+        const eventDays = event.recurring_day || event.recurringDays || [];
+        const hasDay = Array.isArray(eventDays) 
+          ? eventDays.includes(filters.recurringDay)
+          : eventDays === filters.recurringDay;
+        if (!hasDay) {
+          matches = false;
+        }
+      }
+
+      return matches;
+    });
+
+    setFilteredEvents(filtered);
+  };
 
   const formatDateTime = (date) => {
     const dateObj = new Date(date);
@@ -45,13 +112,12 @@ const Events = () => {
     return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
   };
 
-  const filteredEvents =
+  // Legacy filter for backward compatibility
+  const legacyFilteredEvents =
     filterType === "all"
-      ? events.filter((e) => e.status !== "closed")
-      : events.filter(
-        (e) =>
-          e.status !== "closed" &&
-          e.eventType?.toLowerCase() === filterType.toLowerCase()
+      ? filteredEvents
+      : filteredEvents.filter(
+        (e) => e.eventType?.toLowerCase() === filterType.toLowerCase()
       );
 
   const getBadgeColor = (eventType) => {
@@ -79,77 +145,82 @@ const Events = () => {
   };
 
   const handleAttendanceSubmit = async (data) => {
-  if (!selectedEvent) return { success: false, message: "No event selected." };
+    if (!selectedEvent) return { success: false, message: "No event selected." };
 
-  const eventId = selectedEvent._id;
-  const eventName = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
-  const eventType = selectedEvent.eventType || "Event";
+    const eventId = selectedEvent._id;
+    const eventName = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
+    const eventType = selectedEvent.eventType || "Event";
 
-  try {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-    const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    try {
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+      const formattedTime = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
-    // 🟥 CASE 1: Event did not meet
-    if (
-      data === "did-not-meet" ||
-      data === "Mark As Did Not Meet" ||
-      (typeof data === "string" && data.toLowerCase().includes("did not meet"))
-    ) {
-      await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
-        did_not_meet: true,
-      });
+      // 🟥 CASE 1: Event did not meet
+      if (
+        data === "did-not-meet" ||
+        data === "Mark As Did Not Meet" ||
+        (typeof data === "string" && data.toLowerCase().includes("did not meet"))
+      ) {
+        await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
+          did_not_meet: true,
+        });
 
-      await saveToEventHistory({
-        eventId,
-        service_name: eventName,
-        eventType,
-        status: "did-not-meet",
-        reason: "Marked as did not meet",
-        closedAt: `${formattedDate}, ${formattedTime}`,
-      });
+        await saveToEventHistory({
+          eventId,
+          service_name: eventName,
+          eventType,
+          status: "did-not-meet",
+          reason: "Marked as did not meet",
+          closedAt: `${formattedDate}, ${formattedTime}`,
+        });
 
-      setEvents((prev) =>
-        prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-      );
+        setEvents((prev) =>
+          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+        );
+        setFilteredEvents((prev) =>
+          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+        );
 
-      return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
+        return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
+      }
+
+      // 🟩 CASE 2: Submit attendance
+      if (Array.isArray(data) && data.length > 0) {
+        await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
+          attendees: data,
+          did_not_meet: false,
+        });
+
+        await saveToEventHistory({
+          eventId,
+          service_name: eventName,
+          eventType,
+          status: "attended",
+          attendees: data,
+          closedAt: `${formattedDate}, ${formattedTime}`,
+        });
+
+        setEvents((prev) =>
+          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+        );
+        setFilteredEvents((prev) =>
+          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+        );
+
+        return { success: true, message: `Successfully captured attendance for ${eventName}` };
+      }
+
+      // 🟨 No data
+      return { success: false, message: "No attendees selected." };
+    } catch (error) {
+      console.error("Error updating event:", error);
+      return {
+        success: false,
+        message: "Something went wrong while capturing the event.",
+      };
     }
-
-    // 🟩 CASE 2: Submit attendance
-    if (Array.isArray(data) && data.length > 0) {
-      await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
-        attendees: data,
-        did_not_meet: false,
-      });
-
-      await saveToEventHistory({
-        eventId,
-        service_name: eventName,
-        eventType,
-        status: "attended",
-        attendees: data,
-        closedAt: `${formattedDate}, ${formattedTime}`,
-      });
-
-      setEvents((prev) =>
-        prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-      );
-
-      return { success: true, message: `Successfully captured attendance for ${eventName}` };
-    }
-
-    // 🟨 No data
-    return { success: false, message: "No attendees selected." };
-  } catch (error) {
-    console.error("Error updating event:", error);
-    return {
-      success: false,
-      message: "Something went wrong while capturing the event.",
-    };
-  }
-};
-
+  };
 
   const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
 
@@ -164,7 +235,7 @@ const Events = () => {
   };
 
   const handleEditEvent = () => {
-    if (currentEvent) navigate(`/edit-event/${currentEvent._id}`);
+    if (currentEvent)navigate(`/edit-event/${currentEvent._id}`);
     handleMenuClose();
   };
 
@@ -174,11 +245,14 @@ const Events = () => {
       await axios.delete(`${BACKEND_URL}/events/${currentEvent._id}`);
 
       setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
+      setFilteredEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
     } catch (err) {
       console.error("Failed to delete event:", err);
     }
     handleMenuClose();
   };
+
+  const activeFilterCount = Object.keys(activeFilters).length;
 
   return (
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default, color: theme.palette.text.primary }}>
@@ -188,8 +262,36 @@ const Events = () => {
           <button style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }} onClick={() => navigate("/create-events")}>
             + NEW EVENT
           </button>
-          <button style={{ ...styles.button, ...styles.btnFilter, marginRight: "25px" }} onClick={() => setShowFilter(true)}>
+          <button 
+            style={{ 
+              ...styles.button, 
+              ...styles.btnFilter, 
+              marginRight: "25px",
+              position: 'relative'
+            }} 
+            onClick={() => setShowFilter(true)}
+          >
             FILTER EVENTS
+            {activeFilterCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: -8,
+                right: -8,
+                backgroundColor: '#007bff',
+                color: 'white',
+                borderRadius: '50%',
+                padding: '2px 6px',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                minWidth: '18px',
+                height: '18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {activeFilterCount}
+              </span>
+            )}
           </button>
         </div>
         <div style={styles.headerRight}>
@@ -212,31 +314,87 @@ const Events = () => {
         </button>
       </div>
 
-      {/* Filter Popup */}
-      {showFilter && (
-        <div style={styles.popupOverlay}>
-          <div style={styles.popupContent}>
-            <h3>Filter Events</h3>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={styles.selectBox}>
-              <option value="all">All</option>
-              <option value="cell">Cell</option>
-              <option value="conference">Conference</option>
-              <option value="service">Service</option>
-              <option value="j-activation">J-Activation</option>
-              <option value="meeting">Meeting</option>
-              <option value="social event">Social Event</option>
-            </select>
-            <div style={{ marginTop: "1rem" }}>
-              <button style={{ ...styles.button, ...styles.btnNewEvent }} onClick={() => setShowFilter(false)}>Apply</button>
-              <button style={{ ...styles.button, ...styles.btnFilter, marginLeft: "10px" }} onClick={() => setShowFilter(false)}>Close</button>
-            </div>
+      {/* Active Filters Display */}
+      {activeFilterCount > 0 && (
+        <div style={{
+          padding: '1rem',
+          backgroundColor: theme.palette.background.paper,
+          borderRadius: '8px',
+          margin: '1rem 0',
+          border: `1px solid ${theme.palette.divider}`
+        }}>
+          <div style={{
+            fontSize: '0.875rem',
+            color: theme.palette.text.secondary,
+            marginBottom: '0.5rem'
+          }}>
+            Active Filters ({activeFilterCount}):
+          </div>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+            alignItems: 'center'
+          }}>
+            {Object.entries(activeFilters).map(([key, value]) => {
+              const filterLabels = {
+                eventType: 'Type',
+                location: 'Location',
+                eventLeader: 'Leader',
+                isTicketed: 'Ticket',
+                recurringDay: 'Day'
+              };
+              
+              const displayValue = key === 'isTicketed' 
+                ? (value === 'true' ? 'Ticketed' : 'Free')
+                : value;
+              
+              return (
+                <span
+                  key={key}
+                  style={{
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    fontSize: '0.75rem',
+                    fontWeight: '500'
+                  }}
+                >
+                  {filterLabels[key]}: {displayValue}
+                </span>
+              );
+            })}
+            <button
+              onClick={() => applyFilters({})}
+              style={{
+                backgroundColor: 'transparent',
+                color: '#dc3545',
+                border: '1px solid #dc3545',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                cursor: 'pointer'
+              }}
+            >
+              Clear All
+            </button>
           </div>
         </div>
       )}
 
+      {/* Results count */}
+      <div style={{
+        padding: '0 1rem',
+        fontSize: '0.875rem',
+        color: theme.palette.text.secondary
+      }}>
+        Showing {legacyFilteredEvents.length} of {events.filter(e => e.status !== "closed").length} events
+      </div>
+
       {/* Events Grid */}
       <div style={styles.eventsGrid}>
-        {filteredEvents.map((event) => (
+        {legacyFilteredEvents.map((event) => (
           <div key={event._id} style={{ ...styles.eventCard, backgroundColor: theme.palette.background.paper }}>
             <div style={styles.eventHeader}>
               <div style={styles.titleAndBadgeContainer}>
@@ -286,9 +444,9 @@ const Events = () => {
             )}
 
             {/* Show recurring days if any */}
-            {event.recurringDays && event.recurringDays.length > 0 && (
+            {((event.recurringDays && event.recurringDays.length > 0) || (event.recurring_day && event.recurring_day.length > 0)) && (
               <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
-                {event.recurringDays.map((day, idx) => (
+                {(event.recurringDays || event.recurring_day || []).map((day, idx) => (
                   <span key={idx} style={{ backgroundColor: "#6c757d", color: "#fff", padding: "4px 8px", borderRadius: "6px", fontSize: "0.8rem" }}>
                     {day}
                   </span>
@@ -306,7 +464,7 @@ const Events = () => {
                   ...(event.isTicketed ? {} : styles.disabledBtn),
                 }}
                 disabled={!event.isTicketed}
-                onClick={() => event.isTicketed && navigate(`/payment/${event._id}`)}
+                onClick={() => event.isTicketed && navigate(`/event-payment/${event._id}`)}
               >
                 {event.isTicketed ? "Payment" : "No Payment"}
               </button>
@@ -315,10 +473,19 @@ const Events = () => {
         ))}
       </div>
 
-  
       <button style={styles.historyButton} onClick={() => navigate("/history")} title="View Event History">
         🕒 History
       </button>
+
+      {/* New EventsFilter Modal - replaces old filter popup */}
+      <Eventsfilter
+        open={showFilter}
+        onClose={() => setShowFilter(false)}
+        onApplyFilter={applyFilters}
+        events={events.filter(e => e.status !== "closed")}
+        currentFilters={activeFilters}
+        eventTypes={eventTypes}
+      />
 
       {/* Attendance Modal */}
       {selectedEvent && (
@@ -477,35 +644,6 @@ const styles = {
     cursor: "not-allowed",
     backgroundColor: "#e9ecef",
     color: "#6c757d",
-  },
-  popupOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    background: "rgba(0,0,0,0.5)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 999,
-    padding: "1rem",
-    boxSizing: "border-box",
-  },
-  popupContent: {
-    background: "#fff",
-    padding: "2rem",
-    borderRadius: "12px",
-    width: "100%",
-    maxWidth: "350px",
-    textAlign: "center",
-  },
-  selectBox: {
-    width: "100%",
-    padding: "0.5rem",
-    borderRadius: "6px",
-    marginTop: "1rem",
-    fontSize: "1rem",
   },
   historyButton: {
     position: "fixed",
