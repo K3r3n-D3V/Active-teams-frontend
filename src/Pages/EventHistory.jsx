@@ -1,8 +1,9 @@
+// EventHistory.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaRegCalendarAlt } from "react-icons/fa";
 
-// Save event history utility
+// ✅ Save event history utility
 export const saveToEventHistory = ({
   eventId,
   service_name,
@@ -10,7 +11,9 @@ export const saveToEventHistory = ({
   status,
   attendees = [],
   reason = "",
-  leader = "",  // default value empty string, can be replaced with actual value on call
+  leader12 = "-",
+  leader144 = "-",
+  leader1728 = "-",
 }) => {
   const currentHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
 
@@ -21,7 +24,9 @@ export const saveToEventHistory = ({
     status,
     attendees,
     reason,
-    leader,  // save the passed leader value here
+    leader12: leader12 || "-",
+    leader144: leader144 || "-",
+    leader1728: leader1728 || "-",
     timestamp: new Date().toISOString(),
   };
 
@@ -29,10 +34,8 @@ export const saveToEventHistory = ({
   localStorage.setItem("eventHistory", JSON.stringify(currentHistory));
 };
 
-
 const EventHistory = ({ user }) => {
   const navigate = useNavigate();
-
   const [events, setEvents] = useState([]);
   const [filterName, setFilterName] = useState("");
   const [filterDate, setFilterDate] = useState("");
@@ -43,34 +46,35 @@ const EventHistory = ({ user }) => {
     return history ? JSON.parse(history) : [];
   };
 
-const groupHistoryByEvent = () => {
-  const rawHistory = getEventHistory();
-  const grouped = {};
-  rawHistory.forEach((entry) => {
-    const eventKey = entry.eventId || entry.service_name;
-    if (!grouped[eventKey]) {
-      grouped[eventKey] = {
-        _id: eventKey,
-        service_name: entry.service_name,
-        eventType: entry.eventType,
-        // store leaders separately
-        leader12: entry.leaders?.leader12 || "-",
-        leader144: entry.leaders?.leader144 || "-",
-        day: new Date(entry.timestamp).toLocaleDateString('en-US', { weekday: 'long' }),
-        email: user?.email || "-",
-        history: [],
-      };
-    }
-    grouped[eventKey].history.push({
-      status: entry.status,
-      timestamp: entry.timestamp,
-      attendees: entry.attendees,
-      reason: entry.reason,
+  const groupHistoryByEvent = () => {
+    const rawHistory = getEventHistory();
+    const grouped = {};
+    rawHistory.forEach((entry) => {
+      const eventKey = entry.eventId || entry.service_name;
+      if (!grouped[eventKey]) {
+        grouped[eventKey] = {
+          _id: eventKey,
+          service_name: entry.service_name,
+          eventType: entry.eventType,
+          leader12: entry.leader12 || "-",
+          leader144: entry.leader144 || "-",
+          leader1728: entry.leader1728 || "-",
+          day: new Date(entry.timestamp).toLocaleDateString("en-US", {
+            weekday: "long",
+          }),
+          email: user?.email || "-",
+          history: [],
+        };
+      }
+      grouped[eventKey].history.push({
+        status: entry.status,
+        timestamp: entry.timestamp,
+        attendees: entry.attendees,
+        reason: entry.reason,
+      });
     });
-  });
-  return Object.values(grouped);
-};
-
+    return Object.values(grouped);
+  };
 
   useEffect(() => {
     setEvents(groupHistoryByEvent());
@@ -116,7 +120,7 @@ const groupHistoryByEvent = () => {
     <div style={styles.container}>
       <h1 style={styles.header}>Events History</h1>
 
-      {/* Search and Filter Section */}
+      {/* Search and Filter */}
       <div style={styles.searchSection}>
         <div style={styles.searchContainer}>
           <input
@@ -129,7 +133,6 @@ const groupHistoryByEvent = () => {
           <button style={styles.filterButton}>FILTER</button>
         </div>
 
-        {/* Filter Tabs */}
         <div style={styles.filterTabs}>
           <button
             onClick={() => setActiveFilter("incomplete")}
@@ -164,73 +167,61 @@ const groupHistoryByEvent = () => {
         </div>
       </div>
 
-      {/* Events Table */}
+      {/* Table */}
       <table style={styles.table}>
         <thead>
           <tr style={styles.tableHeaderRow}>
             <th style={styles.tableHeaderCell}>Event Name</th>
-           <th style={styles.tableHeaderCell}>Leader @12</th>
-<th style={styles.tableHeaderCell}>Leader @144</th>
-
+            <th style={styles.tableHeaderCell}>Leader @12</th>
+            <th style={styles.tableHeaderCell}>Leader @144</th>
+            <th style={styles.tableHeaderCell}>Leader @1728</th>
             <th style={styles.tableHeaderCell}>Day</th>
-            <th style={styles.tableHeaderCell}>Email</th>
-            <th style={styles.tableHeaderCell}>Date Of Event</th>
-            <th style={styles.tableHeaderCell}>Open Event</th>
+            <th style={{ ...styles.tableHeaderCell, width: "200px" }}>Email</th>
+            <th style={{ ...styles.tableHeaderCell, width: "60px" }}>Date</th>
+            <th style={{ ...styles.tableHeaderCell, width: "60px" }}>Open</th>
           </tr>
         </thead>
-      <thead>
-  <tr style={styles.tableHeaderRow}>
-    <th style={styles.tableHeaderCell}>Event Name</th>
-    <th style={styles.tableHeaderCell}>Leader @12</th>
-    <th style={styles.tableHeaderCell}>Leader @144</th>
-    <th style={styles.tableHeaderCell}>Day</th>
-    <th style={styles.tableHeaderCell}>Email</th>
-    <th style={styles.tableHeaderCell}>Date Of Event</th>
-    <th style={styles.tableHeaderCell}>Open Event</th>
-  </tr>
-</thead>
-<tbody>
-  {eventsToShow.map((event) => {
-    const latest = [...event.history]
-      .filter((h) =>
-        activeFilter === "complete"
-          ? h.status === "attended"
-          : activeFilter === "did-not-meet"
-          ? h.status === "did-not-meet"
-          : h.status === "did-not-meet"
-      )
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+        <tbody>
+          {eventsToShow.map((event) => {
+            const latest = [...event.history]
+              .filter((h) =>
+                activeFilter === "complete"
+                  ? h.status === "attended"
+                  : h.status === "did-not-meet"
+              )
+              .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
 
-    return (
-      <tr key={event._id} style={styles.tr}>
-        <td style={styles.td}>{event.service_name}</td>
-        <td style={styles.td}>{event.leader12}</td>
-        <td style={styles.td}>{event.leader144}</td>
-        <td style={styles.td}>{event.day}</td>
-        <td style={styles.td}>{event.email}</td>
-        <td style={styles.td}>
-          {new Date(latest.timestamp).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric"
-          }).replace(/\//g, " - ")}
-        </td>
-        <td style={styles.td}>
-          <button
-            style={styles.iconBtn}
-            onClick={() => openEventDetails(event._id)}
-          >
-            <FaRegCalendarAlt />
-          </button>
-        </td>
-      </tr>
-    );
-  })}
-</tbody>
-
+            return (
+              <tr key={event._id} style={styles.tr}>
+                <td style={styles.td}>{event.service_name}</td>
+                <td style={styles.td}>{event.leader12}</td>
+                <td style={styles.td}>{event.leader144}</td>
+                <td style={styles.td}>{event.leader1728}</td>
+                <td style={styles.td}>{event.day}</td>
+                <td style={{ ...styles.td, width: "200px" }}>{event.email}</td>
+                <td style={{ ...styles.td, textAlign: "center" }}>
+                  <span>
+                    {new Date(latest.timestamp).toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    }).replace(/\//g, " - ")}
+                  </span>
+                </td>
+                <td style={{ ...styles.td, textAlign: "center" }}>
+                  <button
+                    style={styles.iconBtn}
+                    onClick={() => openEventDetails(event._id)}
+                  >
+                    <FaRegCalendarAlt />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
       </table>
 
-      {/* Date Filter Input (Hidden but available for date filtering) */}
       <input
         type="date"
         value={filterDate}
@@ -238,7 +229,7 @@ const groupHistoryByEvent = () => {
         style={styles.hiddenDateInput}
       />
 
-      {/* Summary Cards */}
+      {/* Summary */}
       <section style={styles.summarySection}>
         <h2 style={styles.summaryHeader}>📊 Summary</h2>
         <div style={styles.summaryGrid}>
@@ -264,6 +255,7 @@ const groupHistoryByEvent = () => {
   );
 };
 
+// ✅ Styles object (same as yours, with small tweaks)
 const styles = {
   container: {
     maxWidth: "100%",
@@ -347,7 +339,6 @@ const styles = {
     borderCollapse: "collapse",
     marginBottom: "2rem",
     backgroundColor: "#fff",
-    // border: "2px solid #000",
   },
   tableHeaderRow: {
     backgroundColor: "#000",
@@ -363,9 +354,6 @@ const styles = {
   tr: {
     backgroundColor: "#fff",
     transition: "background-color 0.25s",
-    "&:hover": {
-      backgroundColor: "#f8f9fa",
-    },
   },
   td: {
     padding: "15px 20px",
@@ -383,7 +371,7 @@ const styles = {
     padding: "5px",
   },
   hiddenDateInput: {
-    display: "none", // Hide the date input but keep it functional
+    display: "none",
   },
   summarySection: {
     marginTop: "3rem",

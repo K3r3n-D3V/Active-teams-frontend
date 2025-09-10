@@ -23,10 +23,10 @@ const Events = () => {
   const [currentEvent, setCurrentEvent] = useState(null);
   const [activeFilters, setActiveFilters] = useState({});
   const [eventTypes, setEventTypes] = useState([
-    'Sunday Service', 'Friday Service', 'Workshop', 'Encounter', 'Conference', 
+    'Sunday Service', 'Friday Service', 'Workshop', 'Encounter', 'Conference',
     'J-Activation', 'Destiny Training', 'Social Event', 'Cell', 'Meeting'
   ]);
-  
+
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
   useEffect(() => {
@@ -41,7 +41,7 @@ const Events = () => {
         );
         setEvents(sortedEvents);
         setFilteredEvents(sortedEvents); // Initialize filtered events
-        
+
         // Extract unique event types from fetched events
         const fetchedEventTypes = [...new Set(sortedEvents.map(event => event.eventType).filter(Boolean))];
         const allEventTypes = [...new Set([...eventTypes, ...fetchedEventTypes])];
@@ -53,7 +53,7 @@ const Events = () => {
   // Apply filters to events
   const applyFilters = (filters) => {
     setActiveFilters(filters);
-    
+
     if (Object.keys(filters).length === 0) {
       setFilteredEvents(events.filter((e) => e.status !== "closed"));
       return;
@@ -61,23 +61,28 @@ const Events = () => {
 
     const filtered = events.filter(event => {
       if (event.status === "closed") return false;
-      
+
       let matches = true;
 
       // Event Type filter
-      if (filters.eventType && event.eventType !== filters.eventType) {
-        matches = false;
-      }
+    if (filters.eventType && event.eventType?.toLowerCase() !== filters.eventType.toLowerCase()) {
+  matches = false;
+}
+
 
       // Location filter
       if (filters.location && event.location !== filters.location) {
         matches = false;
       }
 
-      // Event Leader filter
-      if (filters.eventLeader && event.eventLeader !== filters.eventLeader) {
-        matches = false;
-      }
+    if (filters.eventLeader) {
+  const eventLeader = event.eventLeader ? event.eventLeader.trim().toLowerCase() : "";
+  const filterLeader = filters.eventLeader.trim().toLowerCase();
+  if (eventLeader !== filterLeader) {
+    matches = false;
+  }
+}
+
 
       // Ticketed filter
       if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
@@ -90,7 +95,7 @@ const Events = () => {
       // Recurring Day filter
       if (filters.recurringDay) {
         const eventDays = event.recurring_day || event.recurringDays || [];
-        const hasDay = Array.isArray(eventDays) 
+        const hasDay = Array.isArray(eventDays)
           ? eventDays.includes(filters.recurringDay)
           : eventDays === filters.recurringDay;
         if (!hasDay) {
@@ -120,27 +125,27 @@ const Events = () => {
         (e) => e.eventType?.toLowerCase() === filterType.toLowerCase()
       );
 
-const getBadgeColor = (eventType) => {
-  if (!eventType) return "#6c757d"; // fallback
+  const getBadgeColor = (eventType) => {
+    if (!eventType) return "#6c757d"; // fallback
 
-  const cleanedType = eventType.trim().toLowerCase();
+    const cleanedType = eventType.trim().toLowerCase();
 
-  const eventTypeColors = {
-    "sunday service": "#5A9BD5",      // soft blue
-    "friday service": "#7FB77E",      // green
-    "workshop": "#F7C59F",
-    "encounter": "#FFADAD",
-    "conference": "#C792EA",
-    "j-activation": "#F67280",
-    "destiny training": "#70A1D7",
-    "social event": "#FFD166",
-    "meeting": "#A0CED9",
-    "children's church": "#FFA07A",   // salmon
-    "cell": "#007bff"                 // blue
+    const eventTypeColors = {
+      "sunday service": "#5A9BD5",      // soft blue
+      "friday service": "#7FB77E",      // green
+      "workshop": "#F7C59F",
+      "encounter": "#FFADAD",
+      "conference": "#C792EA",
+      "j-activation": "#F67280",
+      "destiny training": "#70A1D7",
+      "social event": "#FFD166",
+      "meeting": "#A0CED9",
+      "children's church": "#FFA07A",   // salmon
+      "cell": "#007bff"                 // blue
+    };
+
+    return eventTypeColors[cleanedType] || "#6c757d"; // default gray
   };
-
-  return eventTypeColors[cleanedType] || "#6c757d"; // default gray
-};
 
 
 
@@ -167,7 +172,7 @@ const getBadgeColor = (eventType) => {
         data === "Mark As Did Not Meet" ||
         (typeof data === "string" && data.toLowerCase().includes("did not meet"))
       ) {
-        await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
+        await axios.put(`${BACKEND_URL}/allevents/${eventId}`, {
           did_not_meet: true,
         });
 
@@ -190,10 +195,11 @@ const getBadgeColor = (eventType) => {
         return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
       }
 
+
       // 🟩 CASE 2: Submit attendance
       if (Array.isArray(data) && data.length > 0) {
-        await axios.patch(`${BACKEND_URL}/allevents/${eventId}`, {
-          attendees: data,
+        await axios.put(`${BACKEND_URL}/allevents/${eventId}`, {
+          attendees: data.map((person) => person.id),
           did_not_meet: false,
         });
 
@@ -202,7 +208,7 @@ const getBadgeColor = (eventType) => {
           service_name: eventName,
           eventType,
           status: "attended",
-          attendees: data,
+          attendees: data.map((person) => person.id),
           closedAt: `${formattedDate}, ${formattedTime}`,
         });
 
@@ -215,6 +221,7 @@ const getBadgeColor = (eventType) => {
 
         return { success: true, message: `Successfully captured attendance for ${eventName}` };
       }
+
 
       // 🟨 No data
       return { success: false, message: "No attendees selected." };
@@ -240,7 +247,7 @@ const getBadgeColor = (eventType) => {
   };
 
   const handleEditEvent = () => {
-    if (currentEvent)navigate(`/edit-event/${currentEvent._id}`);
+    if (currentEvent) navigate(`/edit-event/${currentEvent._id}`);
     handleMenuClose();
   };
 
@@ -267,13 +274,13 @@ const getBadgeColor = (eventType) => {
           <button style={{ ...styles.button, ...styles.btnNewEvent, marginLeft: "25px" }} onClick={() => navigate("/create-events")}>
             + NEW EVENT
           </button>
-          <button 
-            style={{ 
-              ...styles.button, 
-              ...styles.btnFilter, 
+          <button
+            style={{
+              ...styles.button,
+              ...styles.btnFilter,
               marginRight: "25px",
               position: 'relative'
-            }} 
+            }}
             onClick={() => setShowFilter(true)}
           >
             FILTER EVENTS
@@ -349,11 +356,11 @@ const getBadgeColor = (eventType) => {
                 isTicketed: 'Ticket',
                 recurringDay: 'Day'
               };
-              
-              const displayValue = key === 'isTicketed' 
+
+              const displayValue = key === 'isTicketed'
                 ? (value === 'true' ? 'Ticketed' : 'Free')
                 : value;
-              
+
               return (
                 <span
                   key={key}
@@ -406,12 +413,12 @@ const getBadgeColor = (eventType) => {
                 <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
                   {event.eventName || event.service_name || "Untitled Event"}
                 </h3>
-               <span style={{
-  ...styles.eventBadge,
-  backgroundColor: getBadgeColor(event.eventType),
-}}>
-  {capitalize(event.eventType) || "Unknown"}
-</span>
+                <span style={{
+                  ...styles.eventBadge,
+                  backgroundColor: getBadgeColor(event.eventType),
+                }}>
+                  {capitalize(event.eventType) || "Unknown"}
+                </span>
 
               </div>
 
@@ -460,29 +467,29 @@ const getBadgeColor = (eventType) => {
               </div>
             )}
 
-        <div style={styles.eventActions}>
-  <button
-    style={{ ...styles.actionBtn, ...styles.captureBtn }}
-    onClick={() => handleCaptureClick(event)}
-  >
-    Capture
-  </button>
+            <div style={styles.eventActions}>
+              <button
+                style={{ ...styles.actionBtn, ...styles.captureBtn }}
+                onClick={() => handleCaptureClick(event)}
+              >
+                Capture
+              </button>
 
-  <button
-    style={{
-      ...styles.actionBtn,
-      ...styles.paymentBtn,
-      ...(event.isTicketed ? {} : styles.disabledBtn),
-       whiteSpace: 'nowrap',
-    }}
-    disabled={!event.isTicketed}
-    onClick={() =>
-      event.isTicketed && navigate(`/event-payment/${event._id}`)
-    }
-  >
-    {event.isTicketed ? "Payment" : "No Payment"}
-  </button>
-</div>
+              <button
+                style={{
+                  ...styles.actionBtn,
+                  ...styles.paymentBtn,
+                  ...(event.isTicketed ? {} : styles.disabledBtn),
+                  whiteSpace: 'nowrap',
+                }}
+                disabled={!event.isTicketed}
+                onClick={() =>
+                  event.isTicketed && navigate(`/event-payment/${event._id}`)
+                }
+              >
+                {event.isTicketed ? "Payment" : "No Payment"}
+              </button>
+            </div>
 
           </div>
         ))}
@@ -630,13 +637,13 @@ const styles = {
     color: "#000000",
     fontWeight: 600,
   },
-eventActions: {
-  display: 'flex',
-  justifyContent: 'space-between', // or 'center' with gap
-  alignItems: 'center',
-  gap: '1rem', // spacing between buttons
-  marginTop: 'auto', // if you want to push it to the bottom
-},
+  eventActions: {
+    display: 'flex',
+    justifyContent: 'space-between', // or 'center' with gap
+    alignItems: 'center',
+    gap: '1rem', // spacing between buttons
+    marginTop: 'auto', // if you want to push it to the bottom
+  },
 
   actionBtn: {
     flex: 1,
