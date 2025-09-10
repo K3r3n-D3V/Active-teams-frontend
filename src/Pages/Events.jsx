@@ -120,24 +120,29 @@ const Events = () => {
         (e) => e.eventType?.toLowerCase() === filterType.toLowerCase()
       );
 
-  const getBadgeColor = (eventType) => {
-    const type = eventType?.toLowerCase();
-    switch (type) {
-      case "cell":
-        return "#007bff"; // Blue
-      case "conference":
-        return "#dc3545"; // Red
-      case "j-activation":
-      case "service":
-        return "#28a745"; // Green
-      case "meeting":
-        return "#6c757d"; // Gray
-      case "social event":
-        return "#fd7e14"; // Orange
-      default:
-        return "#6c757d"; // Default gray
-    }
+const getBadgeColor = (eventType) => {
+  if (!eventType) return "#6c757d"; // fallback
+
+  const cleanedType = eventType.trim().toLowerCase();
+
+  const eventTypeColors = {
+    "sunday service": "#5A9BD5",      // soft blue
+    "friday service": "#7FB77E",      // green
+    "workshop": "#F7C59F",
+    "encounter": "#FFADAD",
+    "conference": "#C792EA",
+    "j-activation": "#F67280",
+    "destiny training": "#70A1D7",
+    "social event": "#FFD166",
+    "meeting": "#A0CED9",
+    "children's church": "#FFA07A",   // salmon
+    "cell": "#007bff"                 // blue
   };
+
+  return eventTypeColors[cleanedType] || "#6c757d"; // default gray
+};
+
+
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
@@ -401,12 +406,13 @@ const Events = () => {
                 <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
                   {event.eventName || event.service_name || "Untitled Event"}
                 </h3>
-                <span style={{
-                  ...styles.eventBadge,
-                  backgroundColor: getBadgeColor(event.eventType),
-                }}>
-                  {capitalize(event.eventType) || "Unknown"}
-                </span>
+               <span style={{
+  ...styles.eventBadge,
+  backgroundColor: getBadgeColor(event.eventType),
+}}>
+  {capitalize(event.eventType) || "Unknown"}
+</span>
+
               </div>
 
               {/* Edit/Delete Menu */}
@@ -454,21 +460,30 @@ const Events = () => {
               </div>
             )}
 
-            <div style={styles.eventActions}>
-              <button style={{ ...styles.actionBtn, ...styles.captureBtn }} onClick={() => handleCaptureClick(event)}>Capture</button>
+        <div style={styles.eventActions}>
+  <button
+    style={{ ...styles.actionBtn, ...styles.captureBtn }}
+    onClick={() => handleCaptureClick(event)}
+  >
+    Capture
+  </button>
 
-              <button
-                style={{
-                  ...styles.actionBtn,
-                  ...styles.paymentBtn,
-                  ...(event.isTicketed ? {} : styles.disabledBtn),
-                }}
-                disabled={!event.isTicketed}
-                onClick={() => event.isTicketed && navigate(`/event-payment/${event._id}`)}
-              >
-                {event.isTicketed ? "Payment" : "No Payment"}
-              </button>
-            </div>
+  <button
+    style={{
+      ...styles.actionBtn,
+      ...styles.paymentBtn,
+      ...(event.isTicketed ? {} : styles.disabledBtn),
+       whiteSpace: 'nowrap',
+    }}
+    disabled={!event.isTicketed}
+    onClick={() =>
+      event.isTicketed && navigate(`/event-payment/${event._id}`)
+    }
+  >
+    {event.isTicketed ? "Payment" : "No Payment"}
+  </button>
+</div>
+
           </div>
         ))}
       </div>
@@ -615,12 +630,14 @@ const styles = {
     color: "#000000",
     fontWeight: 600,
   },
-  eventActions: {
-    marginTop: "1rem",
-    display: "flex",
-    gap: "0.5rem",
-    flexWrap: "wrap",
-  },
+eventActions: {
+  display: 'flex',
+  justifyContent: 'space-between', // or 'center' with gap
+  alignItems: 'center',
+  gap: '1rem', // spacing between buttons
+  marginTop: 'auto', // if you want to push it to the bottom
+},
+
   actionBtn: {
     flex: 1,
     padding: "0.5rem 1rem",

@@ -10,7 +10,7 @@ export const saveToEventHistory = ({
   status,
   attendees = [],
   reason = "",
-  leader = "",
+  leader = "",  // default value empty string, can be replaced with actual value on call
 }) => {
   const currentHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
 
@@ -21,13 +21,14 @@ export const saveToEventHistory = ({
     status,
     attendees,
     reason,
-    leader,
+    leader,  // save the passed leader value here
     timestamp: new Date().toISOString(),
   };
 
   currentHistory.push(newEntry);
   localStorage.setItem("eventHistory", JSON.stringify(currentHistory));
 };
+
 
 const EventHistory = ({ user }) => {
   const navigate = useNavigate();
@@ -42,32 +43,34 @@ const EventHistory = ({ user }) => {
     return history ? JSON.parse(history) : [];
   };
 
-  const groupHistoryByEvent = () => {
-    const rawHistory = getEventHistory();
-    const grouped = {};
-    rawHistory.forEach((entry) => {
-      const eventKey = entry.eventId || entry.service_name;
-      if (!grouped[eventKey]) {
-        grouped[eventKey] = {
-          _id: eventKey,
-          service_name: entry.service_name,
-          eventType: entry.eventType,
-          leader: entry.leader || "-",
-          leaderAt12: entry.leader || "-", // Adding this field to match your design
-          day: new Date(entry.timestamp).toLocaleDateString('en-US', { weekday: 'long' }),
-          email: "tkgenia1234@gmail.com", // You might want to make this dynamic
-          history: [],
-        };
-      }
-      grouped[eventKey].history.push({
-        status: entry.status,
-        timestamp: entry.timestamp,
-        attendees: entry.attendees,
-        reason: entry.reason,
-      });
+const groupHistoryByEvent = () => {
+  const rawHistory = getEventHistory();
+  const grouped = {};
+  rawHistory.forEach((entry) => {
+    const eventKey = entry.eventId || entry.service_name;
+    if (!grouped[eventKey]) {
+      grouped[eventKey] = {
+        _id: eventKey,
+        service_name: entry.service_name,
+        eventType: entry.eventType,
+        // store leaders separately
+        leader12: entry.leaders?.leader12 || "-",
+        leader144: entry.leaders?.leader144 || "-",
+        day: new Date(entry.timestamp).toLocaleDateString('en-US', { weekday: 'long' }),
+        email: user?.email || "-",
+        history: [],
+      };
+    }
+    grouped[eventKey].history.push({
+      status: entry.status,
+      timestamp: entry.timestamp,
+      attendees: entry.attendees,
+      reason: entry.reason,
     });
-    return Object.values(grouped);
-  };
+  });
+  return Object.values(grouped);
+};
+
 
   useEffect(() => {
     setEvents(groupHistoryByEvent());
@@ -166,60 +169,65 @@ const EventHistory = ({ user }) => {
         <thead>
           <tr style={styles.tableHeaderRow}>
             <th style={styles.tableHeaderCell}>Event Name</th>
-            <th style={styles.tableHeaderCell}>Leader</th>
-            <th style={styles.tableHeaderCell}>Leader at 12</th>
+           <th style={styles.tableHeaderCell}>Leader @12</th>
+<th style={styles.tableHeaderCell}>Leader @144</th>
+
             <th style={styles.tableHeaderCell}>Day</th>
             <th style={styles.tableHeaderCell}>Email</th>
             <th style={styles.tableHeaderCell}>Date Of Event</th>
             <th style={styles.tableHeaderCell}>Open Event</th>
           </tr>
         </thead>
-        <tbody>
-          {eventsToShow.length === 0 ? (
-            <tr>
-              <td colSpan={7} style={{ ...styles.td, textAlign: "center", fontStyle: "italic" }}>
-                No events found.
-              </td>
-            </tr>
-          ) : (
-            eventsToShow.map((event) => {
-              const latest = [...event.history]
-                .filter((h) =>
-                  activeFilter === "complete"
-                    ? h.status === "attended"
-                    : activeFilter === "did-not-meet"
-                    ? h.status === "did-not-meet"
-                    : h.status === "did-not-meet"
-                )
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+      <thead>
+  <tr style={styles.tableHeaderRow}>
+    <th style={styles.tableHeaderCell}>Event Name</th>
+    <th style={styles.tableHeaderCell}>Leader @12</th>
+    <th style={styles.tableHeaderCell}>Leader @144</th>
+    <th style={styles.tableHeaderCell}>Day</th>
+    <th style={styles.tableHeaderCell}>Email</th>
+    <th style={styles.tableHeaderCell}>Date Of Event</th>
+    <th style={styles.tableHeaderCell}>Open Event</th>
+  </tr>
+</thead>
+<tbody>
+  {eventsToShow.map((event) => {
+    const latest = [...event.history]
+      .filter((h) =>
+        activeFilter === "complete"
+          ? h.status === "attended"
+          : activeFilter === "did-not-meet"
+          ? h.status === "did-not-meet"
+          : h.status === "did-not-meet"
+      )
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
 
-              return (
-                <tr key={event._id} style={styles.tr}>
-                  <td style={styles.td}>{event.service_name}</td>
-                  <td style={styles.td}>{event.leader}</td>
-                  <td style={styles.td}>{event.leaderAt12}</td>
-                  <td style={styles.td}>{event.day}</td>
-                  <td style={styles.td}>{event.email}</td>
-                  <td style={styles.td}>
-                    {new Date(latest.timestamp).toLocaleDateString("en-GB", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric"
-                    }).replace(/\//g, " - ")}
-                  </td>
-                  <td style={styles.td}>
-                    <button
-                      style={styles.iconBtn}
-                      onClick={() => openEventDetails(event._id)}
-                    >
-                      <FaRegCalendarAlt />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
+    return (
+      <tr key={event._id} style={styles.tr}>
+        <td style={styles.td}>{event.service_name}</td>
+        <td style={styles.td}>{event.leader12}</td>
+        <td style={styles.td}>{event.leader144}</td>
+        <td style={styles.td}>{event.day}</td>
+        <td style={styles.td}>{event.email}</td>
+        <td style={styles.td}>
+          {new Date(latest.timestamp).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+          }).replace(/\//g, " - ")}
+        </td>
+        <td style={styles.td}>
+          <button
+            style={styles.iconBtn}
+            onClick={() => openEventDetails(event._id)}
+          >
+            <FaRegCalendarAlt />
+          </button>
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
+
       </table>
 
       {/* Date Filter Input (Hidden but available for date filtering) */}
