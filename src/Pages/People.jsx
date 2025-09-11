@@ -1,11 +1,11 @@
 // People.jsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import axios from 'axios';
 import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
-  TextField, InputAdornment, Button, Snackbar, Alert, AppBar, Toolbar, Slide, Popover
+  TextField, InputAdornment, Button, Snackbar, Alert, Skeleton
 } from '@mui/material';
 import {
   Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
@@ -13,12 +13,25 @@ import {
   Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
-import InfoIcon from '@mui/icons-material/Info';
 
-// Slide transition for Snackbar
-const slideTransition = (props) => <Slide {...props} direction="down" />;
+// Custom hook for debounced search
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
 
-// Define stages
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
+// ---------------- Stages ----------------
 const stages = [
   { id: 'Win', title: 'Win', description: 'This is the first stage where people are won to the ministry.' },
   { id: 'Consolidate', title: 'Consolidate', description: 'People are consolidated in the group and connected to leaders.' },
@@ -26,8 +39,8 @@ const stages = [
   { id: 'Send', title: 'Send', description: 'Mature people are sent out to lead or minister to others.' }
 ];
 
-// Individual Person Card
-const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false }) => {
+// ---------------- PersonCard ----------------
+const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -65,17 +78,15 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
               width: 28,
               height: 28,
               fontSize: 12,
-              backgroundColor: getAvatarColor(`${person.name} ${person.surname}`),
+              backgroundColor: getAvatarColor(person.name + " " + person.surname),
               mr: 1
             }}
           >
-            {getInitials(`${person.name} ${person.surname}`)}
+            {getInitials(person.name + " " + person.surname)}
           </Avatar>
           <Box sx={{ flex: 1 }}>
             <Typography variant="subtitle2" noWrap>{person.name} {person.surname}</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {person.gender} • {formatDate(person.dob)}
-            </Typography>
+            <Typography variant="caption" color="text.secondary">{person.gender} • {formatDate(person.dob)}</Typography>
           </Box>
           <IconButton size="small" onClick={handleMenuClick}><MoreVertIcon fontSize="small" /></IconButton>
         </Box>
@@ -99,7 +110,9 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
               <Typography variant="caption">{person.location}</Typography>
             </Box>
           )}
-          {person.leaders && (
+
+          {/* Leaders block */}
+          {(person.leaders.leader12 || person.leaders.leader144 || person.leaders.leader1728) && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>
               {person.leaders.leader12 && (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -124,7 +137,16 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
         </Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Chip label={person.stage} size="small" sx={{ height: 20, fontSize: 10, backgroundColor: getStageColor(person.stage), color: '#fff' }} />
+          <Chip
+            label={person.Stage}
+            size="small"
+            sx={{
+              height: 20,
+              fontSize: 10,
+              backgroundColor: getStageColor(person.Stage),
+              color: '#fff'
+            }}
+          />
           <Typography variant="caption">Updated: {formatDate(person.lastUpdated)}</Typography>
         </Box>
 
@@ -143,438 +165,500 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging = false })
   );
 });
 
-// DragDrop board component
-const DragDropBoard = ({ people, onDragEnd, onEditPerson, onDeletePerson, loading, page, pageSize }) => {
+// ---------------- DragDropBoard ----------------
+const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loading, updatePersonInCache }) => {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isMedium = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [currentStage, setCurrentStage] = useState(null);
+  const BACKEND_URL = `http://127.0.0.1:8000`;
 
-  const totalPages = Math.max(1, Math.ceil(people.length / pageSize));
-  const paginatedPeople = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return people.slice(start, start + pageSize);
-  }, [people, page, pageSize]);
+  const handleDragEnd = async (result) => {
+    if (!result.destination) return;
 
-  const handlePopoverOpen = (event, stage) => {
-    setAnchorEl(event.currentTarget);
-    setCurrentStage(stage);
+    const { source, destination, draggableId } = result;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    const newStage = destination.droppableId;
+
+    // Store the original people state in case we need to revert
+    const originalPeople = [...people];
+
+    // Optimistically update the UI first
+    setPeople(prev => {
+      const updated = [...prev];
+      const movingIndex = updated.findIndex(p => String(p._id) === String(draggableId));
+      if (movingIndex === -1) return prev;
+
+      const [movingPerson] = updated.splice(movingIndex, 1);
+      movingPerson.Stage = newStage;
+
+      // Insert at correct index in destination Stage
+      const stagePeople = updated.filter(p => p.Stage === newStage);
+      let insertIndex = Math.min(destination.index, stagePeople.length);
+
+      let fullIndex = 0, count = 0;
+      while (fullIndex < updated.length) {
+        if (updated[fullIndex].Stage === newStage) {
+          if (count === insertIndex) break;
+          count++;
+        }
+        fullIndex++;
+      }
+
+      updated.splice(fullIndex, 0, movingPerson);
+      return updated;
+    });
+
+    // Now update the backend
+    try {
+      console.log(`Updating person ${draggableId} to stage: ${newStage}`);
+
+      const response = await axios.patch(`${BACKEND_URL}/people/${draggableId}`, {
+        Stage: newStage
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      console.log('Backend response:', response.data);
+
+      // Update the cache with the backend response
+      if (updatePersonInCache) {
+        updatePersonInCache(draggableId, {
+          Stage: response.data.Stage,
+          lastUpdated: response.data.UpdatedAt
+        });
+      }
+
+      // Verify the backend actually saved the correct stage
+      if (response.data.Stage !== newStage) {
+        console.warn(`Stage mismatch! Expected: ${newStage}, Got: ${response.data.Stage}`);
+        // Update the frontend to match backend
+        setPeople(prev => prev.map(p =>
+          String(p._id) === String(draggableId) 
+            ? { ...p, Stage: response.data.Stage, lastUpdated: response.data.UpdatedAt } 
+            : p
+        ));
+      } else {
+        // Update just the timestamp in the current view
+        setPeople(prev => prev.map(p =>
+          String(p._id) === String(draggableId) 
+            ? { ...p, lastUpdated: response.data.UpdatedAt } 
+            : p
+        ));
+      }
+
+    } catch (err) {
+      console.error("Failed to update Stage:", err);
+
+      // Revert the optimistic update on error
+      setPeople(originalPeople);
+
+      // Show error message to user
+      // Note: setSnackbar is not available in this component, you might want to pass it as a prop
+      console.error(`Failed to move person: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
+    }
   };
-  const handlePopoverClose = () => {
-    setAnchorEl(null);
-    setCurrentStage(null);
-  };
-  const popoverOpen = Boolean(anchorEl);
 
-  if (loading) return <Typography sx={{ p: 2, textAlign: 'center' }}>Loading people...</Typography>;
+  if (loading) return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+      {stages.map(Stage => (
+        <Paper key={Stage.id} sx={{ flex: '1 0 250px', minWidth: 220, borderRadius: 2, p: 2 }}>
+          {[...Array(3)].map((_, i) => <Skeleton key={i} variant="rectangular" height={80} sx={{ mb: 1 }} />)}
+        </Paper>
+      ))}
+    </Box>
+  );
 
   return (
-    <>
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Box sx={{
-          display: 'flex',
-          flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap',
-          gap: 3,
-          justifyContent: 'center',
-          flexDirection: isSmall ? 'column' : 'row',
-          py: 1
-        }}>
-          {stages.map(stage => {
-            // Filter paginated people for this stage
-            const stagePeople = paginatedPeople.filter(p => {
-              if (!p.stage) return false;
-              return p.stage.trim().toLowerCase() === stage.id.toLowerCase();
-            });
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <Box sx={{ display: 'flex', flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap', gap: 3, justifyContent: 'center', py: 1 }}>
+        {stages.map(Stage => {
+          const stagePeople = people.filter(p =>
+            (p.Stage || '').trim().toLowerCase() === Stage.id.toLowerCase() &&
+            (p.name || p.surname)
+          );
+          const stageWidth = isSmall ? '100%' : isMedium ? '45%' : '250px';
+          return (
+            <Paper key={Stage.id} sx={{ flex: `0 0 ${stageWidth}`, minWidth: 220, borderRadius: 2, overflow: 'hidden', mb: isSmall || isMedium ? 2 : 0, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.common.white }}>
+              <Box sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[100] }}>
+                <Typography variant="subtitle1">{Stage.title}</Typography>
+                <Badge badgeContent={stagePeople.length} sx={{ '& .MuiBadge-badge': { backgroundColor: theme.palette.mode === 'dark' ? '#fff' : '#000', color: theme.palette.mode === 'dark' ? '#000' : '#fff', fontSize: 10 } }} />
+              </Box>
 
-
-            const stageWidth = isSmall ? '100%' : isMedium ? '45%' : '250px';
-
-            return (
-              <Paper
-                key={stage.id}
-                sx={{
-                  flex: `0 0 ${stageWidth}`,
-                  minWidth: 220,
-                  borderRadius: 2,
-                  overflow: 'hidden',
-                  mb: isSmall || isMedium ? 2 : 0,
-                  backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.common.white
-                }}
-              >
-                {/* Stage header */}
-                <Box sx={{
-                  p: 1.5,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[100],
-                  color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : theme.palette.grey[900]
-                }}>
-                  <Typography variant="subtitle1">{stage.title}</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Badge
-                      badgeContent={stagePeople.length}
-                      sx={{
-                        '& .MuiBadge-badge': {
-                          backgroundColor: theme.palette.mode === 'dark' ? '#fff' : '#000',
-                          color: theme.palette.mode === 'dark' ? '#000' : '#fff',
-                          fontSize: 10,
-                          transform: 'translateY(1px)',
-                          minWidth: 16,
-                          height: 16
-                        }
-                      }}
-                    >
-                      <Box sx={{ width: 18, height: 18 }} />
-                    </Badge>
-                    <IconButton size="small" onClick={(e) => handlePopoverOpen(e, stage)}>
-                      <InfoIcon fontSize="small" sx={{ color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : theme.palette.grey[900] }} />
-                    </IconButton>
+              <Droppable droppableId={Stage.id}>
+                {(provided) => (
+                  <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ p: 1, minHeight: 140, maxHeight: '400px', overflowY: 'auto' }}>
+                    {stagePeople.length > 0 ? stagePeople.map((person, index) => (
+                      <Draggable key={person._id} draggableId={String(person._id)} index={index}>
+                        {(provided, snapshot) => (
+                          <Box ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                            <PersonCard person={person} onEdit={onEditPerson} onDelete={onDeletePerson} isDragging={snapshot.isDragging} />
+                          </Box>
+                        )}
+                      </Draggable>
+                    )) : <Typography variant="body2" sx={{ textAlign: 'center', py: 2 }}>No people</Typography>}
+                    {provided.placeholder}
                   </Box>
-                </Box>
-
-                {/* Droppable area */}
-                <Droppable droppableId={stage.id}>
-                  {(provided) => (
-                    <Box
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      sx={{
-                        p: 1,
-                        minHeight: 140,
-                        maxHeight: '400px',
-                        overflowY: 'auto',
-                        overflowX: 'hidden',
-                        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : theme.palette.grey[50]
-                      }}
-                    >
-                      {stagePeople.length > 0 ? (
-                        stagePeople.map((person, index) => (
-                          <Draggable key={person._id} draggableId={person._id} index={index}>
-                            {(provided, snapshot) => (
-                              <Box ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                                <PersonCard person={person} onEdit={onEditPerson} onDelete={onDeletePerson} isDragging={snapshot.isDragging} />
-                              </Box>
-                            )}
-                          </Draggable>
-                        ))
-                      ) : (
-                        <Box sx={{
-                          textAlign: 'center',
-                          border: '1px dashed',
-                          borderColor: theme.palette.mode === 'dark' ? theme.palette.grey[500] : '#aaa',
-                          borderRadius: 1,
-                          p: 3,
-                          mt: 1,
-                          color: 'text.secondary',
-                          fontStyle: 'italic'
-                        }}>
-                          Drop people here
-                        </Box>
-                      )}
-                      {provided.placeholder}
-                    </Box>
-                  )}
-                </Droppable>
-              </Paper>
-            );
-          })}
-        </Box>
-      </DragDropContext>
-
-      {/* Pagination controls */}
-      {totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, gap: 1 }}>
-          <Button size="small" disabled={page === 1} onClick={() => setPage(prev => prev - 1)}>Prev</Button>
-          <Typography sx={{ alignSelf: 'center' }}>Page {page} of {totalPages}</Typography>
-          <Button size="small" disabled={page >= totalPages} onClick={() => setPage(prev => prev + 1)}>Next</Button>
-        </Box>
-      )}
-
-      {/* Stage info popover */}
-      <Popover
-        open={popoverOpen}
-        anchorEl={anchorEl}
-        onClose={handlePopoverClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-        slotProps={{ paper: { sx: { p: 2, borderRadius: 2, boxShadow: 4, minWidth: 220, backgroundColor: theme.palette.mode === 'dark' ? '#333' : '#fff' } } }}
-      >
-        {currentStage && (
-          <Box>
-            <Typography variant="subtitle2">{currentStage.title}</Typography>
-            <Typography variant="body2" sx={{ mt: 1 }}>{currentStage.description}</Typography>
-          </Box>
-        )}
-      </Popover>
-    </>
+                )}
+              </Droppable>
+            </Paper>
+          );
+        })}
+      </Box>
+    </DragDropContext>
   );
 };
 
+// ---------------- FloatingTunnelPagination ----------------
+const FloatingTunnelPagination = ({ page, setPage, totalPages = 160, isSearching }) => {
+  const scrollRef = useRef(null);
 
-// Main People Section
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const container = scrollRef.current;
+    const containerCenter = container.offsetWidth / 2;
+    const buttons = container.querySelectorAll('button');
+
+    buttons.forEach(btn => {
+      const rect = btn.getBoundingClientRect();
+      const btnCenter = rect.left + rect.width / 2 - container.getBoundingClientRect().left;
+      const offset = btnCenter - containerCenter;
+      const rotation = Math.max(Math.min(offset / 5, 45), -45);
+      const scale = Math.max(1 - Math.abs(offset) / 300, 0.8);
+      btn.style.transform = `rotateY(${rotation}deg) scale(${scale})`;
+      btn.style.zIndex = `${Math.floor(scale * 100)}`;
+      btn.style.transition = 'transform 0.1s';
+    });
+  };
+
+  useEffect(() => {
+    handleScroll();
+    const container = scrollRef.current;
+    if (!container) return;
+    
+    container.addEventListener('scroll', handleScroll);
+    window.addEventListener('resize', handleScroll);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, []);
+
+  // Hide pagination when searching
+  if (isSearching) return null;
+
+  return (
+    <Box
+      ref={scrollRef}
+      sx={{
+        position: 'absolute',
+        bottom: 20,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        display: 'flex',
+        overflowX: 'auto',
+        maxWidth: '90%',
+        py: 1,
+        px: 1,
+        bgcolor: 'background.paper',
+        borderRadius: 3,
+        boxShadow: 4,
+        "&::-webkit-scrollbar": { height: 10 },
+        "&::-webkit-scrollbar-thumb": { backgroundColor: "#888", borderRadius: 5 },
+        "&::-webkit-scrollbar-track": { backgroundColor: "#f0f0f0", borderRadius: 5 },
+        perspective: 800,
+        zIndex: 999
+      }}
+    >
+      {Array.from({ length: totalPages }, (_, i) => (
+        <Button
+          key={i + 1}
+          onClick={() => setPage(i + 1)}
+          variant={i + 1 === page ? 'contained' : 'outlined'}
+          size="small"
+          sx={{
+            minWidth: 40,
+            mx: 0.5,
+            borderRadius: 10,
+            px: 1.5,
+            py: 0.5,
+            textTransform: 'none',
+            fontSize: 12,
+            transformStyle: 'preserve-3d'
+          }}
+        >
+          {i + 1}
+        </Button>
+      ))}
+    </Box>
+  );
+};
+
+// ---------------- PeopleSection ----------------
 export const PeopleSection = () => {
   const theme = useTheme();
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchField, setSearchField] = useState('name');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
   const [formData, setFormData] = useState({
-    name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '', invitedBy: '', gender: '', leader12: '', leader144: '', leader1728: '', stage: 'Win'
+    name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '',
+    invitedBy: '', gender: '', leader12: '', leader144: '', leader1728: '',
+    Stage: 'Win'
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 50; // adjust as needed
+  const [allPeople, setAllPeople] = useState([]); // Store all fetched people
+  const [hasInitialFetch, setHasInitialFetch] = useState(false);
 
-  const BACKEND_URL = "http://localhost:8000"; // replace with your actual backend URL
+  const PER_PAGE = 200;
+  const BACKEND_URL = `http://127.0.0.1:8000`;
 
-  const fetchPeople = async (pageNumber = page) => {
+  // Use debounced search term to prevent lag
+  const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms delay
+
+  // Initial fetch function - only called once or on hard refresh
+  const fetchAllPeople = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${BACKEND_URL}/people?page=${pageNumber}&perPage=${pageSize}`);
+      // Fetch a large amount or all people at once
+      const res = await axios.get(`${BACKEND_URL}/people`, { 
+        params: { perPage: 0 }, // perPage: 0 fetches all
+        timeout: 80000 
+      });
+      const rawPeople = res.data?.results || [];
 
-      let peopleArray = [];
-      if (Array.isArray(res.data.results)) {
-        peopleArray = res.data.results;
-      } else if (Array.isArray(res.data.data)) {
-        peopleArray = res.data.data;
-      } else if (Array.isArray(res.data)) {
-        peopleArray = res.data;
-      }
+      const mapped = rawPeople.map(raw => ({
+        _id: (raw._id || raw.id || "").toString(),
+        name: (raw.Name || raw.name || "").toString().trim(),
+        surname: (raw.Surname || raw.surname || "").toString().trim(),
+        gender: (raw.Gender || raw.gender || "").toString().trim(),
+        dob: raw.DateOfBirth || raw.Birthday || "",
+        location: (raw.Location || raw.address || raw.HomeAddress || "").toString().trim(),
+        email: (raw.Email || raw.email || "").toString().trim(),
+        phone: (raw.Phone || raw.Number || "").toString().trim(),
+        Stage: (raw.Stage || "Win").toString().trim(),
+        lastUpdated: raw.UpdatedAt || null,
+        leaders: {
+          leader12: (raw["Leader @12"] || "").toString().trim(),
+          leader144: (raw["Leader @144"] || "").toString().trim(),
+          leader1728: (raw["Leader @1728"] || raw["Leader @ 1728"] || "").toString().trim(),
+        }
+      }));
 
-      const data = peopleArray
-        .filter(p => p._id && (p.Name || p.Surname || p.name || p.surname))
-        .map(p => ({
-          _id: p._id,
-          name: p.Name || p.name || "",
-          surname: p.Surname || p.surname || "",
-          gender: p.Gender || p.gender || "",
-          dob: p.DateOfBirth || p.dob || "",
-          location: p.Location || p.location || "",
-          email: p.Email || p.email || "",
-          phone: p.Phone || p.Number || p.phone || "",
-          homeAddress: p.HomeAddress || p.homeAddress || "",
-          stage: (p.Stage || p.stage || "Win").trim(), // ✅ normalize
-          lastUpdated: p.UpdatedAt || p.lastUpdated || null,
-          leaders: {
-            leader12: p["Leader @12"] || p.leader12 || "",
-            leader144: p["Leader @144"] || p.leader144 || "",
-            leader1728: p["Leader @ 1728"] || p.leader1728 || ""
-          }
-        }));
+      setAllPeople(mapped);
+      setHasInitialFetch(true);
 
-      console.log("Fetched people from backend:", data);
-
-      setPeople(data);
-      if (res.data.total) {
-        setTotalPages(Math.ceil(res.data.total / pageSize));
-      }
     } catch (err) {
-      console.error('Error fetching people:', err);
-      setSnackbar({ open: true, message: 'Failed to load people', severity: 'error' });
+      setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
+      setAllPeople([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchPeople(); }, []);
+  // Memoized search function for better performance
+  const searchPeople = useCallback((people, searchValue, field) => {
+    if (!searchValue.trim()) return people;
 
-  const filteredPeople = useMemo(() => {
-    const search = searchTerm.toLowerCase().trim().split(/\s+/);
-    return people.filter(p => {
-      const fullName = `${p.name} ${p.surname}`.toLowerCase();
-      const leaders = Object.values(p.leaders || {}).join(' ').toLowerCase();
-      return search.every(word => fullName.includes(word) || leaders.includes(word));
+    const searchLower = searchValue.toLowerCase().trim();
+    
+    return people.filter(person => {
+      switch (field) {
+        case 'name':
+          return person.name.toLowerCase().includes(searchLower) || 
+                 person.surname.toLowerCase().includes(searchLower) ||
+                 `${person.name} ${person.surname}`.toLowerCase().includes(searchLower);
+        case 'email':
+          return person.email.toLowerCase().includes(searchLower);
+        case 'phone':
+          return person.phone.includes(searchValue); // Don't lowercase phone numbers
+        case 'location':
+          return person.location.toLowerCase().includes(searchLower);
+        case 'leaders':
+          return person.leaders.leader12.toLowerCase().includes(searchLower) ||
+                 person.leaders.leader144.toLowerCase().includes(searchLower) ||
+                 person.leaders.leader1728.toLowerCase().includes(searchLower);
+        default:
+          return person.name.toLowerCase().includes(searchLower);
+      }
     });
-  }, [people, searchTerm]);
+  }, []);
 
-  const handleDeletePerson = async (personId) => {
-    if (!personId) return;
-    const confirmDelete = window.confirm("Are you sure you want to delete this person?");
-    if (!confirmDelete) return;
+  // Filter and paginate from cached data using debounced search
+  const filteredAndPaginatedPeople = useMemo(() => {
+    if (!hasInitialFetch) return [];
 
-    try {
-      await axios.delete(`${BACKEND_URL}/people/${personId}`);
-      // Remove locally after successful backend deletion
-      setPeople(prev => prev.filter(p => p._id !== personId));
-      setSnackbar({ open: true, message: "Person deleted", severity: "success" });
-    } catch (err) {
-      console.error("Failed to delete person:", err);
-      setSnackbar({ open: true, message: "Failed to delete person", severity: "error" });
+    // Apply search filter with debounced search term
+    const filtered = searchPeople(allPeople, debouncedSearchTerm, searchField);
+
+    // If searching, show all results (no pagination during search)
+    if (debouncedSearchTerm.trim()) {
+      return filtered; // Return all search results
     }
+
+    // Apply pagination only when not searching
+    const startIndex = (page - 1) * PER_PAGE;
+    const endIndex = startIndex + PER_PAGE;
+    return filtered.slice(startIndex, endIndex);
+  }, [allPeople, debouncedSearchTerm, searchField, page, hasInitialFetch, searchPeople]);
+
+  // Calculate total pages for pagination
+  const totalPages = useMemo(() => {
+    if (!hasInitialFetch) return 0;
+    if (debouncedSearchTerm.trim()) return 1; // Only one page when searching
+    return Math.ceil(allPeople.length / PER_PAGE);
+  }, [allPeople.length, debouncedSearchTerm, hasInitialFetch]);
+
+  // Update people state when filtered data changes
+  useEffect(() => {
+    setPeople(filteredAndPaginatedPeople);
+  }, [filteredAndPaginatedPeople]);
+
+  // Reset to page 1 when search changes (but not for debounced changes)
+  useEffect(() => { 
+    setPage(1); 
+  }, [searchField]); // Only reset page when search field changes, not search term
+
+  // Reset to page 1 when starting a new search
+  useEffect(() => {
+    if (debouncedSearchTerm.trim()) {
+      setPage(1);
+    }
+  }, [debouncedSearchTerm]);
+
+  // Initial fetch on component mount
+  useEffect(() => {
+    if (!hasInitialFetch) {
+      fetchAllPeople();
+    }
+  }, [fetchAllPeople, hasInitialFetch]);
+
+  // Function to manually refresh data (can be called by refresh button)
+  const handleRefresh = () => {
+    setHasInitialFetch(false);
+    fetchAllPeople();
   };
 
-  const handleDragEnd = async ({ destination, source, draggableId }) => {
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+  // Update a single person in the cached data
+  const updatePersonInCache = useCallback((personId, updates) => {
+    setAllPeople(prev => prev.map(person => 
+      String(person._id) === String(personId) 
+        ? { ...person, ...updates } 
+        : person
+    ));
+  }, []);
 
-    const idx = people.findIndex(p => p._id === draggableId);
-    if (idx === -1) return;
+  // Add person to cache
+  const addPersonToCache = useCallback((newPerson) => {
+    setAllPeople(prev => [...prev, newPerson]);
+  }, []);
 
-    const prevPeople = [...people];
-    const updatedPeople = [...people];
-    updatedPeople[idx] = {
-  ...updatedPeople[idx],
-  stage: destination.droppableId.trim(), // ✅ trim to avoid spaces
-  lastUpdated: new Date().toISOString()
-};
+  // Remove person from cache
+  const removePersonFromCache = useCallback((personId) => {
+    setAllPeople(prev => prev.filter(person => String(person._id) !== String(personId)));
+  }, []);
 
-
-    setPeople(updatedPeople);
-
-    try {
-      await axios.patch(`${BACKEND_URL}/people/${draggableId}`, {
-        Stage: destination.droppableId.trim()
-      });
-      setSnackbar({ open: true, message: "Person stage updated", severity: "success" });
-    } catch (err) {
-      setPeople(prevPeople); // rollback
-      setSnackbar({ open: true, message: "Failed to update stage", severity: "error" });
-    }
-  };
+  const isSearching = debouncedSearchTerm.trim().length > 0;
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
-      <AppBar position="static" color="transparent" elevation={0}>
-        <Toolbar sx={{ py: 0.5 }}>
-          <Typography variant="h5" sx={{ flexGrow: 1 }}>People</Typography>
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={() => { setEditingPerson(null); setIsModalOpen(true); }}
-            sx={{ ml: 2, backgroundColor: theme.palette.mode === 'dark' ? '#fff' : '#000', color: theme.palette.mode === 'dark' ? '#000' : '#fff', '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#e0e0e0' : '#222' }, textTransform: 'none' }}
-          >Add</Button>
-        </Toolbar>
-      </AppBar>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, mb: 1 }}>
+        <Typography variant="h6">
+          My People {isSearching && `(${people.length} results)`}
+        </Typography>
+        <Button 
+          variant="outlined" 
+          size="small" 
+          onClick={handleRefresh}
+          disabled={loading}
+        >
+          {loading ? 'Loading...' : 'Refresh'}
+        </Button>
+      </Box>
 
-      <Box sx={{ my: 2 }}>
+      {/* Search Controls */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, px: 1 }}>
         <TextField
-          fullWidth size="small" placeholder="Search..."
-          value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              )
+          size="small"
+          placeholder="Search..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ flex: 1 }}
+        />
+        <TextField
+          size="small"
+          select
+          value={searchField}
+          onChange={(e) => setSearchField(e.target.value)}
+          sx={{ minWidth: 140 }}
+        >
+          <MenuItem value="name">Name</MenuItem>
+          <MenuItem value="email">Email</MenuItem>
+          <MenuItem value="phone">Phone</MenuItem>
+          <MenuItem value="location">Location</MenuItem>
+          <MenuItem value="leaders">Leaders</MenuItem>
+        </TextField>
+      </Box>
+
+      <Box sx={{ flex: 1, border: '1px solid #e0e0e0', borderRadius: 2, py: 2, mb: 2, position: 'relative' }}>
+        <DragDropBoard
+          people={people}
+          setPeople={setPeople}
+          onEditPerson={(p) => { setEditingPerson(p); setIsModalOpen(true); }}
+          onDeletePerson={(id) => {
+            setPeople(prev => prev.filter(p => p._id !== id));
+            removePersonFromCache(id);
+          }}
+          loading={loading}
+          updatePersonInCache={updatePersonInCache}
+        />
+
+        <FloatingTunnelPagination 
+          page={page} 
+          setPage={setPage} 
+          totalPages={totalPages}
+          isSearching={isSearching}
+        />
+
+        <AddPersonDialog
+          open={isModalOpen}
+          formData={formData}
+          setFormData={setFormData}
+          editingPerson={editingPerson}
+          onClose={() => setIsModalOpen(false)}
+          onSuccess={(newPerson) => {
+            if (editingPerson) {
+              updatePersonInCache(editingPerson._id, newPerson);
+            } else {
+              addPersonToCache(newPerson);
             }
           }}
         />
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert severity={snackbar.severity} variant="filled">
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
-
-      <Typography variant="h6" sx={{ px: 1, mb: 1 }}>My People</Typography>
-      <Box sx={{ flex: 1, border: '1px solid #e0e0e0', borderRadius: 2, py: 2, mb: 4 }}>
-        <DragDropBoard
-          people={filteredPeople}
-          onDragEnd={handleDragEnd}
-          onEditPerson={(p) => { setEditingPerson(p); setIsModalOpen(true); }}
-          onDeletePerson={handleDeletePerson} // ✅ use the new function
-          loading={loading}
-          pageSize={pageSize}
-        />
-      </Box>
-
-      <AddPersonDialog
-        open={isModalOpen}
-        formData={formData}
-        setFormData={setFormData}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingPerson(null);
-        }}
-        onSave={async () => {
-          try {
-            const payload = {
-              Name: formData.name,
-              Surname: formData.surname,
-              Email: formData.email,
-              Number: formData.phone,  // ✅ match backend
-              HomeAddress: formData.homeAddress,
-              Gender: formData.gender,
-              DateOfBirth: formData.dob, // ✅ backend maps this correctly
-              InvitedBy: formData.invitedBy,
-              Stage: formData.stage || "Win",
-              "Leader @12": formData.leader12 || "",
-              "Leader @144": formData.leader144 || "",
-              "Leader @ 1728": formData.leader1728 || ""
-            };
-
-            if (editingPerson) {
-              // Update existing person
-              const { data } = await axios.patch(`${BACKEND_URL}/people/${editingPerson._id}`, payload);
-
-              // Update local state directly
-              setPeople(prev =>
-                prev.map(p => (p._id === editingPerson._id ? {
-                  ...p,
-                  _id: data._id,
-                  name: data.Name || "",
-                  surname: data.Surname || "",
-                  gender: data.Gender || "",
-                  dob: data.DateOfBirth || "",
-                  location: data.Location || "",
-                  email: data.Email || "",
-                  phone: data.Phone || data.Number || "",
-                  homeAddress: data.HomeAddress || "",
-                  stage: (data.Stage || "Win").trim(),
-                  lastUpdated: data.UpdatedAt || null,
-                  leaders: {
-                    leader12: data["Leader @12"] || "",
-                    leader144: data["Leader @144"] || "",
-                    leader1728: data["Leader @ 1728"] || ""
-                  }
-                } : p))
-              );
-
-              setSnackbar({ open: true, message: "Person updated", severity: "success" });
-            } else {
-              // Create new person
-              const { data } = await axios.post(`${BACKEND_URL}/people`, payload);
-              const newPerson = {
-                _id: data._id,
-                name: data.Name || "",
-                surname: data.Surname || "",
-                gender: data.Gender || "",
-                dob: data.DateOfBirth || "",
-                location: data.Location || "",
-                email: data.Email || "",
-                phone: data.Phone || data.Number || "",
-                homeAddress: data.HomeAddress || "",
-                stage: (data.Stage || "Win").trim(),
-                lastUpdated: data.UpdatedAt || null,
-                leaders: {
-                  leader12: data["Leader @12"] || "",
-                  leader144: data["Leader @144"] || "",
-                  leader1728: data["Leader @ 1728"] || ""
-                }
-              };
-              setPeople(prev => [newPerson, ...prev]);
-
-              setSnackbar({ open: true, message: "Person added", severity: "success" });
-            }
-
-            setIsModalOpen(false);
-            setEditingPerson(null);
-          } catch (err) {
-            setSnackbar({ open: true, message: "Failed to save person", severity: "error" });
-          }
-        }}
-        editingPerson={editingPerson}
-      />
-
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3000}
-        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-        slots={{ transition: slideTransition }}
-      >
-        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
-      </Snackbar>
     </Box>
   );
 };
