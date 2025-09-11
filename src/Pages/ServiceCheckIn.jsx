@@ -621,12 +621,6 @@ function ServiceCheckIn() {
       ) : (
         <Box>
           {/* Page Info for Desktop - Only show when not loading */}
-          {!isLoadingPeople && (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>
-              Showing {Math.min(page * rowsPerPage + 1, filteredAttendees.length)}-{Math.min((page + 1) * rowsPerPage, filteredAttendees.length)} of {filteredAttendees.length} attendees
-            </Typography>
-          )}
-          
           <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500, overflowY: "auto" }}>
             <Table size={getResponsiveValue("small", "small", "medium", "medium", "medium")} stickyHeader>
               <TableHead>
