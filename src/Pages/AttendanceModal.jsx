@@ -24,10 +24,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
       const data = await res.json();
       const peopleArray = data.people || data.results || [];
 
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-      }));
+     const formatted = peopleArray.map((p) => ({
+  id: p._id,
+  fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+  leader12: p["Leader @12"] || p.leader12 || "",
+  leader144: p["Leader @144"] || p.leader144 || "",
+}));
+
 
       setPeople(formatted);
     } catch (err) {
@@ -259,73 +262,77 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
   );
 
   return (
-    <>
-      <div style={styles.overlay}>
-        <div style={styles.modal}>
-          <button style={styles.closeBtn} onClick={onClose}>
-            &times;
+  <>
+    <div style={styles.overlay}>
+      <div style={styles.modal}>
+        <button style={styles.closeBtn} onClick={onClose}>
+          &times;
+        </button>
+
+        <h2>Capture Attendance - {event.eventName || event.service_name || "Event"}</h2>
+
+       <input
+  type="text"
+  placeholder="Search people..."
+  value={searchName}
+  onChange={(e) => setSearchName(e.target.value)}
+  style={styles.input}
+/>
+
+<div style={styles.peopleList}>
+  {loading && <p>Loading...</p>}
+  {!loading && filteredPeople.length === 0 && <p>No people found.</p>}
+  {filteredPeople.map((person) => (
+    <div
+      key={person.id}
+      style={styles.personItem}
+      onClick={() => handleToggle(person.id)}
+    >
+      <input
+        type="checkbox"
+        checked={!!checked[person.id]}
+        readOnly
+        style={styles.checkbox}
+      />
+      <div>
+       <span style={{ color: "#444", fontWeight: 500 }}>{person.fullName}</span>
+
+      </div>
+    </div>
+  ))}
+</div>
+
+
+        <div style={styles.actions}>
+          <button
+            style={styles.secondaryBtn}
+            onClick={handleMarkDidNotMeet}
+          >
+            Mark As Did Not Meet
           </button>
-
-          <h2>Capture Attendance - {event.eventName || event.service_name || "Event"}</h2>
-
-          <input
-            type="text"
-            placeholder="Search people..."
-            value={searchName}
-            onChange={(e) => setSearchName(e.target.value)}
-            style={styles.input}
-          />
-
-          <div style={styles.peopleList}>
-            {loading && <p>Loading...</p>}
-            {!loading && filteredPeople.length === 0 && <p>No people found.</p>}
-            {filteredPeople.map((person) => (
-              <div
-                key={person.id}
-                style={styles.personItem}
-                onClick={() => handleToggle(person.id)}
-              >
-                <input
-                  type="checkbox"
-                  checked={!!checked[person.id]}
-                  readOnly
-                  style={styles.checkbox}
-                />
-                {person.fullName}
-              </div>
-            ))}
-          </div>
-
-          <div style={styles.actions}>
-            <button
-              style={styles.secondaryBtn}
-              onClick={handleMarkDidNotMeet}
-            >
-              Mark As Did Not Meet
-            </button>
-            <button onClick={handleSubmit} style={styles.primaryBtn}>
-              Submit Attendance
-            </button>
-          </div>
+          <button onClick={handleSubmit} style={styles.primaryBtn}>
+            Submit Attendance
+          </button>
         </div>
       </div>
+    </div>
 
-      <Snackbar
-        open={alert.open}
-        autoHideDuration={5000}
+    <Snackbar
+      open={alert.open}
+      autoHideDuration={5000}
+      onClose={() => setAlert({ ...alert, open: false })}
+      anchorOrigin={{ vertical: "top", horizontal: "center" }}
+    >
+      <Alert
+        severity={alert.type}
+        variant="filled"
         onClose={() => setAlert({ ...alert, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
-        <Alert
-          severity={alert.type}
-          variant="filled"
-          onClose={() => setAlert({ ...alert, open: false })}
-        >
-          {alert.message}
-        </Alert>
-      </Snackbar>
-    </>
-  );
+        {alert.message}
+      </Alert>
+    </Snackbar>
+  </>
+);
 };
 
 export default AttendanceModal;
