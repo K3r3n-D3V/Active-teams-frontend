@@ -535,30 +535,6 @@ export default function Profile() {
               <Typography variant="body1" sx={{ mt: 2, opacity: 0.9 }}>
                 Welcome! You can edit your profile information below.
               </Typography>
-              
-              {/* Debug info - remove in production */}
-              {import.meta.env.DEV && (
-                <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    Debug Info:
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    User ID: {localStorage.getItem("userId") || "Not found"}
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    Backend URL: {BACKEND_URL || "Not set"}
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    Profile loaded: {userProfile ? "Yes" : "No"}
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    Form data: {Object.values(form).some(v => v) ? "Has data" : "Empty"}
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    Loading: {loadingProfile ? "Yes" : "No"}
-                  </Typography>
-                </Box>
-              )}
             </Box>
 
             <CardContent sx={{ p: 4 }}>
