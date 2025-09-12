@@ -5,7 +5,7 @@ import React, {
   useContext,
   useRef,
 } from "react";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -25,6 +25,8 @@ import {
   Paper,
   Chip,
   Tooltip,
+  Avatar,
+  CircularProgress,
 } from "@mui/material";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
@@ -43,8 +45,10 @@ import {
   VisibilityOff,
   Star,
   Church,
+  CameraAlt,
 } from "@mui/icons-material";
 import axios from "axios";
+
 /** Texts */
 const carouselTexts = [
   "We are THE ACTIVE CHURCH",
@@ -56,27 +60,6 @@ const carouselTexts = [
 
 /** API helpers */
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
-async function fetchUserProfile() {
-  const userId = localStorage.getItem("userId");
-  if (!userId) throw new Error("User ID not found");
-
-  const res = await fetch(`${BACKEND_URL}/profile/${userId}`);
-  if (!res.ok) throw new Error("Failed to fetch profile");
-
-  const data = await res.json();
-  console.log("Fetched profile:", data);
-
-  // Store in localStorage
-  localStorage.setItem("userId", data.id); // Or _id if backend returns that
-  localStorage.setItem("userProfile", JSON.stringify(data));
-
-  return {
-    ...data,
-    _id: data._id || data.id,
-  };
-}
-
 
 async function updateUserProfile(data) {
   const userId = localStorage.getItem("userId");
@@ -100,9 +83,6 @@ async function updateUserProfile(data) {
   }
 }
 
-
-
-
 async function uploadAvatarFromDataUrl(dataUrl) {
   const token = localStorage.getItem("token");
   const blob = await (await fetch(dataUrl)).blob();
@@ -121,7 +101,7 @@ async function uploadAvatarFromDataUrl(dataUrl) {
 export default function Profile() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const { userProfile, setUserProfile, setProfilePic } =
+  const { userProfile, setUserProfile, setProfilePic, profilePic } =
     useContext(UserContext);
 
   const fileInputRef = useRef(null);
@@ -130,20 +110,20 @@ export default function Profile() {
   const [croppingSrc, setCroppingSrc] = useState(null);
   const [croppingOpen, setCroppingOpen] = useState(false);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-  const [, setLoadingProfile] = useState(true);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   const [editMode, setEditMode] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [form, setForm] = useState({
-    name: userProfile?.name || "",
-    surname: userProfile?.surname || "",
-    dob: userProfile?.date_of_birth || "",
-    email: userProfile?.email || "",
-    address: userProfile?.home_address || "",
-    phone: userProfile?.phone_number || "",
-    invitedBy: userProfile?.invited_by || "",
-    gender: userProfile?.gender || "",
+    name: "",
+    surname: "",
+    dob: "",
+    email: "",
+    address: "",
+    phone: "",
+    invitedBy: "",
+    gender: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
@@ -162,6 +142,7 @@ export default function Profile() {
     severity: "success",
   });
 
+  // Carousel effect
   useEffect(() => {
     const t = setInterval(
       () => setCarouselIndex((p) => (p + 1) % carouselTexts.length),
@@ -170,80 +151,86 @@ export default function Profile() {
     return () => clearInterval(t);
   }, []);
 
+  // Load profile data from localStorage (set during login)
   useEffect(() => {
-    (async () => {
+    const loadProfile = () => {
+      console.log("=== PROFILE LOAD STARTED ===");
+      
       try {
-        // Try to load from localStorage first (for refresh persistence)
+        setLoadingProfile(true);
+        
+        // Get profile data from localStorage (set during login)
         const storedProfile = localStorage.getItem("userProfile");
         const storedUserId = localStorage.getItem("userId");
         
+        console.log("Stored profile exists:", !!storedProfile);
+        console.log("Stored user ID:", storedUserId);
+        
         if (storedProfile && storedUserId) {
+          // Use the data from login - no API call needed!
           const parsedProfile = JSON.parse(storedProfile);
-          setUserProfile(parsedProfile);
+          console.log("Using stored profile from login:", parsedProfile);
           
-          // Sync form with stored data
-          const synced = {
-            name: parsedProfile?.name || "",
-            surname: parsedProfile?.surname || "",
-            dob: parsedProfile?.date_of_birth || "",
-            email: parsedProfile?.email || "",
-            address: parsedProfile?.home_address || "",
-            phone: parsedProfile?.phone_number || "",
-            invitedBy: parsedProfile?.invited_by || "",
-            gender: parsedProfile?.gender || "",
-            currentPassword: "",
-            newPassword: "",
-            confirmPassword: "",
-          };
-          setForm(synced);
-          setOriginalForm(synced);
-        }
-        
-        // Always fetch fresh data from server
-        const data = await fetchUserProfile();
-        setUserProfile(data);
-
-        const pic =
-          data?.profile_picture ||
-          data?.avatarUrl ||
-          data?.profilePicUrl ||
-          null;
-        if (pic) setProfilePic(pic);
-
-        const synced = {
-          name: data?.name || "",
-          surname: data?.surname || "",
-          dob: data?.date_of_birth || "",
-          email: data?.email || "",
-          address: data?.home_address || "",
-          phone: data?.phone_number || "",
-          invitedBy: data?.invited_by || "",
-          gender: data?.gender || "",
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        };
-        setForm(synced);
-        setOriginalForm(synced);
-        
-        // Store in localStorage for persistence
-        localStorage.setItem("userProfile", JSON.stringify(data));
-        
-      } catch (e) {
-        console.warn("Profile fetch failed:", e);
-        // If fetch fails but we have stored data, keep using it
-        const storedProfile = localStorage.getItem("userProfile");
-        if (storedProfile) {
-          console.log("Using stored profile data");
-          const parsedProfile = JSON.parse(storedProfile);
           setUserProfile(parsedProfile);
+          updateFormWithProfile(parsedProfile);
+          
+          // Set profile picture if available
+          const pic = parsedProfile?.profile_picture || parsedProfile?.avatarUrl || parsedProfile?.profilePicUrl || null;
+          if (pic && setProfilePic) {
+            setProfilePic(pic);
+          }
+          
+          setSnackbar({
+            open: true,
+            message: "Profile loaded successfully",
+            severity: "success",
+          });
+        } else {
+          console.warn("No stored profile data found - user needs to log in");
+          setSnackbar({
+            open: true,
+            message: "Please log in to view your profile",
+            severity: "warning",
+          });
         }
+        
+      } catch (error) {
+        console.error("Profile load error:", error);
+        setSnackbar({
+          open: true,
+          message: `Failed to load profile: ${error.message}`,
+          severity: "error",
+        });
       } finally {
         setLoadingProfile(false);
       }
-    })();
+    };
+
+    loadProfile();
   }, [setUserProfile, setProfilePic]);
 
+  // Helper function to update form with profile data
+  const updateFormWithProfile = (profile) => {
+    const formData = {
+      name: profile?.name || "",
+      surname: profile?.surname || "",
+      dob: profile?.date_of_birth || "",
+      email: profile?.email || "",
+      address: profile?.home_address || "",
+      phone: profile?.phone_number || "",
+      invitedBy: profile?.invited_by || "",
+      gender: profile?.gender || "",
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    };
+    
+    console.log("Updating form with:", formData);
+    setForm(formData);
+    setOriginalForm(formData);
+  };
+
+  // Track changes
   useEffect(() => {
     const changed = Object.keys(form).some((k) => {
       if (["currentPassword", "newPassword", "confirmPassword"].includes(k)) {
@@ -305,11 +292,11 @@ export default function Profile() {
       const croppedImage = await getCroppedImg(croppingSrc, croppedAreaPixels);
       try {
         const res = await uploadAvatarFromDataUrl(croppedImage);
-        const url =
-          res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
-        if (url) setProfilePic(url);
+        const url = res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
+        if (url && setProfilePic) setProfilePic(url);
       } catch (e) {
-        setProfilePic(croppedImage), e;
+        if (setProfilePic) setProfilePic(croppedImage);
+        console.error("Avatar upload failed:", e);
       }
       setCroppingOpen(false);
       setSnackbar({
@@ -327,70 +314,61 @@ export default function Profile() {
     }
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  if (!validate()) return;
+    if (!validate()) return;
 
-  const payload = {
-    name: form.name,
-    surname: form.surname,
-    date_of_birth: form.dob,
-    email: form.email,
-    home_address: form.address,
-    phone_number: form.phone,
-    invited_by: form.invitedBy,
-    gender: form.gender,
+    const payload = {
+      name: form.name,
+      surname: form.surname,
+      date_of_birth: form.dob,
+      email: form.email,
+      home_address: form.address,
+      phone_number: form.phone,
+      invited_by: form.invitedBy,
+      gender: form.gender,
+    };
+
+    try {
+      console.log("Updating profile with payload:", payload);
+
+      const updated = await updateUserProfile(payload);
+      console.log("Update response:", updated);
+
+      const updatedUserProfile = {
+        ...updated,
+        _id: updated.id || updated._id,
+      };
+
+      setUserProfile(updatedUserProfile);
+      // Update localStorage with new data
+      localStorage.setItem("userProfile", JSON.stringify(updatedUserProfile));
+
+      setEditMode(false);
+      updateFormWithProfile(updatedUserProfile);
+
+      setSnackbar({
+        open: true,
+        message: "Profile updated successfully",
+        severity: "success",
+      });
+    } catch (err) {
+      console.error("Update failed:", err);
+      setSnackbar({
+        open: true,
+        message: `Failed to update profile: ${err.message}`,
+        severity: "error",
+      });
+    }
   };
 
-  try {
-    console.log("Updating profile with payload:", payload);
-
-    const updated = await updateUserProfile(payload);
-    console.log("Update response:", updated);
-
-    const updatedUserProfile = {
-      ...updated,
-      _id: updated.id || updated._id,
-    };
-
-    setUserProfile(updatedUserProfile);
-    localStorage.setItem("userProfile", JSON.stringify(updatedUserProfile));
-
-    setEditMode(false);
-    const newFormData = {
-      name: updated.name || "",
-      surname: updated.surname || "",
-      dob: updated.date_of_birth || "",
-      email: updated.email || "",
-      address: updated.home_address || "",
-      phone: updated.phone_number || "",
-      invitedBy: updated.invited_by || "",
-      gender: updated.gender || "",
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    };
-
-    setForm(newFormData);
-    setOriginalForm(newFormData);
-
-    setSnackbar({
-      open: true,
-      message: "Profile updated successfully",
-      severity: "success",
-    });
-  } catch (err) {
-    console.error("Update failed:", err);
-    setSnackbar({
-      open: true,
-      message: `Failed to update profile: ${err.message}`,
-      severity: "error",
-    });
-  }
-};
-
-
+  // Get user initials for avatar
+  const getInitials = () => {
+    const name = form.name || userProfile?.name || "";
+    const surname = form.surname || userProfile?.surname || "";
+    return `${name.charAt(0)}${surname.charAt(0)}`.toUpperCase();
+  };
 
   /** Styles */
   const sx = {
@@ -460,7 +438,6 @@ const handleSubmit = async (e) => {
     passwordField: {
       "& .MuiOutlinedInput-root": { borderRadius: 3 },
     },
-  
     cropperModal: {
       position: "fixed",
       inset: 0,
@@ -483,11 +460,19 @@ const handleSubmit = async (e) => {
     },
   };
 
+  // Show loading state
+  if (loadingProfile) {
+    return (
+      <Box sx={sx.root}>
+        <Container maxWidth="lg" sx={{ pt: 12, pb: 6, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+          <CircularProgress />
+        </Container>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={sx.root}>
-    
-     
-
       {/* Hero Section */}
       <Box sx={sx.heroSection}>
         <Fade in key={carouselIndex} timeout={800}>
@@ -500,6 +485,31 @@ const handleSubmit = async (e) => {
         <Zoom in timeout={500}>
           <Box sx={sx.profileAvatarContainer}>
             <Box sx={{ position: "relative" }}>
+              <Avatar
+                sx={sx.profileAvatar}
+                src={profilePic}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {!profilePic && getInitials()}
+              </Avatar>
+              
+              {/* Camera overlay */}
+              <IconButton
+                sx={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  bgcolor: theme.palette.primary.main,
+                  color: "white",
+                  "&:hover": {
+                    bgcolor: theme.palette.primary.dark,
+                  },
+                }}
+                size="small"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <CameraAlt />
+              </IconButton>
 
               <input
                 ref={fileInputRef}
@@ -525,6 +535,30 @@ const handleSubmit = async (e) => {
               <Typography variant="body1" sx={{ mt: 2, opacity: 0.9 }}>
                 Welcome! You can edit your profile information below.
               </Typography>
+              
+              {/* Debug info - remove in production */}
+              {import.meta.env.DEV && (
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                  <Typography variant="caption" sx={{ display: 'block' }}>
+                    Debug Info:
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block' }}>
+                    User ID: {localStorage.getItem("userId") || "Not found"}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block' }}>
+                    Backend URL: {BACKEND_URL || "Not set"}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block' }}>
+                    Profile loaded: {userProfile ? "Yes" : "No"}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block' }}>
+                    Form data: {Object.values(form).some(v => v) ? "Has data" : "Empty"}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block' }}>
+                    Loading: {loadingProfile ? "Yes" : "No"}
+                  </Typography>
+                </Box>
+              )}
             </Box>
 
             <CardContent sx={{ p: 4 }}>
@@ -544,7 +578,7 @@ const handleSubmit = async (e) => {
                       variant={editMode ? "contained" : "outlined"}
                       onClick={() => {
                         if (editMode && hasChanges) {
-                          handleSubmit({ preventDefault: () => { } });
+                          handleSubmit({ preventDefault: () => {} });
                         } else {
                           setEditMode((e) => !e);
                         }
@@ -586,7 +620,7 @@ const handleSubmit = async (e) => {
                         <Grid item xs={12} sm={6} key={field}>
                           <TextField
                             label={label}
-                            value={form[field]}
+                            value={form[field] || ""}
                             onChange={handleChange(field)}
                             fullWidth
                             type={type || "text"}
@@ -642,7 +676,7 @@ const handleSubmit = async (e) => {
                       <Grid item xs={12} md={4} key={field}>
                         <TextField
                           label={label}
-                          value={form[field]}
+                          value={form[field] || ""}
                           onChange={handleChange(field)}
                           type={showPassword[showKey] ? "text" : "password"}
                           fullWidth
