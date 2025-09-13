@@ -72,19 +72,37 @@ const CreateEvents = ({ user }) => {
     )
     : [];
 
-  const handlePersonSelect = (person) => {
-    setSearchLeader(person.fullName);
-    setShowPeopleList(false);
+  // In CreateEvents.js - Enhanced handlePersonSelect function
 
-    setFormData(prev => ({
-      ...prev,
-      eventLeader: person._id,
-      leader12: person.leader12Id || '',
-      leader144: person.leader144Id || '',
-      email: person.email || ''
-    }));
-  };
+const handlePersonSelect = (person) => {
+  console.log('Selected person:', person); // Debug log
+  
+  setSearchLeader(person.fullName);
+  setShowPeopleList(false);
 
+  const isCell = formData.eventType.toLowerCase().includes("cell");
+
+  // Auto-fill event name for cells
+  const eventName = isCell ? `${person.fullName} Cell` : formData.eventName;
+
+  setFormData(prev => ({
+    ...prev,
+    eventLeader: person._id, // MongoDB ObjectId
+    eventLeaderName: person.fullName, // Store the full name directly
+    eventLeaderEmail: person.email, // Store email directly
+    eventName: eventName, // Auto-fill for cells
+    leader12: person.leader12Id || person.leader12 || '',
+    leader144: person.leader144Id || person.leader144 || '',
+    email: person.email || ''
+  }));
+
+  console.log('Updated formData with person:', {
+    eventLeader: person._id,
+    eventLeaderName: person.fullName,
+    eventLeaderEmail: person.email,
+    eventName: eventName
+  }); // Debug log
+};
   // Fetch people from backend
   useEffect(() => {
     const fetchPeople = async () => {
@@ -275,7 +293,9 @@ const CreateEvents = ({ user }) => {
     setErrors({});
   };
 
- const handleSubmit = async (e) => {
+ // In CreateEvents.js - Update the handleSubmit function
+
+const handleSubmit = async (e) => {
   e.preventDefault();
   if (!validateForm()) return;
 
@@ -283,13 +303,17 @@ const CreateEvents = ({ user }) => {
 
   try {
     const isCell = formData.eventType.toLowerCase().includes("cell");
+    const selectedLeader = peopleData.find(p => p._id === formData.eventLeader);
 
-    // Prepare payload
+    // Prepare payload with proper field names
     const payload = {
       ...formData,
-      eventLeader: formData.eventLeader,
+      eventLeader: formData.eventLeader, // This should be the MongoDB ObjectId
+      eventLeaderName: selectedLeader?.fullName || searchLeader, // Add the full name
+      eventLeaderEmail: selectedLeader?.email || formData.email, // Add the email
       leader12: formData.leader12,
       leader144: formData.leader144,
+      email: selectedLeader?.email || formData.email, // Keep for backward compatibility
       userEmail: user?.email || '',
       recurring_day: formData.recurringDays
     };
@@ -312,8 +336,8 @@ const CreateEvents = ({ user }) => {
         if (payload.timePeriod === 'AM' && hours === 12) hours = 0;
 
         const [year, month, day] = payload.date.split('-').map(Number);
-        const dateObj = new Date(year, month - 1, day, hours, minutes, 0); // local time
-        payload.date = dateObj.toISOString(); // send ISO to backend
+        const dateObj = new Date(year, month - 1, day, hours, minutes, 0);
+        payload.date = dateObj.toISOString();
       } else {
         payload.date = null;
       }
@@ -325,6 +349,8 @@ const CreateEvents = ({ user }) => {
     delete payload.time;
     delete payload.timePeriod;
 
+    console.log('Payload being sent:', payload); // Debug log
+
     // Send request
     if (eventId) {
       await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
@@ -333,13 +359,14 @@ const CreateEvents = ({ user }) => {
     }
 
     // Update leaders for UI display
-    const selectedLeader = peopleData.find(p => p._id === formData.eventLeader);
     setFormData(prev => ({
       ...prev,
       leaders: [
-        { slot: 'eventLeader', name: selectedLeader?.fullName || '' },
-        { slot: 'leader12', name: formData.leader12 },
-        { slot: 'leader144', name: formData.leader144 }
+        { slot: 'eventLeader', name: selectedLeader?.fullName || searchLeader },
+        ...(isCell ? [
+          { slot: 'leader12', name: formData.leader12 },
+          { slot: 'leader144', name: formData.leader144 }
+        ] : [])
       ]
     }));
 

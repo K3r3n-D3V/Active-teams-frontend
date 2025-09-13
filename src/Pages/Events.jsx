@@ -38,10 +38,13 @@ const Events = () => {
         const allEvents = res.data.events || res.data || [];
         const openEvents = allEvents.filter((e) => e.status !== "closed");
 
-        // Normalize recurringDays here
+        // Normalize and enhance event data
         const normalizedEvents = openEvents.map(event => ({
           ...event,
           recurringDays: event.recurringDays || event.recurring_day || [],
+          // Ensure we have the event leader information available
+          eventLeaderName: event.eventLeaderName || event.eventLeader?.fullName || event.eventLeader?.name,
+          eventLeaderEmail: event.eventLeaderEmail || event.eventLeader?.email || event.email,
         }));
 
         const sortedEvents = normalizedEvents.sort(
@@ -57,7 +60,6 @@ const Events = () => {
       })
       .catch((err) => console.error("Failed to fetch events", err));
   };
-
   useEffect(() => {
     fetchEvents();
   }, []);
@@ -272,64 +274,68 @@ const Events = () => {
   };
 
   // Helper function to render leadership information
-  const renderLeadershipInfo = (event) => {
-    const isCell = event.eventType?.toLowerCase().includes("cell");
-    const leaders = [];
+const renderLeadershipInfo = (event) => {
+  const isCell = event.eventType?.toLowerCase().includes("cell");
+  const leaders = [];
 
-    // Event Leader
-    if (event.eventLeaderName || event.eventLeader) {
-      leaders.push({
-        title: "Event Leader",
-        name: event.eventLeaderName || event.eventLeader,  // prefer fullName if returned
-        style: { fontWeight: "600", color: theme.palette.text.primary }
-      });
-    }
+  let eventLeaderName = null;
+  if (event.eventLeaderName) {
+    eventLeaderName = event.eventLeaderName;
+  } else if (event.eventLeader && typeof event.eventLeader === 'object') {
+    const first = event.eventLeader.Name || event.eventLeader.name || event.eventLeader.firstName || '';
+    const last = event.eventLeader.Surname || event.eventLeader.surname || event.eventLeader.lastName || '';
+    eventLeaderName = `${first} ${last}`.trim();
+  } else if (typeof event.eventLeader === 'string' && event.eventLeader.length > 0) {
+    eventLeaderName = event.eventLeader;
+  }
 
-    // Leader email
-    if (event.eventLeaderEmail) {
-      leaders.push({
-        title: "Leader Email",
-        name: event.eventLeaderEmail,
-        style: { fontSize: "0.85rem", color: theme.palette.text.secondary }
-      });
-    }
+  if (eventLeaderName) {
+    leaders.push({
+      title: "Event Leader",
+      name: eventLeaderName,
+      style: { fontWeight: "600", color: theme.palette.text.primary }
+    });
+  }
 
-    // Cell‐specific leaders
-    if (isCell) {
-      if (event.leader12) {
-        leaders.push({
-          title: "Leader @12",
-          name: event.leader12,
-          style: { color: theme.palette.text.secondary }
-        });
-      }
-      if (event.leader144) {
-        leaders.push({
-          title: "Leader @144",
-          name: event.leader144,
-          style: { color: theme.palette.text.secondary }
-        });
-      }
-    }
+  let eventLeaderEmail = null;
+  if (event.eventLeaderEmail) {
+    eventLeaderEmail = event.eventLeaderEmail;
+  } else if (event.eventLeader && typeof event.eventLeader === 'object') {
+    eventLeaderEmail = event.eventLeader.Email || event.eventLeader.email;
+  } else if (event.email) {
+    eventLeaderEmail = event.email;
+  }
 
-    // Possible legacy fields, if backend uses other names
-    if (event.leaderSeat12 && !event.leader12) {
+  if (eventLeaderEmail) {
+    leaders.push({
+      title: "Leader Email",
+      name: eventLeaderEmail,
+      style: { fontSize: "0.85rem", color: theme.palette.text.secondary }
+    });
+  }
+
+  if (isCell) {
+    if (event.leader12) {
       leaders.push({
         title: "Leader @12",
-        name: event.leaderSeat12,
+        name: event.leader12,
         style: { color: theme.palette.text.secondary }
       });
     }
-    if (event.leaderSeat144 && !event.leader144) {
+    if (event.leader144) {
       leaders.push({
         title: "Leader @144",
-        name: event.leaderSeat144,
+        name: event.leader144,
         style: { color: theme.palette.text.secondary }
       });
     }
+  }
 
-    return leaders;
-  };
+  console.log("Leadership Info:", leaders); // Log the leadership information
+
+  return { leaders, isCell };
+};
+
 
 
   const activeFilterCount = Object.keys(activeFilters).length;
@@ -471,6 +477,7 @@ const Events = () => {
       }}>
         Showing {legacyFilteredEvents.length} of {events.filter(e => e.status !== "closed").length} events
       </div>
+     main
 
       {/* Events Grid */}
       <div style={styles.eventsGrid}>
@@ -519,17 +526,20 @@ const Events = () => {
               </Menu>
             </div>
 
-            {/* Leadership Information - Enhanced */}
-            <div style={styles.leadershipSection}>
-              {renderLeadershipInfo(event).map((leader, index) => (
-                <div key={index} style={styles.leaderRow}>
-                  <span style={styles.leaderLabel}>{leader.title}:</span>
-                  <span style={{ ...styles.leaderName, ...leader.style }}>
-                    {leader.name}
-                  </span>
-                </div>
-              ))}
-            </div>
+           {/* Leadership Information - Enhanced */}
+{renderLeadershipInfo(event)?.leaders?.length > 0 && (
+  <div style={styles.leadershipSection}>
+    {renderLeadershipInfo(event).leaders.map((leader, index) => (
+      <div key={index} style={styles.leaderRow}>
+        <span style={styles.leaderLabel}>{leader.title}:</span>
+        <span style={{ ...styles.leaderName, ...leader.style }}>
+          {leader.name}
+        </span>
+      </div>
+    ))}
+  </div>
+)}
+
 
             {/* Date and Location */}
             <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>
