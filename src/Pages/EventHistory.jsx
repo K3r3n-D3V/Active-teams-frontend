@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaRegCalendarAlt } from "react-icons/fa";
+import { useLocation } from "react-router-dom";
 
 // ✅ Save event history utility
 export const saveToEventHistory = ({
@@ -11,8 +12,8 @@ export const saveToEventHistory = ({
   status,
   attendees = [],
   reason = "",
-  leader12 = "-",
-  leader12_email = "-", // ✅ already added
+  leader1 = "-",
+  leader1_email = "-", 
   userEmail = "",
 }) => {
   const currentHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
@@ -24,16 +25,18 @@ export const saveToEventHistory = ({
     status,
     attendees,
     reason,
-    leader12: leader12 || "-",
-    leader12_email: leader12_email || "-", // ✅ add this
+    leader1: leader1 || "-",
+    leader1_email: leader1_email || "-", // ✅ add this
     userEmail: userEmail || "-",
     timestamp: new Date().toISOString(),
   };
 
   currentHistory.push(newEntry);
   localStorage.setItem("eventHistory", JSON.stringify(currentHistory));
-};
 
+  // Dispatch custom event so components know to update
+  window.dispatchEvent(new Event("eventHistoryUpdated"));
+};
 
 const EventHistory = ({ user }) => {
   const navigate = useNavigate();
@@ -41,6 +44,7 @@ const EventHistory = ({ user }) => {
   const [filterName, setFilterName] = useState("");
   const [filterDate, setFilterDate] = useState("");
   const [activeFilter, setActiveFilter] = useState("incomplete");
+  const location = useLocation();
 
   const getEventHistory = () => {
     const history = localStorage.getItem("eventHistory");
@@ -48,37 +52,54 @@ const EventHistory = ({ user }) => {
   };
 
   const groupHistoryByEvent = () => {
-  const rawHistory = getEventHistory();
-  const grouped = {};
-  rawHistory.forEach((entry) => {
-    const eventKey = entry.eventId || entry.service_name;
-    if (!grouped[eventKey]) {
-      grouped[eventKey] = {
-        _id: eventKey,
-        service_name: entry.service_name,
-        eventType: entry.eventType,
-        leader12: entry.leader12 || "-",
-        leader12_email: entry.leader12_email || "-", // ✅ Add this line
-        day: new Date(entry.timestamp).toLocaleDateString("en-US", {
-          weekday: "long",
-        }),
-        email: entry.userEmail || user?.email || "-", // event creator
-        history: [],
-      };
-    }
-    grouped[eventKey].history.push({
-      status: entry.status,
-      timestamp: entry.timestamp,
-      attendees: entry.attendees,
-      reason: entry.reason,
+    const rawHistory = getEventHistory();
+    const grouped = {};
+    rawHistory.forEach((entry) => {
+      const eventKey = entry.eventId || entry.service_name;
+      if (!grouped[eventKey]) {
+        grouped[eventKey] = {
+          _id: eventKey,
+          service_name: entry.service_name,
+          eventType: entry.eventType,
+          leader1: entry.leader1 || "-",
+          leader1_email: entry.leader1_email || "-", 
+          day: new Date(entry.timestamp).toLocaleDateString("en-US", {
+            weekday: "long",
+          }),
+          email: entry.userEmail || user?.email || "-", 
+          history: [],
+        };
+      }
+      grouped[eventKey].history.push({
+        status: entry.status,
+        timestamp: entry.timestamp,
+        attendees: entry.attendees,
+        reason: entry.reason,
+      });
     });
-  });
-  return Object.values(grouped);
-};
+    return Object.values(grouped);
+  };
 
+  // Listen for updates and refresh events
+  useEffect(() => {
+    const onHistoryUpdated = () => {
+      setEvents(groupHistoryByEvent());
+    };
+
+    window.addEventListener("eventHistoryUpdated", onHistoryUpdated);
+
+    // Initial load
+    setEvents(groupHistoryByEvent());
+
+    return () => {
+      window.removeEventListener("eventHistoryUpdated", onHistoryUpdated);
+    };
+  }, []);
+
+  // Also refresh on location change if needed
   useEffect(() => {
     setEvents(groupHistoryByEvent());
-  }, []);
+  }, [location]);
 
   const filteredEvents = events.filter((event) => {
     const matchesName = filterName
@@ -169,55 +190,53 @@ const EventHistory = ({ user }) => {
 
       {/* Table */}
       <table style={styles.table}>
- <thead>
-  <tr style={styles.tableHeaderRow}>
-    <th style={styles.tableHeaderCell}>Event Name</th>
-    <th style={styles.tableHeaderCell}>Leader @12</th>
-    <th style={styles.tableHeaderCell}>Leader's Email</th>
-    <th style={styles.tableHeaderCell}>Day</th>
-    <th style={styles.tableHeaderCell}>Date Of Event</th>
-    <th style={styles.tableHeaderCell}>Open Event</th>
-  </tr>
-</thead>
+        <thead>
+          <tr style={styles.tableHeaderRow}>
+            <th style={styles.tableHeaderCell}>Event Name</th>
+            <th style={styles.tableHeaderCell}>Leader @12</th>
+            <th style={styles.tableHeaderCell}>Leader's Email</th>
+            <th style={styles.tableHeaderCell}>Day</th>
+            <th style={styles.tableHeaderCell}>Date Of Event</th>
+            <th style={styles.tableHeaderCell}>Open Event</th>
+          </tr>
+        </thead>
 
+        <tbody>
+          {eventsToShow.map((event) => {
+            const latest = [...event.history]
+              .filter((h) =>
+                activeFilter === "complete"
+                  ? h.status === "attended"
+                  : h.status === "did-not-meet"
+              )
+              .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
 
-    <tbody>
-  {eventsToShow.map((event) => {
-    const latest = [...event.history]
-      .filter((h) =>
-        activeFilter === "complete"
-          ? h.status === "attended"
-          : h.status === "did-not-meet"
-      )
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-
-    return (
-      <tr key={event._id} style={styles.tr}>
-        <td style={styles.td}>{event.service_name}</td>
-        <td style={styles.td}>{event.leader12 || '-'}</td> {/* ✅ Sasha */}
-        <td style={styles.td}>{event.leader12_email || '-'}</td> {/* ✅ Gia's email */}
-        <td style={styles.td}>{event.day}</td>
-        <td style={styles.td}>
-          {latest && new Date(latest.timestamp).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          }).replace(/\//g, " - ")}
-        </td>
-        <td style={{ ...styles.td, textAlign: "center" }}>
-          <button
-            style={styles.iconBtn}
-            onClick={() => openEventDetails(event._id)}
-          >
-            <FaRegCalendarAlt />
-          </button>
-        </td>
-      </tr>
-    );
-  })}
-</tbody>
-
-
+            return (
+              <tr key={event._id} style={styles.tr}>
+                <td style={styles.td}>{event.service_name}</td>
+                <td style={styles.td}>{event.leader1 || "-"}</td>
+                <td style={styles.td}>{event.leader1_email || "-"}</td>
+                <td style={styles.td}>{event.day}</td>
+                <td style={styles.td}>
+                  {latest &&
+                    new Date(latest.timestamp).toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    }).replace(/\//g, " - ")}
+                </td>
+                <td style={{ ...styles.td, textAlign: "center" }}>
+                  <button
+                    style={styles.iconBtn}
+                    onClick={() => openEventDetails(event._id)}
+                  >
+                    <FaRegCalendarAlt />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
       </table>
 
       <input

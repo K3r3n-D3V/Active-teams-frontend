@@ -52,8 +52,8 @@ const CreateEvents = ({ user }) => {
     location: '',
     eventLeader: '',
     description: '',
+    leader1: '',
     leader12: '',
-    leader144: '',
     email: ''
   });
 
@@ -91,8 +91,8 @@ const handlePersonSelect = (person) => {
     eventLeaderName: person.fullName, // Store the full name directly
     eventLeaderEmail: person.email, // Store email directly
     eventName: eventName, // Auto-fill for cells
+    leader1: person.leader1Id || person.leader1 || '',
     leader12: person.leader12Id || person.leader12 || '',
-    leader144: person.leader144Id || person.leader144 || '',
     email: person.email || ''
   }));
 
@@ -115,8 +115,8 @@ const handlePersonSelect = (person) => {
             name: person.Name || person.name,
             surname: person.Surname || person.surname,
             email: person.Email || person.email,
+            leader1Id: person["Leader @1 Id"] || '',
             leader12Id: person["Leader @12 Id"] || '',
-            leader144Id: person["Leader @144 Id"] || '',
             fullName: `${person.Name || person.name} ${person.Surname || person.surname}`
           }));
 
@@ -188,8 +188,8 @@ const handlePersonSelect = (person) => {
           ...prev,
           [field]: value,
           eventName: '',
+          leader1: '',
           leader12: '',
-          leader144: '',
           email: '',
           ...(isCell ? { date: '', time: '', timePeriod: 'AM' } : {})
         }));
@@ -202,8 +202,8 @@ const handlePersonSelect = (person) => {
       setFormData(prev => ({
         ...prev,
         eventLeader: '',
+        leader1: '',
         leader12: '',
-        leader144: '',
         email: ''
       }));
     }
@@ -286,8 +286,8 @@ const handlePersonSelect = (person) => {
       location: '',
       eventLeader: '',
       description: '',
+      leader1: '',
       leader12: '',
-      leader144: '',
       email: ''
     });
     setErrors({});
@@ -308,12 +308,12 @@ const handleSubmit = async (e) => {
     // Prepare payload with proper field names
     const payload = {
       ...formData,
-      eventLeader: formData.eventLeader, // This should be the MongoDB ObjectId
-      eventLeaderName: selectedLeader?.fullName || searchLeader, // Add the full name
-      eventLeaderEmail: selectedLeader?.email || formData.email, // Add the email
+      eventLeader: formData.eventLeader, 
+      eventLeaderName: selectedLeader?.fullName || searchLeader, 
+      eventLeaderEmail: selectedLeader?.email || formData.email, 
+      leader1: formData.leader1,
       leader12: formData.leader12,
-      leader144: formData.leader144,
-      email: selectedLeader?.email || formData.email, // Keep for backward compatibility
+      email: selectedLeader?.email || formData.email,
       userEmail: user?.email || '',
       recurring_day: formData.recurringDays
     };
@@ -364,8 +364,8 @@ const handleSubmit = async (e) => {
       leaders: [
         { slot: 'eventLeader', name: selectedLeader?.fullName || searchLeader },
         ...(isCell ? [
-          { slot: 'leader12', name: formData.leader12 },
-          { slot: 'leader144', name: formData.leader144 }
+          { slot: 'leader1', name: formData.leader1 },
+          { slot: 'leader12', name: formData.leader12 }
         ] : [])
       ]
     }));
@@ -507,36 +507,47 @@ const handleSubmit = async (e) => {
           </Typography>
 
           {/* New Type Form */}
-          <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }} mb={2}>
-            <Button
-              variant="outlined"
-              onClick={() => setShowNewTypeForm(!showNewTypeForm)}
-              startIcon={<AddIcon />}
-              sx={darkModeStyles.button.outlined}
-            >
-              New Type
-            </Button>
-            {showNewTypeForm && (
-              <>
-                <TextField
-                  placeholder="Enter new event type"
-                  value={newEventType}
-                  onChange={(e) => setNewEventType(e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={darkModeStyles.textField}
-                />
-                <Button
-                  variant="contained"
-                  onClick={addNewEventType}
-                  size="small"
-                  sx={{ bgcolor: 'primary.main', px: 2, py: 0.5 }}
-                >
-                  Add
-                </Button>
-              </>
-            )}
-          </Box>
+  <Box
+    display="flex"
+    flexWrap="wrap"
+    alignItems="center"
+    gap={1.5}
+    mb={1.5}
+  >
+    <Button
+      variant="outlined"
+      onClick={() => setShowNewTypeForm(!showNewTypeForm)}
+      startIcon={<AddIcon />}
+      sx={darkModeStyles.button.outlined}
+    >
+      New Type
+    </Button>
+
+    {showNewTypeForm && (
+      <>
+        <TextField
+          placeholder="Enter new event type"
+          value={newEventType}
+          onChange={(e) => setNewEventType(e.target.value)}
+          size="small"
+          sx={{ minWidth: 360, ...darkModeStyles.textField }}
+        />
+        <Button
+          variant="contained"
+          onClick={addNewEventType}
+          size="small"
+          sx={{
+            bgcolor: 'primary.main',
+            px: 3,
+            py: 0.8,
+            textTransform: 'none',
+          }}
+        >
+          Add
+        </Button>
+      </>
+    )}
+  </Box>
 
           <form onSubmit={handleSubmit}>
             {/* Event Type */}
@@ -641,34 +652,35 @@ const handleSubmit = async (e) => {
               </FormControl>
             </Box>
 
-            {/* Recurring Days */}
-            {isCell && (
-              <Box mb={3}>
-                <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
-                  Recurring Days <span style={{ color: 'red' }}>*</span>
-                </Typography>
-                <Box display="flex" flexWrap="wrap" gap={2}>
-                  {days.map(day => (
-                    <FormControlLabel
-                      key={day}
-                      control={
-                        <Checkbox
-                          checked={formData.recurringDays.includes(day)}
-                          onChange={() => handleDayChange(day)}
-                        />
-                      }
-                      label={day}
-                      sx={darkModeStyles.formControlLabel}
-                    />
-                  ))}
-                </Box>
-                {errors.recurringDays && (
-                  <Typography variant="caption" sx={darkModeStyles.errorText}>
-                    {errors.recurringDays}
-                  </Typography>
-                )}
+            {/* Recurring Days - Now shows for ALL event types */}
+            <Box mb={3}>
+              <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
+                Recurring Days {isCell && <span style={{ color: 'red' }}>*</span>}
+              </Typography>
+              <Typography variant="body2" sx={{ color: isDarkMode ? '#bbb' : '#666', mb: 2 }}>
+                {isCell ? 'Select the days this cell meets regularly' : 'Optional: Select days if this event repeats weekly'}
+              </Typography>
+              <Box display="flex" flexWrap="wrap" gap={2}>
+                {days.map(day => (
+                  <FormControlLabel
+                    key={day}
+                    control={
+                      <Checkbox
+                        checked={formData.recurringDays.includes(day)}
+                        onChange={() => handleDayChange(day)}
+                      />
+                    }
+                    label={day}
+                    sx={darkModeStyles.formControlLabel}
+                  />
+                ))}
               </Box>
-            )}
+              {errors.recurringDays && (
+                <Typography variant="caption" sx={darkModeStyles.errorText}>
+                  {errors.recurringDays}
+                </Typography>
+              )}
+            </Box>
 
             {/* Location */}
             <TextField
@@ -716,7 +728,7 @@ const handleSubmit = async (e) => {
                       <Typography variant="body1">{person.fullName}</Typography>
                       {isCell && (
                         <Typography variant="caption" sx={{ color: isDarkMode ? '#bbb' : '#666' }}>
-                          Leader @12: {person.leader12} | Leader @144: {person.leader144}
+                          Leader @1: {person.leader12} | Leader @12: {person.leader144}
                         </Typography>
                       )}
                     </Box>
@@ -735,9 +747,9 @@ const handleSubmit = async (e) => {
                   Leadership Hierarchy
                 </Typography>
                 <TextField
-                  label="Leader at 12"
-                  value={formData.leader12}
-                  onChange={(e) => handleChange('leader12', e.target.value)}
+                  label="Leader at 1"
+                  value={formData.leader1}
+                  onChange={(e) => handleChange('leader1', e.target.value)}
                   fullWidth
                   size="small"
                   sx={{ mb: 2, ...darkModeStyles.textField }}
@@ -746,8 +758,8 @@ const handleSubmit = async (e) => {
                   }}
                 />
                 <TextField
-                  label="Leader at 144"
-                  value={formData.leader144}
+                  label="Leader at 12"
+                  value={formData.leader12}
                   onChange={(e) => handleChange('leader144', e.target.value)}
                   fullWidth
                   size="small"
