@@ -32,10 +32,6 @@ const Events = () => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const currentUser = JSON.parse(localStorage.getItem("user")) || {};
 
-
-
-
-
  // ✅ Place EventSkeleton here
   const EventSkeleton = () => {
     return (
@@ -58,46 +54,44 @@ const Events = () => {
   };
 
 const fetchEvents = () => {
-  setLoading(true); // start loader
+  setLoading(true);
 
   axios.get(`${BACKEND_URL}/events`)
     .then((res) => {
-      console.log("Response data:", res.data);
-
       const allEvents = res.data.events || res.data || [];
       const openEvents = allEvents.filter((e) => e.status !== "closed");
 
-      // Enhanced event data normalization
-      const normalizedEvents = openEvents.map(event => ({
-        ...event,
-        // Normalize recurring days
-        recurringDays: event.recurringDays || event.recurring_day || [],
-        
-        // Enhanced event leader handling
-        eventLeaderName: event.eventLeaderName || 
-                        (event.eventLeader && typeof event.eventLeader === 'object' 
-                          ? `${event.eventLeader.Name || event.eventLeader.name || ''} ${event.eventLeader.Surname || event.eventLeader.surname || ''}`.trim()
-                          : event.eventLeader) || 
-                        'Not specified',
-        
-        eventLeaderEmail: event.eventLeaderEmail || 
-                         (event.eventLeader && typeof event.eventLeader === 'object' 
-                           ? event.eventLeader.Email || event.eventLeader.email
-                           : null) || 
-                         event.email || 
-                         'Not specified',
-        
-        // Ensure all fields are properly handled
-        eventName: event.eventName || event.service_name || 'Untitled Event',
-        eventType: event.eventType || 'Event',
-        location: event.location || 'Location not specified',
-        description: event.description || '',
-        isTicketed: Boolean(event.isTicketed),
-        price: event.price || 0,
-        leader12: event.leader12 || '',
-        leader144: event.leader144 || '',
-        date: event.date || null,
-      }));
+      const today = new Date();
+      const todayDay = today.toLocaleString('en-US', { weekday: 'long' }); // e.g. "Thursday"
+
+      const normalizedEvents = openEvents.flatMap(event => {
+        const isCell = event.eventType?.toLowerCase() === 'cell';
+        const recurringDays = event.recurringDays || event.recurring_day || [];
+
+        // If it's a cell with recurringDays and today matches, create a virtual event for today
+        if (isCell && recurringDays.includes(todayDay)) {
+          const eventTime = event.time || "19:00"; // fallback if time missing
+          const [hours, minutes] = eventTime.split(":").map(Number);
+
+          const virtualDate = new Date();
+          virtualDate.setHours(hours);
+          virtualDate.setMinutes(minutes);
+          virtualDate.setSeconds(0);
+          virtualDate.setMilliseconds(0);
+
+          return [{
+            ...event,
+            isVirtual: true, // we can use this flag later
+            date: virtualDate.toISOString(), // add a dynamic "date" field
+          }];
+        }
+
+        // Non-cell or non-matching cell events just return as-is
+        return {
+          ...event,
+          date: event.date || null,
+        };
+      });
 
       const sortedEvents = normalizedEvents.sort(
         (a, b) => new Date(b.date) - new Date(a.date)
@@ -106,20 +100,16 @@ const fetchEvents = () => {
       setEvents(sortedEvents);
       setFilteredEvents(sortedEvents);
 
-      // Extract unique event types
       const fetchedEventTypes = [...new Set(sortedEvents.map(event => event.eventType).filter(Boolean))];
       setEventTypes(prev => [...new Set([...prev, ...fetchedEventTypes])]);
     })
     .catch((err) => {
       console.error("Failed to fetch events", err);
-      // you may optionally setEvents([]) here if you want to clear old events on failure
     })
     .finally(() => {
-      setLoading(false); // stop loader regardless of success/failure
+      setLoading(false);
     });
 };
-
-
 useEffect(() => {
   fetchEvents();
 }, []);

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Button, TextField, Checkbox, FormControl, InputLabel, Select, MenuItem,
   Card, CardContent, FormControlLabel, Box, InputAdornment, Snackbar, Alert, Typography,
-  useTheme
+  useTheme, Autocomplete
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PersonIcon from '@mui/icons-material/Person';
@@ -16,7 +16,7 @@ const CreateEvents = ({ user }) => {
   const { id: eventId } = useParams();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewTypeForm, setShowNewTypeForm] = useState(false);
   const [newEventType, setNewEventType] = useState('');
@@ -25,8 +25,6 @@ const CreateEvents = ({ user }) => {
   const [errorAlert, setErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [peopleData, setPeopleData] = useState([]);
-  const [searchLeader, setSearchLeader] = useState('');
-  const [showPeopleList, setShowPeopleList] = useState(false);
 
   const [eventTypes, setEventTypes] = useState([
     'Sunday Service',
@@ -54,7 +52,8 @@ const CreateEvents = ({ user }) => {
     description: '',
     leader1: '',
     leader12: '',
-    email: ''
+    email: '',
+    leaders: []
   });
 
   const [errors, setErrors] = useState({});
@@ -66,67 +65,49 @@ const CreateEvents = ({ user }) => {
   // Time periods
   const timePeriods = ['AM', 'PM'];
 
-  const filteredPeople = Array.isArray(peopleData)
-    ? peopleData.filter(person =>
-      person.fullName?.toLowerCase().includes(searchLeader.toLowerCase())
-    )
-    : [];
-
-  // In CreateEvents.js - Enhanced handlePersonSelect function
-
-const handlePersonSelect = (person) => {
-  console.log('Selected person:', person); // Debug log
-  
-  setSearchLeader(person.fullName);
-  setShowPeopleList(false);
-
-  const isCell = formData.eventType.toLowerCase().includes("cell");
-
-  // Auto-fill event name for cells
-  const eventName = isCell ? `${person.fullName} Cell` : formData.eventName;
-
-  setFormData(prev => ({
-    ...prev,
-    eventLeader: person._id, // MongoDB ObjectId
-    eventLeaderName: person.fullName, // Store the full name directly
-    eventLeaderEmail: person.email, // Store email directly
-    eventName: eventName, // Auto-fill for cells
-    leader1: person.leader1Id || person.leader1 || '',
-    leader12: person.leader12Id || person.leader12 || '',
-    email: person.email || ''
-  }));
-
-  console.log('Updated formData with person:', {
-    eventLeader: person._id,
-    eventLeaderName: person.fullName,
-    eventLeaderEmail: person.email,
-    eventName: eventName
-  }); // Debug log
-};
-  // Fetch people from backend
+  // Fetch people data for autocomplete
   useEffect(() => {
     const fetchPeople = async () => {
       try {
         const response = await axios.get(`${BACKEND_URL}/people`);
-
+        console.log('Raw people response:', response.data);
+        
+        let results = [];
+        
+        // Handle different response structures
         if (Array.isArray(response.data)) {
-          const transformedData = response.data.map(person => ({
-            _id: person._id,
-            name: person.Name || person.name,
-            surname: person.Surname || person.surname,
-            email: person.Email || person.email,
-            leader1Id: person["Leader @1 Id"] || '',
-            leader12Id: person["Leader @12 Id"] || '',
-            fullName: `${person.Name || person.name} ${person.Surname || person.surname}`
-          }));
-
-          setPeopleData(transformedData);
-        } else {
-          console.warn('People data is not an array', response.data);
+          results = response.data;
+        } else if (response.data.people && Array.isArray(response.data.people)) {
+          results = response.data.people;
+        } else if (response.data.results && Array.isArray(response.data.results)) {
+          results = response.data.results;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          results = response.data.data;
         }
+        
+        console.log('Processed results:', results);
+        
+        const formattedPeople = results.map(person => {
+          // Handle different field name variations
+          const firstName = person.Name || person.name || person.firstName || person.first_name || '';
+          const lastName = person.Surname || person.surname || person.lastName || person.last_name || '';
+          const email = person.Email || person.email || '';
+          
+          return {
+            _id: person._id || person.id,
+            fullName: `${firstName} ${lastName}`.trim(),
+            email: email,
+            leader1: person["Leader @1"] || person.leader1 || person.leader_1 || '',
+            leader12: person["Leader @12"] || person.leader12 || person.leader_12 || '',
+            leader144: person["Leader @144"] || person.leader144 || person.leader_144 || ''
+          };
+        });
+        
+        console.log('Formatted people:', formattedPeople);
+        setPeopleData(formattedPeople);
       } catch (err) {
-        console.error("Failed to fetch people data:", err);
-        setErrorMessage("Failed to load people data. Please try again.");
+        console.error("Error fetching people data:", err);
+        setErrorMessage("Failed to load people data. Please refresh the page.");
         setErrorAlert(true);
       }
     };
@@ -164,7 +145,6 @@ const handlePersonSelect = (person) => {
           .map(([key, value]) => ({ slot: key, name: value }));
 
         setFormData(data);
-        setSearchLeader(data.eventLeader || '');
       } catch (err) {
         console.error("Failed to fetch event:", err);
         setErrorMessage("Failed to load event data. Please try again.");
@@ -191,21 +171,10 @@ const handlePersonSelect = (person) => {
           leader1: '',
           leader12: '',
           email: '',
+          eventLeader: '',
           ...(isCell ? { date: '', time: '', timePeriod: 'AM' } : {})
         }));
-        setSearchLeader('');
       }
-    }
-
-    // Clear eventLeader ID when typing manually (not selecting from dropdown)
-    if (field === 'eventLeader') {
-      setFormData(prev => ({
-        ...prev,
-        eventLeader: '',
-        leader1: '',
-        leader12: '',
-        email: ''
-      }));
     }
   };
 
@@ -244,7 +213,7 @@ const handlePersonSelect = (person) => {
       newErrors.location = 'Location is required';
     }
 
-    if (!searchLeader) {
+    if (!formData.eventLeader) {
       newErrors.eventLeader = 'Event leader is required';
     }
 
@@ -288,113 +257,105 @@ const handlePersonSelect = (person) => {
       description: '',
       leader1: '',
       leader12: '',
-      email: ''
+      email: '',
+      leaders: []
     });
     setErrors({});
   };
 
- // In CreateEvents.js - Update the handleSubmit function
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+    setIsSubmitting(true);
 
-  setIsSubmitting(true);
+    try {
+      const isCell = formData.eventType.toLowerCase().includes("cell");
 
-  try {
-    const isCell = formData.eventType.toLowerCase().includes("cell");
-    const selectedLeader = peopleData.find(p => p._id === formData.eventLeader);
+      // Prepare clean payload
+      const payload = {
+        eventType: formData.eventType,
+        eventName: formData.eventName,
+        isTicketed: formData.isTicketed,
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        description: formData.description,
+        userEmail: user?.email || '',
+        recurring_day: formData.recurringDays
+      };
 
-    // Prepare payload with proper field names
-    const payload = {
-      ...formData,
-      eventLeader: formData.eventLeader, 
-      eventLeaderName: selectedLeader?.fullName || searchLeader, 
-      eventLeaderEmail: selectedLeader?.email || formData.email, 
-      leader1: formData.leader1,
-      leader12: formData.leader12,
-      email: selectedLeader?.email || formData.email,
-      userEmail: user?.email || '',
-      recurring_day: formData.recurringDays
-    };
+      // Add price only if ticketed
+      if (formData.isTicketed && formData.price) {
+        payload.price = parseFloat(formData.price);
+      }
 
-    // Convert ticketed price to number if needed
-    if (payload.price) {
-      payload.price = parseFloat(payload.price);
-    } else {
-      delete payload.price;
-    }
+      // Add leaders for cell events
+      if (isCell) {
+        if (formData.leader1) payload.leader1 = formData.leader1;
+        if (formData.leader12) payload.leader12 = formData.leader12;
+        if (formData.email) payload.email = formData.email;
+      }
 
-    // Handle date and time
-    if (!isCell) {
-      if (payload.date && payload.time) {
-        const [hoursStr, minutesStr] = payload.time.split(':');
+      // Handle date and time for non-cell events
+      if (!isCell && formData.date && formData.time) {
+        const [hoursStr, minutesStr] = formData.time.split(':');
         let hours = Number(hoursStr);
         const minutes = Number(minutesStr);
 
-        if (payload.timePeriod === 'PM' && hours !== 12) hours += 12;
-        if (payload.timePeriod === 'AM' && hours === 12) hours = 0;
+        if (formData.timePeriod === 'PM' && hours !== 12) hours += 12;
+        if (formData.timePeriod === 'AM' && hours === 12) hours = 0;
 
-        const [year, month, day] = payload.date.split('-').map(Number);
+        const [year, month, day] = formData.date.split('-').map(Number);
         const dateObj = new Date(year, month - 1, day, hours, minutes, 0);
         payload.date = dateObj.toISOString();
-      } else {
-        payload.date = null;
       }
-    } else {
-      payload.date = null; // Cell events have no date
+
+      console.log('Payload being sent:', JSON.stringify(payload, null, 2));
+
+      // Send request
+      const response = eventId 
+        ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
+        : await axios.post(`${BACKEND_URL}/events`, payload);
+
+      console.log('Server response:', response.data);
+
+      setSuccessMessage(
+        isCell
+          ? `The ${formData.eventName} Cell has been ${eventId ? 'updated' : 'created'} successfully!`
+          : eventId ? "Event updated successfully!" : "Event created successfully!"
+      );
+      setSuccessAlert(true);
+
+      if (!eventId) resetForm();
+
+      setTimeout(() => {
+        navigate("/events");
+      }, 1800);
+
+    } catch (err) {
+      console.error("Error submitting event:", err);
+      console.error("Error response:", err.response?.data);
+      
+      let errorMsg = "Something went wrong. Please try again!";
+      
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMsg = err.response.data;
+        } else if (err.response.data.message) {
+          errorMsg = err.response.data.message;
+        } else if (err.response.data.detail) {
+          errorMsg = err.response.data.detail;
+        } else if (err.response.data.error) {
+          errorMsg = err.response.data.error;
+        }
+      }
+      
+      setErrorMessage(errorMsg);
+      setErrorAlert(true);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Remove time fields
-    delete payload.time;
-    delete payload.timePeriod;
-
-    console.log('Payload being sent:', payload); // Debug log
-
-    // Send request
-    if (eventId) {
-      await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
-    } else {
-      await axios.post(`${BACKEND_URL}/events`, payload);
-    }
-
-    // Update leaders for UI display
-    setFormData(prev => ({
-      ...prev,
-      leaders: [
-        { slot: 'eventLeader', name: selectedLeader?.fullName || searchLeader },
-        ...(isCell ? [
-          { slot: 'leader1', name: formData.leader1 },
-          { slot: 'leader12', name: formData.leader12 }
-        ] : [])
-      ]
-    }));
-
-    setSuccessMessage(
-      isCell
-        ? `The ${formData.eventName} Cell has been ${eventId ? 'updated' : 'created'} successfully!`
-        : eventId ? "Event updated successfully!" : "Event created successfully!"
-    );
-    setSuccessAlert(true);
-
-    if (!eventId) resetForm();
-
-    setTimeout(() => {
-      navigate("/events");
-    }, 1800);
-
-  } catch (err) {
-    console.error("Error submitting event:", err.response?.data || err.message);
-    setErrorMessage(
-      err.response?.data?.detail ||
-      err.response?.data?.message ||
-      "Something went wrong. Please try again!"
-    );
-    setErrorAlert(true);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const isCell = formData.eventType.toLowerCase().includes("cell");
 
@@ -454,34 +415,6 @@ const handleSubmit = async (e) => {
     },
     errorText: {
       color: isDarkMode ? '#ff6b6b' : 'red'
-    },
-    warningText: {
-      color: 'orange'
-    },
-    peopleList: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      zIndex: 10,
-      maxHeight: '200px',
-      overflowY: 'auto',
-      border: '1px solid #ccc',
-      borderRadius: '6px',
-      bgcolor: isDarkMode ? '#2d2d2d' : 'white',
-      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-    },
-    personItem: {
-      padding: '12px 16px',
-      cursor: 'pointer',
-      borderBottom: '1px solid #eee',
-      color: isDarkMode ? '#ffffff' : 'inherit',
-      '&:hover': {
-        bgcolor: isDarkMode ? '#3d3d3d' : '#f5f5f5'
-      },
-      '&:last-child': {
-        borderBottom: 'none'
-      }
     }
   };
 
@@ -507,47 +440,47 @@ const handleSubmit = async (e) => {
           </Typography>
 
           {/* New Type Form */}
-  <Box
-    display="flex"
-    flexWrap="wrap"
-    alignItems="center"
-    gap={1.5}
-    mb={1.5}
-  >
-    <Button
-      variant="outlined"
-      onClick={() => setShowNewTypeForm(!showNewTypeForm)}
-      startIcon={<AddIcon />}
-      sx={darkModeStyles.button.outlined}
-    >
-      New Type
-    </Button>
+          <Box
+            display="flex"
+            flexWrap="wrap"
+            alignItems="center"
+            gap={1.5}
+            mb={1.5}
+          >
+            <Button
+              variant="outlined"
+              onClick={() => setShowNewTypeForm(!showNewTypeForm)}
+              startIcon={<AddIcon />}
+              sx={darkModeStyles.button.outlined}
+            >
+              New Type
+            </Button>
 
-    {showNewTypeForm && (
-      <>
-        <TextField
-          placeholder="Enter new event type"
-          value={newEventType}
-          onChange={(e) => setNewEventType(e.target.value)}
-          size="small"
-          sx={{ minWidth: 360, ...darkModeStyles.textField }}
-        />
-        <Button
-          variant="contained"
-          onClick={addNewEventType}
-          size="small"
-          sx={{
-            bgcolor: 'primary.main',
-            px: 3,
-            py: 0.8,
-            textTransform: 'none',
-          }}
-        >
-          Add
-        </Button>
-      </>
-    )}
-  </Box>
+            {showNewTypeForm && (
+              <>
+                <TextField
+                  placeholder="Enter new event type"
+                  value={newEventType}
+                  onChange={(e) => setNewEventType(e.target.value)}
+                  size="small"
+                  sx={{ minWidth: 340, ...darkModeStyles.textField }}
+                />
+                <Button
+                  variant="contained"
+                  onClick={addNewEventType}
+                  size="small"
+                  sx={{
+                    bgcolor: 'primary.main',
+                    px: 3,
+                    py: 0.8,
+                    textTransform: 'none',
+                  }}
+                >
+                  Add
+                </Button>
+              </>
+            )}
+          </Box>
 
           <form onSubmit={handleSubmit}>
             {/* Event Type */}
@@ -652,7 +585,7 @@ const handleSubmit = async (e) => {
               </FormControl>
             </Box>
 
-            {/* Recurring Days - Now shows for ALL event types */}
+            {/* Recurring Days */}
             <Box mb={3}>
               <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
                 Recurring Days {isCell && <span style={{ color: 'red' }}>*</span>}
@@ -697,76 +630,99 @@ const handleSubmit = async (e) => {
               }}
             />
 
-            {/* Event Leader */}
-            <Box sx={{ position: 'relative', mb: 3 }}>
-              <TextField
-                label="Event Leader"
-                value={searchLeader}
-                onChange={(e) => {
-                  setSearchLeader(e.target.value);
-                  setShowPeopleList(!!e.target.value);
-                  handleChange('eventLeader', e.target.value);
-                }}
-                fullWidth
-                size="small"
-                sx={darkModeStyles.textField}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>
-                }}
-                error={!!errors.eventLeader}
-                helperText={errors.eventLeader || "Type to search and select a person from the list"}
-              />
+            {/* Event Leader - Simple Text Field */}
+            <TextField
+              label="Event Leader"
+              value={formData.eventLeader}
+              onChange={(e) => handleChange('eventLeader', e.target.value)}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              error={!!errors.eventLeader}
+              helperText={errors.eventLeader}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>
+              }}
+            />
 
-              {showPeopleList && filteredPeople.length > 0 && (
-                <Box sx={darkModeStyles.peopleList}>
-                  {filteredPeople.map((person, idx) => (
-                    <Box
-                      key={person._id || idx}
-                      onClick={() => handlePersonSelect(person)}
-                      sx={darkModeStyles.personItem}
-                    >
-                      <Typography variant="body1">{person.fullName}</Typography>
-                      {isCell && (
-                        <Typography variant="caption" sx={{ color: isDarkMode ? '#bbb' : '#666' }}>
-                          Leader @1: {person.leader12} | Leader @12: {person.leader144}
-                        </Typography>
-                      )}
-                    </Box>
-                  ))}
-                </Box>
-              )}
-
-              {/* Show warning if user typed but didn't select */}
-
-            </Box>
-
-            {/* Cell Leadership */}
+            {/* Cell Leadership Section */}
             {isCell && (
               <Box mb={3}>
-                <Typography variant="h6" sx={{ mb: 2, color: isDarkMode ? '#ffffff' : 'inherit' }}>
+                <Typography
+                  variant="h6"
+                  sx={{ mb: 2, color: isDarkMode ? '#ffffff' : 'inherit' }}
+                >
                   Leadership Hierarchy
                 </Typography>
-                <TextField
-                  label="Leader at 1"
-                  value={formData.leader1}
-                  onChange={(e) => handleChange('leader1', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
+
+                {/* Leader at 1 */}
+                <Autocomplete
+                  options={peopleData}
+                  getOptionLabel={(option) => option.fullName || ''}
+                  value={peopleData.find(p => p.fullName === formData.leader1) || null}
+                  onChange={(event, newValue) => {
+                    handleChange('leader1', newValue?.fullName || '');
                   }}
+                  filterOptions={(options, { inputValue }) => {
+                    if (!inputValue) return options;
+                    return options.filter(option =>
+                      option.fullName.toLowerCase().includes(inputValue.toLowerCase())
+                    );
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Leader at 1"
+                      size="small"
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position="start">
+                              <PersonIcon />
+                            </InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        )
+                      }}
+                    />
+                  )}
                 />
-                <TextField
-                  label="Leader at 12"
-                  value={formData.leader12}
-                  onChange={(e) => handleChange('leader144', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
+
+                {/* Leader at 12 */}
+                <Autocomplete
+                  options={peopleData}
+                  getOptionLabel={(option) => option.fullName || ''}
+                  value={peopleData.find(p => p.fullName === formData.leader12) || null}
+                  onChange={(event, newValue) => {
+                    handleChange('leader12', newValue?.fullName || '');
                   }}
+                  filterOptions={(options, { inputValue }) => {
+                    if (!inputValue) return options;
+                    return options.filter(option =>
+                      option.fullName.toLowerCase().includes(inputValue.toLowerCase())
+                    );
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Leader at 12"
+                      size="small"
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position="start">
+                              <PersonIcon />
+                            </InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        )
+                      }}
+                    />
+                  )}
                 />
               </Box>
             )}

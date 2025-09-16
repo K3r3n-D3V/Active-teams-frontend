@@ -94,37 +94,58 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
     }));
   };
 
-  const handleSubmit = async () => {
-    const selected = people.filter(p => checked[p.id]);
+const handleSubmit = async () => {
+  const user = JSON.parse(localStorage.getItem('user'));
+  const selected = people.filter(p => checked[p.id]);
 
-    if (selected.length === 0) {
+  if (selected.length === 0) {
+    setAlert({
+      open: true,
+      type: "error",
+      message: `Please select attendees for "${event.eventName || event.service_name || "this event"}" before submitting.`,
+    });
+    return;
+  }
+
+  const payload = {
+    eventId: event.id,
+    attendees: selected,
+    leaderEmail: user?.email,
+    leaderName: user?.name
+  };
+
+  try {
+    const response = await fetch('/api/submit-attendance', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (response.ok) {
+      setAlert({
+        open: true,
+        type: "success",
+        message: `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
+      });
+      onClose(); // close modal or do post-submit actions
+    } else {
+      const result = await response.json();
       setAlert({
         open: true,
         type: "error",
-        message: `Please select attendees for "${event.eventName || event.service_name || "this event"}" before submitting.`,
+        message: result?.message || `Failed to submit attendance.`,
       });
-      return;
     }
+  } catch (error) {
+    console.error(error);
+    setAlert({
+      open: true,
+      type: "error",
+      message: `Something went wrong while submitting attendance.`,
+    });
+  }
+};
 
-    if (onSubmit) {
-      const result = await onSubmit(selected);
-
-      if (result?.success) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: result.message || `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
-        });
-        onClose();
-      } else {
-        setAlert({
-          open: true,
-          type: "error",
-          message: result?.message || `Failed to submit attendance for "${event.eventName || event.service_name || "this event"}".`,
-        });
-      }
-    }
-  };
 
   const handleMarkDidNotMeet = async () => {
     if (onSubmit) {
@@ -310,9 +331,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
           >
             Mark As Did Not Meet
           </button>
-          <button onClick={handleSubmit} style={styles.primaryBtn}>
-            Submit Attendance
-          </button>
+       <button onClick={handleSubmit} className="submit-btn">
+  Submit Attendance
+</button>
+
         </div>
       </div>
     </div>
