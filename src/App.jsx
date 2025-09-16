@@ -12,7 +12,7 @@ import { PeopleSection as People } from './Pages/People';
 import Events from './Pages/Events';
 import Stats from './Pages/Stats';
 import ServiceCheckIn from './Pages/ServiceCheckIn';
-import GiveToday from './Pages/GiveToday';
+// import GiveToday from './Pages/GiveToday';
 import DailyTasks from './Pages/DailyTasks';
 import Home from './Pages/Home';
 import Login from "./Pages/Login";
@@ -32,7 +32,7 @@ const ProtectedPeople = withAuthCheck(People);
 const ProtectedEvents = withAuthCheck(Events);
 const ProtectedStats = withAuthCheck(Stats);
 const ProtectedCheckIn = withAuthCheck(ServiceCheckIn);
-const ProtectedGiveToday = withAuthCheck(GiveToday);
+// const ProtectedGiveToday = withAuthCheck(GiveToday);
 const ProtectedDailyTasks = withAuthCheck(DailyTasks);
 const ProtectedHome = withAuthCheck(Home);
 
@@ -88,7 +88,7 @@ const hideLayout = noLayoutRoutes.includes(location.pathname);
             <Route path="/event-details" element={<EventDetails title="event-details-screen" />} />
             <Route path="/history" element={<EventsHistory />} />
             <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
-            <Route path="/give-today" element={<ProtectedGiveToday title="Give Today" />} />
+            {/* <Route path="/give-today" element={<ProtectedGiveToday title="Give Today" />} /> */}
             <Route path="/daily-tasks" element={<ProtectedDailyTasks title="Daily Tasks" />} />
             <Route path="/event-payment/:eventId" element={< EventRegistrationForm title="Event register" />} />
           </Routes>
