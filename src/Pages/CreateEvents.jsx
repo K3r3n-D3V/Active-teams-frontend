@@ -297,18 +297,18 @@ const CreateEvents = ({ user }) => {
       }
 
       // Handle date and time for non-cell events
-      if (!isCell && formData.date && formData.time) {
-        const [hoursStr, minutesStr] = formData.time.split(':');
-        let hours = Number(hoursStr);
-        const minutes = Number(minutesStr);
-
-        if (formData.timePeriod === 'PM' && hours !== 12) hours += 12;
-        if (formData.timePeriod === 'AM' && hours === 12) hours = 0;
-
-        const [year, month, day] = formData.date.split('-').map(Number);
-        const dateObj = new Date(year, month - 1, day, hours, minutes, 0);
-        payload.date = dateObj.toISOString();
-      }
+      
+        if (!isCell && formData.date && formData.time) {
+  const [hoursStr, minutesStr] = formData.time.split(':');
+  let hours = Number(hoursStr);
+  const minutes = Number(minutesStr);
+  if (formData.timePeriod === 'PM' && hours !== 12) hours += 12;
+  if (formData.timePeriod === 'AM' && hours === 12) hours = 0;
+  
+  // Use local timezone instead of UTC to avoid date shifting
+  const dateTimeString = `${formData.date}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+  payload.date = dateTimeString;
+}
 
       console.log('Payload being sent:', JSON.stringify(payload, null, 2));
 
@@ -328,9 +328,7 @@ const CreateEvents = ({ user }) => {
 
       if (!eventId) resetForm();
 
-      setTimeout(() => {
-        navigate("/events");
-      }, 1800);
+navigate("/events", { state: { refresh: true, timestamp: Date.now() } });
 
     } catch (err) {
       console.error("Error submitting event:", err);

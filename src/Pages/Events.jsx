@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation  } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 import { saveToEventHistory } from "../utils/eventhistory";
@@ -10,8 +10,12 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Eventsfilter from "./Eventsfilter"
 
+
 const Events = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  console.log('location.state:', location.state);
   const theme = useTheme();
   const [showFilter, setShowFilter] = useState(false);
   const [filterType] = useState("all");
@@ -52,67 +56,86 @@ const Events = () => {
       </div>
     );
   };
-
-const fetchEvents = () => {
+const fetchEvents = async () => {
   setLoading(true);
 
-  axios.get(`${BACKEND_URL}/events`)
-    .then((res) => {
-      const allEvents = res.data.events || res.data || [];
-      const openEvents = allEvents.filter((e) => e.status !== "closed");
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
-      const today = new Date();
-      const todayDay = today.toLocaleString('en-US', { weekday: 'long' }); // e.g. "Thursday"
+    const headers = { Authorization: `Bearer ${token}` };
 
-      const normalizedEvents = openEvents.flatMap(event => {
-        const isCell = event.eventType?.toLowerCase() === 'cell';
-        const recurringDays = event.recurringDays || event.recurring_day || [];
+    // Fetch regular and cell events
+    const [eventsResponse, cellsResponse] = await Promise.all([
+      axios.get(`${BACKEND_URL}/events`, { headers }),
+      axios.get(`${BACKEND_URL}/events/cells-user`, { headers })
+    ]);
 
-        // If it's a cell with recurringDays and today matches, create a virtual event for today
-        if (isCell && recurringDays.includes(todayDay)) {
-          const eventTime = event.time || "19:00"; // fallback if time missing
-          const [hours, minutes] = eventTime.split(":").map(Number);
+    const regularEvents = eventsResponse.data.events || eventsResponse.data || [];
+    const nonCellEvents = regularEvents.filter(event =>
+      event.eventType?.toLowerCase() !== 'cell' &&
+      event.eventType?.toLowerCase() !== 'cells'
+    );
 
-          const virtualDate = new Date();
-          virtualDate.setHours(hours);
-          virtualDate.setMinutes(minutes);
-          virtualDate.setSeconds(0);
-          virtualDate.setMilliseconds(0);
+    const userCellEvents = cellsResponse.data.events || [];
 
-          return [{
-            ...event,
-            isVirtual: true, // we can use this flag later
-            date: virtualDate.toISOString(), // add a dynamic "date" field
-          }];
-        }
+    // Filter out past non-cell events (only keep future)
+    const now = new Date();
+    const futureNonCellEvents = nonCellEvents.filter(event => {
+      if (event.status === "closed") return false;
+      const eventDate = new Date(event.date);
+      return eventDate >= now;
+    });
 
-        // Non-cell or non-matching cell events just return as-is
-        return {
-          ...event,
-          date: event.date || null,
-        };
-      });
+    // Combine both sets
+    const combinedEvents = [...futureNonCellEvents, ...userCellEvents];
 
-      const sortedEvents = normalizedEvents.sort(
-        (a, b) => new Date(b.date) - new Date(a.date)
+    // Sort by event date
+    const sortedEvents = combinedEvents.sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
+    );
+
+    setEvents(sortedEvents);
+    setFilteredEvents(sortedEvents);
+
+    const fetchedEventTypes = [...new Set(sortedEvents.map(event => event.eventType).filter(Boolean))];
+    setEventTypes(prev => [...new Set([...prev, ...fetchedEventTypes])]);
+
+  } catch (err) {
+    console.error("Failed to fetch events", err.response?.data || err);
+
+    // Optional fallback logic (kept same)
+    try {
+      const fallbackResponse = await axios.get(`${BACKEND_URL}/events`);
+      const fallbackEvents = fallbackResponse.data.events || fallbackResponse.data || [];
+
+      const fallbackNonCellEvents = fallbackEvents.filter(event =>
+        event.eventType?.toLowerCase() !== 'cell' &&
+        event.eventType?.toLowerCase() !== 'cells'
       );
 
-      setEvents(sortedEvents);
-      setFilteredEvents(sortedEvents);
+      const futureFallbackEvents = fallbackNonCellEvents.filter(e => {
+        if (e.status === "closed") return false;
+        const eventDate = new Date(e.date);
+        return eventDate >= new Date();
+      });
 
-      const fetchedEventTypes = [...new Set(sortedEvents.map(event => event.eventType).filter(Boolean))];
-      setEventTypes(prev => [...new Set([...prev, ...fetchedEventTypes])]);
-    })
-    .catch((err) => {
-      console.error("Failed to fetch events", err);
-    })
-    .finally(() => {
-      setLoading(false);
-    });
+      setEvents(futureFallbackEvents);
+      setFilteredEvents(futureFallbackEvents);
+    } catch (fallbackErr) {
+      console.error("Fallback fetch also failed", fallbackErr);
+    }
+  } finally {
+    setLoading(false);
+  }
 };
 useEffect(() => {
   fetchEvents();
-}, []);
+}, [location.pathname, location.state?.refresh, location.state?.timestamp]);
+
 
 
   // Apply filters to events
