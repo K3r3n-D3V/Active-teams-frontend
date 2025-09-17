@@ -136,8 +136,6 @@ useEffect(() => {
   fetchEvents();
 }, [location.pathname, location.state?.refresh, location.state?.timestamp]);
 
-
-
   // Apply filters to events
   const applyFilters = (filters) => {
     setActiveFilters(filters);
