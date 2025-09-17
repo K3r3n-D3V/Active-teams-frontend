@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Button, TextField, Checkbox, FormControl, InputLabel, Select, MenuItem,
   Card, CardContent, FormControlLabel, Box, InputAdornment, Snackbar, Alert, Typography,
-  useTheme
+  useTheme, Autocomplete
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PersonIcon from '@mui/icons-material/Person';
@@ -16,7 +16,7 @@ const CreateEvents = ({ user }) => {
   const { id: eventId } = useParams();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewTypeForm, setShowNewTypeForm] = useState(false);
   const [newEventType, setNewEventType] = useState('');
@@ -25,8 +25,6 @@ const CreateEvents = ({ user }) => {
   const [errorAlert, setErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [peopleData, setPeopleData] = useState([]);
-  const [searchLeader, setSearchLeader] = useState('');
-  const [showPeopleList, setShowPeopleList] = useState(false);
 
   const [eventTypes, setEventTypes] = useState([
     'Sunday Service',
@@ -52,9 +50,10 @@ const CreateEvents = ({ user }) => {
     location: '',
     eventLeader: '',
     description: '',
+    leader1: '',
     leader12: '',
-    leader144: '',
-    email: ''
+    email: '',
+    leaders: []
   });
 
   const [errors, setErrors] = useState({});
@@ -66,49 +65,49 @@ const CreateEvents = ({ user }) => {
   // Time periods
   const timePeriods = ['AM', 'PM'];
 
-  const filteredPeople = Array.isArray(peopleData)
-    ? peopleData.filter(person =>
-      person.fullName?.toLowerCase().includes(searchLeader.toLowerCase())
-    )
-    : [];
-
-  const handlePersonSelect = (person) => {
-    setSearchLeader(person.fullName);
-    setShowPeopleList(false);
-
-    setFormData(prev => ({
-      ...prev,
-      eventLeader: person._id,
-      leader12: person.leader12Id || '',
-      leader144: person.leader144Id || '',
-      email: person.email || ''
-    }));
-  };
-
-  // Fetch people from backend
+  // Fetch people data for autocomplete
   useEffect(() => {
     const fetchPeople = async () => {
       try {
         const response = await axios.get(`${BACKEND_URL}/people`);
-
+        console.log('Raw people response:', response.data);
+        
+        let results = [];
+        
+        // Handle different response structures
         if (Array.isArray(response.data)) {
-          const transformedData = response.data.map(person => ({
-            _id: person._id,
-            name: person.Name || person.name,
-            surname: person.Surname || person.surname,
-            email: person.Email || person.email,
-            leader12Id: person["Leader @12 Id"] || '',
-            leader144Id: person["Leader @144 Id"] || '',
-            fullName: `${person.Name || person.name} ${person.Surname || person.surname}`
-          }));
-
-          setPeopleData(transformedData);
-        } else {
-          console.warn('People data is not an array', response.data);
+          results = response.data;
+        } else if (response.data.people && Array.isArray(response.data.people)) {
+          results = response.data.people;
+        } else if (response.data.results && Array.isArray(response.data.results)) {
+          results = response.data.results;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          results = response.data.data;
         }
+        
+        console.log('Processed results:', results);
+        
+        const formattedPeople = results.map(person => {
+          // Handle different field name variations
+          const firstName = person.Name || person.name || person.firstName || person.first_name || '';
+          const lastName = person.Surname || person.surname || person.lastName || person.last_name || '';
+          const email = person.Email || person.email || '';
+          
+          return {
+            _id: person._id || person.id,
+            fullName: `${firstName} ${lastName}`.trim(),
+            email: email,
+            leader1: person["Leader @1"] || person.leader1 || person.leader_1 || '',
+            leader12: person["Leader @12"] || person.leader12 || person.leader_12 || '',
+            leader144: person["Leader @144"] || person.leader144 || person.leader_144 || ''
+          };
+        });
+        
+        console.log('Formatted people:', formattedPeople);
+        setPeopleData(formattedPeople);
       } catch (err) {
-        console.error("Failed to fetch people data:", err);
-        setErrorMessage("Failed to load people data. Please try again.");
+        console.error("Error fetching people data:", err);
+        setErrorMessage("Failed to load people data. Please refresh the page.");
         setErrorAlert(true);
       }
     };
@@ -146,7 +145,6 @@ const CreateEvents = ({ user }) => {
           .map(([key, value]) => ({ slot: key, name: value }));
 
         setFormData(data);
-        setSearchLeader(data.eventLeader || '');
       } catch (err) {
         console.error("Failed to fetch event:", err);
         setErrorMessage("Failed to load event data. Please try again.");
@@ -170,24 +168,13 @@ const CreateEvents = ({ user }) => {
           ...prev,
           [field]: value,
           eventName: '',
+          leader1: '',
           leader12: '',
-          leader144: '',
           email: '',
+          eventLeader: '',
           ...(isCell ? { date: '', time: '', timePeriod: 'AM' } : {})
         }));
-        setSearchLeader('');
       }
-    }
-
-    // Clear eventLeader ID when typing manually (not selecting from dropdown)
-    if (field === 'eventLeader') {
-      setFormData(prev => ({
-        ...prev,
-        eventLeader: '',
-        leader12: '',
-        leader144: '',
-        email: ''
-      }));
     }
   };
 
@@ -226,7 +213,7 @@ const CreateEvents = ({ user }) => {
       newErrors.location = 'Location is required';
     }
 
-    if (!searchLeader) {
+    if (!formData.eventLeader) {
       newErrors.eventLeader = 'Event leader is required';
     }
 
@@ -268,106 +255,105 @@ const CreateEvents = ({ user }) => {
       location: '',
       eventLeader: '',
       description: '',
+      leader1: '',
       leader12: '',
-      leader144: '',
-      email: ''
+      email: '',
+      leaders: []
     });
     setErrors({});
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  setIsSubmitting(true);
+    setIsSubmitting(true);
 
-  try {
-    const isCell = formData.eventType.toLowerCase().includes("cell");
+    try {
+      const isCell = formData.eventType.toLowerCase().includes("cell");
 
-    // Prepare payload
-    const payload = {
-      ...formData,
-      eventLeader: formData.eventLeader,
-      leader12: formData.leader12,
-      leader144: formData.leader144,
-      userEmail: user?.email || '',
-      recurring_day: formData.recurringDays
-    };
+      // Prepare clean payload
+      const payload = {
+        eventType: formData.eventType,
+        eventName: formData.eventName,
+        isTicketed: formData.isTicketed,
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        description: formData.description,
+        userEmail: user?.email || '',
+        recurring_day: formData.recurringDays
+      };
 
-    // Convert ticketed price to number if needed
-    if (payload.price) {
-      payload.price = parseFloat(payload.price);
-    } else {
-      delete payload.price;
-    }
-
-    // Handle date and time
-    if (!isCell) {
-      if (payload.date && payload.time) {
-        const [hoursStr, minutesStr] = payload.time.split(':');
-        let hours = Number(hoursStr);
-        const minutes = Number(minutesStr);
-
-        if (payload.timePeriod === 'PM' && hours !== 12) hours += 12;
-        if (payload.timePeriod === 'AM' && hours === 12) hours = 0;
-
-        const [year, month, day] = payload.date.split('-').map(Number);
-        const dateObj = new Date(year, month - 1, day, hours, minutes, 0); // local time
-        payload.date = dateObj.toISOString(); // send ISO to backend
-      } else {
-        payload.date = null;
+      // Add price only if ticketed
+      if (formData.isTicketed && formData.price) {
+        payload.price = parseFloat(formData.price);
       }
-    } else {
-      payload.date = null; // Cell events have no date
+
+      // Add leaders for cell events
+      if (isCell) {
+        if (formData.leader1) payload.leader1 = formData.leader1;
+        if (formData.leader12) payload.leader12 = formData.leader12;
+        if (formData.email) payload.email = formData.email;
+      }
+
+      // Handle date and time for non-cell events
+      
+        if (!isCell && formData.date && formData.time) {
+  const [hoursStr, minutesStr] = formData.time.split(':');
+  let hours = Number(hoursStr);
+  const minutes = Number(minutesStr);
+  if (formData.timePeriod === 'PM' && hours !== 12) hours += 12;
+  if (formData.timePeriod === 'AM' && hours === 12) hours = 0;
+  
+  // Use local timezone instead of UTC to avoid date shifting
+  const dateTimeString = `${formData.date}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+  payload.date = dateTimeString;
+}
+
+      console.log('Payload being sent:', JSON.stringify(payload, null, 2));
+
+      // Send request
+      const response = eventId 
+        ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
+        : await axios.post(`${BACKEND_URL}/events`, payload);
+
+      console.log('Server response:', response.data);
+
+      setSuccessMessage(
+        isCell
+          ? `The ${formData.eventName} Cell has been ${eventId ? 'updated' : 'created'} successfully!`
+          : eventId ? "Event updated successfully!" : "Event created successfully!"
+      );
+      setSuccessAlert(true);
+
+      if (!eventId) resetForm();
+
+navigate("/events", { state: { refresh: true, timestamp: Date.now() } });
+
+    } catch (err) {
+      console.error("Error submitting event:", err);
+      console.error("Error response:", err.response?.data);
+      
+      let errorMsg = "Something went wrong. Please try again!";
+      
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMsg = err.response.data;
+        } else if (err.response.data.message) {
+          errorMsg = err.response.data.message;
+        } else if (err.response.data.detail) {
+          errorMsg = err.response.data.detail;
+        } else if (err.response.data.error) {
+          errorMsg = err.response.data.error;
+        }
+      }
+      
+      setErrorMessage(errorMsg);
+      setErrorAlert(true);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Remove time fields
-    delete payload.time;
-    delete payload.timePeriod;
-
-    // Send request
-    if (eventId) {
-      await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
-    } else {
-      await axios.post(`${BACKEND_URL}/events`, payload);
-    }
-
-    // Update leaders for UI display
-    const selectedLeader = peopleData.find(p => p._id === formData.eventLeader);
-    setFormData(prev => ({
-      ...prev,
-      leaders: [
-        { slot: 'eventLeader', name: selectedLeader?.fullName || '' },
-        { slot: 'leader12', name: formData.leader12 },
-        { slot: 'leader144', name: formData.leader144 }
-      ]
-    }));
-
-    setSuccessMessage(
-      isCell
-        ? `The ${formData.eventName} Cell has been ${eventId ? 'updated' : 'created'} successfully!`
-        : eventId ? "Event updated successfully!" : "Event created successfully!"
-    );
-    setSuccessAlert(true);
-
-    if (!eventId) resetForm();
-
-    setTimeout(() => {
-      navigate("/events");
-    }, 1800);
-
-  } catch (err) {
-    console.error("Error submitting event:", err.response?.data || err.message);
-    setErrorMessage(
-      err.response?.data?.detail ||
-      err.response?.data?.message ||
-      "Something went wrong. Please try again!"
-    );
-    setErrorAlert(true);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const isCell = formData.eventType.toLowerCase().includes("cell");
 
@@ -427,34 +413,6 @@ const CreateEvents = ({ user }) => {
     },
     errorText: {
       color: isDarkMode ? '#ff6b6b' : 'red'
-    },
-    warningText: {
-      color: 'orange'
-    },
-    peopleList: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      zIndex: 10,
-      maxHeight: '200px',
-      overflowY: 'auto',
-      border: '1px solid #ccc',
-      borderRadius: '6px',
-      bgcolor: isDarkMode ? '#2d2d2d' : 'white',
-      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-    },
-    personItem: {
-      padding: '12px 16px',
-      cursor: 'pointer',
-      borderBottom: '1px solid #eee',
-      color: isDarkMode ? '#ffffff' : 'inherit',
-      '&:hover': {
-        bgcolor: isDarkMode ? '#3d3d3d' : '#f5f5f5'
-      },
-      '&:last-child': {
-        borderBottom: 'none'
-      }
     }
   };
 
@@ -480,7 +438,13 @@ const CreateEvents = ({ user }) => {
           </Typography>
 
           {/* New Type Form */}
-          <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }} mb={2}>
+          <Box
+            display="flex"
+            flexWrap="wrap"
+            alignItems="center"
+            gap={1.5}
+            mb={1.5}
+          >
             <Button
               variant="outlined"
               onClick={() => setShowNewTypeForm(!showNewTypeForm)}
@@ -489,21 +453,26 @@ const CreateEvents = ({ user }) => {
             >
               New Type
             </Button>
+
             {showNewTypeForm && (
               <>
                 <TextField
                   placeholder="Enter new event type"
                   value={newEventType}
                   onChange={(e) => setNewEventType(e.target.value)}
-                  fullWidth
                   size="small"
-                  sx={darkModeStyles.textField}
+                  sx={{ minWidth: 340, ...darkModeStyles.textField }}
                 />
                 <Button
                   variant="contained"
                   onClick={addNewEventType}
                   size="small"
-                  sx={{ bgcolor: 'primary.main', px: 2, py: 0.5 }}
+                  sx={{
+                    bgcolor: 'primary.main',
+                    px: 3,
+                    py: 0.8,
+                    textTransform: 'none',
+                  }}
                 >
                   Add
                 </Button>
@@ -615,33 +584,34 @@ const CreateEvents = ({ user }) => {
             </Box>
 
             {/* Recurring Days */}
-            {isCell && (
-              <Box mb={3}>
-                <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
-                  Recurring Days <span style={{ color: 'red' }}>*</span>
-                </Typography>
-                <Box display="flex" flexWrap="wrap" gap={2}>
-                  {days.map(day => (
-                    <FormControlLabel
-                      key={day}
-                      control={
-                        <Checkbox
-                          checked={formData.recurringDays.includes(day)}
-                          onChange={() => handleDayChange(day)}
-                        />
-                      }
-                      label={day}
-                      sx={darkModeStyles.formControlLabel}
-                    />
-                  ))}
-                </Box>
-                {errors.recurringDays && (
-                  <Typography variant="caption" sx={darkModeStyles.errorText}>
-                    {errors.recurringDays}
-                  </Typography>
-                )}
+            <Box mb={3}>
+              <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
+                Recurring Days {isCell && <span style={{ color: 'red' }}>*</span>}
+              </Typography>
+              <Typography variant="body2" sx={{ color: isDarkMode ? '#bbb' : '#666', mb: 2 }}>
+                {isCell ? 'Select the days this cell meets regularly' : 'Optional: Select days if this event repeats weekly'}
+              </Typography>
+              <Box display="flex" flexWrap="wrap" gap={2}>
+                {days.map(day => (
+                  <FormControlLabel
+                    key={day}
+                    control={
+                      <Checkbox
+                        checked={formData.recurringDays.includes(day)}
+                        onChange={() => handleDayChange(day)}
+                      />
+                    }
+                    label={day}
+                    sx={darkModeStyles.formControlLabel}
+                  />
+                ))}
               </Box>
-            )}
+              {errors.recurringDays && (
+                <Typography variant="caption" sx={darkModeStyles.errorText}>
+                  {errors.recurringDays}
+                </Typography>
+              )}
+            </Box>
 
             {/* Location */}
             <TextField
@@ -658,76 +628,99 @@ const CreateEvents = ({ user }) => {
               }}
             />
 
-            {/* Event Leader */}
-            <Box sx={{ position: 'relative', mb: 3 }}>
-              <TextField
-                label="Event Leader"
-                value={searchLeader}
-                onChange={(e) => {
-                  setSearchLeader(e.target.value);
-                  setShowPeopleList(!!e.target.value);
-                  handleChange('eventLeader', e.target.value);
-                }}
-                fullWidth
-                size="small"
-                sx={darkModeStyles.textField}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>
-                }}
-                error={!!errors.eventLeader}
-                helperText={errors.eventLeader || "Type to search and select a person from the list"}
-              />
+            {/* Event Leader - Simple Text Field */}
+            <TextField
+              label="Event Leader"
+              value={formData.eventLeader}
+              onChange={(e) => handleChange('eventLeader', e.target.value)}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              error={!!errors.eventLeader}
+              helperText={errors.eventLeader}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>
+              }}
+            />
 
-              {showPeopleList && filteredPeople.length > 0 && (
-                <Box sx={darkModeStyles.peopleList}>
-                  {filteredPeople.map((person, idx) => (
-                    <Box
-                      key={person._id || idx}
-                      onClick={() => handlePersonSelect(person)}
-                      sx={darkModeStyles.personItem}
-                    >
-                      <Typography variant="body1">{person.fullName}</Typography>
-                      {isCell && (
-                        <Typography variant="caption" sx={{ color: isDarkMode ? '#bbb' : '#666' }}>
-                          Leader @12: {person.leader12} | Leader @144: {person.leader144}
-                        </Typography>
-                      )}
-                    </Box>
-                  ))}
-                </Box>
-              )}
-
-              {/* Show warning if user typed but didn't select */}
-
-            </Box>
-
-            {/* Cell Leadership */}
+            {/* Cell Leadership Section */}
             {isCell && (
               <Box mb={3}>
-                <Typography variant="h6" sx={{ mb: 2, color: isDarkMode ? '#ffffff' : 'inherit' }}>
+                <Typography
+                  variant="h6"
+                  sx={{ mb: 2, color: isDarkMode ? '#ffffff' : 'inherit' }}
+                >
                   Leadership Hierarchy
                 </Typography>
-                <TextField
-                  label="Leader at 12"
-                  value={formData.leader12}
-                  onChange={(e) => handleChange('leader12', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
+
+                {/* Leader at 1 */}
+                <Autocomplete
+                  options={peopleData}
+                  getOptionLabel={(option) => option.fullName || ''}
+                  value={peopleData.find(p => p.fullName === formData.leader1) || null}
+                  onChange={(event, newValue) => {
+                    handleChange('leader1', newValue?.fullName || '');
                   }}
+                  filterOptions={(options, { inputValue }) => {
+                    if (!inputValue) return options;
+                    return options.filter(option =>
+                      option.fullName.toLowerCase().includes(inputValue.toLowerCase())
+                    );
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Leader at 1"
+                      size="small"
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position="start">
+                              <PersonIcon />
+                            </InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        )
+                      }}
+                    />
+                  )}
                 />
-                <TextField
-                  label="Leader at 144"
-                  value={formData.leader144}
-                  onChange={(e) => handleChange('leader144', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
+
+                {/* Leader at 12 */}
+                <Autocomplete
+                  options={peopleData}
+                  getOptionLabel={(option) => option.fullName || ''}
+                  value={peopleData.find(p => p.fullName === formData.leader12) || null}
+                  onChange={(event, newValue) => {
+                    handleChange('leader12', newValue?.fullName || '');
                   }}
+                  filterOptions={(options, { inputValue }) => {
+                    if (!inputValue) return options;
+                    return options.filter(option =>
+                      option.fullName.toLowerCase().includes(inputValue.toLowerCase())
+                    );
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Leader at 12"
+                      size="small"
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position="start">
+                              <PersonIcon />
+                            </InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        )
+                      }}
+                    />
+                  )}
                 />
               </Box>
             )}

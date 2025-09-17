@@ -54,6 +54,7 @@ function App() {
 const location = useLocation();
 const noLayoutRoutes = ["/login", "/signup", "/forgot-password", "/reset-password"];
 const hideLayout = noLayoutRoutes.includes(location.pathname);
+const user = JSON.parse(localStorage.getItem("user")) || null;
 
 
   return (
@@ -81,12 +82,9 @@ const hideLayout = noLayoutRoutes.includes(location.pathname);
             <Route path="/create-events" element={<CreateEvents title="Create Events" />} />
             <Route path="/edit-event/:id" element={<CreateEvents title="Create Events Edit" />} />
             <Route path="/attendance" element={<AttendanceModal title="Attendance Modal" />} />
-            <Route
-              path="/history"
-              element={<EventsHistory />}
-            />
+          
             <Route path="/event-details" element={<EventDetails title="event-details-screen" />} />
-            <Route path="/history" element={<EventsHistory />} />
+            <Route path="/events-history" element={<EventsHistory title="Events History" user={user} />} />
             <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
             {/* <Route path="/give-today" element={<ProtectedGiveToday title="Give Today" />} /> */}
             <Route path="/daily-tasks" element={<ProtectedDailyTasks title="Daily Tasks" />} />
