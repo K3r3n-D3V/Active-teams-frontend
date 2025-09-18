@@ -1,508 +1,3 @@
-// import React, { useState, useEffect } from 'react';
-// import {
-//   Box,
-//   Grid,
-//   Typography,
-//   Paper,
-//   Avatar,
-//   useTheme,
-//   CssBaseline,
-//   useMediaQuery
-// } from '@mui/material';
-// import { Edit as EditIcon } from '@mui/icons-material';
-// import { Line, Bar, Pie } from 'react-chartjs-2';
-// import {
-//   Chart as ChartJS,
-//   LineElement,
-//   PointElement,
-//   LinearScale,
-//   CategoryScale,
-//   BarElement,
-//   Title,
-//   Tooltip,
-//   Legend,
-//   ArcElement
-// } from 'chart.js';
-// import { Scheduler } from '@aldabil/react-scheduler';
-
-// ChartJS.register(
-//   LineElement,
-//   PointElement,
-//   LinearScale,
-//   CategoryScale,
-//   BarElement,
-//   Title,
-//   Tooltip,
-//   Legend,
-//   ArcElement
-// );
-
-// const StatsDashboard = () => {
-//   const theme = useTheme();
-//   const mode = theme.palette.mode;
-
-//   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-//   const isTablet = useMediaQuery(theme.breakpoints.between("sm", "md"));
-//   const schedulerView = isMobile ? "day" : isTablet ? "week" : "month";
-
-//   const [chartData, setChartData] = useState({
-//     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
-//     datasets: [
-//       { label: 'Calls', data: [50, 100, 75, 120, 160], borderColor: '#42a5f5', tension: 0.4 },
-//       { label: 'Cells', data: [80, 60, 130, 140, 110], borderColor: '#66bb6a', tension: 0.4 }
-//     ]
-//   });
-
-//   useEffect(() => {
-//     const interval = setInterval(() => {
-//       setChartData(prev => ({
-//         ...prev,
-//         datasets: prev.datasets.map(ds => ({
-//           ...ds,
-//           data: ds.data.map(n => Math.max(0, n + Math.round((Math.random() - 0.5) * 20)))
-//         }))
-//       }));
-//     }, 3000);
-//     return () => clearInterval(interval);
-//   }, []);
-
-//   const tasks = [
-//     { name: 'Tegra Mungudi', email: 'tegra@example.com', count: 64 },
-//     { name: 'Kevin Cyberg', email: 'kevin@example.com', count: 3 },
-//     { name: 'Timmy Ngezo', email: 'timmy@example.com', count: 10 },
-//     { name: 'Zen Diaz', email: 'zen@example.com', count: 29 },
-//     { name: 'Eliak James', email: 'eliak@example.com', count: 4 },
-//     { name: 'Thabo Tshims', email: 'thabo@example.com', count: 24 }
-//   ];
-
-//   const cells = [
-//     { name: 'Tegra Mungudi', location: 'Rosettenville School cell' },
-//     { name: 'Kevin Cyberg', location: '98 Albert Street (Home) Cell' },
-//     { name: 'Timmy Ngezo', location: 'Downtown Community Cell' },
-//     { name: 'Zen Diaz', location: 'Eastside Cell Group' }
-//   ];
-
-//   const [events, setEvents] = useState([
-//     { event_id: 1, title: 'Youth Service', start: new Date(), end: new Date(Date.now() + 3600000) }
-//   ]);
-
-//   const backgroundColor = mode === 'dark' ? '#1e1e1e' : '#ffffffff';
-//   const cardColor = mode === 'dark' ? '#2b2b2b' : '#ffffff';
-
-//   // Enhanced shadow styles for different elements
-//   const cardShadow = mode === 'dark' 
-//     ? '0 8px 32px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.4)'
-//     : '0 8px 32px rgba(0, 0, 0, 0.12), 0 4px 16px rgba(0, 0, 0, 0.08)';
-  
-//   const itemShadow = mode === 'dark'
-//     ? '0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3)'
-//     : '0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06)';
-
-//   const avatarShadow = mode === 'dark'
-//     ? '0 4px 12px rgba(0, 0, 0, 0.5)'
-//     : '0 4px 12px rgba(0, 0, 0, 0.15)';
-
-//   const countBoxShadow = mode === 'dark'
-//     ? '0 3px 8px rgba(0, 0, 0, 0.4)'
-//     : '0 3px 8px rgba(0, 0, 0, 0.12)';
-
-//   return (
-//     <Box
-//       sx={{
-//         minHeight: '100vh',
-//         bgcolor: backgroundColor,
-//         display: 'flex',
-//         justifyContent: 'center',
-//         py: { xs: 2, md: 4 }
-//       }}
-//     >
-//       <CssBaseline />
-//       <Box sx={{ width: '100%', maxWidth: 1200, px: { xs: 1, sm: 2 }, mt: "50px" }}>
-//         <Grid container spacing={3} justifyContent="center">
-
-//           {/* Service Growth */}
-//           <Grid item xs={12} md={6}>
-//             <Paper sx={{ 
-//               p: 3, 
-//               borderRadius: 2, 
-//               bgcolor: cardColor, 
-//               height: 545,
-//               boxShadow: cardShadow,
-//               transition: 'box-shadow 0.3s ease-in-out',
-//               '&:hover': {
-//                 boxShadow: mode === 'dark' 
-//                   ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
-//                   : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
-//               }
-//             }}>
-//               <Typography variant="subtitle2">August</Typography>
-//               <Typography variant="h4" fontWeight="bold" mt={2}>87.5%</Typography>
-//               <Typography>Service Growth</Typography>
-//               <Pie
-//                 data={{
-//                   labels: ["August", "July"],
-//                   datasets: [{ data: [87.5, 12.5], backgroundColor: ["#3f51b5", "#e0e0e0"], hoverOffset: 4 }]
-//                 }}
-//               />
-//             </Paper>
-//           </Grid>
-
-//           {/* Charts */}
-//           <Grid item xs={12} md={6}>
-//             <Grid container spacing={3} direction="column">
-//               <Grid item xs={12}>
-//                 <Paper sx={{ 
-//                   p: 2, 
-//                   borderRadius: 2, 
-//                   bgcolor: cardColor,
-//                   boxShadow: cardShadow,
-//                   transition: 'box-shadow 0.3s ease-in-out',
-//                   '&:hover': {
-//                     boxShadow: mode === 'dark' 
-//                       ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
-//                       : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
-//                   }
-//                 }}>
-//                   <Box display="flex" justifyContent="space-between" alignItems="center">
-//                     <Typography>Weekend Services</Typography>
-//                     <Box sx={{
-//                       p: 1,
-//                       borderRadius: 1,
-//                       boxShadow: itemShadow,
-//                       bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
-//                       cursor: 'pointer',
-//                       transition: 'all 0.2s ease-in-out',
-//                       '&:hover': {
-//                         transform: 'translateY(-1px)',
-//                         boxShadow: mode === 'dark'
-//                           ? '0 6px 20px rgba(0, 0, 0, 0.5)'
-//                           : '0 6px 20px rgba(0, 0, 0, 0.1)'
-//                       }
-//                     }}>
-//                       <EditIcon fontSize="small" />
-//                     </Box>
-//                   </Box>
-//                   <Typography variant="caption">August</Typography>
-//                   <Bar
-//                     data={{
-//                       labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-//                       datasets: [{ label: 'Attendance', data: [120, 150, 100, 180], backgroundColor: theme.palette.primary.main, borderRadius: 6 }]
-//                     }}
-//                     options={{
-//                       responsive: true,
-//                       maintainAspectRatio: true,
-//                       aspectRatio: 2,
-//                       plugins: { legend: { display: false } },
-//                       scales: {
-//                         y: { beginAtZero: true, ticks: { stepSize: 50, color: theme.palette.text.secondary }, grid: { color: theme.palette.divider } },
-//                         x: { ticks: { color: theme.palette.text.secondary }, grid: { display: false } }
-//                       }
-//                     }}
-//                   />
-//                 </Paper>
-//               </Grid>
-
-//               <Grid item xs={12}>
-//                 <Paper sx={{ 
-//                   p: 2, 
-//                   borderRadius: 2, 
-//                   bgcolor: cardColor,
-//                   boxShadow: cardShadow,
-//                   transition: 'box-shadow 0.3s ease-in-out',
-//                   '&:hover': {
-//                     boxShadow: mode === 'dark' 
-//                       ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
-//                       : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
-//                   }
-//                 }}>
-//                   <Typography>Amount of Calls<br />And Cells Captured</Typography>
-//                   <Typography variant="caption">August</Typography>
-//                   <Line
-//                     data={chartData}
-//                     options={{
-//                       responsive: true,
-//                       maintainAspectRatio: true,
-//                       aspectRatio: 2,
-//                       plugins: { legend: { labels: { usePointStyle: true, pointStyle: 'rectRounded', color: theme.palette.text.primary } } },
-//                       scales: {
-//                         y: { beginAtZero: true, ticks: { stepSize: 50, color: theme.palette.text.secondary }, grid: { color: theme.palette.divider } },
-//                         x: { ticks: { color: theme.palette.text.secondary }, grid: { display: false } }
-//                       }
-//                     }}
-//                   />
-//                 </Paper>
-//               </Grid>
-//             </Grid>
-//           </Grid>
-
-//           {/* Outstanding Cells & Tasks */}
-//           <Grid item xs={12}>
-//             <Grid container spacing={3}>
-//               <Grid item xs={12} md={6}>
-//                 <Paper sx={{ 
-//                   p: { xs: 3, sm: 4 }, 
-//                   borderRadius: 2, 
-//                   bgcolor: cardColor, 
-//                   height: 500, 
-//                   overflowY: 'auto',
-//                   boxShadow: cardShadow,
-//                   transition: 'box-shadow 0.3s ease-in-out',
-//                   '&:hover': {
-//                     boxShadow: mode === 'dark' 
-//                       ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
-//                       : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
-//                   }
-//                 }}>
-//                   <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-//                     Outstanding Cells
-//                   </Typography>
-//                   <Box sx={{ mt: 2 }}>
-//                     {cells.map((item, i) => (
-//                       <Box 
-//                         key={i} 
-//                         sx={{
-//                           display: 'flex',
-//                           alignItems: 'center',
-//                           mb: 3,
-//                           p: { xs: 1, sm: 2 },
-//                           borderRadius: 1,
-//                           boxShadow: itemShadow,
-//                           bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
-//                           transition: 'all 0.3s ease-in-out',
-//                           '&:hover': {
-//                             bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-//                             transform: 'translateY(-2px)',
-//                             boxShadow: mode === 'dark'
-//                               ? '0 8px 24px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)'
-//                               : '0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)'
-//                           }
-//                         }}
-//                       >
-//                         <Avatar sx={{ 
-//                           mr: { xs: 2, sm: 3 }, 
-//                           width: { xs: 40, sm: 48 }, 
-//                           height: { xs: 40, sm: 48 }, 
-//                           fontSize: { xs: 18, sm: 24 },
-//                           boxShadow: avatarShadow,
-//                           transition: 'box-shadow 0.2s ease-in-out'
-//                         }}>
-//                           {item.name[0]}
-//                         </Avatar>
-//                         <Box sx={{ flex: 1, minWidth: 0 }}>
-//                           <Typography 
-//                             variant="subtitle1" 
-//                             sx={{ 
-//                               fontSize: { xs: '0.875rem', sm: '1rem' },
-//                               fontWeight: 500 
-//                             }}
-//                           >
-//                             {item.name}
-//                           </Typography>
-//                           <Typography 
-//                             variant="caption" 
-//                             sx={{ 
-//                               color: theme.palette.text.secondary,
-//                               fontSize: { xs: '0.75rem', sm: '0.875rem' },
-//                               wordBreak: 'break-word'
-//                             }}
-//                           >
-//                             {item.location}
-//                           </Typography>
-//                         </Box>
-//                       </Box>
-//                     ))}
-//                   </Box>
-//                 </Paper>
-//               </Grid>
-
-//               <Grid item xs={12} md={6}>
-//                 <Paper sx={{ 
-//                   p: { xs: 3, sm: 4 }, 
-//                   borderRadius: 2, 
-//                   bgcolor: cardColor, 
-//                   height: 500, 
-//                   overflowY: 'auto',
-//                   boxShadow: cardShadow,
-//                   transition: 'box-shadow 0.3s ease-in-out',
-//                   '&:hover': {
-//                     boxShadow: mode === 'dark' 
-//                       ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
-//                       : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
-//                   }
-//                 }}>
-//                   <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-//                     Outstanding Tasks
-//                   </Typography>
-//                   <Box sx={{ mt: 2 }}>
-//                     {tasks.map((item, i) => (
-//                       <Box 
-//                         key={i} 
-//                         sx={{
-//                           display: 'flex',
-//                           alignItems: 'center',
-//                           mb: 3,
-//                           p: { xs: 1, sm: 2 },
-//                           borderRadius: 1,
-//                           boxShadow: itemShadow,
-//                           bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
-//                           transition: 'all 0.3s ease-in-out',
-//                           '&:hover': {
-//                             bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-//                             transform: 'translateY(-2px)',
-//                             boxShadow: mode === 'dark'
-//                               ? '0 8px 24px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)'
-//                               : '0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)'
-//                           }
-//                         }}
-//                       >
-//                         <Avatar sx={{ 
-//                           mr: { xs: 2, sm: 3 }, 
-//                           width: { xs: 40, sm: 48 }, 
-//                           height: { xs: 40, sm: 48 }, 
-//                           fontSize: { xs: 18, sm: 24 },
-//                           boxShadow: avatarShadow,
-//                           transition: 'box-shadow 0.2s ease-in-out'
-//                         }}>
-//                           {item.name[0]}
-//                         </Avatar>
-//                         <Box sx={{ flex: 1, minWidth: 0 }}>
-//                           <Typography 
-//                             variant="subtitle1" 
-//                             sx={{ 
-//                               fontSize: { xs: '0.875rem', sm: '1rem' },
-//                               fontWeight: 500 
-//                             }}
-//                           >
-//                             {item.name}
-//                           </Typography>
-//                           <Typography 
-//                             variant="caption" 
-//                             sx={{ 
-//                               color: theme.palette.text.secondary,
-//                               fontSize: { xs: '0.75rem', sm: '0.875rem' },
-//                               wordBreak: 'break-word'
-//                             }}
-//                           >
-//                             {item.email}
-//                           </Typography>
-//                         </Box>
-//                         <Box sx={{ 
-//                           display: 'flex', 
-//                           alignItems: 'center', 
-//                           justifyContent: 'center',
-//                           minWidth: { xs: 40, sm: 50 },
-//                           height: { xs: 40, sm: 50 },
-//                           bgcolor: theme.palette.primary.main,
-//                           color: theme.palette.primary.contrastText,
-//                           borderRadius: 1,
-//                           ml: 2,
-//                           boxShadow: countBoxShadow,
-//                           transition: 'all 0.2s ease-in-out',
-//                           '&:hover': {
-//                             transform: 'scale(1.05)',
-//                             boxShadow: mode === 'dark'
-//                               ? '0 6px 16px rgba(0, 0, 0, 0.5)'
-//                               : '0 6px 16px rgba(0, 0, 0, 0.15)'
-//                           }
-//                         }}>
-//                           <Typography sx={{ 
-//                             fontWeight: 'bold', 
-//                             fontSize: { xs: 16, sm: 18 } 
-//                           }}>
-//                             {item.count.toString().padStart(2, '0')}
-//                           </Typography>
-//                         </Box>
-//                       </Box>
-//                     ))}
-//                   </Box>
-//                 </Paper>
-//               </Grid>
-//             </Grid>
-//           </Grid>
-
-//           {/* Scheduler */}
-//           <Grid item xs={12}>
-//             <Grid container spacing={3}>
-//               <Grid item xs={12}>
-//                 <Paper sx={{ 
-//                   p: { xs: 2, sm: 3 }, 
-//                   borderRadius: 2, 
-//                   bgcolor: cardColor,
-//                   boxShadow: cardShadow,
-//                   transition: 'box-shadow 0.3s ease-in-out',
-//                   '&:hover': {
-//                     boxShadow: mode === 'dark' 
-//                       ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
-//                       : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
-//                   }
-//                 }}>
-//                   <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem" } }}>
-//                     Church Scheduler
-//                   </Typography>
-//                   <Box sx={{ 
-//                     width: '100%', 
-//                     height: { xs: 400, sm: 500, md: 600 },
-//                     overflow: 'hidden',
-//                     borderRadius: 1,
-//                     boxShadow: itemShadow,
-//                     "& .rs__root": { 
-//                       width: '100% !important', 
-//                       height: '100% !important' 
-//                     },
-//                     "& .rs__header": {
-//                       fontSize: { xs: '0.75rem', sm: '0.875rem' }
-//                     },
-//                     "& .rs__cell": {
-//                       fontSize: { xs: '0.7rem', sm: '0.8rem' }
-//                     },
-//                     "& .rs__event": {
-//                       fontSize: { xs: '0.7rem', sm: '0.8rem' },
-//                       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-//                       transition: 'all 0.2s ease-in-out',
-//                       '&:hover': {
-//                         transform: 'scale(1.02)',
-//                         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
-//                       }
-//                     },
-//                     "& .rs__table": {
-//                       minWidth: { xs: '100%', sm: 'auto' }
-//                     }
-//                   }}>
-//                     <Scheduler
-//                       view={schedulerView}
-//                       events={events}
-//                       onEventsChange={setEvents}
-//                       config={{
-//                         defaultTheme: mode,
-//                         adaptive: true,
-//                         cellHeight: isMobile ? 35 : isTablet ? 45 : 55,
-//                         headerHeight: isMobile ? 35 : isTablet ? 45 : 55,
-//                         fontSize: isMobile ? 11 : isTablet ? 12 : 14,
-//                         hourFormat: isMobile ? 12 : 24,
-//                         weekStartsOn: 0, // Sunday
-//                         eventItemHeight: isMobile ? 25 : 30,
-//                         multiDayItemHeight: isMobile ? 25 : 30,
-//                       }}
-//                       style={{
-//                         fontSize: isMobile ? '0.75rem' : '0.875rem',
-//                         width: '100%'
-//                       }}
-//                     />
-//                   </Box>
-//                 </Paper>
-//               </Grid>
-//             </Grid>
-//           </Grid>
-
-//         </Grid>
-//       </Box>
-//     </Box>
-//   );
-// };
-
-// export default StatsDashboard;
-
-
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -565,10 +60,19 @@ ChartJS.register(
   Legend,
   ArcElement
 );
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000/api';
 
 // Event Creation Popup Component
-const EventCreationPopup = ({ open, onClose, onEventCreated, user, backendUrl }) => {
+const EventCreationPopup = ({ 
+  open, 
+  onClose, 
+  onEventCreated, 
+  user, 
+  backendUrl, 
+  selectedDate = null,
+  editingEvent = null 
+}) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   
@@ -589,7 +93,8 @@ const EventCreationPopup = ({ open, onClose, onEventCreated, user, backendUrl })
     'Conference',
     'J-Activation',
     'Destiny Training',
-    'Social Event'
+    'Social Event',
+    'Cell Meeting'
   ]);
 
   const [formData, setFormData] = useState({
@@ -610,6 +115,41 @@ const EventCreationPopup = ({ open, onClose, onEventCreated, user, backendUrl })
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const timePeriods = ['AM', 'PM'];
+
+  // Initialize form data when editing or creating
+  useEffect(() => {
+    if (editingEvent) {
+      // Pre-fill form with existing event data
+      const eventDate = new Date(editingEvent.start);
+      const hours = eventDate.getHours();
+      const minutes = eventDate.getMinutes();
+      const timePeriod = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      
+      setFormData({
+        eventType: editingEvent.eventType || '',
+        eventName: editingEvent.title || '',
+        isTicketed: editingEvent.isTicketed || false,
+        price: editingEvent.price || '',
+        date: eventDate.toISOString().split('T')[0],
+        time: `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`,
+        timePeriod: timePeriod,
+        recurringDays: editingEvent.recurringDays || [],
+        location: editingEvent.location || '',
+        eventLeader: editingEvent.eventLeader || '',
+        description: editingEvent.description || ''
+      });
+    } else if (selectedDate) {
+      // Pre-fill date when creating new event
+      const date = new Date(selectedDate);
+      setFormData(prev => ({
+        ...prev,
+        date: date.toISOString().split('T')[0]
+      }));
+    } else {
+      resetForm();
+    }
+  }, [editingEvent, selectedDate, open]);
 
   // Mock people data - replace with actual API call
   useEffect(() => {
@@ -715,15 +255,17 @@ const EventCreationPopup = ({ open, onClose, onEventCreated, user, backendUrl })
         payload.price = parseFloat(formData.price);
       }
 
-      console.log('Payload being sent:', JSON.stringify(payload, null, 2));
+      const url = editingEvent 
+        ? `${backendUrl}/events/${editingEvent.event_id}`
+        : `${backendUrl}/events`;
+      
+      const method = editingEvent ? 'PUT' : 'POST';
 
       // Send to your actual backend API
-      const response = await fetch(`${BACKEND_URL}/events`, {
-        method: 'POST',
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
-          // Add any authentication headers if needed
-          // 'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(payload)
       });
@@ -734,13 +276,12 @@ const EventCreationPopup = ({ open, onClose, onEventCreated, user, backendUrl })
       }
 
       const responseData = await response.json();
-      console.log('Server response:', responseData);
 
-      setSuccessMessage('Event created successfully!');
+      setSuccessMessage(editingEvent ? 'Event updated successfully!' : 'Event created successfully!');
       setSuccessAlert(true);
       resetForm();
       
-      // Refresh the events list to include the new event
+      // Refresh the events list to include the new/updated event
       onEventCreated();
       
       setTimeout(() => {
@@ -748,9 +289,11 @@ const EventCreationPopup = ({ open, onClose, onEventCreated, user, backendUrl })
       }, 1500);
 
     } catch (err) {
-      console.error('Error creating event:', err);
+      console.error('Error saving event:', err);
       
-      let errorMsg = 'Failed to create event. Please try again.';
+      let errorMsg = editingEvent 
+        ? 'Failed to update event. Please try again.'
+        : 'Failed to create event. Please try again.';
       
       if (err.message) {
         errorMsg = err.message;
@@ -795,7 +338,7 @@ const EventCreationPopup = ({ open, onClose, onEventCreated, user, backendUrl })
       <DialogTitle>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Typography variant="h5" fontWeight="bold">
-            Create New Event
+            {editingEvent ? 'Edit Event' : 'Create New Event'}
           </Typography>
           <IconButton onClick={onClose} edge="end">
             <CloseIcon />
@@ -1019,7 +562,10 @@ const EventCreationPopup = ({ open, onClose, onEventCreated, user, backendUrl })
                 fullWidth
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Creating...' : 'Create Event'}
+                {isSubmitting 
+                  ? (editingEvent ? 'Updating...' : 'Creating...') 
+                  : (editingEvent ? 'Update Event' : 'Create Event')
+                }
               </Button>
             </Box>
           </form>
@@ -1070,6 +616,8 @@ const StatsDashboard = () => {
   });
 
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
+  const [selectedEventDate, setSelectedEventDate] = useState(null);
+  const [editingEvent, setEditingEvent] = useState(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1115,8 +663,6 @@ const StatsDashboard = () => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          // Add any authentication headers if needed
-          // 'Authorization': `Bearer ${token}`
         }
       });
       
@@ -1238,19 +784,63 @@ const StatsDashboard = () => {
   const handleSchedulerEventsChange = async (updatedEvents) => {
     try {
       // When events are modified in the scheduler (moved, edited, deleted)
-      // We need to update them in the backend
-      
-      // For now, just update local state and refresh from backend
-      // You may want to implement individual PUT/DELETE API calls for better UX
       setAllEvents(updatedEvents);
       
-      // Optionally refresh from backend to ensure consistency
-      // await fetchEvents();
     } catch (error) {
       console.error('Error updating events:', error);
       // Revert to original events if update fails
       await fetchEvents();
     }
+  };
+
+  // Handle custom event creation dialog opening
+  const openEventDialog = (selectedDate = null, eventToEdit = null) => {
+    setSelectedEventDate(selectedDate);
+    setEditingEvent(eventToEdit);
+    setEventDialogOpen(true);
+  };
+
+  const closeEventDialog = () => {
+    setEventDialogOpen(false);
+    setSelectedEventDate(null);
+    setEditingEvent(null);
+  };
+
+  // Custom event renderer for scheduler
+  const customEventRenderer = ({ event, ...props }) => {
+    return (
+      <div
+        {...props}
+        style={{
+          ...props.style,
+          backgroundColor: event.eventType === 'Sunday Service' ? '#3f51b5' : 
+                          event.eventType === 'Friday Service' ? '#f44336' :
+                          event.eventType === 'Workshop' ? '#ff9800' :
+                          event.eventType === 'Cell Meeting' ? '#4caf50' : '#9c27b0',
+          border: 'none',
+          borderRadius: '4px',
+          padding: '2px 6px',
+          fontSize: isMobile ? '10px' : '12px',
+          fontWeight: 500,
+          color: 'white',
+          cursor: 'pointer',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          openEventDialog(null, event);
+        }}
+      >
+        {event.title}
+        {event.location && (
+          <div style={{ fontSize: isMobile ? '8px' : '10px', opacity: 0.8 }}>
+            📍 {event.location}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -1588,7 +1178,7 @@ const StatsDashboard = () => {
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
-                  onClick={() => setEventDialogOpen(true)}
+                  onClick={() => openEventDialog()}
                   disabled={loading}
                   sx={{
                     bgcolor: theme.palette.primary.main,
@@ -1636,7 +1226,8 @@ const StatsDashboard = () => {
                     fontSize: { xs: '0.75rem', sm: '0.875rem' }
                   },
                   "& .rs__cell": {
-                    fontSize: { xs: '0.7rem', sm: '0.8rem' }
+                    fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                    cursor: 'pointer'
                   },
                   "& .rs__event": {
                     fontSize: { xs: '0.7rem', sm: '0.8rem' },
@@ -1649,6 +1240,10 @@ const StatsDashboard = () => {
                   },
                   "& .rs__table": {
                     minWidth: { xs: '100%', sm: 'auto' }
+                  },
+                  // Override scheduler's default event creation behavior
+                  "& .rs__cell--today": {
+                    backgroundColor: mode === 'dark' ? 'rgba(63, 81, 181, 0.1)' : 'rgba(63, 81, 181, 0.05)'
                   }
                 }}>
                   <Scheduler
@@ -1666,6 +1261,18 @@ const StatsDashboard = () => {
                       eventItemHeight: isMobile ? 25 : 30,
                       multiDayItemHeight: isMobile ? 25 : 30,
                     }}
+                    // Custom event handlers to override default behavior
+                    onCellClick={(date) => {
+                      // Open custom dialog when clicking on empty cell
+                      openEventDialog(date);
+                    }}
+                    onEventClick={(event) => {
+                      // Open custom dialog when clicking on existing event
+                      openEventDialog(null, event);
+                    }}
+                    // Disable built-in event creation
+                    editable={false}
+                    eventRenderer={customEventRenderer}
                     style={{
                       fontSize: isMobile ? '0.75rem' : '0.875rem',
                       width: '100%'
@@ -1682,7 +1289,7 @@ const StatsDashboard = () => {
         <Fab
           color="primary"
           aria-label="create event"
-          onClick={() => setEventDialogOpen(true)}
+          onClick={() => openEventDialog()}
           sx={{
             position: 'fixed',
             bottom: 32,
@@ -1705,10 +1312,12 @@ const StatsDashboard = () => {
         {/* Event Creation Dialog */}
         <EventCreationPopup
           open={eventDialogOpen}
-          onClose={() => setEventDialogOpen(false)}
+          onClose={closeEventDialog}
           onEventCreated={handleEventCreated}
           user={{ email: 'user@example.com' }}
           backendUrl={BACKEND_URL}
+          selectedDate={selectedEventDate}
+          editingEvent={editingEvent}
         />
       </Box>
     </Box>
