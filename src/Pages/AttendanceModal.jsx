@@ -24,13 +24,12 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
       const data = await res.json();
       const peopleArray = data.people || data.results || [];
 
-     const formatted = peopleArray.map((p) => ({
-  id: p._id,
-  fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-  leader12: p["Leader @12"] || p.leader12 || "",
-  leader144: p["Leader @144"] || p.leader144 || "",
-}));
-
+      const formatted = peopleArray.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        leader12: p["Leader @12"] || p.leader12 || "",
+        leader144: p["Leader @144"] || p.leader144 || "",
+      }));
 
       setPeople(formatted);
     } catch (err) {
@@ -94,7 +93,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
     }));
   };
 
-const handleSubmit = async () => {
+ const handleSubmit = async () => {
   const user = JSON.parse(localStorage.getItem('user'));
   const selected = people.filter(p => checked[p.id]);
 
@@ -107,16 +106,26 @@ const handleSubmit = async () => {
     return;
   }
 
+  const eventId = event?.id || event?._id;
+
+  if (!eventId) {
+    setAlert({
+      open: true,
+      type: "error",
+      message: "Event ID is missing, cannot submit attendance.",
+    });
+    return;
+  }
+
   const payload = {
-    eventId: event.id,
     attendees: selected,
     leaderEmail: user?.email,
     leaderName: user?.name
   };
 
   try {
-    const response = await fetch('/api/submit-attendance', {
-      method: 'POST',
+    const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+      method: 'PUT',
       body: JSON.stringify(payload),
       headers: { 'Content-Type': 'application/json' }
     });
@@ -145,8 +154,6 @@ const handleSubmit = async () => {
     });
   }
 };
-
-
   const handleMarkDidNotMeet = async () => {
     if (onSubmit) {
       const result = await onSubmit("did-not-meet");
@@ -246,27 +253,32 @@ const handleSubmit = async () => {
     actions: {
       display: "flex",
       justifyContent: "space-between",
-      flexWrap: "wrap",
-      gap: "8px",
+      gap: "12px",
       marginTop: "20px",
     },
     primaryBtn: {
-      background: "#007bff",
+      background: "#28a745", // Green color for submit
       color: "#fff",
       border: "none",
-      padding: "10px 16px",
+      padding: "12px 20px",
       borderRadius: "6px",
       cursor: "pointer",
       flex: 1,
+      fontSize: "16px",
+      fontWeight: "500",
+      transition: "background-color 0.2s",
     },
     secondaryBtn: {
-      background: "#e84118",
+      background: "#dc3545", // Red color for did not meet
       color: "#fff",
       border: "none",
-      padding: "10px 16px",
+      padding: "12px 20px",
       borderRadius: "6px",
       cursor: "pointer",
       flex: 1,
+      fontSize: "16px",
+      fontWeight: "500",
+      transition: "background-color 0.2s",
     },
   };
 
@@ -283,78 +295,82 @@ const handleSubmit = async () => {
   );
 
   return (
-  <>
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <button style={styles.closeBtn} onClick={onClose}>
-          &times;
-        </button>
-
-        <h2>Capture Attendance - {event.eventName || event.service_name || "Event"}</h2>
-
-       <input
-  type="text"
-  placeholder="Search people..."
-  value={searchName}
-  onChange={(e) => setSearchName(e.target.value)}
-  style={styles.input}
-/>
-
-<div style={styles.peopleList}>
-  {loading && <p>Loading...</p>}
-  {!loading && filteredPeople.length === 0 && <p>No people found.</p>}
-  {filteredPeople.map((person) => (
-    <div
-      key={person.id}
-      style={styles.personItem}
-      onClick={() => handleToggle(person.id)}
-    >
-      <input
-        type="checkbox"
-        checked={!!checked[person.id]}
-        readOnly
-        style={styles.checkbox}
-      />
-      <div>
-       <span style={{ color: "#444", fontWeight: 500 }}>{person.fullName}</span>
-
-      </div>
-    </div>
-  ))}
-</div>
-
-
-        <div style={styles.actions}>
-          <button
-            style={styles.secondaryBtn}
-            onClick={handleMarkDidNotMeet}
-          >
-            Mark As Did Not Meet
+    <>
+      <div style={styles.overlay}>
+        <div style={styles.modal}>
+          <button style={styles.closeBtn} onClick={onClose}>
+            &times;
           </button>
-       <button onClick={handleSubmit} className="submit-btn">
-  Submit Attendance
-</button>
 
+          <h2>Capture Attendance - {event.eventName || event.service_name || "Event"}</h2>
+
+          <input
+            type="text"
+            placeholder="Search people..."
+            value={searchName}
+            onChange={(e) => setSearchName(e.target.value)}
+            style={styles.input}
+          />
+
+          <div style={styles.peopleList}>
+            {loading && <p>Loading...</p>}
+            {!loading && filteredPeople.length === 0 && <p>No people found.</p>}
+            {filteredPeople.map((person) => (
+              <div
+                key={person.id}
+                style={styles.personItem}
+                onClick={() => handleToggle(person.id)}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!checked[person.id]}
+                  readOnly
+                  style={styles.checkbox}
+                />
+                <div>
+                  <span style={{ color: "#444", fontWeight: 500 }}>{person.fullName}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={styles.actions}>
+            <button
+              style={styles.secondaryBtn}
+              onClick={handleMarkDidNotMeet}
+              onMouseEnter={(e) => e.target.style.backgroundColor = "#c82333"}
+              onMouseLeave={(e) => e.target.style.backgroundColor = "#dc3545"}
+            >
+              Mark As Did Not Meet
+            </button>
+            <button
+              style={styles.primaryBtn}
+              onClick={handleSubmit}
+              onMouseEnter={(e) => e.target.style.backgroundColor = "#218838"}
+              onMouseLeave={(e) => e.target.style.backgroundColor = "#28a745"}
+            >
+              Submit Attendance
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <Snackbar
-      open={alert.open}
-      autoHideDuration={5000}
-      onClose={() => setAlert({ ...alert, open: false })}
-      anchorOrigin={{ vertical: "top", horizontal: "center" }}
-    >
-      <Alert
-        severity={alert.type}
-        variant="filled"
+      <Snackbar
+        open={alert.open}
+        autoHideDuration={5000}
         onClose={() => setAlert({ ...alert, open: false })}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
-        {alert.message}
-      </Alert>
-    </Snackbar>
-  </>
-);
+        <Alert
+          severity={alert.type}
+          variant="filled"
+          onClose={() => setAlert({ ...alert, open: false })}
+        >
+          {alert.message}
+        </Alert>
+      </Snackbar>
+    </>
+  );
 };
 
 export default AttendanceModal;
