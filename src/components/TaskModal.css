@@ -64,7 +64,7 @@ body.dark-mode {
 .task-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 5px;
 }
 
 .task-form-body {
@@ -83,50 +83,49 @@ body.dark-mode {
   font-size: 16px;
   font-weight: bold;
 }
+/* Add this to your CSS file or style block */
 
-.task-info label {
-  display: block;
-  margin-top: 10px;
-  font-size: 14px;
-  font-weight: 500;
-  text-align: left;
-}
-
-.task-info input,
-.task-info select,
-.task-comments textarea {
-  width: 100%;
-  padding: 8px;
-  margin-top: 5px;
-  border: 1px solid var(--input-border);
-  border-radius: 6px;
-  font-size: 14px;
-  background: var(--input-bg);
-  color: var(--text-color);
-}
-
-.task-comments textarea {
-  min-height: 200px;
-  resize: vertical;
-}
-
-/* Footer Buttons */
-.modal-footer {
+/* Modal form container */
+.task-form {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  border-top: 1px solid #eee;
-  padding-top: 10px;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
 }
 
-.cancel-btn,
-.finish-btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
+/* Labels aligned to the start */
+.task-form label {
+  display: block;
+  text-align: left;
+  font-weight: 600;
+  margin-bottom: 5px;
 }
+
+/* Inputs and selects styling */
+.task-form input,
+.task-form select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+/* Buttons container */
+.task-form button {
+  background-color: black;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-right: 10px;
+  font-weight: 600;
+}
+
+.task-form button:hover {
+  background-color: #333;
+}
+
 
 .cancel-btn {
   background: var(--cancel-bg);

@@ -1,4 +1,3 @@
-// src/pages/StatsDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -25,9 +24,7 @@ import {
   InputAdornment,
   Snackbar,
   Alert,
-  Autocomplete,
-  CircularProgress,
-  DialogActions
+  Autocomplete
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
@@ -35,9 +32,7 @@ import {
   Add as AddIcon,
   LocationOn as LocationOnIcon,
   Person as PersonIcon,
-  Description as DescriptionIcon,
-  Delete as DeleteIcon,
-  Visibility as VisibilityIcon
+  Description as DescriptionIcon
 } from '@mui/icons-material';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
@@ -66,14 +61,9 @@ ChartJS.register(
   ArcElement
 );
 
-// Configure backend base URL
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000/api';
 
-
-
-/* -------------------------
-   Event Creation/Edit Popup
-------------------------- */
+// Event Creation Popup Component
 const EventCreationPopup = ({ 
   open, 
   onClose, 
@@ -85,7 +75,7 @@ const EventCreationPopup = ({
 }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewTypeForm, setShowNewTypeForm] = useState(false);
   const [newEventType, setNewEventType] = useState('');
@@ -104,7 +94,7 @@ const EventCreationPopup = ({
     'J-Activation',
     'Destiny Training',
     'Social Event',
-    'Cell'
+    'Cell Meeting'
   ]);
 
   const [formData, setFormData] = useState({
@@ -126,44 +116,20 @@ const EventCreationPopup = ({
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const timePeriods = ['AM', 'PM'];
 
-  // Fetch people data from backend
-  useEffect(() => {
-    const fetchPeople = async () => {
-      try {
-        const response = await fetch(`${backendUrl}/people`);
-        if (response.ok) {
-          const data = await response.json();
-          setPeopleData(Array.isArray(data) ? data : data.people || []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch people:', error);
-        // Fallback to mock data
-        setPeopleData([
-          { _id: '1', fullName: 'John Doe', email: 'john@example.com' },
-          { _id: '2', fullName: 'Jane Smith', email: 'jane@example.com' },
-          { _id: '3', fullName: 'Mike Johnson', email: 'mike@example.com' }
-        ]);
-      }
-    };
-
-    if (open) {
-      fetchPeople();
-    }
-  }, [open, backendUrl]);
-
-  // Initialize/prefill form data
+  // Initialize form data when editing or creating
   useEffect(() => {
     if (editingEvent) {
-      const eventDate = editingEvent.start ? new Date(editingEvent.start) : new Date();
+      // Pre-fill form with existing event data
+      const eventDate = new Date(editingEvent.start);
       const hours = eventDate.getHours();
       const minutes = eventDate.getMinutes();
       const timePeriod = hours >= 12 ? 'PM' : 'AM';
       const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-
+      
       setFormData({
         eventType: editingEvent.eventType || '',
         eventName: editingEvent.title || '',
-        isTicketed: !!editingEvent.isTicketed,
+        isTicketed: editingEvent.isTicketed || false,
         price: editingEvent.price || '',
         date: eventDate.toISOString().split('T')[0],
         time: `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`,
@@ -174,6 +140,7 @@ const EventCreationPopup = ({
         description: editingEvent.description || ''
       });
     } else if (selectedDate) {
+      // Pre-fill date when creating new event
       const date = new Date(selectedDate);
       setFormData(prev => ({
         ...prev,
@@ -183,6 +150,16 @@ const EventCreationPopup = ({
       resetForm();
     }
   }, [editingEvent, selectedDate, open]);
+
+  // Mock people data - replace with actual API call
+  useEffect(() => {
+    const mockPeople = [
+      { _id: '1', fullName: 'John Doe', email: 'john@example.com' },
+      { _id: '2', fullName: 'Jane Smith', email: 'jane@example.com' },
+      { _id: '3', fullName: 'Mike Johnson', email: 'mike@example.com' }
+    ];
+    setPeopleData(mockPeople);
+  }, []);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -210,6 +187,7 @@ const EventCreationPopup = ({
 
   const validateForm = () => {
     const newErrors = {};
+
     if (!formData.eventType) newErrors.eventType = 'Event type is required';
     if (!formData.eventName) newErrors.eventName = 'Event name is required';
     if (!formData.location) newErrors.location = 'Location is required';
@@ -217,9 +195,11 @@ const EventCreationPopup = ({
     if (!formData.description) newErrors.description = 'Description is required';
     if (!formData.date) newErrors.date = 'Date is required';
     if (!formData.time) newErrors.time = 'Time is required';
+
     if (formData.isTicketed && !formData.price) {
       newErrors.price = 'Price is required for ticketed events';
     }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -248,15 +228,16 @@ const EventCreationPopup = ({
     setIsSubmitting(true);
 
     try {
-      // Convert 12-hour time to 24-hour format
+      // Create the payload to match your backend API structure
       const [hoursStr, minutesStr] = formData.time.split(':');
       let hours = Number(hoursStr);
       const minutes = Number(minutesStr);
       if (formData.timePeriod === 'PM' && hours !== 12) hours += 12;
       if (formData.timePeriod === 'AM' && hours === 12) hours = 0;
-
+      
+      // Create datetime string that matches your backend format
       const dateTimeString = `${formData.date}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-
+      
       const payload = {
         eventType: formData.eventType,
         eventName: formData.eventName,
@@ -269,6 +250,7 @@ const EventCreationPopup = ({
         userEmail: user?.email || ''
       };
 
+      // Add price only if ticketed
       if (formData.isTicketed && formData.price) {
         payload.price = parseFloat(formData.price);
       }
@@ -276,33 +258,48 @@ const EventCreationPopup = ({
       const url = editingEvent 
         ? `${backendUrl}/events/${editingEvent.event_id}`
         : `${backendUrl}/events`;
-
+      
       const method = editingEvent ? 'PUT' : 'POST';
 
+      // Send to your actual backend API
       const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || errData.message || `HTTP ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
       }
+
+      const responseData = await response.json();
 
       setSuccessMessage(editingEvent ? 'Event updated successfully!' : 'Event created successfully!');
       setSuccessAlert(true);
       resetForm();
-
-      // Refresh parent events
+      
+      // Refresh the events list to include the new/updated event
       onEventCreated();
-
-      // Close popup after delay
-      setTimeout(() => onClose(), 800);
+      
+      setTimeout(() => {
+        onClose();
+      }, 1500);
 
     } catch (err) {
       console.error('Error saving event:', err);
-      setErrorMessage(err.message || 'Failed to save event');
+      
+      let errorMsg = editingEvent 
+        ? 'Failed to update event. Please try again.'
+        : 'Failed to create event. Please try again.';
+      
+      if (err.message) {
+        errorMsg = err.message;
+      }
+      
+      setErrorMessage(errorMsg);
       setErrorAlert(true);
     } finally {
       setIsSubmitting(false);
@@ -388,7 +385,6 @@ const EventCreationPopup = ({
               <Select
                 value={formData.eventType}
                 onChange={(e) => handleChange('eventType', e.target.value)}
-                label="Event Type"
               >
                 {eventTypes.map(type => (
                   <MenuItem key={type} value={type}>{type}</MenuItem>
@@ -520,31 +516,18 @@ const EventCreationPopup = ({
             />
 
             {/* Event Leader */}
-            <Autocomplete
-              options={peopleData}
-              getOptionLabel={(opt) => opt.fullName || opt.email || ''}
-              value={peopleData.find(p => p.fullName === formData.eventLeader) || null}
-              onChange={(e, val) => handleChange('eventLeader', val ? val.fullName : '')}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Event Leader"
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.eventLeader}
-                  helperText={errors.eventLeader}
-                  InputProps={{
-                    ...params.InputProps,
-                    startAdornment: (
-                      <>
-                        <InputAdornment position="start"><PersonIcon /></InputAdornment>
-                        {params.InputProps.startAdornment}
-                      </>
-                    )
-                  }}
-                />
-              )}
+            <TextField
+              label="Event Leader"
+              value={formData.eventLeader}
+              onChange={(e) => handleChange('eventLeader', e.target.value)}
+              fullWidth
+              size="small"
+              sx={{ mb: 2, ...darkModeStyles.textField }}
+              error={!!errors.eventLeader}
+              helperText={errors.eventLeader}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>
+              }}
             />
 
             {/* Description */}
@@ -603,7 +586,7 @@ const EventCreationPopup = ({
         {/* Error Snackbar */}
         <Snackbar
           open={errorAlert}
-          autoHideDuration={4000}
+          autoHideDuration={3000}
           onClose={() => setErrorAlert(false)}
           anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         >
@@ -616,9 +599,6 @@ const EventCreationPopup = ({
   );
 };
 
-/* -------------------------
-   Main Dashboard
-------------------------- */
 const StatsDashboard = () => {
   const theme = useTheme();
   const mode = theme.palette.mode;
@@ -627,7 +607,6 @@ const StatsDashboard = () => {
   const isTablet = useMediaQuery(theme.breakpoints.between("sm", "md"));
   const schedulerView = isMobile ? "day" : isTablet ? "week" : "month";
 
-  // Chart data
   const [chartData, setChartData] = useState({
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
     datasets: [
@@ -636,12 +615,23 @@ const StatsDashboard = () => {
     ]
   });
 
-  // Modal states - simplified to only use creation dialog and scheduler's built-in viewer
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [selectedEventDate, setSelectedEventDate] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
 
-  // Static data (you can move these to backend calls later)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setChartData(prev => ({
+        ...prev,
+        datasets: prev.datasets.map(ds => ({
+          ...ds,
+          data: ds.data.map(n => Math.max(0, n + Math.round((Math.random() - 0.5) * 20)))
+        }))
+      }));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   const tasks = [
     { name: 'Tegra Mungudi', email: 'tegra@example.com', count: 64 },
     { name: 'Kevin Cyberg', email: 'kevin@example.com', count: 3 },
@@ -658,34 +648,31 @@ const StatsDashboard = () => {
     { name: 'Zen Diaz', location: 'Eastside Cell Group' }
   ];
 
-  // Events state
+  // Events state that fetches from backend API
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Global snackbar for actions
-  const [globalSnack, setGlobalSnack] = useState({ open: false, severity: 'success', message: '' });
-
-  // Fetch events from backend
-  const fetchEvents = async (opts = {}) => {
+  // Fetch events from backend API
+  const fetchEvents = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      const url = new URL(`${BACKEND_URL}/events`);
-      if (opts.status) url.searchParams.set('status', opts.status);
-
-      const response = await fetch(url.toString(), { 
-        headers: { 'Content-Type': 'application/json' }
+      
+      const response = await fetch(`${BACKEND_URL}/events`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
-
-      // Handle various response structures
+      
+      // Handle different response structures from your backend
       let events = [];
       if (Array.isArray(data)) {
         events = data;
@@ -696,252 +683,80 @@ const StatsDashboard = () => {
       } else if (data.data && Array.isArray(data.data)) {
         events = data.data;
       }
-
-      // Transform events for scheduler
+      
+      // Transform events to match scheduler format
       const transformedEvents = events.map(event => {
         let startDate, endDate;
         
+        // Handle different date formats from your backend
         if (event.date) {
           startDate = new Date(event.date);
-          endDate = new Date(startDate.getTime() + (2 * 60 * 60 * 1000)); // 2 hours duration
+          endDate = new Date(startDate.getTime() + (2 * 60 * 60 * 1000)); // Default 2 hours
         } else {
-          startDate = new Date(event.start || event.startDate || Date.now());
+          startDate = new Date(event.start || event.startDate);
           endDate = new Date(event.end || event.endDate || startDate.getTime() + (2 * 60 * 60 * 1000));
         }
-
+        
         return {
           event_id: event._id || event.id || event.event_id,
-          title: event.eventName || event.title || event.name || 'Untitled',
+          title: event.eventName || event.title || event.name,
           start: startDate,
           end: endDate,
-          eventType: event.eventType || event.type || '',
-          location: event.location || '',
-          eventLeader: event.eventLeader || event.leader || '',
-          description: event.description || '',
-          isTicketed: !!event.isTicketed,
+          eventType: event.eventType || event.type,
+          location: event.location,
+          eventLeader: event.eventLeader,
+          description: event.description,
+          isTicketed: event.isTicketed,
           price: event.price,
           recurringDays: event.recurring_day || event.recurringDays || [],
+          // Include original event data for reference
           originalData: event
         };
       });
-
+      
       setAllEvents(transformedEvents);
+      
     } catch (err) {
       console.error('Error fetching events:', err);
-      setError('Failed to load events. Please check your connection and try again.');
-      setAllEvents([]);
+      setError('Failed to load events. Please refresh the page.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Initial fetch
+  // Fetch events on component mount
   useEffect(() => {
     fetchEvents();
   }, []);
 
-  // Refresh on page visibility
+  // Refresh events when returning from other pages or sections
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
+        // Page became visible again, refresh events
         fetchEvents();
       }
     };
 
-    const handleWindowFocus = () => {
+    const handleFocus = () => {
+      // Window gained focus, refresh events
       fetchEvents();
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
-  // Filter events for scheduler (exclude cell events if needed)
+  // Filter out cell events for the scheduler
   const schedulerEvents = allEvents.filter(event => 
     !event.eventType || !event.eventType.toLowerCase().includes('cell')
   );
 
-  // Backend API helpers
-  const createEvent = async (payload) => {
-    const response = await fetch(`${BACKEND_URL}/events`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || errorData.message || `Create failed: ${response.status}`);
-    }
-    return response.json();
-  };
-
-  const updateEvent = async (id, payload) => {
-    const response = await fetch(`${BACKEND_URL}/events/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || errorData.message || `Update failed: ${response.status}`);
-    }
-    return response.json();
-  };
-
-  const deleteEvent = async (id) => {
-    const response = await fetch(`${BACKEND_URL}/events/${id}`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || errorData.message || `Delete failed: ${response.status}`);
-    }
-    return response.json();
-  };
-
-  // Event handlers
-  const handleEventCreated = async () => {
-    await fetchEvents();
-    setGlobalSnack({ open: true, severity: 'success', message: 'Events updated successfully' });
-  };
-
-  const handleSchedulerEventsChange = async (updatedEvents) => {
-    // This handles drag/drop changes in the scheduler
-    // For now, we'll just update local state and refresh from backend
-    setAllEvents(updatedEvents);
-    // Optionally refresh from backend to ensure consistency
-    setTimeout(() => fetchEvents(), 1000);
-  };
-
-  // Dialog control functions
-  const openCreateEventDialog = (selectedDate = null) => {
-    setSelectedEventDate(selectedDate);
-    setEditingEvent(null);
-    setEventDialogOpen(true);
-  };
-
-  const openEditEventDialog = (event) => {
-    setEditingEvent(event);
-    setSelectedEventDate(null);
-    setEventDialogOpen(true);
-  };
-
-  const closeEventDialog = () => {
-    setEventDialogOpen(false);
-    setSelectedEventDate(null);
-    setEditingEvent(null);
-  };
-
-  // Delete event handler
-  const handleDeleteEvent = async (event) => {
-    try {
-      const eventId = event.event_id || event.originalData?._id;
-      if (!eventId) {
-        throw new Error('Event ID not found');
-      }
-
-      await deleteEvent(eventId);
-      await fetchEvents();
-      setGlobalSnack({ 
-        open: true, 
-        severity: 'success', 
-        message: 'Event deleted successfully' 
-      });
-    } catch (error) {
-      console.error('Error deleting event:', error);
-      setGlobalSnack({ 
-        open: true, 
-        severity: 'error', 
-        message: error.message || 'Failed to delete event' 
-      });
-    }
-  };
-
-  // ViewerExtraComponent for scheduler's built-in viewer
-  const viewerExtraComponent = (fields, event) => {
-    return (
-      <Box display="flex" gap={1} alignItems="center" sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<EditIcon />}
-          onClick={(e) => {
-            e.stopPropagation();
-            openEditEventDialog(event);
-          }}
-        >
-          Edit
-        </Button>
-        <Button
-          size="small"
-          variant="outlined"
-          color="error"
-          startIcon={<DeleteIcon />}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteEvent(event);
-          }}
-        >
-          Delete
-        </Button>
-      </Box>
-    );
-  };
-
-  // Custom event renderer for scheduler
-  const customEventRenderer = ({ event, ...props }) => {
-    const getEventColor = (eventType) => {
-      switch (eventType) {
-        case 'Sunday Service': return '#3f51b5';
-        case 'Friday Service': return '#f44336';
-        case 'Workshop': return '#ff9800';
-        case 'Cell Meeting': return '#4caf50';
-        case 'Conference': return '#9c27b0';
-        case 'J-Activation': return '#00bcd4';
-        case 'Encounter': return '#795548';
-        case 'Destiny Training': return '#607d8b';
-        default: return '#9e9e9e';
-      }
-    };
-
-    return (
-      <div
-        {...props}
-        style={{
-          ...props.style,
-          backgroundColor: getEventColor(event.eventType),
-          border: 'none',
-          borderRadius: '4px',
-          padding: '2px 6px',
-          fontSize: isMobile ? '10px' : '12px',
-          fontWeight: 500,
-          color: 'white',
-          cursor: 'pointer',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          openEventViewer(event);
-        }}
-      >
-        {event.title}
-        {event.location && (
-          <div style={{ fontSize: isMobile ? '8px' : '10px', opacity: 0.8 }}>
-            📍 {event.location}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Layout styles
   const backgroundColor = mode === 'dark' ? '#1e1e1e' : '#ffffffff';
   const cardColor = mode === 'dark' ? '#2b2b2b' : '#ffffff';
 
@@ -960,6 +775,73 @@ const StatsDashboard = () => {
   const countBoxShadow = mode === 'dark'
     ? '0 3px 8px rgba(0, 0, 0, 0.4)'
     : '0 3px 8px rgba(0, 0, 0, 0.12)';
+
+  const handleEventCreated = async () => {
+    // Refresh events from backend after creating a new event
+    await fetchEvents();
+  };
+
+  const handleSchedulerEventsChange = async (updatedEvents) => {
+    try {
+      // When events are modified in the scheduler (moved, edited, deleted)
+      setAllEvents(updatedEvents);
+      
+    } catch (error) {
+      console.error('Error updating events:', error);
+      // Revert to original events if update fails
+      await fetchEvents();
+    }
+  };
+
+  // Handle custom event creation dialog opening
+  const openEventDialog = (selectedDate = null, eventToEdit = null) => {
+    setSelectedEventDate(selectedDate);
+    setEditingEvent(eventToEdit);
+    setEventDialogOpen(true);
+  };
+
+  const closeEventDialog = () => {
+    setEventDialogOpen(false);
+    setSelectedEventDate(null);
+    setEditingEvent(null);
+  };
+
+  // Custom event renderer for scheduler
+  const customEventRenderer = ({ event, ...props }) => {
+    return (
+      <div
+        {...props}
+        style={{
+          ...props.style,
+          backgroundColor: event.eventType === 'Sunday Service' ? '#3f51b5' : 
+                          event.eventType === 'Friday Service' ? '#f44336' :
+                          event.eventType === 'Workshop' ? '#ff9800' :
+                          event.eventType === 'Cell Meeting' ? '#4caf50' : '#9c27b0',
+          border: 'none',
+          borderRadius: '4px',
+          padding: '2px 6px',
+          fontSize: isMobile ? '10px' : '12px',
+          fontWeight: 500,
+          color: 'white',
+          cursor: 'pointer',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          openEventDialog(null, event);
+        }}
+      >
+        {event.title}
+        {event.location && (
+          <div style={{ fontSize: isMobile ? '8px' : '10px', opacity: 0.8 }}>
+            📍 {event.location}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Box
@@ -984,6 +866,11 @@ const StatsDashboard = () => {
               height: 545,
               boxShadow: cardShadow,
               transition: 'box-shadow 0.3s ease-in-out',
+              '&:hover': {
+                boxShadow: mode === 'dark' 
+                  ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
+                  : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
+              }
             }}>
               <Typography variant="subtitle2">August</Typography>
               <Typography variant="h4" fontWeight="bold" mt={2}>87.5%</Typography>
@@ -991,11 +878,7 @@ const StatsDashboard = () => {
               <Pie
                 data={{
                   labels: ["August", "July"],
-                  datasets: [{ 
-                    data: [87.5, 12.5], 
-                    backgroundColor: ["#3f51b5", "#e0e0e0"], 
-                    hoverOffset: 4 
-                  }]
+                  datasets: [{ data: [87.5, 12.5], backgroundColor: ["#3f51b5", "#e0e0e0"], hoverOffset: 4 }]
                 }}
               />
             </Paper>
@@ -1005,10 +888,34 @@ const StatsDashboard = () => {
           <Grid item xs={12} md={6}>
             <Grid container spacing={3} direction="column">
               <Grid item xs={12}>
-                <Paper sx={{ p: 2, borderRadius: 2, bgcolor: cardColor, boxShadow: cardShadow }}>
+                <Paper sx={{ 
+                  p: 2, 
+                  borderRadius: 2, 
+                  bgcolor: cardColor,
+                  boxShadow: cardShadow,
+                  transition: 'box-shadow 0.3s ease-in-out',
+                  '&:hover': {
+                    boxShadow: mode === 'dark' 
+                      ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
+                      : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
+                  }
+                }}>
                   <Box display="flex" justifyContent="space-between" alignItems="center">
                     <Typography>Weekend Services</Typography>
-                    <Box sx={{ p: 1, borderRadius: 1, boxShadow: itemShadow }}>
+                    <Box sx={{
+                      p: 1,
+                      borderRadius: 1,
+                      boxShadow: itemShadow,
+                      bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease-in-out',
+                      '&:hover': {
+                        transform: 'translateY(-1px)',
+                        boxShadow: mode === 'dark'
+                          ? '0 6px 20px rgba(0, 0, 0, 0.5)'
+                          : '0 6px 20px rgba(0, 0, 0, 0.1)'
+                      }
+                    }}>
                       <EditIcon fontSize="small" />
                     </Box>
                   </Box>
@@ -1016,12 +923,7 @@ const StatsDashboard = () => {
                   <Bar
                     data={{
                       labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-                      datasets: [{ 
-                        label: 'Attendance', 
-                        data: [120, 150, 100, 180], 
-                        backgroundColor: theme.palette.primary.main, 
-                        borderRadius: 6 
-                      }]
+                      datasets: [{ label: 'Attendance', data: [120, 150, 100, 180], backgroundColor: theme.palette.primary.main, borderRadius: 6 }]
                     }}
                     options={{
                       responsive: true,
@@ -1029,15 +931,8 @@ const StatsDashboard = () => {
                       aspectRatio: 2,
                       plugins: { legend: { display: false } },
                       scales: {
-                        y: { 
-                          beginAtZero: true, 
-                          ticks: { stepSize: 50, color: theme.palette.text.secondary }, 
-                          grid: { color: theme.palette.divider } 
-                        },
-                        x: { 
-                          ticks: { color: theme.palette.text.secondary }, 
-                          grid: { display: false } 
-                        }
+                        y: { beginAtZero: true, ticks: { stepSize: 50, color: theme.palette.text.secondary }, grid: { color: theme.palette.divider } },
+                        x: { ticks: { color: theme.palette.text.secondary }, grid: { display: false } }
                       }
                     }}
                   />
@@ -1045,7 +940,18 @@ const StatsDashboard = () => {
               </Grid>
 
               <Grid item xs={12}>
-                <Paper sx={{ p: 2, borderRadius: 2, bgcolor: cardColor, boxShadow: cardShadow }}>
+                <Paper sx={{ 
+                  p: 2, 
+                  borderRadius: 2, 
+                  bgcolor: cardColor,
+                  boxShadow: cardShadow,
+                  transition: 'box-shadow 0.3s ease-in-out',
+                  '&:hover': {
+                    boxShadow: mode === 'dark' 
+                      ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
+                      : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
+                  }
+                }}>
                   <Typography>Amount of Calls<br />And Cells Captured</Typography>
                   <Typography variant="caption">August</Typography>
                   <Line
@@ -1054,25 +960,10 @@ const StatsDashboard = () => {
                       responsive: true,
                       maintainAspectRatio: true,
                       aspectRatio: 2,
-                      plugins: { 
-                        legend: { 
-                          labels: { 
-                            usePointStyle: true, 
-                            pointStyle: 'rectRounded', 
-                            color: theme.palette.text.primary 
-                          } 
-                        } 
-                      },
+                      plugins: { legend: { labels: { usePointStyle: true, pointStyle: 'rectRounded', color: theme.palette.text.primary } } },
                       scales: {
-                        y: { 
-                          beginAtZero: true, 
-                          ticks: { stepSize: 50, color: theme.palette.text.secondary }, 
-                          grid: { color: theme.palette.divider } 
-                        },
-                        x: { 
-                          ticks: { color: theme.palette.text.secondary }, 
-                          grid: { display: false } 
-                        }
+                        y: { beginAtZero: true, ticks: { stepSize: 50, color: theme.palette.text.secondary }, grid: { color: theme.palette.divider } },
+                        x: { ticks: { color: theme.palette.text.secondary }, grid: { display: false } }
                       }
                     }}
                   />
@@ -1090,36 +981,68 @@ const StatsDashboard = () => {
                   borderRadius: 2, 
                   bgcolor: cardColor, 
                   height: 500, 
-                  overflowY: 'auto', 
-                  boxShadow: cardShadow 
+                  overflowY: 'auto',
+                  boxShadow: cardShadow,
+                  transition: 'box-shadow 0.3s ease-in-out',
+                  '&:hover': {
+                    boxShadow: mode === 'dark' 
+                      ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
+                      : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
+                  }
                 }}>
-                  <Typography variant="h5" gutterBottom>Outstanding Cells</Typography>
+                  <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
+                    Outstanding Cells
+                  </Typography>
                   <Box sx={{ mt: 2 }}>
                     {cells.map((item, i) => (
                       <Box 
                         key={i} 
-                        sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          mb: 3, 
-                          p: { xs: 1, sm: 2 }, 
-                          borderRadius: 1, 
-                          boxShadow: itemShadow 
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          mb: 3,
+                          p: { xs: 1, sm: 2 },
+                          borderRadius: 1,
+                          boxShadow: itemShadow,
+                          bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                          transition: 'all 0.3s ease-in-out',
+                          '&:hover': {
+                            bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                            transform: 'translateY(-2px)',
+                            boxShadow: mode === 'dark'
+                              ? '0 8px 24px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)'
+                              : '0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)'
+                          }
                         }}
                       >
                         <Avatar sx={{ 
                           mr: { xs: 2, sm: 3 }, 
                           width: { xs: 40, sm: 48 }, 
                           height: { xs: 40, sm: 48 }, 
-                          boxShadow: avatarShadow 
+                          fontSize: { xs: 18, sm: 24 },
+                          boxShadow: avatarShadow,
+                          transition: 'box-shadow 0.2s ease-in-out'
                         }}>
                           {item.name[0]}
                         </Avatar>
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                          <Typography 
+                            variant="subtitle1" 
+                            sx={{ 
+                              fontSize: { xs: '0.875rem', sm: '1rem' },
+                              fontWeight: 500 
+                            }}
+                          >
                             {item.name}
                           </Typography>
-                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              color: theme.palette.text.secondary,
+                              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                              wordBreak: 'break-word'
+                            }}
+                          >
                             {item.location}
                           </Typography>
                         </Box>
@@ -1135,52 +1058,94 @@ const StatsDashboard = () => {
                   borderRadius: 2, 
                   bgcolor: cardColor, 
                   height: 500, 
-                  overflowY: 'auto', 
-                  boxShadow: cardShadow 
+                  overflowY: 'auto',
+                  boxShadow: cardShadow,
+                  transition: 'box-shadow 0.3s ease-in-out',
+                  '&:hover': {
+                    boxShadow: mode === 'dark' 
+                      ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
+                      : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
+                  }
                 }}>
-                  <Typography variant="h5" gutterBottom>Outstanding Tasks</Typography>
+                  <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
+                    Outstanding Tasks
+                  </Typography>
                   <Box sx={{ mt: 2 }}>
                     {tasks.map((item, i) => (
                       <Box 
                         key={i} 
-                        sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          mb: 3, 
-                          p: { xs: 1, sm: 2 }, 
-                          borderRadius: 1, 
-                          boxShadow: itemShadow 
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          mb: 3,
+                          p: { xs: 1, sm: 2 },
+                          borderRadius: 1,
+                          boxShadow: itemShadow,
+                          bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                          transition: 'all 0.3s ease-in-out',
+                          '&:hover': {
+                            bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                            transform: 'translateY(-2px)',
+                            boxShadow: mode === 'dark'
+                              ? '0 8px 24px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)'
+                              : '0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)'
+                          }
                         }}
                       >
                         <Avatar sx={{ 
                           mr: { xs: 2, sm: 3 }, 
                           width: { xs: 40, sm: 48 }, 
                           height: { xs: 40, sm: 48 }, 
-                          boxShadow: avatarShadow 
+                          fontSize: { xs: 18, sm: 24 },
+                          boxShadow: avatarShadow,
+                          transition: 'box-shadow 0.2s ease-in-out'
                         }}>
                           {item.name[0]}
                         </Avatar>
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                          <Typography 
+                            variant="subtitle1" 
+                            sx={{ 
+                              fontSize: { xs: '0.875rem', sm: '1rem' },
+                              fontWeight: 500 
+                            }}
+                          >
                             {item.name}
                           </Typography>
-                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              color: theme.palette.text.secondary,
+                              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                              wordBreak: 'break-word'
+                            }}
+                          >
                             {item.email}
                           </Typography>
                         </Box>
                         <Box sx={{ 
                           display: 'flex', 
                           alignItems: 'center', 
-                          justifyContent: 'center', 
-                          minWidth: { xs: 40, sm: 50 }, 
-                          height: { xs: 40, sm: 50 }, 
-                          bgcolor: theme.palette.primary.main, 
-                          color: theme.palette.primary.contrastText, 
-                          borderRadius: 1, 
-                          ml: 2, 
-                          boxShadow: countBoxShadow 
+                          justifyContent: 'center',
+                          minWidth: { xs: 40, sm: 50 },
+                          height: { xs: 40, sm: 50 },
+                          bgcolor: theme.palette.primary.main,
+                          color: theme.palette.primary.contrastText,
+                          borderRadius: 1,
+                          ml: 2,
+                          boxShadow: countBoxShadow,
+                          transition: 'all 0.2s ease-in-out',
+                          '&:hover': {
+                            transform: 'scale(1.05)',
+                            boxShadow: mode === 'dark'
+                              ? '0 6px 16px rgba(0, 0, 0, 0.5)'
+                              : '0 6px 16px rgba(0, 0, 0, 0.15)'
+                          }
                         }}>
-                          <Typography sx={{ fontWeight: 'bold' }}>
+                          <Typography sx={{ 
+                            fontWeight: 'bold', 
+                            fontSize: { xs: 16, sm: 18 } 
+                          }}>
                             {item.count.toString().padStart(2, '0')}
                           </Typography>
                         </Box>
@@ -1197,47 +1162,89 @@ const StatsDashboard = () => {
             <Paper sx={{ 
               p: { xs: 2, sm: 3 }, 
               borderRadius: 2, 
-              bgcolor: cardColor, 
-              boxShadow: cardShadow 
+              bgcolor: cardColor,
+              boxShadow: cardShadow,
+              transition: 'box-shadow 0.3s ease-in-out',
+              '&:hover': {
+                boxShadow: mode === 'dark' 
+                  ? '0 12px 48px rgba(0, 0, 0, 0.7), 0 6px 24px rgba(0, 0, 0, 0.5)'
+                  : '0 12px 48px rgba(0, 0, 0, 0.16), 0 6px 24px rgba(0, 0, 0, 0.12)'
+              }
             }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h5">Church Scheduler</Typography>
+                <Typography variant="h5" sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem" } }}>
+                  Church Scheduler
+                </Typography>
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
-                  onClick={() => openCreateEventDialog()}
+                  onClick={() => openEventDialog()}
                   disabled={loading}
-                  sx={{ 
-                    bgcolor: theme.palette.primary.main, 
-                    '&:hover': { bgcolor: theme.palette.primary.dark } 
+                  sx={{
+                    bgcolor: theme.palette.primary.main,
+                    '&:hover': {
+                      bgcolor: theme.palette.primary.dark
+                    }
                   }}
                 >
                   Create Event
                 </Button>
               </Box>
-
+              
+              {/* Error Message */}
               {error && (
                 <Alert severity="error" sx={{ mb: 2 }}>
                   {error}
-                  <Button size="small" onClick={() => fetchEvents()} sx={{ ml: 1 }}>
+                  <Button size="small" onClick={fetchEvents} sx={{ ml: 1 }}>
                     Retry
                   </Button>
                 </Alert>
               )}
 
+              {/* Loading State */}
               {loading ? (
-                <Box display="flex" justifyContent="center" alignItems="center" height={400}>
-                  <CircularProgress />
-                  <Typography sx={{ ml: 2 }}>Loading events...</Typography>
+                <Box 
+                  display="flex" 
+                  justifyContent="center" 
+                  alignItems="center" 
+                  height={400}
+                >
+                  <Typography>Loading events...</Typography>
                 </Box>
               ) : (
-                <Box sx={{
+                <Box sx={{ 
                   width: '100%', 
                   height: { xs: 400, sm: 500, md: 600 },
                   overflow: 'hidden',
                   borderRadius: 1,
                   boxShadow: itemShadow,
-                  "& .rs__root": { width: '100% !important', height: '100% !important' },
+                  "& .rs__root": { 
+                    width: '100% !important', 
+                    height: '100% !important' 
+                  },
+                  "& .rs__header": {
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  },
+                  "& .rs__cell": {
+                    fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                    cursor: 'pointer'
+                  },
+                  "& .rs__event": {
+                    fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      transform: 'scale(1.02)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+                    }
+                  },
+                  "& .rs__table": {
+                    minWidth: { xs: '100%', sm: 'auto' }
+                  },
+                  // Override scheduler's default event creation behavior
+                  "& .rs__cell--today": {
+                    backgroundColor: mode === 'dark' ? 'rgba(63, 81, 181, 0.1)' : 'rgba(63, 81, 181, 0.05)'
+                  }
                 }}>
                   <Scheduler
                     view={schedulerView}
@@ -1254,13 +1261,22 @@ const StatsDashboard = () => {
                       eventItemHeight: isMobile ? 25 : 30,
                       multiDayItemHeight: isMobile ? 25 : 30,
                     }}
+                    // Custom event handlers to override default behavior
                     onCellClick={(date) => {
-                      openCreateEventDialog(date);
+                      // Open custom dialog when clicking on empty cell
+                      openEventDialog(date);
                     }}
+                    onEventClick={(event) => {
+                      // Open custom dialog when clicking on existing event
+                      openEventDialog(null, event);
+                    }}
+                    // Disable built-in event creation
                     editable={false}
                     eventRenderer={customEventRenderer}
-                    viewerExtraComponent={viewerExtraComponent}
-                    style={{ fontSize: isMobile ? '0.75rem' : '0.875rem', width: '100%' }}
+                    style={{
+                      fontSize: isMobile ? '0.75rem' : '0.875rem',
+                      width: '100%'
+                    }}
                   />
                 </Box>
               )}
@@ -1269,17 +1285,31 @@ const StatsDashboard = () => {
 
         </Grid>
 
-        {/* Floating Action Button */}
+        {/* Floating Action Button - Alternative placement */}
         <Fab
           color="primary"
           aria-label="create event"
-          onClick={() => openCreateEventDialog()}
-          sx={{ position: 'fixed', bottom: 32, right: 32, zIndex: 1000 }}
+          onClick={() => openEventDialog()}
+          sx={{
+            position: 'fixed',
+            bottom: 32,
+            right: 32,
+            zIndex: 1000,
+            boxShadow: mode === 'dark' 
+              ? '0 8px 24px rgba(0, 0, 0, 0.6)'
+              : '0 8px 24px rgba(0, 0, 0, 0.15)',
+            '&:hover': {
+              transform: 'scale(1.1)',
+              boxShadow: mode === 'dark'
+                ? '0 12px 32px rgba(0, 0, 0, 0.8)'
+                : '0 12px 32px rgba(0, 0, 0, 0.2)'
+            }
+          }}
         >
           <AddIcon />
         </Fab>
 
-        {/* Event Creation/Edit Dialog */}
+        {/* Event Creation Dialog */}
         <EventCreationPopup
           open={eventDialogOpen}
           onClose={closeEventDialog}
@@ -1289,18 +1319,6 @@ const StatsDashboard = () => {
           selectedDate={selectedEventDate}
           editingEvent={editingEvent}
         />
-
-        {/* Global Snackbar */}
-        <Snackbar
-          open={globalSnack.open}
-          autoHideDuration={3000}
-          onClose={() => setGlobalSnack({ ...globalSnack, open: false })}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert severity={globalSnack.severity} variant="filled">
-            {globalSnack.message}
-          </Alert>
-        </Snackbar>
       </Box>
     </Box>
   );

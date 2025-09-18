@@ -214,18 +214,23 @@ function ServiceCheckIn() {
   //   };
   //   fetchEvents();
   // }, []);
-useEffect(() => {
+
+ useEffect(() => {
   const fetchEvents = async () => {
     setIsLoadingEvents(true);
     try {
       const res = await axios.get(`${BASE_URL}/events`);
       const normalized = toArray(res.data)
+        .filter(
+          (e) =>
+            e.eventType?.toLowerCase() !== "cell" && // exclude cell events
+            e.status?.toLowerCase() !== "closed"    // exclude closed events
+        )
         .map((e) => ({
           id: e._id || e.id || e.eventId,
           eventName: e.eventName || e.name || e.title || "Untitled Event",
-          eventType: e.eventType || e.type || "", // keep eventType if needed
-        }))
-        .filter((e) => e.eventType?.toLowerCase() !== "cell"); // exclude type "cells"
+          // add more fields if needed
+        }));
 
       setEvents(normalized);
     } catch (err) {
@@ -237,6 +242,7 @@ useEffect(() => {
   };
   fetchEvents();
 }, []);
+
 
   // Fetch people
   useEffect(() => {

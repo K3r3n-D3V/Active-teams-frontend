@@ -9,6 +9,250 @@
   margin-top: 60px;
 }
 
+/* DailyTasks.css */
+
+/* Container */
+.daily-container {
+  max-width: 900px;
+  margin: 20px auto;
+  font-family: 'Arial', sans-serif;
+  padding: 10px;
+  color: #333;
+}
+
+/* Counter Card */
+.counter-card {
+  background-color: #f5f5f5;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+.counter-card h1 {
+  font-size: 3rem;
+  margin: 0;
+  color: #6b21a8; /* purple */
+}
+
+.counter-card p {
+  font-size: 1rem;
+  margin-top: 5px;
+  color: #555;
+}
+
+/* Task Actions Buttons */
+.task-actions {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #6b21a8;
+  color: #fff;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: 0.3s;
+}
+
+.icon-btn:hover {
+  background-color: #7c3aed;
+}
+
+.icon {
+  font-size: 1.1rem;
+}
+
+/* Modal */
+.task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-form label {
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.task-form input,
+.task-form select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.finish-btn {
+  background-color: #6b21a8;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  background-color: #e5e5e5;
+  color: #333;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.finish-btn:hover {
+  background-color: #7c3aed;
+}
+
+.cancel-btn:hover {
+  background-color: #d4d4d4;
+}
+
+/* Autocomplete List */
+.autocomplete-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+  background-color: #fff;
+  position: absolute;
+  z-index: 10;
+  width: 95%;
+}
+
+.autocomplete-list li {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.autocomplete-list li:hover {
+  background-color: #f0f0f0;
+}
+
+/* Date & Type Filters */
+.date-filter,
+.type-filter {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.type-filter button {
+  border: 1px solid #ccc;
+  background-color: #f5f5f5;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.type-filter button.active {
+  background-color: #6b21a8;
+  color: #fff;
+  border-color: #6b21a8;
+}
+
+/* Task List */
+.task-list {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.task-title {
+  font-weight: bold;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.task-subtitle {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.task-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.status {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: capitalize;
+}
+
+.status.completed {
+  background-color: #22c55e;
+  color: #fff;
+}
+
+.status.open {
+  background-color: #facc15;
+  color: #333;
+}
+
+.status.awaiting {
+  background-color: #f97316;
+  color: #fff;
+}
+
+.status.editable {
+  cursor: pointer;
+}
+
+/* Task Date */
+.task-date {
+  font-size: 0.8rem;
+  color: #777;
+}
+
+/* Recurring Badge */
+.recurring-badge {
+  background-color: #7c3aed;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  margin-left: 6px;
+}
+
+
 /* ===================== */
 /* Counter Card */
 /* ===================== */
@@ -92,40 +336,52 @@
   flex-direction: column;
 }
 
-.recipient-field input {
+/* Wrap each input + autocomplete in a relative container */
+.input-wrapper {
+  position: relative;
+  margin-bottom: 16px; /* space between inputs */
+}
+
+
+/* Container for the inputs if needed */
+input {
+  width: 100%;
   padding: 8px 12px;
+  margin-top: 4px;
+  margin-bottom: 4px;
   border: 1px solid #ccc;
-  border-radius: 6px;
+  border-radius: 4px;
+  box-sizing: border-box;
+  position: relative;
   font-size: 14px;
 }
 
+/* Autocomplete list styling */
 .autocomplete-list {
   position: absolute;
-  top: 100%; /* sit right below the input */
-  left: 0;
-  right: 0;
-  background: #fff;
-  border: 1px solid #dcdcdc;
-  border-radius: 6px;
-  margin-top: 4px; /* small gap below input */
-  max-height: 200px; /* scroll if too many */
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-top: none;
+  width: 100%;
+  max-height: 200px; /* optional scroll */
   overflow-y: auto;
-  z-index: 1000; /* ensure it floats above */
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  text-align: start;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
+/* Autocomplete list items */
 .autocomplete-list li {
-  /* padding: 8px 12px; */
-  list-style: none;
+  padding: 8px 12px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
 }
 
 .autocomplete-list li:hover {
-  background: #f2f2f2;
+  background-color: #f0f0f0;
 }
+
 
 /* ===================== */
 /* Task Actions Container */

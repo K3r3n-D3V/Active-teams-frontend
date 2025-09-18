@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate, useLocation  } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 import { saveToEventHistory } from "../utils/eventhistory";
@@ -10,11 +10,10 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Eventsfilter from "./Eventsfilter"
 
-
 const Events = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   console.log('location.state:', location.state);
   const theme = useTheme();
   const [showFilter, setShowFilter] = useState(false);
@@ -29,14 +28,14 @@ const Events = () => {
   const [loading, setLoading] = useState(true);
 
   const [eventTypes, setEventTypes] = useState([
-    'Sunday Service', 'Friday Service', 'Workshop', 'Encounter', 'Conference',
+    'Service', 'Workshop', 'Encounter', 'Conference',
     'J-Activation', 'Destiny Training', 'Social Event', 'Cell', 'Meeting'
   ]);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const currentUser = JSON.parse(localStorage.getItem("user")) || {};
 
- // ✅ Place EventSkeleton here
+  // ✅ Place EventSkeleton here
   const EventSkeleton = () => {
     return (
       <div style={{
@@ -56,7 +55,7 @@ const Events = () => {
       </div>
     );
   };
-const fetchEvents = async () => {
+  const fetchEvents = async () => {
   setLoading(true);
 
   try {
@@ -67,13 +66,12 @@ const fetchEvents = async () => {
     }
 
     const headers = { Authorization: `Bearer ${token}` };
-
     // Fetch regular and cell events
     const [eventsResponse, cellsResponse] = await Promise.all([
       axios.get(`${BACKEND_URL}/events`, { headers }),
       axios.get(`${BACKEND_URL}/events/cells-user`, { headers })
     ]);
-
+    
     const regularEvents = eventsResponse.data.events || eventsResponse.data || [];
     const nonCellEvents = regularEvents.filter(event =>
       event.eventType?.toLowerCase() !== 'cell' &&
@@ -82,18 +80,22 @@ const fetchEvents = async () => {
 
     const userCellEvents = cellsResponse.data.events || [];
 
-    // Filter out past non-cell events (only keep future)
-    const now = new Date();
-    const futureNonCellEvents = nonCellEvents.filter(event => {
-      if (event.status === "closed") return false;
-      const eventDate = new Date(event.date);
-      return eventDate >= now;
-    });
-
-    // Combine both sets
+    // Your updated filtering code
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+   const futureNonCellEvents = nonCellEvents.filter(event => {
+    if (event.status === "closed") {
+        console.log(`Filtered out closed event: ${event.eventName}`);
+        return false;
+    }
+    const eventDate = new Date(event.date);
+    const isFuture = eventDate >= today;
+    console.log(`Event: ${event.eventName}, Date: ${eventDate}, Status: ${event.status}, Is Future: ${isFuture}`);
+    return isFuture;
+});
+    console.log('Future events after filtering:', futureNonCellEvents.length);
+    
     const combinedEvents = [...futureNonCellEvents, ...userCellEvents];
-
-    // Sort by event date
     const sortedEvents = combinedEvents.sort(
       (a, b) => new Date(a.date) - new Date(b.date)
     );
@@ -106,37 +108,19 @@ const fetchEvents = async () => {
 
   } catch (err) {
     console.error("Failed to fetch events", err.response?.data || err);
-
-    // Optional fallback logic (kept same)
-    try {
-      const fallbackResponse = await axios.get(`${BACKEND_URL}/events`);
-      const fallbackEvents = fallbackResponse.data.events || fallbackResponse.data || [];
-
-      const fallbackNonCellEvents = fallbackEvents.filter(event =>
-        event.eventType?.toLowerCase() !== 'cell' &&
-        event.eventType?.toLowerCase() !== 'cells'
-      );
-
-      const futureFallbackEvents = fallbackNonCellEvents.filter(e => {
-        if (e.status === "closed") return false;
-        const eventDate = new Date(e.date);
-        return eventDate >= new Date();
-      });
-
-      setEvents(futureFallbackEvents);
-      setFilteredEvents(futureFallbackEvents);
-    } catch (fallbackErr) {
-      console.error("Fallback fetch also failed", fallbackErr);
-    }
+    // ... rest of your error handling
   } finally {
     setLoading(false);
   }
 };
-useEffect(() => {
-  fetchEvents();
+ useEffect(() => {
+    console.log("useEffect triggered with:", {
+        pathname: location.pathname,
+        refresh: location.state?.refresh,
+        timestamp: location.state?.timestamp
+    });
+    fetchEvents();
 }, [location.pathname, location.state?.refresh, location.state?.timestamp]);
-
-
 
   // Apply filters to events
   const applyFilters = (filters) => {
@@ -235,113 +219,107 @@ useEffect(() => {
     return eventTypeColors[cleanedType] || "#6c757d";
   };
 
- const handleCaptureClick = (event) => {
-  setSelectedEvent(event);
-  setIsModalOpen(true);
-};
+  const handleCaptureClick = (event) => {
+    setSelectedEvent(event);
+    setIsModalOpen(true);
+  };
 
 
- const handleAttendanceSubmit = async (data) => {
-  if (!selectedEvent) return { success: false, message: "No event selected." };
+  const handleAttendanceSubmit = async (data) => {
+    if (!selectedEvent) return { success: false, message: "No event selected." };
 
-  const eventId = selectedEvent._id;
-  const eventName = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
-  const eventType = selectedEvent.eventType || "Event";
+    const eventId = selectedEvent._id;
+    const eventName = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
+    const eventType = selectedEvent.eventType || "Event";
 
-  try {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-    const formattedTime = now.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-
-    // Event did not meet
-    if (
-      data === "did-not-meet" ||
-      data === "Mark As Did Not Meet" ||
-      (typeof data === "string" && data.toLowerCase().includes("did not meet"))
-    ) {
-      await axios.put(`${BACKEND_URL}/allevents/${eventId}`, {
-        did_not_meet: true,
+    try {
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+      const formattedTime = now.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
       });
 
-      await saveToEventHistory({
-        eventId,
-        service_name: eventName,
-        eventType,
-        status: "did-not-meet",
-        reason: "Marked as did not meet",
-        closedAt: `${formattedDate}, ${formattedTime}`,
-        leader12: selectedEvent?.eventLeaderName || "Unknown",
-        leader12_email: selectedEvent?.eventLeaderEmail || "Unknown",
-        userEmail: currentUser?.email || "Unknown",
-      });
+      // Event did not meet
+      if (
+        data === "did-not-meet" ||
+        data === "Mark As Did Not Meet" ||
+        (typeof data === "string" && data.toLowerCase().includes("did not meet"))
+      ) {
+        await axios.put(`${BACKEND_URL}/allevents/${eventId}`, {
+          did_not_meet: true,
+        });
 
-      setEvents((prev) =>
-        prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-      );
-      setFilteredEvents((prev) =>
-        prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-      );
-      navigate("/events-history");
+        await saveToEventHistory({
+          eventId,
+          service_name: eventName,
+          eventType,
+          status: "did-not-meet",
+          reason: "Marked as did not meet",
+          closedAt: `${formattedDate}, ${formattedTime}`,
+          leader12: selectedEvent?.eventLeaderName || "Unknown",
+          leader12_email: selectedEvent?.eventLeaderEmail || "Unknown",
+          userEmail: currentUser?.email || "Unknown",
+        });
 
-      return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
-    }
+        setEvents((prev) =>
+          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+        );
+        setFilteredEvents((prev) =>
+          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+        );
+        navigate("/events-history");
 
-    // Event attended
-    if (Array.isArray(data) && data.length > 0) {
-      await axios.put(`${BACKEND_URL}/allevents/${eventId}`, {
-        attendees: data.map((person) => person.id),
-        did_not_meet: false,
-      });
+        return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
+      }
+      // Event attended
+      if (Array.isArray(data) && data.length > 0) {
+        await axios.put(`${BACKEND_URL}/allevents/${eventId}`, {
+          attendees: data.map((person) => person.id),
+          did_not_meet: false,
+        });
 
-      await saveToEventHistory({
-        eventId: selectedEvent._id,
-        service_name:
-          selectedEvent.eventName ||
-          selectedEvent.service_name ||
-          "Untitled Event",
-        eventType: selectedEvent.eventType || "Event",
-        status: "attended",
-        attendees: data,
-        leader12: selectedEvent.eventLeaderName || "-",
-        leader12_email: selectedEvent.eventLeaderEmail || "-",
-        userEmail: currentUser.email,
-      });
+        await saveToEventHistory({
+          eventId: selectedEvent._id,
+          service_name:
+            selectedEvent.eventName ||
+            selectedEvent.service_name ||
+            "Untitled Event",
+          eventType: selectedEvent.eventType || "Event",
+          status: "attended",
+          attendees: data,
+          leader12: selectedEvent.eventLeaderName || "-",
+          leader12_email: selectedEvent.eventLeaderEmail || "-",
+          userEmail: currentUser.email,
+        });
 
-      setEvents((prev) =>
-        prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-      );
-      setFilteredEvents((prev) =>
-        prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-      );
+        setEvents((prev) =>
+          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+        );
+        setFilteredEvents((prev) =>
+          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
+        );
+        navigate("/events-history");
+        return {
+          success: true,
+          message: `Successfully captured attendance for ${eventName}`,
+        };
+      }
 
-      // ✅ Go to history after saving
-      navigate("/events-history");
-
+      return { success: false, message: "No attendees selected." };
+    } catch (error) {
+      console.error("Error updating event:", error);
       return {
-        success: true,
-        message: `Successfully captured attendance for ${eventName}`,
+        success: false,
+        message: "Something went wrong while capturing the event.",
       };
     }
-
-    return { success: false, message: "No attendees selected." };
-  } catch (error) {
-    console.error("Error updating event:", error);
-    return {
-      success: false,
-      message: "Something went wrong while capturing the event.",
-    };
-  }
-};
-
-
+  };
   const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
 
   const handleMenuOpen = (event, eventData) => {
@@ -372,12 +350,9 @@ useEffect(() => {
     handleMenuClose();
   };
 
-  // Enhanced leadership information rendering
   const renderLeadershipInfo = (event) => {
     const isCell = event.eventType?.toLowerCase().includes("cell");
     const leaders = [];
-
-    // Event Leader Name
     if (event.eventLeaderName && event.eventLeaderName !== 'Not specified') {
       leaders.push({
         title: "Event Leader",
@@ -385,8 +360,6 @@ useEffect(() => {
         style: { fontWeight: "600", color: theme.palette.text.primary }
       });
     }
-
-    // Event Leader Email
     if (event.eventLeaderEmail && event.eventLeaderEmail !== 'Not specified') {
       leaders.push({
         title: "Leader Email",
@@ -556,161 +529,161 @@ useEffect(() => {
         Showing {legacyFilteredEvents.length} of {events.filter(e => e.status !== "closed").length} events
       </div>
 
-     {/* Events Grid */}
-<div style={styles.eventsGrid}>
-  {loading
-    ? Array.from({ length: 6 }).map((_, idx) => <EventSkeleton key={idx} />)
-    : legacyFilteredEvents.map((event) => {
-        const { leaders } = renderLeadershipInfo(event);
-        return (
-          <div
-            key={event._id}
-            style={{
-              ...styles.eventCard,
-              backgroundColor: theme.palette.background.paper,
-            }}
-          >
-              {/* Header with Title and Badge */}
-              <div style={styles.eventHeader}>
-                <div style={styles.titleAndBadgeContainer}>
-                  <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
-                    {event.eventName}
-                  </h3>
-                  <span
-                    style={{
-                      ...styles.eventBadge,
-                      backgroundColor: getBadgeColor(event.eventType),
-                    }}
-                  >
-                    {capitalize(event.eventType)}
-                  </span>
-                </div>
-
-                {/* Edit/Delete Menu */}
-                <IconButton
-                  size="small"
-                  onClick={(e) => handleMenuOpen(e, event)}
-                  style={{
-                    color: theme.palette.text.primary,
-                    flexShrink: 0,
-                  }}
-                >
-                  <MoreVertIcon />
-                </IconButton>
-                <Menu
-                  anchorEl={anchorEl}
-                  open={Boolean(anchorEl) && currentEvent?._id === event._id}
-                  onClose={handleMenuClose}
-                >
-                  <MenuItem onClick={handleEditEvent}>Edit</MenuItem>
-                  <MenuItem onClick={handleDeleteEvent}>Delete</MenuItem>
-                </Menu>
-              </div>
-
-              {/* Leadership Information */}
-              {leaders.length > 0 && (
-                <div style={styles.leadershipSection}>
-                  {leaders.map((leader, index) => (
-                    <div key={index} style={styles.leaderRow}>
-                      <span style={styles.leaderLabel}>{leader.title}:</span>
-                      <span style={{ ...styles.leaderName, ...leader.style }}>
-                        {leader.name}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Date and Time */}
-              <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>
-                {formatDateTime(event.date)}
-              </p>
-
-              {/* Location */}
-              <p style={{ ...styles.eventLocation, color: theme.palette.text.secondary }}>
-                {event.location}
-              </p>
-
-              {/* Description */}
-              {event.description && event.description.trim() && (
-                <p style={{
-                  ...styles.eventDescription,
-                  color: theme.palette.text.secondary,
-                  fontSize: '0.9rem',
-                  marginTop: '0.5rem',
-                  lineHeight: '1.4'
-                }}>
-                  {event.description}
-                </p>
-              )}
-
-              {/* Price if Ticketed */}
-              {event.isTicketed && (
-                <p style={{ ...styles.eventPrice, color: theme.palette.text.primary }}>
-                  Price: {event.price > 0 ? `R${event.price}` : "Free"}
-                </p>
-              )}
-
-              {/* Recurring Days */}
-              {event.recurringDays && event.recurringDays.length > 0 && (
-                <div style={{ 
-                  display: "flex", 
-                  gap: "6px", 
-                  marginTop: "8px", 
-                  flexWrap: "wrap" 
-                }}>
-                  <span style={{
-                    fontSize: "0.85rem",
-                    fontWeight: "600",
-                    color: theme.palette.text.secondary,
-                    marginRight: "8px"
-                  }}>
-                    Recurring:
-                  </span>
-                  {event.recurringDays.map((day, idx) => (
+      {/* Events Grid */}
+      <div style={styles.eventsGrid}>
+        {loading
+          ? Array.from({ length: 6 }).map((_, idx) => <EventSkeleton key={idx} />)
+          : legacyFilteredEvents.map((event) => {
+            const { leaders } = renderLeadershipInfo(event);
+            return (
+              <div
+                key={event._id}
+                style={{
+                  ...styles.eventCard,
+                  backgroundColor: theme.palette.background.paper,
+                }}
+              >
+                {/* Header with Title and Badge */}
+                <div style={styles.eventHeader}>
+                  <div style={styles.titleAndBadgeContainer}>
+                    <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
+                      {event.eventName}
+                    </h3>
                     <span
-                      key={idx}
                       style={{
-                        backgroundColor: "#6c757d",
-                        color: "#fff",
-                        padding: "4px 8px",
-                        borderRadius: "6px",
-                        fontSize: "0.8rem",
+                        ...styles.eventBadge,
+                        backgroundColor: getBadgeColor(event.eventType),
                       }}
                     >
-                      {day}
+                      {capitalize(event.eventType)}
                     </span>
-                  ))}
+                  </div>
+
+                  {/* Edit/Delete Menu */}
+                  <IconButton
+                    size="small"
+                    onClick={(e) => handleMenuOpen(e, event)}
+                    style={{
+                      color: theme.palette.text.primary,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <MoreVertIcon />
+                  </IconButton>
+                  <Menu
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl) && currentEvent?._id === event._id}
+                    onClose={handleMenuClose}
+                  >
+                    <MenuItem onClick={handleEditEvent}>Edit</MenuItem>
+                    <MenuItem onClick={handleDeleteEvent}>Delete</MenuItem>
+                  </Menu>
                 </div>
-              )}
 
-              {/* Action Buttons */}
-              <div style={styles.eventActions}>
-                <button
-                  style={{ ...styles.actionBtn, ...styles.captureBtn }}
-                  onClick={() => handleCaptureClick(event)}
-                >
-                  Capture
-                </button>
+                {/* Leadership Information */}
+                {leaders.length > 0 && (
+                  <div style={styles.leadershipSection}>
+                    {leaders.map((leader, index) => (
+                      <div key={index} style={styles.leaderRow}>
+                        <span style={styles.leaderLabel}>{leader.title}:</span>
+                        <span style={{ ...styles.leaderName, ...leader.style }}>
+                          {leader.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-                <button
-                  style={{
-                    ...styles.actionBtn,
-                    ...styles.paymentBtn,
-                    ...(event.isTicketed ? {} : styles.disabledBtn),
-                    whiteSpace: 'nowrap',
-                  }}
-                  disabled={!event.isTicketed}
-                  onClick={() =>
-                    event.isTicketed && navigate(`/event-payment/${event._id}`)
-                  }
-                >
-                  {event.isTicketed ? "Payment" : "No Payment"}
-                </button>
+                {/* Date and Time */}
+                <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>
+                  {formatDateTime(event.date)}
+                </p>
+
+                {/* Location */}
+                <p style={{ ...styles.eventLocation, color: theme.palette.text.secondary }}>
+                  {event.location}
+                </p>
+
+                {/* Description */}
+                {event.description && event.description.trim() && (
+                  <p style={{
+                    ...styles.eventDescription,
+                    color: theme.palette.text.secondary,
+                    fontSize: '0.9rem',
+                    marginTop: '0.5rem',
+                    lineHeight: '1.4'
+                  }}>
+                    {event.description}
+                  </p>
+                )}
+
+                {/* Price if Ticketed */}
+                {event.isTicketed && (
+                  <p style={{ ...styles.eventPrice, color: theme.palette.text.primary }}>
+                    Price: {event.price > 0 ? `R${event.price}` : "Free"}
+                  </p>
+                )}
+
+                {/* Recurring Days */}
+                {event.recurringDays && event.recurringDays.length > 0 && (
+                  <div style={{
+                    display: "flex",
+                    gap: "6px",
+                    marginTop: "8px",
+                    flexWrap: "wrap"
+                  }}>
+                    <span style={{
+                      fontSize: "0.85rem",
+                      fontWeight: "600",
+                      color: theme.palette.text.secondary,
+                      marginRight: "8px"
+                    }}>
+                      Recurring:
+                    </span>
+                    {event.recurringDays.map((day, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          backgroundColor: "#6c757d",
+                          color: "#fff",
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        {day}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div style={styles.eventActions}>
+                  <button
+                    style={{ ...styles.actionBtn, ...styles.captureBtn }}
+                    onClick={() => handleCaptureClick(event)}
+                  >
+                    Capture
+                  </button>
+
+                  <button
+                    style={{
+                      ...styles.actionBtn,
+                      ...styles.paymentBtn,
+                      ...(event.isTicketed ? {} : styles.disabledBtn),
+                      whiteSpace: 'nowrap',
+                    }}
+                    disabled={!event.isTicketed}
+                    onClick={() =>
+                      event.isTicketed && navigate(`/event-payment/${event._id}`)
+                    }
+                  >
+                    {event.isTicketed ? "Payment" : "No Payment"}
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
 
       {/* No Events Message */}

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
-import "./DailyTasks.css";
 import { FaPhone, FaUserPlus } from "react-icons/fa";
 import Modal from "../components/TaskModal";
+import "./DailyTasks.css";
 import "../components/TaskModal.css";
 
 export default function DailyTasks() {
@@ -15,12 +15,9 @@ export default function DailyTasks() {
   const [formType, setFormType] = useState(""); // "call" | "visit"
   const [dateRange, setDateRange] = useState("today");
   const [filterType, setFilterType] = useState("all");
-  const [currentDay, setCurrentDay] = useState(dayjs().format("YYYY-MM-DD"));
 
-  // const API_URL = "https://active-teams-backend.onrender.com";
-   const API_URL = "http://127.0.0.1:8000";
+  const API_URL = "http://127.0.0.1:8000";
 
-  // ✅ Helper to format datetime for <input type="datetime-local">
   const getCurrentDateTime = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset();
@@ -28,176 +25,202 @@ export default function DailyTasks() {
     return localDate.toISOString().slice(0, 16);
   };
 
-  const [taskType, setTaskType] = useState("Awaiting Call");
-  const taskOptions = [
-      "Proper connect - Cell request",
-      "Proper connect - Visit",
-      "Proper call - Service Invitation",
-      "Follow Up",
-      "Wrong Number",
-      "Awaiting Call",
-      "No Answer",
-    ];
+  const [taskOptions] = useState([
+    "Cell request",
+    "Visit",
+    "Service Invitation",
+    "Follow Up",
+    "Wrong Number",
+    "Awaiting Call",
+    "No Answer",
+  ]);
 
-  const [searchResults, setSearchResults] = useState([]);
-  const fetchPeople = async (q) => {
-    if (!q.trim()) {
-      setSearchResults([]);
-      return;
-    }
+  // Get logged-in user from localStorage once
+  const [storedUser] = useState(() =>
+    JSON.parse(localStorage.getItem("userProfile") || "{}")
+  );
 
-    try {
-      const res = await axios.get(`${API_URL}/people`, {
-        params: { name: q },
-      });
-
-      console.log("Fetched people:", res.data);
-
-      const people = res.data.results || [];
-      setSearchResults(people); // Keep full objects
-
-    } catch (err) {
-      console.error("Error fetching people:", err);
-    }
-  };
-
-  const handleEditTask = (task) => {
-    // You can open a modal or redirect to an edit page
-    console.log("Editing task:", task);
-
-    // Example: open your TaskModal with the task data
-    setSelectedTask(task);
-    setIsModalOpen(true);
-  };
-
+  // taskData state
   const [taskData, setTaskData] = useState({
     taskType: "",
     recipient: "",
-    assignedTo: "",
+    assignedTo: storedUser?.email || "",
     dueDate: getCurrentDateTime(),
-    taskStage: "Open",
-    comments: "",
+    status: "Open",
   });
 
+  const [searchResults, setSearchResults] = useState([]);
+  const [assignedResults, setAssignedResults] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // ✅ Fetch Tasks
-const fetchTasks = async () => {
+  // ---------- API CALLS ----------
+const fetchUserTasks = async () => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
   try {
     setLoading(true);
-    const res = await axios.get(`${API_URL}/tasks`);
-    console.log("Fetched tasks:", res.data); // 👀 see what the backend sends
-    setTasks(Array.isArray(res.data) ? res.data : res.data.tasks || []);
+    const res = await axios.get(`${API_URL}/tasks/user-tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    console.log("Fetched tasks raw:", res.data);
+
+    const normalizedTasks = (res.data.tasks || []).map((task) => ({
+      ...task,
+      assignedTo: task.assignedfor || task.assignedTo, // normalize assignedFor
+      date: task.date || task.followup_date,           // normalize date
+      status: task.status?.toLowerCase() || "open",   // normalize status
+      taskName: task.name || task.taskName,
+    }));
+
+    setTasks(normalizedTasks);
   } catch (err) {
-    console.error("Error fetching tasks:", err);
+    console.error("Error fetching user tasks:", err.response?.data || err.message);
   } finally {
     setLoading(false);
   }
 };
 
+
+  const fetchPeople = async (q) => {
+    if (!q.trim()) return setSearchResults([]);
+    try {
+      const res = await axios.get(`${API_URL}/people`, { params: { name: q } });
+      setSearchResults(res.data.results || []);
+    } catch (err) {
+      console.error("Error fetching people:", err);
+    }
+  };
+
+  const fetchAssigned = async (q) => {
+    if (!q.trim()) return setAssignedResults([]);
+    try {
+      const res = await axios.get(`${API_URL}/people`, { params: { name: q } });
+      setAssignedResults(res.data.results || []);
+    } catch (err) {
+      console.error("Error fetching assigned people:", err);
+    }
+  };
+
+  // ---------- LIFECYCLE ----------
   useEffect(() => {
-    fetchTasks();
+    fetchUserTasks();
+  }, []);
 
-    // ✅ Reset completed count when day changes
-    const interval = setInterval(() => {
-      const today = dayjs().format("YYYY-MM-DD");
-      if (today !== currentDay) {
-        setCurrentDay(today);
-      }
-    }, 60 * 1000); // check every minute
-
-    return () => clearInterval(interval);
-  }, [currentDay]);
-
-  // ✅ Open Modal
+  // ---------- MODAL & FORM ----------
   const handleOpen = (type) => {
     setFormType(type);
     setIsModalOpen(true);
     setTaskData((prev) => ({
       ...prev,
       dueDate: getCurrentDateTime(),
+      assignedTo: storedUser?.email || "",
     }));
   };
 
-  // ✅ Controlled inputs
   const handleChange = (e) => {
     const { name, value } = e.target;
     setTaskData({ ...taskData, [name]: value });
   };
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setSubmitting(true);
 
-  const sanitizedEmail =
-    taskData.recipient.toLowerCase().replace(/\s+/g, "") + "@gmail.com";
+const createTask = async (taskPayload) => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
 
-  const taskPayload = {
-    memberID: "1234",
-    name: taskData.assignedTo,
-    taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
-    contacted_person: taskData.contacted_person || {
-      name: taskData.recipient,
-      phone: "0786655753",
-      email: sanitizedEmail,
-    },
-    followup_date: new Date(taskData.dueDate).toISOString(),
-    status: taskData.taskStage,
-    type: formType,
-  };
+  try {
+    const res = await axios.post(`${API_URL}/tasks`, taskPayload, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    console.log("Task created:", res.data);
 
-try {
-   // send taskPayload to backend
-  const res = await axios.post(`${API_URL}/tasks`, taskPayload);
-  fetchTasks(); // instantly show in UI
-  setIsModalOpen(false);
-  setTaskData({
-    taskType: "",
-    recipient: "",
-    assignedTo: "",
-    dueDate: getCurrentDateTime(),
-    taskStage: "Open",
-    comments: "",
-  });
-  fetchTasks(); // sync with backend
-} catch (err) {
-  console.error("Error adding task:", err);
-} finally {
-  setSubmitting(false);
-}
+    // Immediately append new task to state
+    setTasks((prev) => [
+      ...prev,
+      {
+        ...res.data.task,
+        assignedTo: res.data.task.assignedfor,
+        date: res.data.task.followup_date,
+        status: res.data.task.status.toLowerCase(),
+        taskName: res.data.task.name,
+      },
+    ]);
+  } catch (err) {
+    console.error("Error creating task:", err.response?.data || err.message);
+    throw err;
+  }
 };
 
-  // ✅ Filtering logic
-const filteredTasks = tasks.filter((task) => {
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      if (!storedUser?.id) throw new Error("Logged-in user ID not found");
+
+      const sanitizedEmail = taskData.recipient
+        ? taskData.recipient.toLowerCase().replace(/\s+/g, "") + "@gmail.com"
+        : "unknown@gmail.com";
+
+   const taskPayload = {
+  memberID: storedUser.id,
+  name: taskData.assignedTo || storedUser.name,
+  taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
+  contacted_person: {
+    name: taskData.recipient || "Unknown",
+    phone: "0786655753",
+    email: sanitizedEmail,
+  },
+  followup_date: new Date(taskData.dueDate).toISOString(),
+  status: taskData.taskStage || "Open",   // ✅ must be status, not taskStage
+  type: formType || "call",
+  assignedfor: storedUser.email,
+};
+
+      console.log("Submitting task payload:", taskPayload);
+      await createTask(taskPayload);
+
+      setIsModalOpen(false);
+      setTaskData({
+        taskType: "",
+        recipient: "",
+        assignedTo:taskData.assignedTo || storedUser.name,
+        dueDate: getCurrentDateTime(),
+        status: "Open",
+      });
+    } catch (err) {
+      console.error("Error adding task:", err.response?.data || err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ---------- FILTERING ----------
+  const filteredTasks = tasks.filter((task) => {
   let matchesType = filterType === "all" || task.type === filterType;
-
-  // Date filtering
   let matchesDate = true;
-  const today = dayjs();
-  const taskDate = dayjs(task.followup_date); // <-- convert to local
 
-  if (dateRange === "today") {
-    matchesDate = taskDate.isSame(today, "day");
-  } else if (dateRange === "thisWeek") {
-    matchesDate = taskDate.isSame(today, "week");
-  } else if (dateRange === "previous7") {
-    matchesDate = taskDate.isAfter(today.subtract(7, "day"));
-  } else if (dateRange === "previousMonth") {
-    matchesDate = taskDate.isAfter(today.subtract(1, "month"));
-  }
+  const today = dayjs();
+  const taskDate = dayjs(task.date);
+
+  if (dateRange === "today") matchesDate = taskDate.isSame(today, "day");
+  else if (dateRange === "thisWeek") matchesDate = taskDate.isSame(today, "week");
+  else if (dateRange === "previous7") matchesDate = taskDate.isAfter(today.subtract(7, "day"));
+  else if (dateRange === "previousMonth") matchesDate = taskDate.isAfter(today.subtract(1, "month"));
 
   return matchesType && matchesDate;
 });
 
 
-  // ✅ Dynamic counters
-  const completedCount = filteredTasks.filter((t) => t.status === "Completed").length;
   const totalCount = filteredTasks.length;
 
+  // ---------- RENDER ----------
   return (
     <div className="daily-container">
       {/* Counter */}
       <div className="counter-card">
-        <h1> {totalCount}</h1>
+        <h1>{totalCount}</h1>
         <p>Tasks Complete</p>
 
         <div className="task-actions">
@@ -212,26 +235,19 @@ const filteredTasks = tasks.filter((task) => {
         {/* Modal */}
         <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
           <form className="task-form" onSubmit={handleSubmit}>
-            <div className="task-info">
-              <h3>Task Information</h3>
+            <h3>Task Information</h3>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">Task Type</label>
-                  <select
-                    className="w-full border rounded-md p-2"
-                    value={taskData.taskType}
-                    onChange={(e) => setTaskType(e.target.value)}
-                  >
-                    {taskOptions.map((option, idx) => (
-                      <option key={idx} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <label>Task Type</label>
+            <select name="taskType" value={taskData.taskType} onChange={handleChange}>
+              {taskOptions.map((opt, idx) => (
+                <option key={idx} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
 
-          <div className="recipient-field">
-             <label>Recipient</label>
+            <div className="input-wrapper">
+              <label>Recipient</label>
               <input
                 type="text"
                 name="recipient"
@@ -239,7 +255,7 @@ const filteredTasks = tasks.filter((task) => {
                 onChange={(e) => {
                   const value = e.target.value;
                   setTaskData({ ...taskData, recipient: value });
-                  fetchPeople(value); // live search
+                  fetchPeople(value);
                 }}
                 autoComplete="off"
                 required
@@ -259,7 +275,7 @@ const filteredTasks = tasks.filter((task) => {
                             email: person.Email || "",
                           },
                         });
-                        setSearchResults([]); // hide dropdown
+                        setSearchResults([]);
                       }}
                     >
                       {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
@@ -267,29 +283,62 @@ const filteredTasks = tasks.filter((task) => {
                   ))}
                 </ul>
               )}
-          </div>
-
-              <label>Assigned To</label>
-              <input type="text" name="assignedTo" value={taskData.assignedTo} onChange={handleChange} required />
-
-              <label>Due Date & Time</label>
-              <input type="datetime-local" name="dueDate" value={taskData.dueDate} onChange={handleChange}  disabled />
-
-              <label>Task Stage</label>
-              <select name="taskStage" value={taskData.taskStage} onChange={handleChange}>
-                <option value="Open">Open</option>
-                <option value="Awaiting task">Awaiting task</option>
-                <option value="Completed">Completed</option>
-              </select>
             </div>
 
-            {/* Footer */}
+            <div className="input-wrapper">
+              <label>Assigned To</label>
+              <input
+                type="text"
+                name="assignedTo"
+                value={taskData.assignedTo}
+                onChange={(e) => {
+                  handleChange(e);
+                  fetchAssigned(e.target.value);
+                }}
+                required
+              />
+              {assignedResults.length > 0 && (
+                <ul className="autocomplete-list">
+                  {assignedResults.map((person) => (
+                    <li
+                      key={person._id}
+                      onClick={() => {
+                        setTaskData({
+                          ...taskData,
+                          assignedfor: `${person.Name} ${person.Surname}`,
+                        });
+                        setAssignedResults([]);
+                      }}
+                    >
+                      {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <label>Due Date & Time</label>
+            <input
+              type="datetime-local"
+              name="dueDate"
+              value={taskData.dueDate}
+              onChange={handleChange}
+              disabled
+            />
+
+            <label>Task Stage</label>
+            <select name="taskStage" value={taskData.taskStage} onChange={handleChange}>
+              <option value="Open">Open</option>
+              <option value="Awaiting task">Awaiting task</option>
+              <option value="Completed">Completed</option>
+            </select>
+
             <div className="modal-footer">
-              <button type="button" className="cancel-btn" onClick={() => setIsModalOpen(false)} disabled={submitting}>
+              <button type="button" onClick={() => setIsModalOpen(false)} disabled={submitting}>
                 Cancel
               </button>
-              <button type="submit" className="finish-btn" disabled={submitting}>
-                {submitting ? <span className="loader"></span> : "Save Task"}
+              <button type="submit" disabled={submitting}>
+                {submitting ? "Saving..." : "Save Task"}
               </button>
             </div>
           </form>
@@ -315,46 +364,40 @@ const filteredTasks = tasks.filter((task) => {
 
       {/* Task List */}
       <div className="task-list">
-        {loading ? (
-          <p className="loading">Loading tasks...</p>
-        ) : filteredTasks.length === 0 ? (
-          <p className="no-tasks">No tasks yet.</p>
-        ) : (
-          filteredTasks.map((task) => (
-        <div key={task._id} className="task-item">
-          <div>
-            <p className="task-title">{task.contacted_person?.name}</p>
-            <p className="task-subtitle">{task.name}</p>
-           
-          </div>
-          <div className="task-meta">
-           <span
-            className={`status ${task.status} ${task.status === "Awaiting task" ? "editable" : ""}`}
-            onClick={() => {
-              if (task.status === "Awaiting task") {
-                setSelectedTask(task);
-                setTaskData({
-                  taskType: task.taskType || "",
-                  recipient: task.contacted_person?.name || "",
-                  assignedTo: task.name || "",
-                  dueDate: task.followup_date
-                    ? dayjs(task.followup_date).format("YYYY-MM-DDTHH:mm")
-                    : getCurrentDateTime(),
-                  taskStage: task.status || "Open",
-                  comments: task.comments || "",
-                });
-                setIsModalOpen(true);
-              }
-            }}
-          >
-            {task.status}
-          </span>
-            <span className="task-date">{dayjs(task.followup_date).format("MMM D, YYYY")}</span>
-          </div>
-        </div>
-      ))
-
-        )}
+        {loading ? <p>Loading tasks...</p> :
+          filteredTasks.length === 0 ? <p>No tasks yet.</p> :
+            filteredTasks.map((task) => (
+              <div key={task._id} className="task-item">
+                <div>
+                  <p className="task-title">{task.contacted_person?.name}</p>
+                  <p className="task-subtitle">{task.name}</p>
+                  {task.isRecurring && <span className="recurring-badge">Recurring</span>}
+                </div>
+                <div className="task-meta">
+                  <span
+                    className={`status ${task.status} ${task.status === "Awaiting task" ? "editable" : ""}`}
+                    onClick={() => {
+                      if (task.status === "Awaiting task") {
+                        setSelectedTask(task);
+                        setTaskData({
+                          taskType: task.taskType || "",
+                          recipient: task.contacted_person?.name || "",
+                          assignedTo: storedUser?.email || "",
+                          dueDate: task.date
+                            ? dayjs(task.date).format("YYYY-MM-DDTHH:mm")
+                            : getCurrentDateTime(),
+                          status: task.status || "Open",
+                        });
+                        setIsModalOpen(true);
+                      }
+                    }}
+                  >
+                    {task.status}
+                  </span>
+                  <span className="task-date">{dayjs(task.date).format("MMM D, YYYY")}</span>
+                </div>
+              </div>
+            ))}
       </div>
     </div>
   );
