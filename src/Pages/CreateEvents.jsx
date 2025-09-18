@@ -25,6 +25,8 @@ const CreateEvents = ({ user }) => {
   const [errorAlert, setErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [peopleData, setPeopleData] = useState([]);
+  const [searchName, setSearchName] = useState(''); // Add search state like AttendanceModal
+  const [loadingPeople, setLoadingPeople] = useState(false);
 
   // Hardcoded Leader at 1 options
   const leaderAt1Options = [
@@ -70,49 +72,50 @@ const CreateEvents = ({ user }) => {
   // Time periods
   const timePeriods = ['AM', 'PM'];
 
-  // Fetch people data using AttendanceModal logic
-  useEffect(() => {
-    const fetchPeople = async (filter = "") => {
-      try {
-        const params = new URLSearchParams();
-        if (filter) params.append("name", filter);
-        params.append("perPage", "1000"); // Get more people like AttendanceModal
-        
-        const response = await axios.get(`${BACKEND_URL}/people?${params.toString()}`);
-        console.log('Raw people response:', response.data);
-        
-        // Handle response structure like AttendanceModal
-        const peopleArray = response.data.people || response.data.results || [];
-        
-        // Format people exactly like AttendanceModal
-        const formatted = peopleArray.map((p) => ({
-          id: p._id,
-          fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-          email: p.Email || p.email || "",
-          leader1: p["Leader @1"] || p.leader1 || "",
-          leader12: p["Leader @12"] || p.leader12 || "",
-          leader144: p["Leader @144"] || p.leader144 || "",
-        }));
-        
-        // Filter out people with empty names
-        const validPeople = formatted.filter(person => 
-          person.fullName && person.fullName.trim() !== ''
-        );
-        
-        console.log('Total people from API:', peopleArray.length);
-        console.log('Valid formatted people:', validPeople.length);
-        console.log('Sample people:', validPeople.slice(0, 5));
-        
-        setPeopleData(validPeople);
-      } catch (err) {
-        console.error("Error fetching people data:", err);
-        setErrorMessage("Failed to load people data. Please refresh the page.");
-        setErrorAlert(true);
-      }
-    };
+  // Fetch people function (exactly like AttendanceModal)
+  const fetchPeople = async (filter = "") => {
+    try {
+      setLoadingPeople(true);
+      const params = new URLSearchParams();
+      if (filter) params.append("name", filter);
+      params.append("perPage", "100"); // Same as AttendanceModal
 
-    fetchPeople(); // Initial load
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+      const data = await res.json();
+      const peopleArray = data.people || data.results || [];
+
+      const formatted = peopleArray.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p.leader1 || "",
+        leader12: p["Leader @12"] || p.leader12 || "",
+        leader144: p["Leader @144"] || p.leader144 || "",
+      }));
+
+      setPeopleData(formatted);
+      console.log('Fetched people:', formatted.length, 'with filter:', filter);
+    } catch (err) {
+      console.error("Error fetching people:", err);
+      setErrorMessage("Failed to load people data. Please refresh the page.");
+      setErrorAlert(true);
+    } finally {
+      setLoadingPeople(false);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchPeople();
   }, [BACKEND_URL]);
+
+  // Debounced search effect (exactly like AttendanceModal)
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      fetchPeople(searchName);
+    }, 300);
+    return () => clearTimeout(delay);
+  }, [searchName]);
 
   // Fetch event data if editing
   useEffect(() => {
@@ -681,9 +684,10 @@ const CreateEvents = ({ user }) => {
                   )}
                 />
 
-                {/* Leader at 12 - AttendanceModal filtering logic */}
+                {/* Leader at 12 - SERVER-SIDE FILTERING LIKE ATTENDANCE MODAL */}
                 <Autocomplete
                   freeSolo
+                  loading={loadingPeople}
                   options={peopleData}
                   getOptionLabel={(option) => {
                     if (typeof option === 'string') return option;
@@ -696,23 +700,17 @@ const CreateEvents = ({ user }) => {
                   }}
                   onInputChange={(event, newInputValue) => {
                     handleChange('leader12', newInputValue);
+                    // Trigger server-side search like AttendanceModal
+                    setSearchName(newInputValue);
                   }}
-                  filterOptions={(options, { inputValue }) => {
-                    if (!inputValue) return options.slice(0, 50); // Show first 50 if no search
-                    
-                    // Same filtering logic as AttendanceModal
-                    return options.filter((person) =>
-                      person.fullName &&
-                      person.fullName.toLowerCase().includes(inputValue.toLowerCase())
-                    );
-                  }}
+                  filterOptions={(options) => options} // No client-side filtering, use server results
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="Leader at 12"
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
-                      helperText={`Search by name (${peopleData.length} people available)`}
+                      helperText={loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people found)`}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (

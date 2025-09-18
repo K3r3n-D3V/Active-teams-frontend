@@ -154,9 +154,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
     });
   }
 };
-
-
-
   const handleMarkDidNotMeet = async () => {
     if (onSubmit) {
       const result = await onSubmit("did-not-meet");
