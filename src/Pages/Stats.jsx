@@ -61,7 +61,7 @@ ChartJS.register(
   ArcElement
 );
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL
 
 // Event Creation Popup Component
 const EventCreationPopup = ({ 
