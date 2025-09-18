@@ -195,25 +195,54 @@ function ServiceCheckIn() {
   );
 
   // Fetch events
-  useEffect(() => {
-    const fetchEvents = async () => {
-      setIsLoadingEvents(true);
-      try {
-        const res = await axios.get(`${BASE_URL}/events`);
-        const normalized = toArray(res.data).map((e) => ({
+  // useEffect(() => {
+  //   const fetchEvents = async () => {
+  //     setIsLoadingEvents(true);
+  //     try {
+  //       const res = await axios.get(`${BASE_URL}/events`);
+  //       const normalized = toArray(res.data).map((e) => ({
+  //         id: e._id || e.id || e.eventId,
+  //         eventName: e.eventName || e.name || e.title || "Untitled Event",
+  //       }));
+  //       setEvents(normalized);
+  //     } catch (err) {
+  //       console.error(err);
+  //       toast.error(err.response?.data?.detail || "Failed to fetch events");
+  //     } finally {
+  //       setIsLoadingEvents(false);
+  //     }
+  //   };
+  //   fetchEvents();
+  // }, []);
+
+ useEffect(() => {
+  const fetchEvents = async () => {
+    setIsLoadingEvents(true);
+    try {
+      const res = await axios.get(`${BASE_URL}/events`);
+      const normalized = toArray(res.data)
+        .filter(
+          (e) =>
+            e.eventType?.toLowerCase() !== "cell" && // exclude cell events
+            e.status?.toLowerCase() !== "closed"    // exclude closed events
+        )
+        .map((e) => ({
           id: e._id || e.id || e.eventId,
           eventName: e.eventName || e.name || e.title || "Untitled Event",
+          // add more fields if needed
         }));
-        setEvents(normalized);
-      } catch (err) {
-        console.error(err);
-        toast.error(err.response?.data?.detail || "Failed to fetch events");
-      } finally {
-        setIsLoadingEvents(false);
-      }
-    };
-    fetchEvents();
-  }, []);
+
+      setEvents(normalized);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || "Failed to fetch events");
+    } finally {
+      setIsLoadingEvents(false);
+    }
+  };
+  fetchEvents();
+}, []);
+
 
   // Fetch people
   useEffect(() => {

@@ -25,10 +25,17 @@ const CreateEvents = ({ user }) => {
   const [errorAlert, setErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [peopleData, setPeopleData] = useState([]);
+  const [searchName, setSearchName] = useState(''); // Add search state like AttendanceModal
+  const [loadingPeople, setLoadingPeople] = useState(false);
+
+  // Hardcoded Leader at 1 options
+  const leaderAt1Options = [
+    { fullName: 'Vicky Enslin', _id: 'vicky_enslin' },
+    { fullName: 'Gavin Enslin', _id: 'gavin_enslin' }
+  ];
 
   const [eventTypes, setEventTypes] = useState([
-    'Sunday Service',
-    'Friday Service',
+    'Service',
     'Workshop',
     'Encounter',
     'Conference',
@@ -65,55 +72,50 @@ const CreateEvents = ({ user }) => {
   // Time periods
   const timePeriods = ['AM', 'PM'];
 
-  // Fetch people data for autocomplete
-  useEffect(() => {
-    const fetchPeople = async () => {
-      try {
-        const response = await axios.get(`${BACKEND_URL}/people`);
-        console.log('Raw people response:', response.data);
-        
-        let results = [];
-        
-        // Handle different response structures
-        if (Array.isArray(response.data)) {
-          results = response.data;
-        } else if (response.data.people && Array.isArray(response.data.people)) {
-          results = response.data.people;
-        } else if (response.data.results && Array.isArray(response.data.results)) {
-          results = response.data.results;
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-          results = response.data.data;
-        }
-        
-        console.log('Processed results:', results);
-        
-        const formattedPeople = results.map(person => {
-          // Handle different field name variations
-          const firstName = person.Name || person.name || person.firstName || person.first_name || '';
-          const lastName = person.Surname || person.surname || person.lastName || person.last_name || '';
-          const email = person.Email || person.email || '';
-          
-          return {
-            _id: person._id || person.id,
-            fullName: `${firstName} ${lastName}`.trim(),
-            email: email,
-            leader1: person["Leader @1"] || person.leader1 || person.leader_1 || '',
-            leader12: person["Leader @12"] || person.leader12 || person.leader_12 || '',
-            leader144: person["Leader @144"] || person.leader144 || person.leader_144 || ''
-          };
-        });
-        
-        console.log('Formatted people:', formattedPeople);
-        setPeopleData(formattedPeople);
-      } catch (err) {
-        console.error("Error fetching people data:", err);
-        setErrorMessage("Failed to load people data. Please refresh the page.");
-        setErrorAlert(true);
-      }
-    };
+  // Fetch people function (exactly like AttendanceModal)
+  const fetchPeople = async (filter = "") => {
+    try {
+      setLoadingPeople(true);
+      const params = new URLSearchParams();
+      if (filter) params.append("name", filter);
+      params.append("perPage", "100"); // Same as AttendanceModal
 
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+      const data = await res.json();
+      const peopleArray = data.people || data.results || [];
+
+      const formatted = peopleArray.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p.leader1 || "",
+        leader12: p["Leader @12"] || p.leader12 || "",
+        leader144: p["Leader @144"] || p.leader144 || "",
+      }));
+
+      setPeopleData(formatted);
+      console.log('Fetched people:', formatted.length, 'with filter:', filter);
+    } catch (err) {
+      console.error("Error fetching people:", err);
+      setErrorMessage("Failed to load people data. Please refresh the page.");
+      setErrorAlert(true);
+    } finally {
+      setLoadingPeople(false);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
     fetchPeople();
   }, [BACKEND_URL]);
+
+  // Debounced search effect (exactly like AttendanceModal)
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      fetchPeople(searchName);
+    }, 300);
+    return () => clearTimeout(delay);
+  }, [searchName]);
 
   // Fetch event data if editing
   useEffect(() => {
@@ -272,7 +274,7 @@ const CreateEvents = ({ user }) => {
     try {
       const isCell = formData.eventType.toLowerCase().includes("cell");
 
-      // Prepare clean payload
+      // Prepare payload with field names that match your backend model
       const payload = {
         eventType: formData.eventType,
         eventName: formData.eventName,
@@ -284,9 +286,11 @@ const CreateEvents = ({ user }) => {
         recurring_day: formData.recurringDays
       };
 
-      // Add price only if ticketed
-      if (formData.isTicketed && formData.price) {
-        payload.price = parseFloat(formData.price);
+      // Handle price properly
+      if (formData.isTicketed) {
+        payload.price = formData.price ? parseFloat(formData.price) : 0;
+      } else {
+        payload.price = null;
       }
 
       // Add leaders for cell events
@@ -296,19 +300,17 @@ const CreateEvents = ({ user }) => {
         if (formData.email) payload.email = formData.email;
       }
 
-      // Handle date and time for non-cell events
-      
-        if (!isCell && formData.date && formData.time) {
-  const [hoursStr, minutesStr] = formData.time.split(':');
-  let hours = Number(hoursStr);
-  const minutes = Number(minutesStr);
-  if (formData.timePeriod === 'PM' && hours !== 12) hours += 12;
-  if (formData.timePeriod === 'AM' && hours === 12) hours = 0;
-  
-  // Use local timezone instead of UTC to avoid date shifting
-  const dateTimeString = `${formData.date}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-  payload.date = dateTimeString;
-}
+      // Handle date for non-cell events
+      if (!isCell && formData.date && formData.time) {
+        const [hoursStr, minutesStr] = formData.time.split(':');
+        let hours = Number(hoursStr);
+        const minutes = Number(minutesStr);
+        if (formData.timePeriod === 'PM' && hours !== 12) hours += 12;
+        if (formData.timePeriod === 'AM' && hours === 12) hours = 0;
+        
+        const dateTimeString = `${formData.date}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+        payload.date = dateTimeString;
+      }
 
       console.log('Payload being sent:', JSON.stringify(payload, null, 2));
 
@@ -327,8 +329,7 @@ const CreateEvents = ({ user }) => {
       setSuccessAlert(true);
 
       if (!eventId) resetForm();
-
-navigate("/events", { state: { refresh: true, timestamp: Date.now() } });
+      navigate("/events", { state: { refresh: true, timestamp: Date.now() } });
 
     } catch (err) {
       console.error("Error submitting event:", err);
@@ -653,19 +654,13 @@ navigate("/events", { state: { refresh: true, timestamp: Date.now() } });
                   Leadership Hierarchy
                 </Typography>
 
-                {/* Leader at 1 */}
+                {/* Leader at 1 - HARDCODED OPTIONS */}
                 <Autocomplete
-                  options={peopleData}
+                  options={leaderAt1Options}
                   getOptionLabel={(option) => option.fullName || ''}
-                  value={peopleData.find(p => p.fullName === formData.leader1) || null}
+                  value={leaderAt1Options.find(p => p.fullName === formData.leader1) || null}
                   onChange={(event, newValue) => {
                     handleChange('leader1', newValue?.fullName || '');
-                  }}
-                  filterOptions={(options, { inputValue }) => {
-                    if (!inputValue) return options;
-                    return options.filter(option =>
-                      option.fullName.toLowerCase().includes(inputValue.toLowerCase())
-                    );
                   }}
                   renderInput={(params) => (
                     <TextField
@@ -673,6 +668,7 @@ navigate("/events", { state: { refresh: true, timestamp: Date.now() } });
                       label="Leader at 1"
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
+                      helperText="Only Vicky Enslin and Gavin Enslin available"
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
@@ -688,26 +684,33 @@ navigate("/events", { state: { refresh: true, timestamp: Date.now() } });
                   )}
                 />
 
-                {/* Leader at 12 */}
+                {/* Leader at 12 - SERVER-SIDE FILTERING LIKE ATTENDANCE MODAL */}
                 <Autocomplete
+                  freeSolo
+                  loading={loadingPeople}
                   options={peopleData}
-                  getOptionLabel={(option) => option.fullName || ''}
-                  value={peopleData.find(p => p.fullName === formData.leader12) || null}
+                  getOptionLabel={(option) => {
+                    if (typeof option === 'string') return option;
+                    return option.fullName || '';
+                  }}
+                  value={peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''}
                   onChange={(event, newValue) => {
-                    handleChange('leader12', newValue?.fullName || '');
+                    const selectedName = typeof newValue === 'string' ? newValue : (newValue?.fullName || '');
+                    handleChange('leader12', selectedName);
                   }}
-                  filterOptions={(options, { inputValue }) => {
-                    if (!inputValue) return options;
-                    return options.filter(option =>
-                      option.fullName.toLowerCase().includes(inputValue.toLowerCase())
-                    );
+                  onInputChange={(event, newInputValue) => {
+                    handleChange('leader12', newInputValue);
+                    // Trigger server-side search like AttendanceModal
+                    setSearchName(newInputValue);
                   }}
+                  filterOptions={(options) => options} // No client-side filtering, use server results
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="Leader at 12"
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
+                      helperText={loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people found)`}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
@@ -720,6 +723,18 @@ navigate("/events", { state: { refresh: true, timestamp: Date.now() } });
                         )
                       }}
                     />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.fullName}</Typography>
+                        {option.email && (
+                          <Typography variant="body2" color="text.secondary">
+                            {option.email}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
                   )}
                 />
               </Box>
