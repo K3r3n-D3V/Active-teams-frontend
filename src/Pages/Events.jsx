@@ -79,7 +79,7 @@ const Events = () => {
     );
 
     const userCellEvents = cellsResponse.data.events || [];
-
+    console.log('Fetched non-cell events:', nonCellEvents.length);
     // Your updated filtering code
     const today = new Date();
     today.setHours(0, 0, 0, 0);
