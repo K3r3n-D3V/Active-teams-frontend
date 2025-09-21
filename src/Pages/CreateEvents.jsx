@@ -11,12 +11,13 @@ import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
-const CreateEvents = ({ user }) => {
+const CreateEvents = ({ user, isModal = false, onClose }) => {
+
   const navigate = useNavigate();
   const { id: eventId } = useParams();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewTypeForm, setShowNewTypeForm] = useState(false);
   const [newEventType, setNewEventType] = useState('');
@@ -71,6 +72,7 @@ const CreateEvents = ({ user }) => {
 
   // Time periods
   const timePeriods = ['AM', 'PM'];
+
 
   // Fetch people function (exactly like AttendanceModal)
   const fetchPeople = async (filter = "") => {
@@ -307,7 +309,7 @@ const CreateEvents = ({ user }) => {
         const minutes = Number(minutesStr);
         if (formData.timePeriod === 'PM' && hours !== 12) hours += 12;
         if (formData.timePeriod === 'AM' && hours === 12) hours = 0;
-        
+
         const dateTimeString = `${formData.date}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
         payload.date = dateTimeString;
       }
@@ -315,7 +317,7 @@ const CreateEvents = ({ user }) => {
       console.log('Payload being sent:', JSON.stringify(payload, null, 2));
 
       // Send request
-      const response = eventId 
+      const response = eventId
         ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
         : await axios.post(`${BACKEND_URL}/events`, payload);
 
@@ -329,14 +331,18 @@ const CreateEvents = ({ user }) => {
       setSuccessAlert(true);
 
       if (!eventId) resetForm();
-      navigate("/events", { state: { refresh: true, timestamp: Date.now() } });
+      if (isModal && typeof onClose === 'function') {
+        onClose();
+      } else {
+        navigate("/events", { state: { refresh: true } });
+      }
 
     } catch (err) {
       console.error("Error submitting event:", err);
       console.error("Error response:", err.response?.data);
-      
+
       let errorMsg = "Something went wrong. Please try again!";
-      
+
       if (err.response?.data) {
         if (typeof err.response.data === 'string') {
           errorMsg = err.response.data;
@@ -348,7 +354,7 @@ const CreateEvents = ({ user }) => {
           errorMsg = err.response.data.error;
         }
       }
-      
+
       setErrorMessage(errorMsg);
       setErrorAlert(true);
     } finally {
@@ -762,11 +768,18 @@ const CreateEvents = ({ user }) => {
               <Button
                 variant="outlined"
                 fullWidth
-                onClick={() => navigate("/events", { state: { refresh: true } })}
+                onClick={() => {
+                  if (isModal && typeof onClose === 'function') {
+                    onClose(); // Close modal
+                  } else {
+                    navigate("/events", { state: { refresh: true } }); // Navigate if not modal
+                  }
+                }}
                 sx={darkModeStyles.button.outlined}
               >
                 Cancel
               </Button>
+
               <Button
                 type="submit"
                 variant="contained"
