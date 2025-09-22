@@ -10,8 +10,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
-const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [] }) => {
-
+const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selectedEventType = '' }) => {
   const navigate = useNavigate();
   const { id: eventId } = useParams();
   const theme = useTheme();
@@ -32,29 +31,15 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [] }) => {
     { fullName: 'Gavin Enslin', _id: 'gavin_enslin' }
   ];
 
-  // Use eventTypes from props or default fallback
-  const [localEventTypes, setLocalEventTypes] = useState(
-    eventTypes.length > 0 ? eventTypes : [
-      'Service',
-      'Workshop',
-      'Encounter',
-      'Conference',
-      'J-Activation',
-      'Destiny Training',
-      'Social Event',
-      'Cell'
-    ]
-  );
-
-  // Update local event types when props change
   useEffect(() => {
-    if (eventTypes.length > 0) {
-      setLocalEventTypes(eventTypes);
+    if (eventTypes.length === 1) {
+      setFormData(prev => ({ ...prev, eventType: eventTypes[0] }));
     }
   }, [eventTypes]);
 
+
   const [formData, setFormData] = useState({
-    eventType: '',
+   eventType: selectedEventType || '', 
     eventName: '',
     isTicketed: false,
     price: '',
@@ -327,7 +312,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [] }) => {
       setSuccessAlert(true);
 
       if (!eventId) resetForm();
-      
+
       // Close modal or navigate after a brief delay to show success message
       setTimeout(() => {
         if (isModal && typeof onClose === 'function') {
@@ -462,7 +447,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [] }) => {
           border: '1px solid #333',
         } : {})
       }}>
-        <CardContent sx={{ 
+        <CardContent sx={{
           padding: isModal ? '0' : '1rem',
           '&:last-child': { paddingBottom: isModal ? '0' : '1rem' }
         }}>
@@ -473,23 +458,18 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [] }) => {
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Event Type */}
-            <FormControl fullWidth size="small" sx={{ mb: 3, ...darkModeStyles.select }}>
-              <InputLabel>Event Type</InputLabel>
-              <Select
-                value={formData.eventType}
-                onChange={(e) => handleChange('eventType', e.target.value)}
-              >
-                {localEventTypes.map(type => (
-                  <MenuItem key={type} value={type}>{type}</MenuItem>
-                ))}
-              </Select>
-              {errors.eventType && (
-                <Typography variant="caption" sx={darkModeStyles.errorText}>
-                  {errors.eventType}
-                </Typography>
-              )}
-            </FormControl>
+            <TextField
+              label="Event Type"
+              value={formData.eventType}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              InputProps={{
+                readOnly: true,
+              }}
+              disabled
+            />
+
 
             {/* Event Name */}
             <TextField
@@ -769,7 +749,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [] }) => {
                 variant="contained"
                 fullWidth
                 disabled={isSubmitting}
-                sx={{ 
+                sx={{
                   bgcolor: 'primary.main',
                   '&:hover': { bgcolor: 'primary.dark' }
                 }}

@@ -80,6 +80,10 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
       await onSubmit(eventTypeData);
       resetForm();
       onClose();
+       alert('Event type has been created successfully!');
+      //   if (onEventTypeCreated) {
+      //   onEventTypeCreated(res.data.name);  // Or res.data.eventType if that’s the key
+      // }
     } catch (error) {
       console.error("Error creating event type:", error);
     } finally {
