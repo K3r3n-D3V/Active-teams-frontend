@@ -7,14 +7,12 @@ import {
   FormControlLabel,
   Checkbox,
   Typography,
-  Divider,
 } from "@mui/material";
-import { MoonLoader } from "react-spinners";
 
 const EventTypesModal = ({ open, onClose, onSubmit }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    eventTypeName: "",
+    eventGroupName: "",
     isTicketed: false,
     isGlobal: false,
     hasPersonSteps: false,
@@ -42,12 +40,12 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.eventTypeName.trim()) {
-      newErrors.eventTypeName = "Event type name is required";
+    if (!formData.eventGroupName.trim()) {
+      newErrors.eventGroupName = "Event group name is required";
     }
 
     if (!formData.description.trim()) {
-      newErrors.description = "Description is required";
+      newErrors.description = "Event description is required";
     }
 
     setErrors(newErrors);
@@ -56,7 +54,7 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
 
   const resetForm = () => {
     setFormData({
-      eventTypeName: "",
+      eventGroupName: "",
       isTicketed: false,
       isGlobal: false,
       hasPersonSteps: false,
@@ -71,7 +69,7 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
     setLoading(true);
     try {
       const eventTypeData = {
-        name: formData.eventTypeName.trim(),
+        name: formData.eventGroupName.trim(),
         isTicketed: formData.isTicketed,
         isGlobal: formData.isGlobal,
         hasPersonSteps: formData.hasPersonSteps,
@@ -97,258 +95,262 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
   };
 
   return (
-    <Modal open={open} onClose={handleClose}>
+    <Modal 
+      open={open} 
+      onClose={handleClose}
+      sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        padding: '20px'
+      }}
+    >
       <Box
         sx={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: { xs: "90%", sm: "80%", md: "60%", lg: "50%" },
-          maxWidth: "600px",
+          width: { xs: "95%", sm: "80%", md: "500px" },
+          maxWidth: "500px",
           bgcolor: "white",
-          boxShadow: 24,
-          p: { xs: 3, sm: 4 },
-          borderRadius: 2,
-          overflowY: "auto",
+          borderRadius: "12px",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          overflow: "hidden",
           maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         {/* Header */}
-        <Typography
-          variant="h4"
-          component="h2"
-          sx={{
-            textAlign: "center",
-            mb: 3,
-            fontFamily: "arial",
-            fontSize: { xs: "1.5rem", sm: "1.75rem", md: "2rem" },
-            fontWeight: "bold",
-            color: "primary.main",
-          }}
-        >
-          Create New Event Type
-        </Typography>
-
-        <Divider sx={{ mb: 3 }} />
-
-        {/* Event Type Name */}
-        <TextField
-          label="Event Type Name"
-          name="eventTypeName"
-          fullWidth
-          margin="normal"
-          value={formData.eventTypeName}
-          onChange={handleChange}
-          error={!!errors.eventTypeName}
-          helperText={errors.eventTypeName}
-          placeholder="e.g., Workshop, Conference, Training"
-          required
-        />
-
-        {/* Description */}
-        <TextField
-          label="Description"
-          name="description"
-          fullWidth
-          margin="normal"
-          value={formData.description}
-          onChange={handleChange}
-          error={!!errors.description}
-          helperText={errors.description}
-          multiline
-          rows={4}
-          placeholder="Describe what this event type is for..."
-          required
-        />
-
-        {/* Checkboxes */}
-        <Box sx={{ mt: 3, mb: 2 }}>
-          <Typography variant="h6" sx={{ mb: 2, color: "text.primary" }}>
-            Event Type Settings
-          </Typography>
-
-          <FormControlLabel
-            control={
-              <Checkbox
-                name="isTicketed"
-                checked={formData.isTicketed}
-                onChange={handleChange}
-                color="primary"
-              />
-            }
-            label={
-              <Box>
-                <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                  Ticketed Event Type
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Events of this type will require payment
-                </Typography>
-              </Box>
-            }
-            sx={{ mb: 2 }}
-          />
-
-          <FormControlLabel
-            control={
-              <Checkbox
-                name="isGlobal"
-                checked={formData.isGlobal}
-                onChange={handleChange}
-                color="primary"
-              />
-            }
-            label={
-              <Box>
-                <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                  Global Event Type
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Available across all locations and branches
-                </Typography>
-              </Box>
-            }
-            sx={{ mb: 2 }}
-          />
-
-          <FormControlLabel
-            control={
-              <Checkbox
-                name="hasPersonSteps"
-                checked={formData.hasPersonSteps}
-                onChange={handleChange}
-                color="primary"
-              />
-            }
-            label={
-              <Box>
-                <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                  Person Steps
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Track individual progress and steps for attendees
-                </Typography>
-              </Box>
-            }
-          />
-        </Box>
-
-        <Divider sx={{ my: 3 }} />
-
-        {/* Buttons */}
         <Box
           sx={{
+            backgroundColor: "#333",
+            color: "white",
+            padding: "20px 24px",
             display: "flex",
             justifyContent: "space-between",
-            gap: 2,
-            flexDirection: { xs: "column", sm: "row" },
+            alignItems: "center",
           }}
         >
-          <Button
-            variant="outlined"
+          <Typography
+            variant="h5"
+            component="h2"
+            sx={{
+              fontWeight: "bold",
+              margin: 0,
+              fontSize: "1.5rem",
+            }}
+          >
+            Create New Event Type
+          </Typography>
+          <button
             onClick={handleClose}
-            fullWidth
             disabled={loading}
-            sx={{
-              py: 1.5,
-              fontSize: "1rem",
+            style={{
+              background: "rgba(255, 255, 255, 0.2)",
+              border: "none",
+              borderRadius: "50%",
+              width: "32px",
+              height: "32px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              fontSize: "20px",
+              color: "white",
+              fontWeight: "bold",
+              transition: "all 0.2s ease",
+            }}
+            onMouseOver={(e) => {
+              if (!loading) e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
             }}
           >
-            Cancel
-          </Button>
-
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSubmit}
-            fullWidth
-            disabled={loading}
-            sx={{
-              py: 1.5,
-              fontSize: "1rem",
-            }}
-          >
-            {loading ? (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <MoonLoader size={16} color="white" />
-                <span>Creating...</span>
-              </Box>
-            ) : (
-              "Create Event Type"
-            )}
-          </Button>
+            ×
+          </button>
         </Box>
 
-        {/* Preview Section */}
-        {formData.eventTypeName && (
-          <Box
+        {/* Body */}
+        <Box
+          sx={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "24px",
+          }}
+        >
+          {/* Event Group Name */}
+          <TextField
+            label=""
+            name="eventGroupName"
+            fullWidth
+            margin="normal"
+            value={formData.eventGroupName}
+            onChange={handleChange}
+            error={!!errors.eventGroupName}
+            helperText={errors.eventGroupName}
+            placeholder="Event Type Name"
             sx={{
-              mt: 4,
-              p: 2,
-              bgcolor: "grey.50",
-              borderRadius: 1,
-              border: "1px solid",
-              borderColor: "grey.200",
+              mb: 3,
+              mt: 0,
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': {
+                  borderColor: '#ddd',
+                },
+                '&:hover fieldset': {
+                  borderColor: '#bbb',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#1976d2',
+                },
+              },
             }}
-          >
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-              Preview:
-            </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 500, mb: 1 }}>
-              {formData.eventTypeName}
-            </Typography>
-            {formData.description && (
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {formData.description}
-              </Typography>
-            )}
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {formData.isTicketed && (
-                <Typography
-                  variant="caption"
-                  sx={{
-                    px: 1,
-                    py: 0.5,
-                    bgcolor: "primary.main",
-                    color: "white",
-                    borderRadius: 1,
-                  }}
-                >
-                  Ticketed
-                </Typography>
-              )}
-              {formData.isGlobal && (
-                <Typography
-                  variant="caption"
-                  sx={{
-                    px: 1,
-                    py: 0.5,
-                    bgcolor: "success.main",
-                    color: "white",
-                    borderRadius: 1,
-                  }}
-                >
-                  Global
-                </Typography>
-              )}
-              {formData.hasPersonSteps && (
-                <Typography
-                  variant="caption"
-                  sx={{
-                    px: 1,
-                    py: 0.5,
-                    bgcolor: "info.main",
-                    color: "white",
-                    borderRadius: 1,
-                  }}
-                >
-                  Person Steps
-                </Typography>
-              )}
+          />
+
+          {/* Checkboxes */}
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 2 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    name="isTicketed"
+                    checked={formData.isTicketed}
+                    onChange={handleChange}
+                    color="primary"
+                    sx={{ 
+                      '& .MuiSvgIcon-root': { fontSize: 20 }
+                    }}
+                  />
+                }
+                label="Ticketed"
+                sx={{ 
+                  '& .MuiFormControlLabel-label': { 
+                    fontSize: '0.95rem',
+                    color: '#333'
+                  }
+                }}
+              />
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    name="isGlobal"
+                    checked={formData.isGlobal}
+                    onChange={handleChange}
+                    color="primary"
+                    sx={{ 
+                      '& .MuiSvgIcon-root': { fontSize: 20 }
+                    }}
+                  />
+                }
+                label="Global Event"
+                sx={{ 
+                  '& .MuiFormControlLabel-label': { 
+                    fontSize: '0.95rem',
+                    color: '#333'
+                  }
+                }}
+              />
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    name="hasPersonSteps"
+                    checked={formData.hasPersonSteps}
+                    onChange={handleChange}
+                    color="primary"
+                    sx={{ 
+                      '& .MuiSvgIcon-root': { fontSize: 20 }
+                    }}
+                  />
+                }
+                label="Person Steps"
+                sx={{ 
+                  '& .MuiFormControlLabel-label': { 
+                    fontSize: '0.95rem',
+                    color: '#333'
+                  }
+                }}
+              />
             </Box>
           </Box>
-        )}
+
+          {/* Description */}
+          <TextField
+            label=""
+            name="description"
+            fullWidth
+            multiline
+            rows={4}
+            value={formData.description}
+            onChange={handleChange}
+            error={!!errors.description}
+            helperText={errors.description}
+            placeholder="Event Description"
+            sx={{
+              mb: 3,
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': {
+                  borderColor: '#ddd',
+                },
+                '&:hover fieldset': {
+                  borderColor: '#bbb',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#1976d2',
+                },
+              },
+            }}
+          />
+
+          {/* Buttons */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 2,
+              mt: 3
+            }}
+          >
+            <Button
+              variant="outlined"
+              onClick={handleClose}
+              disabled={loading}
+              sx={{
+                flex: 1,
+                py: 1.2,
+                fontSize: "0.95rem",
+                textTransform: "uppercase",
+                fontWeight: "500",
+                borderColor: "#ddd",
+                color: "#666",
+                '&:hover': {
+                  borderColor: "#bbb",
+                  backgroundColor: "rgba(0,0,0,0.04)"
+                }
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleSubmit}
+              disabled={loading}
+              sx={{
+                flex: 1,
+                py: 1.2,
+                fontSize: "0.95rem",
+                textTransform: "uppercase",
+                fontWeight: "500",
+                backgroundColor: "#1976d2",
+                '&:hover': {
+                  backgroundColor: "#1565c0"
+                }
+              }}
+            >
+              {loading ? "Creating..." : "Submit"}
+            </Button>
+          </Box>
+        </Box>
       </Box>
     </Modal>
   );

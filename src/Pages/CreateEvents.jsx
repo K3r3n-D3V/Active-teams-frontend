@@ -7,11 +7,10 @@ import {
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
-import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
-const CreateEvents = ({ user, isModal = false, onClose }) => {
+const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [] }) => {
 
   const navigate = useNavigate();
   const { id: eventId } = useParams();
@@ -19,14 +18,12 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
   const isDarkMode = theme.palette.mode === 'dark';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showNewTypeForm, setShowNewTypeForm] = useState(false);
-  const [newEventType, setNewEventType] = useState('');
   const [successAlert, setSuccessAlert] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorAlert, setErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [peopleData, setPeopleData] = useState([]);
-  const [searchName, setSearchName] = useState(''); // Add search state like AttendanceModal
+  const [searchName, setSearchName] = useState('');
   const [loadingPeople, setLoadingPeople] = useState(false);
 
   // Hardcoded Leader at 1 options
@@ -35,16 +32,26 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
     { fullName: 'Gavin Enslin', _id: 'gavin_enslin' }
   ];
 
-  const [eventTypes, setEventTypes] = useState([
-    'Service',
-    'Workshop',
-    'Encounter',
-    'Conference',
-    'J-Activation',
-    'Destiny Training',
-    'Social Event',
-    'Cell'
-  ]);
+  // Use eventTypes from props or default fallback
+  const [localEventTypes, setLocalEventTypes] = useState(
+    eventTypes.length > 0 ? eventTypes : [
+      'Service',
+      'Workshop',
+      'Encounter',
+      'Conference',
+      'J-Activation',
+      'Destiny Training',
+      'Social Event',
+      'Cell'
+    ]
+  );
+
+  // Update local event types when props change
+  useEffect(() => {
+    if (eventTypes.length > 0) {
+      setLocalEventTypes(eventTypes);
+    }
+  }, [eventTypes]);
 
   const [formData, setFormData] = useState({
     eventType: '',
@@ -73,14 +80,13 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
   // Time periods
   const timePeriods = ['AM', 'PM'];
 
-
-  // Fetch people function (exactly like AttendanceModal)
+  // Fetch people function
   const fetchPeople = async (filter = "") => {
     try {
       setLoadingPeople(true);
       const params = new URLSearchParams();
       if (filter) params.append("name", filter);
-      params.append("perPage", "100"); // Same as AttendanceModal
+      params.append("perPage", "100");
 
       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
       const data = await res.json();
@@ -111,7 +117,7 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
     fetchPeople();
   }, [BACKEND_URL]);
 
-  // Debounced search effect (exactly like AttendanceModal)
+  // Debounced search effect
   useEffect(() => {
     const delay = setTimeout(() => {
       fetchPeople(searchName);
@@ -189,16 +195,6 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
         ? prev.recurringDays.filter(d => d !== day)
         : [...prev.recurringDays, day]
     }));
-  };
-
-  const addNewEventType = () => {
-    if (!newEventType.trim()) return;
-    if (!eventTypes.includes(newEventType.trim())) {
-      setEventTypes(prev => [...prev, newEventType.trim()]);
-      setFormData(prev => ({ ...prev, eventType: newEventType.trim() }));
-    }
-    setNewEventType('');
-    setShowNewTypeForm(false);
   };
 
   const validateForm = () => {
@@ -331,11 +327,15 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
       setSuccessAlert(true);
 
       if (!eventId) resetForm();
-      if (isModal && typeof onClose === 'function') {
-        onClose();
-      } else {
-        navigate("/events", { state: { refresh: true } });
-      }
+      
+      // Close modal or navigate after a brief delay to show success message
+      setTimeout(() => {
+        if (isModal && typeof onClose === 'function') {
+          onClose();
+        } else {
+          navigate("/events", { state: { refresh: true } });
+        }
+      }, 1500);
 
     } catch (err) {
       console.error("Error submitting event:", err);
@@ -364,12 +364,41 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
 
   const isCell = formData.eventType.toLowerCase().includes("cell");
 
+  // Modified styles for modal use
+  const containerStyle = isModal ? {
+    padding: '0',
+    minHeight: 'auto',
+    backgroundColor: 'transparent',
+    width: '100%',
+    height: '100%',
+    maxHeight: 'none',
+    overflowY: 'auto',
+  } : {
+    minHeight: '100vh',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    bgcolor: isDarkMode ? '#121212' : '#f5f5f5',
+    px: 2
+  };
+
+  const cardStyle = isModal ? {
+    width: '100%',
+    height: '100%',
+    padding: '1.5rem',
+    borderRadius: 0,
+    boxShadow: 'none',
+    backgroundColor: 'transparent',
+    maxHeight: 'none',
+    overflow: 'visible',
+  } : {
+    width: { xs: '100%', sm: '85%', md: '700px' },
+    p: 5,
+    borderRadius: '20px',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+  };
+
   const darkModeStyles = {
-    card: {
-      bgcolor: isDarkMode ? '#1e1e1e' : 'white',
-      color: isDarkMode ? '#ffffff' : 'black',
-      border: isDarkMode ? '1px solid #333' : 'none',
-    },
     textField: {
       '& .MuiOutlinedInput-root': {
         bgcolor: isDarkMode ? '#2d2d2d' : 'white',
@@ -424,68 +453,24 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
   };
 
   return (
-    <Box sx={{
-      minHeight: '100vh',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      bgcolor: isDarkMode ? '#121212' : '#f5f5f5',
-      px: 2
-    }}>
+    <Box sx={containerStyle}>
       <Card sx={{
-        width: { xs: '100%', sm: '85%', md: '700px' },
-        p: 5,
-        borderRadius: '20px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-        ...darkModeStyles.card
+        ...cardStyle,
+        ...(isDarkMode && !isModal ? {
+          bgcolor: '#1e1e1e',
+          color: '#ffffff',
+          border: '1px solid #333',
+        } : {})
       }}>
-        <CardContent>
-          <Typography variant="h4" fontWeight="bold" textAlign="center" mb={4} color="primary">
-            {eventId ? 'Edit Event' : 'Create New Event'}
-          </Typography>
-
-          {/* New Type Form */}
-          <Box
-            display="flex"
-            flexWrap="wrap"
-            alignItems="center"
-            gap={1.5}
-            mb={1.5}
-          >
-            <Button
-              variant="outlined"
-              onClick={() => setShowNewTypeForm(!showNewTypeForm)}
-              startIcon={<AddIcon />}
-              sx={darkModeStyles.button.outlined}
-            >
-              New Type
-            </Button>
-
-            {showNewTypeForm && (
-              <>
-                <TextField
-                  placeholder="Enter new event type"
-                  value={newEventType}
-                  onChange={(e) => setNewEventType(e.target.value)}
-                  size="small"
-                  sx={{ minWidth: 340, ...darkModeStyles.textField }}
-                />
-                <Button
-                  variant="contained"
-                  onClick={addNewEventType}
-                  size="small"
-                  sx={{
-                    bgcolor: 'primary.main',
-                    px: 3,
-                    py: 0.8,
-                    textTransform: 'none',
-                  }}
-                >
-                  Add
-                </Button>
-              </>
-            )}
-          </Box>
+        <CardContent sx={{ 
+          padding: isModal ? '0' : '1rem',
+          '&:last-child': { paddingBottom: isModal ? '0' : '1rem' }
+        }}>
+          {!isModal && (
+            <Typography variant="h4" fontWeight="bold" textAlign="center" mb={4} color="primary">
+              {eventId ? 'Edit Event' : 'Create New Event'}
+            </Typography>
+          )}
 
           <form onSubmit={handleSubmit}>
             {/* Event Type */}
@@ -495,7 +480,7 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
                 value={formData.eventType}
                 onChange={(e) => handleChange('eventType', e.target.value)}
               >
-                {eventTypes.map(type => (
+                {localEventTypes.map(type => (
                   <MenuItem key={type} value={type}>{type}</MenuItem>
                 ))}
               </Select>
@@ -635,7 +620,7 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
               }}
             />
 
-            {/* Event Leader - Simple Text Field */}
+            {/* Event Leader */}
             <TextField
               label="Event Leader"
               value={formData.eventLeader}
@@ -690,7 +675,7 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
                   )}
                 />
 
-                {/* Leader at 12 - SERVER-SIDE FILTERING LIKE ATTENDANCE MODAL */}
+                {/* Leader at 12 - SERVER-SIDE FILTERING */}
                 <Autocomplete
                   freeSolo
                   loading={loadingPeople}
@@ -706,10 +691,9 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
                   }}
                   onInputChange={(event, newInputValue) => {
                     handleChange('leader12', newInputValue);
-                    // Trigger server-side search like AttendanceModal
                     setSearchName(newInputValue);
                   }}
-                  filterOptions={(options) => options} // No client-side filtering, use server results
+                  filterOptions={(options) => options}
                   renderInput={(params) => (
                     <TextField
                       {...params}
@@ -764,15 +748,15 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
             />
 
             {/* Buttons */}
-            <Box display="flex" gap={2}>
+            <Box display="flex" gap={2} sx={{ mt: 3 }}>
               <Button
                 variant="outlined"
                 fullWidth
                 onClick={() => {
                   if (isModal && typeof onClose === 'function') {
-                    onClose(); // Close modal
+                    onClose();
                   } else {
-                    navigate("/events", { state: { refresh: true } }); // Navigate if not modal
+                    navigate("/events", { state: { refresh: true } });
                   }
                 }}
                 sx={darkModeStyles.button.outlined}
@@ -785,6 +769,10 @@ const CreateEvents = ({ user, isModal = false, onClose }) => {
                 variant="contained"
                 fullWidth
                 disabled={isSubmitting}
+                sx={{ 
+                  bgcolor: 'primary.main',
+                  '&:hover': { bgcolor: 'primary.dark' }
+                }}
               >
                 {isSubmitting
                   ? (eventId ? 'Updating...' : 'Creating...')

@@ -10,8 +10,8 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Eventsfilter from "./Eventsfilter";
 import EventsModal from "./EventsModal";
-// import CreateOptionsModal from "./CreateOptionsModal";
 import CreateEvents from "./CreateEvents";
+import EventTypesModal from "./EventTypesModal";
 
 // Define styles object outside the component
 const styles = {
@@ -218,52 +218,67 @@ const styles = {
     backgroundColor: "#e9ecef",
     color: "#6c757d",
   },
-  // Modal overlay styles
+  // Fixed Modal overlay styles
   modalOverlay: {
     position: 'fixed',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2000,
     padding: '20px',
-    overflowY: 'auto',
   },
   modalContent: {
     position: 'relative',
-    maxWidth: '95vw',
+    width: '90%',
+    maxWidth: '700px',
     maxHeight: '95vh',
-    width: '100%',
     backgroundColor: 'white',
     borderRadius: '12px',
     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
     overflow: 'hidden',
-    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  modalHeader: {
+    backgroundColor: '#333',
+    color: 'white',
+    padding: '20px 24px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopLeftRadius: '12px',
+    borderTopRightRadius: '12px',
+  },
+  modalTitle: {
+    fontSize: '1.5rem',
+    fontWeight: 'bold',
+    margin: 0,
   },
   modalCloseButton: {
-    position: 'absolute',
-    top: '15px',
-    right: '15px',
-    background: 'rgba(255, 255, 255, 0.9)',
+    background: 'rgba(255, 255, 255, 0.2)',
     border: 'none',
     borderRadius: '50%',
-    width: '40px',
-    height: '40px',
+    width: '32px',
+    height: '32px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
-    fontSize: '24px',
-    color: '#666',
-    zIndex: 2001,
+    fontSize: '20px',
+    color: 'white',
     fontWeight: 'bold',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
     transition: 'all 0.2s ease',
-  }
+  },
+  modalBody: {
+    flex: 1,
+    overflow: 'auto',
+    padding: '0',
+  },
 };
 
 const EventSkeleton = () => {
@@ -315,6 +330,7 @@ const Events = () => {
   const [showCreateOptionsModal, setShowCreateOptionsModal] = useState(false);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  const [showCreateEventTypeModal, setShowCreateEventTypeModal] = useState(false);
 
   const [eventTypes, setEventTypes] = useState([
     "Service",
@@ -507,18 +523,42 @@ const Events = () => {
   };
 
   const handleCreateEvent = () => {
+    setShowCreateOptionsModal(false); // Close options modal first
     setShowCreateEventModal(true);
   };
 
   const handleCreateEventType = () => {
-    console.log("Create Event Type clicked");
-    alert("Event Type creation - you can customize this later");
+    setShowCreateOptionsModal(false); // Close options modal first
+    setShowCreateEventTypeModal(true); // Open event type modal
   };
 
   const handleCloseCreateEventModal = () => {
     setShowCreateEventModal(false);
     // Refresh events after closing the modal
     fetchEvents();
+  };
+
+  const handleCreateEventTypeSubmit = async (eventTypeData) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Add the new event type to the existing types
+      if (response.data && response.data.name) {
+        setEventTypes(prev => [...prev, response.data.name]);
+      }
+      
+      console.log('Event type created successfully:', response.data);
+    } catch (error) {
+      console.error('Error creating event type:', error);
+      throw error; // Re-throw to handle in the modal
+    }
+  };
+
+  const handleCloseCreateEventTypeModal = () => {
+    setShowCreateEventTypeModal(false);
   };
 
   const handleAttendanceSubmit = async (data) => {
@@ -973,6 +1013,14 @@ const Events = () => {
         onCreateEvent={handleCreateEvent}
         onCreateEventType={handleCreateEventType}
       />
+
+{/* Create Event Type Modal */}
+<EventTypesModal
+  open={showCreateEventTypeModal}
+  onClose={handleCloseCreateEventTypeModal}
+  onSubmit={handleCreateEventTypeSubmit}
+/>
+
 
       {/* Create Event Modal */}
       {showCreateEventModal && (
