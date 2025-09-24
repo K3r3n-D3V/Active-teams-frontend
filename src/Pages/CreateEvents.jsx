@@ -10,7 +10,16 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
-const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selectedEventType = '' }) => {
+const CreateEvents = ({
+  user,
+  isModal = false,
+  onClose,
+  eventTypes = [],
+  selectedEventType = '',
+  isGlobalEvent = false,
+  // isTicketedEvent = false,
+  hasPersonSteps = false
+}) => {
   const navigate = useNavigate();
   const { id: eventId } = useParams();
   const theme = useTheme();
@@ -37,11 +46,11 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
     }
   }, [eventTypes]);
 
-
   const [formData, setFormData] = useState({
-   eventType: selectedEventType || '', 
+    eventType: selectedEventType || '',
     eventName: '',
-    isTicketed: false,
+    ageGroup: '',
+    memberType: '',
     price: '',
     date: '',
     time: '',
@@ -55,6 +64,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
     email: '',
     leaders: []
   });
+  
 
   const [errors, setErrors] = useState({});
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -134,6 +144,10 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
 
         data.price = data.price ? data.price.toString() : '';
 
+        // Handle new fields
+        data.ageGroup = data.ageGroup || '';
+        data.memberType = data.memberType || '';
+
         // Collect leaders dynamically
         data.leaders = Object.entries(data)
           .filter(([key, value]) => key.toLowerCase().startsWith("leader") && value)
@@ -206,21 +220,41 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
       newErrors.description = 'Description is required';
     }
 
-    if (isCell && formData.recurringDays.length === 0) {
-      newErrors.recurringDays = 'Select at least one recurring day';
-    }
+    // Skip additional validations for global events
+    if (!isGlobalEvent) {
+      if (isCell && formData.recurringDays.length === 0) {
+        newErrors.recurringDays = 'Select at least one recurring day';
+      }
 
-    if (!isCell) {
+      if (!isCell) {
+        if (!formData.date) {
+          newErrors.date = 'Date is required';
+        }
+        if (!formData.time) {
+          newErrors.time = 'Time is required';
+        }
+      }
+
+      // Validate ticketed fields when event type is configured as ticketed
+      if (isTicketedEvent) {
+        if (!formData.ageGroup) {
+          newErrors.ageGroup = 'Age group is required for ticketed events';
+        }
+        if (!formData.memberType) {
+          newErrors.memberType = 'Member type is required for ticketed events';
+        }
+        if (!formData.price) {
+          newErrors.price = 'Price is required for ticketed events';
+        }
+      }
+    } else {
+      // For global events, only validate basic date/time
       if (!formData.date) {
         newErrors.date = 'Date is required';
       }
       if (!formData.time) {
         newErrors.time = 'Time is required';
       }
-    }
-
-    if (formData.isTicketed && !formData.price) {
-      newErrors.price = 'Price is required for ticketed events';
     }
 
     setErrors(newErrors);
@@ -231,7 +265,8 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
     setFormData({
       eventType: '',
       eventName: '',
-      isTicketed: false,
+      ageGroup: '',
+      memberType: '',
       price: '',
       date: '',
       time: '',
@@ -261,7 +296,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
       const payload = {
         eventType: formData.eventType,
         eventName: formData.eventName,
-        isTicketed: formData.isTicketed,
+        isTicketed: isTicketedEvent,
         location: formData.location,
         eventLeader: formData.eventLeader,
         description: formData.description,
@@ -269,22 +304,24 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
         recurring_day: formData.recurringDays
       };
 
-      // Handle price properly
-      if (formData.isTicketed) {
+      // Handle ticketed event fields when event type is configured as ticketed
+      if (isTicketedEvent) {
+        payload.ageGroup = formData.ageGroup;
+        payload.memberType = formData.memberType;
         payload.price = formData.price ? parseFloat(formData.price) : 0;
       } else {
         payload.price = null;
       }
 
-      // Add leaders for cell events
-      if (isCell) {
+      // Add leaders for cell events with person steps
+      if (isCell && !isGlobalEvent && hasPersonSteps) {
         if (formData.leader1) payload.leader1 = formData.leader1;
         if (formData.leader12) payload.leader12 = formData.leader12;
         if (formData.email) payload.email = formData.email;
       }
 
-      // Handle date for non-cell events
-      if (!isCell && formData.date && formData.time) {
+      // Handle date for non-cell events OR global events
+      if ((!isCell || isGlobalEvent) && formData.date && formData.time) {
         const [hoursStr, minutesStr] = formData.time.split(':');
         let hours = Number(hoursStr);
         const minutes = Number(minutesStr);
@@ -305,7 +342,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
       console.log('Server response:', response.data);
 
       setSuccessMessage(
-        isCell
+        isCell && !isGlobalEvent
           ? `The ${formData.eventName} Cell has been ${eventId ? 'updated' : 'created'} successfully!`
           : eventId ? "Event updated successfully!" : "Event created successfully!"
       );
@@ -436,6 +473,13 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
       color: isDarkMode ? '#ff6b6b' : 'red'
     }
   };
+    // New dropdown options
+  const ageGroupOptions = ['Child', 'Adult'];
+  const memberTypeOptions = ['Guild', 'First Time'];
+// Only define if not already defined
+const isTicketedEvent = formData.eventType === 'Ticketed';
+// const isGlobalEvent = formData.eventType === 'Global';
+
 
   return (
     <Box sx={containerStyle}>
@@ -459,7 +503,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
 
           <form onSubmit={handleSubmit}>
             <TextField
-              label="Event Type"
+              label={isGlobalEvent ? "Event Group Name" : "Event Type"}
               value={formData.eventType}
               fullWidth
               size="small"
@@ -470,7 +514,6 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
               disabled
             />
 
-
             {/* Event Name */}
             <TextField
               label="Event Name"
@@ -480,37 +523,98 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
               error={!!errors.eventName}
-              helperText={errors.eventName || (isCell ? "Auto-filled when event leader is selected" : "")}
+              helperText={errors.eventName || (isCell && !isGlobalEvent ? "Auto-filled when event leader is selected" : "")}
             />
 
-            {/* Ticketed */}
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isTicketed}
-                  onChange={(e) => handleChange('isTicketed', e.target.checked)}
+            {/* Ticketed fields - Show when event type is configured as ticketed */}
+            {!isGlobalEvent && isTicketedEvent && (
+              <>
+                {/* Age Group + Member Type */}
+                <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
+                  <FormControl fullWidth size="small" error={!!errors.ageGroup}>
+                    <InputLabel sx={{ color: isDarkMode ? '#bbb' : 'rgba(0, 0, 0, 0.6)' }}>Age Group *</InputLabel>
+                    <Select
+                      value={formData.ageGroup}
+                      label="Age Group *"
+                      onChange={(e) => handleChange('ageGroup', e.target.value)}
+                      sx={{
+                        bgcolor: isDarkMode ? '#2d2d2d' : 'white',
+                        color: isDarkMode ? '#ffffff' : 'inherit',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode ? '#555' : 'rgba(0, 0, 0, 0.23)'
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode ? '#777' : 'rgba(0, 0, 0, 0.87)'
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          borderColor: theme.palette.primary.main
+                        }
+                      }}
+                    >
+                      {ageGroupOptions.map(option => (
+                        <MenuItem key={option} value={option}>{option}</MenuItem>
+                      ))}
+                    </Select>
+                    {errors.ageGroup && (
+                      <Typography variant="caption" sx={darkModeStyles.errorText}>
+                        {errors.ageGroup}
+                      </Typography>
+                    )}
+                  </FormControl>
+
+                  <FormControl fullWidth size="small" error={!!errors.memberType}>
+                    <InputLabel sx={{ color: isDarkMode ? '#bbb' : 'rgba(0, 0, 0, 0.6)' }}>Member Type *</InputLabel>
+                    <Select
+                      value={formData.memberType}
+                      label="Member Type *"
+                      onChange={(e) => handleChange('memberType', e.target.value)}
+                      sx={{
+                        bgcolor: isDarkMode ? '#2d2d2d' : 'white',
+                        color: isDarkMode ? '#ffffff' : 'inherit',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode ? '#555' : 'rgba(0, 0, 0, 0.23)'
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode ? '#777' : 'rgba(0, 0, 0, 0.87)'
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          borderColor: theme.palette.primary.main
+                        }
+                      }}
+                    >
+                      {memberTypeOptions.map(option => (
+                        <MenuItem key={option} value={option}>{option}</MenuItem>
+                      ))}
+                    </Select>
+                    {errors.memberType && (
+                      <Typography variant="caption" sx={darkModeStyles.errorText}>
+                        {errors.memberType}
+                      </Typography>
+                    )}
+                  </FormControl>
+                </Box>
+
+                {/* Price field - below ageGroup and memberType */}
+                <TextField
+                  label="Price"
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => handleChange('price', e.target.value)}
+                  fullWidth
+                  size="small"
+                  error={!!errors.price}
+                  helperText={errors.price}
+                  sx={{ mb: 3, ...darkModeStyles.textField }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">R</InputAdornment>
+                  }}
                 />
-              }
-              label="Ticketed Event"
-              sx={{ mb: 2, ...darkModeStyles.formControlLabel }}
-            />
-
-            {formData.isTicketed && (
-              <TextField
-                label="Price"
-                type="number"
-                value={formData.price}
-                onChange={(e) => handleChange('price', e.target.value)}
-                fullWidth
-                size="small"
-                error={!!errors.price}
-                helperText={errors.price}
-                sx={{ mb: 3, ...darkModeStyles.textField }}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">R</InputAdornment>
-                }}
-              />
+              </>
             )}
+
+
+
+
 
             {/* Date & Time */}
             <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
@@ -522,7 +626,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
                 fullWidth
                 size="small"
                 InputLabelProps={{ shrink: true }}
-                disabled={isCell}
+                disabled={isCell && !isGlobalEvent}
                 error={!!errors.date}
                 helperText={errors.date}
                 sx={darkModeStyles.textField}
@@ -535,7 +639,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
                 fullWidth
                 size="small"
                 InputLabelProps={{ shrink: true }}
-                disabled={isCell}
+                disabled={isCell && !isGlobalEvent}
                 error={!!errors.time}
                 helperText={errors.time}
                 sx={darkModeStyles.textField}
@@ -546,7 +650,7 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
                   value={formData.timePeriod}
                   label="AM/PM"
                   onChange={(e) => handleChange('timePeriod', e.target.value)}
-                  disabled={isCell}
+                  disabled={isCell && !isGlobalEvent}
                 >
                   {timePeriods.map(period => (
                     <MenuItem key={period} value={period}>{period}</MenuItem>
@@ -555,13 +659,98 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
               </FormControl>
             </Box>
 
-            {/* Recurring Days */}
+
+            {/* Age Group + Member Type side by side */}
+            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
+              <FormControl fullWidth size="small" error={!!errors.ageGroup}>
+                <InputLabel sx={{ color: isDarkMode ? '#bbb' : 'rgba(0, 0, 0, 0.6)' }}>Age Group *</InputLabel>
+                <Select
+                  value={formData.ageGroup}
+                  label="Age Group *"
+                  onChange={(e) => handleChange('ageGroup', e.target.value)}
+                  sx={{
+                    bgcolor: isDarkMode ? '#2d2d2d' : 'white',
+                    color: isDarkMode ? '#ffffff' : 'inherit',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: isDarkMode ? '#555' : 'rgba(0, 0, 0, 0.23)'
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: isDarkMode ? '#777' : 'rgba(0, 0, 0, 0.87)'
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: theme.palette.primary.main
+                    }
+                  }}
+                >
+                  {ageGroupOptions.map(option => (
+                    <MenuItem key={option} value={option}>{option}</MenuItem>
+                  ))}
+                </Select>
+                {errors.ageGroup && (
+                  <Typography variant="caption" sx={darkModeStyles.errorText}>
+                    {errors.ageGroup}
+                  </Typography>
+                )}
+              </FormControl>
+
+              <FormControl fullWidth size="small" error={!!errors.memberType}>
+                <InputLabel sx={{ color: isDarkMode ? '#bbb' : 'rgba(0, 0, 0, 0.6)' }}>Member Type *</InputLabel>
+                <Select
+                  value={formData.memberType}
+                  label="Member Type *"
+                  onChange={(e) => handleChange('memberType', e.target.value)}
+                  sx={{
+                    bgcolor: isDarkMode ? '#2d2d2d' : 'white',
+                    color: isDarkMode ? '#ffffff' : 'inherit',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: isDarkMode ? '#555' : 'rgba(0, 0, 0, 0.23)'
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: isDarkMode ? '#777' : 'rgba(0, 0, 0, 0.87)'
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: theme.palette.primary.main
+                    }
+                  }}
+                >
+                  {memberTypeOptions.map(option => (
+                    <MenuItem key={option} value={option}>{option}</MenuItem>
+                  ))}
+                </Select>
+                {errors.memberType && (
+                  <Typography variant="caption" sx={darkModeStyles.errorText}>
+                    {errors.memberType}
+                  </Typography>
+                )}
+              </FormControl>
+            </Box>
+
+            {/* Price field below */}
+            <TextField
+              label="Price"
+              type="number"
+              value={formData.price}
+              onChange={(e) => handleChange('price', e.target.value)}
+              fullWidth
+              size="small"
+              error={!!errors.price}
+              helperText={errors.price}
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start">R</InputAdornment>
+              }}
+            />
+
+
+            {/* Recurring Days - Show for all events */}
             <Box mb={3}>
               <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
-                Recurring Days {isCell && <span style={{ color: 'red' }}>*</span>}
+                Recurring Days {isCell && !isGlobalEvent && <span style={{ color: 'red' }}>*</span>}
               </Typography>
               <Typography variant="body2" sx={{ color: isDarkMode ? '#bbb' : '#666', mb: 2 }}>
-                {isCell ? 'Select the days this cell meets regularly' : 'Optional: Select days if this event repeats weekly'}
+                {isCell && !isGlobalEvent
+                  ? 'Select the days this cell meets regularly'
+                  : 'Optional: Select days if this event repeats weekly'}
               </Typography>
               <Box display="flex" flexWrap="wrap" gap={2}>
                 {days.map(day => (
@@ -615,8 +804,8 @@ const CreateEvents = ({ user, isModal = false, onClose, eventTypes = [], selecte
               }}
             />
 
-            {/* Cell Leadership Section */}
-            {isCell && (
+            {/* Cell Leadership Section - Only show for cell events with person steps and non-global events */}
+            {isCell && !isGlobalEvent && hasPersonSteps && (
               <Box mb={3}>
                 <Typography
                   variant="h6"

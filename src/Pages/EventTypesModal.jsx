@@ -41,7 +41,7 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
     const newErrors = {};
 
     if (!formData.eventGroupName.trim()) {
-      newErrors.eventGroupName = "Event group name is required";
+      newErrors.eventGroupName = "Event type name is required";
     }
 
     if (!formData.description.trim()) {
