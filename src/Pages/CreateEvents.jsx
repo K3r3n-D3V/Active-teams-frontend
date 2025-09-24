@@ -17,7 +17,7 @@ const CreateEvents = ({
   eventTypes = [],
   selectedEventType = '',
   isGlobalEvent = false,
-  // isTicketedEvent = false,
+  isTicketedEvent = false,
   hasPersonSteps = false
 }) => {
   const navigate = useNavigate();
@@ -33,7 +33,7 @@ const CreateEvents = ({
   const [peopleData, setPeopleData] = useState([]);
   const [searchName, setSearchName] = useState('');
   const [loadingPeople, setLoadingPeople] = useState(false);
-
+ 
   // Hardcoded Leader at 1 options
   const leaderAt1Options = [
     { fullName: 'Vicky Enslin', _id: 'vicky_enslin' },
@@ -64,7 +64,7 @@ const CreateEvents = ({
     email: '',
     leaders: []
   });
-  
+
 
   const [errors, setErrors] = useState({});
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -473,12 +473,12 @@ const CreateEvents = ({
       color: isDarkMode ? '#ff6b6b' : 'red'
     }
   };
-    // New dropdown options
+  // New dropdown options
   const ageGroupOptions = ['Child', 'Adult'];
   const memberTypeOptions = ['Guild', 'First Time'];
-// Only define if not already defined
-const isTicketedEvent = formData.eventType === 'Ticketed';
-// const isGlobalEvent = formData.eventType === 'Global';
+  // Only define if not already defined
+  // const isTicketedEvent = formData.eventType === 'Ticketed';
+  // const isGlobalEvent = formData.eventType === 'Global';
 
 
   return (
@@ -526,75 +526,34 @@ const isTicketedEvent = formData.eventType === 'Ticketed';
               helperText={errors.eventName || (isCell && !isGlobalEvent ? "Auto-filled when event leader is selected" : "")}
             />
 
-            {/* Ticketed fields - Show when event type is configured as ticketed */}
-            {!isGlobalEvent && isTicketedEvent && (
+            {/* Ticketed Event Fields */}
+            {isTicketedEvent && !isGlobalEvent && !hasPersonSteps && (
               <>
-                {/* Age Group + Member Type */}
-                <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
-                  <FormControl fullWidth size="small" error={!!errors.ageGroup}>
-                    <InputLabel sx={{ color: isDarkMode ? '#bbb' : 'rgba(0, 0, 0, 0.6)' }}>Age Group *</InputLabel>
-                    <Select
-                      value={formData.ageGroup}
-                      label="Age Group *"
-                      onChange={(e) => handleChange('ageGroup', e.target.value)}
-                      sx={{
-                        bgcolor: isDarkMode ? '#2d2d2d' : 'white',
-                        color: isDarkMode ? '#ffffff' : 'inherit',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: isDarkMode ? '#555' : 'rgba(0, 0, 0, 0.23)'
-                        },
-                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                          borderColor: isDarkMode ? '#777' : 'rgba(0, 0, 0, 0.87)'
-                        },
-                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                          borderColor: theme.palette.primary.main
-                        }
-                      }}
-                    >
-                      {ageGroupOptions.map(option => (
-                        <MenuItem key={option} value={option}>{option}</MenuItem>
-                      ))}
-                    </Select>
-                    {errors.ageGroup && (
-                      <Typography variant="caption" sx={darkModeStyles.errorText}>
-                        {errors.ageGroup}
-                      </Typography>
-                    )}
-                  </FormControl>
+                {/* Age Group */}
+                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                  <InputLabel>Age Group</InputLabel>
+                  <Select
+                    value={formData.ageGroup}
+                    onChange={(e) => handleChange('ageGroup', e.target.value)}
+                  >
+                    <MenuItem value="Child">Child</MenuItem>
+                    <MenuItem value="Adult">Adult</MenuItem>
+                  </Select>
+                </FormControl>
 
-                  <FormControl fullWidth size="small" error={!!errors.memberType}>
-                    <InputLabel sx={{ color: isDarkMode ? '#bbb' : 'rgba(0, 0, 0, 0.6)' }}>Member Type *</InputLabel>
-                    <Select
-                      value={formData.memberType}
-                      label="Member Type *"
-                      onChange={(e) => handleChange('memberType', e.target.value)}
-                      sx={{
-                        bgcolor: isDarkMode ? '#2d2d2d' : 'white',
-                        color: isDarkMode ? '#ffffff' : 'inherit',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: isDarkMode ? '#555' : 'rgba(0, 0, 0, 0.23)'
-                        },
-                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                          borderColor: isDarkMode ? '#777' : 'rgba(0, 0, 0, 0.87)'
-                        },
-                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                          borderColor: theme.palette.primary.main
-                        }
-                      }}
-                    >
-                      {memberTypeOptions.map(option => (
-                        <MenuItem key={option} value={option}>{option}</MenuItem>
-                      ))}
-                    </Select>
-                    {errors.memberType && (
-                      <Typography variant="caption" sx={darkModeStyles.errorText}>
-                        {errors.memberType}
-                      </Typography>
-                    )}
-                  </FormControl>
-                </Box>
+                {/* Member Type */}
+                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                  <InputLabel>Member Type</InputLabel>
+                  <Select
+                    value={formData.memberType}
+                    onChange={(e) => handleChange('memberType', e.target.value)}
+                  >
+                    <MenuItem value="Guild">Guild</MenuItem>
+                    <MenuItem value="First">First</MenuItem>
+                  </Select>
+                </FormControl>
 
-                {/* Price field - below ageGroup and memberType */}
+                {/* Price */}
                 <TextField
                   label="Price"
                   type="number"
@@ -602,19 +561,34 @@ const isTicketedEvent = formData.eventType === 'Ticketed';
                   onChange={(e) => handleChange('price', e.target.value)}
                   fullWidth
                   size="small"
-                  error={!!errors.price}
-                  helperText={errors.price}
-                  sx={{ mb: 3, ...darkModeStyles.textField }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start">R</InputAdornment>
-                  }}
+                  sx={{ mb: 2 }}
                 />
               </>
             )}
 
+            {/* Global Event: hide Age Group, Member Type, Price (so no fields here) */}
 
-
-
+            {/* Personal Steps Fields */}
+            {hasPersonSteps && (
+              <>
+                <TextField
+                  label="Leader @1"
+                  value={formData.leader1}
+                  onChange={(e) => handleChange('leader1', e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2 }}
+                />
+                <TextField
+                  label="Leader @12"
+                  value={formData.leader12}
+                  onChange={(e) => handleChange('leader12', e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2 }}
+                />
+              </>
+            )}
 
             {/* Date & Time */}
             <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>

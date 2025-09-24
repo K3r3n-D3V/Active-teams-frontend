@@ -130,15 +130,25 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
       headers: { 'Content-Type': 'application/json' }
     });
 
-    if (response.ok) {
-      setAlert({
-        open: true,
-        type: "success",
-        message: `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
-      });
-      onClose(); // close modal or do post-submit actions
-    } else {
+  if (response.ok) {
+  setAlert({
+    open: true,
+    type: "success",
+    message: `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
+  });
+
+  // Close only for non-admins
+  const userRole = user?.role?.toLowerCase() || "";
+
+  if (userRole !== "admin") {
+    setTimeout(() => {
+      onClose(); // close after short delay
+    }, 2000);
+  }
+}
+else {
       const result = await response.json();
+        console.log("Server response:", result);
       setAlert({
         open: true,
         type: "error",

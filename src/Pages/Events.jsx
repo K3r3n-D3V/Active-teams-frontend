@@ -169,6 +169,16 @@ const styles = {
     border: "1px solid #dee2e6",
     color: "#6c757d",
   },
+  dateFilterInput: {
+    padding: "0.5rem 1rem",
+    border: "1px solid #dee2e6",
+    borderRadius: "6px",
+    fontSize: "0.875rem",
+    fontWeight: 500,
+    color: "#6c757d",
+    backgroundColor: "#fff",
+    cursor: "pointer",
+  },
   eventsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
@@ -395,9 +405,10 @@ const Events = () => {
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const isAdmin = currentUser?.role === "admin";
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  
+  // State management - Fixed modal states
   const [showFilter, setShowFilter] = useState(false);
   const [filterType] = useState("all");
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
@@ -405,63 +416,76 @@ const Events = () => {
   const [currentEvent, setCurrentEvent] = useState(null);
   const [activeFilters, setActiveFilters] = useState({});
   const [loading, setLoading] = useState(true);
-  const [showCreateOptionsModal, setShowCreateOptionsModal] = useState(false);
-  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
-  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
-  const [showCreateEventTypeModal, setShowCreateEventTypeModal] = useState(false);
-  const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
-  return localStorage.getItem("selectedEventType") || '';
-});
-
+  const [eventTypes, setEventTypes] = useState([]);
   const [userCreatedEventTypes, setUserCreatedEventTypes] = useState([]);
-  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
-  const [, setIsEventTypeModalOpen] = useState(false);
+  const [customEventTypes, setCustomEventTypes] = useState([]);
+  
+  // Modal states - Fixed and simplified
+  const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
+  const [createOptionsModalOpen, setCreateOptionsModalOpen] = useState(false);
+  const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
+  const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
+  
+  // Date filter state
+  const [selectedDate, setSelectedDate] = useState("");
+
+  const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
+    return localStorage.getItem("selectedEventType") || '';
+  });
 
   // Add delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [eventTypeToDelete, setEventTypeToDelete] = useState(null);
 
-  const [eventTypes, setEventTypes] = useState([
-    "Service",
-    "Conference",
-    "J-Activation",
-    "Social Event",
-    "Cell",
-  ]);
-
   // Add these new state variables for event type navigation
   const [selectedEventType, setSelectedEventType] = useState("all");
-  const [customEventTypes, setCustomEventTypes] = useState([]);
+
+  // Load persisted event types from localStorage
+  useEffect(() => {
+    const savedEventTypes = localStorage.getItem("customEventTypes");
+    if (savedEventTypes) {
+      try {
+        const parsed = JSON.parse(savedEventTypes);
+        setCustomEventTypes(parsed);
+        setUserCreatedEventTypes(parsed);
+        setEventTypes(parsed.map(type => type.name));
+      } catch (error) {
+        console.error("Error parsing saved event types:", error);
+      }
+    }
+  }, []);
+
+  // Save event types to localStorage whenever they change
+  useEffect(() => {
+    if (customEventTypes.length > 0) {
+      localStorage.setItem("customEventTypes", JSON.stringify(customEventTypes));
+    }
+  }, [customEventTypes]);
 
   // Add delete function for event types
-  const handleDeleteEventType = async (eventTypeId, eventTypeName) => {
+  const handleDeleteEventType = async (id, name) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.delete(`${BACKEND_URL}/event-types/${eventTypeId}`, {
+      await axios.delete(`${BACKEND_URL}/event-types/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Remove from userCreatedEventTypes state
-      setUserCreatedEventTypes(prev =>
-        prev.filter(eventType => eventType._id !== eventTypeId)
-      );
+      const updatedEventTypes = customEventTypes.filter(type => type._id !== id);
+      setCustomEventTypes(updatedEventTypes);
+      setUserCreatedEventTypes(updatedEventTypes);
+      setEventTypes(updatedEventTypes.map(type => type.name));
 
-      // Remove from eventTypes list
-      setEventTypes(prev => prev.filter(type => type !== eventTypeName));
-
-      // Remove from customEventTypes
-      setCustomEventTypes(prev => prev.filter(type => type._id !== eventTypeId));
-
-      // If currently viewing this event type, switch to "all"
-      if (selectedEventType === eventTypeName) {
+      // Reset selection if deleted type is currently selected
+      if (selectedEventType === name) {
         handleEventTypeSelect("all");
       }
-
-      console.log(`${eventTypeName} event type deleted successfully!`);
-
     } catch (error) {
-      console.error('Error deleting event type:', error);
-      alert('Failed to delete event type. Please try again.');
+      console.error("Error deleting event type:", error);
+      // Still remove from local state even if API call fails
+      const updatedEventTypes = customEventTypes.filter(type => type._id !== id);
+      setCustomEventTypes(updatedEventTypes);
+      setUserCreatedEventTypes(updatedEventTypes);
+      setEventTypes(updatedEventTypes.map(type => type.name));
     }
   };
 
@@ -507,10 +531,21 @@ const Events = () => {
 
       const userCellEvents = cellsResponse.data.events || [];
 
-      // Get custom event types from API
-      const customTypes = eventTypesResponse.data || [];
-      setCustomEventTypes(customTypes);
-      setUserCreatedEventTypes(customTypes);
+      // Get custom event types from API and merge with local storage
+      const apiCustomTypes = eventTypesResponse.data || [];
+      const savedEventTypes = JSON.parse(localStorage.getItem("customEventTypes") || "[]");
+      
+      // Merge API and local storage, avoiding duplicates
+      const mergedEventTypes = [...apiCustomTypes];
+      savedEventTypes.forEach(savedType => {
+        if (!mergedEventTypes.find(apiType => apiType._id === savedType._id)) {
+          mergedEventTypes.push(savedType);
+        }
+      });
+
+      setCustomEventTypes(mergedEventTypes);
+      setUserCreatedEventTypes(mergedEventTypes);
+      setEventTypes(mergedEventTypes.map(type => type.name));
 
       console.log("Fetched non-cell events:", nonCellEvents.length);
       const today = new Date();
@@ -538,18 +573,6 @@ const Events = () => {
       setEvents(sortedEvents);
       setFilteredEvents(sortedEvents);
 
-      // Combine default event types with custom ones and existing event types from events
-      // const fetchedEventTypes = [
-      //   ...new Set(sortedEvents.map((event) => event.eventType).filter(Boolean)),
-      // ];
-
-      // const allCustomTypeNames = customTypes.map(type => type.name);
-
-      if (isAdmin) {
-        setEventTypes(customTypes); // ← this gives full objects like { name, isGlobal, ... }
-      }
-
-
     } catch (err) {
       console.error("Failed to fetch events", err.response?.data || err);
     } finally {
@@ -558,9 +581,12 @@ const Events = () => {
   };
 
   const handleAddNewEventType = (newEventType) => {
-    setUserCreatedEventTypes(prev => [...prev, newEventType]);
+    const updatedEventTypes = [...userCreatedEventTypes, newEventType];
+    setUserCreatedEventTypes(updatedEventTypes);
+    setCustomEventTypes(updatedEventTypes);
+    setEventTypes(updatedEventTypes.map(type => type.name));
     setCurrentSelectedEventType(newEventType.name || newEventType);
-    setIsCreateEventModalOpen(true);
+    setCreateEventModalOpen(true);
   };
 
   const EventTypeNavigation = () => {
@@ -602,13 +628,11 @@ const Events = () => {
             ALL EVENTS
           </button>
 
-          {/* Event Type Buttons */}
-          {eventTypes.map((eventType) => {
-            const isSelected = selectedEventType === eventType;
-            const isCustom = isCustomEventType(eventType);
-
+          {/* Custom Event Type Buttons */}
+          {customEventTypes.map((type) => {
+            const isSelected = selectedEventType === type.name;
             return (
-              <div key={eventType} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div key={type._id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <button
                   style={{
                     ...styles.eventTypeButton,
@@ -623,7 +647,7 @@ const Events = () => {
                       ? theme.palette.primary.main
                       : theme.palette.divider
                   }}
-                  onClick={() => handleEventTypeSelect(eventType)}
+                  onClick={() => handleEventTypeSelect(type.name)}
                   onMouseEnter={(e) => {
                     if (!isSelected) {
                       e.target.style.backgroundColor = theme.palette.action.hover;
@@ -635,18 +659,15 @@ const Events = () => {
                     }
                   }}
                 >
-                  {eventType.toUpperCase()}
+                  {type.name.toUpperCase()}
                 </button>
 
                 {/* Delete button for custom event types - only show for admins */}
-                {isCustom && isAdmin && (
+                {isAdmin && (
                   <IconButton
                     onClick={(e) => {
                       e.stopPropagation();
-                      const customEventType = customEventTypes.find(type => type.name === eventType);
-                      if (customEventType) {
-                        openDeleteConfirm(customEventType);
-                      }
+                      openDeleteConfirm(type);
                     }}
                     size="small"
                     sx={{
@@ -655,7 +676,7 @@ const Events = () => {
                       width: '24px',
                       height: '24px'
                     }}
-                    title={`Delete ${eventType} event type`}
+                    title={`Delete ${type.name} event type`}
                   >
                     <DeleteIcon fontSize="small" />
                   </IconButton>
@@ -671,27 +692,88 @@ const Events = () => {
   // Handle event type selection
   const handleEventTypeSelect = (eventType) => {
     setSelectedEventType(eventType);
+    applyAllFilters(activeFilters, selectedDate, eventType);
+  };
 
-    if (eventType === "all") {
-      // Show all events
-      setFilteredEvents(events.filter((e) => e.status !== "closed"));
-    } else {
-      // Filter events by selected type
-      const filtered = events.filter((event) => {
-        if (event.status === "closed") return false;
-        return event.eventType?.toLowerCase() === eventType.toLowerCase();
-      });
-      setFilteredEvents(filtered);
-    }
+  // Updated filter function to include date filtering
+  const applyAllFilters = (filters = activeFilters, dateFilter = selectedDate, eventTypeFilter = selectedEventType) => {
+    let filtered = events.filter(event => {
+      if (event.status === "closed") return false;
 
-    // Clear any active filters when switching event types
-    setActiveFilters({});
+      let matches = true;
+
+      // Event Type filter
+      if (eventTypeFilter !== "all" && event.eventType?.toLowerCase() !== eventTypeFilter.toLowerCase()) {
+        matches = false;
+      }
+
+      // Date filter
+      if (dateFilter) {
+        const eventDate = new Date(event.date);
+        const filterDate = new Date(dateFilter);
+        if (eventDate.toDateString() !== filterDate.toDateString()) {
+          matches = false;
+        }
+      }
+
+      // Other filters
+      if (filters.eventType && event.eventType?.toLowerCase() !== filters.eventType.toLowerCase()) {
+        matches = false;
+      }
+
+      if (filters.location && event.location !== filters.location) {
+        matches = false;
+      }
+
+      if (filters.eventLeader) {
+        const eventLeaderName = event.eventLeaderName ? event.eventLeaderName.trim().toLowerCase() : "";
+        const filterLeader = filters.eventLeader.trim().toLowerCase();
+        if (eventLeaderName !== filterLeader) {
+          matches = false;
+        }
+      }
+
+      if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
+        const isTicketed = filters.isTicketed === 'true';
+        if (event.isTicketed !== isTicketed) {
+          matches = false;
+        }
+      }
+
+      if (filters.recurringDay) {
+        const eventDays = Array.isArray(event.recurringDays)
+          ? event.recurringDays
+          : [event.recurringDays];
+
+        if (!eventDays.includes(filters.recurringDay)) {
+          matches = false;
+        }
+      }
+
+      return matches;
+    });
+
+    setFilteredEvents(filtered);
+  };
+
+  // Handle date filter change
+  const handleDateFilter = (event) => {
+    const date = event.target.value;
+    setSelectedDate(date);
+    applyAllFilters(activeFilters, date, selectedEventType);
+  };
+
+  // Clear date filter
+  const clearDateFilter = () => {
+    setSelectedDate("");
+    applyAllFilters(activeFilters, "", selectedEventType);
   };
 
   // Check if an event type is custom (created by user)
-  const isCustomEventType = (eventTypeName) => {
-    return customEventTypes.some(type => type.name === eventTypeName);
-  };
+  // const isCustomEventType = (eventTypeName) => {
+  //   return customEventTypes.some(type => type.name === eventTypeName);
+  // };
+  // console.log("Custom Event Types:", customEventTypes);
 
   // Get page title based on selected event type
   const getPageTitle = () => {
@@ -709,11 +791,16 @@ const Events = () => {
       });
 
       if (response.data && response.data.name) {
-        setEventTypes(prev => [...prev, response.data.name]);
-        setCustomEventTypes(prev => [...prev, response.data]);
-        handleAddNewEventType(response.data);
+        const newEventType = response.data;
+        const updatedEventTypes = [...customEventTypes, newEventType];
+        
+        setEventTypes(prev => [...prev, newEventType.name]);
+        setCustomEventTypes(updatedEventTypes);
+        setUserCreatedEventTypes(updatedEventTypes);
+        
+        handleAddNewEventType(newEventType);
         alert('Event type has been created successfully!');
-        setIsEventTypeModalOpen(false);
+        setCreateEventTypeModalOpen(false);
       }
       console.log('Event type created successfully:', response.data);
     } catch (error) {
@@ -721,14 +808,14 @@ const Events = () => {
       throw error;
     }
   };
-  useEffect(() => {
-  if (currentSelectedEventType) {
-    localStorage.setItem("selectedEventType", currentSelectedEventType);
-  } else {
-    localStorage.removeItem("selectedEventType");
-  }
-}, [currentSelectedEventType]);
 
+  useEffect(() => {
+    if (currentSelectedEventType) {
+      localStorage.setItem("selectedEventType", currentSelectedEventType);
+    } else {
+      localStorage.removeItem("selectedEventType");
+    }
+  }, [currentSelectedEventType]);
 
   useEffect(() => {
     console.log("useEffect triggered with:", {
@@ -739,62 +826,38 @@ const Events = () => {
     fetchEvents();
   }, [location.pathname, location.state?.refresh, location.state?.timestamp]);
 
+  // Fetch event types from backend
+  const fetchEventTypes = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+      const { data } = await axios.get(`${BACKEND_URL}/event-types`, { headers });
+      
+      // Merge with local storage
+      const savedEventTypes = JSON.parse(localStorage.getItem("customEventTypes") || "[]");
+      const mergedEventTypes = [...(data || [])];
+      savedEventTypes.forEach(savedType => {
+        if (!mergedEventTypes.find(apiType => apiType._id === savedType._id)) {
+          mergedEventTypes.push(savedType);
+        }
+      });
+      
+      setCustomEventTypes(mergedEventTypes);
+      setUserCreatedEventTypes(mergedEventTypes);
+      setEventTypes(mergedEventTypes.map(type => type.name));
+    } catch (error) {
+      console.error("Error fetching event types:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchEventTypes();
+  }, []);
+
   // Apply filters to events
   const applyFilters = (filters) => {
     setActiveFilters(filters);
-
-    if (Object.keys(filters).length === 0) {
-      setFilteredEvents(events.filter((e) => e.status !== "closed"));
-      return;
-    }
-
-    const filtered = events.filter(event => {
-      if (event.status === "closed") return false;
-
-      let matches = true;
-
-      // Event Type filter
-      if (filters.eventType && event.eventType?.toLowerCase() !== filters.eventType.toLowerCase()) {
-        matches = false;
-      }
-
-      // Location filter
-      if (filters.location && event.location !== filters.location) {
-        matches = false;
-      }
-
-      // Event Leader filter
-      if (filters.eventLeader) {
-        const eventLeaderName = event.eventLeaderName ? event.eventLeaderName.trim().toLowerCase() : "";
-        const filterLeader = filters.eventLeader.trim().toLowerCase();
-        if (eventLeaderName !== filterLeader) {
-          matches = false;
-        }
-      }
-
-      // Ticketed filter
-      if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
-        const isTicketed = filters.isTicketed === 'true';
-        if (event.isTicketed !== isTicketed) {
-          matches = false;
-        }
-      }
-
-      // Recurring Day filter
-      if (filters.recurringDay) {
-        const eventDays = Array.isArray(event.recurringDays)
-          ? event.recurringDays
-          : [event.recurringDays];
-
-        if (!eventDays.includes(filters.recurringDay)) {
-          matches = false;
-        }
-      }
-
-      return matches;
-    });
-
-    setFilteredEvents(filtered);
+    applyAllFilters(filters, selectedDate, selectedEventType);
   };
 
   const formatDateTime = (date) => {
@@ -838,23 +901,26 @@ const Events = () => {
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
-    setIsModalOpen(true);
+    setAttendanceModalOpen(true);
   };
 
   const handleCreateEvent = () => {
-    setShowCreateOptionsModal(false);
-    setShowCreateEventModal(true);
+    setCreateOptionsModalOpen(false);
+    setCreateEventModalOpen(true);
   };
+
   const handleCreateEventType = () => {
-    setShowCreateOptionsModal(false);
-    setShowCreateEventTypeModal(true);
+    setCreateOptionsModalOpen(false);
+    setCreateEventTypeModalOpen(true);
   };
+
   const handleCloseCreateEventModal = () => {
-    setShowCreateEventModal(false);
+    setCreateEventModalOpen(false);
     fetchEvents();
   };
+
   const handleCloseCreateEventTypeModal = () => {
-    setShowCreateEventTypeModal(false);
+    setCreateEventTypeModalOpen(false);
   };
 
   const handleAttendanceSubmit = async (data) => {
@@ -995,8 +1061,10 @@ const Events = () => {
   };
 
   const renderLeadershipInfo = (event) => {
-    const isCell = event.eventType?.toLowerCase().includes("cell");
+    const eventTypeNormalized = event.eventType?.toLowerCase() || "";
+    const isCell = eventTypeNormalized === "cell";
     const leaders = [];
+
     if (event.eventLeaderName && event.eventLeaderName !== 'Not specified') {
       leaders.push({
         title: "Event Leader",
@@ -1004,6 +1072,7 @@ const Events = () => {
         style: { fontWeight: "600", color: theme.palette.text.primary }
       });
     }
+
     if (event.eventLeaderEmail && event.eventLeaderEmail !== 'Not specified') {
       leaders.push({
         title: "Leader Email",
@@ -1012,19 +1081,22 @@ const Events = () => {
       });
     }
 
-    // Cell-specific leadership
     if (isCell) {
-      if (event.leader1 && event.leader1.trim()) {
+      // Use nullish coalescing to default to empty string
+      const leader1 = event.leader1 ?? "";
+      const leader12 = event.leader12 ?? "";
+
+      if (leader1.trim()) {
         leaders.push({
           title: "Leader @1",
-          name: event.leader1,
+          name: leader1,
           style: { color: theme.palette.text.secondary }
         });
       }
-      if (event.leader12 && event.leader12.trim()) {
+      if (leader12.trim()) {
         leaders.push({
           title: "Leader @12",
-          name: event.leader12,
+          name: leader12,
           style: { color: theme.palette.text.secondary }
         });
       }
@@ -1033,7 +1105,7 @@ const Events = () => {
     return { leaders, isCell };
   };
 
-  const activeFilterCount = Object.keys(activeFilters).length;
+  const activeFilterCount = Object.keys(activeFilters).length + (selectedDate ? 1 : 0);
   const allEventTypes = [...(eventTypes || []), ...(userCreatedEventTypes || [])];
 
   const selectedEventTypeObj = allEventTypes.find(
@@ -1076,12 +1148,40 @@ const Events = () => {
               </span>
             )}
           </button>
+          
+          {/* Date Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={handleDateFilter}
+              style={styles.dateFilterInput}
+              title="Filter by date"
+            />
+            {selectedDate && (
+              <button
+                onClick={clearDateFilter}
+                style={{
+                  ...styles.button,
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  padding: '0.25rem 0.5rem',
+                  fontSize: '0.75rem',
+                }}
+                title="Clear date filter"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
         <div style={styles.headerRight}>
           <div style={styles.profileIcon}></div>
         </div>
       </div>
+      
       {isAdmin && <EventTypeNavigation />}
+      
       <h2 style={{
         ...styles.pageTitle,
         color: theme.palette.text.primary
@@ -1096,6 +1196,11 @@ const Events = () => {
         color: theme.palette.text.secondary
       }}>
         Showing {legacyFilteredEvents.length} of {events.filter(e => e.status !== "closed").length} events
+        {selectedDate && (
+          <span style={{ marginLeft: '1rem', fontStyle: 'italic' }}>
+            (filtered by date: {new Date(selectedDate).toLocaleDateString()})
+          </span>
+        )}
       </div>
 
       {/* Events Grid */}
@@ -1221,14 +1326,40 @@ const Events = () => {
                   </div>
                 )}
 
-                {/* Action Buttons */}
-                <div style={styles.eventActions}>
-                  <button
-                    style={{ ...styles.actionBtn, ...styles.captureBtn }}
-                    onClick={() => handleCaptureClick(event)}
-                  >
-                    Capture
-                  </button>
+              <button
+    style={{ ...styles.actionBtn, ...styles.captureBtn }}
+    onClick={() => {
+      if (event.status === "closed" && !isAdmin) {
+        alert("Attendance has already been captured for this event.");
+        return;
+      }
+      handleCaptureClick(event);
+    }}
+    disabled={event.status === "closed" && !isAdmin}
+    title={event.status === "closed" && !isAdmin ? "Attendance captured — action disabled" : "Capture attendance"}
+  >
+    Capture
+  </button>
+
+
+
+                  <div style={styles.eventActions}>
+
+  {/* Add Captured badge for admins on closed events */}
+  {isAdmin && event.status === "closed" && (
+    <span style={{
+      color: 'green',
+      fontWeight: 'bold',
+      fontSize: '0.9rem',
+      marginRight: '1rem',
+      userSelect: 'none',
+      alignSelf: 'center',
+    }}>
+      ✓ Captured
+    </span>
+  )}
+
+ 
 
                   <button
                     style={{
@@ -1242,13 +1373,14 @@ const Events = () => {
                       event.isTicketed && navigate(`/event-payment/${event._id}`)
                     }
                   >
-                    {event.isTicketed ? "Payment" : "No Payment"}
+                    {/* {event.isTicketed ? "Payment" : "No Payment"} */}
                   </button>
                 </div>
               </div>
             );
           })}
       </div>
+      
       {legacyFilteredEvents.length === 0 && !loading && (
         <div style={{
           textAlign: 'center',
@@ -1263,7 +1395,7 @@ const Events = () => {
       {isAdmin ? (
         <button
           style={styles.floatingAddButton}
-          onClick={() => setShowCreateOptionsModal(true)}
+          onClick={() => setCreateOptionsModalOpen(true)}
           title="Add New Event"
         >
           +
@@ -1291,9 +1423,9 @@ const Events = () => {
       {/* Attendance Modal */}
       {selectedEvent && (
         <AttendanceModal
-          isOpen={isModalOpen}
+          isOpen={attendanceModalOpen}
           onClose={() => {
-            setIsModalOpen(false);
+            setAttendanceModalOpen(false);
             setSelectedEvent(null);
           }}
           event={selectedEvent}
@@ -1301,32 +1433,23 @@ const Events = () => {
         />
       )}
 
-      {/* Additional Attendance Modal for Admin */}
-      {showAttendanceModal && (
-        <AttendanceModal
-          isOpen={showAttendanceModal}
-          onClose={() => setShowAttendanceModal(false)}
-          event={selectedEvent}
-          onSubmit={handleAttendanceSubmit}
-        />
-      )}
-
+      {/* Create Options Modal */}
       <EventsModal
-        isOpen={showCreateOptionsModal}
-        onClose={() => setShowCreateOptionsModal(false)}
+        isOpen={createOptionsModalOpen}
+        onClose={() => setCreateOptionsModalOpen(false)}
         onCreateEvent={handleCreateEvent}
         onCreateEventType={handleCreateEventType}
       />
 
       {/* Create Event Type Modal */}
       <EventTypesModal
-        open={showCreateEventTypeModal}
+        open={createEventTypeModalOpen}
         onClose={handleCloseCreateEventTypeModal}
         onSubmit={handleCreateEventTypeSubmit}
       />
 
       {/* Create Event Modal */}
-      {showCreateEventModal && (
+      {createEventModalOpen && (
         <div
           style={styles.modalOverlay}
           onClick={(e) => {
@@ -1336,31 +1459,28 @@ const Events = () => {
           }}
         >
           <div style={styles.modalContent}>
-            <button
-              style={{
-                ...styles.modalCloseButton,
-                ':hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 1)',
-                  color: '#333'
-                }
-              }}
-              onClick={handleCloseCreateEventModal}
-              title="Close"
-            >
-              ×
-            </button>
-            {isCreateEventModalOpen && (
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>Create New Event</h2>
+              <button
+                style={styles.modalCloseButton}
+                onClick={handleCloseCreateEventModal}
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div style={styles.modalBody}>
               <CreateEvents
                 user={currentUser}
                 isModal={true}
-                onClose={() => setIsCreateEventModalOpen(false)}
+                onClose={handleCloseCreateEventModal}
                 selectedEventType={currentSelectedEventType}
                 eventTypes={allEventTypes}
                 isGlobalEvent={selectedEventTypeObj?.isGlobal || false}
                 isTicketedEvent={selectedEventTypeObj?.isTicketed || false}
                 hasPersonSteps={selectedEventTypeObj?.hasPersonSteps || false}
               />
-            )}
+            </div>
           </div>
         </div>
       )}
