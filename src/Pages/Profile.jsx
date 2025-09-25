@@ -44,24 +44,30 @@ const carouselTexts = [
   { text: "We are THE ACTIVE CHURCH", color: "#1976d2" },
   { text: "A church raising a NEW GENERATION", color: "#7b1fa2" },
   { text: "A generation that will CHANGE THIS NATION", color: "#d32f2f" },
-  { text: "To God be the GLORY", color: "#ed6c02ff" },
   { text: "Amen.", color: "#2e7d32" },
 ];
 
 /** API helpers */
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}`;
+
+const createAuthenticatedRequest = () => {
+  const token = localStorage.getItem("token");
+  return axios.create({
+    baseURL: BACKEND_URL,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : undefined,
+    },
+  });
+};
 
 async function updateUserProfile(data) {
   const userId = localStorage.getItem("userId");
   if (!userId) throw new Error("User ID not found");
 
   try {
-    const res = await axios.put(`${BACKEND_URL}/profile/${userId}`, data, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
+    const api = createAuthenticatedRequest();
+    const res = await api.put(`/profile/${userId}`, data);
     return res.data;
   } catch (error) {
     const errorMessage =
@@ -123,6 +129,27 @@ async function updatePassword(currentPassword, newPassword) {
   }
 }
 
+// UPDATED: Fetch profile from backend using consistent auth
+async function fetchUserProfile() {
+  const userId = localStorage.getItem("userId");
+  const token = localStorage.getItem("token");
+  
+  if (!userId || !token) throw new Error("Authentication required");
+
+  try {
+    const api = createAuthenticatedRequest();
+    const response = await api.get(`/profile/${userId}`);
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      error.message ||
+      "Failed to fetch profile";
+    throw new Error(errorMessage);
+  }
+}
+
 export default function Profile() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -176,51 +203,46 @@ export default function Profile() {
     return () => clearInterval(t);
   }, []);
 
-  // Load profile data from localStorage and fetch latest profile picture
+  // UPDATED: Load profile data from backend with fallback to localStorage
   useEffect(() => {
     const loadProfile = async () => {
       try {
         setLoadingProfile(true);
 
-        const storedProfile = localStorage.getItem("userProfile");
-        const storedUserId = localStorage.getItem("userId");
-        const token = localStorage.getItem("token");
-
-        if (storedProfile && storedUserId) {
-          const parsedProfile = JSON.parse(storedProfile);
-
-          // Try to fetch the latest profile data including profile picture from server
-          try {
-            const response = await axios.get(`${BACKEND_URL}/users/${storedUserId}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+        // Try to fetch from backend first
+        try {
+          const serverProfile = await fetchUserProfile();
+          
+          if (serverProfile) {
+            setUserProfile(serverProfile);
+            updateFormWithProfile(serverProfile);
             
-            if (response.data) {
-              const serverProfile = response.data;
-              const mergedProfile = { ...parsedProfile, ...serverProfile };
-              
-              setUserProfile(mergedProfile);
-              updateFormWithProfile(mergedProfile);
-              
-              // Set profile picture from server response
-              const pic = serverProfile?.profile_picture || 
-                         serverProfile?.avatarUrl || 
-                         serverProfile?.profilePicUrl ||
-                         parsedProfile?.profile_picture ||
-                         parsedProfile?.avatarUrl ||
-                         parsedProfile?.profilePicUrl ||
-                         null;
-              
-              if (pic && setProfilePic) {
-                setProfilePic(pic);
-              }
-              
-              // Update localStorage with latest data
-              localStorage.setItem("userProfile", JSON.stringify(mergedProfile));
+            // Set profile picture from server response
+            const pic = serverProfile?.profile_picture || 
+                       serverProfile?.avatarUrl || 
+                       serverProfile?.profilePicUrl ||
+                       null;
+            
+            if (pic && setProfilePic) {
+              setProfilePic(pic);
             }
-          } catch (fetchError) {
-            console.warn("Failed to fetch latest profile, using cached data:", fetchError);
-            // Fall back to cached data
+            
+            // Update localStorage with latest data
+            localStorage.setItem("userProfile", JSON.stringify(serverProfile));
+            
+            setSnackbar({
+              open: true,
+              message: "Profile loaded successfully",
+              severity: "success",
+            });
+          }
+        } catch (fetchError) {
+          console.warn("Failed to fetch from backend, using cached data:", fetchError);
+          
+          // Fallback to localStorage
+          const storedProfile = localStorage.getItem("userProfile");
+          if (storedProfile) {
+            const parsedProfile = JSON.parse(storedProfile);
             setUserProfile(parsedProfile);
             updateFormWithProfile(parsedProfile);
             
@@ -231,19 +253,19 @@ export default function Profile() {
             if (pic && setProfilePic) {
               setProfilePic(pic);
             }
+            
+            setSnackbar({
+              open: true,
+              message: "Profile loaded from cache (offline mode)",
+              severity: "warning",
+            });
+          } else {
+            setSnackbar({
+              open: true,
+              message: "Please log in to view your profile",
+              severity: "error",
+            });
           }
-
-          setSnackbar({
-            open: true,
-            message: "Profile loaded successfully",
-            severity: "success",
-          });
-        } else {
-          setSnackbar({
-            open: true,
-            message: "Please log in to view your profile",
-            severity: "warning",
-          });
         }
       } catch (error) {
         setSnackbar({
@@ -300,12 +322,22 @@ export default function Profile() {
     if (!form.email.trim()) n.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
 
-    if (form.newPassword || form.confirmPassword) {
-      if (!form.currentPassword.trim())
-        n.currentPassword = "Current password is required";
-      if (form.newPassword !== form.confirmPassword)
+    // UPDATED: Enhanced password validation
+    if (form.newPassword || form.confirmPassword || form.currentPassword) {
+      if (!form.currentPassword.trim()) {
+        n.currentPassword = "Current password is required to change password";
+      }
+      if (form.newPassword && form.newPassword.length < 8) {
+        n.newPassword = "New password must be at least 8 characters long";
+      }
+      if (form.newPassword !== form.confirmPassword) {
         n.confirmPassword = "Passwords do not match";
+      }
+      if (form.newPassword && !form.confirmPassword) {
+        n.confirmPassword = "Please confirm your new password";
+      }
     }
+    
     setErrors(n);
     return Object.keys(n).length === 0;
   };
@@ -391,6 +423,7 @@ export default function Profile() {
     }
   };
 
+  // UPDATED: Improved submit handler with better error handling
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -417,7 +450,9 @@ export default function Profile() {
       };
 
       // Handle password change if provided
-      if (form.newPassword && form.confirmPassword && form.currentPassword) {
+      const hasPasswordChange = form.newPassword && form.confirmPassword && form.currentPassword;
+      
+      if (hasPasswordChange) {
         try {
           await updatePassword(form.currentPassword, form.newPassword);
           setSnackbar({
@@ -433,11 +468,19 @@ export default function Profile() {
             newPassword: "",
             confirmPassword: ""
           }));
+          
+          // Update original form to reflect cleared password fields
+          setOriginalForm(prev => ({
+            ...prev,
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: ""
+          }));
         } catch (passwordError) {
           // Profile updated but password failed
           setSnackbar({
             open: true,
-            message: `Profile updated, but password change failed: ${passwordError.message}`,
+            message: `Profile updated successfully, but password change failed: ${passwordError.message}`,
             severity: "warning",
           });
         }
@@ -464,11 +507,10 @@ export default function Profile() {
     }
   };
 
-  // Get user initials for avatar
+  // UPDATED: Get user initials - only first letter of first name
   const getInitials = () => {
     const name = form.name || userProfile?.name || "";
-    const surname = form.surname || userProfile?.surname || "";
-    return `${name.charAt(0)}${surname.charAt(0)}`.toUpperCase();
+    return name.charAt(0).toUpperCase();
   };
 
   const currentCarouselItem = carouselTexts[carouselIndex];
@@ -532,11 +574,11 @@ export default function Profile() {
         pb: 4,
       }}
     >
-      {/* Hero Section with Text */}
+      {/* UPDATED: Smaller Hero Section with Text */}
       <Box
         sx={{
           position: "relative",
-          minHeight: "35vh",
+          minHeight: "30vh",
           background: isDark
             ? `linear-gradient(135deg, ${currentCarouselItem.color}15 0%, ${currentCarouselItem.color}25 100%)`
             : `linear-gradient(135deg, ${currentCarouselItem.color}10 0%, ${currentCarouselItem.color}20 100%)`,
@@ -546,8 +588,8 @@ export default function Profile() {
           justifyContent: "center",
           transition: "background 1s ease-in-out",
           overflow: "hidden",
-          pt: 8,
-          pb: 16, // Increased to accommodate larger avatar
+          pt: 6, // Reduced from 8
+          pb: 12, // Reduced from 16
         }}
       >
         {/* Animated Background Elements */}
@@ -578,17 +620,17 @@ export default function Profile() {
         }}>
           <Fade in key={carouselIndex} timeout={1000}>
             <Typography
-              variant="h2"
+              variant="h3" // Reduced from h2
               sx={{
-                fontWeight: 800,
-                fontSize: { xs: "2rem", sm: "3rem", md: "4rem" },
+                fontWeight: 700, // Reduced from 800
+                fontSize: { xs: "1.5rem", sm: "2rem", md: "2.5rem" }, // Reduced sizes
                 color: currentCarouselItem.color,
                 textShadow: isDark
                   ? "0 2px 20px rgba(255,255,255,0.1)"
                   : "0 2px 20px rgba(0,0,0,0.1)",
                 transition: "color 1s ease-in-out",
                 lineHeight: 1.2,
-                maxWidth: "900px",
+                maxWidth: "800px", // Reduced from 900px
               }}
             >
               {currentCarouselItem.text}
@@ -597,34 +639,34 @@ export default function Profile() {
         </Box>
       </Box>
 
-      {/* ENHANCED: Larger Profile Avatar */}
+      {/* UPDATED: Smaller Profile Avatar */}
       <Box
         sx={{
           position: "relative",
           zIndex: 10,
           display: "flex",
           justifyContent: "center",
-          mt: -12, // Adjusted for larger avatar
-          mb: 6,
+          mt: -10, // Reduced from -12
+          mb: 5, // Reduced from 6
         }}
       >
         <Box sx={{ position: "relative", textAlign: "center" }}>
           <Box sx={{ position: "relative", display: "inline-block" }}>
             <Avatar
               sx={{
-                width: 200, // Increased from 140
-                height: 200, // Increased from 140
-                border: `8px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, // Thicker border
-                boxShadow: `0 16px 60px ${currentCarouselItem.color}60`, // Enhanced shadow
+                width: 150, // Reduced from 200
+                height: 150, // Reduced from 200
+                border: `6px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, // Reduced from 8px
+                boxShadow: `0 12px 40px ${currentCarouselItem.color}60`, // Reduced shadow
                 bgcolor: isDark ? "#1a1a1a" : "#ffffff",
                 color: currentCarouselItem.color,
-                fontSize: "4rem", // Increased font size for initials
+                fontSize: "2.5rem", // Reduced from 4rem
                 fontWeight: 700,
                 cursor: "pointer",
                 transition: "all 0.3s ease",
                 "&:hover": {
                   transform: "scale(1.05)",
-                  boxShadow: `0 20px 80px ${currentCarouselItem.color}80`,
+                  boxShadow: `0 16px 60px ${currentCarouselItem.color}80`, // Reduced shadow
                 },
               }}
               src={profilePic}
@@ -633,17 +675,17 @@ export default function Profile() {
               {!profilePic && getInitials()}
             </Avatar>
 
-            {/* Camera Icon - Positioned for larger avatar */}
+            {/* Camera Icon - Positioned for smaller avatar */}
             <IconButton
               sx={{
                 position: "absolute",
-                bottom: 8, // Adjusted for larger avatar
-                right: 8, // Adjusted for larger avatar
+                bottom: 4, // Reduced from 8
+                right: 4, // Reduced from 8
                 bgcolor: currentCarouselItem.color,
                 color: "white",
-                width: 48, // Larger camera button
-                height: 48, // Larger camera button
-                border: `3px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, // Thicker border
+                width: 36, // Reduced from 48
+                height: 36, // Reduced from 48
+                border: `2px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, // Reduced from 3px
                 "&:hover": {
                   bgcolor: currentCarouselItem.color,
                   transform: "scale(1.1)",
@@ -651,10 +693,10 @@ export default function Profile() {
                 transition: "all 0.2s ease",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
               }}
-              size="medium"
+              size="small" // Changed from medium
               onClick={() => fileInputRef.current?.click()}
             >
-              <CameraAlt sx={{ fontSize: 24 }} />
+              <CameraAlt sx={{ fontSize: 18 }} /> {/* Reduced from 24 */}
             </IconButton>
           </Box>
 
@@ -666,15 +708,15 @@ export default function Profile() {
             onChange={onFileChange}
           />
 
-          {/* User Name and Profile Label */}
-          <Box sx={{ mt: 3 }}>
+          {/* User Name - Smaller text */}
+          <Box sx={{ mt: 2 }}> {/* Reduced from 3 */}
             <Typography
-              variant="h3" // Larger name text
+              variant="h4" // Reduced from h3
               sx={{
                 fontWeight: 700,
                 color: isDark ? "#ffffff" : "#000000",
                 mb: 1,
-                fontSize: { xs: "2rem", sm: "2.5rem", md: "3rem" },
+                fontSize: { xs: "1.5rem", sm: "2rem", md: "2.25rem" }, // Reduced sizes
               }}
             >
               {form.name} {form.surname}
@@ -791,7 +833,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                {/* Home Address - FIXED: Now same height as other fields */}
+                {/* Home Address */}
                 <Grid item xs={12} sm={6}>
                   <Typography
                     variant="body2"
@@ -888,7 +930,7 @@ export default function Profile() {
                       color: isDark ? "#ffffff" : "#000000",
                     }}
                   >
-                    Please enter your current password to change your password
+                    Change Password (Optional)
                   </Typography>
 
                   <Grid container spacing={3}>
