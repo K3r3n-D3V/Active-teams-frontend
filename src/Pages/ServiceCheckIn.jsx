@@ -75,11 +75,12 @@ function ServiceCheckIn() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [consolidationOpen, setConsolidationOpen] = React.useState(false);
   
-  // Loading states
+  // NEW: Track if data has been loaded at least once
+  const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
 
-  // NEW: modal search & pagination state
+  // Modal search & pagination state
   const [modalSearch, setModalSearch] = useState("");
   const [modalPage, setModalPage] = useState(0);
   const [modalRowsPerPage, setModalRowsPerPage] = useState(10);
@@ -116,6 +117,18 @@ function ServiceCheckIn() {
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
+
+  // NEW: Check if data is already loaded on component mount
+  useEffect(() => {
+    const dataLoaded = localStorage.getItem("serviceCheckInDataLoaded") === "true";
+    const hasCachedData = localStorage.getItem("attendees") && localStorage.getItem("events");
+    
+    if (dataLoaded && hasCachedData) {
+      setHasDataLoaded(true);
+      setIsLoadingPeople(false);
+      setIsLoadingEvents(false);
+    }
+  }, []);
 
   // Persist data to localStorage
   useEffect(() => {
@@ -194,58 +207,54 @@ function ServiceCheckIn() {
     </TableRow>
   );
 
-  // Fetch events
-  // useEffect(() => {
-  //   const fetchEvents = async () => {
-  //     setIsLoadingEvents(true);
-  //     try {
-  //       const res = await axios.get(`${BASE_URL}/events`);
-  //       const normalized = toArray(res.data).map((e) => ({
-  //         id: e._id || e.id || e.eventId,
-  //         eventName: e.eventName || e.name || e.title || "Untitled Event",
-  //       }));
-  //       setEvents(normalized);
-  //     } catch (err) {
-  //       console.error(err);
-  //       toast.error(err.response?.data?.detail || "Failed to fetch events");
-  //     } finally {
-  //       setIsLoadingEvents(false);
-  //     }
-  //   };
-  //   fetchEvents();
-  // }, []);
+  // Skeleton for stats cards
+  const SkeletonStatsCard = () => (
+    <Paper variant="outlined" sx={{ p: getResponsiveValue(1.5, 2, 2.5, 3, 3), textAlign: "center" }}>
+      <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
+        <Skeleton variant="circular" width={getResponsiveValue(20, 24, 28, 32, 32)} height={getResponsiveValue(20, 24, 28, 32, 32)} />
+        <Skeleton variant="text" width={40} height={getResponsiveValue(32, 40, 48, 48, 56)} />
+      </Stack>
+      <Skeleton variant="text" width="60%" height={20} sx={{ mx: 'auto' }} />
+    </Paper>
+  );
 
- useEffect(() => {
-  const fetchEvents = async () => {
-    setIsLoadingEvents(true);
-    try {
-      const res = await axios.get(`${BASE_URL}/events`);
-      const normalized = toArray(res.data)
-        .filter(
-          (e) =>
-            e.eventType?.toLowerCase() !== "cell" && // exclude cell events
-            e.status?.toLowerCase() !== "closed"    // exclude closed events
-        )
-        .map((e) => ({
-          id: e._id || e.id || e.eventId,
-          eventName: e.eventName || e.name || e.title || "Untitled Event",
-          // add more fields if needed
-        }));
-
-      setEvents(normalized);
-    } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.detail || "Failed to fetch events");
-    } finally {
-      setIsLoadingEvents(false);
-    }
-  };
-  fetchEvents();
-}, []);
-
-
-  // Fetch people
+  // Fetch events with one-time loading
   useEffect(() => {
+    // Skip if already loaded
+    if (hasDataLoaded) return;
+
+    const fetchEvents = async () => {
+      setIsLoadingEvents(true);
+      try {
+        const res = await axios.get(`${BASE_URL}/events`);
+        const normalized = toArray(res.data)
+          .filter(
+            (e) =>
+              e.eventType?.toLowerCase() !== "cell" && // exclude cell events
+              e.status?.toLowerCase() !== "closed"    // exclude closed events
+          )
+          .map((e) => ({
+            id: e._id || e.id || e.eventId,
+            eventName: e.eventName || e.name || e.title || "Untitled Event",
+          }));
+
+        setEvents(normalized);
+      } catch (err) {
+        console.error(err);
+        toast.error(err.response?.data?.detail || "Failed to fetch events");
+      } finally {
+        setIsLoadingEvents(false);
+      }
+    };
+
+    fetchEvents();
+  }, [hasDataLoaded]);
+
+  // Fetch people with one-time loading
+  useEffect(() => {
+    // Skip if already loaded
+    if (hasDataLoaded) return;
+
     const fetchAllPeople = async () => {
       setIsLoadingPeople(true);
       try {
@@ -281,6 +290,10 @@ function ServiceCheckIn() {
         }
 
         setAttendees(allPeople);
+        
+        // NEW: Mark data as loaded
+        localStorage.setItem("serviceCheckInDataLoaded", "true");
+        setHasDataLoaded(true);
       } catch (err) {
         console.error(err);
         toast.error(err.response?.data?.detail || err.message);
@@ -290,7 +303,7 @@ function ServiceCheckIn() {
     };
 
     fetchAllPeople();
-  }, []);
+  }, [hasDataLoaded]);
 
   const handleConsolidationClick = () => setConsolidationOpen(true);
   const handleFinishConsolidation = (task) => {
@@ -530,6 +543,71 @@ function ServiceCheckIn() {
     </Card>
   );
 
+  // NEW: Show skeleton only on initial load
+  if (!hasDataLoaded && (isLoadingPeople || isLoadingEvents)) {
+    return (
+      <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
+        <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
+        
+        {/* Skeleton Title */}
+        <Skeleton 
+          variant="text" 
+          width="40%" 
+          height={getResponsiveValue(32, 40, 48, 56, 56)} 
+          sx={{ mx: 'auto', mb: cardSpacing }} 
+        />
+
+        {/* Skeleton Stats Cards */}
+        <Grid container spacing={cardSpacing} mb={cardSpacing}>
+          <Grid item xs={6}>
+            <SkeletonStatsCard />
+          </Grid>
+          <Grid item xs={6}>
+            <SkeletonStatsCard />
+          </Grid>
+        </Grid>
+
+        {/* Skeleton Controls */}
+        <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
+          <Grid item xs={12} sm={6} md={4}>
+            <Skeleton variant="rounded" height={40} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={5}>
+            <Skeleton variant="rounded" height={40} />
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <Skeleton variant="circular" width={36} height={36} sx={{ mx: 'auto' }} />
+          </Grid>
+        </Grid>
+
+        {/* Skeleton Content */}
+        {isMdDown ? (
+          <Box sx={{ maxHeight: 500, overflowY: "auto", border: `1px solid ${theme.palette.divider}`, borderRadius: 1, p: 1 }}>
+            {Array.from({ length: 5 }).map((_, index) => <SkeletonCard key={index} />)}
+          </Box>
+        ) : (
+          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500, overflowY: "auto" }}>
+            <Table size={getResponsiveValue("small", "small", "medium", "medium", "medium")} stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell><Skeleton variant="text" width="60%" /></TableCell>
+                  <TableCell><Skeleton variant="text" width="50%" /></TableCell>
+                  <TableCell><Skeleton variant="text" width="70%" /></TableCell>
+                  <TableCell><Skeleton variant="text" width="70%" /></TableCell>
+                  <TableCell><Skeleton variant="text" width="70%" /></TableCell>
+                  <TableCell align="center"><Skeleton variant="text" width="50%" /></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Array.from({ length: 5 }).map((_, index) => <SkeletonTableRow key={index} />)}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Box>
+    );
+  }
+
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
       <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
@@ -547,11 +625,7 @@ function ServiceCheckIn() {
           >
             <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
               <GroupIcon color="primary" sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              {isLoadingPeople ? (
-                <Skeleton variant="text" width={40} height={getResponsiveValue(32, 40, 48, 48, 56)} />
-              ) : (
-                <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color="primary">{presentCount}</Typography>
-              )}
+              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color="primary">{presentCount}</Typography>
             </Stack>
             <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
               Present
@@ -562,11 +636,7 @@ function ServiceCheckIn() {
           <Paper variant="outlined" sx={{ p: getResponsiveValue(1.5, 2, 2.5, 3, 3), textAlign: "center" }}>
             <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
               <PersonIcon color="action" sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              {isLoadingPeople ? (
-                <Skeleton variant="text" width={40} height={getResponsiveValue(32, 40, 48, 48, 56)} />
-              ) : (
-                <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600}>{attendees.length}</Typography>
-              )}
+              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600}>{attendees.length}</Typography>
             </Stack>
             <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
               Total
@@ -584,11 +654,8 @@ function ServiceCheckIn() {
             onChange={(e) => setCurrentEventId(e.target.value)} 
             displayEmpty 
             fullWidth
-            disabled={isLoadingEvents}
           >
-            <MenuItem value="">
-              {isLoadingEvents ? "Loading events..." : "Select Event"}
-            </MenuItem>
+            <MenuItem value="">Select Event</MenuItem>
             {events.map((ev) => (
               <MenuItem key={ev.id} value={ev.id}>{ev.eventName}</MenuItem>
             ))}
@@ -601,7 +668,6 @@ function ServiceCheckIn() {
             value={search} 
             onChange={(e) => { setSearch(e.target.value); setPage(0); }} 
             fullWidth 
-            disabled={isLoadingPeople}
           />
         </Grid>
         <Grid item xs={12} md={3}>
@@ -628,28 +694,23 @@ function ServiceCheckIn() {
               p: 1
             }}
           >
-            {isLoadingPeople 
-              ? Array.from({ length: 5 }).map((_, index) => <SkeletonCard key={index} />)
-              : paginatedAttendees.map((att) => <AttendeeCard key={att._id} attendee={att} />)
-            }
+            {paginatedAttendees.map((att) => <AttendeeCard key={att._id} attendee={att} />)}
           </Box>
 
           {/* Pagination under cards */}
-          {!isLoadingPeople && (
-            <TablePagination 
-              component="div" 
-              count={filteredAttendees.length} 
-              page={page} 
-              onPageChange={(e, newPage) => setPage(newPage)} 
-              rowsPerPage={rowsPerPage} 
-              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} 
-              rowsPerPageOptions={[5, 10, 20, 50]} 
-            />
-          )}
+          <TablePagination 
+            component="div" 
+            count={filteredAttendees.length} 
+            page={page} 
+            onPageChange={(e, newPage) => setPage(newPage)} 
+            rowsPerPage={rowsPerPage} 
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} 
+            rowsPerPageOptions={[5, 10, 20, 50]} 
+          />
         </Box>
       ) : (
         <Box>
-          {/* Page Info for Desktop - Only show when not loading */}
+          {/* Page Info for Desktop */}
           <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 500, overflowY: "auto" }}>
             <Table size={getResponsiveValue("small", "small", "medium", "medium", "medium")} stickyHeader>
               <TableHead>
@@ -663,33 +724,30 @@ function ServiceCheckIn() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {isLoadingPeople 
-                  ? Array.from({ length: 5 }).map((_, index) => <SkeletonTableRow key={index} />)
-                  : paginatedAttendees.map((att) => (
-                      <TableRow key={att._id} hover>
-                        <TableCell>{att.name} {att.surname}</TableCell>
-                        <TableCell>{att.phone || "-"}</TableCell>
-                        <TableCell>{att.leader12 || "-"}</TableCell>
-                        <TableCell>{att.leader144 || "-"}</TableCell>
-                        <TableCell>{att.leader1728 || "-"}</TableCell>
-                        <TableCell align="center">
-                          <IconButton onClick={() => handleDelete(att._id)} color="error" size="small"><DeleteIcon /></IconButton>
-                          <IconButton onClick={() => handleEditClick(att)} color="primary" size="small"><EditIcon /></IconButton>
-                          <IconButton onClick={() => handleToggleCheckIn(att)} color="success" size="small" disabled={!currentEventId}>
-                            {att.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                }
+                {paginatedAttendees.map((att) => (
+                  <TableRow key={att._id} hover>
+                    <TableCell>{att.name} {att.surname}</TableCell>
+                    <TableCell>{att.phone || "-"}</TableCell>
+                    <TableCell>{att.leader12 || "-"}</TableCell>
+                    <TableCell>{att.leader144 || "-"}</TableCell>
+                    <TableCell>{att.leader1728 || "-"}</TableCell>
+                    <TableCell align="center">
+                      <IconButton onClick={() => handleDelete(att._id)} color="error" size="small"><DeleteIcon /></IconButton>
+                      <IconButton onClick={() => handleEditClick(att)} color="primary" size="small"><EditIcon /></IconButton>
+                      <IconButton onClick={() => handleToggleCheckIn(att)} color="success" size="small" disabled={!currentEventId}>
+                        {att.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </TableContainer>
         </Box>
       )}
 
-      {/* Pagination (desktop table or global) - Only show when not loading */}
-      {!isMdDown && !isLoadingPeople && (
+      {/* Pagination (desktop table or global) */}
+      {!isMdDown && (
         <TablePagination component="div" count={filteredAttendees.length} page={page} onPageChange={(e, newPage) => setPage(newPage)} rowsPerPage={rowsPerPage} onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} rowsPerPageOptions={[5, 10, 20, 50]} />
       )}
 
