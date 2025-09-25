@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
 import { UserContext } from "../contexts/UserContext";
+import { AuthContext } from "../contexts/AuthContext"; // ✅ Add this import
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import LogoutIcon from "@mui/icons-material/Logout";
 
@@ -18,7 +19,8 @@ export default function TopbarProfile() {
   const location = useLocation();
   const theme = useTheme();
 
-  const { profilePic, userProfile, clearUserData } = useContext(UserContext);
+  const { profilePic, userProfile } = useContext(UserContext);
+  const { logout } = useContext(AuthContext); // ✅ Use AuthContext for logout
 
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -34,9 +36,9 @@ export default function TopbarProfile() {
   const handleMenuClose = () => setAnchorEl(null);
 
   const handleLogout = () => {
-    clearUserData();
+    logout(); // ✅ Use AuthContext logout (which sets user to null)
     handleMenuClose();
-    navigate("/login");
+    // Don't navigate here - let withAuthCheck HOC handle the redirect
   };
 
   const handleProfileClick = () => {
