@@ -45,8 +45,9 @@ const CreateEvents = ({
       setFormData(prev => ({ ...prev, eventType: eventTypes[0] }));
     }
   }, [eventTypes]);
-// Inside your component
-const isAdmin = user?.role === "admin";
+  
+  const isAdmin = user?.role === "admin";
+  console.log("User role:", user?.role, "isAdmin:", isAdmin);
 
   const [formData, setFormData] = useState({
     eventType: selectedEventType || '',
@@ -67,7 +68,6 @@ const isAdmin = user?.role === "admin";
     leaders: []
   });
 
-
   const [errors, setErrors] = useState({});
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -76,6 +76,10 @@ const isAdmin = user?.role === "admin";
 
   // Time periods
   const timePeriods = ['AM', 'PM'];
+
+  // New dropdown options
+  const ageGroupOptions = ['Child', 'Adult'];
+  const memberTypeOptions = ['Guild', 'First Time'];
 
   // Fetch people function
   const fetchPeople = async (filter = "") => {
@@ -285,6 +289,16 @@ const isAdmin = user?.role === "admin";
     setErrors({});
   };
 
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      leaders: [
+        { slot: 'Leader @1', name: prev.leader1 },
+        { slot: 'Leader @12', name: prev.leader12 },
+      ].filter(l => l.name)
+    }));
+  }, [formData.leader1, formData.leader12]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -475,10 +489,6 @@ const isAdmin = user?.role === "admin";
       color: isDarkMode ? '#ff6b6b' : 'red'
     }
   };
-  // New dropdown options
-  const ageGroupOptions = ['Child', 'Adult'];
-  const memberTypeOptions = ['Guild', 'First Time'];
-
 
   if (isGlobalEvent && !['admin', 'registration'].includes(user?.role)) {
     return (
@@ -487,7 +497,6 @@ const isAdmin = user?.role === "admin";
       </Typography>
     );
   }
-
 
   return (
     <Box sx={containerStyle}>
@@ -510,6 +519,7 @@ const isAdmin = user?.role === "admin";
           )}
 
           <form onSubmit={handleSubmit}>
+            {/* Event Type - Always show */}
             <TextField
               label={isGlobalEvent ? "Event Group Name" : "Event Type"}
               value={formData.eventType}
@@ -522,7 +532,7 @@ const isAdmin = user?.role === "admin";
               disabled
             />
 
-            {/* Event Name */}
+            {/* Event Name - Always show */}
             <TextField
               label="Event Name"
               value={formData.eventName}
@@ -534,32 +544,105 @@ const isAdmin = user?.role === "admin";
               helperText={errors.eventName || (isCell && !isGlobalEvent ? "Auto-filled when event leader is selected" : "")}
             />
 
-            
-            {/* Global Event: hide Age Group, Member Type, Price (so no fields here) */}
+            {/* TICKETED EVENT FIELDS - Only show for ticketed events and admin users, NOT for Global or Personal Steps */}
+            {/* Ticketed Event Fields */}
+{isTicketedEvent && !isGlobalEvent && (
+  <>
+    <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
+      <FormControl fullWidth size="small" error={!!errors.ageGroup} sx={darkModeStyles.select}>
+        <InputLabel>Age Group *</InputLabel>
+        <Select
+          value={formData.ageGroup}
+          onChange={(e) => handleChange('ageGroup', e.target.value)}
+          label="Age Group *"
+        >
+          {ageGroupOptions.map(option => (
+            <MenuItem key={option} value={option}>{option}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
 
-            {/* Personal Steps Fields */}
-            {hasPersonSteps && (
-              <>
-                <TextField
-                  label="Leader @1"
-                  value={formData.leader1}
-                  onChange={(e) => handleChange('leader1', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  label="Leader @12"
-                  value={formData.leader12}
-                  onChange={(e) => handleChange('leader12', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </>
-            )}
+      <FormControl fullWidth size="small" error={!!errors.memberType} sx={darkModeStyles.select}>
+        <InputLabel>Member Type *</InputLabel>
+        <Select
+          value={formData.memberType}
+          onChange={(e) => handleChange('memberType', e.target.value)}
+          label="Member Type *"
+        >
+          {memberTypeOptions.map(option => (
+            <MenuItem key={option} value={option}>{option}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    </Box>
 
-            {/* Date & Time */}
+    <TextField
+      label="Price *"
+      type="number"
+      value={formData.price}
+      onChange={(e) => handleChange('price', e.target.value)}
+      fullWidth
+      size="small"
+      sx={{ mb: 3, ...darkModeStyles.textField }}
+      error={!!errors.price}
+      helperText={errors.price}
+      InputProps={{
+        startAdornment: <InputAdornment position="start">R</InputAdornment>
+      }}
+    />
+  </>
+)}
+
+{/* Leadership Hierarchy - ONLY for Personal Steps */}
+{hasPersonSteps && !isGlobalEvent && !isTicketedEvent && (
+  <Box mb={3}>
+    <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>Leadership Hierarchy</Typography>
+
+    {/* Leader @1 */}
+    <Autocomplete
+      options={leaderAt1Options}
+      getOptionLabel={(option) => option.fullName || ''}
+      value={leaderAt1Options.find(p => p.fullName === formData.leader1) || null}
+      onChange={(event, newValue) => handleChange('leader1', newValue?.fullName || '')}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label="Leader @1"
+          size="small"
+          sx={{ mb: 2, ...darkModeStyles.textField }}
+        />
+      )}
+    />
+
+    {/* Leader @12 */}
+    <Autocomplete
+      freeSolo
+      loading={loadingPeople}
+      options={peopleData}
+      getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
+      value={peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''}
+      onChange={(event, newValue) => {
+        const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+        handleChange('leader12', selectedName);
+      }}
+      onInputChange={(event, newInputValue) => {
+        handleChange('leader12', newInputValue);
+        setSearchName(newInputValue);
+      }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label="Leader @12"
+          size="small"
+          sx={{ mb: 2, ...darkModeStyles.textField }}
+          helperText={loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people found)`}
+        />
+      )}
+    />
+  </Box>
+)}
+
+            {/* Date & Time - Show for all events */}
             <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
               <TextField
                 label="Date"
@@ -570,7 +653,6 @@ const isAdmin = user?.role === "admin";
                 size="small"
                 InputLabelProps={{ shrink: true }}
                 disabled={isCell && !isGlobalEvent && !hasPersonSteps}
-
                 error={!!errors.date}
                 helperText={errors.date}
                 sx={darkModeStyles.textField}
@@ -584,7 +666,6 @@ const isAdmin = user?.role === "admin";
                 size="small"
                 InputLabelProps={{ shrink: true }}
                 disabled={isCell && !isGlobalEvent && !hasPersonSteps}
-
                 error={!!errors.time}
                 helperText={errors.time}
                 sx={darkModeStyles.textField}
@@ -596,8 +677,6 @@ const isAdmin = user?.role === "admin";
                   label="AM/PM"
                   onChange={(e) => handleChange('timePeriod', e.target.value)}
                   disabled={isCell && !isGlobalEvent && !hasPersonSteps}
-
-
                 >
                   {timePeriods.map(period => (
                     <MenuItem key={period} value={period}>{period}</MenuItem>
@@ -605,115 +684,6 @@ const isAdmin = user?.role === "admin";
                 </Select>
               </FormControl>
             </Box>
-
-
-
-     
-{/* TICKETED EVENTS: visible to admins only */}
-{isTicketedEvent && !isGlobalEvent && isAdmin && (
-  <>
-    {/* Admin-only fields like Age Group, Member Type, Price */}
-    <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
-      <FormControl fullWidth size="small" error={!!errors.ageGroup}>
-        <InputLabel>Age Group *</InputLabel>
-        <Select
-          value={formData.ageGroup}
-          onChange={(e) => handleChange('ageGroup', e.target.value)}
-        >
-          {ageGroupOptions.map(option => (
-            <MenuItem key={option} value={option}>{option}</MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-
-      <FormControl fullWidth size="small" error={!!errors.memberType}>
-        <InputLabel>Member Type *</InputLabel>
-        <Select
-          value={formData.memberType}
-          onChange={(e) => handleChange('memberType', e.target.value)}
-        >
-          {memberTypeOptions.map(option => (
-            <MenuItem key={option} value={option}>{option}</MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    </Box>
-
-    <TextField
-      label="Price"
-      type="number"
-      value={formData.price}
-      onChange={(e) => handleChange('price', e.target.value)}
-      fullWidth
-      size="small"
-    />
-  </>
-)}
-
-
-            {/* Event Leader */}
-            <TextField
-              label="Event Leader"
-              value={formData.eventLeader}
-              onChange={(e) => handleChange('eventLeader', e.target.value)}
-              fullWidth
-              size="small"
-              sx={{ mb: 2, ...darkModeStyles.textField }}
-              error={!!errors.eventLeader}
-              helperText={errors.eventLeader}
-              InputProps={{
-                startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>
-              }}
-            />
-
-            {/* Only show leaders below Event Leader for Personal Steps */}
-            {hasPersonSteps && (
-              <Box mb={3}>
-                <Typography variant="subtitle1" sx={{ mb: 1 }}>Leadership Hierarchy</Typography>
-
-                {/* Leader @1 */}
-                <Autocomplete
-                  options={leaderAt1Options}
-                  getOptionLabel={(option) => option.fullName || ''}
-                  value={leaderAt1Options.find(p => p.fullName === formData.leader1) || null}
-                  onChange={(event, newValue) => handleChange('leader1', newValue?.fullName || '')}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Leader @1"
-                      size="small"
-                      sx={{ mb: 2, ...darkModeStyles.textField }}
-                    />
-                  )}
-                />
-
-                {/* Leader @12 */}
-                <Autocomplete
-                  freeSolo
-                  loading={loadingPeople}
-                  options={peopleData}
-                  getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
-                  value={peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''}
-                  onChange={(event, newValue) => {
-                    const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-                    handleChange('leader12', selectedName);
-                  }}
-                  onInputChange={(event, newInputValue) => {
-                    handleChange('leader12', newInputValue);
-                    setSearchName(newInputValue);
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Leader @12"
-                      size="small"
-                      sx={{ mb: 2, ...darkModeStyles.textField }}
-                      helperText={loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people found)`}
-                    />
-                  )}
-                />
-              </Box>
-            )}
 
             {/* Recurring Days - Show for all events */}
             <Box mb={3}>
@@ -747,7 +717,7 @@ const isAdmin = user?.role === "admin";
               )}
             </Box>
 
-            {/* Location */}
+            {/* Location - Always show */}
             <TextField
               label="Location"
               value={formData.location}
@@ -762,14 +732,14 @@ const isAdmin = user?.role === "admin";
               }}
             />
 
-            {/* Event Leader */}
+            {/* Event Leader - Always show */}
             <TextField
               label="Event Leader"
               value={formData.eventLeader}
               onChange={(e) => handleChange('eventLeader', e.target.value)}
               fullWidth
               size="small"
-              sx={{ mb: 2, ...darkModeStyles.textField }}
+              sx={{ mb: 3, ...darkModeStyles.textField }}
               error={!!errors.eventLeader}
               helperText={errors.eventLeader}
               InputProps={{
@@ -777,10 +747,10 @@ const isAdmin = user?.role === "admin";
               }}
             />
 
-            {/* Leaders ONLY for Personal Steps */}
-            {hasPersonSteps && (
+            {/* Leadership Hierarchy - ONLY for Personal Steps */}
+            {hasPersonSteps && !isGlobalEvent && !isTicketedEvent && (
               <Box mb={3}>
-                <Typography variant="subtitle1" sx={{ mb: 1 }}>Leadership Hierarchy</Typography>
+                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>Leadership Hierarchy</Typography>
 
                 {/* Leader @1 */}
                 <Autocomplete
@@ -826,44 +796,7 @@ const isAdmin = user?.role === "admin";
               </Box>
             )}
 
-            {/* Global Event / Personal Steps Fields */}
-            {(isGlobalEvent || hasPersonSteps) && (
-              <>
-                {/* Date */}
-                <TextField
-                  label="Date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => handleChange('date', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                />
-
-                {/* Time */}
-                <TextField
-                  label="Time"
-                  type="time"
-                  value={formData.time}
-                  onChange={(e) => handleChange('time', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                />
-
-                {/* Location */}
-                <TextField
-                  label="Location"
-                  value={formData.location}
-                  onChange={(e) => handleChange('location', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                />
-              </>
-            )}
-
-            {/* Description */}
+            {/* Description - Always show */}
             <TextField
               label="Description"
               value={formData.description}
@@ -879,7 +812,6 @@ const isAdmin = user?.role === "admin";
                 startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
               }}
             />
-
 
             {/* Buttons */}
             <Box display="flex" gap={2} sx={{ mt: 3 }}>
