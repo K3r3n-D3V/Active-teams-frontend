@@ -499,7 +499,7 @@ export default function Profile() {
         } catch (passwordError) {
           setSnackbar({
             open: true,
-            message: `Profile updated successfully, but password change failed: ${passwordError.message}`,
+            message: `Incorrect password : ${passwordError.message}`,
             severity: "warning",
           });
         }
