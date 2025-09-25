@@ -1,8 +1,7 @@
 // EventHistory.jsx
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { FaRegCalendarAlt } from "react-icons/fa";
-import { useLocation } from "react-router-dom";
 
 // ✅ Save event history utility
 export const saveToEventHistory = ({
@@ -17,7 +16,6 @@ export const saveToEventHistory = ({
   userEmail = "",
 }) => {
   const currentHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
-
   const newEntry = {
     eventId,
     service_name,
@@ -26,25 +24,23 @@ export const saveToEventHistory = ({
     attendees,
     reason,
     leader1: leader1 || "-",
-    leader1_email: leader1_email || "-", // ✅ add this
+    leader1_email: leader1_email || "-", 
     userEmail: userEmail || "-",
     timestamp: new Date().toISOString(),
   };
-
   currentHistory.push(newEntry);
   localStorage.setItem("eventHistory", JSON.stringify(currentHistory));
-
   // Dispatch custom event so components know to update
   window.dispatchEvent(new Event("eventHistoryUpdated"));
 };
 
 const EventHistory = ({ user }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [events, setEvents] = useState([]);
   const [filterName, setFilterName] = useState("");
   const [filterDate, setFilterDate] = useState("");
   const [activeFilter, setActiveFilter] = useState("incomplete");
-  const location = useLocation();
 
   const getEventHistory = () => {
     const history = localStorage.getItem("eventHistory");
@@ -54,6 +50,7 @@ const EventHistory = ({ user }) => {
   const groupHistoryByEvent = () => {
     const rawHistory = getEventHistory();
     const grouped = {};
+
     rawHistory.forEach((entry) => {
       const eventKey = entry.eventId || entry.service_name;
       if (!grouped[eventKey]) {
@@ -62,11 +59,11 @@ const EventHistory = ({ user }) => {
           service_name: entry.service_name,
           eventType: entry.eventType,
           leader1: entry.leader1 || "-",
-          leader1_email: entry.leader1_email || "-", 
+          leader1_email: entry.leader1_email || "-",
           day: new Date(entry.timestamp).toLocaleDateString("en-US", {
             weekday: "long",
           }),
-          email: entry.userEmail || user?.email || "-", 
+          email: entry.userEmail || user?.email || "-",
           history: [],
         };
       }
@@ -77,65 +74,85 @@ const EventHistory = ({ user }) => {
         reason: entry.reason,
       });
     });
-    return Object.values(grouped);
+
+    // Sort events by latest timestamp so newest appears on top
+    return Object.values(grouped).sort((a, b) => {
+      const aTime = new Date(a.history[a.history.length - 1].timestamp).getTime();
+      const bTime = new Date(b.history[b.history.length - 1].timestamp).getTime();
+      return bTime - aTime;
+    });
   };
 
-  // Listen for updates and refresh events
+  const refreshEvents = () => {
+    const grouped = groupHistoryByEvent();
+    setEvents(grouped);
+    // Auto-select tab based on latest event status
+    if (grouped.length > 0) {
+      const latestEntry = grouped[0].history[grouped[0].history.length - 1];
+      if (latestEntry.status === "attended") setActiveFilter("complete");
+      else if (latestEntry.status === "did-not-meet") setActiveFilter("did-not-meet");
+      else setActiveFilter("incomplete");
+    }
+  };
+
   useEffect(() => {
-    const onHistoryUpdated = () => {
-      setEvents(groupHistoryByEvent());
-    };
-
-    window.addEventListener("eventHistoryUpdated", onHistoryUpdated);
-
-    // Initial load
-    setEvents(groupHistoryByEvent());
-
-    return () => {
-      window.removeEventListener("eventHistoryUpdated", onHistoryUpdated);
-    };
-  }, []);
-
-  // Also refresh on location change if needed
-  useEffect(() => {
-    setEvents(groupHistoryByEvent());
+    window.addEventListener("eventHistoryUpdated", refreshEvents);
+    refreshEvents(); // Initial load
+    return () => window.removeEventListener("eventHistoryUpdated", refreshEvents);
   }, [location]);
 
+  // ✅ Filtered events
   const filteredEvents = events.filter((event) => {
     const matchesName = filterName
       ? event.service_name.toLowerCase().includes(filterName.toLowerCase())
       : true;
-
     const matchesDate = filterDate
       ? event.history.some((h) =>
           new Date(h.timestamp).toISOString().startsWith(filterDate)
         )
       : true;
-
     return matchesName && matchesDate;
   });
 
-  const incompleteEvents = filteredEvents.filter((event) =>
-    event.history.some((h) => h.status === "did-not-meet")
-  );
   const completeEvents = filteredEvents.filter((event) =>
     event.history.some((h) => h.status === "attended")
   );
   const didNotMeetEvents = filteredEvents.filter((event) =>
     event.history.some((h) => h.status === "did-not-meet")
   );
+  const incompleteEvents = filteredEvents.filter(
+    (event) =>
+      !event.history.some((h) => h.status === "attended" || h.status === "did-not-meet")
+  );
+
+  const eventsToShow =
+    activeFilter === "complete"
+      ? completeEvents
+      : activeFilter === "did-not-meet"
+      ? didNotMeetEvents
+      : incompleteEvents;
 
   const openEventDetails = (eventId) => {
     const selectedEvent = events.find((e) => e._id === eventId);
     navigate("/event-details", { state: { event: selectedEvent } });
   };
 
-  const eventsToShow =
-    activeFilter === "complete"
-      ? completeEvents
-      : activeFilter === "incomplete"
-      ? incompleteEvents
-      : didNotMeetEvents;
+  // ✅ Get notification message based on active filter
+  const getNotificationMessage = () => {
+    if (eventsToShow.length === 0) {
+      switch (activeFilter) {
+        case "complete":
+          return "📅 No completed events found. Events that have been attended will appear here.";
+        case "did-not-meet":
+          return "❌ No 'did not meet' events found. Events that didn't take place will appear here.";
+        case "incomplete":
+          return "⏳ No incomplete events found. Events that are pending or in progress will appear here.";
+        default:
+          return "📭 No events found matching your criteria.";
+      }
+    }
+    return null;
+  };
 
   return (
     <div style={styles.container}>
@@ -151,7 +168,12 @@ const EventHistory = ({ user }) => {
             onChange={(e) => setFilterName(e.target.value)}
             style={styles.searchInput}
           />
-          <button style={styles.filterButton}>FILTER</button>
+          <button
+            style={styles.filterButton}
+            onClick={() => setEvents(groupHistoryByEvent())} // 🔹 Trigger filter manually
+          >
+            FILTER
+          </button>
         </div>
 
         <div style={styles.filterTabs}>
@@ -163,7 +185,7 @@ const EventHistory = ({ user }) => {
                 : styles.filterBtn
             }
           >
-            INCOMPLETE
+            INCOMPLETE ({incompleteEvents.length})
           </button>
           <button
             onClick={() => setActiveFilter("complete")}
@@ -173,7 +195,7 @@ const EventHistory = ({ user }) => {
                 : styles.filterBtn
             }
           >
-            COMPLETE
+            COMPLETE ({completeEvents.length})
           </button>
           <button
             onClick={() => setActiveFilter("did-not-meet")}
@@ -183,61 +205,77 @@ const EventHistory = ({ user }) => {
                 : styles.filterBtn
             }
           >
-            DID NOT MEET
+            DID NOT MEET ({didNotMeetEvents.length})
           </button>
         </div>
       </div>
 
-      {/* Table */}
-      <table style={styles.table}>
-        <thead>
-          <tr style={styles.tableHeaderRow}>
-            <th style={styles.tableHeaderCell}>Event Name</th>
-            <th style={styles.tableHeaderCell}>Leader @12</th>
-            <th style={styles.tableHeaderCell}>Leader's Email</th>
-            <th style={styles.tableHeaderCell}>Day</th>
-            <th style={styles.tableHeaderCell}>Date Of Event</th>
-            <th style={styles.tableHeaderCell}>Open Event</th>
-          </tr>
-        </thead>
+      {/* ✅ Notification Alert */}
+      {getNotificationMessage() && (
+        <div style={styles.notificationAlert}>
+          {getNotificationMessage()}
+        </div>
+      )}
 
-        <tbody>
-          {eventsToShow.map((event) => {
-            const latest = [...event.history]
-              .filter((h) =>
-                activeFilter === "complete"
-                  ? h.status === "attended"
-                  : h.status === "did-not-meet"
-              )
-              .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+      {/* Table - Only show if there are events */}
+      {eventsToShow.length > 0 && (
+        <table style={styles.table}>
+          <thead>
+            <tr style={styles.tableHeaderRow}>
+              <th style={styles.tableHeaderCell}>Event Name</th>
+              <th style={styles.tableHeaderCell}>Leader @12</th>
+              <th style={styles.tableHeaderCell}>Leader's Email</th>
+              <th style={styles.tableHeaderCell}>Day</th>
+              <th style={styles.tableHeaderCell}>Date Of Event</th>
+              <th style={styles.tableHeaderCell}>Open Event</th>
+            </tr>
+          </thead>
+          <tbody>
+            {eventsToShow.map((event) => {
+              const latest = [...event.history]
+                .filter((h) =>
+                  activeFilter === "complete"
+                    ? h.status === "attended"
+                    : activeFilter === "did-not-meet"
+                    ? h.status === "did-not-meet"
+                    : true
+                )
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
 
-            return (
-              <tr key={event._id} style={styles.tr}>
-                <td style={styles.td}>{event.service_name}</td>
-                <td style={styles.td}>{event.leader1 || "-"}</td>
-                <td style={styles.td}>{event.leader1_email || "-"}</td>
-                <td style={styles.td}>{event.day}</td>
-                <td style={styles.td}>
-                  {latest &&
-                    new Date(latest.timestamp).toLocaleDateString("en-GB", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    }).replace(/\//g, " - ")}
-                </td>
-                <td style={{ ...styles.td, textAlign: "center" }}>
-                  <button
-                    style={styles.iconBtn}
-                    onClick={() => openEventDetails(event._id)}
-                  >
-                    <FaRegCalendarAlt />
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+              return (
+                <tr key={event._id} style={styles.tr}>
+                  <td style={styles.td}>{event.service_name}</td>
+                  <td style={styles.td}>{event.leader1 || "-"}</td>
+                  <td style={styles.td}>{event.leader1_email || "-"}</td>
+                  <td style={styles.td}>
+                    {latest
+                      ? new Date(latest.timestamp).toLocaleDateString("en-US", {
+                          weekday: "long",
+                        })
+                      : "-"}
+                  </td>
+                  <td style={styles.td}>
+                    {latest &&
+                      new Date(latest.timestamp).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      }).replace(/\//g, " - ")}
+                  </td>
+                  <td style={{ ...styles.td, textAlign: "center" }}>
+                    <button
+                      style={styles.iconBtn}
+                      onClick={() => openEventDetails(event._id)}
+                    >
+                      <FaRegCalendarAlt />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
 
       <input
         type="date"
@@ -350,6 +388,19 @@ const styles = {
     backgroundColor: "#dc3545",
     borderColor: "#dc3545",
     color: "#fff",
+  },
+  // ✅ New notification alert styles
+  notificationAlert: {
+    backgroundColor: "#e7f3ff",
+    border: "2px solid #4a90e2",
+    borderRadius: "12px",
+    padding: "1.5rem 2rem",
+    marginBottom: "2rem",
+    textAlign: "center",
+    fontSize: "1.1rem",
+    fontWeight: "600",
+    color: "#2c3e50",
+    boxShadow: "0 2px 8px rgba(74, 144, 226, 0.15)",
   },
   table: {
     width: "100%",

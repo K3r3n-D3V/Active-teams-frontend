@@ -544,12 +544,12 @@ const Events = () => {
       const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       // Add the new event type to the existing types
       if (response.data && response.data.name) {
         setEventTypes(prev => [...prev, response.data.name]);
       }
-      
+
       console.log('Event type created successfully:', response.data);
     } catch (error) {
       console.error('Error creating event type:', error);
@@ -561,109 +561,81 @@ const Events = () => {
     setShowCreateEventTypeModal(false);
   };
 
-  const handleAttendanceSubmit = async (data) => {
-    if (!selectedEvent)
-      return { success: false, message: "No event selected." };
+const handleAttendanceSubmit = async (data) => {
+  if (!selectedEvent) {
+    alert("No event selected.");
+    return { success: false, message: "No event selected." };
+  }
 
-    const eventId = selectedEvent._id;
-    const eventName =
-      selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
-    const eventType = selectedEvent.eventType || "Event";
+  const eventId = selectedEvent._id || selectedEvent.cellId || selectedEvent.service_name;
+  const eventName = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
+  const eventType = selectedEvent.eventType || "Event";
 
-    try {
-      const now = new Date();
-      const formattedDate = now.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
+  // Optimistic removal from UI
+  setEvents((prev) => prev.filter((e) => (e._id || e.cellId || e.service_name) !== eventId));
+  setFilteredEvents((prev) => prev.filter((e) => (e._id || e.cellId || e.service_name) !== eventId));
+
+  try {
+    // --- Did Not Meet ---
+    if (data === "did-not-meet" || (typeof data === "string" && data.toLowerCase().includes("did not meet"))) {
+      await axios.put(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+        attendees: [],
+        did_not_meet: true,
       });
-      const formattedTime = now.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
+
+      saveToEventHistory({
+        eventId,
+        service_name: eventName,
+        eventType,
+        status: "did-not-meet",
+        reason: "Marked as did not meet",
+        leader1: selectedEvent?.eventLeaderName || "-",
+        leader1_email: selectedEvent?.eventLeaderEmail || "-",
+        userEmail: currentUser?.email || "-",
       });
 
-      // Event did not meet
-      if (
-        data === "did-not-meet" ||
-        data === "Mark As Did Not Meet" ||
-        (typeof data === "string" &&
-          data.toLowerCase().includes("did not meet"))
-      ) {
-        await axios.put(`${BACKEND_URL}/allevents/${eventId}`, {
-          did_not_meet: true,
-        });
-
-        await saveToEventHistory({
-          eventId,
-          service_name: eventName,
-          eventType,
-          status: "did-not-meet",
-          reason: "Marked as did not meet",
-          closedAt: `${formattedDate}, ${formattedTime}`,
-          leader12: selectedEvent?.eventLeaderName || "Unknown",
-          leader12_email: selectedEvent?.eventLeaderEmail || "Unknown",
-          userEmail: currentUser?.email || "Unknown",
-        });
-
-        // Mark event as closed locally
-        setEvents((prev) =>
-          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-        );
-        setFilteredEvents((prev) =>
-          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-        );
-
-        navigate("/events-history");
-
-        return {
-          success: true,
-          message: `${eventName} marked as 'Did Not Meet'.`,
-        };
-      }
-
-      // Event attended
-      if (Array.isArray(data) && data.length > 0) {
-        await axios.put(`${BACKEND_URL}/allevents/${eventId}`, {
-          attendees: data.map((person) => person.id),
-          did_not_meet: false,
-        });
-
-        await saveToEventHistory({
-          eventId,
-          service_name: eventName,
-          eventType,
-          status: "attended",
-          attendees: data,
-          leader12: selectedEvent.eventLeaderName || "-",
-          leader12_email: selectedEvent.eventLeaderEmail || "-",
-          userEmail: currentUser.email,
-        });
-
-        // Mark event as closed locally
-        setEvents((prev) =>
-          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-        );
-        setFilteredEvents((prev) =>
-          prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
-        );
-
-        navigate("/events-history");
-        return {
-          success: true,
-          message: `Successfully captured attendance for ${eventName}`,
-        };
-      }
-
-      return { success: false, message: "No attendees selected." };
-    } catch (error) {
-      console.error("Error updating event:", error);
-      return {
-        success: false,
-        message: "Something went wrong while capturing the event.",
-      };
+      console.log("Event saved to history (Did Not Meet):", JSON.parse(localStorage.getItem("eventHistory")));
+      navigate("/events-history");
+      return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
     }
-  };
+
+    // --- Capture Attendance ---
+    if (Array.isArray(data) && data.length > 0) {
+      const formattedAttendees = data.map((person, index) => ({
+        id: person.id || null,
+        name: person.fullName || person.name || `Unknown-${index}-${person.id || "NA"}`,
+        email: person.email || `unknown${index}@example.com`,
+      }));
+
+      await axios.put(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+        attendees: formattedAttendees,
+        did_not_meet: false,
+      });
+
+      saveToEventHistory({
+        eventId,
+        service_name: eventName,
+        eventType,
+        status: "attended",
+        attendees: formattedAttendees,
+        leader1: selectedEvent?.eventLeaderName || "-",
+        leader1_email: selectedEvent?.eventLeaderEmail || "-",
+        userEmail: currentUser?.email || "-",
+      });
+
+      console.log("Event saved to history (Attended):", JSON.parse(localStorage.getItem("eventHistory")));
+      navigate("/events-history");
+      return { success: true, message: `Attendance for "${eventName}" captured.` };
+    }
+
+    alert("No attendees selected.");
+    return { success: false, message: "No attendees selected." };
+  } catch (error) {
+    console.error("Error submitting attendance:", error);
+    alert("Something went wrong. UI was updated optimistically.");
+    return { success: false, message: "Error submitting attendance." };
+  }
+};
 
   const capitalize = (str) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -1014,17 +986,17 @@ const Events = () => {
         onCreateEventType={handleCreateEventType}
       />
 
-{/* Create Event Type Modal */}
-<EventTypesModal
-  open={showCreateEventTypeModal}
-  onClose={handleCloseCreateEventTypeModal}
-  onSubmit={handleCreateEventTypeSubmit}
-/>
+      {/* Create Event Type Modal */}
+      <EventTypesModal
+        open={showCreateEventTypeModal}
+        onClose={handleCloseCreateEventTypeModal}
+        onSubmit={handleCreateEventTypeSubmit}
+      />
 
 
       {/* Create Event Modal */}
       {showCreateEventModal && (
-        <div 
+        <div
           style={styles.modalOverlay}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -1046,9 +1018,9 @@ const Events = () => {
             >
               ×
             </button>
-            <CreateEvents 
-              user={currentUser} 
-              isModal={true} 
+            <CreateEvents
+              user={currentUser}
+              isModal={true}
               onClose={handleCloseCreateEventModal}
             />
           </div>

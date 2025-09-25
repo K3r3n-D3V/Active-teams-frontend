@@ -117,19 +117,19 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
               {person.leaders.leader12 && (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <GroupIcon fontSize="small" sx={{ mr: 0.5 }} />
-                  <Typography variant="caption">Leader @12: {person.leaders.leader12}</Typography>
+                  <Typography variant="caption">Main Pastor: {person.leaders.leader12}</Typography>
                 </Box>
               )}
               {person.leaders.leader144 && (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <GroupIcon fontSize="small" sx={{ mr: 0.5 }} />
-                  <Typography variant="caption">Leader @144: {person.leaders.leader144}</Typography>
+                  <Typography variant="caption">Sheppard: {person.leaders.leader144}</Typography>
                 </Box>
               )}
               {person.leaders.leader1728 && (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <GroupIcon fontSize="small" sx={{ mr: 0.5 }} />
-                  <Typography variant="caption">Leader @1728: {person.leaders.leader1728}</Typography>
+                  <Typography variant="caption">Disciple: {person.leaders.leader1728}</Typography>
                 </Box>
               )}
             </Box>
@@ -213,7 +213,9 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
       console.log(`Updating person ${draggableId} to stage: ${newStage}`);
 
       const response = await axios.patch(`${BACKEND_URL}/people/${draggableId}`, {
-        Stage: newStage
+        Stage: newStage,
+        invitedBy: currentUser.name,  // 🔥 keep ownership linked
+        leaderEmail: currentUser.email
       }, {
         headers: {
           'Content-Type': 'application/json'
@@ -236,15 +238,15 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
         console.warn(`Stage mismatch! Expected: ${newStage}, Got: ${response.data.Stage}`);
         // Update the frontend to match backend
         setPeople(prev => prev.map(p =>
-          String(p._id) === String(draggableId) 
-            ? { ...p, Stage: response.data.Stage, lastUpdated: response.data.UpdatedAt } 
+          String(p._id) === String(draggableId)
+            ? { ...p, Stage: response.data.Stage, lastUpdated: response.data.UpdatedAt }
             : p
         ));
       } else {
         // Update just the timestamp in the current view
         setPeople(prev => prev.map(p =>
-          String(p._id) === String(draggableId) 
-            ? { ...p, lastUpdated: response.data.UpdatedAt } 
+          String(p._id) === String(draggableId)
+            ? { ...p, lastUpdated: response.data.UpdatedAt }
             : p
         ));
       }
@@ -337,7 +339,7 @@ const FloatingTunnelPagination = ({ page, setPage, totalPages = 160, isSearching
     handleScroll();
     const container = scrollRef.current;
     if (!container) return;
-    
+
     container.addEventListener('scroll', handleScroll);
     window.addEventListener('resize', handleScroll);
     return () => {
@@ -425,36 +427,84 @@ export const PeopleSection = () => {
   const fetchAllPeople = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch a large amount or all people at once
-      const res = await axios.get(`${BACKEND_URL}/people`, { 
-        params: { perPage: 0 }, // perPage: 0 fetches all
-        timeout: 80000 
+      // Fetch all people
+      const res = await axios.get(`${BACKEND_URL}/people`, {
+        params: { perPage: 0 },
+        timeout: 80000
       });
-      const rawPeople = res.data?.results || [];
 
-      const mapped = rawPeople.map(raw => ({
-        _id: (raw._id || raw.id || "").toString(),
-        name: (raw.Name || raw.name || "").toString().trim(),
-        surname: (raw.Surname || raw.surname || "").toString().trim(),
-        gender: (raw.Gender || raw.gender || "").toString().trim(),
-        dob: raw.DateOfBirth || raw.Birthday || "",
-        location: (raw.Location || raw.address || raw.HomeAddress || "").toString().trim(),
-        email: (raw.Email || raw.email || "").toString().trim(),
-        phone: (raw.Phone || raw.Number || "").toString().trim(),
-        Stage: (raw.Stage || "Win").toString().trim(),
-        lastUpdated: raw.UpdatedAt || null,
-        leaders: {
-          leader12: (raw["Leader @12"] || "").toString().trim(),
-          leader144: (raw["Leader @144"] || "").toString().trim(),
-          leader1728: (raw["Leader @1728"] || raw["Leader @ 1728"] || "").toString().trim(),
-        }
-      }));
+      // Ensure we have an array of people
+      const rawPeople = Array.isArray(res.data?.results)
+        ? res.data.results
+        : Array.isArray(res.data)
+          ? res.data
+          : [];
 
-      setAllPeople(mapped);
+      // Safely get current user from localStorage (no hardcoding)
+      const stored = localStorage.getItem("userProfile") || localStorage.getItem("user") || "{}";
+      const currentUser = JSON.parse(stored || "{}") || {};
+      const currentUserName = (currentUser.name || currentUser.fullName || currentUser.full_name || "").toString().toLowerCase().trim();
+      const currentUserEmail = (currentUser.email || "").toString().toLowerCase().trim();
+
+      console.log("🔍 currentUser:", { currentUserName, currentUserEmail });
+
+      // If no user info, bail out gracefully
+      if (!currentUserName && !currentUserEmail) {
+        console.warn("No current user name/email available — returning empty people list.");
+        setAllPeople([]);
+        setHasInitialFetch(true);
+        setLoading(false);
+        return;
+      }
+
+      // Map and normalize safely
+      const mapped = rawPeople.map(raw => {
+        const inv = raw?.InvitedBy ?? raw?.invitedBy ?? "";
+        const l12 = raw?.["Leader @12"] ?? raw?.leader12 ?? "";
+        const l144 = raw?.["Leader @144"] ?? raw?.leader144 ?? "";
+        const l1728 = raw?.["Leader @1728"] ?? raw?.["Leader @ 1728"] ?? raw?.leader1728 ?? "";
+
+        return {
+          _id: String(raw._id || raw.id || ""),
+          name: String(raw.Name || raw.name || "").trim(),
+          surname: String(raw.Surname || raw.surname || "").trim(),
+          email: String(raw.Email || raw.email || "").trim(),
+          phone: String(raw.Phone || raw.Number || "").trim(),
+          Stage: String(raw.Stage || "Win").trim(),
+          lastUpdated: raw.UpdatedAt || null,
+          invitedBy: String(inv).trim(),
+          leaders: {
+            leader12: String(l12).trim(),
+            leader144: String(l144).trim(),
+            leader1728: String(l1728).trim()
+          }
+        };
+      });
+
+      // Filter: leaders OR invitedBy, matching name OR email (case-insensitive, partial allowed)
+      const filtered = mapped.filter(person => {
+        const invited = (person.invitedBy || "").toLowerCase();
+        const leadersArr = [
+          (person.leaders.leader12 || "").toLowerCase(),
+          (person.leaders.leader144 || "").toLowerCase(),
+          (person.leaders.leader1728 || "").toLowerCase()
+        ];
+
+        const matchesNameOrEmail = (field) =>
+          field && (currentUserName && field.includes(currentUserName) || currentUserEmail && field.includes(currentUserEmail));
+
+        // any leader contains current user name/email OR invitedBy contains name/email
+        return leadersArr.some(l => matchesNameOrEmail(l)) || matchesNameOrEmail(invited);
+      });
+
+      console.log("✅ mapped count:", mapped.length, "filtered count:", filtered.length);
+
+      // Always set an array (avoid putting non-array into state)
+      setAllPeople(Array.isArray(filtered) ? filtered : []);
       setHasInitialFetch(true);
-
     } catch (err) {
-      setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
+      console.error("Failed to load people:", err);
+      setSnackbar({ open: true, message: `Failed to load people: ${err?.message || err}`, severity: 'error' });
       setAllPeople([]);
     } finally {
       setLoading(false);
@@ -466,13 +516,13 @@ export const PeopleSection = () => {
     if (!searchValue.trim()) return people;
 
     const searchLower = searchValue.toLowerCase().trim();
-    
+
     return people.filter(person => {
       switch (field) {
         case 'name':
-          return person.name.toLowerCase().includes(searchLower) || 
-                 person.surname.toLowerCase().includes(searchLower) ||
-                 `${person.name} ${person.surname}`.toLowerCase().includes(searchLower);
+          return person.name.toLowerCase().includes(searchLower) ||
+            person.surname.toLowerCase().includes(searchLower) ||
+            `${person.name} ${person.surname}`.toLowerCase().includes(searchLower);
         case 'email':
           return person.email.toLowerCase().includes(searchLower);
         case 'phone':
@@ -481,8 +531,8 @@ export const PeopleSection = () => {
           return person.location.toLowerCase().includes(searchLower);
         case 'leaders':
           return person.leaders.leader12.toLowerCase().includes(searchLower) ||
-                 person.leaders.leader144.toLowerCase().includes(searchLower) ||
-                 person.leaders.leader1728.toLowerCase().includes(searchLower);
+            person.leaders.leader144.toLowerCase().includes(searchLower) ||
+            person.leaders.leader1728.toLowerCase().includes(searchLower);
         default:
           return person.name.toLowerCase().includes(searchLower);
       }
@@ -520,8 +570,8 @@ export const PeopleSection = () => {
   }, [filteredAndPaginatedPeople]);
 
   // Reset to page 1 when search changes (but not for debounced changes)
-  useEffect(() => { 
-    setPage(1); 
+  useEffect(() => {
+    setPage(1);
   }, [searchField]); // Only reset page when search field changes, not search term
 
   // Reset to page 1 when starting a new search
@@ -546,9 +596,9 @@ export const PeopleSection = () => {
 
   // Update a single person in the cached data
   const updatePersonInCache = useCallback((personId, updates) => {
-    setAllPeople(prev => prev.map(person => 
-      String(person._id) === String(personId) 
-        ? { ...person, ...updates } 
+    setAllPeople(prev => prev.map(person =>
+      String(person._id) === String(personId)
+        ? { ...person, ...updates }
         : person
     ));
   }, []);
@@ -571,9 +621,9 @@ export const PeopleSection = () => {
         <Typography variant="h6">
           My People {isSearching && `(${people.length} results)`}
         </Typography>
-        <Button 
-          variant="outlined" 
-          size="small" 
+        <Button
+          variant="outlined"
+          size="small"
           onClick={handleRefresh}
           disabled={loading}
         >
@@ -625,9 +675,9 @@ export const PeopleSection = () => {
           updatePersonInCache={updatePersonInCache}
         />
 
-        <FloatingTunnelPagination 
-          page={page} 
-          setPage={setPage} 
+        <FloatingTunnelPagination
+          page={page}
+          setPage={setPage}
           totalPages={totalPages}
           isSearching={isSearching}
         />
