@@ -1,792 +1,3 @@
-// import React, {
-//   useState,
-//   useCallback,
-//   useEffect,
-//   useContext,
-//   useRef,
-// } from "react";
-// // import { useNavigate } from "react-router-dom";
-// import {
-//   Box,
-//   Typography,
-//   TextField,
-//   Grid,
-//   Button,
-//   useTheme,
-//   Snackbar,
-//   Alert,
-//   Slider,
-//   IconButton,
-//   InputAdornment,
-//   CardContent,
-//   Container,
-//   Fade,
-//   Zoom,
-//   Paper,
-//   Chip,
-//   Tooltip,
-//   Avatar,
-//   CircularProgress,
-// } from "@mui/material";
-// import Cropper from "react-easy-crop";
-// import getCroppedImg from "../components/cropImageHelper";
-// import { UserContext } from "../contexts/UserContext.jsx";
-// import {
-//   Edit,
-//   Save,
-//   Cancel,
-//   Person,
-//   Email,
-//   Phone,
-//   Home,
-//   Cake,
-//   Group,
-//   Visibility,
-//   VisibilityOff,
-//   Star,
-//   Church,
-//   CameraAlt,
-// } from "@mui/icons-material";
-// import axios from "axios";
-
-// /** Texts */
-// const carouselTexts = [
-//   "We are THE ACTIVE CHURCH",
-//   "A church raising a NEW GENERATION.",
-//   "A generation that will CHANGE THIS NATION.",
-//   "To God be the GLORY",
-//   "Amen.",
-// ];
-
-// /** API helpers */
-// const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
-// async function updateUserProfile(data) {
-//   const userId = localStorage.getItem("userId");
-//   if (!userId) throw new Error("User ID not found");
-
-//   try {
-//     const res = await axios.put(`${BACKEND_URL}/profile/${userId}`, data, {
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//     });
-
-//     return res.data;
-//   } catch (error) {
-//     const errorMessage =
-//       error.response?.data?.detail ||
-//       error.response?.data?.message ||
-//       error.message ||
-//       "Unknown error";
-//     throw new Error(errorMessage);
-//   }
-// }
-
-// async function uploadAvatarFromDataUrl(dataUrl) {
-//   const token = localStorage.getItem("token");
-//   const blob = await (await fetch(dataUrl)).blob();
-//   const form = new FormData();
-//   form.append("avatar", blob, "avatar.png");
-
-//   const res = await fetch(`${BACKEND_URL}/users/me/avatar`, {
-//     method: "POST",
-//     headers: { Authorization: `Bearer ${token}` },
-//     body: form,
-//   });
-//   if (!res.ok) throw new Error("Failed to upload avatar");
-//   return res.json();
-// }
-
-// export default function Profile() {
-//   const theme = useTheme();
-//   const isDark = theme.palette.mode === "dark";
-//   const { userProfile, setUserProfile, setProfilePic, profilePic } =
-//     useContext(UserContext);
-
-//   const fileInputRef = useRef(null);
-//   const [crop, setCrop] = useState({ x: 0, y: 0 });
-//   const [zoom, setZoom] = useState(1);
-//   const [croppingSrc, setCroppingSrc] = useState(null);
-//   const [croppingOpen, setCroppingOpen] = useState(false);
-//   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-//   const [loadingProfile, setLoadingProfile] = useState(true);
-
-//   const [editMode, setEditMode] = useState(false);
-//   const [hasChanges, setHasChanges] = useState(false);
-//   const [carouselIndex, setCarouselIndex] = useState(0);
-//   const [form, setForm] = useState({
-//     name: "",
-//     surname: "",
-//     dob: "",
-//     email: "",
-//     address: "",
-//     phone: "",
-//     invitedBy: "",
-//     gender: "",
-//     currentPassword: "",
-//     newPassword: "",
-//     confirmPassword: "",
-//   });
-
-//   const [originalForm, setOriginalForm] = useState({ ...form });
-//   const [showPassword, setShowPassword] = useState({
-//     current: false,
-//     new: false,
-//     confirm: false,
-//   });
-//   const [errors, setErrors] = useState({});
-//   const [snackbar, setSnackbar] = useState({
-//     open: false,
-//     message: "",
-//     severity: "success",
-//   });
-
-//   // Carousel effect
-//   useEffect(() => {
-//     const t = setInterval(
-//       () => setCarouselIndex((p) => (p + 1) % carouselTexts.length),
-//       4000
-//     );
-//     return () => clearInterval(t);
-//   }, []);
-
-//   // Load profile data from localStorage (set during login)
-//   useEffect(() => {
-//     const loadProfile = () => {
-//       console.log("=== PROFILE LOAD STARTED ===");
-      
-//       try {
-//         setLoadingProfile(true);
-        
-//         // Get profile data from localStorage (set during login)
-//         const storedProfile = localStorage.getItem("userProfile");
-//         const storedUserId = localStorage.getItem("userId");
-        
-//         console.log("Stored profile exists:", !!storedProfile);
-//         console.log("Stored user ID:", storedUserId);
-        
-//         if (storedProfile && storedUserId) {
-//           // Use the data from login - no API call needed!
-//           const parsedProfile = JSON.parse(storedProfile);
-//           console.log("Using stored profile from login:", parsedProfile);
-          
-//           setUserProfile(parsedProfile);
-//           updateFormWithProfile(parsedProfile);
-          
-//           // Set profile picture if available
-//           const pic = parsedProfile?.profile_picture || parsedProfile?.avatarUrl || parsedProfile?.profilePicUrl || null;
-//           if (pic && setProfilePic) {
-//             setProfilePic(pic);
-//           }
-          
-//           setSnackbar({
-//             open: true,
-//             message: "Profile loaded successfully",
-//             severity: "success",
-//           });
-//         } else {
-//           console.warn("No stored profile data found - user needs to log in");
-//           setSnackbar({
-//             open: true,
-//             message: "Please log in to view your profile",
-//             severity: "warning",
-//           });
-//         }
-        
-//       } catch (error) {
-//         console.error("Profile load error:", error);
-//         setSnackbar({
-//           open: true,
-//           message: `Failed to load profile: ${error.message}`,
-//           severity: "error",
-//         });
-//       } finally {
-//         setLoadingProfile(false);
-//       }
-//     };
-
-//     loadProfile();
-//   }, [setUserProfile, setProfilePic]);
-
-//   // Helper function to update form with profile data
-//   const updateFormWithProfile = (profile) => {
-//     const formData = {
-//       name: profile?.name || "",
-//       surname: profile?.surname || "",
-//       dob: profile?.date_of_birth || "",
-//       email: profile?.email || "",
-//       address: profile?.home_address || "",
-//       phone: profile?.phone_number || "",
-//       invitedBy: profile?.invited_by || "",
-//       gender: profile?.gender || "",
-//       currentPassword: "",
-//       newPassword: "",
-//       confirmPassword: "",
-//     };
-    
-//     console.log("Updating form with:", formData);
-//     setForm(formData);
-//     setOriginalForm(formData);
-//   };
-
-//   // Track changes
-//   useEffect(() => {
-//     const changed = Object.keys(form).some((k) => {
-//       if (["currentPassword", "newPassword", "confirmPassword"].includes(k)) {
-//         return form.newPassword !== "" || form.confirmPassword !== "";
-//       }
-//       return form[k] !== originalForm[k];
-//     });
-//     setHasChanges(changed);
-//   }, [form, originalForm]);
-
-//   const togglePasswordVisibility = (field) =>
-//     setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
-
-//   const validate = () => {
-//     const n = {};
-//     if (!form.name.trim()) n.name = "Name is required";
-//     if (!form.surname.trim()) n.surname = "Surname is required";
-//     if (!form.email.trim()) n.email = "Email is required";
-//     else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
-
-//     if (form.newPassword || form.confirmPassword) {
-//       if (!form.currentPassword.trim())
-//         n.currentPassword = "Current password is required";
-//       if (form.newPassword !== form.confirmPassword)
-//         n.confirmPassword = "Passwords do not match";
-//     }
-//     setErrors(n);
-//     return Object.keys(n).length === 0;
-//   };
-
-//   const handleChange = (field) => (e) => {
-//     setForm((prev) => ({ ...prev, [field]: e.target.value }));
-//     setErrors((prev) => ({ ...prev, [field]: undefined }));
-//   };
-
-//   const handleCancel = () => {
-//     setForm({ ...originalForm });
-//     setEditMode(false);
-//     setErrors({});
-//   };
-
-//   const onFileChange = (e) => {
-//     if (e.target.files && e.target.files.length > 0) {
-//       const reader = new FileReader();
-//       reader.addEventListener("load", () => {
-//         setCroppingSrc(reader.result);
-//         setCroppingOpen(true);
-//       });
-//       reader.readAsDataURL(e.target.files[0]);
-//     }
-//   };
-
-//   const onCropComplete = useCallback((_croppedArea, croppedPixels) => {
-//     setCroppedAreaPixels(croppedPixels);
-//   }, []);
-
-//   const onCropSave = async () => {
-//     try {
-//       const croppedImage = await getCroppedImg(croppingSrc, croppedAreaPixels);
-//       try {
-//         const res = await uploadAvatarFromDataUrl(croppedImage);
-//         const url = res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
-//         if (url && setProfilePic) setProfilePic(url);
-//       } catch (e) {
-//         if (setProfilePic) setProfilePic(croppedImage);
-//         console.error("Avatar upload failed:", e);
-//       }
-//       setCroppingOpen(false);
-//       setSnackbar({
-//         open: true,
-//         message: "Profile picture updated",
-//         severity: "success",
-//       });
-//     } catch (e) {
-//       console.error(e);
-//       setSnackbar({
-//         open: true,
-//         message: "Could not crop image",
-//         severity: "error",
-//       });
-//     }
-//   };
-
-//   const handleSubmit = async (e) => {
-//     e.preventDefault();
-
-//     if (!validate()) return;
-
-//     const payload = {
-//       name: form.name,
-//       surname: form.surname,
-//       date_of_birth: form.dob,
-//       email: form.email,
-//       home_address: form.address,
-//       phone_number: form.phone,
-//       invited_by: form.invitedBy,
-//       gender: form.gender,
-//     };
-
-//     try {
-//       console.log("Updating profile with payload:", payload);
-
-//       const updated = await updateUserProfile(payload);
-//       console.log("Update response:", updated);
-
-//       const updatedUserProfile = {
-//         ...updated,
-//         _id: updated.id || updated._id,
-//       };
-
-//       setUserProfile(updatedUserProfile);
-//       // Update localStorage with new data
-//       localStorage.setItem("userProfile", JSON.stringify(updatedUserProfile));
-
-//       setEditMode(false);
-//       updateFormWithProfile(updatedUserProfile);
-
-//       setSnackbar({
-//         open: true,
-//         message: "Profile updated successfully",
-//         severity: "success",
-//       });
-//     } catch (err) {
-//       console.error("Update failed:", err);
-//       setSnackbar({
-//         open: true,
-//         message: `Failed to update profile: ${err.message}`,
-//         severity: "error",
-//       });
-//     }
-//   };
-
-//   // Get user initials for avatar
-//   const getInitials = () => {
-//     const name = form.name || userProfile?.name || "";
-//     const surname = form.surname || userProfile?.surname || "";
-//     return `${name.charAt(0)}${surname.charAt(0)}`.toUpperCase();
-//   };
-
-//   /** Styles */
-//   const sx = {
-//     root: {
-//       minHeight: "70vh",
-//       bgcolor: isDark ? "#000" : "#fff",
-//       color: isDark ? "#fff" : "#000",
-//     },
-//     heroSection: {
-//       position: "relative",
-//       height: "25vh",
-//       bgcolor: isDark ? "#f2f2f2ff" : "#0c377bff",
-//       display: "flex",
-//       alignItems: "center",
-//       justifyContent: "center",
-//     },
-//     carouselText: {
-//       textAlign: "center",
-//       color: isDark ? "#fff" : "#000",
-//       fontWeight: 700,
-//       fontSize: { xs: "1.5rem", md: "3rem" },
-//     },
-//     profileAvatarContainer: {
-//       position: "absolute",
-//       bottom: -75,
-//       left: "50%",
-//       transform: "translateX(-50%)",
-//       zIndex: 10,
-//     },
-//     profileAvatar: {
-//       width: 150,
-//       height: 150,
-//       border: "6px solid",
-//       borderColor: isDark ? "#000" : "#fff",
-//       bgcolor: isDark ? "#1a1a1a" : "#fff",
-//       color: isDark ? "#fff" : "#000",
-//       fontSize: "3rem",
-//       fontWeight: 700,
-//       cursor: "pointer",
-//       boxShadow: isDark
-//         ? "0 20px 40px rgba(255,255,255,0.05)"
-//         : "0 20px 40px rgba(0,0,0,0.2)",
-//     },
-//     profileCard: {
-//       borderRadius: 6,
-//       overflow: "hidden",
-//       bgcolor: isDark ? "#111" : "#fafafa",
-//       color: isDark ? "#fff" : "#000",
-//     },
-//     cardHeader: {
-//       bgcolor: "#000",
-//       color: "#fff",
-//       p: 2,
-//       textAlign: "center",
-//     },
-//     sectionHeader: {
-//       display: "flex",
-//       alignItems: "center",
-//       mb: 3,
-//       gap: 2,
-//     },
-//     textField: {
-//       "& .MuiOutlinedInput-root": {
-//         borderRadius: 3,
-//       },
-//     },
-//     passwordField: {
-//       "& .MuiOutlinedInput-root": { borderRadius: 3 },
-//     },
-//     cropperModal: {
-//       position: "fixed",
-//       inset: 0,
-//       bgcolor: "rgba(0,0,0,0.85)",
-//       display: "flex",
-//       alignItems: "center",
-//       justifyContent: "center",
-//       zIndex: 1300,
-//       p: 2,
-//     },
-//     cropperContainer: {
-//       position: "relative",
-//       width: "90vw",
-//       maxWidth: 520,
-//       height: 520,
-//       bgcolor: isDark ? "#111" : "#fff",
-//       color: isDark ? "#fff" : "#000",
-//       borderRadius: 3,
-//       p: 3,
-//     },
-//   };
-
-//   // Show loading state
-//   if (loadingProfile) {
-//     return (
-//       <Box sx={sx.root}>
-//         <Container maxWidth="lg" sx={{ pt: 12, pb: 6, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-//           <CircularProgress />
-//         </Container>
-//       </Box>
-//     );
-//   }
-
-//   return (
-//     <Box sx={sx.root}>
-//       {/* Hero Section */}
-//       <Box sx={sx.heroSection}>
-//         <Fade in key={carouselIndex} timeout={800}>
-//           <Typography variant="h3" sx={sx.carouselText}>
-//             {carouselTexts[carouselIndex]}
-//           </Typography>
-//         </Fade>
-
-//         {/* Avatar */}
-//         <Zoom in timeout={500}>
-//           <Box sx={sx.profileAvatarContainer}>
-//             <Box sx={{ position: "relative" }}>
-//               <Avatar
-//                 sx={sx.profileAvatar}
-//                 src={profilePic}
-//                 onClick={() => fileInputRef.current?.click()}
-//               >
-//                 {!profilePic && getInitials()}
-//               </Avatar>
-              
-//               {/* Camera overlay */}
-//               <IconButton
-//                 sx={{
-//                   position: "absolute",
-//                   bottom: 0,
-//                   right: 0,
-//                   bgcolor: theme.palette.primary.main,
-//                   color: "white",
-//                   "&:hover": {
-//                     bgcolor: theme.palette.primary.dark,
-//                   },
-//                 }}
-//                 size="small"
-//                 onClick={() => fileInputRef.current?.click()}
-//               >
-//                 <CameraAlt />
-//               </IconButton>
-
-//               <input
-//                 ref={fileInputRef}
-//                 hidden
-//                 accept="image/*"
-//                 type="file"
-//                 onChange={onFileChange}
-//               />
-//             </Box>
-//           </Box>
-//         </Zoom>
-//       </Box>
-
-//       {/* Profile Card */}
-//       <Container maxWidth="lg" sx={{ pt: 12, pb: 6 }}>
-//         <Fade in timeout={600}>
-//           <Paper elevation={isDark ? 0 : 8} sx={sx.profileCard}>
-//             <Box sx={sx.cardHeader}>
-//               <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-//                 {form.name} {form.surname}
-//               </Typography>
-//               <Chip icon={<Church />} label="Active Member" />
-//               <Typography variant="body1" sx={{ mt: 2, opacity: 0.9 }}>
-//                 Welcome! You can edit your profile information below.
-//               </Typography>
-//             </Box>
-
-//             <CardContent sx={{ p: 4 }}>
-//               <Box component="form" onSubmit={handleSubmit}>
-//                 {/* Personal Information */}
-//                 <Box sx={{ mb: 4 }}>
-//                   <Box sx={sx.sectionHeader}>
-//                     <Person />
-//                     <Typography
-//                       variant="h6"
-//                       sx={{ fontWeight: 600, flexGrow: 1 }}
-//                     >
-//                       Personal Information
-//                     </Typography>
-//                     <Button
-//                       startIcon={editMode ? <Save /> : <Edit />}
-//                       variant={editMode ? "contained" : "outlined"}
-//                       onClick={() => {
-//                         if (editMode && hasChanges) {
-//                           handleSubmit({ preventDefault: () => {} });
-//                         } else {
-//                           setEditMode((e) => !e);
-//                         }
-//                       }}
-//                       disabled={editMode && !hasChanges}
-//                     >
-//                       {editMode ? "Save Changes" : "Edit Profile"}
-//                     </Button>
-//                   </Box>
-
-//                   <Grid container spacing={3}>
-//                     {[
-//                       { label: "First Name", field: "name", icon: <Person /> },
-//                       { label: "Last Name", field: "surname", icon: <Person /> },
-//                       { label: "Email Address", field: "email", icon: <Email /> },
-//                       { label: "Phone Number", field: "phone", icon: <Phone /> },
-//                       {
-//                         label: "Home Address",
-//                         field: "address",
-//                         icon: <Home />,
-//                         multiline: true,
-//                       },
-//                       { label: "Invited By", field: "invitedBy", icon: <Group /> },
-//                       {
-//                         label: "Date of Birth",
-//                         field: "dob",
-//                         type: "date",
-//                         icon: <Cake />,
-//                         disabled: true,
-//                       },
-//                       {
-//                         label: "Gender",
-//                         field: "gender",
-//                         icon: <Star />,
-//                         disabled: true,
-//                       },
-//                     ].map(
-//                       ({ label, field, type, icon, multiline, disabled }) => (
-//                         <Grid item xs={12} sm={6} key={field}>
-//                           <TextField
-//                             label={label}
-//                             value={form[field] || ""}
-//                             onChange={handleChange(field)}
-//                             fullWidth
-//                             type={type || "text"}
-//                             multiline={!!multiline}
-//                             rows={multiline ? 3 : 1}
-//                             disabled={disabled || !editMode}
-//                             error={!!errors[field]}
-//                             helperText={errors[field]}
-//                             InputProps={{
-//                               startAdornment: (
-//                                 <InputAdornment position="start">
-//                                   {icon}
-//                                 </InputAdornment>
-//                               ),
-//                             }}
-//                             InputLabelProps={
-//                               type === "date" ? { shrink: true } : undefined
-//                             }
-//                             sx={sx.textField}
-//                           />
-//                         </Grid>
-//                       )
-//                     )}
-//                   </Grid>
-//                 </Box>
-
-//                 {/* Security Settings */}
-//                 <Box sx={{ mb: 4 }}>
-//                   <Box sx={sx.sectionHeader}>
-//                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
-//                       Security Settings
-//                     </Typography>
-//                   </Box>
-
-//                   <Grid container spacing={3}>
-//                     {[
-//                       {
-//                         label: "Current Password",
-//                         field: "currentPassword",
-//                         showKey: "current",
-//                       },
-//                       {
-//                         label: "New Password",
-//                         field: "newPassword",
-//                         showKey: "new",
-//                       },
-//                       {
-//                         label: "Confirm New Password",
-//                         field: "confirmPassword",
-//                         showKey: "confirm",
-//                       },
-//                     ].map(({ label, field, showKey }) => (
-//                       <Grid item xs={12} md={4} key={field}>
-//                         <TextField
-//                           label={label}
-//                           value={form[field] || ""}
-//                           onChange={handleChange(field)}
-//                           type={showPassword[showKey] ? "text" : "password"}
-//                           fullWidth
-//                           error={!!errors[field]}
-//                           helperText={errors[field]}
-//                           autoComplete="new-password"
-//                           InputProps={{
-//                             endAdornment: (
-//                               <InputAdornment position="end">
-//                                 <IconButton
-//                                   onClick={() =>
-//                                     togglePasswordVisibility(showKey)
-//                                   }
-//                                   edge="end"
-//                                 >
-//                                   {showPassword[showKey] ? (
-//                                     <VisibilityOff />
-//                                   ) : (
-//                                     <Visibility />
-//                                   )}
-//                                 </IconButton>
-//                               </InputAdornment>
-//                             ),
-//                           }}
-//                           sx={sx.passwordField}
-//                           disabled={!editMode}
-//                         />
-//                       </Grid>
-//                     ))}
-//                   </Grid>
-//                 </Box>
-
-//                 {/* Actions */}
-//                 <Box
-//                   sx={{
-//                     display: "flex",
-//                     gap: 2,
-//                     justifyContent: "center",
-//                     pt: 3,
-//                   }}
-//                 >
-//                   <Button
-//                     variant="outlined"
-//                     startIcon={<Cancel />}
-//                     onClick={handleCancel}
-//                     disabled={!editMode}
-//                   >
-//                     Cancel
-//                   </Button>
-//                   <Button
-//                     type="submit"
-//                     variant="contained"
-//                     startIcon={<Save />}
-//                     disabled={!hasChanges}
-//                   >
-//                     Update Profile
-//                   </Button>
-//                 </Box>
-//               </Box>
-//             </CardContent>
-//           </Paper>
-//         </Fade>
-//       </Container>
-
-//       {/* Cropper Modal */}
-//       {croppingOpen && (
-//         <Box
-//           sx={sx.cropperModal}
-//           onClick={() => setCroppingOpen(false)}
-//         >
-//           <Box
-//             sx={sx.cropperContainer}
-//             onClick={(e) => e.stopPropagation()}
-//           >
-//             <Typography variant="h6" sx={{ mb: 2, textAlign: "center" }}>
-//               Crop Your Profile Picture
-//             </Typography>
-//             <Box sx={{ position: "relative", width: "100%", height: 360 }}>
-//               <Cropper
-//                 image={croppingSrc}
-//                 crop={crop}
-//                 zoom={zoom}
-//                 aspect={1}
-//                 onCropChange={setCrop}
-//                 onCropComplete={onCropComplete}
-//                 onZoomChange={setZoom}
-//               />
-//             </Box>
-//             <Box sx={{ mt: 2 }}>
-//               <Typography gutterBottom>Zoom</Typography>
-//               <Slider
-//                 value={zoom}
-//                 min={1}
-//                 max={3}
-//                 step={0.1}
-//                 onChange={(_, v) => setZoom(v)}
-//               />
-//             </Box>
-//             <Box
-//               sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "center" }}
-//             >
-//               <Button
-//                 variant="outlined"
-//                 onClick={() => setCroppingOpen(false)}
-//               >
-//                 Cancel
-//               </Button>
-//               <Button variant="contained" onClick={onCropSave}>
-//                 Save Picture
-//               </Button>
-//             </Box>
-//           </Box>
-//         </Box>
-//       )}
-
-//       {/* Snackbar */}
-//       <Snackbar
-//         open={snackbar.open}
-//         autoHideDuration={4000}
-//         onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-//         anchorOrigin={{ vertical: "top", horizontal: "center" }}
-//       >
-//         <Alert
-//           onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-//           severity={snackbar.severity}
-//           sx={{ borderRadius: 3, fontWeight: 600 }}
-//         >
-//           {snackbar.message}
-//         </Alert>
-//       </Snackbar>
-//     </Box>
-//   );
-// }
-
 import React, {
   useState,
   useCallback,
@@ -794,7 +5,6 @@ import React, {
   useContext,
   useRef,
 } from "react";
-// import { useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -807,15 +17,14 @@ import {
   Slider,
   IconButton,
   InputAdornment,
-  CardContent,
   Container,
   Fade,
-  Zoom,
   Paper,
-  Chip,
-  Tooltip,
   Avatar,
   CircularProgress,
+  Card,
+  CardContent,
+  Divider,
 } from "@mui/material";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
@@ -824,27 +33,19 @@ import {
   Edit,
   Save,
   Cancel,
-  Person,
-  Email,
-  Phone,
-  Home,
-  Cake,
-  Group,
   Visibility,
   VisibilityOff,
-  Star,
-  Church,
   CameraAlt,
 } from "@mui/icons-material";
 import axios from "axios";
 
-/** Texts */
+/** Texts with colors */
 const carouselTexts = [
-  "We are THE ACTIVE CHURCH",
-  "A church raising a NEW GENERATION.",
-  "A generation that will CHANGE THIS NATION.",
-  "To God be the GLORY",
-  "Amen.",
+  { text: "We are THE ACTIVE CHURCH", color: "#1976d2" },
+  { text: "A church raising a NEW GENERATION", color: "#7b1fa2" },
+  { text: "A generation that will CHANGE THIS NATION", color: "#d32f2f" },
+  { text: "To God be the GLORY", color: "#ed6c02ff" },
+  { text: "Amen.", color: "#2e7d32" },
 ];
 
 /** API helpers */
@@ -874,17 +75,52 @@ async function updateUserProfile(data) {
 
 async function uploadAvatarFromDataUrl(dataUrl) {
   const token = localStorage.getItem("token");
+  const userId = localStorage.getItem("userId");
+  if (!token || !userId) throw new Error("Authentication required");
+
   const blob = await (await fetch(dataUrl)).blob();
   const form = new FormData();
   form.append("avatar", blob, "avatar.png");
 
-  const res = await fetch(`${BACKEND_URL}/users/me/avatar`, {
+  const res = await fetch(`${BACKEND_URL}/users/${userId}/avatar`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
-  if (!res.ok) throw new Error("Failed to upload avatar");
+  
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: "Failed to upload avatar" }));
+    throw new Error(error.message || "Failed to upload avatar");
+  }
+  
   return res.json();
+}
+
+async function updatePassword(currentPassword, newPassword) {
+  const token = localStorage.getItem("token");
+  const userId = localStorage.getItem("userId");
+  if (!token || !userId) throw new Error("Authentication required");
+
+  try {
+    const res = await axios.put(`${BACKEND_URL}/users/${userId}/password`, {
+      currentPassword,
+      newPassword
+    }, {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+    });
+
+    return res.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      error.message ||
+      "Failed to update password";
+    throw new Error(errorMessage);
+  }
 }
 
 export default function Profile() {
@@ -931,7 +167,7 @@ export default function Profile() {
     severity: "success",
   });
 
-  // Carousel effect
+  // Carousel effect with smooth transitions
   useEffect(() => {
     const t = setInterval(
       () => setCarouselIndex((p) => (p + 1) % carouselTexts.length),
@@ -940,51 +176,76 @@ export default function Profile() {
     return () => clearInterval(t);
   }, []);
 
-  // Load profile data from localStorage (set during login)
+  // Load profile data from localStorage and fetch latest profile picture
   useEffect(() => {
-    const loadProfile = () => {
-      console.log("=== PROFILE LOAD STARTED ===");
-      
+    const loadProfile = async () => {
       try {
         setLoadingProfile(true);
-        
-        // Get profile data from localStorage (set during login)
+
         const storedProfile = localStorage.getItem("userProfile");
         const storedUserId = localStorage.getItem("userId");
-        
-        console.log("Stored profile exists:", !!storedProfile);
-        console.log("Stored user ID:", storedUserId);
-        
+        const token = localStorage.getItem("token");
+
         if (storedProfile && storedUserId) {
-          // Use the data from login - no API call needed!
           const parsedProfile = JSON.parse(storedProfile);
-          console.log("Using stored profile from login:", parsedProfile);
-          
-          setUserProfile(parsedProfile);
-          updateFormWithProfile(parsedProfile);
-          
-          // Set profile picture if available
-          const pic = parsedProfile?.profile_picture || parsedProfile?.avatarUrl || parsedProfile?.profilePicUrl || null;
-          if (pic && setProfilePic) {
-            setProfilePic(pic);
+
+          // Try to fetch the latest profile data including profile picture from server
+          try {
+            const response = await axios.get(`${BACKEND_URL}/users/${storedUserId}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            if (response.data) {
+              const serverProfile = response.data;
+              const mergedProfile = { ...parsedProfile, ...serverProfile };
+              
+              setUserProfile(mergedProfile);
+              updateFormWithProfile(mergedProfile);
+              
+              // Set profile picture from server response
+              const pic = serverProfile?.profile_picture || 
+                         serverProfile?.avatarUrl || 
+                         serverProfile?.profilePicUrl ||
+                         parsedProfile?.profile_picture ||
+                         parsedProfile?.avatarUrl ||
+                         parsedProfile?.profilePicUrl ||
+                         null;
+              
+              if (pic && setProfilePic) {
+                setProfilePic(pic);
+              }
+              
+              // Update localStorage with latest data
+              localStorage.setItem("userProfile", JSON.stringify(mergedProfile));
+            }
+          } catch (fetchError) {
+            console.warn("Failed to fetch latest profile, using cached data:", fetchError);
+            // Fall back to cached data
+            setUserProfile(parsedProfile);
+            updateFormWithProfile(parsedProfile);
+            
+            const pic = parsedProfile?.profile_picture ||
+                       parsedProfile?.avatarUrl ||
+                       parsedProfile?.profilePicUrl ||
+                       null;
+            if (pic && setProfilePic) {
+              setProfilePic(pic);
+            }
           }
-          
+
           setSnackbar({
             open: true,
             message: "Profile loaded successfully",
             severity: "success",
           });
         } else {
-          console.warn("No stored profile data found - user needs to log in");
           setSnackbar({
             open: true,
             message: "Please log in to view your profile",
             severity: "warning",
           });
         }
-        
       } catch (error) {
-        console.error("Profile load error:", error);
         setSnackbar({
           open: true,
           message: `Failed to load profile: ${error.message}`,
@@ -1013,8 +274,7 @@ export default function Profile() {
       newPassword: "",
       confirmPassword: "",
     };
-    
-    console.log("Updating form with:", formData);
+
     setForm(formData);
     setOriginalForm(formData);
   };
@@ -1079,25 +339,53 @@ export default function Profile() {
   const onCropSave = async () => {
     try {
       const croppedImage = await getCroppedImg(croppingSrc, croppedAreaPixels);
+      
+      // Upload to server and get the URL
       try {
         const res = await uploadAvatarFromDataUrl(croppedImage);
         const url = res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
-        if (url && setProfilePic) setProfilePic(url);
-      } catch (e) {
+        
+        if (url) {
+          // Update profile picture in context and localStorage
+          if (setProfilePic) setProfilePic(url);
+          
+          // Update the user profile with the new picture URL
+          const updatedProfile = { 
+            ...userProfile, 
+            profile_picture: url,
+            avatarUrl: url,
+            profilePicUrl: url
+          };
+          setUserProfile(updatedProfile);
+          localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
+          
+          setSnackbar({
+            open: true,
+            message: "Profile picture uploaded and saved successfully",
+            severity: "success",
+          });
+        } else {
+          throw new Error("Server did not return image URL");
+        }
+      } catch (uploadError) {
+        console.error("Avatar upload failed, using local image:", uploadError);
+        
+        // Fallback: use local cropped image temporarily
         if (setProfilePic) setProfilePic(croppedImage);
-        console.error("Avatar upload failed:", e);
+        
+        setSnackbar({
+          open: true,
+          message: "Profile picture updated locally. Please check your internet connection for server sync.",
+          severity: "warning",
+        });
       }
+      
       setCroppingOpen(false);
-      setSnackbar({
-        open: true,
-        message: "Profile picture updated",
-        severity: "success",
-      });
     } catch (e) {
-      console.error(e);
+      console.error("Could not crop image:", e);
       setSnackbar({
         open: true,
-        message: "Could not crop image",
+        message: "Could not process image. Please try again.",
         severity: "error",
       });
     }
@@ -1120,30 +408,54 @@ export default function Profile() {
     };
 
     try {
-      console.log("Updating profile with payload:", payload);
-
+      // Update profile information
       const updated = await updateUserProfile(payload);
-      console.log("Update response:", updated);
 
       const updatedUserProfile = {
         ...updated,
         _id: updated.id || updated._id,
       };
 
+      // Handle password change if provided
+      if (form.newPassword && form.confirmPassword && form.currentPassword) {
+        try {
+          await updatePassword(form.currentPassword, form.newPassword);
+          setSnackbar({
+            open: true,
+            message: "Profile and password updated successfully! Please use your new password for future logins.",
+            severity: "success",
+          });
+          
+          // Clear password fields after successful update
+          setForm(prev => ({
+            ...prev,
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: ""
+          }));
+        } catch (passwordError) {
+          // Profile updated but password failed
+          setSnackbar({
+            open: true,
+            message: `Profile updated, but password change failed: ${passwordError.message}`,
+            severity: "warning",
+          });
+        }
+      } else {
+        setSnackbar({
+          open: true,
+          message: "Profile updated successfully",
+          severity: "success",
+        });
+      }
+
       setUserProfile(updatedUserProfile);
-      // Update localStorage with new data
       localStorage.setItem("userProfile", JSON.stringify(updatedUserProfile));
 
       setEditMode(false);
       updateFormWithProfile(updatedUserProfile);
 
-      setSnackbar({
-        open: true,
-        message: "Profile updated successfully",
-        severity: "success",
-      });
     } catch (err) {
-      console.error("Update failed:", err);
       setSnackbar({
         open: true,
         message: `Failed to update profile: ${err.message}`,
@@ -1159,367 +471,667 @@ export default function Profile() {
     return `${name.charAt(0)}${surname.charAt(0)}`.toUpperCase();
   };
 
-  /** Styles */
-  const sx = {
-    root: {
-      minHeight: "70vh",
-      bgcolor: isDark ? "#000" : "#fff",
-      color: isDark ? "#fff" : "#000",
-    },
-    heroSection: {
-      position: "relative",
-      height: "25vh",
-      bgcolor: isDark ? "#f2f2f2ff" : "#0c377bff",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    carouselText: {
-      textAlign: "center",
-      color: isDark ? "#fff" : "#000",
-      fontWeight: 700,
-      fontSize: { xs: "1.5rem", md: "3rem" },
-    },
-    profileAvatarContainer: {
-      position: "absolute",
-      bottom: -75,
-      left: "45%",
-      transform: "translateX(-50%)",
-      zIndex: 10,
-    },
-    profileAvatar: {
-      width: 150,
-      height: 150,
-      border: "6px solid",
-      borderColor: isDark ? "#000" : "#fff",
-      bgcolor: isDark ? "#1a1a1a" : "#fff",
-      color: isDark ? "#fff" : "#000",
-      fontSize: "3rem",
-      fontWeight: 700,
-      cursor: "pointer",
-      boxShadow: isDark
-        ? "0 20px 40px rgba(255,255,255,0.05)"
-        : "0 20px 40px rgba(0,0,0,0.2)",
-    },
-    profileCard: {
-      borderRadius: 6,
-      overflow: "hidden",
-      bgcolor: isDark ? "#111" : "#fafafa",
-      color: isDark ? "#fff" : "#000",
-    },
-    cardHeader: {
-      bgcolor: "#000",
-      color: "#fff",
-      p: 2,
-      textAlign: "center",
-    },
-    sectionHeader: {
-      display: "flex",
-      alignItems: "center",
-      mb: 3,
-      gap: 2,
-    },
-    textField: {
-      "& .MuiOutlinedInput-root": {
-        borderRadius: 3,
+  const currentCarouselItem = carouselTexts[carouselIndex];
+
+  // ENHANCED: Standardized field styles to ensure ALL inputs have the same exact dimensions
+  const commonFieldSx = {
+    "& .MuiOutlinedInput-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      height: "56px", // Fixed height for all inputs
+      "& fieldset": {
+        borderColor: isDark ? "#333333" : "#e0e0e0",
+      },
+      "&:hover fieldset": {
+        borderColor: currentCarouselItem.color,
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: currentCarouselItem.color,
       },
     },
-    passwordField: {
-      "& .MuiOutlinedInput-root": { borderRadius: 3 },
+    "& .MuiInputBase-input": {
+      color: isDark ? "#ffffff" : "#000000",
+      padding: "16px 14px", // Consistent padding
+      height: "24px", // Fixed content height
+      fontSize: "0.875rem",
+      lineHeight: "1.4375em",
     },
-    cropperModal: {
-      position: "fixed",
-      inset: 0,
-      bgcolor: "rgba(0,0,0,0.85)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 1300,
-      p: 2,
+    // Special handling for multiline fields to maintain same visual height
+    "& .MuiInputBase-inputMultiline": {
+      padding: "16px 14px",
+      height: "24px !important", // Force same height for multiline
+      overflow: "hidden", // Hide overflow to maintain visual consistency
+      resize: "none", // Prevent textarea resizing
     },
-    cropperContainer: {
-      position: "relative",
-      width: "90vw",
-      maxWidth: 520,
-      height: 520,
-      bgcolor: isDark ? "#111" : "#fff",
-      color: isDark ? "#fff" : "#000",
-      borderRadius: 3,
-      p: 3,
+    "& .MuiOutlinedInput-inputMultiline": {
+      padding: "0",
     },
   };
 
   // Show loading state
   if (loadingProfile) {
     return (
-      <Box sx={sx.root}>
-        <Container maxWidth="lg" sx={{ pt: 12, pb: 6, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-          <CircularProgress />
-        </Container>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          bgcolor: isDark ? "#0a0a0a" : "#f8f9fa",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <CircularProgress size={60} />
       </Box>
     );
   }
 
   return (
-    <Box sx={sx.root}>
-      {/* Hero Section */}
-      <Box sx={sx.heroSection}>
-        <Fade in key={carouselIndex} timeout={800}>
-          <Typography variant="h3" sx={sx.carouselText}>
-            {carouselTexts[carouselIndex]}
-          </Typography>
-        </Fade>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: isDark ? "#0a0a0a" : "#f8f9fa",
+        pb: 4,
+      }}
+    >
+      {/* Hero Section with Text */}
+      <Box
+        sx={{
+          position: "relative",
+          minHeight: "35vh",
+          background: isDark
+            ? `linear-gradient(135deg, ${currentCarouselItem.color}15 0%, ${currentCarouselItem.color}25 100%)`
+            : `linear-gradient(135deg, ${currentCarouselItem.color}10 0%, ${currentCarouselItem.color}20 100%)`,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "background 1s ease-in-out",
+          overflow: "hidden",
+          pt: 8,
+          pb: 16, // Increased to accommodate larger avatar
+        }}
+      >
+        {/* Animated Background Elements */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              width: "200%",
+              height: "200%",
+              background: `radial-gradient(circle at 50% 50%, ${currentCarouselItem.color}08 0%, transparent 70%)`,
+              animation: "pulse 4s ease-in-out infinite alternate",
+            },
+          }}
+        />
 
-        {/* Avatar */}
-        <Zoom in timeout={500}>
-          <Box sx={sx.profileAvatarContainer}>
-            <Box sx={{ position: "relative" }}>
-              <Avatar
-                sx={sx.profileAvatar}
-                src={profilePic}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {!profilePic && getInitials()}
-              </Avatar>
-              
-              {/* Camera overlay */}
-              <IconButton
-                sx={{
-                  position: "absolute",
-                  bottom: 0,
-                  right: 0,
-                  bgcolor: theme.palette.primary.main,
-                  color: "white",
-                  "&:hover": {
-                    bgcolor: theme.palette.primary.dark,
-                  },
-                }}
-                size="small"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <CameraAlt />
-              </IconButton>
-
-              <input
-                ref={fileInputRef}
-                hidden
-                accept="image/*"
-                type="file"
-                onChange={onFileChange}
-              />
-            </Box>
-          </Box>
-        </Zoom>
+        {/* Carousel Text */}
+        <Box sx={{ 
+          position: "relative", 
+          zIndex: 2, 
+          textAlign: "center", 
+          px: 2,
+        }}>
+          <Fade in key={carouselIndex} timeout={1000}>
+            <Typography
+              variant="h2"
+              sx={{
+                fontWeight: 800,
+                fontSize: { xs: "2rem", sm: "3rem", md: "4rem" },
+                color: currentCarouselItem.color,
+                textShadow: isDark
+                  ? "0 2px 20px rgba(255,255,255,0.1)"
+                  : "0 2px 20px rgba(0,0,0,0.1)",
+                transition: "color 1s ease-in-out",
+                lineHeight: 1.2,
+                maxWidth: "900px",
+              }}
+            >
+              {currentCarouselItem.text}
+            </Typography>
+          </Fade>
+        </Box>
       </Box>
 
-      {/* Profile Card */}
-      <Container maxWidth="lg" sx={{ pt: 12, pb: 6 }}>
-        <Fade in timeout={600}>
-          <Paper elevation={isDark ? 0 : 8} sx={sx.profileCard}>
-            <Box sx={sx.cardHeader}>
-              <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                {form.name} {form.surname}
-              </Typography>
-              <Chip icon={<Church />} label="Active Member" />
-              <Typography variant="body1" sx={{ mt: 2, opacity: 0.9 }}>
-                Welcome! You can edit your profile information below.
-              </Typography>
-            </Box>
+      {/* ENHANCED: Larger Profile Avatar */}
+      <Box
+        sx={{
+          position: "relative",
+          zIndex: 10,
+          display: "flex",
+          justifyContent: "center",
+          mt: -12, // Adjusted for larger avatar
+          mb: 6,
+        }}
+      >
+        <Box sx={{ position: "relative", textAlign: "center" }}>
+          <Box sx={{ position: "relative", display: "inline-block" }}>
+            <Avatar
+              sx={{
+                width: 200, // Increased from 140
+                height: 200, // Increased from 140
+                border: `8px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, // Thicker border
+                boxShadow: `0 16px 60px ${currentCarouselItem.color}60`, // Enhanced shadow
+                bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                color: currentCarouselItem.color,
+                fontSize: "4rem", // Increased font size for initials
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  transform: "scale(1.05)",
+                  boxShadow: `0 20px 80px ${currentCarouselItem.color}80`,
+                },
+              }}
+              src={profilePic}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {!profilePic && getInitials()}
+            </Avatar>
 
-            <CardContent sx={{ p: 4 }}>
-              <Box component="form" onSubmit={handleSubmit}>
-                {/* Personal Information */}
-                <Box sx={{ mb: 4 }}>
-                  <Box sx={sx.sectionHeader}>
-                    <Person />
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 600, flexGrow: 1 }}
-                    >
-                      Personal Information
-                    </Typography>
-                    <Button
-                      startIcon={editMode ? <Save /> : <Edit />}
-                      variant={editMode ? "contained" : "outlined"}
-                      onClick={() => {
-                        if (editMode && hasChanges) {
-                          handleSubmit({ preventDefault: () => {} });
-                        } else {
-                          setEditMode((e) => !e);
-                        }
-                      }}
-                      disabled={editMode && !hasChanges}
-                    >
-                      {editMode ? "Save Changes" : "Edit Profile"}
-                    </Button>
-                  </Box>
+            {/* Camera Icon - Positioned for larger avatar */}
+            <IconButton
+              sx={{
+                position: "absolute",
+                bottom: 8, // Adjusted for larger avatar
+                right: 8, // Adjusted for larger avatar
+                bgcolor: currentCarouselItem.color,
+                color: "white",
+                width: 48, // Larger camera button
+                height: 48, // Larger camera button
+                border: `3px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, // Thicker border
+                "&:hover": {
+                  bgcolor: currentCarouselItem.color,
+                  transform: "scale(1.1)",
+                },
+                transition: "all 0.2s ease",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+              }}
+              size="medium"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <CameraAlt sx={{ fontSize: 24 }} />
+            </IconButton>
+          </Box>
 
-                  <Grid container spacing={3}>
-                    {[
-                      { label: "First Name", field: "name", icon: <Person /> },
-                      { label: "Last Name", field: "surname", icon: <Person /> },
-                      { label: "Email Address", field: "email", icon: <Email /> },
-                      { label: "Phone Number", field: "phone", icon: <Phone /> },
-                      {
-                        label: "Home Address",
-                        field: "address",
-                        icon: <Home />,
-                        multiline: true,
-                      },
-                      { label: "Invited By", field: "invitedBy", icon: <Group /> },
-                      {
-                        label: "Date of Birth",
-                        field: "dob",
-                        type: "date",
-                        icon: <Cake />,
-                        disabled: true,
-                      },
-                      {
-                        label: "Gender",
-                        field: "gender",
-                        icon: <Star />,
-                        disabled: true,
-                      },
-                    ].map(
-                      ({ label, field, type, icon, multiline, disabled }) => (
-                        <Grid item xs={12} sm={6} key={field}>
-                          <TextField
-                            label={label}
-                            value={form[field] || ""}
-                            onChange={handleChange(field)}
-                            fullWidth
-                            type={type || "text"}
-                            multiline={!!multiline}
-                            rows={multiline ? 3 : 1}
-                            disabled={disabled || !editMode}
-                            error={!!errors[field]}
-                            helperText={errors[field]}
-                            InputProps={{
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  {icon}
-                                </InputAdornment>
-                              ),
-                            }}
-                            InputLabelProps={
-                              type === "date" ? { shrink: true } : undefined
-                            }
-                            sx={sx.textField}
-                          />
-                        </Grid>
-                      )
-                    )}
-                  </Grid>
-                </Box>
+          <input
+            ref={fileInputRef}
+            hidden
+            accept="image/*"
+            type="file"
+            onChange={onFileChange}
+          />
 
-                {/* Security Settings */}
-                <Box sx={{ mb: 4 }}>
-                  <Box sx={sx.sectionHeader}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      Security Settings
-                    </Typography>
-                  </Box>
+          {/* User Name and Profile Label */}
+          <Box sx={{ mt: 3 }}>
+            <Typography
+              variant="h3" // Larger name text
+              sx={{
+                fontWeight: 700,
+                color: isDark ? "#ffffff" : "#000000",
+                mb: 1,
+                fontSize: { xs: "2rem", sm: "2.5rem", md: "3rem" },
+              }}
+            >
+              {form.name} {form.surname}
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
 
-                  <Grid container spacing={3}>
-                    {[
-                      {
-                        label: "Current Password",
-                        field: "currentPassword",
-                        showKey: "current",
-                      },
-                      {
-                        label: "New Password",
-                        field: "newPassword",
-                        showKey: "new",
-                      },
-                      {
-                        label: "Confirm New Password",
-                        field: "confirmPassword",
-                        showKey: "confirm",
-                      },
-                    ].map(({ label, field, showKey }) => (
-                      <Grid item xs={12} md={4} key={field}>
-                        <TextField
-                          label={label}
-                          value={form[field] || ""}
-                          onChange={handleChange(field)}
-                          type={showPassword[showKey] ? "text" : "password"}
-                          fullWidth
-                          error={!!errors[field]}
-                          helperText={errors[field]}
-                          autoComplete="new-password"
-                          InputProps={{
-                            endAdornment: (
-                              <InputAdornment position="end">
-                                <IconButton
-                                  onClick={() =>
-                                    togglePasswordVisibility(showKey)
-                                  }
-                                  edge="end"
-                                >
-                                  {showPassword[showKey] ? (
-                                    <VisibilityOff />
-                                  ) : (
-                                    <Visibility />
-                                  )}
-                                </IconButton>
-                              </InputAdornment>
-                            ),
-                          }}
-                          sx={sx.passwordField}
-                          disabled={!editMode}
-                        />
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Box>
-
-                {/* Actions */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    gap: 2,
-                    justifyContent: "center",
-                    pt: 3,
-                  }}
-                >
-                  <Button
-                    variant="outlined"
-                    startIcon={<Cancel />}
-                    onClick={handleCancel}
+      {/* Main Content */}
+      <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
+        <Card
+          sx={{
+            bgcolor: isDark ? "#111111" : "#ffffff",
+            borderRadius: 3,
+            boxShadow: isDark
+              ? "0 8px 32px rgba(255,255,255,0.02)"
+              : "0 8px 32px rgba(0,0,0,0.08)",
+            border: `1px solid ${isDark ? "#222222" : "#e0e0e0"}`,
+          }}
+        >
+          <CardContent sx={{ p: { xs: 3, sm: 4 }, pt: 4 }}>
+            <Box component="form" onSubmit={handleSubmit}>
+              {/* Personal Information Fields */}
+              <Grid container spacing={3}>
+                {/* Name */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Name
+                  </Typography>
+                  <TextField
+                    value={form.name || ""}
+                    onChange={handleChange("name")}
+                    fullWidth
                     disabled={!editMode}
+                    error={!!errors.name}
+                    helperText={errors.name}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Surname */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
                   >
-                    Cancel
-                  </Button>
+                    Surname
+                  </Typography>
+                  <TextField
+                    value={form.surname || ""}
+                    onChange={handleChange("surname")}
+                    fullWidth
+                    disabled={!editMode}
+                    error={!!errors.surname}
+                    helperText={errors.surname}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Date of Birth */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Date Of Birth
+                  </Typography>
+                  <TextField
+                    value={form.dob || ""}
+                    onChange={handleChange("dob")}
+                    fullWidth
+                    type="date"
+                    disabled
+                    InputLabelProps={{ shrink: true }}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Email */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Email Address
+                  </Typography>
+                  <TextField
+                    value={form.email || ""}
+                    onChange={handleChange("email")}
+                    fullWidth
+                    disabled={!editMode}
+                    error={!!errors.email}
+                    helperText={errors.email}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Home Address - FIXED: Now same height as other fields */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Home Address
+                  </Typography>
+                  <TextField
+                    value={form.address || ""}
+                    onChange={handleChange("address")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Phone Number */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Phone Number
+                  </Typography>
+                  <TextField
+                    value={form.phone || ""}
+                    onChange={handleChange("phone")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Invited By */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Invited By
+                  </Typography>
+                  <TextField
+                    value={form.invitedBy || ""}
+                    onChange={handleChange("invitedBy")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Gender */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Gender
+                  </Typography>
+                  <TextField
+                    value={form.gender || ""}
+                    onChange={handleChange("gender")}
+                    fullWidth
+                    disabled
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+              </Grid>
+
+              {/* Password Section */}
+              {editMode && (
+                <>
+                  <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      mb: 3,
+                      fontWeight: 600,
+                      color: isDark ? "#ffffff" : "#000000",
+                    }}
+                  >
+                    Please enter your current password to change your password
+                  </Typography>
+
+                  <Grid container spacing={3}>
+                    {/* Current Password */}
+                    <Grid item xs={12}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          mb: 1,
+                          fontWeight: 600,
+                          color: isDark ? "#cccccc" : "#666666",
+                        }}
+                      >
+                        Current Password
+                      </Typography>
+                      <TextField
+                        value={form.currentPassword || ""}
+                        onChange={handleChange("currentPassword")}
+                        type={showPassword.current ? "text" : "password"}
+                        fullWidth
+                        error={!!errors.currentPassword}
+                        helperText={errors.currentPassword}
+                        autoComplete="current-password"
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() => togglePasswordVisibility("current")}
+                                edge="end"
+                                sx={{ color: isDark ? "#cccccc" : "#666666" }}
+                              >
+                                {showPassword.current ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={commonFieldSx}
+                      />
+                    </Grid>
+
+                    {/* New Password */}
+                    <Grid item xs={12} sm={6}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          mb: 1,
+                          fontWeight: 600,
+                          color: isDark ? "#cccccc" : "#666666",
+                        }}
+                      >
+                        New Password
+                      </Typography>
+                      <TextField
+                        value={form.newPassword || ""}
+                        onChange={handleChange("newPassword")}
+                        type={showPassword.new ? "text" : "password"}
+                        fullWidth
+                        error={!!errors.newPassword}
+                        helperText={errors.newPassword}
+                        autoComplete="new-password"
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() => togglePasswordVisibility("new")}
+                                edge="end"
+                                sx={{ color: isDark ? "#cccccc" : "#666666" }}
+                              >
+                                {showPassword.new ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={commonFieldSx}
+                      />
+                    </Grid>
+
+                    {/* Confirm New Password */}
+                    <Grid item xs={12} sm={6}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          mb: 1,
+                          fontWeight: 600,
+                          color: isDark ? "#cccccc" : "#666666",
+                        }}
+                      >
+                        Confirm New Password
+                      </Typography>
+                      <TextField
+                        value={form.confirmPassword || ""}
+                        onChange={handleChange("confirmPassword")}
+                        type={showPassword.confirm ? "text" : "password"}
+                        fullWidth
+                        error={!!errors.confirmPassword}
+                        helperText={errors.confirmPassword}
+                        autoComplete="new-password"
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() => togglePasswordVisibility("confirm")}
+                                edge="end"
+                                sx={{ color: isDark ? "#cccccc" : "#666666" }}
+                              >
+                                {showPassword.confirm ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={commonFieldSx}
+                      />
+                    </Grid>
+                  </Grid>
+                </>
+              )}
+
+              {/* Action Buttons */}
+              <Box
+                sx={{
+                  mt: 4,
+                  display: "flex",
+                  gap: 2,
+                  justifyContent: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                {!editMode ? (
                   <Button
-                    type="submit"
                     variant="contained"
-                    startIcon={<Save />}
-                    disabled={!hasChanges}
+                    startIcon={<Edit />}
+                    onClick={() => setEditMode(true)}
+                    sx={{
+                      bgcolor: currentCarouselItem.color,
+                      "&:hover": {
+                        bgcolor: currentCarouselItem.color,
+                        opacity: 0.9,
+                      },
+                      borderRadius: 2,
+                      px: 4,
+                      py: 1.5,
+                      fontWeight: 600,
+                      textTransform: "none",
+                      fontSize: "1rem",
+                    }}
                   >
-                    Update Profile
+                    Edit Profile
                   </Button>
-                </Box>
+                ) : (
+                  <>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Cancel />}
+                      onClick={handleCancel}
+                      sx={{
+                        borderColor: isDark ? "#666666" : "#cccccc",
+                        color: isDark ? "#cccccc" : "#666666",
+                        "&:hover": {
+                          borderColor: isDark ? "#888888" : "#999999",
+                          bgcolor: isDark ? "#222222" : "#f5f5f5",
+                        },
+                        borderRadius: 2,
+                        px: 4,
+                        py: 1.5,
+                        fontWeight: 600,
+                        textTransform: "none",
+                        fontSize: "1rem",
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      startIcon={<Save />}
+                      disabled={!hasChanges}
+                      sx={{
+                        bgcolor: currentCarouselItem.color,
+                        "&:hover": {
+                          bgcolor: currentCarouselItem.color,
+                          opacity: 0.9,
+                        },
+                        "&:disabled": {
+                          bgcolor: isDark ? "#333333" : "#cccccc",
+                          color: isDark ? "#666666" : "#999999",
+                        },
+                        borderRadius: 2,
+                        px: 4,
+                        py: 1.5,
+                        fontWeight: 600,
+                        textTransform: "none",
+                        fontSize: "1rem",
+                      }}
+                    >
+                      Save Changes
+                    </Button>
+                  </>
+                )}
               </Box>
-            </CardContent>
-          </Paper>
-        </Fade>
+            </Box>
+          </CardContent>
+        </Card>
       </Container>
 
       {/* Cropper Modal */}
       {croppingOpen && (
         <Box
-          sx={sx.cropperModal}
+          sx={{
+            position: "fixed",
+            inset: 0,
+            bgcolor: "rgba(0,0,0,0.9)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1300,
+            p: 2,
+          }}
           onClick={() => setCroppingOpen(false)}
         >
-          <Box
-            sx={sx.cropperContainer}
+          <Paper
+            sx={{
+              position: "relative",
+              width: "90vw",
+              maxWidth: 500,
+              bgcolor: isDark ? "#111111" : "#ffffff",
+              borderRadius: 3,
+              p: 3,
+              border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`,
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <Typography variant="h6" sx={{ mb: 2, textAlign: "center" }}>
+            <Typography
+              variant="h6"
+              sx={{
+                mb: 2,
+                textAlign: "center",
+                color: isDark ? "#ffffff" : "#000000",
+                fontWeight: 600,
+              }}
+            >
               Crop Your Profile Picture
             </Typography>
-            <Box sx={{ position: "relative", width: "100%", height: 360 }}>
+            <Box sx={{ position: "relative", width: "100%", height: 300 }}>
               <Cropper
                 image={croppingSrc}
                 crop={crop}
@@ -1531,29 +1143,76 @@ export default function Profile() {
               />
             </Box>
             <Box sx={{ mt: 2 }}>
-              <Typography gutterBottom>Zoom</Typography>
+              <Typography
+                gutterBottom
+                sx={{
+                  color: isDark ? "#cccccc" : "#666666",
+                  fontWeight: 600,
+                  mb: 1,
+                }}
+              >
+                Zoom
+              </Typography>
               <Slider
                 value={zoom}
                 min={1}
                 max={3}
                 step={0.1}
                 onChange={(_, v) => setZoom(v)}
+                sx={{
+                  color: currentCarouselItem.color,
+                  "& .MuiSlider-thumb": {
+                    bgcolor: currentCarouselItem.color,
+                  },
+                  "& .MuiSlider-track": {
+                    bgcolor: currentCarouselItem.color,
+                  },
+                  "& .MuiSlider-rail": {
+                    bgcolor: isDark ? "#333333" : "#cccccc",
+                  },
+                }}
               />
             </Box>
-            <Box
-              sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "center" }}
-            >
+            <Box sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "center" }}>
               <Button
                 variant="outlined"
                 onClick={() => setCroppingOpen(false)}
+                sx={{
+                  borderColor: isDark ? "#666666" : "#cccccc",
+                  color: isDark ? "#cccccc" : "#666666",
+                  "&:hover": {
+                    borderColor: isDark ? "#888888" : "#999999",
+                    bgcolor: isDark ? "#222222" : "#f5f5f5",
+                  },
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1,
+                  fontWeight: 600,
+                  textTransform: "none",
+                }}
               >
                 Cancel
               </Button>
-              <Button variant="contained" onClick={onCropSave}>
+              <Button
+                variant="contained"
+                onClick={onCropSave}
+                sx={{
+                  bgcolor: currentCarouselItem.color,
+                  "&:hover": {
+                    bgcolor: currentCarouselItem.color,
+                    opacity: 0.9,
+                  },
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1,
+                  fontWeight: 600,
+                  textTransform: "none",
+                }}
+              >
                 Save Picture
               </Button>
             </Box>
-          </Box>
+          </Paper>
         </Box>
       )}
 
@@ -1567,11 +1226,31 @@ export default function Profile() {
         <Alert
           onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
           severity={snackbar.severity}
-          sx={{ borderRadius: 3, fontWeight: 600 }}
+          sx={{
+            borderRadius: 2,
+            fontWeight: 600,
+            "& .MuiAlert-icon": {
+              fontSize: "1.2rem",
+            },
+          }}
         >
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* CSS Animation Keyframes */}
+      <style jsx>{`
+        @keyframes pulse {
+          0% {
+            transform: scale(1) rotate(0deg);
+            opacity: 0.3;
+          }
+          100% {
+            transform: scale(1.05) rotate(2deg);
+            opacity: 0.1;
+          }
+        }
+      `}</style>
     </Box>
   );
 }
