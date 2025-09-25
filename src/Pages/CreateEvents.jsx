@@ -33,7 +33,7 @@ const CreateEvents = ({
   const [peopleData, setPeopleData] = useState([]);
   const [searchName, setSearchName] = useState('');
   const [loadingPeople, setLoadingPeople] = useState(false);
- 
+
   // Hardcoded Leader at 1 options
   const leaderAt1Options = [
     { fullName: 'Vicky Enslin', _id: 'vicky_enslin' },
@@ -45,6 +45,8 @@ const CreateEvents = ({
       setFormData(prev => ({ ...prev, eventType: eventTypes[0] }));
     }
   }, [eventTypes]);
+// Inside your component
+const isAdmin = user?.role === "admin";
 
   const [formData, setFormData] = useState({
     eventType: selectedEventType || '',
@@ -476,9 +478,15 @@ const CreateEvents = ({
   // New dropdown options
   const ageGroupOptions = ['Child', 'Adult'];
   const memberTypeOptions = ['Guild', 'First Time'];
-  // Only define if not already defined
-  // const isTicketedEvent = formData.eventType === 'Ticketed';
-  // const isGlobalEvent = formData.eventType === 'Global';
+
+
+  if (isGlobalEvent && !['admin', 'registration'].includes(user?.role)) {
+    return (
+      <Typography variant="h6" color="error" textAlign="center" mt={5}>
+        You do not have permission to view or create this event.
+      </Typography>
+    );
+  }
 
 
   return (
@@ -526,46 +534,7 @@ const CreateEvents = ({
               helperText={errors.eventName || (isCell && !isGlobalEvent ? "Auto-filled when event leader is selected" : "")}
             />
 
-            {/* Ticketed Event Fields */}
-            {isTicketedEvent && !isGlobalEvent && !hasPersonSteps && (
-              <>
-                {/* Age Group */}
-                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                  <InputLabel>Age Group</InputLabel>
-                  <Select
-                    value={formData.ageGroup}
-                    onChange={(e) => handleChange('ageGroup', e.target.value)}
-                  >
-                    <MenuItem value="Child">Child</MenuItem>
-                    <MenuItem value="Adult">Adult</MenuItem>
-                  </Select>
-                </FormControl>
-
-                {/* Member Type */}
-                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                  <InputLabel>Member Type</InputLabel>
-                  <Select
-                    value={formData.memberType}
-                    onChange={(e) => handleChange('memberType', e.target.value)}
-                  >
-                    <MenuItem value="Guild">Guild</MenuItem>
-                    <MenuItem value="First">First</MenuItem>
-                  </Select>
-                </FormControl>
-
-                {/* Price */}
-                <TextField
-                  label="Price"
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) => handleChange('price', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </>
-            )}
-
+            
             {/* Global Event: hide Age Group, Member Type, Price (so no fields here) */}
 
             {/* Personal Steps Fields */}
@@ -600,7 +569,8 @@ const CreateEvents = ({
                 fullWidth
                 size="small"
                 InputLabelProps={{ shrink: true }}
-                disabled={isCell && !isGlobalEvent}
+                disabled={isCell && !isGlobalEvent && !hasPersonSteps}
+
                 error={!!errors.date}
                 helperText={errors.date}
                 sx={darkModeStyles.textField}
@@ -613,7 +583,8 @@ const CreateEvents = ({
                 fullWidth
                 size="small"
                 InputLabelProps={{ shrink: true }}
-                disabled={isCell && !isGlobalEvent}
+                disabled={isCell && !isGlobalEvent && !hasPersonSteps}
+
                 error={!!errors.time}
                 helperText={errors.time}
                 sx={darkModeStyles.textField}
@@ -624,7 +595,9 @@ const CreateEvents = ({
                   value={formData.timePeriod}
                   label="AM/PM"
                   onChange={(e) => handleChange('timePeriod', e.target.value)}
-                  disabled={isCell && !isGlobalEvent}
+                  disabled={isCell && !isGlobalEvent && !hasPersonSteps}
+
+
                 >
                   {timePeriods.map(period => (
                     <MenuItem key={period} value={period}>{period}</MenuItem>
@@ -634,87 +607,113 @@ const CreateEvents = ({
             </Box>
 
 
-            {/* Age Group + Member Type side by side */}
-            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
-              <FormControl fullWidth size="small" error={!!errors.ageGroup}>
-                <InputLabel sx={{ color: isDarkMode ? '#bbb' : 'rgba(0, 0, 0, 0.6)' }}>Age Group *</InputLabel>
-                <Select
-                  value={formData.ageGroup}
-                  label="Age Group *"
-                  onChange={(e) => handleChange('ageGroup', e.target.value)}
-                  sx={{
-                    bgcolor: isDarkMode ? '#2d2d2d' : 'white',
-                    color: isDarkMode ? '#ffffff' : 'inherit',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: isDarkMode ? '#555' : 'rgba(0, 0, 0, 0.23)'
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: isDarkMode ? '#777' : 'rgba(0, 0, 0, 0.87)'
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: theme.palette.primary.main
-                    }
-                  }}
-                >
-                  {ageGroupOptions.map(option => (
-                    <MenuItem key={option} value={option}>{option}</MenuItem>
-                  ))}
-                </Select>
-                {errors.ageGroup && (
-                  <Typography variant="caption" sx={darkModeStyles.errorText}>
-                    {errors.ageGroup}
-                  </Typography>
-                )}
-              </FormControl>
 
-              <FormControl fullWidth size="small" error={!!errors.memberType}>
-                <InputLabel sx={{ color: isDarkMode ? '#bbb' : 'rgba(0, 0, 0, 0.6)' }}>Member Type *</InputLabel>
-                <Select
-                  value={formData.memberType}
-                  label="Member Type *"
-                  onChange={(e) => handleChange('memberType', e.target.value)}
-                  sx={{
-                    bgcolor: isDarkMode ? '#2d2d2d' : 'white',
-                    color: isDarkMode ? '#ffffff' : 'inherit',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: isDarkMode ? '#555' : 'rgba(0, 0, 0, 0.23)'
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: isDarkMode ? '#777' : 'rgba(0, 0, 0, 0.87)'
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: theme.palette.primary.main
-                    }
-                  }}
-                >
-                  {memberTypeOptions.map(option => (
-                    <MenuItem key={option} value={option}>{option}</MenuItem>
-                  ))}
-                </Select>
-                {errors.memberType && (
-                  <Typography variant="caption" sx={darkModeStyles.errorText}>
-                    {errors.memberType}
-                  </Typography>
-                )}
-              </FormControl>
-            </Box>
+     
+{/* TICKETED EVENTS: visible to admins only */}
+{isTicketedEvent && !isGlobalEvent && isAdmin && (
+  <>
+    {/* Admin-only fields like Age Group, Member Type, Price */}
+    <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
+      <FormControl fullWidth size="small" error={!!errors.ageGroup}>
+        <InputLabel>Age Group *</InputLabel>
+        <Select
+          value={formData.ageGroup}
+          onChange={(e) => handleChange('ageGroup', e.target.value)}
+        >
+          {ageGroupOptions.map(option => (
+            <MenuItem key={option} value={option}>{option}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
 
-            {/* Price field below */}
+      <FormControl fullWidth size="small" error={!!errors.memberType}>
+        <InputLabel>Member Type *</InputLabel>
+        <Select
+          value={formData.memberType}
+          onChange={(e) => handleChange('memberType', e.target.value)}
+        >
+          {memberTypeOptions.map(option => (
+            <MenuItem key={option} value={option}>{option}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    </Box>
+
+    <TextField
+      label="Price"
+      type="number"
+      value={formData.price}
+      onChange={(e) => handleChange('price', e.target.value)}
+      fullWidth
+      size="small"
+    />
+  </>
+)}
+
+
+            {/* Event Leader */}
             <TextField
-              label="Price"
-              type="number"
-              value={formData.price}
-              onChange={(e) => handleChange('price', e.target.value)}
+              label="Event Leader"
+              value={formData.eventLeader}
+              onChange={(e) => handleChange('eventLeader', e.target.value)}
               fullWidth
               size="small"
-              error={!!errors.price}
-              helperText={errors.price}
-              sx={{ mb: 3, ...darkModeStyles.textField }}
+              sx={{ mb: 2, ...darkModeStyles.textField }}
+              error={!!errors.eventLeader}
+              helperText={errors.eventLeader}
               InputProps={{
-                startAdornment: <InputAdornment position="start">R</InputAdornment>
+                startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>
               }}
             />
 
+            {/* Only show leaders below Event Leader for Personal Steps */}
+            {hasPersonSteps && (
+              <Box mb={3}>
+                <Typography variant="subtitle1" sx={{ mb: 1 }}>Leadership Hierarchy</Typography>
+
+                {/* Leader @1 */}
+                <Autocomplete
+                  options={leaderAt1Options}
+                  getOptionLabel={(option) => option.fullName || ''}
+                  value={leaderAt1Options.find(p => p.fullName === formData.leader1) || null}
+                  onChange={(event, newValue) => handleChange('leader1', newValue?.fullName || '')}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Leader @1"
+                      size="small"
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                    />
+                  )}
+                />
+
+                {/* Leader @12 */}
+                <Autocomplete
+                  freeSolo
+                  loading={loadingPeople}
+                  options={peopleData}
+                  getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
+                  value={peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''}
+                  onChange={(event, newValue) => {
+                    const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+                    handleChange('leader12', selectedName);
+                  }}
+                  onInputChange={(event, newInputValue) => {
+                    handleChange('leader12', newInputValue);
+                    setSearchName(newInputValue);
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Leader @12"
+                      size="small"
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                      helperText={loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people found)`}
+                    />
+                  )}
+                />
+              </Box>
+            )}
 
             {/* Recurring Days - Show for all events */}
             <Box mb={3}>
@@ -770,7 +769,7 @@ const CreateEvents = ({
               onChange={(e) => handleChange('eventLeader', e.target.value)}
               fullWidth
               size="small"
-              sx={{ mb: 3, ...darkModeStyles.textField }}
+              sx={{ mb: 2, ...darkModeStyles.textField }}
               error={!!errors.eventLeader}
               helperText={errors.eventLeader}
               InputProps={{
@@ -778,99 +777,90 @@ const CreateEvents = ({
               }}
             />
 
-            {/* Cell Leadership Section - Only show for cell events with person steps and non-global events */}
-            {isCell && !isGlobalEvent && hasPersonSteps && (
+            {/* Leaders ONLY for Personal Steps */}
+            {hasPersonSteps && (
               <Box mb={3}>
-                <Typography
-                  variant="h6"
-                  sx={{ mb: 2, color: isDarkMode ? '#ffffff' : 'inherit' }}
-                >
-                  Leadership Hierarchy
-                </Typography>
+                <Typography variant="subtitle1" sx={{ mb: 1 }}>Leadership Hierarchy</Typography>
 
-                {/* Leader at 1 - HARDCODED OPTIONS */}
+                {/* Leader @1 */}
                 <Autocomplete
                   options={leaderAt1Options}
                   getOptionLabel={(option) => option.fullName || ''}
                   value={leaderAt1Options.find(p => p.fullName === formData.leader1) || null}
-                  onChange={(event, newValue) => {
-                    handleChange('leader1', newValue?.fullName || '');
-                  }}
+                  onChange={(event, newValue) => handleChange('leader1', newValue?.fullName || '')}
                   renderInput={(params) => (
                     <TextField
                       {...params}
-                      label="Leader at 1"
+                      label="Leader @1"
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
-                      helperText="Only Vicky Enslin and Gavin Enslin available"
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <>
-                            <InputAdornment position="start">
-                              <PersonIcon />
-                            </InputAdornment>
-                            {params.InputProps.startAdornment}
-                          </>
-                        )
-                      }}
                     />
                   )}
                 />
 
-                {/* Leader at 12 - SERVER-SIDE FILTERING */}
+                {/* Leader @12 */}
                 <Autocomplete
                   freeSolo
                   loading={loadingPeople}
                   options={peopleData}
-                  getOptionLabel={(option) => {
-                    if (typeof option === 'string') return option;
-                    return option.fullName || '';
-                  }}
+                  getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
                   value={peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''}
                   onChange={(event, newValue) => {
-                    const selectedName = typeof newValue === 'string' ? newValue : (newValue?.fullName || '');
+                    const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
                     handleChange('leader12', selectedName);
                   }}
                   onInputChange={(event, newInputValue) => {
                     handleChange('leader12', newInputValue);
                     setSearchName(newInputValue);
                   }}
-                  filterOptions={(options) => options}
                   renderInput={(params) => (
                     <TextField
                       {...params}
-                      label="Leader at 12"
+                      label="Leader @12"
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
                       helperText={loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people found)`}
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <>
-                            <InputAdornment position="start">
-                              <PersonIcon />
-                            </InputAdornment>
-                            {params.InputProps.startAdornment}
-                          </>
-                        )
-                      }}
                     />
-                  )}
-                  renderOption={(props, option) => (
-                    <Box component="li" {...props}>
-                      <Box>
-                        <Typography variant="body1">{option.fullName}</Typography>
-                        {option.email && (
-                          <Typography variant="body2" color="text.secondary">
-                            {option.email}
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
                   )}
                 />
               </Box>
+            )}
+
+            {/* Global Event / Personal Steps Fields */}
+            {(isGlobalEvent || hasPersonSteps) && (
+              <>
+                {/* Date */}
+                <TextField
+                  label="Date"
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => handleChange('date', e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                />
+
+                {/* Time */}
+                <TextField
+                  label="Time"
+                  type="time"
+                  value={formData.time}
+                  onChange={(e) => handleChange('time', e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                />
+
+                {/* Location */}
+                <TextField
+                  label="Location"
+                  value={formData.location}
+                  onChange={(e) => handleChange('location', e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                />
+              </>
             )}
 
             {/* Description */}
@@ -889,6 +879,7 @@ const CreateEvents = ({
                 startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
               }}
             />
+
 
             {/* Buttons */}
             <Box display="flex" gap={2} sx={{ mt: 3 }}>

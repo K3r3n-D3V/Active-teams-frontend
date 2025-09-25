@@ -111,7 +111,7 @@ const styles = {
     gap: '0.5rem'
   },
   eventTypeButtonActive: {
-    backgroundColor: '#000',
+    backgroundColor: '#007bff',
     color: '#fff',
     border: '1px solid #000'
   },
@@ -289,6 +289,7 @@ const styles = {
     border: "none",
     borderRadius: "8px",
     fontWeight: 600,
+    height: "03px",
     cursor: "pointer",
     fontSize: "0.9rem",
     minWidth: "120px",
@@ -296,9 +297,10 @@ const styles = {
   captureBtn: {
     backgroundColor: "#000",
     color: "#fff",
+
   },
   paymentBtn: {
-    backgroundColor: "#007bff",
+    // backgroundColor: "#007bff",
     color: "#fff",
   },
   disabledBtn: {
@@ -532,20 +534,12 @@ const Events = () => {
       const userCellEvents = cellsResponse.data.events || [];
 
       // Get custom event types from API and merge with local storage
-      const apiCustomTypes = eventTypesResponse.data || [];
-      const savedEventTypes = JSON.parse(localStorage.getItem("customEventTypes") || "[]");
-      
-      // Merge API and local storage, avoiding duplicates
-      const mergedEventTypes = [...apiCustomTypes];
-      savedEventTypes.forEach(savedType => {
-        if (!mergedEventTypes.find(apiType => apiType._id === savedType._id)) {
-          mergedEventTypes.push(savedType);
-        }
-      });
+      // Use API as single source of truth - no localStorage merging
+const apiCustomTypes = eventTypesResponse.data || [];
 
-      setCustomEventTypes(mergedEventTypes);
-      setUserCreatedEventTypes(mergedEventTypes);
-      setEventTypes(mergedEventTypes.map(type => type.name));
+setCustomEventTypes(apiCustomTypes);
+setUserCreatedEventTypes(apiCustomTypes);
+setEventTypes(apiCustomTypes.map(type => type.name));
 
       console.log("Fetched non-cell events:", nonCellEvents.length);
       const today = new Date();
@@ -580,14 +574,7 @@ const Events = () => {
     }
   };
 
-  const handleAddNewEventType = (newEventType) => {
-    const updatedEventTypes = [...userCreatedEventTypes, newEventType];
-    setUserCreatedEventTypes(updatedEventTypes);
-    setCustomEventTypes(updatedEventTypes);
-    setEventTypes(updatedEventTypes.map(type => type.name));
-    setCurrentSelectedEventType(newEventType.name || newEventType);
-    setCreateEventModalOpen(true);
-  };
+
 
   const EventTypeNavigation = () => {
     return (
@@ -784,30 +771,34 @@ const Events = () => {
   };
 
   const handleCreateEventTypeSubmit = async (eventTypeData) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+  try {
+    const token = localStorage.getItem("token");
+    const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
-      if (response.data && response.data.name) {
-        const newEventType = response.data;
-        const updatedEventTypes = [...customEventTypes, newEventType];
-        
-        setEventTypes(prev => [...prev, newEventType.name]);
-        setCustomEventTypes(updatedEventTypes);
-        setUserCreatedEventTypes(updatedEventTypes);
-        
-        handleAddNewEventType(newEventType);
-        alert('Event type has been created successfully!');
-        setCreateEventTypeModalOpen(false);
-      }
+    if (response.data && response.data.name) {
+      const newEventType = response.data;
+      
+      // Single state update - avoid duplication
+      const updatedEventTypes = [...customEventTypes, newEventType];
+      setCustomEventTypes(updatedEventTypes);
+      setUserCreatedEventTypes(updatedEventTypes);
+      setEventTypes(updatedEventTypes.map(type => type.name));
+      
+      // Set selection and open modal
+      setCurrentSelectedEventType(newEventType.name);
+      setCreateEventTypeModalOpen(false);
+      setCreateEventModalOpen(true);
+      
+      alert('Event type has been created successfully!');
       console.log('Event type created successfully:', response.data);
-    } catch (error) {
-      console.error('Error creating event type:', error);
-      throw error;
     }
-  };
+  } catch (error) {
+    console.error('Error creating event type:', error);
+    throw error;
+  }
+};
 
   useEffect(() => {
     if (currentSelectedEventType) {
@@ -827,32 +818,32 @@ const Events = () => {
   }, [location.pathname, location.state?.refresh, location.state?.timestamp]);
 
   // Fetch event types from backend
-  const fetchEventTypes = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      const { data } = await axios.get(`${BACKEND_URL}/event-types`, { headers });
+  // const fetchEventTypes = async () => {
+  //   try {
+  //     const token = localStorage.getItem("token");
+  //     const headers = { Authorization: `Bearer ${token}` };
+  //     const { data } = await axios.get(`${BACKEND_URL}/event-types`, { headers });
       
-      // Merge with local storage
-      const savedEventTypes = JSON.parse(localStorage.getItem("customEventTypes") || "[]");
-      const mergedEventTypes = [...(data || [])];
-      savedEventTypes.forEach(savedType => {
-        if (!mergedEventTypes.find(apiType => apiType._id === savedType._id)) {
-          mergedEventTypes.push(savedType);
-        }
-      });
+  //     // Merge with local storage
+  //     const savedEventTypes = JSON.parse(localStorage.getItem("customEventTypes") || "[]");
+  //     const mergedEventTypes = [...(data || [])];
+  //     savedEventTypes.forEach(savedType => {
+  //       if (!mergedEventTypes.find(apiType => apiType._id === savedType._id)) {
+  //         mergedEventTypes.push(savedType);
+  //       }
+  //     });
       
-      setCustomEventTypes(mergedEventTypes);
-      setUserCreatedEventTypes(mergedEventTypes);
-      setEventTypes(mergedEventTypes.map(type => type.name));
-    } catch (error) {
-      console.error("Error fetching event types:", error);
-    }
-  };
+  //     setCustomEventTypes(mergedEventTypes);
+  //     setUserCreatedEventTypes(mergedEventTypes);
+  //     setEventTypes(mergedEventTypes.map(type => type.name));
+  //   } catch (error) {
+  //     console.error("Error fetching event types:", error);
+  //   }
+  // };
 
-  useEffect(() => {
-    fetchEventTypes();
-  }, []);
+  // useEffect(() => {
+  //   fetchEventTypes();
+  // }, []);
 
   // Apply filters to events
   const applyFilters = (filters) => {
