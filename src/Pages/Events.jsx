@@ -817,34 +817,6 @@ setEventTypes(apiCustomTypes.map(type => type.name));
     fetchEvents();
   }, [location.pathname, location.state?.refresh, location.state?.timestamp]);
 
-  // Fetch event types from backend
-  // const fetchEventTypes = async () => {
-  //   try {
-  //     const token = localStorage.getItem("token");
-  //     const headers = { Authorization: `Bearer ${token}` };
-  //     const { data } = await axios.get(`${BACKEND_URL}/event-types`, { headers });
-      
-  //     // Merge with local storage
-  //     const savedEventTypes = JSON.parse(localStorage.getItem("customEventTypes") || "[]");
-  //     const mergedEventTypes = [...(data || [])];
-  //     savedEventTypes.forEach(savedType => {
-  //       if (!mergedEventTypes.find(apiType => apiType._id === savedType._id)) {
-  //         mergedEventTypes.push(savedType);
-  //       }
-  //     });
-      
-  //     setCustomEventTypes(mergedEventTypes);
-  //     setUserCreatedEventTypes(mergedEventTypes);
-  //     setEventTypes(mergedEventTypes.map(type => type.name));
-  //   } catch (error) {
-  //     console.error("Error fetching event types:", error);
-  //   }
-  // };
-
-  // useEffect(() => {
-  //   fetchEventTypes();
-  // }, []);
-
   // Apply filters to events
   const applyFilters = (filters) => {
     setActiveFilters(filters);
@@ -1099,9 +1071,20 @@ setEventTypes(apiCustomTypes.map(type => type.name));
   const activeFilterCount = Object.keys(activeFilters).length + (selectedDate ? 1 : 0);
   const allEventTypes = [...(eventTypes || []), ...(userCreatedEventTypes || [])];
 
-  const selectedEventTypeObj = allEventTypes.find(
-    eventType => eventType.name?.toLowerCase() === currentSelectedEventType?.toLowerCase()
-  );
+ // In your Events component, update the selectedEventTypeObj calculation:
+
+const selectedEventTypeObj = customEventTypes.find(
+  eventType => eventType.name?.toLowerCase() === currentSelectedEventType?.toLowerCase()
+) || userCreatedEventTypes.find(
+  eventType => eventType.name?.toLowerCase() === currentSelectedEventType?.toLowerCase()
+);
+
+console.log('Selected Event Type Object:', selectedEventTypeObj);
+console.log('Event Type Props for CreateEvents:', {
+  isGlobal: selectedEventTypeObj?.isGlobal || false,
+  isTicketed: selectedEventTypeObj?.isTicketed || false,
+  hasPersonSteps: selectedEventTypeObj?.hasPersonSteps || false
+});
 
   return (
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default, color: theme.palette.text.primary }}>
@@ -1440,41 +1423,46 @@ setEventTypes(apiCustomTypes.map(type => type.name));
       />
 
       {/* Create Event Modal */}
-      {createEventModalOpen && (
-        <div
-          style={styles.modalOverlay}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              handleCloseCreateEventModal();
-            }
-          }}
+
+{/* Create Event Modal */}
+{createEventModalOpen && (
+  <div
+    style={styles.modalOverlay}
+    onClick={(e) => {
+      if (e.target === e.currentTarget) {
+        handleCloseCreateEventModal();
+      }
+    }}
+  >
+    <div style={styles.modalContent}>
+      <div style={styles.modalHeader}>
+        <h2 style={styles.modalTitle}>
+          {selectedEventTypeObj?.name === "CELLS" ? "Create New Cell" : "Create New Event"}
+        </h2>
+        <button
+          style={styles.modalCloseButton}
+          onClick={handleCloseCreateEventModal}
+          title="Close"
         >
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
-              <h2 style={styles.modalTitle}>Create New Event</h2>
-              <button
-                style={styles.modalCloseButton}
-                onClick={handleCloseCreateEventModal}
-                title="Close"
-              >
-                ×
-              </button>
-            </div>
-            <div style={styles.modalBody}>
-              <CreateEvents
-                user={currentUser}
-                isModal={true}
-                onClose={handleCloseCreateEventModal}
-                selectedEventType={currentSelectedEventType}
-                eventTypes={allEventTypes}
-                isGlobalEvent={selectedEventTypeObj?.isGlobal || false}
-                isTicketedEvent={selectedEventTypeObj?.isTicketed || false}
-                hasPersonSteps={selectedEventTypeObj?.hasPersonSteps || false}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+          ×
+        </button>
+      </div>
+      <div style={styles.modalBody}>
+        <CreateEvents
+          user={currentUser}
+          isModal={true}
+          onClose={handleCloseCreateEventModal}
+          selectedEventType={currentSelectedEventType}
+          eventTypes={allEventTypes}
+          isGlobalEvent={selectedEventTypeObj?.isGlobal || false}
+          isTicketedEvent={selectedEventTypeObj?.isTicketed || false}
+          hasPersonSteps={selectedEventTypeObj?.hasPersonSteps || false}
+        />
+      </div>
+    </div>
+  </div>
+)}
+   
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>

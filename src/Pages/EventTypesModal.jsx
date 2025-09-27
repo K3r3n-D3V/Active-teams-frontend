@@ -7,12 +7,13 @@ import {
   FormControlLabel,
   Checkbox,
   Typography,
+  Alert,
 } from "@mui/material";
 
 const EventTypesModal = ({ open, onClose, onSubmit }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    eventGroupName: "",
+    name: "", // Changed from eventGroupName to match backend
     isTicketed: false,
     isGlobal: false,
     hasPersonSteps: false,
@@ -21,12 +22,43 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
 
   const [errors, setErrors] = useState({});
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+  // Handle checkbox changes with mutual exclusivity
+  const handleCheckboxChange = (name) => (event) => {
+    const { checked } = event.target;
+    
+    setFormData((prev) => {
+      // If checking a box, uncheck the others
+      if (checked) {
+        return {
+          ...prev,
+          isTicketed: name === 'isTicketed',
+          isGlobal: name === 'isGlobal',
+          hasPersonSteps: name === 'hasPersonSteps',
+          [name]: checked,
+        };
+      } else {
+        // If unchecking, just update the specific checkbox
+        return {
+          ...prev,
+          [name]: checked,
+        };
+      }
+    });
+
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
 
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: value,
     }));
 
     if (errors[name]) {
@@ -40,12 +72,21 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.eventGroupName.trim()) {
-      newErrors.eventGroupName = "Event type name is required";
+    if (!formData.name.trim()) {
+      newErrors.name = "Event Group Name is required";
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = "Event Group Name must be at least 2 characters";
     }
 
     if (!formData.description.trim()) {
       newErrors.description = "Event description is required";
+    } else if (formData.description.trim().length < 10) {
+      newErrors.description = "Description must be at least 10 characters";
+    }
+
+    // Validate that at least one event type is selected
+    if (!formData.isTicketed && !formData.isGlobal && !formData.hasPersonSteps) {
+      newErrors.eventType = "Please select at least one event type";
     }
 
     setErrors(newErrors);
@@ -54,7 +95,7 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
 
   const resetForm = () => {
     setFormData({
-      eventGroupName: "",
+      name: "",
       isTicketed: false,
       isGlobal: false,
       hasPersonSteps: false,
@@ -69,7 +110,7 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
     setLoading(true);
     try {
       const eventTypeData = {
-        name: formData.eventGroupName.trim(),
+        name: formData.name.trim(),
         isTicketed: formData.isTicketed,
         isGlobal: formData.isGlobal,
         hasPersonSteps: formData.hasPersonSteps,
@@ -80,12 +121,9 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
       await onSubmit(eventTypeData);
       resetForm();
       onClose();
-       alert('Event type has been created successfully!');
-      //   if (onEventTypeCreated) {
-      //   onEventTypeCreated(res.data.name);  // Or res.data.eventType if that’s the key
-      // }
     } catch (error) {
       console.error("Error creating event type:", error);
+      // Error handling would be done in the parent component
     } finally {
       setLoading(false);
     }
@@ -96,6 +134,14 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
       resetForm();
       onClose();
     }
+  };
+
+  // Determine which event type is selected for display
+  const getSelectedEventType = () => {
+    if (formData.isTicketed) return "Ticketed Event";
+    if (formData.isGlobal) return "Global Event";
+    if (formData.hasPersonSteps) return "Personal Steps Event";
+    return "No event type selected";
   };
 
   return (
@@ -142,7 +188,7 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
               fontSize: "1.5rem",
             }}
           >
-            Create New Event Type
+            Create New Event Group
           </Typography>
           <button
             onClick={handleClose}
@@ -156,11 +202,12 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: "pointer",
+              cursor: loading ? "not-allowed" : "pointer",
               fontSize: "20px",
               color: "white",
               fontWeight: "bold",
               transition: "all 0.2s ease",
+              opacity: loading ? 0.6 : 1,
             }}
             onMouseOver={(e) => {
               if (!loading) e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
@@ -183,15 +230,16 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
         >
           {/* Event Group Name */}
           <TextField
-            label=""
-            name="eventGroupName"
+            label="Event Group Name"
+            name="name"
             fullWidth
             margin="normal"
-            value={formData.eventGroupName}
-            onChange={handleChange}
-            error={!!errors.eventGroupName}
-            helperText={errors.eventGroupName}
-            placeholder="Event Type Name"
+            value={formData.name}
+            onChange={handleInputChange}
+            error={!!errors.name}
+            helperText={errors.name}
+            placeholder="Enter event group name (e.g., CELLS, SERVICE, etc.)"
+            disabled={loading}
             sx={{
               mb: 3,
               mt: 0,
@@ -209,16 +257,27 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
             }}
           />
 
-          {/* Checkboxes */}
+          {/* Event Type Selection */}
           <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: '#333' }}>
+              Event Type (Select One):
+            </Typography>
+            
+            {errors.eventType && (
+              <Alert severity="error" sx={{ mb: 2, fontSize: '0.8rem' }}>
+                {errors.eventType}
+              </Alert>
+            )}
+
             <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 2 }}>
               <FormControlLabel
                 control={
                   <Checkbox
                     name="isTicketed"
                     checked={formData.isTicketed}
-                    onChange={handleChange}
+                    onChange={handleCheckboxChange('isTicketed')}
                     color="primary"
+                    disabled={loading}
                     sx={{ 
                       '& .MuiSvgIcon-root': { fontSize: 20 }
                     }}
@@ -228,7 +287,8 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
                 sx={{ 
                   '& .MuiFormControlLabel-label': { 
                     fontSize: '0.95rem',
-                    color: '#333'
+                    color: '#333',
+                    fontWeight: formData.isTicketed ? 'bold' : 'normal'
                   }
                 }}
               />
@@ -238,8 +298,9 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
                   <Checkbox
                     name="isGlobal"
                     checked={formData.isGlobal}
-                    onChange={handleChange}
+                    onChange={handleCheckboxChange('isGlobal')}
                     color="primary"
+                    disabled={loading}
                     sx={{ 
                       '& .MuiSvgIcon-root': { fontSize: 20 }
                     }}
@@ -249,7 +310,8 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
                 sx={{ 
                   '& .MuiFormControlLabel-label': { 
                     fontSize: '0.95rem',
-                    color: '#333'
+                    color: '#333',
+                    fontWeight: formData.isGlobal ? 'bold' : 'normal'
                   }
                 }}
               />
@@ -259,8 +321,9 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
                   <Checkbox
                     name="hasPersonSteps"
                     checked={formData.hasPersonSteps}
-                    onChange={handleChange}
+                    onChange={handleCheckboxChange('hasPersonSteps')}
                     color="primary"
+                    disabled={loading}
                     sx={{ 
                       '& .MuiSvgIcon-root': { fontSize: 20 }
                     }}
@@ -270,25 +333,38 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
                 sx={{ 
                   '& .MuiFormControlLabel-label': { 
                     fontSize: '0.95rem',
-                    color: '#333'
+                    color: '#333',
+                    fontWeight: formData.hasPersonSteps ? 'bold' : 'normal'
                   }
                 }}
               />
             </Box>
+
+            {/* Selected type indicator */}
+            {formData.isTicketed || formData.isGlobal || formData.hasPersonSteps ? (
+              <Typography variant="body2" sx={{ 
+                color: '#1976d2', 
+                fontStyle: 'italic',
+                mt: 1 
+              }}>
+                Selected: {getSelectedEventType()}
+              </Typography>
+            ) : null}
           </Box>
 
           {/* Description */}
           <TextField
-            label=""
+            label="Event Description"
             name="description"
             fullWidth
             multiline
             rows={4}
             value={formData.description}
-            onChange={handleChange}
+            onChange={handleInputChange}
             error={!!errors.description}
-            helperText={errors.description}
-            placeholder="Event Description"
+            helperText={errors.description || "Describe the purpose and details of this event group"}
+            placeholder="Enter a detailed description of this event group..."
+            disabled={loading}
             sx={{
               mb: 3,
               '& .MuiOutlinedInput-root': {

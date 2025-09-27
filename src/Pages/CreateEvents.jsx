@@ -45,7 +45,7 @@ const CreateEvents = ({
       setFormData(prev => ({ ...prev, eventType: eventTypes[0] }));
     }
   }, [eventTypes]);
-  
+
   const isAdmin = user?.role === "admin";
   console.log("User role:", user?.role, "isAdmin:", isAdmin);
 
@@ -74,10 +74,8 @@ const CreateEvents = ({
   // Days of the week
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  // Time periods
   const timePeriods = ['AM', 'PM'];
 
-  // New dropdown options
   const ageGroupOptions = ['Child', 'Adult'];
   const memberTypeOptions = ['Guild', 'First Time'];
 
@@ -171,9 +169,18 @@ const CreateEvents = ({
   }, [eventId, BACKEND_URL]);
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+    console.log(`Changing ${field} to:`, value); // Debug log
+    setFormData(prev => ({ 
+      ...prev, 
+      [field]: value 
+    }));
+    
+    // Clear error for this field
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
 
+    // Your existing cell event logic...
     if (field === 'eventType') {
       const isCell = value.toLowerCase().includes("cell");
       const wasCell = formData.eventType.toLowerCase().includes("cell");
@@ -249,7 +256,7 @@ const CreateEvents = ({
         if (!formData.memberType) {
           newErrors.memberType = 'Member type is required for ticketed events';
         }
-        if (!formData.price) {
+        if (!formData.price || parseFloat(formData.price) < 0) {
           newErrors.price = 'Price is required for ticketed events';
         }
       }
@@ -544,103 +551,97 @@ const CreateEvents = ({
               helperText={errors.eventName || (isCell && !isGlobalEvent ? "Auto-filled when event leader is selected" : "")}
             />
 
-            {/* TICKETED EVENT FIELDS - Only show for ticketed events and admin users, NOT for Global or Personal Steps */}
-            {/* Ticketed Event Fields */}
-{isTicketedEvent && !isGlobalEvent && (
-  <>
-    <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
-      <FormControl fullWidth size="small" error={!!errors.ageGroup} sx={darkModeStyles.select}>
-        <InputLabel>Age Group *</InputLabel>
-        <Select
-          value={formData.ageGroup}
-          onChange={(e) => handleChange('ageGroup', e.target.value)}
-          label="Age Group *"
-        >
-          {ageGroupOptions.map(option => (
-            <MenuItem key={option} value={option}>{option}</MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+            {/* TICKETED EVENT FIELDS - Show ONLY for ticketed events */}
+            {isTicketedEvent && (
+              <>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: 'primary.main' }}>
+                  Ticketed Event Details
+                </Typography>
+                
+                <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
+                  {/* Age Group */}
+                  <FormControl fullWidth size="small" error={!!errors.ageGroup} sx={darkModeStyles.select}>
+                    <InputLabel id="age-group-label">Age Group *</InputLabel>
+                    <Select
+                      labelId="age-group-label"
+                      value={formData.ageGroup}
+                      label="Age Group *"
+                      onChange={(e) => handleChange('ageGroup', e.target.value)}
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            backgroundColor: isDarkMode ? '#2d2d2d' : 'white',
+                          }
+                        }
+                      }}
+                    >
+                      <MenuItem value="">
+                        <em>Select Age Group</em>
+                      </MenuItem>
+                      {ageGroupOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    {errors.ageGroup && (
+                      <Typography variant="caption" sx={darkModeStyles.errorText}>
+                        {errors.ageGroup}
+                      </Typography>
+                    )}
+                  </FormControl>
 
-      <FormControl fullWidth size="small" error={!!errors.memberType} sx={darkModeStyles.select}>
-        <InputLabel>Member Type *</InputLabel>
-        <Select
-          value={formData.memberType}
-          onChange={(e) => handleChange('memberType', e.target.value)}
-          label="Member Type *"
-        >
-          {memberTypeOptions.map(option => (
-            <MenuItem key={option} value={option}>{option}</MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    </Box>
+                  {/* Member Type */}
+                  <FormControl fullWidth size="small" error={!!errors.memberType} sx={darkModeStyles.select}>
+                    <InputLabel id="member-type-label">Member Type *</InputLabel>
+                    <Select
+                      labelId="member-type-label"
+                      value={formData.memberType}
+                      label="Member Type *"
+                      onChange={(e) => handleChange('memberType', e.target.value)}
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            backgroundColor: isDarkMode ? '#2d2d2d' : 'white',
+                          }
+                        }
+                      }}
+                    >
+                      <MenuItem value="">
+                        <em>Select Member Type</em>
+                      </MenuItem>
+                      {memberTypeOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    {errors.memberType && (
+                      <Typography variant="caption" sx={darkModeStyles.errorText}>
+                        {errors.memberType}
+                      </Typography>
+                    )}
+                  </FormControl>
+                </Box>
 
-    <TextField
-      label="Price *"
-      type="number"
-      value={formData.price}
-      onChange={(e) => handleChange('price', e.target.value)}
-      fullWidth
-      size="small"
-      sx={{ mb: 3, ...darkModeStyles.textField }}
-      error={!!errors.price}
-      helperText={errors.price}
-      InputProps={{
-        startAdornment: <InputAdornment position="start">R</InputAdornment>
-      }}
-    />
-  </>
-)}
-
-{/* Leadership Hierarchy - ONLY for Personal Steps */}
-{hasPersonSteps && !isGlobalEvent && !isTicketedEvent && (
-  <Box mb={3}>
-    <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>Leadership Hierarchy</Typography>
-
-    {/* Leader @1 */}
-    <Autocomplete
-      options={leaderAt1Options}
-      getOptionLabel={(option) => option.fullName || ''}
-      value={leaderAt1Options.find(p => p.fullName === formData.leader1) || null}
-      onChange={(event, newValue) => handleChange('leader1', newValue?.fullName || '')}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label="Leader @1"
-          size="small"
-          sx={{ mb: 2, ...darkModeStyles.textField }}
-        />
-      )}
-    />
-
-    {/* Leader @12 */}
-    <Autocomplete
-      freeSolo
-      loading={loadingPeople}
-      options={peopleData}
-      getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
-      value={peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''}
-      onChange={(event, newValue) => {
-        const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-        handleChange('leader12', selectedName);
-      }}
-      onInputChange={(event, newInputValue) => {
-        handleChange('leader12', newInputValue);
-        setSearchName(newInputValue);
-      }}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label="Leader @12"
-          size="small"
-          sx={{ mb: 2, ...darkModeStyles.textField }}
-          helperText={loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people found)`}
-        />
-      )}
-    />
-  </Box>
-)}
+                {/* Price Field */}
+                <TextField
+                  label="Price *"
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => handleChange('price', e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 3, ...darkModeStyles.textField }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">R</InputAdornment>
+                  }}
+                  placeholder="0.00"
+                  error={!!errors.price}
+                  helperText={errors.price}
+                />
+              </>
+            )}
 
             {/* Date & Time - Show for all events */}
             <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
@@ -652,7 +653,6 @@ const CreateEvents = ({
                 fullWidth
                 size="small"
                 InputLabelProps={{ shrink: true }}
-                disabled={isCell && !isGlobalEvent && !hasPersonSteps}
                 error={!!errors.date}
                 helperText={errors.date}
                 sx={darkModeStyles.textField}
@@ -665,7 +665,6 @@ const CreateEvents = ({
                 fullWidth
                 size="small"
                 InputLabelProps={{ shrink: true }}
-                disabled={isCell && !isGlobalEvent && !hasPersonSteps}
                 error={!!errors.time}
                 helperText={errors.time}
                 sx={darkModeStyles.textField}
@@ -676,7 +675,13 @@ const CreateEvents = ({
                   value={formData.timePeriod}
                   label="AM/PM"
                   onChange={(e) => handleChange('timePeriod', e.target.value)}
-                  disabled={isCell && !isGlobalEvent && !hasPersonSteps}
+                  MenuProps={{
+                    PaperProps: {
+                      style: {
+                        backgroundColor: isDarkMode ? '#2d2d2d' : 'white',
+                      }
+                    }
+                  }}
                 >
                   {timePeriods.map(period => (
                     <MenuItem key={period} value={period}>{period}</MenuItem>
@@ -747,10 +752,12 @@ const CreateEvents = ({
               }}
             />
 
-            {/* Leadership Hierarchy - ONLY for Personal Steps */}
+            {/* PERSONAL STEPS FIELDS - Show ONLY for personal steps events below Event Leader */}
             {hasPersonSteps && !isGlobalEvent && !isTicketedEvent && (
               <Box mb={3}>
-                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>Leadership Hierarchy</Typography>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: 'primary.main' }}>
+                  Leadership Hierarchy
+                </Typography>
 
                 {/* Leader @1 */}
                 <Autocomplete
@@ -764,6 +771,7 @@ const CreateEvents = ({
                       label="Leader @1"
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
+                      helperText="Only Vicky Enslin and Gavin Enslin available"
                     />
                   )}
                 />
