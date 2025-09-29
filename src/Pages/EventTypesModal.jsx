@@ -10,7 +10,7 @@ import {
   Alert,
 } from "@mui/material";
 
-const EventTypesModal = ({ open, onClose, onSubmit }) => {
+const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj,   }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "", // Changed from eventGroupName to match backend
@@ -21,8 +21,6 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
   });
 
   const [errors, setErrors] = useState({});
-
-  // Handle checkbox changes with mutual exclusivity
   const handleCheckboxChange = (name) => (event) => {
     const { checked } = event.target;
     
@@ -73,9 +71,9 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
     const newErrors = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = "Event Group Name is required";
+      newErrors.name = "Event Type Name is required";
     } else if (formData.name.trim().length < 2) {
-      newErrors.name = "Event Group Name must be at least 2 characters";
+      newErrors.name = "Event Type Name must be at least 2 characters";
     }
 
     if (!formData.description.trim()) {
@@ -104,30 +102,39 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
     setErrors({});
   };
 
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
+// In your EventTypesModal component, fix the handleSubmit function:
+const handleSubmit = async () => {
+  if (!validateForm()) return;
 
-    setLoading(true);
-    try {
-      const eventTypeData = {
-        name: formData.name.trim(),
-        isTicketed: formData.isTicketed,
-        isGlobal: formData.isGlobal,
-        hasPersonSteps: formData.hasPersonSteps,
-        description: formData.description.trim(),
-        createdAt: new Date().toISOString(),
-      };
+  setLoading(true);
+  try {
+    const eventTypeData = {
+      name: formData.name.trim(),
+      isTicketed: formData.isTicketed,
+      isGlobal: formData.isGlobal,
+      hasPersonSteps: formData.hasPersonSteps,
+      description: formData.description.trim(),
+    };
 
-      await onSubmit(eventTypeData);
-      resetForm();
-      onClose();
-    } catch (error) {
-      console.error("Error creating event type:", error);
-      // Error handling would be done in the parent component
-    } finally {
-      setLoading(false);
+    console.log('Submitting event type data:', eventTypeData);
+
+    // Call the onSubmit prop which should handle the API call
+    const result = await onSubmit(eventTypeData);
+    
+    if (result && setSelectedEventTypeObj) {
+      setSelectedEventTypeObj(result);
     }
-  };
+
+    resetForm();
+    onClose();
+    
+  } catch (error) {
+    console.error("Error creating event type:", error);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleClose = () => {
     if (!loading) {
@@ -188,7 +195,7 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
               fontSize: "1.5rem",
             }}
           >
-            Create New Event Group
+            Create New Event Type
           </Typography>
           <button
             onClick={handleClose}
@@ -238,7 +245,7 @@ const EventTypesModal = ({ open, onClose, onSubmit }) => {
             onChange={handleInputChange}
             error={!!errors.name}
             helperText={errors.name}
-            placeholder="Enter event group name (e.g., CELLS, SERVICE, etc.)"
+            placeholder="Craete an event type"
             disabled={loading}
             sx={{
               mb: 3,

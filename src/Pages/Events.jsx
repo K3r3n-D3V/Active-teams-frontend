@@ -82,9 +82,6 @@ const styles = {
     whiteSpace: 'nowrap',
     scrollbarWidth: 'none',
     msOverflowStyle: 'none',
-    '&::-webkit-scrollbar': {
-      display: 'none'
-    }
   },
   eventTypeButtons: {
     display: 'flex',
@@ -100,6 +97,7 @@ const styles = {
     borderRadius: '50px',
     fontSize: '0.875rem',
     fontWeight: '500',
+    flexShrink: 0,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     transition: 'all 0.2s ease',
@@ -289,7 +287,8 @@ const styles = {
     border: "none",
     borderRadius: "8px",
     fontWeight: 600,
-    height: "03px",
+    // minHeight: "36px",
+
     cursor: "pointer",
     fontSize: "0.9rem",
     minWidth: "120px",
@@ -407,7 +406,7 @@ const Events = () => {
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const isAdmin = currentUser?.role === "admin";
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-  
+
   // State management - Fixed modal states
   const [showFilter, setShowFilter] = useState(false);
   const [filterType] = useState("all");
@@ -421,13 +420,14 @@ const Events = () => {
   const [eventTypes, setEventTypes] = useState([]);
   const [userCreatedEventTypes, setUserCreatedEventTypes] = useState([]);
   const [customEventTypes, setCustomEventTypes] = useState([]);
-  
+  const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
+
   // Modal states - Fixed and simplified
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createOptionsModalOpen, setCreateOptionsModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
-  
+
   // Date filter state
   const [selectedDate, setSelectedDate] = useState("");
 
@@ -533,17 +533,17 @@ const Events = () => {
 
       const userCellEvents = cellsResponse.data.events || [];
 
-      // Get custom event types from API and merge with local storage
-      // Use API as single source of truth - no localStorage merging
-const apiCustomTypes = eventTypesResponse.data || [];
+      // Get custom event types from API
+      const apiCustomTypes = eventTypesResponse.data || [];
 
-setCustomEventTypes(apiCustomTypes);
-setUserCreatedEventTypes(apiCustomTypes);
-setEventTypes(apiCustomTypes.map(type => type.name));
+      setCustomEventTypes(apiCustomTypes);
+      setUserCreatedEventTypes(apiCustomTypes);
+      setEventTypes(apiCustomTypes.map(type => type.name));
 
       console.log("Fetched non-cell events:", nonCellEvents.length);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+
       const futureNonCellEvents = nonCellEvents.filter((event) => {
         if (event.status === "closed") {
           console.log(`Filtered out closed event: ${event.eventName}`);
@@ -559,7 +559,28 @@ setEventTypes(apiCustomTypes.map(type => type.name));
 
       console.log("Future events after filtering:", futureNonCellEvents.length);
 
-      const combinedEvents = [...futureNonCellEvents, ...userCellEvents];
+      let combinedEvents = [...futureNonCellEvents, ...userCellEvents];
+
+      // ✅ FILTER EVENTS BY USER ROLE
+      const userRole = currentUser.role;
+      const userFullName = `${currentUser.name} ${currentUser.surname}`.trim();
+
+      if (userRole === 'registration') {
+        // Registration only sees ticketed and global events
+        combinedEvents = combinedEvents.filter(event => {
+          const eventType = apiCustomTypes.find(et => et.name === event.eventType);
+          return eventType && (eventType.isTicketed || eventType.isGlobal);
+        });
+      } else if (userRole !== 'admin') {
+        // Regular users only see events where they are a leader
+        combinedEvents = combinedEvents.filter(event =>
+          event.eventLeader === userFullName ||
+          event.leader1 === userFullName ||
+          event.leader12 === userFullName
+        );
+      }
+      // Admin sees all events (no filtering)
+
       const sortedEvents = combinedEvents.sort(
         (a, b) => new Date(a.date) - new Date(b.date)
       );
@@ -573,10 +594,33 @@ setEventTypes(apiCustomTypes.map(type => type.name));
       setLoading(false);
     }
   };
+  // Add this after your state declarations
+  const getFilteredEventTypes = () => {
+    if (!currentUser || !currentUser.role) return [];
 
+    const role = currentUser.role;
 
+    if (role === 'admin') {
+      // Admins see all event types
+      return customEventTypes;
+    } else if (role === 'registration') {
+      // Registration sees only ticketed and global events
+      return customEventTypes.filter(et => et.isTicketed || et.isGlobal);
+    } else {
+      // Regular users see only person steps (cells)
+      return customEventTypes.filter(et => et.hasPersonSteps);
+    }
+  };
 
   const EventTypeNavigation = () => {
+    // Get filtered event types based on user role
+    const visibleEventTypes = getFilteredEventTypes();
+
+    // Don't show navigation if user has no access to any event types
+    if (visibleEventTypes.length === 0 && currentUser.role !== 'admin') {
+      return null;
+    }
+
     return (
       <div style={{
         ...styles.eventTypeNavigation,
@@ -615,8 +659,8 @@ setEventTypes(apiCustomTypes.map(type => type.name));
             ALL EVENTS
           </button>
 
-          {/* Custom Event Type Buttons */}
-          {customEventTypes.map((type) => {
+          {/* Custom Event Type Buttons - FILTERED BY ROLE */}
+          {visibleEventTypes.map((type) => {
             const isSelected = selectedEventType === type.name;
             return (
               <div key={type._id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -649,7 +693,7 @@ setEventTypes(apiCustomTypes.map(type => type.name));
                   {type.name.toUpperCase()}
                 </button>
 
-                {/* Delete button for custom event types - only show for admins */}
+                {/* Delete button - ONLY for admins */}
                 {isAdmin && (
                   <IconButton
                     onClick={(e) => {
@@ -675,7 +719,6 @@ setEventTypes(apiCustomTypes.map(type => type.name));
       </div>
     );
   };
-
   // Handle event type selection
   const handleEventTypeSelect = (eventType) => {
     setSelectedEventType(eventType);
@@ -770,35 +813,40 @@ setEventTypes(apiCustomTypes.map(type => type.name));
     return selectedEventType;
   };
 
+  // In your Events component, replace the handleCreateEventTypeSubmit function:
   const handleCreateEventTypeSubmit = async (eventTypeData) => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    try {
+      const token = localStorage.getItem("token");
 
-    if (response.data && response.data.name) {
+      // Create the event type
+      const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
       const newEventType = response.data;
-      
-      // Single state update - avoid duplication
-      const updatedEventTypes = [...customEventTypes, newEventType];
-      setCustomEventTypes(updatedEventTypes);
-      setUserCreatedEventTypes(updatedEventTypes);
-      setEventTypes(updatedEventTypes.map(type => type.name));
-      
-      // Set selection and open modal
-      setCurrentSelectedEventType(newEventType.name);
-      setCreateEventTypeModalOpen(false);
-      setCreateEventModalOpen(true);
-      
-      alert('Event type has been created successfully!');
-      console.log('Event type created successfully:', response.data);
+
+      if (newEventType) {
+        // Update state with the new event type
+        const updatedEventTypes = [...customEventTypes, newEventType];
+        setCustomEventTypes(updatedEventTypes);
+        setUserCreatedEventTypes(updatedEventTypes);
+        setEventTypes(updatedEventTypes.map(type => type.name));
+
+        // Set the newly created event type as selected
+        setSelectedEventTypeObj(newEventType);
+        setCurrentSelectedEventType(newEventType.name);
+
+        // Close the event type modal and open the event creation modal
+        setCreateEventTypeModalOpen(false);
+        setCreateEventModalOpen(true);
+
+        console.log('Event type created successfully:', newEventType);
+      }
+    } catch (error) {
+      console.error('Error creating event type:', error);
+      alert('Failed to create event type. Please try again.');
     }
-  } catch (error) {
-    console.error('Error creating event type:', error);
-    throw error;
-  }
-};
+  };
 
   useEffect(() => {
     if (currentSelectedEventType) {
@@ -832,6 +880,7 @@ setEventTypes(apiCustomTypes.map(type => type.name));
     return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
   };
 
+
   // Legacy filter for backward compatibility
   const legacyFilteredEvents =
     filterType === "all"
@@ -840,27 +889,36 @@ setEventTypes(apiCustomTypes.map(type => type.name));
         (e) => e.eventType?.toLowerCase() === filterType.toLowerCase()
       );
 
-  const getBadgeColor = (eventType) => {
-    if (!eventType) return "#6c757d";
+ const getBadgeColor = (eventType) => {
+  if (!eventType) return "#6c757d"; // Default grey for unknown
 
-    const cleanedType = eventType.trim().toLowerCase();
+  const cleanedType = eventType.trim().toLowerCase();
 
-    const eventTypeColors = {
-      "sunday service": "#5A9BD5",
-      "friday service": "#7FB77E",
-      workshop: "#F7C59F",
-      encounter: "#FFADAD",
-      conference: "#C792EA",
-      "j-activation": "#F67280",
-      "destiny training": "#70A1D7",
-      "social event": "#FFD166",
-      meeting: "#A0CED9",
-      "children's church": "#FFA07A",
-      cell: "#007bff",
-    };
-
-    return eventTypeColors[cleanedType] || "#6c757d";
+  // Define a mapping of keyword categories to colors
+  const eventCategoryColors = {
+    cell: "#007bff",           // Blue for all "cell"
+    service: "#5A9BD5",        // All services
+    conference: "#C792EA",
+    workshop: "#F7C59F",
+    encounter: "#FFADAD",
+    training: "#70A1D7",
+    activation: "#F67280",
+    "social event": "#FFD166",
+    meeting: "#A0CED9",
+    children: "#FFA07A",
   };
+
+  // Match event type with category keywords
+  for (const keyword in eventCategoryColors) {
+    if (cleanedType.includes(keyword)) {
+      return eventCategoryColors[keyword];
+    }
+  }
+
+  // Default color if no keyword matches
+  return "#6c757d";
+};
+
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
@@ -1071,21 +1129,6 @@ setEventTypes(apiCustomTypes.map(type => type.name));
   const activeFilterCount = Object.keys(activeFilters).length + (selectedDate ? 1 : 0);
   const allEventTypes = [...(eventTypes || []), ...(userCreatedEventTypes || [])];
 
- // In your Events component, update the selectedEventTypeObj calculation:
-
-const selectedEventTypeObj = customEventTypes.find(
-  eventType => eventType.name?.toLowerCase() === currentSelectedEventType?.toLowerCase()
-) || userCreatedEventTypes.find(
-  eventType => eventType.name?.toLowerCase() === currentSelectedEventType?.toLowerCase()
-);
-
-console.log('Selected Event Type Object:', selectedEventTypeObj);
-console.log('Event Type Props for CreateEvents:', {
-  isGlobal: selectedEventTypeObj?.isGlobal || false,
-  isTicketed: selectedEventTypeObj?.isTicketed || false,
-  hasPersonSteps: selectedEventTypeObj?.hasPersonSteps || false
-});
-
   return (
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default, color: theme.palette.text.primary }}>
       {/* Header */}
@@ -1122,7 +1165,7 @@ console.log('Event Type Props for CreateEvents:', {
               </span>
             )}
           </button>
-          
+
           {/* Date Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <input
@@ -1153,9 +1196,9 @@ console.log('Event Type Props for CreateEvents:', {
           <div style={styles.profileIcon}></div>
         </div>
       </div>
-      
-      {isAdmin && <EventTypeNavigation />}
-      
+
+      <EventTypeNavigation />
+
       <h2 style={{
         ...styles.pageTitle,
         color: theme.palette.text.primary
@@ -1301,39 +1344,44 @@ console.log('Event Type Props for CreateEvents:', {
                 )}
 
               <button
-    style={{ ...styles.actionBtn, ...styles.captureBtn }}
-    onClick={() => {
-      if (event.status === "closed" && !isAdmin) {
-        alert("Attendance has already been captured for this event.");
-        return;
-      }
-      handleCaptureClick(event);
-    }}
-    disabled={event.status === "closed" && !isAdmin}
-    title={event.status === "closed" && !isAdmin ? "Attendance captured — action disabled" : "Capture attendance"}
-  >
-    Capture
-  </button>
+  style={{ ...styles.actionBtn, ...styles.captureBtn }}
+  onClick={() => {
+    if (event.status === "closed" && !isAdmin) {
+      alert("Attendance has already been captured for this event.");
+      return;
+    }
+    handleCaptureClick(event);
+  }}
+  disabled={event.status === "closed" && !isAdmin}
+  title={
+    event.status === "closed" && !isAdmin
+      ? "Attendance captured — action disabled"
+      : "Capture attendance"
+  }
+>
+  Capture
+</button>
 
 
 
-                  <div style={styles.eventActions}>
 
-  {/* Add Captured badge for admins on closed events */}
-  {isAdmin && event.status === "closed" && (
-    <span style={{
-      color: 'green',
-      fontWeight: 'bold',
-      fontSize: '0.9rem',
-      marginRight: '1rem',
-      userSelect: 'none',
-      alignSelf: 'center',
-    }}>
-      ✓ Captured
-    </span>
-  )}
+                <div style={styles.eventActions}>
 
- 
+                  {/* Add Captured badge for admins on closed events */}
+                  {isAdmin && event.status === "closed" && (
+                    <span style={{
+                      color: 'green',
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem',
+                      marginRight: '1rem',
+                      userSelect: 'none',
+                      alignSelf: 'center',
+                    }}>
+                      ✓ Captured
+                    </span>
+                  )}
+
+
 
                   <button
                     style={{
@@ -1354,7 +1402,7 @@ console.log('Event Type Props for CreateEvents:', {
             );
           })}
       </div>
-      
+
       {legacyFilteredEvents.length === 0 && !loading && (
         <div style={{
           textAlign: 'center',
@@ -1413,6 +1461,7 @@ console.log('Event Type Props for CreateEvents:', {
         onClose={() => setCreateOptionsModalOpen(false)}
         onCreateEvent={handleCreateEvent}
         onCreateEventType={handleCreateEventType}
+        userRole={currentUser?.role}
       />
 
       {/* Create Event Type Modal */}
@@ -1420,49 +1469,57 @@ console.log('Event Type Props for CreateEvents:', {
         open={createEventTypeModalOpen}
         onClose={handleCloseCreateEventTypeModal}
         onSubmit={handleCreateEventTypeSubmit}
+        setSelectedEventTypeObj={setSelectedEventTypeObj}
+        customEventTypes={customEventTypes}
+        userRole={currentUser?.role}  // ✅ ADD THIS
       />
 
-      {/* Create Event Modal */}
 
-{/* Create Event Modal */}
-{createEventModalOpen && (
-  <div
-    style={styles.modalOverlay}
-    onClick={(e) => {
-      if (e.target === e.currentTarget) {
-        handleCloseCreateEventModal();
-      }
-    }}
-  >
-    <div style={styles.modalContent}>
-      <div style={styles.modalHeader}>
-        <h2 style={styles.modalTitle}>
-          {selectedEventTypeObj?.name === "CELLS" ? "Create New Cell" : "Create New Event"}
-        </h2>
-        <button
-          style={styles.modalCloseButton}
-          onClick={handleCloseCreateEventModal}
-          title="Close"
+      {/* Create Event Modal */}
+      {createEventModalOpen && (
+        <div
+          style={styles.modalOverlay}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseCreateEventModal();
+            }
+          }}
         >
-          ×
-        </button>
-      </div>
-      <div style={styles.modalBody}>
-        <CreateEvents
-          user={currentUser}
-          isModal={true}
-          onClose={handleCloseCreateEventModal}
-          selectedEventType={currentSelectedEventType}
-          eventTypes={allEventTypes}
-          isGlobalEvent={selectedEventTypeObj?.isGlobal || false}
-          isTicketedEvent={selectedEventTypeObj?.isTicketed || false}
-          hasPersonSteps={selectedEventTypeObj?.hasPersonSteps || false}
-        />
-      </div>
-    </div>
-  </div>
-)}
-   
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>
+                {selectedEventTypeObj?.name === "CELLS" ? "Create New Cell" : "Create New Event"}
+              </h2>
+              <button
+                style={styles.modalCloseButton}
+                onClick={handleCloseCreateEventModal}
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              {/* ADD THESE DEBUG LOGS */}
+              {console.log('DEBUG - currentSelectedEventType:', currentSelectedEventType)}
+              {console.log('DEBUG - selectedEventTypeObj:', selectedEventTypeObj)}
+              {console.log('DEBUG - customEventTypes:', customEventTypes)}
+              {console.log('DEBUG - isTicketed being passed:', selectedEventTypeObj?.isTicketed || false)}
+              <CreateEvents
+                user={currentUser}
+                isModal={true}
+                onClose={handleCloseCreateEventModal}
+                selectedEventType={currentSelectedEventType}
+                eventTypes={allEventTypes}
+                isGlobalEvent={selectedEventTypeObj?.isGlobal || false}
+                isTicketedEvent={selectedEventTypeObj?.isTicketed || false}
+                hasPersonSteps={selectedEventTypeObj?.hasPersonSteps || false}
+              />
+
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>

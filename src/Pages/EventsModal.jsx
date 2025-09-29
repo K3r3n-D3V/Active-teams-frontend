@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 
-const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType }) => {
-    const [hoveredButton, setHoveredButton] = useState(null);
+const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRole }) => {
+  const [hoveredButton, setHoveredButton] = useState(null);
+  
   if (!isOpen) return null;
+
+  // Check if user is admin
+  const isAdmin = userRole === 'admin';
 
   const modalStyles = {
     overlay: {
@@ -63,7 +67,6 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType }) => {
     }
   };
 
-
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -73,6 +76,7 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType }) => {
   return (
     <div style={modalStyles.overlay} onClick={handleOverlayClick}>
       <div style={modalStyles.floatingOptions}>
+        {/* Create Event - Available to all roles */}
         <button
           style={{
             ...modalStyles.optionButton,
@@ -90,26 +94,30 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType }) => {
           </div>
           Create Event
         </button>
-        
-        <button
-          style={{
-            ...modalStyles.optionButton,
-            transform: hoveredButton === 'eventType' ? 'scale(1.02)' : 'scale(1)',
-          }}
-          onMouseEnter={() => setHoveredButton('eventType')}
-          onMouseLeave={() => setHoveredButton(null)}
-          onClick={() => {
+       
+        {/* Create Event Type - ONLY for admins */}
+        {isAdmin && (
+          <button
+            style={{
+              ...modalStyles.optionButton,
+              transform: hoveredButton === 'eventType' ? 'scale(1.02)' : 'scale(1)',
+            }}
+            onMouseEnter={() => setHoveredButton('eventType')}
+            onMouseLeave={() => setHoveredButton(null)}
+            onClick={() => {
               onCreateEventType();
               onClose();
-          }}
-        >
-          <div style={{...modalStyles.optionIcon, ...modalStyles.eventTypeIcon}}>
-            🏷️
-          </div>
-          Create Event Type
-        </button>
+            }}
+          >
+            <div style={{...modalStyles.optionIcon, ...modalStyles.eventTypeIcon}}>
+              🏷️
+            </div>
+            Create Event Type
+          </button>
+        )}
       </div>
     </div>
-  )
+  );
 };
-  export default EventsModal;
+
+export default EventsModal;

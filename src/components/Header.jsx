@@ -6,9 +6,9 @@ export default function Home() {
   const [openPopup, setOpenPopup] = useState(false);
 
   const sections = [
-    { image: "/banner.jpg" },
+    { image: "/newposter.jpg" },
+    { image: "/newimage.jpg" },
     { image: "/homebanner1.jpg" },
-    { image: "/event.jpg" },
     { image: "/home.jpg" },
   ];
 
