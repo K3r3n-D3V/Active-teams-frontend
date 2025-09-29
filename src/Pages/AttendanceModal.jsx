@@ -93,8 +93,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
     }));
   };
 
- const handleSubmit = async () => {
-  const user = JSON.parse(localStorage.getItem('user'));
+const handleSubmit = async () => {
   const selected = people.filter(p => checked[p.id]);
 
   if (selected.length === 0) {
@@ -106,52 +105,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
     return;
   }
 
-  const eventId = event?.id || event?._id;
-
-  if (!eventId) {
-    setAlert({
-      open: true,
-      type: "error",
-      message: "Event ID is missing, cannot submit attendance.",
-    });
-    return;
-  }
-
-  const payload = {
-    attendees: selected,
-    leaderEmail: user?.email,
-    leaderName: user?.name
-  };
-
-  try {
-    const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    if (response.ok) {
-      setAlert({
-        open: true,
-        type: "success",
-        message: `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
-      });
-      onClose(); // close modal or do post-submit actions
-    } else {
-      const result = await response.json();
-      setAlert({
-        open: true,
-        type: "error",
-        message: result?.message || `Failed to submit attendance.`,
-      });
-    }
-  } catch (error) {
-    console.error(error);
-    setAlert({
-      open: true,
-      type: "error",
-      message: `Something went wrong while submitting attendance.`,
-    });
+  // Call parent's onSubmit with selected attendees
+  if (onSubmit) {
+    await onSubmit(selected);
   }
 };
   const handleMarkDidNotMeet = async () => {

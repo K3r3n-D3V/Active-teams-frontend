@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// Events.jsx
+import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
@@ -12,8 +13,17 @@ import Eventsfilter from "./Eventsfilter";
 import EventsModal from "./EventsModal";
 import CreateEvents from "./CreateEvents";
 import EventTypesModal from "./EventTypesModal";
+import Snackbar from "@mui/material/Snackbar";
+import MuiAlert from "@mui/material/Alert";
 
-// Define styles object outside the component
+const Alert = React.forwardRef(function Alert(props, ref) {
+  return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
+});
+
+
+/* ---------------------------
+   Styles (kept largely same)
+   --------------------------- */
 const styles = {
   container: {
     minHeight: "100vh",
@@ -187,12 +197,12 @@ const styles = {
     fontWeight: 600,
   },
   eventActions: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '1rem',
-    marginTop: 'auto',
-    paddingTop: '1rem',
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "1rem",
+    marginTop: "auto",
+    paddingTop: "1rem",
   },
   actionBtn: {
     flex: 1,
@@ -218,182 +228,164 @@ const styles = {
     backgroundColor: "#e9ecef",
     color: "#6c757d",
   },
-  // Fixed Modal overlay styles
   modalOverlay: {
-    position: 'fixed',
+    position: "fixed",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 2000,
-    padding: '20px',
+    padding: "20px",
   },
   modalContent: {
-    position: 'relative',
-    width: '90%',
-    maxWidth: '700px',
-    maxHeight: '95vh',
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
+    position: "relative",
+    width: "90%",
+    maxWidth: "700px",
+    maxHeight: "95vh",
+    backgroundColor: "white",
+    borderRadius: "12px",
+    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
   },
   modalHeader: {
-    backgroundColor: '#333',
-    color: 'white',
-    padding: '20px 24px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopLeftRadius: '12px',
-    borderTopRightRadius: '12px',
+    backgroundColor: "#333",
+    color: "white",
+    padding: "20px 24px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopLeftRadius: "12px",
+    borderTopRightRadius: "12px",
   },
   modalTitle: {
-    fontSize: '1.5rem',
-    fontWeight: 'bold',
+    fontSize: "1.5rem",
+    fontWeight: "bold",
     margin: 0,
   },
   modalCloseButton: {
-    background: 'rgba(255, 255, 255, 0.2)',
-    border: 'none',
-    borderRadius: '50%',
-    width: '32px',
-    height: '32px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    fontSize: '20px',
-    color: 'white',
-    fontWeight: 'bold',
-    transition: 'all 0.2s ease',
+    background: "rgba(255, 255, 255, 0.2)",
+    border: "none",
+    borderRadius: "50%",
+    width: "32px",
+    height: "32px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontSize: "20px",
+    color: "white",
+    fontWeight: "bold",
+    transition: "all 0.2s ease",
   },
   modalBody: {
     flex: 1,
-    overflow: 'auto',
-    padding: '0',
+    overflow: "auto",
+    padding: "0",
   },
 };
 
+/* ---------------------------
+   Small skeleton component
+   --------------------------- */
 const EventSkeleton = () => {
   return (
     <div style={styles.eventCard}>
-      <div
-        style={{ height: 18, width: "60%", borderRadius: 6, backgroundColor: "#e9ecef" }}
-      />
-      <div
-        style={{ height: 12, width: "45%", borderRadius: 6, backgroundColor: "#e9ecef" }}
-      />
-      <div
-        style={{ height: 12, width: "90%", borderRadius: 6, backgroundColor: "#e9ecef" }}
-      />
-      <div
-        style={{ height: 12, width: "85%", borderRadius: 6, backgroundColor: "#e9ecef" }}
-      />
-      <div
-        style={{
-          height: 12,
-          width: "70%",
-          borderRadius: 6,
-          backgroundColor: "#e9ecef",
-          marginTop: "auto",
-        }}
-      />
+      <div style={{ height: 18, width: "60%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
+      <div style={{ height: 12, width: "45%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
+      <div style={{ height: 12, width: "90%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
+      <div style={{ height: 12, width: "85%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
+      <div style={{ height: 12, width: "70%", borderRadius: 6, backgroundColor: "#e9ecef", marginTop: "auto" }} />
     </div>
   );
 };
 
+/* ---------------------------
+   Main Events component
+   --------------------------- */
 const Events = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
-
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const isAdmin = currentUser?.role === "admin";
 
+  // UI state
   const [showFilter, setShowFilter] = useState(false);
   const [filterType] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+
+  // Data state
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Menu & modals
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentEvent, setCurrentEvent] = useState(null);
   const [activeFilters, setActiveFilters] = useState({});
-  const [loading, setLoading] = useState(true);
   const [showCreateOptionsModal, setShowCreateOptionsModal] = useState(false);
-  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [showCreateEventTypeModal, setShowCreateEventTypeModal] = useState(false);
 
   const [eventTypes, setEventTypes] = useState([
-    "Service",
-    "Workshop",
-    "Encounter",
-    "Conference",
-    "J-Activation",
-    "Destiny Training",
-    "Social Event",
-    "Cell",
-    "Meeting",
+    "Service", "Workshop", "Encounter", "Conference", "J-Activation", "Destiny Training", "Social Event", "Cell", "Meeting",
   ]);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-  const fetchEvents = async () => {
-    setLoading(true);
+  /* ---------------------------
+     fetchEvents
+     --------------------------- */
+const fetchEvents = async () => {
+  setLoading(true);
+  try {
+    const token = localStorage.getItem("token");
 
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Fetch regular and cell events concurrently
+    if (isAdmin) {
+      // ✅ Admins get everything (all events + their cells)
       const [eventsResponse, cellsResponse] = await Promise.all([
-        axios.get(`${BACKEND_URL}/events`, { headers }),
-        axios.get(`${BACKEND_URL}/events/cells-user`, { headers }),
+        axios.get(`${BACKEND_URL}/events`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${BACKEND_URL}/events/cells-user`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
 
-      const regularEvents = eventsResponse.data.events || eventsResponse.data || [];
-      const nonCellEvents = regularEvents.filter(
-        (event) =>
-          event.eventType?.toLowerCase() !== "cell" && event.eventType?.toLowerCase() !== "cells"
+      const allEvents = [
+        ...(eventsResponse.data.events || eventsResponse.data || []),
+        ...(cellsResponse.data.events || []),
+      ];
+
+      const sortedEvents = allEvents.sort(
+        (a, b) => new Date(a.date) - new Date(b.date)
       );
 
-      const userCellEvents = cellsResponse.data.events || [];
+      setEvents(sortedEvents);
+      setFilteredEvents(sortedEvents);
 
-      console.log("Fetched non-cell events:", nonCellEvents.length);
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const futureNonCellEvents = nonCellEvents.filter((event) => {
-        if (event.status === "closed") {
-          console.log(`Filtered out closed event: ${event.eventName}`);
-          return false;
-        }
-        const eventDate = new Date(event.date);
-        const isFuture = eventDate >= today;
-        console.log(
-          `Event: ${event.eventName}, Date: ${eventDate}, Status: ${event.status}, Is Future: ${isFuture}`
-        );
-        return isFuture;
+      // Extract event types dynamically
+      const fetchedEventTypes = [
+        ...new Set(sortedEvents.map((e) => e.eventType).filter(Boolean)),
+      ];
+      setEventTypes((prev) => [...new Set([...prev, ...fetchedEventTypes])]);
+    } else {
+      // ✅ Normal users only get their cell events (backend already filters to today’s)
+      const cellsResponse = await axios.get(`${BACKEND_URL}/events/cells-user`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      console.log("Future events after filtering:", futureNonCellEvents.length);
-
-      const combinedEvents = [...futureNonCellEvents, ...userCellEvents];
-      const sortedEvents = combinedEvents.sort(
+      const userEvents = cellsResponse.data.events || [];
+      const sortedEvents = userEvents.sort(
         (a, b) => new Date(a.date) - new Date(b.date)
       );
 
@@ -401,75 +393,60 @@ const Events = () => {
       setFilteredEvents(sortedEvents);
 
       const fetchedEventTypes = [
-        ...new Set(sortedEvents.map((event) => event.eventType).filter(Boolean)),
+        ...new Set(sortedEvents.map((e) => e.eventType).filter(Boolean)),
       ];
       setEventTypes((prev) => [...new Set([...prev, ...fetchedEventTypes])]);
-    } catch (err) {
-      console.error("Failed to fetch events", err.response?.data || err);
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (err) {
+    console.error("Failed to fetch events", err.response?.data || err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
-    console.log("useEffect triggered with:", {
-      pathname: location.pathname,
-      refresh: location.state?.refresh,
-      timestamp: location.state?.timestamp,
-    });
     fetchEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, location.state?.refresh, location.state?.timestamp]);
 
-  // Apply filters to events
+  /* ---------------------------
+     Filters
+     --------------------------- */
   const applyFilters = (filters) => {
     setActiveFilters(filters);
 
-    if (Object.keys(filters).length === 0) {
+    if (!filters || Object.keys(filters).length === 0) {
       setFilteredEvents(events.filter((e) => e.status !== "closed"));
       return;
     }
 
-    const filtered = events.filter(event => {
+    const filtered = events.filter((event) => {
       if (event.status === "closed") return false;
-
       let matches = true;
 
-      // Event Type filter
       if (filters.eventType && event.eventType?.toLowerCase() !== filters.eventType.toLowerCase()) {
         matches = false;
       }
 
-      // Location filter
       if (filters.location && event.location !== filters.location) {
         matches = false;
       }
 
-      // Event Leader filter
       if (filters.eventLeader) {
-        const eventLeaderName = event.eventLeaderName ? event.eventLeaderName.trim().toLowerCase() : "";
+        const eventLeaderName = (event.eventLeaderName || "").trim().toLowerCase();
         const filterLeader = filters.eventLeader.trim().toLowerCase();
-        if (eventLeaderName !== filterLeader) {
-          matches = false;
-        }
+        if (eventLeaderName !== filterLeader) matches = false;
       }
 
-      // Ticketed filter
-      if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
-        const isTicketed = filters.isTicketed === 'true';
-        if (event.isTicketed !== isTicketed) {
-          matches = false;
-        }
+      if (filters.isTicketed !== undefined && filters.isTicketed !== "") {
+        const isTicketed = filters.isTicketed === "true";
+        if (event.isTicketed !== isTicketed) matches = false;
       }
 
-      // Recurring Day filter
       if (filters.recurringDay) {
-        const eventDays = Array.isArray(event.recurringDays)
-          ? event.recurringDays
-          : [event.recurringDays];
-
-        if (!eventDays.includes(filters.recurringDay)) {
-          matches = false;
-        }
+        const eventDays = Array.isArray(event.recurringDays) ? event.recurringDays : [event.recurringDays];
+        const normalizedDays = eventDays.filter(Boolean).map((d) => String(d).toLowerCase());
+        if (!normalizedDays.includes(filters.recurringDay.toLowerCase())) matches = false;
       }
 
       return matches;
@@ -478,6 +455,9 @@ const Events = () => {
     setFilteredEvents(filtered);
   };
 
+  /* ---------------------------
+     Utility: format date/time
+     --------------------------- */
   const formatDateTime = (date) => {
     if (!date) return "Date not set";
     const dateObj = new Date(date);
@@ -487,19 +467,21 @@ const Events = () => {
     return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
   };
 
-  // Legacy filter for backward compatibility
-  const legacyFilteredEvents =
-    filterType === "all"
+  /* ---------------------------
+     legacyFilteredEvents memoized
+     --------------------------- */
+  const legacyFilteredEvents = useMemo(() => {
+    return filterType === "all"
       ? filteredEvents
-      : filteredEvents.filter(
-        (e) => e.eventType?.toLowerCase() === filterType.toLowerCase()
-      );
+      : filteredEvents.filter((e) => e.eventType?.toLowerCase() === filterType.toLowerCase());
+  }, [filterType, filteredEvents]);
 
+  /* ---------------------------
+     Badge color helper
+     --------------------------- */
   const getBadgeColor = (eventType) => {
     if (!eventType) return "#6c757d";
-
     const cleanedType = eventType.trim().toLowerCase();
-
     const eventTypeColors = {
       "sunday service": "#5A9BD5",
       "friday service": "#7FB77E",
@@ -513,133 +495,14 @@ const Events = () => {
       "children's church": "#FFA07A",
       cell: "#007bff",
     };
-
     return eventTypeColors[cleanedType] || "#6c757d";
   };
 
-  const handleCaptureClick = (event) => {
-    setSelectedEvent(event);
-    setIsModalOpen(true);
-  };
+  const capitalize = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "");
 
-  const handleCreateEvent = () => {
-    setShowCreateOptionsModal(false); // Close options modal first
-    setShowCreateEventModal(true);
-  };
-
-  const handleCreateEventType = () => {
-    setShowCreateOptionsModal(false); // Close options modal first
-    setShowCreateEventTypeModal(true); // Open event type modal
-  };
-
-  const handleCloseCreateEventModal = () => {
-    setShowCreateEventModal(false);
-    // Refresh events after closing the modal
-    fetchEvents();
-  };
-
-  const handleCreateEventTypeSubmit = async (eventTypeData) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      // Add the new event type to the existing types
-      if (response.data && response.data.name) {
-        setEventTypes(prev => [...prev, response.data.name]);
-      }
-
-      console.log('Event type created successfully:', response.data);
-    } catch (error) {
-      console.error('Error creating event type:', error);
-      throw error; // Re-throw to handle in the modal
-    }
-  };
-
-  const handleCloseCreateEventTypeModal = () => {
-    setShowCreateEventTypeModal(false);
-  };
-
-const handleAttendanceSubmit = async (data) => {
-  if (!selectedEvent) {
-    alert("No event selected.");
-    return { success: false, message: "No event selected." };
-  }
-
-  const eventId = selectedEvent._id || selectedEvent.cellId || selectedEvent.service_name;
-  const eventName = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
-  const eventType = selectedEvent.eventType || "Event";
-
-  // Optimistic removal from UI
-  setEvents((prev) => prev.filter((e) => (e._id || e.cellId || e.service_name) !== eventId));
-  setFilteredEvents((prev) => prev.filter((e) => (e._id || e.cellId || e.service_name) !== eventId));
-
-  try {
-    // --- Did Not Meet ---
-    if (data === "did-not-meet" || (typeof data === "string" && data.toLowerCase().includes("did not meet"))) {
-      await axios.put(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-        attendees: [],
-        did_not_meet: true,
-      });
-
-      saveToEventHistory({
-        eventId,
-        service_name: eventName,
-        eventType,
-        status: "did-not-meet",
-        reason: "Marked as did not meet",
-        leader1: selectedEvent?.eventLeaderName || "-",
-        leader1_email: selectedEvent?.eventLeaderEmail || "-",
-        userEmail: currentUser?.email || "-",
-      });
-
-      console.log("Event saved to history (Did Not Meet):", JSON.parse(localStorage.getItem("eventHistory")));
-      navigate("/events-history");
-      return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
-    }
-
-    // --- Capture Attendance ---
-    if (Array.isArray(data) && data.length > 0) {
-      const formattedAttendees = data.map((person, index) => ({
-        id: person.id || null,
-        name: person.fullName || person.name || `Unknown-${index}-${person.id || "NA"}`,
-        email: person.email || `unknown${index}@example.com`,
-      }));
-
-      await axios.put(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-        attendees: formattedAttendees,
-        did_not_meet: false,
-      });
-
-      saveToEventHistory({
-        eventId,
-        service_name: eventName,
-        eventType,
-        status: "attended",
-        attendees: formattedAttendees,
-        leader1: selectedEvent?.eventLeaderName || "-",
-        leader1_email: selectedEvent?.eventLeaderEmail || "-",
-        userEmail: currentUser?.email || "-",
-      });
-
-      console.log("Event saved to history (Attended):", JSON.parse(localStorage.getItem("eventHistory")));
-      navigate("/events-history");
-      return { success: true, message: `Attendance for "${eventName}" captured.` };
-    }
-
-    alert("No attendees selected.");
-    return { success: false, message: "No attendees selected." };
-  } catch (error) {
-    console.error("Error submitting attendance:", error);
-    alert("Something went wrong. UI was updated optimistically.");
-    return { success: false, message: "Error submitting attendance." };
-  }
-};
-
-  const capitalize = (str) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
-
+  /* ---------------------------
+     Menu handlers
+     --------------------------- */
   const handleMenuOpen = (event, eventData) => {
     setAnchorEl(event.currentTarget);
     setCurrentEvent(eventData);
@@ -660,7 +523,7 @@ const handleAttendanceSubmit = async (data) => {
     try {
       const token = localStorage.getItem("token");
       await axios.delete(`${BACKEND_URL}/events/${currentEvent._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
@@ -671,49 +534,250 @@ const handleAttendanceSubmit = async (data) => {
     handleMenuClose();
   };
 
+  /* ---------------------------
+     Render leadership info
+     --------------------------- */
   const renderLeadershipInfo = (event) => {
     const isCell = event.eventType?.toLowerCase().includes("cell");
     const leaders = [];
-    if (event.eventLeaderName && event.eventLeaderName !== 'Not specified') {
+    if (event.eventLeaderName && event.eventLeaderName !== "Not specified") {
       leaders.push({
         title: "Event Leader",
         name: event.eventLeaderName,
-        style: { fontWeight: "600", color: theme.palette.text.primary }
+        style: { fontWeight: "600", color: theme.palette.text.primary },
       });
     }
-    if (event.eventLeaderEmail && event.eventLeaderEmail !== 'Not specified') {
+    if (event.eventLeaderEmail && event.eventLeaderEmail !== "Not specified") {
       leaders.push({
         title: "Leader Email",
         name: event.eventLeaderEmail,
-        style: { fontSize: "0.85rem", color: theme.palette.text.secondary }
+        style: { fontSize: "0.85rem", color: theme.palette.text.secondary },
       });
     }
 
-    // Cell-specific leadership
     if (isCell) {
       if (event.leader1 && event.leader1.trim()) {
-        leaders.push({
-          title: "Leader @1",
-          name: event.leader1,
-          style: { color: theme.palette.text.secondary }
-        });
+        leaders.push({ title: "Leader @1", name: event.leader1, style: { color: theme.palette.text.secondary } });
       }
       if (event.leader12 && event.leader12.trim()) {
-        leaders.push({
-          title: "Leader @12",
-          name: event.leader12,
-          style: { color: theme.palette.text.secondary }
-        });
+        leaders.push({ title: "Leader @12", name: event.leader12, style: { color: theme.palette.text.secondary } });
       }
     }
 
     return { leaders, isCell };
   };
 
+  /* ---------------------------
+     Capture / Attendance modal handlers
+     --------------------------- */
+  const handleCaptureClick = (event) => {
+    setSelectedEvent(event);
+    setIsModalOpen(true);
+
+    // 👑 Show alert as soon as capture starts
+    alert(`You are now capturing attendance for "${event.eventName || event.service_name}"`);
+  };
+
+  // Wrapper around handleAttendanceSubmit to ensure modal closes and user gets feedback
+  const onAttendanceModalSubmit = async (data) => {
+    // data can be "did-not-meet" string or array of attendees
+    try {
+      const result = await handleAttendanceSubmit(data);
+      // close modal regardless of success to match UX expectation
+      setIsModalOpen(false);
+      setSelectedEvent(null);
+
+      if (result?.success) {
+        // show friendly alert
+        alert(result.message);
+        // If your submit handler navigates (it does for history), no need to navigate here
+      } else {
+        alert(result?.message || "Submission failed.");
+      }
+    } catch (err) {
+      console.error("Attendance modal submit error:", err);
+      setIsModalOpen(false);
+      setSelectedEvent(null);
+      alert("Something went wrong while submitting attendance.");
+    }
+  };
+
+  /* ---------------------------
+     handleAttendanceSubmit (existing logic adapted)
+     returns: { success: boolean, message: string }
+     --------------------------- */
+  // In Events.jsx - Add this function to fetch current user's leader info
+  const fetchCurrentUserLeaderInfo = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const currentUserEmail = currentUser?.email;
+
+      if (!currentUserEmail) return { leader144: "-", userName: "-" };
+
+      const response = await axios.get(`${BACKEND_URL}/people`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { email: currentUserEmail }
+      });
+
+      const peopleData = response.data.people || response.data.results || [];
+
+      if (peopleData.length > 0) {
+        const userProfile = peopleData[0];
+
+        // Normalize leader @144 field
+        const leader144 =
+          userProfile["Leader @144"] ||
+          userProfile["Leader @ 144"] ||
+          userProfile.leader144 ||
+          "-";
+
+        const userName = `${userProfile.Name || userProfile.name || ""} ${userProfile.Surname || userProfile.surname || ""}`.trim();
+
+        return { leader144, userName };
+      }
+
+      return { leader144: "-", userName: "-" };
+    } catch (error) {
+      console.error("Error fetching user leader info:", error);
+      return { leader144: "-", userName: "-" };
+    }
+  };
+
+  // Update the handleAttendanceSubmit function
+  const handleAttendanceSubmit = async (data) => {
+    if (!selectedEvent) {
+      return { success: false, message: "No event selected." };
+    }
+
+    const eventId = selectedEvent._id || selectedEvent.cellId || selectedEvent.service_name;
+    const eventName = selectedEvent.eventName || selectedEvent.service_name || "Untitled Event";
+    const eventType = selectedEvent.eventType || "Event";
+
+    // Fetch current user's leader @144 info
+    const { leader144, userName } = await fetchCurrentUserLeaderInfo();
+
+    // Optimistic removal from UI
+    setEvents((prev) => prev.filter((e) => (e._id || e.cellId || e.service_name) !== eventId));
+    setFilteredEvents((prev) => prev.filter((e) => (e._id || e.cellId || e.service_name) !== eventId));
+
+    try {
+      const token = localStorage.getItem("token");
+
+      // --- Did Not Meet ---
+      if (data === "did-not-meet" || (typeof data === "string" && data.toLowerCase().includes("did not meet"))) {
+        await axios.put(
+          `${BACKEND_URL}/submit-attendance/${eventId}`,
+          { attendees: [], did_not_meet: true },
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+
+        saveToEventHistory({
+          eventId,
+          service_name: eventName,
+          eventType,
+          status: "did-not-meet",
+          reason: "Marked as did not meet",
+          leader12: selectedEvent?.leader12 || selectedEvent?.eventLeaderName || selectedEvent?.leader1 || "-",
+          leader12_email: selectedEvent?.leader12_email || selectedEvent?.eventLeaderEmail || selectedEvent?.leader1_email || "-",
+          userEmail: currentUser?.email || "-",
+          userName: userName || currentUser?.name || "-",
+          userLeader144: leader144,
+          closedAt: new Date().toISOString(),
+        });
+
+        return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
+      }
+
+      // --- Capture Attendance ---
+      if (Array.isArray(data) && data.length > 0) {
+        const formattedAttendees = data.map((person, index) => ({
+          id: person.id || null,
+          name: person.fullName || person.name || `Unknown-${index}-${person.id || "NA"}`,
+          email: person.email || `unknown${index}@example.com`,
+        }));
+
+        await axios.put(
+          `${BACKEND_URL}/submit-attendance/${eventId}`,
+          { attendees: formattedAttendees, did_not_meet: false },
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+
+        saveToEventHistory({
+          eventId,
+          service_name: eventName,
+          eventType,
+          status: "attended",
+          attendees: formattedAttendees,
+          leader12: selectedEvent?.leader12 || selectedEvent?.eventLeaderName || selectedEvent?.leader1 || "-",
+          leader12_email: selectedEvent?.leader12_email || selectedEvent?.eventLeaderEmail || selectedEvent?.leader1_email || "-",
+          userEmail: currentUser?.email || "-",
+          userName: userName || currentUser?.name || "-",
+          userLeader144: leader144,
+          closedAt: new Date().toISOString(),
+        });
+
+        return { success: true, message: `Attendance for "${eventName}" captured.` };
+      }
+
+      return { success: false, message: "No attendees selected." };
+    } catch (error) {
+      console.error("Error submitting attendance:", error);
+      return { success: false, message: "Something went wrong. UI was updated optimistically." };
+    }
+  };
+
+  /* ---------------------------
+     Create event handlers
+     --------------------------- */
+  const handleCreateEvent = () => {
+    setShowCreateOptionsModal(false);
+    setShowCreateEventModal(true);
+  };
+
+  const handleCreateEventType = () => {
+    setShowCreateOptionsModal(false);
+    setShowCreateEventTypeModal(true);
+  };
+
+  const handleCloseCreateEventModal = () => {
+    setShowCreateEventModal(false);
+    fetchEvents();
+  };
+
+  const handleCreateEventTypeSubmit = async (eventTypeData) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.data && response.data.name) {
+        setEventTypes((prev) => [...prev, response.data.name]);
+      }
+      return response.data;
+    } catch (error) {
+      console.error("Error creating event type:", error);
+      throw error;
+    }
+  };
+
+  const handleCloseCreateEventTypeModal = () => {
+    setShowCreateEventTypeModal(false);
+  };
+
+  /* ---------------------------
+     Render
+     --------------------------- */
   const activeFilterCount = Object.keys(activeFilters).length;
 
   return (
-    <div style={{ ...styles.container, backgroundColor: theme.palette.background.default, color: theme.palette.text.primary }}>
+    <div
+      style={{
+        ...styles.container,
+        backgroundColor: theme.palette.background.default,
+        color: theme.palette.text.primary,
+      }}
+    >
       {/* Header */}
       <div style={{ ...styles.header, backgroundColor: theme.palette.background.paper }}>
         <div style={styles.headerLeft}>
@@ -722,45 +786,50 @@ const handleAttendanceSubmit = async (data) => {
               ...styles.button,
               ...styles.btnFilter,
               marginLeft: "25px",
-              position: 'relative'
+              position: "relative",
             }}
             onClick={() => setShowFilter(true)}
           >
             FILTER EVENTS
             {activeFilterCount > 0 && (
-              <span style={{
-                position: 'absolute',
-                top: -8,
-                right: -8,
-                backgroundColor: '#007bff',
-                color: 'white',
-                borderRadius: '50%',
-                padding: '2px 6px',
-                fontSize: '0.75rem',
-                fontWeight: 'bold',
-                minWidth: '18px',
-                height: '18px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
+              <span
+                style={{
+                  position: "absolute",
+                  top: -8,
+                  right: -8,
+                  backgroundColor: "#007bff",
+                  color: "white",
+                  borderRadius: "50%",
+                  padding: "2px 6px",
+                  fontSize: "0.75rem",
+                  fontWeight: "bold",
+                  minWidth: "18px",
+                  height: "18px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 {activeFilterCount}
               </span>
             )}
           </button>
         </div>
+
         <div style={styles.headerRight}>
-          <div style={styles.profileIcon}></div>
+          <div style={styles.profileIcon} />
         </div>
       </div>
 
       {/* Results count */}
-      <div style={{
-        padding: '0 1rem',
-        fontSize: '0.875rem',
-        color: theme.palette.text.secondary
-      }}>
-        Showing {legacyFilteredEvents.length} of {events.filter(e => e.status !== "closed").length} events
+      <div
+        style={{
+          padding: "0 1rem",
+          fontSize: "0.875rem",
+          color: theme.palette.text.secondary,
+        }}
+      >
+        Showing {legacyFilteredEvents.length} of {events.filter((e) => e.status !== "closed").length} events
       </div>
 
       {/* Events Grid */}
@@ -770,25 +839,11 @@ const handleAttendanceSubmit = async (data) => {
           : legacyFilteredEvents.map((event) => {
             const { leaders } = renderLeadershipInfo(event);
             return (
-              <div
-                key={event._id}
-                style={{
-                  ...styles.eventCard,
-                  backgroundColor: theme.palette.background.paper,
-                }}
-              >
-                {/* Header with Title and Badge */}
+              <div key={event._id || event.cellId || event.service_name} style={{ ...styles.eventCard, backgroundColor: theme.palette.background.paper }}>
                 <div style={styles.eventHeader}>
                   <div style={styles.titleAndBadgeContainer}>
-                    <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
-                      {event.eventName}
-                    </h3>
-                    <span
-                      style={{
-                        ...styles.eventBadge,
-                        backgroundColor: getBadgeColor(event.eventType),
-                      }}
-                    >
+                    <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>{event.eventName || event.service_name}</h3>
+                    <span style={{ ...styles.eventBadge, backgroundColor: getBadgeColor(event.eventType) }}>
                       {capitalize(event.eventType)}
                     </span>
                   </div>
@@ -796,116 +851,57 @@ const handleAttendanceSubmit = async (data) => {
                   <IconButton
                     size="small"
                     onClick={(e) => handleMenuOpen(e, event)}
-                    style={{
-                      color: theme.palette.text.primary,
-                      flexShrink: 0,
-                    }}
+                    style={{ color: theme.palette.text.primary, flexShrink: 0 }}
                   >
                     <MoreVertIcon />
                   </IconButton>
-                  <Menu
-                    anchorEl={anchorEl}
-                    open={Boolean(anchorEl) && currentEvent?._id === event._id}
-                    onClose={handleMenuClose}
-                  >
+                  <Menu anchorEl={anchorEl} open={Boolean(anchorEl) && currentEvent?._id === event._id} onClose={handleMenuClose}>
                     <MenuItem onClick={handleEditEvent}>Edit</MenuItem>
                     <MenuItem onClick={handleDeleteEvent}>Delete</MenuItem>
                   </Menu>
                 </div>
 
-                {/* Leadership Information */}
                 {leaders.length > 0 && (
                   <div style={styles.leadershipSection}>
                     {leaders.map((leader, index) => (
                       <div key={index} style={styles.leaderRow}>
                         <span style={styles.leaderLabel}>{leader.title}:</span>
-                        <span style={{ ...styles.leaderName, ...leader.style }}>
-                          {leader.name}
-                        </span>
+                        <span style={{ ...styles.leaderName, ...leader.style }}>{leader.name}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Date, Location, Description */}
-                <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>
-                  {formatDateTime(event.date)}
-                </p>
-                <p style={{ ...styles.eventLocation, color: theme.palette.text.secondary }}>
-                  {event.location}
-                </p>
-                {event.description && (
-                  <p style={{
-                    ...styles.eventDescription,
-                    color: theme.palette.text.secondary,
-                    fontSize: '0.9rem',
-                    marginTop: '0.5rem',
-                    lineHeight: '1.4'
-                  }}>
-                    {event.description}
-                  </p>
-                )}
+                <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>{formatDateTime(event.date)}</p>
+                <p style={{ ...styles.eventLocation, color: theme.palette.text.secondary }}>{event.location}</p>
 
-                {/* Ticketed */}
-                {event.isTicketed && (
-                  <p style={{ ...styles.eventPrice, color: theme.palette.text.primary }}>
-                    Price: {event.price > 0 ? `R${event.price}` : "Free"}
-                  </p>
-                )}
+                {event.description && <p style={{ ...styles.eventDescription, color: theme.palette.text.secondary }}>{event.description}</p>}
 
-                {/* Recurring Days */}
+                {event.isTicketed && <p style={{ ...styles.eventPrice, color: theme.palette.text.primary }}>Price: {event.price > 0 ? `R${event.price}` : "Free"}</p>}
+
                 {event.recurringDays?.length > 0 && (
-                  <div style={{
-                    display: "flex",
-                    gap: "6px",
-                    marginTop: "8px",
-                    flexWrap: "wrap"
-                  }}>
-                    <span style={{
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: theme.palette.text.secondary,
-                      marginRight: "8px"
-                    }}>
-                      Recurring:
-                    </span>
+                  <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "0.85rem", fontWeight: "600", color: theme.palette.text.secondary, marginRight: "8px" }}>Recurring:</span>
                     {event.recurringDays.map((day, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          backgroundColor: "#6c757d",
-                          color: "#fff",
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          fontSize: "0.8rem",
-                        }}
-                      >
+                      <span key={idx} style={{ backgroundColor: "#6c757d", color: "#fff", padding: "4px 8px", borderRadius: "6px", fontSize: "0.8rem" }}>
                         {day}
                       </span>
                     ))}
                   </div>
                 )}
 
-                {/* Action Buttons */}
                 <div style={styles.eventActions}>
-                  <button
-                    style={{ ...styles.actionBtn, ...styles.captureBtn }}
-                    onClick={() => handleCaptureClick(event)}
-                  >
-                    Capture
-                  </button>
+                  <button style={{ ...styles.actionBtn, ...styles.captureBtn }} onClick={() => handleCaptureClick(event)}>Capture</button>
 
                   <button
                     style={{
                       ...styles.actionBtn,
                       ...styles.paymentBtn,
                       ...(event.isTicketed ? {} : styles.disabledBtn),
-                      whiteSpace: 'nowrap',
+                      whiteSpace: "nowrap",
                     }}
                     disabled={!event.isTicketed}
-                    onClick={() =>
-                      event.isTicketed && navigate(`/event-payment/${event._id}`)
-                    }
+                    onClick={() => event.isTicketed && navigate(`/event-payment/${event._id}`)}
                   >
                     {event.isTicketed ? "Payment" : "No Payment"}
                   </button>
@@ -915,34 +911,18 @@ const handleAttendanceSubmit = async (data) => {
           })}
       </div>
 
-      {/* No Events Message */}
+      {/* No events message */}
       {legacyFilteredEvents.length === 0 && !loading && (
-        <div style={{
-          textAlign: 'center',
-          padding: '2rem',
-          color: theme.palette.text.secondary
-        }}>
+        <div style={{ textAlign: "center", padding: "2rem", color: theme.palette.text.secondary }}>
           <p>No events found matching your criteria.</p>
         </div>
       )}
 
       {/* Floating Buttons */}
       {isAdmin ? (
-        <button
-          style={styles.floatingAddButton}
-          onClick={() => setShowCreateOptionsModal(true)}
-          title="Add New Event"
-        >
-          +
-        </button>
+        <button style={styles.floatingAddButton} onClick={() => setShowCreateOptionsModal(true)} title="Add New Event">+</button>
       ) : (
-        <button
-          style={styles.floatingHistoryButton}
-          onClick={() => navigate("/events-history")}
-          title="View Event History"
-        >
-          History
-        </button>
+        <button style={styles.floatingHistoryButton} onClick={() => navigate("/events-history")} title="View Event History">History</button>
       )}
 
       {/* Filter Modal */}
@@ -956,28 +936,14 @@ const handleAttendanceSubmit = async (data) => {
       />
 
       {/* Attendance Modal */}
-      {selectedEvent && (
+      {isModalOpen && (
         <AttendanceModal
           isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false);
-            setSelectedEvent(null);
-          }}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={onAttendanceModalSubmit}
           event={selectedEvent}
-          onSubmit={handleAttendanceSubmit}
         />
       )}
-
-      {/* Additional Attendance Modal for Admin */}
-      {showAttendanceModal && (
-        <AttendanceModal
-          isOpen={showAttendanceModal}
-          onClose={() => setShowAttendanceModal(false)}
-          event={selectedEvent}
-          onSubmit={handleAttendanceSubmit}
-        />
-      )}
-
       {/* Create Options Modal */}
       <EventsModal
         isOpen={showCreateOptionsModal}
@@ -987,12 +953,7 @@ const handleAttendanceSubmit = async (data) => {
       />
 
       {/* Create Event Type Modal */}
-      <EventTypesModal
-        open={showCreateEventTypeModal}
-        onClose={handleCloseCreateEventTypeModal}
-        onSubmit={handleCreateEventTypeSubmit}
-      />
-
+      <EventTypesModal open={showCreateEventTypeModal} onClose={handleCloseCreateEventTypeModal} onSubmit={handleCreateEventTypeSubmit} />
 
       {/* Create Event Modal */}
       {showCreateEventModal && (
@@ -1006,23 +967,16 @@ const handleAttendanceSubmit = async (data) => {
         >
           <div style={styles.modalContent}>
             <button
-              style={{
-                ...styles.modalCloseButton,
-                ':hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 1)',
-                  color: '#333'
-                }
-              }}
+              style={styles.modalCloseButton}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,1)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
               onClick={handleCloseCreateEventModal}
               title="Close"
             >
               ×
             </button>
-            <CreateEvents
-              user={currentUser}
-              isModal={true}
-              onClose={handleCloseCreateEventModal}
-            />
+
+            <CreateEvents user={currentUser} isModal={true} onClose={handleCloseCreateEventModal} />
           </div>
         </div>
       )}

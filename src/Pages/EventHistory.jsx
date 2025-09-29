@@ -1,9 +1,11 @@
-// EventHistory.jsx
+// EventHistory.jsx - Complete Updated Version with MUI Theme Support
 import React, { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { FaRegCalendarAlt } from "react-icons/fa";
+import { useLocation } from "react-router-dom";
+import { useTheme } from "@mui/material/styles";
 
-// ✅ Save event history utility
+// Updated saveToEventHistory utility
 export const saveToEventHistory = ({
   eventId,
   service_name,
@@ -11,11 +13,15 @@ export const saveToEventHistory = ({
   status,
   attendees = [],
   reason = "",
-  leader1 = "-",
-  leader1_email = "-", 
+  leader12 = "-",
+  leader12_email = "-", 
   userEmail = "",
+  userName = "",
+  userLeader144 = "-",
+  closedAt = "",
 }) => {
   const currentHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
+
   const newEntry = {
     eventId,
     service_name,
@@ -23,24 +29,33 @@ export const saveToEventHistory = ({
     status,
     attendees,
     reason,
-    leader1: leader1 || "-",
-    leader1_email: leader1_email || "-", 
+    leader12: leader12 || "-",
+    leader12_email: leader12_email || "-",
     userEmail: userEmail || "-",
+    userName: userName || "-",
+    userLeader144: userLeader144 || "-",
+    closedAt,
     timestamp: new Date().toISOString(),
   };
+
   currentHistory.push(newEntry);
   localStorage.setItem("eventHistory", JSON.stringify(currentHistory));
-  // Dispatch custom event so components know to update
+
   window.dispatchEvent(new Event("eventHistoryUpdated"));
+  
+  console.log("Saved event history:", newEntry);
 };
 
 const EventHistory = ({ user }) => {
   const navigate = useNavigate();
-  const location = useLocation();
+  const theme = useTheme();
   const [events, setEvents] = useState([]);
   const [filterName, setFilterName] = useState("");
   const [filterDate, setFilterDate] = useState("");
-  const [activeFilter, setActiveFilter] = useState("incomplete");
+  const [activeFilter, setActiveFilter] = useState("complete");
+  const location = useLocation();
+
+  const isDarkMode = theme.palette.mode === 'dark';
 
   const getEventHistory = () => {
     const history = localStorage.getItem("eventHistory");
@@ -50,7 +65,7 @@ const EventHistory = ({ user }) => {
   const groupHistoryByEvent = () => {
     const rawHistory = getEventHistory();
     const grouped = {};
-
+    
     rawHistory.forEach((entry) => {
       const eventKey = entry.eventId || entry.service_name;
       if (!grouped[eventKey]) {
@@ -58,12 +73,12 @@ const EventHistory = ({ user }) => {
           _id: eventKey,
           service_name: entry.service_name,
           eventType: entry.eventType,
-          leader1: entry.leader1 || "-",
-          leader1_email: entry.leader1_email || "-",
+          leader12: entry.leader12 || "-",
+          leader12_email: entry.leader12_email || "-",
           day: new Date(entry.timestamp).toLocaleDateString("en-US", {
             weekday: "long",
           }),
-          email: entry.userEmail || user?.email || "-",
+          email: entry.userEmail || user?.email || "-", 
           history: [],
         };
       }
@@ -72,87 +87,73 @@ const EventHistory = ({ user }) => {
         timestamp: entry.timestamp,
         attendees: entry.attendees,
         reason: entry.reason,
+        closedAt: entry.closedAt,
       });
     });
-
-    // Sort events by latest timestamp so newest appears on top
-    return Object.values(grouped).sort((a, b) => {
-      const aTime = new Date(a.history[a.history.length - 1].timestamp).getTime();
-      const bTime = new Date(b.history[b.history.length - 1].timestamp).getTime();
-      return bTime - aTime;
-    });
-  };
-
-  const refreshEvents = () => {
-    const grouped = groupHistoryByEvent();
-    setEvents(grouped);
-    // Auto-select tab based on latest event status
-    if (grouped.length > 0) {
-      const latestEntry = grouped[0].history[grouped[0].history.length - 1];
-      if (latestEntry.status === "attended") setActiveFilter("complete");
-      else if (latestEntry.status === "did-not-meet") setActiveFilter("did-not-meet");
-      else setActiveFilter("incomplete");
-    }
+    
+    return Object.values(grouped);
   };
 
   useEffect(() => {
-    window.addEventListener("eventHistoryUpdated", refreshEvents);
-    refreshEvents(); // Initial load
-    return () => window.removeEventListener("eventHistoryUpdated", refreshEvents);
+    const onHistoryUpdated = () => {
+      setEvents(groupHistoryByEvent());
+    };
+
+    window.addEventListener("eventHistoryUpdated", onHistoryUpdated);
+    setEvents(groupHistoryByEvent());
+
+    return () => {
+      window.removeEventListener("eventHistoryUpdated", onHistoryUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
+    setEvents(groupHistoryByEvent());
   }, [location]);
 
-  // ✅ Filtered events
   const filteredEvents = events.filter((event) => {
     const matchesName = filterName
-      ? event.service_name.toLowerCase().includes(filterName.toLowerCase())
+      ? event.service_name.toLowerCase().includes(filterName.toLowerCase()) ||
+        event.leader12.toLowerCase().includes(filterName.toLowerCase())
       : true;
+
     const matchesDate = filterDate
       ? event.history.some((h) =>
           new Date(h.timestamp).toISOString().startsWith(filterDate)
         )
       : true;
+
     return matchesName && matchesDate;
   });
 
   const completeEvents = filteredEvents.filter((event) =>
     event.history.some((h) => h.status === "attended")
   );
+  
+  const incompleteEvents = filteredEvents.filter((event) =>
+    event.history.some((h) => h.status === "did-not-meet")
+  );
+  
   const didNotMeetEvents = filteredEvents.filter((event) =>
     event.history.some((h) => h.status === "did-not-meet")
   );
-  const incompleteEvents = filteredEvents.filter(
-    (event) =>
-      !event.history.some((h) => h.status === "attended" || h.status === "did-not-meet")
-  );
-
-  const eventsToShow =
-    activeFilter === "complete"
-      ? completeEvents
-      : activeFilter === "did-not-meet"
-      ? didNotMeetEvents
-      : incompleteEvents;
 
   const openEventDetails = (eventId) => {
     const selectedEvent = events.find((e) => e._id === eventId);
     navigate("/event-details", { state: { event: selectedEvent } });
   };
 
-  // ✅ Get notification message based on active filter
-  const getNotificationMessage = () => {
-    if (eventsToShow.length === 0) {
-      switch (activeFilter) {
-        case "complete":
-          return "📅 No completed events found. Events that have been attended will appear here.";
-        case "did-not-meet":
-          return "❌ No 'did not meet' events found. Events that didn't take place will appear here.";
-        case "incomplete":
-          return "⏳ No incomplete events found. Events that are pending or in progress will appear here.";
-        default:
-          return "📭 No events found matching your criteria.";
-      }
-    }
-    return null;
-  };
+  const eventsToShow =
+    activeFilter === "complete"
+      ? completeEvents
+      : activeFilter === "incomplete"
+      ? incompleteEvents
+      : activeFilter === "did-not-meet"
+      ? didNotMeetEvents
+      : filteredEvents;
+
+  // Get theme-aware styles
+  const styles = getStyles(theme);
 
   return (
     <div style={styles.container}>
@@ -168,25 +169,16 @@ const EventHistory = ({ user }) => {
             onChange={(e) => setFilterName(e.target.value)}
             style={styles.searchInput}
           />
-          <button
+          <button 
             style={styles.filterButton}
-            onClick={() => setEvents(groupHistoryByEvent())} // 🔹 Trigger filter manually
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? "#e07b00" : "#e67e22"}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#ff8c00"}
           >
-            FILTER
+            Filter
           </button>
         </div>
 
         <div style={styles.filterTabs}>
-          <button
-            onClick={() => setActiveFilter("incomplete")}
-            style={
-              activeFilter === "incomplete"
-                ? { ...styles.filterBtn, ...styles.activeIncompleteBtn }
-                : styles.filterBtn
-            }
-          >
-            INCOMPLETE ({incompleteEvents.length})
-          </button>
           <button
             onClick={() => setActiveFilter("complete")}
             style={
@@ -196,6 +188,16 @@ const EventHistory = ({ user }) => {
             }
           >
             COMPLETE ({completeEvents.length})
+          </button>
+          <button
+            onClick={() => setActiveFilter("incomplete")}
+            style={
+              activeFilter === "incomplete"
+                ? { ...styles.filterBtn, ...styles.activeIncompleteBtn }
+                : styles.filterBtn
+            }
+          >
+            INCOMPLETE ({incompleteEvents.length})
           </button>
           <button
             onClick={() => setActiveFilter("did-not-meet")}
@@ -210,15 +212,8 @@ const EventHistory = ({ user }) => {
         </div>
       </div>
 
-      {/* ✅ Notification Alert */}
-      {getNotificationMessage() && (
-        <div style={styles.notificationAlert}>
-          {getNotificationMessage()}
-        </div>
-      )}
-
-      {/* Table - Only show if there are events */}
-      {eventsToShow.length > 0 && (
+      {/* Table */}
+      <div style={styles.tableContainer}>
         <table style={styles.table}>
           <thead>
             <tr style={styles.tableHeaderRow}>
@@ -227,45 +222,45 @@ const EventHistory = ({ user }) => {
               <th style={styles.tableHeaderCell}>Leader's Email</th>
               <th style={styles.tableHeaderCell}>Day</th>
               <th style={styles.tableHeaderCell}>Date Of Event</th>
-              <th style={styles.tableHeaderCell}>Open Event</th>
+              <th style={{ ...styles.tableHeaderCell, textAlign: "center" }}>View Attendees</th>
             </tr>
           </thead>
+
           <tbody>
             {eventsToShow.map((event) => {
               const latest = [...event.history]
                 .filter((h) =>
                   activeFilter === "complete"
                     ? h.status === "attended"
-                    : activeFilter === "did-not-meet"
-                    ? h.status === "did-not-meet"
-                    : true
+                    : h.status === "did-not-meet"
                 )
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
 
               return (
-                <tr key={event._id} style={styles.tr}>
+                <tr 
+                  key={event._id} 
+                  style={styles.tr}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? theme.palette.grey[800] : theme.palette.grey[50]}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? theme.palette.grey[900] : '#fff'}
+                >
                   <td style={styles.td}>{event.service_name}</td>
-                  <td style={styles.td}>{event.leader1 || "-"}</td>
-                  <td style={styles.td}>{event.leader1_email || "-"}</td>
+                  <td style={styles.td}>{event.leader12 || "-"}</td>
+                  <td style={styles.td}>{event.leader12_email || "-"}</td>
+                  <td style={styles.td}>{event.day}</td>
                   <td style={styles.td}>
-                    {latest
-                      ? new Date(latest.timestamp).toLocaleDateString("en-US", {
-                          weekday: "long",
-                        })
-                      : "-"}
-                  </td>
-                  <td style={styles.td}>
-                    {latest &&
-                      new Date(latest.timestamp).toLocaleDateString("en-GB", {
+                    {latest?.closedAt || 
+                      (latest && new Date(latest.timestamp).toLocaleDateString("en-GB", {
                         day: "2-digit",
-                        month: "2-digit",
+                        month: "2-digit", 
                         year: "numeric",
-                      }).replace(/\//g, " - ")}
+                      }).replace(/\//g, " - "))}
                   </td>
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <button
                       style={styles.iconBtn}
                       onClick={() => openEventDetails(event._id)}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#2563eb"}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#3b82f6"}
                     >
                       <FaRegCalendarAlt />
                     </button>
@@ -275,6 +270,13 @@ const EventHistory = ({ user }) => {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Show message if no events */}
+      {eventsToShow.length === 0 && (
+        <div style={styles.noEventsMessage}>
+          No events found for the selected filter.
+        </div>
       )}
 
       <input
@@ -303,191 +305,234 @@ const EventHistory = ({ user }) => {
         </div>
       </section>
 
-      <button style={styles.backBtn} onClick={() => navigate("/events")}>
+      <button 
+        style={styles.backBtn} 
+        onClick={() => navigate("/events")}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = isDarkMode ? theme.palette.grey[800] : theme.palette.grey[50];
+          e.currentTarget.style.borderColor = isDarkMode ? theme.palette.grey[700] : theme.palette.grey[300];
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = isDarkMode ? theme.palette.grey[900] : '#fff';
+          e.currentTarget.style.borderColor = isDarkMode ? theme.palette.grey[800] : theme.palette.grey[200];
+        }}
+      >
         🔙 Back to Events
       </button>
     </div>
   );
 };
 
-// ✅ Styles object
-const styles = {
-  container: {
-    maxWidth: "100%",
-    minHeight: "100vh",
-    padding: "2rem",
-    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    backgroundColor: "#f0f0f5",
-  },
-  header: {
-    fontSize: "3rem",
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: "2rem",
-    color: "#000",
-  },
-  searchSection: {
-    marginBottom: "2rem",
-  },
-  searchContainer: {
-    display: "flex",
-    justifyContent: "center",
-    gap: "1rem",
-    marginBottom: "1.5rem",
-    alignItems: "center",
-  },
-  searchInput: {
-    padding: "0.8rem 1.5rem",
-    fontSize: "1rem",
-    borderRadius: "8px",
-    border: "2px solid #ddd",
-    outline: "none",
-    width: "400px",
-    backgroundColor: "#fff",
-  },
-  filterButton: {
-    padding: "0.8rem 2rem",
-    fontSize: "1rem",
-    borderRadius: "8px",
-    border: "none",
-    backgroundColor: "#007bff",
-    color: "#fff",
-    fontWeight: "700",
-    cursor: "pointer",
-    textTransform: "uppercase",
-  },
-  filterTabs: {
-    display: "flex",
-    justifyContent: "center",
-    gap: "0",
-    marginBottom: "1.5rem",
-  },
-  filterBtn: {
-    padding: "0.8rem 2rem",
-    border: "2px solid #ccc",
-    backgroundColor: "#fff",
-    color: "#666",
-    fontWeight: "700",
-    cursor: "pointer",
-    fontSize: "0.9rem",
-    textTransform: "uppercase",
-    borderRadius: "0",
-    transition: "all 0.3s",
-  },
-  activeIncompleteBtn: {
-    backgroundColor: "#c8c1c1a8",
-    borderColor: "#0c2877ff",
-    color: "#000",
-  },
-  activeCompleteBtn: {
-    backgroundColor: "#28a745",
-    borderColor: "#28a745",
-    color: "#fff",
-  },
-  activeDidNotMeetBtn: {
-    backgroundColor: "#dc3545",
-    borderColor: "#dc3545",
-    color: "#fff",
-  },
-  // ✅ New notification alert styles
-  notificationAlert: {
-    backgroundColor: "#e7f3ff",
-    border: "2px solid #4a90e2",
-    borderRadius: "12px",
-    padding: "1.5rem 2rem",
-    marginBottom: "2rem",
-    textAlign: "center",
-    fontSize: "1.1rem",
-    fontWeight: "600",
-    color: "#2c3e50",
-    boxShadow: "0 2px 8px rgba(74, 144, 226, 0.15)",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    marginBottom: "2rem",
-    backgroundColor: "#fff",
-  },
-  tableHeaderRow: {
-    backgroundColor: "#000",
-  },
-  tableHeaderCell: {
-    color: "#fff",
-    padding: "15px 20px",
-    fontSize: "1rem",
-    textAlign: "left",
-    fontWeight: "600",
-    border: "1px solid #333",
-  },
-  tr: {
-    backgroundColor: "#fff",
-    transition: "background-color 0.25s",
-  },
-  td: {
-    padding: "15px 20px",
-    borderBottom: "1px solid #ddd",
-    fontSize: "0.95rem",
-    color: "#333",
-    border: "1px solid #ddd",
-  },
-  iconBtn: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    color: "#007bff",
-    fontSize: "1.5rem",
-    padding: "5px",
-  },
-  hiddenDateInput: {
-    display: "none",
-  },
-  summarySection: {
-    marginTop: "3rem",
-  },
-  summaryHeader: {
-    textAlign: "center",
-    fontSize: "1.8rem",
-    fontWeight: "700",
-    marginBottom: "1.5rem",
-    color: "#2c3e50",
-  },
-  summaryGrid: {
-    display: "flex",
-    justifyContent: "center",
-    gap: "3rem",
-    flexWrap: "wrap",
-  },
-  summaryCard: {
-    backgroundColor: "#fff",
-    padding: "1.5rem 2.5rem",
-    borderRadius: "20px",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.1)",
-    minWidth: "160px",
-    textAlign: "center",
-  },
-  summaryNumber: {
-    fontSize: "2.8rem",
-    fontWeight: "700",
-    color: "#4a90e2",
-    marginBottom: "4px",
-  },
-  summaryLabel: {
-    fontSize: "1.1rem",
-    fontWeight: "600",
-    color: "#7f8c8d",
-  },
-  backBtn: {
-    display: "block",
-    margin: "2rem auto 1rem",
-    padding: "0.9rem 2.5rem",
-    borderRadius: "30px",
-    border: "none",
-    backgroundColor: "#4a90e2",
-    color: "#fff",
-    fontSize: "1.1rem",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
+// Theme-aware styles function using MUI theme
+const getStyles = (theme) => {
+  const isDarkMode = theme.palette.mode === 'dark';
+  
+  return {
+    container: {
+      maxWidth: "100%",
+      minHeight: "100vh",
+      padding: "1.5rem",
+      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      backgroundColor: isDarkMode ? theme.palette.grey[900] : theme.palette.grey[100],
+    },
+    header: {
+      fontSize: "2rem",
+      fontWeight: "600",
+      textAlign: "left",
+      marginBottom: "1.5rem",
+      color: isDarkMode ? '#fff' : '#000',
+      paddingLeft: "0.5rem",
+    },
+    searchSection: {
+      marginBottom: "1.5rem",
+      backgroundColor: isDarkMode ? theme.palette.grey[800] : '#fff',
+      padding: "1.5rem",
+      borderRadius: "12px",
+      boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.06)",
+    },
+    searchContainer: {
+      display: "flex",
+      justifyContent: "space-between",
+      gap: "1rem",
+      marginBottom: "1.5rem",
+      alignItems: "center",
+      flexWrap: "wrap",
+    },
+    searchInput: {
+      padding: "0.75rem 1rem",
+      fontSize: "0.95rem",
+      borderRadius: "6px",
+      border: isDarkMode ? `1px solid ${theme.palette.grey[700]}` : `1px solid ${theme.palette.grey[300]}`,
+      outline: "none",
+      flex: "1",
+      backgroundColor: isDarkMode ? theme.palette.grey[900] : '#fff',
+      color: isDarkMode ? '#fff' : '#000',
+      maxWidth: "500px",
+      minWidth: "250px",
+    },
+    filterButton: {
+      padding: "0.75rem 2rem",
+      fontSize: "0.95rem",
+      borderRadius: "6px",
+      border: "none",
+      backgroundColor: "#ff8c00",
+      color: "#fff",
+      fontWeight: "600",
+      cursor: "pointer",
+      textTransform: "capitalize",
+      transition: "background-color 0.2s",
+    },
+    filterTabs: {
+      display: "flex",
+      justifyContent: "flex-start",
+      gap: "0.75rem",
+      marginBottom: "0",
+      flexWrap: "wrap",
+    },
+    filterBtn: {
+      padding: "0.65rem 1.5rem",
+      border: isDarkMode ? `1px solid ${theme.palette.grey[700]}` : `1px solid ${theme.palette.grey[300]}`,
+      backgroundColor: isDarkMode ? theme.palette.grey[800] : '#fff',
+      color: isDarkMode ? theme.palette.grey[400] : theme.palette.grey[700],
+      fontWeight: "600",
+      cursor: "pointer",
+      fontSize: "0.9rem",
+      textTransform: "uppercase",
+      borderRadius: "6px",
+      transition: "all 0.2s",
+    },
+    activeIncompleteBtn: {
+      backgroundColor: isDarkMode ? "#78350f" : "#fef3c7",
+      borderColor: isDarkMode ? "#92400e" : "#f59e0b",
+      color: isDarkMode ? "#fef3c7" : "#92400e",
+    },
+    activeCompleteBtn: {
+      backgroundColor: isDarkMode ? "#064e3b" : "#d1fae5",
+      borderColor: isDarkMode ? "#065f46" : "#10b981",
+      color: isDarkMode ? "#d1fae5" : "#065f46",
+    },
+    activeDidNotMeetBtn: {
+      backgroundColor: isDarkMode ? "#7f1d1d" : "#fee2e2",
+      borderColor: isDarkMode ? "#991b1b" : "#ef4444",
+      color: isDarkMode ? "#fee2e2" : "#991b1b",
+    },
+    tableContainer: {
+      overflowX: "auto",
+      borderRadius: "12px",
+      boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.06)",
+      marginBottom: "2rem",
+    },
+    table: {
+      width: "100%",
+      borderCollapse: "separate",
+      borderSpacing: "0",
+      backgroundColor: isDarkMode ? theme.palette.grey[900] : '#fff',
+      borderRadius: "12px",
+      overflow: "hidden",
+    },
+    tableHeaderRow: {
+      backgroundColor: isDarkMode ? theme.palette.grey[800] : theme.palette.grey[700],
+    },
+    tableHeaderCell: {
+      color: "#fff",
+      padding: "16px 20px",
+      fontSize: "0.9rem",
+      textAlign: "left",
+      fontWeight: "600",
+      borderBottom: isDarkMode ? `2px solid ${theme.palette.grey[900]}` : "2px solid #1f2937",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px",
+    },
+    tr: {
+      backgroundColor: isDarkMode ? theme.palette.grey[900] : '#fff',
+      transition: "background-color 0.15s",
+      cursor: "pointer",
+    },
+    td: {
+      padding: "16px 20px",
+      borderBottom: isDarkMode ? `1px solid ${theme.palette.grey[800]}` : `1px solid ${theme.palette.grey[100]}`,
+      fontSize: "0.95rem",
+      color: isDarkMode ? theme.palette.grey[300] : theme.palette.grey[800],
+    },
+    iconBtn: {
+      background: "#3b82f6",
+      border: "none",
+      cursor: "pointer",
+      color: "#fff",
+      fontSize: "1.1rem",
+      padding: "8px 12px",
+      borderRadius: "6px",
+      transition: "background-color 0.2s",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    noEventsMessage: {
+      textAlign: 'center',
+      padding: '2rem',
+      fontSize: '1.1rem',
+      color: isDarkMode ? theme.palette.grey[400] : theme.palette.grey[600],
+      backgroundColor: isDarkMode ? theme.palette.grey[800] : '#fff',
+      borderRadius: '12px',
+      marginBottom: '2rem',
+      boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.06)",
+    },
+    hiddenDateInput: {
+      display: "none",
+    },
+    summarySection: {
+      marginTop: "2rem",
+      backgroundColor: isDarkMode ? theme.palette.grey[800] : '#fff',
+      padding: "2rem",
+      borderRadius: "12px",
+      boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.06)",
+    },
+    summaryHeader: {
+      textAlign: "left",
+      fontSize: "1.5rem",
+      fontWeight: "600",
+      marginBottom: "1.5rem",
+      color: isDarkMode ? '#fff' : '#000',
+    },
+    summaryGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+      gap: "1.5rem",
+    },
+    summaryCard: {
+      backgroundColor: isDarkMode ? theme.palette.grey[900] : theme.palette.grey[50],
+      padding: "1.5rem",
+      borderRadius: "10px",
+      border: isDarkMode ? `1px solid ${theme.palette.grey[800]}` : `1px solid ${theme.palette.grey[200]}`,
+      textAlign: "center",
+    },
+    summaryNumber: {
+      fontSize: "2.5rem",
+      fontWeight: "700",
+      color: "#3b82f6",
+      marginBottom: "0.5rem",
+    },
+    summaryLabel: {
+      fontSize: "1rem",
+      fontWeight: "500",
+      color: isDarkMode ? theme.palette.grey[400] : theme.palette.grey[600],
+    },
+    backBtn: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "0.5rem",
+      margin: "2rem 0 1rem",
+      padding: "0.75rem 1.5rem",
+      borderRadius: "8px",
+      border: isDarkMode ? `1px solid ${theme.palette.grey[800]}` : `1px solid ${theme.palette.grey[200]}`,
+      backgroundColor: isDarkMode ? theme.palette.grey[900] : '#fff',
+      color: isDarkMode ? '#fff' : '#000',
+      fontSize: "1rem",
+      fontWeight: "600",
+      cursor: "pointer",
+      transition: "all 0.2s",
+    },
+  };
 };
 
 export default EventHistory;
