@@ -96,7 +96,7 @@ const styles = {
       flexWrap: 'wrap',  // Allow wrapping to next line
   },
  eventTypeButton: {
-  padding: '0.5rem 1rem',  // Reduce padding further
+  padding: '0.5rem 1rem',  
   backgroundColor: '#f8f9fa',
   color: '#6c757d',
   border: '1px solid #dee2e6',
@@ -107,10 +107,10 @@ const styles = {
   whiteSpace: 'nowrap',
   transition: 'all 0.2s ease',
   textTransform: 'uppercase',
-  letterSpacing: '0.3px',  // Reduce letter spacing
+  letterSpacing: '0.3px', 
   display: 'flex',
   alignItems: 'center',
-  gap: '0.6rem'  // Reduce gap between text and delete icon
+  gap: '0.6rem'  
 },
   eventTypeButtonActive: {
     backgroundColor: '#007bff',
