@@ -15,6 +15,9 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
+
 import Eventsfilter from "./Eventsfilter";
 import EventsModal from "./EventsModal";
 import CreateEvents from "./CreateEvents";
@@ -75,39 +78,40 @@ const styles = {
 
   // Event type navigation styles
   eventTypeNavigation: {
-    padding: '1rem 1.5rem',
+    padding: '0.75rem 1.5rem', 
     borderBottom: '1px solid #e9ecef',
     backgroundColor: '#fff',
-    overflowX: 'auto',
     whiteSpace: 'nowrap',
     scrollbarWidth: 'none',
     msOverflowStyle: 'none',
+    overflowY: 'auto',
+    maxHeight: '200px',
   },
   eventTypeButtons: {
     display: 'flex',
-    gap: '0.5rem',
+    gridTemplateColumns: 'repeat(6, minmax(120px, 1fr))',
+    gap: '0.3rem',
     alignItems: 'center',
-    minWidth: 'fit-content'
+    padding: '0.5rem 0',
+      flexWrap: 'wrap',  // Allow wrapping to next line
   },
-  eventTypeButton: {
-    padding: '0.75rem 1.5rem',
-    backgroundColor: '#f8f9fa',
-    color: '#6c757d',
-    border: '1px solid #dee2e6',
-    borderRadius: '50px',
-    fontSize: '0.875rem',
-    fontWeight: '500',
-    flexShrink: 0,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.2s ease',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem'
-  },
+ eventTypeButton: {
+  padding: '0.5rem 1rem',  // Reduce padding further
+  backgroundColor: '#f8f9fa',
+  color: '#6c757d',
+  border: '1px solid #dee2e6',
+  borderRadius: '50px',
+  fontSize: '0.875rem',
+  fontWeight: '500',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'all 0.2s ease',
+  textTransform: 'uppercase',
+  letterSpacing: '0.3px',  // Reduce letter spacing
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.6rem'  // Reduce gap between text and delete icon
+},
   eventTypeButtonActive: {
     backgroundColor: '#007bff',
     color: '#fff',
@@ -187,7 +191,7 @@ const styles = {
     minHeight: "160px",
     display: "flex",
     flexDirection: "column",
-    gap: "8px",
+    gap: "6px",  // Reduced from 8px
     justifyContent: "flex-start",
     padding: "12px",
     borderRadius: "8px",
@@ -275,32 +279,36 @@ const styles = {
   },
   eventActions: {
     display: 'flex',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    gap: '1rem',
+    gap: '0.5rem',
     marginTop: 'auto',
-    paddingTop: '1rem',
+    paddingTop: '0.5rem',
+    paddingBottom: '0',  // Add this
   },
   actionBtn: {
-    flex: 1,
-    padding: "0.5rem 1rem",
+    // padding: "0.4rem 0.8rem",
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "6px",
     fontWeight: 600,
-    // minHeight: "36px",
-
     cursor: "pointer",
-    fontSize: "0.9rem",
-    minWidth: "120px",
+    fontSize: "0.90rem",
+    // whiteSpace: "nowrap",
+    height: "38px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
   },
   captureBtn: {
     backgroundColor: "#000",
     color: "#fff",
-
-  },
-  paymentBtn: {
-    // backgroundColor: "#007bff",
-    color: "#fff",
+    border: "none",
+    height: "38px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
   },
   disabledBtn: {
     opacity: 0.6,
@@ -427,7 +435,7 @@ const Events = () => {
   const [createOptionsModalOpen, setCreateOptionsModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
-
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   // Date filter state
   const [selectedDate, setSelectedDate] = useState("");
 
@@ -889,35 +897,35 @@ const Events = () => {
         (e) => e.eventType?.toLowerCase() === filterType.toLowerCase()
       );
 
- const getBadgeColor = (eventType) => {
-  if (!eventType) return "#6c757d"; // Default grey for unknown
+  const getBadgeColor = (eventType) => {
+    if (!eventType) return "#6c757d"; // Default grey for unknown
 
-  const cleanedType = eventType.trim().toLowerCase();
+    const cleanedType = eventType.trim().toLowerCase();
 
-  // Define a mapping of keyword categories to colors
-  const eventCategoryColors = {
-    cell: "#007bff",           // Blue for all "cell"
-    service: "#5A9BD5",        // All services
-    conference: "#C792EA",
-    workshop: "#F7C59F",
-    encounter: "#FFADAD",
-    training: "#70A1D7",
-    activation: "#F67280",
-    "social event": "#FFD166",
-    meeting: "#A0CED9",
-    children: "#FFA07A",
-  };
+    // Define a mapping of keyword categories to colors
+    const eventCategoryColors = {
+      cell: "#007bff",           // Blue for all "cell"
+      service: "#5A9BD5",        // All services
+      conference: "#C792EA",
+      workshop: "#F7C59F",
+      encounter: "#FFADAD",
+      training: "#70A1D7",
+      activation: "#F67280",
+      "social event": "#FFD166",
+      meeting: "#A0CED9",
+      children: "#FFA07A",
+    };
 
-  // Match event type with category keywords
-  for (const keyword in eventCategoryColors) {
-    if (cleanedType.includes(keyword)) {
-      return eventCategoryColors[keyword];
+    // Match event type with category keywords
+    for (const keyword in eventCategoryColors) {
+      if (cleanedType.includes(keyword)) {
+        return eventCategoryColors[keyword];
+      }
     }
-  }
 
-  // Default color if no keyword matches
-  return "#6c757d";
-};
+    // Default color if no keyword matches
+    return "#6c757d";
+  };
 
 
   const handleCaptureClick = (event) => {
@@ -1067,6 +1075,8 @@ const Events = () => {
 
   const handleDeleteEvent = async () => {
     if (!currentEvent) return;
+    handleMenuClose();
+
     try {
       const token = localStorage.getItem("token");
       await axios.delete(`${BACKEND_URL}/events/${currentEvent._id}`, {
@@ -1075,12 +1085,21 @@ const Events = () => {
 
       setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
       setFilteredEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
+
+      setSnackbar({
+        open: true,
+        message: `"${currentEvent.eventName}" deleted successfully!`,
+        severity: 'success'
+      });
     } catch (err) {
       console.error("Failed to delete event:", err);
+      setSnackbar({
+        open: true,
+        message: `Failed to delete event: ${err.response?.data?.message || 'Unknown error'}`,
+        severity: 'error'
+      });
     }
-    handleMenuClose();
   };
-
   const renderLeadershipInfo = (event) => {
     const eventTypeNormalized = event.eventType?.toLowerCase() || "";
     const isCell = eventTypeNormalized === "cell";
@@ -1250,16 +1269,18 @@ const Events = () => {
                     </span>
                   </div>
 
-                  <IconButton
-                    size="small"
-                    onClick={(e) => handleMenuOpen(e, event)}
-                    style={{
-                      color: theme.palette.text.primary,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <MoreVertIcon />
-                  </IconButton>
+                  {isAdmin && (
+                    <IconButton
+                      size="small"
+                      onClick={(e) => handleMenuOpen(e, event)}
+                      style={{
+                        color: theme.palette.text.primary,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <MoreVertIcon />
+                    </IconButton>
+                  )}
                   <Menu
                     anchorEl={anchorEl}
                     open={Boolean(anchorEl) && currentEvent?._id === event._id}
@@ -1343,8 +1364,19 @@ const Events = () => {
                   </div>
                 )}
 
-              <button
-  style={{ ...styles.actionBtn, ...styles.captureBtn }}
+
+                <div style={styles.eventActions}>
+                  {/* REMOVE the eventActions div wrapper */}
+                  {/* Capture button */}
+               <button
+  style={{
+    ...styles.actionBtn,
+    ...styles.captureBtn,
+    backgroundColor: event.status === "closed" && !isAdmin ? "#e9ecef" : "#000",
+    color: event.status === "closed" && !isAdmin ? "#6c757d" : "#fff",
+    // marginTop: "0.75rem",
+  
+  }}
   onClick={() => {
     if (event.status === "closed" && !isAdmin) {
       alert("Attendance has already been captured for this event.");
@@ -1353,29 +1385,18 @@ const Events = () => {
     handleCaptureClick(event);
   }}
   disabled={event.status === "closed" && !isAdmin}
-  title={
-    event.status === "closed" && !isAdmin
-      ? "Attendance captured — action disabled"
-      : "Capture attendance"
-  }
 >
   Capture
 </button>
 
-
-
-
-                <div style={styles.eventActions}>
-
-                  {/* Add Captured badge for admins on closed events */}
+                  {/* Captured badge for admins */}
                   {isAdmin && event.status === "closed" && (
                     <span style={{
                       color: 'green',
                       fontWeight: 'bold',
-                      fontSize: '0.9rem',
-                      marginRight: '1rem',
-                      userSelect: 'none',
-                      alignSelf: 'center',
+                      fontSize: '0.85rem',
+                      marginTop: '0.5rem',
+                      display: 'block',
                     }}>
                       ✓ Captured
                     </span>
@@ -1536,8 +1557,24 @@ const Events = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
   );
 };
+
 
 export default Events;
