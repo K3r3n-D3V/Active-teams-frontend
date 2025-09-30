@@ -169,13 +169,14 @@ const EventHistory = ({ user }) => {
             onChange={(e) => setFilterName(e.target.value)}
             style={styles.searchInput}
           />
-          <button 
-            style={styles.filterButton}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? "#e07b00" : "#e67e22"}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#ff8c00"}
-          >
-            Filter
-          </button>
+        <button 
+  style={styles.filterButton}
+  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1d4ed8"} // darker blue
+  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#2563eb"} // original blue
+>
+  Filter
+</button>
+
         </div>
 
         <div style={styles.filterTabs}>
@@ -350,14 +351,14 @@ const getStyles = (theme) => {
       borderRadius: "12px",
       boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 2px 8px rgba(0,0,0,0.06)",
     },
-    searchContainer: {
-      display: "flex",
-      justifyContent: "space-between",
-      gap: "1rem",
-      marginBottom: "1.5rem",
-      alignItems: "center",
-      flexWrap: "wrap",
-    },
+   searchContainer: {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.5rem", // Tighter spacing
+  marginBottom: "1.5rem",
+  flexWrap: "wrap",
+},
+
     searchInput: {
       padding: "0.75rem 1rem",
       fontSize: "0.95rem",
@@ -375,7 +376,7 @@ const getStyles = (theme) => {
       fontSize: "0.95rem",
       borderRadius: "6px",
       border: "none",
-      backgroundColor: "#ff8c00",
+      backgroundColor: "#2563eb", // Blue
       color: "#fff",
       fontWeight: "600",
       cursor: "pointer",
@@ -401,21 +402,23 @@ const getStyles = (theme) => {
       borderRadius: "6px",
       transition: "all 0.2s",
     },
-    activeIncompleteBtn: {
-      backgroundColor: isDarkMode ? "#78350f" : "#fef3c7",
-      borderColor: isDarkMode ? "#92400e" : "#f59e0b",
-      color: isDarkMode ? "#fef3c7" : "#92400e",
-    },
+   activeIncompleteBtn: {
+  backgroundColor: isDarkMode ? "#374151" : "#f3f4f6",   
+  borderColor: isDarkMode ? "#4b5563" : "#d1d5db",        
+  color: isDarkMode ? "#e5e7eb" : "#374151",              
+},
+
     activeCompleteBtn: {
-      backgroundColor: isDarkMode ? "#064e3b" : "#d1fae5",
-      borderColor: isDarkMode ? "#065f46" : "#10b981",
-      color: isDarkMode ? "#d1fae5" : "#065f46",
+      backgroundColor: isDarkMode ? "#065f46" : "#059669",   // Deep green (Green-700)
+  borderColor: isDarkMode ? "#047857" : "#047857",       // Even deeper green
+  color: "#fff",  
     },
-    activeDidNotMeetBtn: {
-      backgroundColor: isDarkMode ? "#7f1d1d" : "#fee2e2",
-      borderColor: isDarkMode ? "#991b1b" : "#ef4444",
-      color: isDarkMode ? "#fee2e2" : "#991b1b",
-    },
+   activeDidNotMeetBtn: {
+ backgroundColor: isDarkMode ? "#7f1d1d" : "#dc2626",   
+  borderColor: isDarkMode ? "#991b1b" : "#b91c1c",       
+  color: "#fff",                                                  
+},
+
     tableContainer: {
       overflowX: "auto",
       borderRadius: "12px",
