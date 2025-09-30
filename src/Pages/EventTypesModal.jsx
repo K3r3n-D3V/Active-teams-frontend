@@ -237,7 +237,7 @@ const handleSubmit = async () => {
         >
           {/* Event Group Name */}
           <TextField
-            label="Event Group Name"
+            label="Event Type Name"
             name="name"
             fullWidth
             margin="normal"
