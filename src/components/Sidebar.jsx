@@ -21,6 +21,7 @@ import {
   Assignment,
   VolunteerActivism,
   HowToReg,
+  AdminPanelSettings
 } from '@mui/icons-material';
 import { useState, useEffect } from 'react';
 import logo from "../assets/active-teams.png"
@@ -34,6 +35,7 @@ const menuItems = [
   { label: 'Service Check-in', path: '/service-check-in', icon: HowToReg },
   // { label: 'Give Today', path: '/give-today', icon: VolunteerActivism },
   { label: 'Daily Tasks', path: '/daily-tasks', icon: Assignment },
+  { label: 'Admin', path: '/admin', icon: AdminPanelSettings },
 ];
 
 export default function Sidebar({ mode, setMode }) {
