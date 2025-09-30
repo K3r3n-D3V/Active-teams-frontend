@@ -540,330 +540,333 @@ const CreateEvents = ({
           )}
 
           <form onSubmit={handleSubmit}>
-  {/* Event Type - Always show */}
-  <TextField
-    label={isGlobalEvent ? "Event Group Name" : "Event Type"}
-    value={formData.eventType}
-    fullWidth
-    size="small"
-    sx={{ mb: 3, ...darkModeStyles.textField }}
-    InputProps={{
-      readOnly: true,
-    }}
-    disabled
-  />
-
-  {/* Event Name - Always show */}
-  <TextField
-    label="Event Name"
-    value={formData.eventName}
-    onChange={(e) => handleChange('eventName', e.target.value)}
-    fullWidth
-    size="small"
-    sx={{ mb: 3, ...darkModeStyles.textField }}
-    error={!!errors.eventName}
-    helperText={errors.eventName || (isCell && !isGlobalEvent ? "Auto-filled when event leader is selected" : "")}
-  />
-
-  {/* TICKETED EVENT FIELDS - Show ONLY for ticketed events */}
-  {isTicketedEvent && (
-    <>
-      {/* Age Group dropdown */}
-      <TextField
-        select
-        label="Age Group"
-        name="ageGroup"
-        value={formData.ageGroup}
-        onChange={handleInputChange}
-        SelectProps={{ native: true }}
-        fullWidth
-        margin="normal"
-        required
-        sx={{ mb: 2, ...darkModeStyles.textField }}
-        error={!!errors.ageGroup}
-        helperText={errors.ageGroup}
-      >
-        <option value="">Select Age Group</option>
-        {ageGroupOptions.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </TextField>
-
-      {/* Member Type dropdown */}
-      <TextField
-        select
-        label="Member Type"
-        name="memberType"
-        value={formData.memberType}
-        onChange={handleInputChange}
-        SelectProps={{ native: true }}
-        fullWidth
-        margin="normal"
-        required
-        sx={{ mb: 2, ...darkModeStyles.textField }}
-        error={!!errors.memberType}
-        helperText={errors.memberType}
-      >
-        <option value="">Select Member Type</option>
-        {memberTypeOptions.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </TextField>
-
-      {/* Price input */}
-      <TextField
-        label="Price (R)"
-        name="price"
-        type="number"
-        value={formData.price}
-        onChange={handleInputChange}
-        fullWidth
-        margin="normal"
-        required
-        inputProps={{ min: 0 }}
-        sx={{ mb: 2, ...darkModeStyles.textField }}
-        error={!!errors.price}
-        helperText={errors.price}
-      />
-    </>
-  )}
-
-{/* Date & Time - Show for all events */}
-<Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
-  <TextField
-    label="Date"
-    type="date"
-    value={formData.date}
-    onChange={(e) => handleChange('date', e.target.value)}
-    fullWidth
-    size="small"
-    InputLabelProps={{ shrink: true }}
-    error={!!errors.date}
-    helperText={errors.date}
-    sx={darkModeStyles.textField}
-  />
-  <TextField
-    label="Time"
-    type="time"
-    value={formData.time}
-    onChange={(e) => handleChange('time', e.target.value)}
-    fullWidth
-    size="small"
-    InputLabelProps={{ shrink: true }}
-    error={!!errors.time}
-    helperText={errors.time}
-    sx={darkModeStyles.textField}
-  />
-</Box>
-
-
-  {/* Recurring Days - Show for all events */}
-  <Box mb={3}>
-    <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
-      Recurring Days {isCell && !isGlobalEvent && <span style={{ color: 'red' }}>*</span>}
-    </Typography>
-    <Typography variant="body2" sx={{ color: isDarkMode ? '#bbb' : '#666', mb: 2 }}>
-      {isCell && !isGlobalEvent
-        ? 'Select the days this cell meets regularly'
-        : 'Optional: Select days if this event repeats weekly'}
-    </Typography>
-    <Box display="flex" flexWrap="wrap" gap={2}>
-      {days.map(day => (
-        <FormControlLabel
-          key={day}
-          control={
-            <Checkbox
-              checked={formData.recurringDays.includes(day)}
-              onChange={() => handleDayChange(day)}
+            {/* Event Type - Always show */}
+            <TextField
+              label={isGlobalEvent ? "Event Group Name" : "Event Type"}
+              value={formData.eventType}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              InputProps={{
+                readOnly: true,
+              }}
+              disabled
             />
-          }
-          label={day}
-          sx={darkModeStyles.formControlLabel}
-        />
-      ))}
-    </Box>
-    {errors.recurringDays && (
-      <Typography variant="caption" sx={darkModeStyles.errorText}>
-        {errors.recurringDays}
-      </Typography>
-    )}
-  </Box>
 
-  {/* Location - Always show */}
-  <TextField
-    label="Location"
-    value={formData.location}
-    onChange={(e) => handleChange('location', e.target.value)}
-    fullWidth
-    size="small"
-    sx={{ mb: 3, ...darkModeStyles.textField }}
-    error={!!errors.location}
-    helperText={errors.location}
-    InputProps={{
-      startAdornment: <InputAdornment position="start"><LocationOnIcon /></InputAdornment>
-    }}
-  />
+            {/* Event Name - Always show */}
+            <TextField
+              label="Event Name"
+              value={formData.eventName}
+              onChange={(e) => handleChange('eventName', e.target.value)}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              error={!!errors.eventName}
+              helperText={errors.eventName || (isCell && !isGlobalEvent ? "Auto-filled when event leader is selected" : "")}
+            />
 
-  {/* Event Leader - Always show */}
-  <Autocomplete
-    freeSolo
-    loading={loadingPeople}
-    options={peopleData.filter(person => 
-      person.fullName && 
-      person.fullName.toLowerCase().includes((formData.eventLeader || '').toLowerCase())
-    )}
-    getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
-    value={peopleData.find(p => p.fullName === formData.eventLeader) || formData.eventLeader || ''}
-    onChange={(event, newValue) => {
-      const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-      handleChange('eventLeader', selectedName);
-    }}
-    onInputChange={(event, newInputValue) => {
-      handleChange('eventLeader', newInputValue);
-    }}
-    renderInput={(params) => (
-      <TextField
-        {...params}
-        label="Event Leader"
-        size="small"
-        sx={{ mb: 3, ...darkModeStyles.textField }}
-        error={!!errors.eventLeader}
-        helperText={errors.eventLeader || (loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people available)`)}
-        InputProps={{
-          ...params.InputProps,
-          startAdornment: (
-            <>
-              <InputAdornment position="start"><PersonIcon /></InputAdornment>
-              {params.InputProps.startAdornment}
-            </>
-          )
-        }}
-      />
-    )}
-  />
+            {/* TICKETED EVENT FIELDS - Show ONLY for ticketed events */}
+            {isTicketedEvent && (
+              <>
+                {/* Age Group dropdown */}
+                <TextField
+                  select
+                  label="Age Group"
+                  name="ageGroup"
+                  value={formData.ageGroup}
+                  onChange={handleInputChange}
+                  SelectProps={{ native: true }}
+                  fullWidth
+                  margin="normal"
+                  required
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.ageGroup}
+                  helperText={errors.ageGroup}
+                >
+                  <option value="">Select Age Group</option>
+                  {ageGroupOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </TextField>
 
-  {/* PERSON STEPS FIELDS - Show ONLY for Person Steps events */}
-  {hasPersonSteps && !isGlobalEvent && (
-    <Box mb={3}>
-      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: 'primary.main' }}>
-        Leadership Hierarchy
-      </Typography>
+                {/* Member Type dropdown */}
+                <TextField
+                  select
+                  label="Member Type"
+                  name="memberType"
+                  value={formData.memberType}
+                  onChange={handleInputChange}
+                  SelectProps={{ native: true }}
+                  fullWidth
+                  margin="normal"
+                  required
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.memberType}
+                  helperText={errors.memberType}
+                >
+                  <option value="">Select Member Type</option>
+                  {memberTypeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </TextField>
 
-      {/* Leader @1 */}
-      <Autocomplete
-        freeSolo
-        loading={loadingPeople}
-        options={peopleData.filter(person => 
-          person.fullName && 
-          person.fullName.toLowerCase().includes((formData.leader1 || '').toLowerCase())
-        )}
-        getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
-        value={peopleData.find(p => p.fullName === formData.leader1) || formData.leader1 || ''}
-        onChange={(event, newValue) => {
-          const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-          handleChange('leader1', selectedName);
-        }}
-        onInputChange={(event, newInputValue) => {
-          handleChange('leader1', newInputValue);
-        }}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label="Leader @1"
-            size="small"
-            sx={{ mb: 2, ...darkModeStyles.textField }}
-            helperText={errors.leader1 || (loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people available)`)}
-            error={!!errors.leader1}
-          />
-        )}
-      />
+                {/* Price input */}
+                <TextField
+                  label="Price (R)"
+                  name="price"
+                  type="number"
+                  value={formData.price}
+                  onChange={handleInputChange}
+                  fullWidth
+                  margin="normal"
+                  required
+                  inputProps={{ min: 0 }}
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.price}
+                  helperText={errors.price}
+                />
+              </>
+            )}
 
-      {/* Leader @12 */}
-      <Autocomplete
-        freeSolo
-        loading={loadingPeople}
-        options={peopleData.filter(person => 
-          person.fullName && 
-          person.fullName.toLowerCase().includes((formData.leader12 || '').toLowerCase())
-        )}
-        getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
-        value={peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''}
-        onChange={(event, newValue) => {
-          const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-          handleChange('leader12', selectedName);
-        }}
-        onInputChange={(event, newInputValue) => {
-          handleChange('leader12', newInputValue);
-        }}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label="Leader @12"
-            size="small"
-            sx={{ mb: 2, ...darkModeStyles.textField }}
-            helperText={errors.leader12 || (loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people available)`)}
-            error={!!errors.leader12}
-          />
-        )}
-      />
-    </Box>
+            {/* Date & Time - Show for all events */}
+            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
+              <TextField
+                label="Date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => handleChange('date', e.target.value)}
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                error={!!errors.date}
+                helperText={errors.date}
+                sx={darkModeStyles.textField}
+              />
+              <TextField
+                label="Time"
+                type="time"
+                value={formData.time}
+                onChange={(e) => handleChange('time', e.target.value)}
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                error={!!errors.time}
+                helperText={errors.time}
+                sx={darkModeStyles.textField}
+              />
+            </Box>
+
+
+            {/* Recurring Days - Show for all events */}
+            <Box mb={3}>
+              <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
+                Recurring Days {isCell && !isGlobalEvent && <span style={{ color: 'red' }}>*</span>}
+              </Typography>
+              <Typography variant="body2" sx={{ color: isDarkMode ? '#bbb' : '#666', mb: 2 }}>
+                {isCell && !isGlobalEvent
+                  ? 'Select the days this cell meets regularly'
+                  : 'Optional: Select days if this event repeats weekly'}
+              </Typography>
+              <Box display="flex" flexWrap="wrap" gap={2}>
+                {days.map(day => (
+                  <FormControlLabel
+                    key={day}
+                    control={
+                      <Checkbox
+                        checked={formData.recurringDays.includes(day)}
+                        onChange={() => handleDayChange(day)}
+                      />
+                    }
+                    label={day}
+                    sx={darkModeStyles.formControlLabel}
+                  />
+                ))}
+              </Box>
+              {errors.recurringDays && (
+                <Typography variant="caption" sx={darkModeStyles.errorText}>
+                  {errors.recurringDays}
+                </Typography>
+              )}
+            </Box>
+
+            {/* Location - Always show */}
+            <TextField
+              label="Location"
+              value={formData.location}
+              onChange={(e) => handleChange('location', e.target.value)}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              error={!!errors.location}
+              helperText={errors.location}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><LocationOnIcon /></InputAdornment>
+              }}
+            />
+
+            {/* Event Leader - Always show */}
+            <Autocomplete
+              freeSolo
+              loading={loadingPeople}
+              options={peopleData.filter(person =>
+                person.fullName &&
+                person.fullName.toLowerCase().includes((formData.eventLeader || '').toLowerCase())
+              )}
+              getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
+              value={peopleData.find(p => p.fullName === formData.eventLeader) || formData.eventLeader || ''}
+              onChange={(event, newValue) => {
+                const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+                handleChange('eventLeader', selectedName);
+              }}
+              onInputChange={(event, newInputValue) => {
+                handleChange('eventLeader', newInputValue);
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Event Leader"
+                  size="small"
+                  sx={{ mb: 3, ...darkModeStyles.textField }}
+                  error={!!errors.eventLeader}
+                  helperText={errors.eventLeader || (loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people available)`)}
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <>
+                        <InputAdornment position="start"><PersonIcon /></InputAdornment>
+                        {params.InputProps.startAdornment}
+                      </>
+                    )
+                  }}
+                />
+              )}
+            />
+
+            {/* PERSON STEPS FIELDS - Show ONLY for Person Steps events */}
+            {hasPersonSteps && !isGlobalEvent && (
+              <Box mb={3}>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: 'primary.main' }}>
+                  Leadership Hierarchy
+                </Typography>
+
+              {/* Leader @1 */}
+<Autocomplete
+  freeSolo
+  loading={loadingPeople}
+  options={peopleData.filter(person =>
+    person.name &&
+    person.position === 12 && // position mapping for Leader @1
+    person.name.toLowerCase().includes((formData.leader1 || '').toLowerCase())
   )}
+  getOptionLabel={(option) => typeof option === 'string' ? option : option.name}
+  value={peopleData.find(p => p.name === formData.leader1) || formData.leader1 || ''}
+  onChange={(event, newValue) => {
+    const selectedName = typeof newValue === 'string' ? newValue : newValue?.name || '';
+    handleChange('leader1', selectedName);
+  }}
+  onInputChange={(event, newInputValue) => {
+    handleChange('leader1', newInputValue);
+  }}
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      label="Leader @1"
+      size="small"
+      sx={{ mb: 2, ...darkModeStyles.textField }}
+      helperText={errors.leader1 || (loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people available)`)}
+      error={!!errors.leader1}
+    />
+  )}
+/>
 
-  {/* Description - Always show */}
-  <TextField
-    label="Description"
-    value={formData.description}
-    onChange={(e) => handleChange('description', e.target.value)}
-    fullWidth
-    multiline
-    rows={3}
-    size="small"
-    sx={{ mb: 3, ...darkModeStyles.textField }}
-    error={!!errors.description}
-    helperText={errors.description}
-    InputProps={{
-      startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
-    }}
-  />
+{/* Leader @12 */}
+<Autocomplete
+  freeSolo
+  loading={loadingPeople}
+  options={peopleData.filter(person =>
+    person.name &&
+    person.position === 144 && // position mapping for Leader @12
+    person.name.toLowerCase().includes((formData.leader12 || '').toLowerCase())
+  )}
+  getOptionLabel={(option) => typeof option === 'string' ? option : option.name}
+  value={peopleData.find(p => p.name === formData.leader12) || formData.leader12 || ''}
+  onChange={(event, newValue) => {
+    const selectedName = typeof newValue === 'string' ? newValue : newValue?.name || '';
+    handleChange('leader12', selectedName);
+  }}
+  onInputChange={(event, newInputValue) => {
+    handleChange('leader12', newInputValue);
+  }}
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      label="Leader @12"
+      size="small"
+      sx={{ mb: 2, ...darkModeStyles.textField }}
+      helperText={errors.leader12 || (loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people available)`)}
+      error={!!errors.leader12}
+    />
+  )}
+/>
 
-  {/* Buttons */}
-  <Box display="flex" gap={2} sx={{ mt: 3 }}>
-    <Button
-      variant="outlined"
-      fullWidth
-      onClick={() => {
-        if (isModal && typeof onClose === 'function') {
-          onClose();
-        } else {
-          navigate("/events", { state: { refresh: true } });
-        }
-      }}
-      sx={darkModeStyles.button.outlined}
-    >
-      Cancel
-    </Button>
+              </Box>
+            )}
 
-    <Button
-      type="submit"
-      variant="contained"
-      fullWidth
-      disabled={isSubmitting}
-      sx={{
-        bgcolor: 'primary.main',
-        '&:hover': { bgcolor: 'primary.dark' }
-      }}
-    >
-      {isSubmitting
-        ? (eventId ? 'Updating...' : 'Creating...')
-        : (eventId ? 'Update Event' : 'Create Event')
-      }
-    </Button>
-  </Box>
-</form>
+            {/* Description - Always show */}
+            <TextField
+              label="Description"
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              fullWidth
+              multiline
+              rows={3}
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              error={!!errors.description}
+              helperText={errors.description}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
+              }}
+            />
+
+            {/* Buttons */}
+            <Box display="flex" gap={2} sx={{ mt: 3 }}>
+              <Button
+                variant="outlined"
+                fullWidth
+                onClick={() => {
+                  if (isModal && typeof onClose === 'function') {
+                    onClose();
+                  } else {
+                    navigate("/events", { state: { refresh: true } });
+                  }
+                }}
+                sx={darkModeStyles.button.outlined}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                disabled={isSubmitting}
+                sx={{
+                  bgcolor: 'primary.main',
+                  '&:hover': { bgcolor: 'primary.dark' }
+                }}
+              >
+                {isSubmitting
+                  ? (eventId ? 'Updating...' : 'Creating...')
+                  : (eventId ? 'Update Event' : 'Create Event')
+                }
+              </Button>
+            </Box>
+          </form>
 
           {/* Event Leaders Display */}
           {formData.leaders && formData.leaders.length > 0 && (
