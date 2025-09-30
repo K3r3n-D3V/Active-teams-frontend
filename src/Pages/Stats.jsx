@@ -36,7 +36,8 @@ import {
   Person as PersonIcon,
   Description as DescriptionIcon,
   Delete as DeleteIcon,
-  Visibility as VisibilityIcon
+  Visibility as VisibilityIcon,
+  Refresh as RefreshIcon  // Added missing import
 } from '@mui/icons-material';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
@@ -66,7 +67,18 @@ ChartJS.register(
 );
 
 // Configure backend base URL
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+// Create a module-level cache to persist data across component instances
+let globalCache = {
+  statsOverview: null,
+  attendanceTrend: null,
+  outstandingItems: { cells: [], tasks: [] },
+  peopleWithTasks: [],
+  allEvents: [],
+  lastFetchTime: null,
+  period: 'monthly'
+};
 
 /* -------------------------
    Event Creation/Edit Popup
@@ -624,13 +636,13 @@ const StatsDashboard = () => {
   const isTablet = useMediaQuery(theme.breakpoints.between("sm", "md"));
   const schedulerView = isMobile ? "day" : isTablet ? "week" : "month";
 
-  // Stats state
-  const [statsOverview, setStatsOverview] = useState(null);
-  const [attendanceTrend, setAttendanceTrend] = useState(null);
-  const [outstandingItems, setOutstandingItems] = useState({ cells: [], tasks: [] });
-  const [peopleWithTasks, setPeopleWithTasks] = useState([]);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [period, setPeriod] = useState('monthly');
+  // Stats state - initialize from global cache
+  const [statsOverview, setStatsOverview] = useState(globalCache.statsOverview);
+  const [attendanceTrend, setAttendanceTrend] = useState(globalCache.attendanceTrend);
+  const [outstandingItems, setOutstandingItems] = useState(globalCache.outstandingItems);
+  const [peopleWithTasks, setPeopleWithTasks] = useState(globalCache.peopleWithTasks);
+  const [loadingStats, setLoadingStats] = useState(!globalCache.statsOverview);
+  const [period, setPeriod] = useState(globalCache.period);
 
   // Chart data
   const [chartData, setChartData] = useState({
@@ -646,19 +658,35 @@ const StatsDashboard = () => {
   const [selectedEventDate, setSelectedEventDate] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
 
-  // Events state
-  const [allEvents, setAllEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Events state - initialize from global cache
+  const [allEvents, setAllEvents] = useState(globalCache.allEvents);
+  const [loading, setLoading] = useState(!globalCache.allEvents.length);
   const [error, setError] = useState(null);
 
   // Global snackbar for actions
   const [globalSnack, setGlobalSnack] = useState({ open: false, severity: 'success', message: '' });
 
   // Track if data has been loaded to prevent reloads
-  const dataLoadedRef = useRef(false);
+  const dataLoadedRef = useRef(!!globalCache.lastFetchTime);
 
   // Fetch stats data
   const fetchStats = async () => {
+    // If we already have cached data and it's recent, use it
+    if (globalCache.statsOverview && globalCache.lastFetchTime) {
+      const timeSinceLastFetch = Date.now() - globalCache.lastFetchTime;
+      const FIVE_MINUTES = 5 * 60 * 1000;
+      
+      if (timeSinceLastFetch < FIVE_MINUTES) {
+        console.log('Using cached stats data');
+        setStatsOverview(globalCache.statsOverview);
+        setAttendanceTrend(globalCache.attendanceTrend);
+        setOutstandingItems(globalCache.outstandingItems);
+        setPeopleWithTasks(globalCache.peopleWithTasks);
+        setLoadingStats(false);
+        return;
+      }
+    }
+
     try {
       setLoadingStats(true);
       
@@ -666,20 +694,29 @@ const StatsDashboard = () => {
       const overviewResponse = await fetch(`${BACKEND_URL}/stats/overview?period=${period}`);
       if (!overviewResponse.ok) throw new Error('Failed to fetch overview stats');
       const overviewData = await overviewResponse.json();
+      
       setStatsOverview(overviewData);
+      globalCache.statsOverview = overviewData;
 
       // Fetch outstanding items
       const itemsResponse = await fetch(`${BACKEND_URL}/stats/outstanding-items`);
       if (itemsResponse.ok) {
         const itemsData = await itemsResponse.json();
-        setOutstandingItems(itemsData);
+        const outstandingItemsData = {
+          cells: itemsData.cells || itemsData.outstanding_cells || [],
+          tasks: itemsData.tasks || itemsData.outstanding_tasks || []
+        };
+        setOutstandingItems(outstandingItemsData);
+        globalCache.outstandingItems = outstandingItemsData;
       }
 
       // Fetch people with tasks
       const peopleResponse = await fetch(`${BACKEND_URL}/stats/people-with-tasks`);
       if (peopleResponse.ok) {
         const peopleData = await peopleResponse.json();
-        setPeopleWithTasks(peopleData.people_with_outstanding_tasks || []);
+        const peopleWithTasksData = peopleData.people_with_outstanding_tasks || [];
+        setPeopleWithTasks(peopleWithTasksData);
+        globalCache.peopleWithTasks = peopleWithTasksData;
       }
 
       // Fetch attendance trend
@@ -687,7 +724,12 @@ const StatsDashboard = () => {
       if (trendResponse.ok) {
         const trendData = await trendResponse.json();
         setAttendanceTrend(trendData);
+        globalCache.attendanceTrend = trendData;
       }
+
+      // Update cache timestamp
+      globalCache.lastFetchTime = Date.now();
+      globalCache.period = period;
 
     } catch (err) {
       console.error('Error fetching stats:', err);
@@ -703,6 +745,19 @@ const StatsDashboard = () => {
 
   // Fetch events from backend
   const fetchEvents = async (opts = {}) => {
+    // If we already have cached events and it's recent, use them
+    if (globalCache.allEvents.length && globalCache.lastFetchTime) {
+      const timeSinceLastFetch = Date.now() - globalCache.lastFetchTime;
+      const FIVE_MINUTES = 5 * 60 * 1000;
+      
+      if (timeSinceLastFetch < FIVE_MINUTES) {
+        console.log('Using cached events data');
+        setAllEvents(globalCache.allEvents);
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -761,6 +816,9 @@ const StatsDashboard = () => {
       });
 
       setAllEvents(transformedEvents);
+      globalCache.allEvents = transformedEvents;
+      globalCache.lastFetchTime = Date.now();
+
     } catch (err) {
       console.error('Error fetching events:', err);
       setError('Failed to load events. Please check your connection and try again.');
@@ -770,17 +828,25 @@ const StatsDashboard = () => {
     }
   };
 
-  // Initial fetches - only run once
+  // Initial fetches - only run if no cached data
   useEffect(() => {
     if (!dataLoadedRef.current) {
+      console.log('Initial data load');
       fetchStats();
       fetchEvents();
       dataLoadedRef.current = true;
+    } else {
+      console.log('Using existing cached data');
+    }
+  }, []); // Empty dependency array - only run once on mount
+
+  // Refresh data only when period changes explicitly
+  useEffect(() => {
+    if (dataLoadedRef.current && period !== globalCache.period) {
+      console.log('Period changed, refreshing stats');
+      fetchStats();
     }
   }, [period]);
-
-  // Remove the page visibility and focus listeners to prevent reloads
-  // This ensures data is only loaded once when the component mounts
 
   // Filter events for scheduler (exclude cell events if needed)
   const schedulerEvents = allEvents.filter(event => 
@@ -828,6 +894,7 @@ const StatsDashboard = () => {
   // Event handlers
   const handleEventCreated = async () => {
     await fetchEvents();
+    await fetchStats(); // Also refresh stats when events change
     setGlobalSnack({ open: true, severity: 'success', message: 'Events updated successfully' });
   };
 
@@ -837,6 +904,16 @@ const StatsDashboard = () => {
     setAllEvents(updatedEvents);
     // Optionally refresh from backend to ensure consistency
     setTimeout(() => fetchEvents(), 1000);
+  };
+
+  // Manual refresh function
+  const handleManualRefresh = () => {
+    console.log('Manual refresh triggered');
+    // Clear cache to force fresh data
+    globalCache.lastFetchTime = null;
+    fetchStats();
+    fetchEvents();
+    setGlobalSnack({ open: true, severity: 'info', message: 'Refreshing data...' });
   };
 
   // Dialog control functions
@@ -868,6 +945,7 @@ const StatsDashboard = () => {
 
       await deleteEvent(eventId);
       await fetchEvents();
+      await fetchStats(); // Refresh stats after deletion
       setGlobalSnack({ 
         open: true, 
         severity: 'success', 
@@ -993,10 +1071,9 @@ const StatsDashboard = () => {
       }}
     >
       <CssBaseline />
-      {/* Changed width from 100% to 80% */}
       <Box sx={{ width: '80%', maxWidth: 1200, px: { xs: 1, sm: 2 }, mt: "50px" }}>
         
-        {/* Period Selector */}
+        {/* Period Selector and Refresh Button */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Period</InputLabel>
@@ -1010,6 +1087,16 @@ const StatsDashboard = () => {
               <MenuItem value="monthly">Monthly</MenuItem>
             </Select>
           </FormControl>
+          
+          {/* Manual Refresh Button */}
+          <Button
+            variant="outlined"
+            onClick={handleManualRefresh}
+            disabled={loadingStats || loading}
+            startIcon={<RefreshIcon />}
+          >
+            Refresh Data
+          </Button>
         </Box>
 
         <Grid container spacing={3} justifyContent="center">
@@ -1136,6 +1223,7 @@ const StatsDashboard = () => {
           {/* Outstanding Cells & Tasks */}
           <Grid item xs={12}>
             <Grid container spacing={3}>
+              {/* Outstanding Cells */}
               <Grid item xs={12} md={6}>
                 <Paper sx={{ 
                   p: { xs: 3, sm: 4 }, 
@@ -1154,38 +1242,70 @@ const StatsDashboard = () => {
                         <CircularProgress />
                       </Box>
                     ) : outstandingItems.cells && outstandingItems.cells.length > 0 ? (
-                      outstandingItems.cells.map((item, i) => (
+                      outstandingItems.cells.map((leader, index) => (
                         <Box 
-                          key={i} 
+                          key={index} 
                           sx={{ 
                             display: 'flex', 
                             alignItems: 'center', 
                             mb: 3, 
                             p: { xs: 1, sm: 2 }, 
                             borderRadius: 1, 
-                            boxShadow: itemShadow 
+                            boxShadow: itemShadow,
+                            bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
                           }}
                         >
                           <Avatar sx={{ 
                             mr: { xs: 2, sm: 3 }, 
                             width: { xs: 40, sm: 48 }, 
                             height: { xs: 40, sm: 48 }, 
-                            boxShadow: avatarShadow 
+                            boxShadow: avatarShadow,
+                            bgcolor: theme.palette.primary.main
                           }}>
-                            {item.name ? item.name[0] : '?'}
+                            {leader.name ? leader.name.charAt(0).toUpperCase() : '?'}
                           </Avatar>
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                              {item.name || 'Unnamed Leader'}
+                              {leader.name || 'Unnamed Leader'}
                             </Typography>
                             <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                              {item.location || 'No location specified'}
+                              Responsible for {leader.count || 0} cell(s)
                             </Typography>
-                            {item.title && (
-                              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                {item.title}
+                            
+                            {/* Display individual cells */}
+                            {leader.cells && leader.cells.slice(0, 2).map((cell, cellIndex) => (
+                              <Box key={cellIndex} sx={{ mt: 1, pl: 1, borderLeft: `2px solid ${theme.palette.primary.main}` }}>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {cell.cell_name || 'Unnamed Cell'}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                  📍 {cell.location || 'No location specified'}
+                                </Typography>
+                              </Box>
+                            ))}
+                            
+                            {/* Show more indicator if there are more cells */}
+                            {leader.cells && leader.cells.length > 2 && (
+                              <Typography variant="caption" sx={{ color: theme.palette.primary.main, mt: 0.5 }}>
+                                +{leader.cells.length - 2} more cells
                               </Typography>
                             )}
+                          </Box>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            minWidth: { xs: 40, sm: 50 }, 
+                            height: { xs: 40, sm: 50 }, 
+                            bgcolor: theme.palette.secondary.main, 
+                            color: theme.palette.secondary.contrastText, 
+                            borderRadius: 1, 
+                            ml: 2, 
+                            boxShadow: countBoxShadow 
+                          }}>
+                            <Typography sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                              {leader.count || 0}
+                            </Typography>
                           </Box>
                         </Box>
                       ))
@@ -1200,6 +1320,7 @@ const StatsDashboard = () => {
                 </Paper>
               </Grid>
 
+              {/* Outstanding Tasks */}
               <Grid item xs={12} md={6}>
                 <Paper sx={{ 
                   p: { xs: 3, sm: 4 }, 
@@ -1210,7 +1331,7 @@ const StatsDashboard = () => {
                   boxShadow: cardShadow 
                 }}>
                   <Typography variant="h5" gutterBottom>
-                    Outstanding Tasks ({statsOverview?.outstanding_tasks || statsOverview?.outstanding_events || 0})
+                    Outstanding Tasks ({statsOverview?.outstanding_tasks || 0})
                   </Typography>
                   <Box sx={{ mt: 2 }}>
                     {loadingStats ? (
@@ -1218,36 +1339,52 @@ const StatsDashboard = () => {
                         <CircularProgress />
                       </Box>
                     ) : outstandingItems.tasks && outstandingItems.tasks.length > 0 ? (
-                      outstandingItems.tasks.map((item, i) => (
+                      outstandingItems.tasks.map((person, index) => (
                         <Box 
-                          key={i} 
+                          key={index} 
                           sx={{ 
                             display: 'flex', 
                             alignItems: 'center', 
                             mb: 3, 
                             p: { xs: 1, sm: 2 }, 
                             borderRadius: 1, 
-                            boxShadow: itemShadow 
+                            boxShadow: itemShadow,
+                            bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
                           }}
                         >
                           <Avatar sx={{ 
                             mr: { xs: 2, sm: 3 }, 
                             width: { xs: 40, sm: 48 }, 
                             height: { xs: 40, sm: 48 }, 
-                            boxShadow: avatarShadow 
+                            boxShadow: avatarShadow,
+                            bgcolor: theme.palette.error.main
                           }}>
-                            {item.name ? item.name[0] : '?'}
+                            {person.name ? person.name.charAt(0).toUpperCase() : '?'}
                           </Avatar>
                           <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                              {item.name || 'Unassigned'}
+                              {person.name || 'Unassigned'}
                             </Typography>
                             <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                              {item.email || 'No email'}
+                              {person.email || 'No email'} • {person.count || 0} task(s)
                             </Typography>
-                            {item.title && (
-                              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                {item.title}
+                            
+                            {/* Display individual tasks */}
+                            {person.tasks && person.tasks.slice(0, 2).map((task, taskIndex) => (
+                              <Box key={taskIndex} sx={{ mt: 1, pl: 1, borderLeft: `2px solid ${theme.palette.error.main}` }}>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {task.task_name || 'Unnamed Task'}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                  ⚡ Priority: {task.priority || 'Normal'}
+                                </Typography>
+                              </Box>
+                            ))}
+                            
+                            {/* Show more indicator if there are more tasks */}
+                            {person.tasks && person.tasks.length > 2 && (
+                              <Typography variant="caption" sx={{ color: theme.palette.error.main, mt: 0.5 }}>
+                                +{person.tasks.length - 2} more tasks
                               </Typography>
                             )}
                           </Box>
@@ -1257,14 +1394,14 @@ const StatsDashboard = () => {
                             justifyContent: 'center', 
                             minWidth: { xs: 40, sm: 50 }, 
                             height: { xs: 40, sm: 50 }, 
-                            bgcolor: theme.palette.primary.main, 
-                            color: theme.palette.primary.contrastText, 
+                            bgcolor: theme.palette.error.main, 
+                            color: theme.palette.error.contrastText, 
                             borderRadius: 1, 
                             ml: 2, 
                             boxShadow: countBoxShadow 
                           }}>
-                            <Typography sx={{ fontWeight: 'bold' }}>
-                              {(item.count || 1).toString().padStart(2, '0')}
+                            <Typography sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                              {person.count || 0}
                             </Typography>
                           </Box>
                         </Box>
