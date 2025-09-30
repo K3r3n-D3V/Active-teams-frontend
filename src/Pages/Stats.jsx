@@ -998,9 +998,6 @@ const StatsDashboard = () => {
         
         {/* Period Selector */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4" fontWeight="bold">
-            Dashboard Overview
-          </Typography>
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Period</InputLabel>
             <Select
