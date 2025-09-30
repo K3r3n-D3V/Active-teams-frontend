@@ -72,40 +72,51 @@ const CreateEvents = ({
   const memberTypeOptions = ['Guild', 'First Time'];
 
   // Fetch people function - FIXED to match AttendanceModal approach
-  const fetchPeople = async () => {
-    try {
-      setLoadingPeople(true);
-      const params = new URLSearchParams();
-      params.append("perPage", "100");
-
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-        leader144: p["Leader @144"] || p.leader144 || "",
-      }));
-
-      setPeopleData(formatted);
-      console.log('Fetched people:', formatted.length);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      setErrorMessage("Failed to load people data. Please refresh the page.");
-      setErrorAlert(true);
-    } finally {
-      setLoadingPeople(false);
+ const fetchPeople = async (filter = "") => {
+  console.log("fetchPeople called with filter:", filter);
+  try {
+    setLoadingPeople(true);
+    const params = new URLSearchParams();
+    params.append("perPage", "1000"); // Changed from "100" to "1000" to match your logs
+    if (filter) {
+      params.append("name", filter);
     }
-  };
 
-  // Initial fetch - SIMPLIFIED
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+    console.log("Request URL:", `${BACKEND_URL}/people?${params.toString()}`);
+    
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    
+    const data = await res.json();
+    const peopleArray = data.people || data.results || [];
+    console.log("Fetched peopleArray:", peopleArray);
+
+    const formatted = peopleArray.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p.leader1 || "",
+      leader12: p["Leader @12"] || p.leader12 || "",
+      leader144: p["Leader @144"] || p.leader144 || "",
+    }));
+
+    console.log("Formatted peopleData:", formatted);
+    setPeopleData(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    setErrorMessage("Failed to load people data. Please refresh the page.");
+    setErrorAlert(true);
+    setPeopleData([]); // Reset on error
+  } finally {
+    setLoadingPeople(false);
+  }
+};
   useEffect(() => {
     fetchPeople();
-  }, [BACKEND_URL]);
+  } , [BACKEND_URL]);
+
 
   // Fetch event data if editing
   useEffect(() => {
@@ -708,68 +719,95 @@ const CreateEvents = ({
               }}
             />
 
-            {/* Event Leader - Always show */}
-            <Autocomplete
-              freeSolo
-              loading={loadingPeople}
-              options={peopleData.filter(person =>
-                person.fullName &&
-                person.fullName.toLowerCase().includes((formData.eventLeader || '').toLowerCase())
-              )}
-              getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName}
-              value={peopleData.find(p => p.fullName === formData.eventLeader) || formData.eventLeader || ''}
-              onChange={(event, newValue) => {
-                const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-                handleChange('eventLeader', selectedName);
-              }}
-              onInputChange={(event, newInputValue) => {
-                handleChange('eventLeader', newInputValue);
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Event Leader"
-                  size="small"
-                  sx={{ mb: 3, ...darkModeStyles.textField }}
-                  error={!!errors.eventLeader}
-                  helperText={errors.eventLeader || (loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people available)`)}
-                  InputProps={{
-                    ...params.InputProps,
-                    startAdornment: (
-                      <>
-                        <InputAdornment position="start"><PersonIcon /></InputAdornment>
-                        {params.InputProps.startAdornment}
-                      </>
-                    )
-                  }}
-                />
-              )}
-            />
-
-            {/* PERSON STEPS FIELDS - Show ONLY for Person Steps events */}
-            {hasPersonSteps && !isGlobalEvent && (
-              <Box mb={3}>
-                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: 'primary.main' }}>
-                  Leadership Hierarchy
-                </Typography>
-
-              {/* Leader @1 */}
+{/* Event Leader */}
 <Autocomplete
+  key={`autocomplete-eventLeader`} // Optional but helpful if things rerender oddly
   freeSolo
+  filterOptions={(options) => options}
   loading={loadingPeople}
-  options={peopleData.filter(person =>
-    person.name &&
-    person.position === 12 && // position mapping for Leader @1
-    person.name.toLowerCase().includes((formData.leader1 || '').toLowerCase())
+  options={peopleData}
+  getOptionLabel={(option) =>
+    typeof option === 'string' ? option : option.fullName || ''
+  }
+  isOptionEqualToValue={(option, value) => {
+    return (
+      (typeof option === 'string' ? option : option.fullName) ===
+      (typeof value === 'string' ? value : value.fullName)
+    );
+  }}
+  renderOption={(props, option) => (
+    <li {...props} key={option.id || option.fullName || Math.random()}>
+      {option.fullName}
+    </li>
   )}
-  getOptionLabel={(option) => typeof option === 'string' ? option : option.name}
-  value={peopleData.find(p => p.name === formData.leader1) || formData.leader1 || ''}
+  value={
+    typeof formData.eventLeader === 'string'
+      ? formData.eventLeader
+      : peopleData.find(p => p.fullName === formData.eventLeader) || ''
+  }
   onChange={(event, newValue) => {
-    const selectedName = typeof newValue === 'string' ? newValue : newValue?.name || '';
-    handleChange('leader1', selectedName);
+    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+    handleChange('eventLeader', name);
   }}
   onInputChange={(event, newInputValue) => {
-    handleChange('leader1', newInputValue);
+    handleChange('eventLeader', newInputValue || '');
+    if (newInputValue && newInputValue.length >= 2) {
+      fetchPeople(newInputValue);
+    } else if (!newInputValue) {
+      fetchPeople('');
+    }
+  }}
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      label="Event Leader"
+      size="small"
+      sx={{ mb: 3, ...darkModeStyles.textField }}
+      error={!!errors.eventLeader}
+      helperText={
+        errors.eventLeader ||
+        (loadingPeople
+          ? "Loading..."
+          : `Type to search (${peopleData.length} found)`)
+      }
+      InputProps={{
+        ...params.InputProps,
+        startAdornment: (
+          <>
+            <InputAdornment position="start">
+              <PersonIcon />
+            </InputAdornment>
+            {params.InputProps.startAdornment}
+          </>
+        )
+      }}
+    />
+  )}
+/>
+
+{/* Leader @1 */}
+<Autocomplete
+  freeSolo
+  filterOptions={(options) => options}
+  loading={loadingPeople}
+  options={peopleData}
+  getOptionLabel={(option) =>
+    typeof option === 'string' ? option : option.fullName
+  }
+  value={
+    peopleData.find(p => p.fullName === formData.leader1) || formData.leader1 || ''
+  }
+  onChange={(event, newValue) => {
+    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+    handleChange('leader1', name);
+  }}
+  onInputChange={(event, newInputValue) => {
+    handleChange('leader1', newInputValue || '');
+    if (newInputValue && newInputValue.length >= 2) {
+      fetchPeople(newInputValue);
+    } else if (!newInputValue) {
+      fetchPeople("");
+    }
   }}
   renderInput={(params) => (
     <TextField
@@ -777,8 +815,11 @@ const CreateEvents = ({
       label="Leader @1"
       size="small"
       sx={{ mb: 2, ...darkModeStyles.textField }}
-      helperText={errors.leader1 || (loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people available)`)}
       error={!!errors.leader1}
+      helperText={
+        errors.leader1 ||
+        (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
+      }
     />
   )}
 />
@@ -786,20 +827,26 @@ const CreateEvents = ({
 {/* Leader @12 */}
 <Autocomplete
   freeSolo
+  filterOptions={(options) => options}
   loading={loadingPeople}
-  options={peopleData.filter(person =>
-    person.name &&
-    person.position === 144 && // position mapping for Leader @12
-    person.name.toLowerCase().includes((formData.leader12 || '').toLowerCase())
-  )}
-  getOptionLabel={(option) => typeof option === 'string' ? option : option.name}
-  value={peopleData.find(p => p.name === formData.leader12) || formData.leader12 || ''}
+  options={peopleData}
+  getOptionLabel={(option) =>
+    typeof option === 'string' ? option : option.fullName
+  }
+  value={
+    peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''
+  }
   onChange={(event, newValue) => {
-    const selectedName = typeof newValue === 'string' ? newValue : newValue?.name || '';
-    handleChange('leader12', selectedName);
+    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+    handleChange('leader12', name);
   }}
   onInputChange={(event, newInputValue) => {
-    handleChange('leader12', newInputValue);
+    handleChange('leader12', newInputValue || '');
+    if (newInputValue && newInputValue.length >= 2) {
+      fetchPeople(newInputValue);
+    } else if (!newInputValue) {
+      fetchPeople("");
+    }
   }}
   renderInput={(params) => (
     <TextField
@@ -807,14 +854,15 @@ const CreateEvents = ({
       label="Leader @12"
       size="small"
       sx={{ mb: 2, ...darkModeStyles.textField }}
-      helperText={errors.leader12 || (loadingPeople ? "Loading..." : `Search by name (${peopleData.length} people available)`)}
       error={!!errors.leader12}
+      helperText={
+        errors.leader12 ||
+        (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
+      }
     />
   )}
 />
 
-              </Box>
-            )}
 
             {/* Description - Always show */}
             <TextField

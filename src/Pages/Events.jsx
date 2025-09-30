@@ -96,7 +96,7 @@ const styles = {
       flexWrap: 'wrap',  // Allow wrapping to next line
   },
  eventTypeButton: {
-  padding: '0.5rem 1rem',  
+  padding: '0.5rem 1rem',  // Reduce padding further
   backgroundColor: '#f8f9fa',
   color: '#6c757d',
   border: '1px solid #dee2e6',
@@ -107,10 +107,10 @@ const styles = {
   whiteSpace: 'nowrap',
   transition: 'all 0.2s ease',
   textTransform: 'uppercase',
-  letterSpacing: '0.3px', 
+  letterSpacing: '0.3px',  // Reduce letter spacing
   display: 'flex',
   alignItems: 'center',
-  gap: '0.6rem'  
+  gap: '0.6rem'  // Reduce gap between text and delete icon
 },
   eventTypeButtonActive: {
     backgroundColor: '#007bff',
@@ -515,93 +515,80 @@ const Events = () => {
 
   // Update the fetchEvents function to also fetch custom event types
   const fetchEvents = async () => {
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Fetch regular events, cell events, and custom event types concurrently
-      const [eventsResponse, cellsResponse, eventTypesResponse] = await Promise.all([
-        axios.get(`${BACKEND_URL}/events`, { headers }),
-        axios.get(`${BACKEND_URL}/events/cells-user`, { headers }),
-        axios.get(`${BACKEND_URL}/event-types`, { headers }).catch(() => ({ data: [] }))
-      ]);
-
-      const regularEvents = eventsResponse.data.events || eventsResponse.data || [];
-      const nonCellEvents = regularEvents.filter(
-        (event) =>
-          event.eventType?.toLowerCase() !== "cell" && event.eventType?.toLowerCase() !== "cells"
-      );
-
-      const userCellEvents = cellsResponse.data.events || [];
-
-      // Get custom event types from API
-      const apiCustomTypes = eventTypesResponse.data || [];
-
-      setCustomEventTypes(apiCustomTypes);
-      setUserCreatedEventTypes(apiCustomTypes);
-      setEventTypes(apiCustomTypes.map(type => type.name));
-
-      console.log("Fetched non-cell events:", nonCellEvents.length);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const futureNonCellEvents = nonCellEvents.filter((event) => {
-        if (event.status === "closed") {
-          console.log(`Filtered out closed event: ${event.eventName}`);
-          return false;
-        }
-        const eventDate = new Date(event.date);
-        const isFuture = eventDate >= today;
-        console.log(
-          `Event: ${event.eventName}, Date: ${eventDate}, Status: ${event.status}, Is Future: ${isFuture}`
-        );
-        return isFuture;
-      });
-
-      console.log("Future events after filtering:", futureNonCellEvents.length);
-
-      let combinedEvents = [...futureNonCellEvents, ...userCellEvents];
-
-      // ✅ FILTER EVENTS BY USER ROLE
-      const userRole = currentUser.role;
-      const userFullName = `${currentUser.name} ${currentUser.surname}`.trim();
-
-      if (userRole === 'registration') {
-        // Registration only sees ticketed and global events
-        combinedEvents = combinedEvents.filter(event => {
-          const eventType = apiCustomTypes.find(et => et.name === event.eventType);
-          return eventType && (eventType.isTicketed || eventType.isGlobal);
-        });
-      } else if (userRole !== 'admin') {
-        // Regular users only see events where they are a leader
-        combinedEvents = combinedEvents.filter(event =>
-          event.eventLeader === userFullName ||
-          event.leader1 === userFullName ||
-          event.leader12 === userFullName
-        );
-      }
-      // Admin sees all events (no filtering)
-
-      const sortedEvents = combinedEvents.sort(
-        (a, b) => new Date(a.date) - new Date(b.date)
-      );
-
-      setEvents(sortedEvents);
-      setFilteredEvents(sortedEvents);
-
-    } catch (err) {
-      console.error("Failed to fetch events", err.response?.data || err);
-    } finally {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
       setLoading(false);
+      return;
     }
-  };
+
+    const headers = { Authorization: `Bearer ${token}` };
+
+    // ONLY fetch from main events endpoint and event types
+    const [eventsResponse, eventTypesResponse] = await Promise.all([
+      axios.get(`${BACKEND_URL}/events`, { headers }),
+      axios.get(`${BACKEND_URL}/event-types`, { headers }).catch(() => ({ data: [] }))
+    ]);
+
+    const allEvents = eventsResponse.data.events || eventsResponse.data || [];
+    const apiCustomTypes = eventTypesResponse.data || [];
+
+    setCustomEventTypes(apiCustomTypes);
+    setUserCreatedEventTypes(apiCustomTypes);
+    setEventTypes(apiCustomTypes.map(type => type.name));
+
+    console.log("Total events from database:", allEvents.length);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Filter for future events that aren't closed
+    let futureEvents = allEvents.filter((event) => {
+      if (event.status === "closed") return false;
+      
+      // Validate event has required fields
+      if (!event._id || !event.eventName || !event.eventType) return false;
+      
+      const eventDate = new Date(event.date);
+      if (isNaN(eventDate.getTime())) return false;
+      
+      return eventDate >= today;
+    });
+
+    // Filter by user role
+    const userRole = currentUser.role;
+    const userFullName = `${currentUser.name} ${currentUser.surname}`.trim();
+
+    if (userRole === 'registration') {
+      futureEvents = futureEvents.filter(event => {
+        const eventType = apiCustomTypes.find(et => et.name === event.eventType);
+        return eventType && (eventType.isTicketed || eventType.isGlobal);
+      });
+    } else if (userRole !== 'admin') {
+      futureEvents = futureEvents.filter(event =>
+        event.eventLeader === userFullName ||
+        event.leader1 === userFullName ||
+        event.leader12 === userFullName
+      );
+    }
+
+    const sortedEvents = futureEvents.sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
+    );
+
+    console.log("Events after filtering:", sortedEvents.length);
+
+    setEvents(sortedEvents);
+    setFilteredEvents(sortedEvents);
+
+  } catch (err) {
+    console.error("Failed to fetch events", err.response?.data || err);
+  } finally {
+    setLoading(false);
+  }
+};
   // Add this after your state declarations
   const getFilteredEventTypes = () => {
     if (!currentUser || !currentUser.role) return [];
@@ -1074,32 +1061,47 @@ const Events = () => {
   };
 
   const handleDeleteEvent = async () => {
-    if (!currentEvent) return;
-    handleMenuClose();
+  if (!currentEvent) return;
+  
+  const eventToDelete = currentEvent;
+  handleMenuClose();
 
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`${BACKEND_URL}/events/${currentEvent._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+  // IMMEDIATELY remove from UI (optimistic update)
+  setEvents((prev) => prev.filter((e) => e._id !== eventToDelete._id));
+  setFilteredEvents((prev) => prev.filter((e) => e._id !== eventToDelete._id));
 
-      setEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
-      setFilteredEvents((prev) => prev.filter((e) => e._id !== currentEvent._id));
+  try {
+    const token = localStorage.getItem("token");
+    const baseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
+    
+    await axios.delete(`${baseUrl}/events/${eventToDelete._id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
+    setSnackbar({
+      open: true,
+      message: `"${eventToDelete.eventName}" deleted successfully!`,
+      severity: 'success'
+    });
+  } catch (err) {
+    // Handle 404 gracefully - event was already deleted
+    if (err.response?.status === 404) {
       setSnackbar({
         open: true,
-        message: `"${currentEvent.eventName}" deleted successfully!`,
+        message: `"${eventToDelete.eventName}" removed`,
         severity: 'success'
       });
-    } catch (err) {
-      console.error("Failed to delete event:", err);
+    } else {
+      // Only log and show error for real problems
+      console.error("Delete error:", err.response?.data);
       setSnackbar({
         open: true,
-        message: `Failed to delete event: ${err.response?.data?.message || 'Unknown error'}`,
+        message: `Failed to delete: ${err.response?.data?.detail || err.message}`,
         severity: 'error'
       });
     }
-  };
+  }
+};
   const renderLeadershipInfo = (event) => {
     const eventTypeNormalized = event.eventType?.toLowerCase() || "";
     const isCell = eventTypeNormalized === "cell";
