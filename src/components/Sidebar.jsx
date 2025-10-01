@@ -7,6 +7,7 @@ import {
   IconButton,
   Box,
   useMediaQuery,
+  Typography,
 } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -19,27 +20,29 @@ import {
   Event,
   BarChart,
   Assignment,
-  VolunteerActivism,
   HowToReg,
+  AdminPanelSettings
 } from '@mui/icons-material';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../contexts/AuthContext';
 import logo from "../assets/active-teams.png"
 
-const menuItems = [
-  { label: 'Home', path: '/', icon: Home },
-  { label: 'Profile', path: '/profile', icon: Person },
-  { label: 'People', path: '/people', icon: Group },
-  { label: 'Events', path: '/events', icon: Event },
-  { label: 'Stats', path: '/stats', icon: BarChart },
-  { label: 'Service Check-in', path: '/service-check-in', icon: HowToReg },
-  // { label: 'Give Today', path: '/give-today', icon: VolunteerActivism },
-  { label: 'Daily Tasks', path: '/daily-tasks', icon: Assignment },
+const allMenuItems = [
+  { label: 'Home', path: '/', icon: Home, roles: ['admin', 'leader', 'user', 'registrant'] },
+  { label: 'Profile', path: '/profile', icon: Person, roles: ['admin', 'leader', 'user', 'registrant'] },
+  { label: 'People', path: '/people', icon: Group, roles: ['admin', 'leader'] },
+  { label: 'Events', path: '/events', icon: Event, roles: ['admin', 'leader', 'user', 'registrant'] },
+  { label: 'Stats', path: '/stats', icon: BarChart, roles: ['admin'] },
+  { label: 'Service Check-in', path: '/service-check-in', icon: HowToReg, roles: ['admin', 'registrant'] },
+  { label: 'Daily Tasks', path: '/daily-tasks', icon: Assignment, roles: ['admin', 'leader', 'user', 'registrant'] },
+  { label: 'Admin', path: '/admin', icon: AdminPanelSettings, roles: ['admin'] },
 ];
 
 export default function Sidebar({ mode, setMode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isMobile = useMediaQuery('(max-width:900px)');
   const location = useLocation();
+  const { user } = useContext(AuthContext);
 
   // Load mode from localStorage on mount
   useEffect(() => {
@@ -62,13 +65,15 @@ export default function Sidebar({ mode, setMode }) {
   const bgColor = mode === 'dark' ? '#121212' : '#ffffff';
   const textColor = mode === 'dark' ? '#ffffff' : '#000000';
   const activeTextColor = mode === 'dark' ? '#ffffff' : '#000000';
-   if (location.pathname === "/signup") {
+
+  if (location.pathname === "/signup" || location.pathname === "/login") {
     return null;
   }
 
-  if (location.pathname === "/login") {
-    return null;
-  }
+  // Filter menu items based on user role
+  const menuItems = allMenuItems.filter(item => 
+    item.roles.includes(user?.role)
+  );
 
   const drawerContent = (
     <Box
@@ -96,6 +101,18 @@ export default function Sidebar({ mode, setMode }) {
         />
       </Box>
 
+      {/* User Info */}
+      {/* {user && (
+        <Box sx={{ px: 2, pb: 1 }}>
+          <Typography variant="caption" sx={{ color: textColor, opacity: 0.7 }}>
+            {user.name}
+          </Typography>
+          <Typography variant="caption" display="block" sx={{ color: textColor, opacity: 0.5, textTransform: 'capitalize' }}>
+            {user.role}
+          </Typography>
+        </Box>
+      )} */}
+
       {/* Menu Items */}
       <List sx={{ flexGrow: 1 }}>
         {menuItems.map(({ label, path, icon: Icon }) => {
@@ -113,12 +130,12 @@ export default function Sidebar({ mode, setMode }) {
                 color: isActive ? activeTextColor : textColor,
                 backgroundColor: isActive
                   ? mode === 'dark'
-                    ? 'rgba(255,255,255,0.08)' // soft highlight in dark mode
-                    : 'rgba(0,0,0,0.06)' // soft highlight in light mode
+                    ? 'rgba(255,255,255,0.08)'
+                    : 'rgba(0,0,0,0.06)'
                   : 'transparent',
                 borderLeft: isActive
                   ? `4px solid ${mode === 'dark' ? '#ffffff' : '#000000'}`
-                  : '4px solid transparent', // accent bar
+                  : '4px solid transparent',
                 '&:hover': {
                   backgroundColor: mode === 'dark'
                     ? 'rgba(255,255,255,0.15)'
