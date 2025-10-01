@@ -482,6 +482,8 @@ const Events = () => {
     setDeleteConfirmOpen(false);
     setEventTypeToDelete(null);
   };
+
+
 const fetchEvents = async () => {
   setLoading(true);
 
@@ -494,130 +496,101 @@ const fetchEvents = async () => {
 
     const headers = { Authorization: `Bearer ${token}` };
 
-    const [eventsResponse, cellsResponse, eventTypesResponse] = await Promise.all([
-      axios.get(`${BACKEND_URL}/events`, { headers }),
-      axios.get(`${BACKEND_URL}/events/cells-user`, { headers }).catch(() => ({ data: { events: [] } })),
+    // Only call the cells-user endpoint since it has the proper leader12 logic
+    const [cellsResponse, eventTypesResponse] = await Promise.all([
+      axios.get(`${BACKEND_URL}/events/cells-user`, { headers }).catch((err) => { 
+        console.error("Cells user endpoint failed:", err);
+        return { data: { events: [], status: "error", error: err.message } };
+      }),
       axios.get(`${BACKEND_URL}/event-types`, { headers }).catch(() => ({ data: [] }))
     ]);
 
-    const regularEvents = eventsResponse.data.events || eventsResponse.data || [];
-    const cellEvents = cellsResponse.data.events || [];
     const apiCustomTypes = eventTypesResponse.data || [];
-
     setCustomEventTypes(apiCustomTypes);
     setUserCreatedEventTypes(apiCustomTypes);
     setEventTypes(apiCustomTypes.map(type => type.name));
 
-    const allEvents = [...regularEvents, ...cellEvents];
+    // Use the response from cells-user endpoint
+    const cellsData = cellsResponse.data;
+    console.log("Cells user response:", cellsData);
 
-    console.log("Total events from database:", allEvents.length);
-    console.log("Regular events:", regularEvents.length);
-    console.log("Cell events:", cellEvents.length);
+    let allEvents = [];
+    
+    if (cellsData.status === "success") {
+      if (cellsData.events && cellsData.events.length > 0) {
+        // Use the events from cells-user endpoint
+        allEvents = cellsData.events;
+      } else if (cellsData.leader12_cells && cellsData.leader12_cells.length > 0) {
+        // If events are categorized, combine all supervised cells
+        allEvents = [
+          ...(cellsData.own_cells || []),
+          ...(cellsData.leader12_cells || []),
+          ...(cellsData.leader144_cells || [])
+        ];
+      }
+    } else {
+      console.error("Cells user endpoint returned error:", cellsData.error);
+    }
 
-    const now = new Date();
+    console.log("Total events from cells-user:", allEvents.length);
+    console.log("Events breakdown:", {
+      own_cells: cellsData.own_cells_count || 0,
+      leader12_cells: cellsData.leader12_count || 0,
+      leader144_cells: cellsData.leader144_count || 0
+    });
 
-    // Helper: Normalize names (remove extra spaces, lowercase)
-    const normalizeName = (name) => name?.replace(/\s+/g, " ").trim().toLowerCase();
+    // Process events to match frontend expected format
+    const processedEvents = allEvents.map(event => {
+      let eventDate = null;
+      if (event.date) {
+        eventDate = new Date(event.date);
+      }
 
-    let futureEvents = allEvents
-      .map(event => {
-        // Normalize status
-        const rawStatus = event.Status || event.status || "open";
-        const normalizedStatus = rawStatus.toLowerCase();
+      return {
+        ...event,
+        _id: event._id,
+        eventName: event.eventName || event["Event Name"],
+        eventType: "Cell",
+        date: event.date,
+        location: event.location || event.Address || "Not specified",
+        description: event.description || event.eventName || "",
+        eventLeaderName: event.eventLeaderName || event.Leader,
+        eventLeaderEmail: event.eventLeaderEmail || event.Email,
+        leader1: event.leader1 || event["Leader at 1"] || "",
+        leader12: event.leader12 || event["Leader at 12"] || "",
+        leader144: event.leader144 || event["Leader at 144"] || "",
+        time: event.time || event.Time,
+        status: event.status || "open",
+        isTicketed: false,
+        price: 0,
+        parsedDate: eventDate,
+        relationship: event.relationship // Keep the relationship info
+      };
+    });
 
-        // Normalize date
-        let rawDate = event.date || event["Date Of Event"];
-        let eventDate = null;
+    console.log("Processed events:", processedEvents);
 
-        if (rawDate) {
-          if (/^\d{2}\s*-\s*\d{2}\s*-\s*\d{4}$/.test(rawDate)) {
-            const [day, month, year] = rawDate.split("-").map(v => v.trim());
-            eventDate = new Date(`${year}-${month}-${day}`);
-          } else {
-            eventDate = new Date(rawDate);
-          }
-        }
-
-        const normalizedEventType = (event.eventType || event["Event Type"] || "").toLowerCase();
-
-        if (normalizedEventType === "cell" || normalizedEventType === "cells") {
-          return {
-            ...event,
-            _id: event._id,
-            eventName: event["Event Name"] || event.eventName,
-            eventType: "Cell",
-            date: rawDate,
-            location: event.Location || event.location || "Not specified",
-            description: event.Description || event.description || "",
-            eventLeaderName: event.Leader || event.eventLeaderName,
-            eventLeaderEmail: event.Email || event.eventLeaderEmail,
-            leader1: event["Leader at 1"] || event.leader1 || "",
-            leader12: event["Leader at 12"] || event.leader12 || "",
-            leader144: event["Leader at 144"] || event.leader144 || "",
-            time: event.Time || event.time,
-            status: normalizedStatus,
-            isTicketed: false,
-            price: 0,
-            parsedDate: eventDate,
-          };
-        }
-
-        return {
-          ...event,
-          status: normalizedStatus,
-          parsedDate: eventDate,
-        };
-      })
-      .filter(event => {
-        const eventDate = event.parsedDate;
-        if (!eventDate || isNaN(eventDate.getTime())) return false;
-
-        if (event.status === "closed" || event.status === "complete") return false;
-
-        return eventDate >= now;
-      });
-
+    // For non-admin users, we don't need additional filtering since 
+    // the backend already filtered to only show relevant cells
     const userRole = currentUser.role;
-    const userFullName = normalizeName(`${currentUser.name} ${currentUser.surname}`);
+    let finalEvents = processedEvents;
 
     if (userRole === "registration") {
-      futureEvents = futureEvents.filter(event => {
+      finalEvents = processedEvents.filter(event => {
         const eventType = apiCustomTypes.find(
           et => et.name === (event.eventType || "").trim()
         );
         return eventType && (eventType.isTicketed || eventType.isGlobal);
       });
-    } else if (userRole !== "admin") {
-      futureEvents = futureEvents.filter(event => {
-        // For cell events, check if user is Leader at 12
-        if (event.eventType === "Cell") {
-          const leader12Name = normalizeName(event.leader12 || "");
-          
-          // If user is the Leader at 12, show this cell
-          if (leader12Name && leader12Name.includes(userFullName)) {
-            return true;
-          }
-        }
-
-        // Also show events where user is the main leader or other leadership positions
-        const leaders = [
-          event.eventLeaderName,
-          event.leader1,
-          event.leader12,
-          event.leader144
-        ]
-          .filter(Boolean)
-          .map(nameField => normalizeName(nameField));
-
-        return leaders.some(nameField => nameField.includes(userFullName));
-      });
     }
+    // No need for admin/non-admin filtering since backend handled it
 
-    const sortedEvents = futureEvents.sort(
-      (a, b) => new Date(a.parsedDate) - new Date(b.parsedDate)
+    const sortedEvents = finalEvents.sort(
+      (a, b) => new Date(a.parsedDate || 0) - new Date(b.parsedDate || 0)
     );
 
-    console.log("Events after filtering:", sortedEvents.length);
+    console.log("Final events after processing:", sortedEvents.length);
+    console.log("Final events list:", sortedEvents);
 
     setEvents(sortedEvents);
     setFilteredEvents(sortedEvents);
@@ -628,9 +601,6 @@ const fetchEvents = async () => {
     setLoading(false);
   }
 };
-
-
-
 
   const getFilteredEventTypes = () => {
     if (!currentUser || !currentUser.role) return [];

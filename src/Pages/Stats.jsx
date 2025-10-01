@@ -1,5 +1,4 @@
-// src/pages/StatsDashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Grid,
@@ -37,7 +36,8 @@ import {
   Person as PersonIcon,
   Description as DescriptionIcon,
   Delete as DeleteIcon,
-  Visibility as VisibilityIcon
+  Visibility as VisibilityIcon,
+  Refresh as RefreshIcon  // Added missing import
 } from '@mui/icons-material';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
@@ -67,9 +67,18 @@ ChartJS.register(
 );
 
 // Configure backend base URL
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-
+// Create a module-level cache to persist data across component instances
+let globalCache = {
+  statsOverview: null,
+  attendanceTrend: null,
+  outstandingItems: { cells: [], tasks: [] },
+  peopleWithTasks: [],
+  allEvents: [],
+  lastFetchTime: null,
+  period: 'monthly'
+};
 
 /* -------------------------
    Event Creation/Edit Popup
@@ -627,6 +636,14 @@ const StatsDashboard = () => {
   const isTablet = useMediaQuery(theme.breakpoints.between("sm", "md"));
   const schedulerView = isMobile ? "day" : isTablet ? "week" : "month";
 
+  // Stats state - initialize from global cache
+  const [statsOverview, setStatsOverview] = useState(globalCache.statsOverview);
+  const [attendanceTrend, setAttendanceTrend] = useState(globalCache.attendanceTrend);
+  const [outstandingItems, setOutstandingItems] = useState(globalCache.outstandingItems);
+  const [peopleWithTasks, setPeopleWithTasks] = useState(globalCache.peopleWithTasks);
+  const [loadingStats, setLoadingStats] = useState(!globalCache.statsOverview);
+  const [period, setPeriod] = useState(globalCache.period);
+
   // Chart data
   const [chartData, setChartData] = useState({
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
@@ -636,38 +653,111 @@ const StatsDashboard = () => {
     ]
   });
 
-  // Modal states - simplified to only use creation dialog and scheduler's built-in viewer
+  // Modal states
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [selectedEventDate, setSelectedEventDate] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
 
-  // Static data (you can move these to backend calls later)
-  const tasks = [
-    { name: 'Tegra Mungudi', email: 'tegra@example.com', count: 64 },
-    { name: 'Kevin Cyberg', email: 'kevin@example.com', count: 3 },
-    { name: 'Timmy Ngezo', email: 'timmy@example.com', count: 10 },
-    { name: 'Zen Diaz', email: 'zen@example.com', count: 29 },
-    { name: 'Eliak James', email: 'eliak@example.com', count: 4 },
-    { name: 'Thabo Tshims', email: 'thabo@example.com', count: 24 }
-  ];
-
-  const cells = [
-    { name: 'Tegra Mungudi', location: 'Rosettenville School cell' },
-    { name: 'Kevin Cyberg', location: '98 Albert Street (Home) Cell' },
-    { name: 'Timmy Ngezo', location: 'Downtown Community Cell' },
-    { name: 'Zen Diaz', location: 'Eastside Cell Group' }
-  ];
-
-  // Events state
-  const [allEvents, setAllEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Events state - initialize from global cache
+  const [allEvents, setAllEvents] = useState(globalCache.allEvents);
+  const [loading, setLoading] = useState(!globalCache.allEvents.length);
   const [error, setError] = useState(null);
 
   // Global snackbar for actions
   const [globalSnack, setGlobalSnack] = useState({ open: false, severity: 'success', message: '' });
 
+  // Track if data has been loaded to prevent reloads
+  const dataLoadedRef = useRef(!!globalCache.lastFetchTime);
+
+  // Fetch stats data
+  const fetchStats = async () => {
+    // If we already have cached data and it's recent, use it
+    if (globalCache.statsOverview && globalCache.lastFetchTime) {
+      const timeSinceLastFetch = Date.now() - globalCache.lastFetchTime;
+      const FIVE_MINUTES = 5 * 60 * 1000;
+      
+      if (timeSinceLastFetch < FIVE_MINUTES) {
+        console.log('Using cached stats data');
+        setStatsOverview(globalCache.statsOverview);
+        setAttendanceTrend(globalCache.attendanceTrend);
+        setOutstandingItems(globalCache.outstandingItems);
+        setPeopleWithTasks(globalCache.peopleWithTasks);
+        setLoadingStats(false);
+        return;
+      }
+    }
+
+    try {
+      setLoadingStats(true);
+      
+      // Fetch overview stats
+      const overviewResponse = await fetch(`${BACKEND_URL}/stats/overview?period=${period}`);
+      if (!overviewResponse.ok) throw new Error('Failed to fetch overview stats');
+      const overviewData = await overviewResponse.json();
+      
+      setStatsOverview(overviewData);
+      globalCache.statsOverview = overviewData;
+
+      // Fetch outstanding items
+      const itemsResponse = await fetch(`${BACKEND_URL}/stats/outstanding-items`);
+      if (itemsResponse.ok) {
+        const itemsData = await itemsResponse.json();
+        const outstandingItemsData = {
+          cells: itemsData.cells || itemsData.outstanding_cells || [],
+          tasks: itemsData.tasks || itemsData.outstanding_tasks || []
+        };
+        setOutstandingItems(outstandingItemsData);
+        globalCache.outstandingItems = outstandingItemsData;
+      }
+
+      // Fetch people with tasks
+      const peopleResponse = await fetch(`${BACKEND_URL}/stats/people-with-tasks`);
+      if (peopleResponse.ok) {
+        const peopleData = await peopleResponse.json();
+        const peopleWithTasksData = peopleData.people_with_outstanding_tasks || [];
+        setPeopleWithTasks(peopleWithTasksData);
+        globalCache.peopleWithTasks = peopleWithTasksData;
+      }
+
+      // Fetch attendance trend
+      const trendResponse = await fetch(`${BACKEND_URL}/stats/attendance-trend?months=6`);
+      if (trendResponse.ok) {
+        const trendData = await trendResponse.json();
+        setAttendanceTrend(trendData);
+        globalCache.attendanceTrend = trendData;
+      }
+
+      // Update cache timestamp
+      globalCache.lastFetchTime = Date.now();
+      globalCache.period = period;
+
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+      setGlobalSnack({ 
+        open: true, 
+        severity: 'error', 
+        message: 'Failed to load statistics' 
+      });
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
   // Fetch events from backend
   const fetchEvents = async (opts = {}) => {
+    // If we already have cached events and it's recent, use them
+    if (globalCache.allEvents.length && globalCache.lastFetchTime) {
+      const timeSinceLastFetch = Date.now() - globalCache.lastFetchTime;
+      const FIVE_MINUTES = 5 * 60 * 1000;
+      
+      if (timeSinceLastFetch < FIVE_MINUTES) {
+        console.log('Using cached events data');
+        setAllEvents(globalCache.allEvents);
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -726,6 +816,9 @@ const StatsDashboard = () => {
       });
 
       setAllEvents(transformedEvents);
+      globalCache.allEvents = transformedEvents;
+      globalCache.lastFetchTime = Date.now();
+
     } catch (err) {
       console.error('Error fetching events:', err);
       setError('Failed to load events. Please check your connection and try again.');
@@ -735,31 +828,25 @@ const StatsDashboard = () => {
     }
   };
 
-  // Initial fetch
+  // Initial fetches - only run if no cached data
   useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  // Refresh on page visibility
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchEvents();
-      }
-    };
-
-    const handleWindowFocus = () => {
+    if (!dataLoadedRef.current) {
+      console.log('Initial data load');
+      fetchStats();
       fetchEvents();
-    };
+      dataLoadedRef.current = true;
+    } else {
+      console.log('Using existing cached data');
+    }
+  }, []); // Empty dependency array - only run once on mount
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleWindowFocus);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleWindowFocus);
-    };
-  }, []);
+  // Refresh data only when period changes explicitly
+  useEffect(() => {
+    if (dataLoadedRef.current && period !== globalCache.period) {
+      console.log('Period changed, refreshing stats');
+      fetchStats();
+    }
+  }, [period]);
 
   // Filter events for scheduler (exclude cell events if needed)
   const schedulerEvents = allEvents.filter(event => 
@@ -807,6 +894,7 @@ const StatsDashboard = () => {
   // Event handlers
   const handleEventCreated = async () => {
     await fetchEvents();
+    await fetchStats(); // Also refresh stats when events change
     setGlobalSnack({ open: true, severity: 'success', message: 'Events updated successfully' });
   };
 
@@ -816,6 +904,16 @@ const StatsDashboard = () => {
     setAllEvents(updatedEvents);
     // Optionally refresh from backend to ensure consistency
     setTimeout(() => fetchEvents(), 1000);
+  };
+
+  // Manual refresh function
+  const handleManualRefresh = () => {
+    console.log('Manual refresh triggered');
+    // Clear cache to force fresh data
+    globalCache.lastFetchTime = null;
+    fetchStats();
+    fetchEvents();
+    setGlobalSnack({ open: true, severity: 'info', message: 'Refreshing data...' });
   };
 
   // Dialog control functions
@@ -847,6 +945,7 @@ const StatsDashboard = () => {
 
       await deleteEvent(eventId);
       await fetchEvents();
+      await fetchStats(); // Refresh stats after deletion
       setGlobalSnack({ 
         open: true, 
         severity: 'success', 
@@ -928,7 +1027,7 @@ const StatsDashboard = () => {
         }}
         onClick={(e) => {
           e.stopPropagation();
-          openEventViewer(event);
+          openEditEventDialog(event);
         }}
       >
         {event.title}
@@ -972,7 +1071,34 @@ const StatsDashboard = () => {
       }}
     >
       <CssBaseline />
-      <Box sx={{ width: '100%', maxWidth: 1200, px: { xs: 1, sm: 2 }, mt: "50px" }}>
+      <Box sx={{ width: '80%', maxWidth: 1200, px: { xs: 1, sm: 2 }, mt: "50px" }}>
+        
+        {/* Period Selector and Refresh Button */}
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Period</InputLabel>
+            <Select
+              value={period}
+              label="Period"
+              onChange={(e) => setPeriod(e.target.value)}
+            >
+              <MenuItem value="daily">Daily</MenuItem>
+              <MenuItem value="weekly">Weekly</MenuItem>
+              <MenuItem value="monthly">Monthly</MenuItem>
+            </Select>
+          </FormControl>
+          
+          {/* Manual Refresh Button */}
+          <Button
+            variant="outlined"
+            onClick={handleManualRefresh}
+            disabled={loadingStats || loading}
+            startIcon={<RefreshIcon />}
+          >
+            Refresh Data
+          </Button>
+        </Box>
+
         <Grid container spacing={3} justifyContent="center">
 
           {/* Service Growth */}
@@ -985,19 +1111,44 @@ const StatsDashboard = () => {
               boxShadow: cardShadow,
               transition: 'box-shadow 0.3s ease-in-out',
             }}>
-              <Typography variant="subtitle2">August</Typography>
-              <Typography variant="h4" fontWeight="bold" mt={2}>87.5%</Typography>
+              <Typography variant="subtitle2">{period.charAt(0).toUpperCase() + period.slice(1)}</Typography>
+              <Typography variant="h4" fontWeight="bold" mt={2}>
+                {statsOverview?.growth_rate || 0}%
+              </Typography>
               <Typography>Service Growth</Typography>
-              <Pie
-                data={{
-                  labels: ["August", "July"],
-                  datasets: [{ 
-                    data: [87.5, 12.5], 
-                    backgroundColor: ["#3f51b5", "#e0e0e0"], 
-                    hoverOffset: 4 
-                  }]
-                }}
-              />
+              {statsOverview?.attendance_breakdown && Object.keys(statsOverview.attendance_breakdown).length > 0 ? (
+                <Pie
+                  data={{
+                    labels: Object.keys(statsOverview.attendance_breakdown),
+                    datasets: [{ 
+                      data: Object.values(statsOverview.attendance_breakdown), 
+                      backgroundColor: [
+                        '#3f51b5', '#f44336', '#4caf50', '#ff9800', 
+                        '#9c27b0', '#00bcd4', '#795548'
+                      ], 
+                      hoverOffset: 4 
+                    }]
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                      legend: {
+                        position: 'bottom',
+                        labels: {
+                          color: theme.palette.text.primary
+                        }
+                      }
+                    }
+                  }}
+                />
+              ) : (
+                <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                  <Typography color="textSecondary">
+                    No attendance data available for {period} period
+                  </Typography>
+                </Box>
+              )}
             </Paper>
           </Grid>
 
@@ -1007,75 +1158,63 @@ const StatsDashboard = () => {
               <Grid item xs={12}>
                 <Paper sx={{ p: 2, borderRadius: 2, bgcolor: cardColor, boxShadow: cardShadow }}>
                   <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography>Weekend Services</Typography>
+                    <Typography>Attendance Trend</Typography>
                     <Box sx={{ p: 1, borderRadius: 1, boxShadow: itemShadow }}>
                       <EditIcon fontSize="small" />
                     </Box>
                   </Box>
-                  <Typography variant="caption">August</Typography>
-                  <Bar
-                    data={{
-                      labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-                      datasets: [{ 
-                        label: 'Attendance', 
-                        data: [120, 150, 100, 180], 
-                        backgroundColor: theme.palette.primary.main, 
-                        borderRadius: 6 
-                      }]
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: true,
-                      aspectRatio: 2,
-                      plugins: { legend: { display: false } },
-                      scales: {
-                        y: { 
-                          beginAtZero: true, 
-                          ticks: { stepSize: 50, color: theme.palette.text.secondary }, 
-                          grid: { color: theme.palette.divider } 
-                        },
-                        x: { 
-                          ticks: { color: theme.palette.text.secondary }, 
-                          grid: { display: false } 
+                  <Typography variant="caption">Last 6 Months</Typography>
+                  {attendanceTrend && attendanceTrend.labels && attendanceTrend.labels.length > 0 ? (
+                    <Bar
+                      data={{
+                        labels: attendanceTrend.labels,
+                        datasets: [{ 
+                          label: 'Attendance', 
+                          data: attendanceTrend.data, 
+                          backgroundColor: theme.palette.primary.main, 
+                          borderRadius: 6 
+                        }]
+                      }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        aspectRatio: 2,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                          y: { 
+                            beginAtZero: true, 
+                            ticks: { color: theme.palette.text.secondary }, 
+                            grid: { color: theme.palette.divider } 
+                          },
+                          x: { 
+                            ticks: { color: theme.palette.text.secondary }, 
+                            grid: { display: false } 
+                          }
                         }
-                      }
-                    }}
-                  />
+                      }}
+                    />
+                  ) : (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                      <Typography color="textSecondary">
+                        No trend data available
+                      </Typography>
+                    </Box>
+                  )}
                 </Paper>
               </Grid>
 
               <Grid item xs={12}>
                 <Paper sx={{ p: 2, borderRadius: 2, bgcolor: cardColor, boxShadow: cardShadow }}>
-                  <Typography>Amount of Calls<br />And Cells Captured</Typography>
-                  <Typography variant="caption">August</Typography>
-                  <Line
-                    data={chartData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: true,
-                      aspectRatio: 2,
-                      plugins: { 
-                        legend: { 
-                          labels: { 
-                            usePointStyle: true, 
-                            pointStyle: 'rectRounded', 
-                            color: theme.palette.text.primary 
-                          } 
-                        } 
-                      },
-                      scales: {
-                        y: { 
-                          beginAtZero: true, 
-                          ticks: { stepSize: 50, color: theme.palette.text.secondary }, 
-                          grid: { color: theme.palette.divider } 
-                        },
-                        x: { 
-                          ticks: { color: theme.palette.text.secondary }, 
-                          grid: { display: false } 
-                        }
-                      }
-                    }}
-                  />
+                  <Typography>Total Attendance</Typography>
+                  <Typography variant="caption">{period.charAt(0).toUpperCase() + period.slice(1)}</Typography>
+                  <Box display="flex" justifyContent="center" alignItems="center" height={120}>
+                    <Typography variant="h2" fontWeight="bold" color="primary">
+                      {statsOverview?.total_attendance || 0}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="textSecondary" textAlign="center">
+                    Total attendees this {period}
+                  </Typography>
                 </Paper>
               </Grid>
             </Grid>
@@ -1084,6 +1223,7 @@ const StatsDashboard = () => {
           {/* Outstanding Cells & Tasks */}
           <Grid item xs={12}>
             <Grid container spacing={3}>
+              {/* Outstanding Cells */}
               <Grid item xs={12} md={6}>
                 <Paper sx={{ 
                   p: { xs: 3, sm: 4 }, 
@@ -1093,42 +1233,94 @@ const StatsDashboard = () => {
                   overflowY: 'auto', 
                   boxShadow: cardShadow 
                 }}>
-                  <Typography variant="h5" gutterBottom>Outstanding Cells</Typography>
+                  <Typography variant="h5" gutterBottom>
+                    Outstanding Cells ({statsOverview?.outstanding_cells || 0})
+                  </Typography>
                   <Box sx={{ mt: 2 }}>
-                    {cells.map((item, i) => (
-                      <Box 
-                        key={i} 
-                        sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          mb: 3, 
-                          p: { xs: 1, sm: 2 }, 
-                          borderRadius: 1, 
-                          boxShadow: itemShadow 
-                        }}
-                      >
-                        <Avatar sx={{ 
-                          mr: { xs: 2, sm: 3 }, 
-                          width: { xs: 40, sm: 48 }, 
-                          height: { xs: 40, sm: 48 }, 
-                          boxShadow: avatarShadow 
-                        }}>
-                          {item.name[0]}
-                        </Avatar>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                            {item.name}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                            {item.location}
-                          </Typography>
-                        </Box>
+                    {loadingStats ? (
+                      <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                        <CircularProgress />
                       </Box>
-                    ))}
+                    ) : outstandingItems.cells && outstandingItems.cells.length > 0 ? (
+                      outstandingItems.cells.map((leader, index) => (
+                        <Box 
+                          key={index} 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            mb: 3, 
+                            p: { xs: 1, sm: 2 }, 
+                            borderRadius: 1, 
+                            boxShadow: itemShadow,
+                            bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+                          }}
+                        >
+                          <Avatar sx={{ 
+                            mr: { xs: 2, sm: 3 }, 
+                            width: { xs: 40, sm: 48 }, 
+                            height: { xs: 40, sm: 48 }, 
+                            boxShadow: avatarShadow,
+                            bgcolor: theme.palette.primary.main
+                          }}>
+                            {leader.name ? leader.name.charAt(0).toUpperCase() : '?'}
+                          </Avatar>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                              {leader.name || 'Unnamed Leader'}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                              Responsible for {leader.count || 0} cell(s)
+                            </Typography>
+                            
+                            {/* Display individual cells */}
+                            {leader.cells && leader.cells.slice(0, 2).map((cell, cellIndex) => (
+                              <Box key={cellIndex} sx={{ mt: 1, pl: 1, borderLeft: `2px solid ${theme.palette.primary.main}` }}>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {cell.cell_name || 'Unnamed Cell'}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                  📍 {cell.location || 'No location specified'}
+                                </Typography>
+                              </Box>
+                            ))}
+                            
+                            {/* Show more indicator if there are more cells */}
+                            {leader.cells && leader.cells.length > 2 && (
+                              <Typography variant="caption" sx={{ color: theme.palette.primary.main, mt: 0.5 }}>
+                                +{leader.cells.length - 2} more cells
+                              </Typography>
+                            )}
+                          </Box>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            minWidth: { xs: 40, sm: 50 }, 
+                            height: { xs: 40, sm: 50 }, 
+                            bgcolor: theme.palette.secondary.main, 
+                            color: theme.palette.secondary.contrastText, 
+                            borderRadius: 1, 
+                            ml: 2, 
+                            boxShadow: countBoxShadow 
+                          }}>
+                            <Typography sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                              {leader.count || 0}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))
+                    ) : (
+                      <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                        <Typography color="textSecondary">
+                          No outstanding cells
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
                 </Paper>
               </Grid>
 
+              {/* Outstanding Tasks */}
               <Grid item xs={12} md={6}>
                 <Paper sx={{ 
                   p: { xs: 3, sm: 4 }, 
@@ -1138,54 +1330,89 @@ const StatsDashboard = () => {
                   overflowY: 'auto', 
                   boxShadow: cardShadow 
                 }}>
-                  <Typography variant="h5" gutterBottom>Outstanding Tasks</Typography>
+                  <Typography variant="h5" gutterBottom>
+                    Outstanding Tasks ({statsOverview?.outstanding_tasks || 0})
+                  </Typography>
                   <Box sx={{ mt: 2 }}>
-                    {tasks.map((item, i) => (
-                      <Box 
-                        key={i} 
-                        sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          mb: 3, 
-                          p: { xs: 1, sm: 2 }, 
-                          borderRadius: 1, 
-                          boxShadow: itemShadow 
-                        }}
-                      >
-                        <Avatar sx={{ 
-                          mr: { xs: 2, sm: 3 }, 
-                          width: { xs: 40, sm: 48 }, 
-                          height: { xs: 40, sm: 48 }, 
-                          boxShadow: avatarShadow 
-                        }}>
-                          {item.name[0]}
-                        </Avatar>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                            {item.name}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                            {item.email}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          minWidth: { xs: 40, sm: 50 }, 
-                          height: { xs: 40, sm: 50 }, 
-                          bgcolor: theme.palette.primary.main, 
-                          color: theme.palette.primary.contrastText, 
-                          borderRadius: 1, 
-                          ml: 2, 
-                          boxShadow: countBoxShadow 
-                        }}>
-                          <Typography sx={{ fontWeight: 'bold' }}>
-                            {item.count.toString().padStart(2, '0')}
-                          </Typography>
-                        </Box>
+                    {loadingStats ? (
+                      <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                        <CircularProgress />
                       </Box>
-                    ))}
+                    ) : outstandingItems.tasks && outstandingItems.tasks.length > 0 ? (
+                      outstandingItems.tasks.map((person, index) => (
+                        <Box 
+                          key={index} 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            mb: 3, 
+                            p: { xs: 1, sm: 2 }, 
+                            borderRadius: 1, 
+                            boxShadow: itemShadow,
+                            bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+                          }}
+                        >
+                          <Avatar sx={{ 
+                            mr: { xs: 2, sm: 3 }, 
+                            width: { xs: 40, sm: 48 }, 
+                            height: { xs: 40, sm: 48 }, 
+                            boxShadow: avatarShadow,
+                            bgcolor: theme.palette.error.main
+                          }}>
+                            {person.name ? person.name.charAt(0).toUpperCase() : '?'}
+                          </Avatar>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                              {person.name || 'Unassigned'}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                              {person.email || 'No email'} • {person.count || 0} task(s)
+                            </Typography>
+                            
+                            {/* Display individual tasks */}
+                            {person.tasks && person.tasks.slice(0, 2).map((task, taskIndex) => (
+                              <Box key={taskIndex} sx={{ mt: 1, pl: 1, borderLeft: `2px solid ${theme.palette.error.main}` }}>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {task.task_name || 'Unnamed Task'}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                  ⚡ Priority: {task.priority || 'Normal'}
+                                </Typography>
+                              </Box>
+                            ))}
+                            
+                            {/* Show more indicator if there are more tasks */}
+                            {person.tasks && person.tasks.length > 2 && (
+                              <Typography variant="caption" sx={{ color: theme.palette.error.main, mt: 0.5 }}>
+                                +{person.tasks.length - 2} more tasks
+                              </Typography>
+                            )}
+                          </Box>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            minWidth: { xs: 40, sm: 50 }, 
+                            height: { xs: 40, sm: 50 }, 
+                            bgcolor: theme.palette.error.main, 
+                            color: theme.palette.error.contrastText, 
+                            borderRadius: 1, 
+                            ml: 2, 
+                            boxShadow: countBoxShadow 
+                          }}>
+                            <Typography sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                              {person.count || 0}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))
+                    ) : (
+                      <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                        <Typography color="textSecondary">
+                          No outstanding tasks
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
                 </Paper>
               </Grid>
@@ -1202,18 +1429,23 @@ const StatsDashboard = () => {
             }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h5">Church Scheduler</Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => openCreateEventDialog()}
-                  disabled={loading}
-                  sx={{ 
-                    bgcolor: theme.palette.primary.main, 
-                    '&:hover': { bgcolor: theme.palette.primary.dark } 
-                  }}
-                >
-                  Create Event
-                </Button>
+                <Box display="flex" alignItems="center" gap={2}>
+                  <Typography variant="body2" color="textSecondary">
+                    Total People: {statsOverview?.total_people || 0}
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => openCreateEventDialog()}
+                    disabled={loading}
+                    sx={{ 
+                      bgcolor: theme.palette.primary.main, 
+                      '&:hover': { bgcolor: theme.palette.primary.dark } 
+                    }}
+                  >
+                    Create Event
+                  </Button>
+                </Box>
               </Box>
 
               {error && (
