@@ -589,6 +589,17 @@ const fetchEvents = async () => {
       });
     } else if (userRole !== "admin") {
       futureEvents = futureEvents.filter(event => {
+        // For cell events, check if user is Leader at 12
+        if (event.eventType === "Cell") {
+          const leader12Name = normalizeName(event.leader12 || "");
+          
+          // If user is the Leader at 12, show this cell
+          if (leader12Name && leader12Name.includes(userFullName)) {
+            return true;
+          }
+        }
+
+        // Also show events where user is the main leader or other leadership positions
         const leaders = [
           event.eventLeaderName,
           event.leader1,
@@ -598,7 +609,6 @@ const fetchEvents = async () => {
           .filter(Boolean)
           .map(nameField => normalizeName(nameField));
 
-        // Use includes to allow partial/loose match for names like "Sasha-Lee Enslin"
         return leaders.some(nameField => nameField.includes(userFullName));
       });
     }
@@ -618,7 +628,6 @@ const fetchEvents = async () => {
     setLoading(false);
   }
 };
-
 
 
 
