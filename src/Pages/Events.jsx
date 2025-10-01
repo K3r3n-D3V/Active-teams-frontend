@@ -7,6 +7,7 @@ import { saveToEventHistory } from "../utils/eventhistory";
 import IconButton from "@mui/material/IconButton";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import DeleteIcon from "@mui/icons-material/Delete";
+import HistoryIcon from "@mui/icons-material/History";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Dialog from "@mui/material/Dialog";
@@ -17,6 +18,7 @@ import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
+import Tooltip from "@mui/material/Tooltip";
 
 import Eventsfilter from "./Eventsfilter";
 import EventsModal from "./EventsModal";
@@ -75,8 +77,6 @@ const styles = {
     gap: "0.75rem",
     flexWrap: "wrap",
   },
-
-  // Event type navigation styles
   eventTypeNavigation: {
     padding: '0.75rem 1.5rem', 
     borderBottom: '1px solid #e9ecef',
@@ -89,29 +89,28 @@ const styles = {
   },
   eventTypeButtons: {
     display: 'flex',
-    gridTemplateColumns: 'repeat(6, minmax(120px, 1fr))',
     gap: '0.3rem',
     alignItems: 'center',
     padding: '0.5rem 0',
-      flexWrap: 'wrap',  // Allow wrapping to next line
+    flexWrap: 'wrap',
   },
- eventTypeButton: {
-  padding: '0.5rem 1rem',  // Reduce padding further
-  backgroundColor: '#f8f9fa',
-  color: '#6c757d',
-  border: '1px solid #dee2e6',
-  borderRadius: '50px',
-  fontSize: '0.875rem',
-  fontWeight: '500',
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-  transition: 'all 0.2s ease',
-  textTransform: 'uppercase',
-  letterSpacing: '0.3px',  // Reduce letter spacing
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.6rem'  // Reduce gap between text and delete icon
-},
+  eventTypeButton: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#f8f9fa',
+    color: '#6c757d',
+    border: '1px solid #dee2e6',
+    borderRadius: '50px',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.2s ease',
+    textTransform: 'uppercase',
+    letterSpacing: '0.3px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.6rem'
+  },
   eventTypeButtonActive: {
     backgroundColor: '#007bff',
     color: '#fff',
@@ -145,10 +144,10 @@ const styles = {
     color: '#212529',
     textTransform: 'capitalize'
   },
-
   headerRight: {
     display: "flex",
     alignItems: "center",
+    gap: "0.5rem",
     marginLeft: "auto",
   },
   profileIcon: {
@@ -191,7 +190,7 @@ const styles = {
     minHeight: "160px",
     display: "flex",
     flexDirection: "column",
-    gap: "6px",  // Reduced from 8px
+    gap: "6px",
     justifyContent: "flex-start",
     padding: "12px",
     borderRadius: "8px",
@@ -284,16 +283,14 @@ const styles = {
     gap: '0.5rem',
     marginTop: 'auto',
     paddingTop: '0.5rem',
-    paddingBottom: '0',  // Add this
+    paddingBottom: '0',
   },
   actionBtn: {
-    // padding: "0.4rem 0.8rem",
     border: "none",
     borderRadius: "6px",
     fontWeight: 600,
     cursor: "pointer",
     fontSize: "0.90rem",
-    // whiteSpace: "nowrap",
     height: "38px",
     display: "flex",
     alignItems: "center",
@@ -381,27 +378,11 @@ const styles = {
 const EventSkeleton = () => {
   return (
     <div style={styles.eventCard}>
-      <div
-        style={{ height: 18, width: "60%", borderRadius: 6, backgroundColor: "#e9ecef" }}
-      />
-      <div
-        style={{ height: 12, width: "45%", borderRadius: 6, backgroundColor: "#e9ecef" }}
-      />
-      <div
-        style={{ height: 12, width: "90%", borderRadius: 6, backgroundColor: "#e9ecef" }}
-      />
-      <div
-        style={{ height: 12, width: "85%", borderRadius: 6, backgroundColor: "#e9ecef" }}
-      />
-      <div
-        style={{
-          height: 12,
-          width: "70%",
-          borderRadius: 6,
-          backgroundColor: "#e9ecef",
-          marginTop: "auto",
-        }}
-      />
+      <div style={{ height: 18, width: "60%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
+      <div style={{ height: 12, width: "45%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
+      <div style={{ height: 12, width: "90%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
+      <div style={{ height: 12, width: "85%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
+      <div style={{ height: 12, width: "70%", borderRadius: 6, backgroundColor: "#e9ecef", marginTop: "auto" }} />
     </div>
   );
 };
@@ -415,7 +396,6 @@ const Events = () => {
   const isAdmin = currentUser?.role === "admin";
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-  // State management - Fixed modal states
   const [showFilter, setShowFilter] = useState(false);
   const [filterType] = useState("all");
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -429,28 +409,23 @@ const Events = () => {
   const [userCreatedEventTypes, setUserCreatedEventTypes] = useState([]);
   const [customEventTypes, setCustomEventTypes] = useState([]);
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
-
-  // Modal states - Fixed and simplified
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createOptionsModalOpen, setCreateOptionsModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  // Date filter state
   const [selectedDate, setSelectedDate] = useState("");
-
   const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
     return localStorage.getItem("selectedEventType") || '';
   });
-
-  // Add delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [eventTypeToDelete, setEventTypeToDelete] = useState(null);
-
-  // Add these new state variables for event type navigation
   const [selectedEventType, setSelectedEventType] = useState("all");
 
-  // Load persisted event types from localStorage
+  const handleAdminHistoryClick = () => {
+    navigate("/events-history", { state: { isAdmin: true } });
+  };
+
   useEffect(() => {
     const savedEventTypes = localStorage.getItem("customEventTypes");
     if (savedEventTypes) {
@@ -465,14 +440,12 @@ const Events = () => {
     }
   }, []);
 
-  // Save event types to localStorage whenever they change
   useEffect(() => {
     if (customEventTypes.length > 0) {
       localStorage.setItem("customEventTypes", JSON.stringify(customEventTypes));
     }
   }, [customEventTypes]);
 
-  // Add delete function for event types
   const handleDeleteEventType = async (id, name) => {
     try {
       const token = localStorage.getItem("token");
@@ -485,13 +458,11 @@ const Events = () => {
       setUserCreatedEventTypes(updatedEventTypes);
       setEventTypes(updatedEventTypes.map(type => type.name));
 
-      // Reset selection if deleted type is currently selected
       if (selectedEventType === name) {
         handleEventTypeSelect("all");
       }
     } catch (error) {
       console.error("Error deleting event type:", error);
-      // Still remove from local state even if API call fails
       const updatedEventTypes = customEventTypes.filter(type => type._id !== id);
       setCustomEventTypes(updatedEventTypes);
       setUserCreatedEventTypes(updatedEventTypes);
@@ -499,7 +470,6 @@ const Events = () => {
     }
   };
 
-  // Add confirmation dialog handlers
   const openDeleteConfirm = (eventType) => {
     setEventTypeToDelete(eventType);
     setDeleteConfirmOpen(true);
@@ -513,8 +483,8 @@ const Events = () => {
     setEventTypeToDelete(null);
   };
 
-  // Update the fetchEvents function to also fetch custom event types
-  const fetchEvents = async () => {
+
+const fetchEvents = async () => {
   setLoading(true);
 
   try {
@@ -526,59 +496,101 @@ const Events = () => {
 
     const headers = { Authorization: `Bearer ${token}` };
 
-    // ONLY fetch from main events endpoint and event types
-    const [eventsResponse, eventTypesResponse] = await Promise.all([
-      axios.get(`${BACKEND_URL}/events`, { headers }),
+    // Only call the cells-user endpoint since it has the proper leader12 logic
+    const [cellsResponse, eventTypesResponse] = await Promise.all([
+      axios.get(`${BACKEND_URL}/events/cells-user`, { headers }).catch((err) => { 
+        console.error("Cells user endpoint failed:", err);
+        return { data: { events: [], status: "error", error: err.message } };
+      }),
       axios.get(`${BACKEND_URL}/event-types`, { headers }).catch(() => ({ data: [] }))
     ]);
 
-    const allEvents = eventsResponse.data.events || eventsResponse.data || [];
     const apiCustomTypes = eventTypesResponse.data || [];
-
     setCustomEventTypes(apiCustomTypes);
     setUserCreatedEventTypes(apiCustomTypes);
     setEventTypes(apiCustomTypes.map(type => type.name));
 
-    console.log("Total events from database:", allEvents.length);
+    // Use the response from cells-user endpoint
+    const cellsData = cellsResponse.data;
+    console.log("Cells user response:", cellsData);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Filter for future events that aren't closed
-    let futureEvents = allEvents.filter((event) => {
-      if (event.status === "closed") return false;
-      
-      // Validate event has required fields
-      if (!event._id || !event.eventName || !event.eventType) return false;
-      
-      const eventDate = new Date(event.date);
-      if (isNaN(eventDate.getTime())) return false;
-      
-      return eventDate >= today;
-    });
-
-    // Filter by user role
-    const userRole = currentUser.role;
-    const userFullName = `${currentUser.name} ${currentUser.surname}`.trim();
-
-    if (userRole === 'registration') {
-      futureEvents = futureEvents.filter(event => {
-        const eventType = apiCustomTypes.find(et => et.name === event.eventType);
-        return eventType && (eventType.isTicketed || eventType.isGlobal);
-      });
-    } else if (userRole !== 'admin') {
-      futureEvents = futureEvents.filter(event =>
-        event.eventLeader === userFullName ||
-        event.leader1 === userFullName ||
-        event.leader12 === userFullName
-      );
+    let allEvents = [];
+    
+    if (cellsData.status === "success") {
+      if (cellsData.events && cellsData.events.length > 0) {
+        // Use the events from cells-user endpoint
+        allEvents = cellsData.events;
+      } else if (cellsData.leader12_cells && cellsData.leader12_cells.length > 0) {
+        // If events are categorized, combine all supervised cells
+        allEvents = [
+          ...(cellsData.own_cells || []),
+          ...(cellsData.leader12_cells || []),
+          ...(cellsData.leader144_cells || [])
+        ];
+      }
+    } else {
+      console.error("Cells user endpoint returned error:", cellsData.error);
     }
 
-    const sortedEvents = futureEvents.sort(
-      (a, b) => new Date(a.date) - new Date(b.date)
+    console.log("Total events from cells-user:", allEvents.length);
+    console.log("Events breakdown:", {
+      own_cells: cellsData.own_cells_count || 0,
+      leader12_cells: cellsData.leader12_count || 0,
+      leader144_cells: cellsData.leader144_count || 0
+    });
+
+    // Process events to match frontend expected format
+    const processedEvents = allEvents.map(event => {
+      let eventDate = null;
+      if (event.date) {
+        eventDate = new Date(event.date);
+      }
+
+      return {
+        ...event,
+        _id: event._id,
+        eventName: event.eventName || event["Event Name"],
+        eventType: "Cell",
+        date: event.date,
+        location: event.location || event.Address || "Not specified",
+        description: event.description || event.eventName || "",
+        eventLeaderName: event.eventLeaderName || event.Leader,
+        eventLeaderEmail: event.eventLeaderEmail || event.Email,
+        leader1: event.leader1 || event["Leader at 1"] || "",
+        leader12: event.leader12 || event["Leader at 12"] || "",
+        leader144: event.leader144 || event["Leader at 144"] || "",
+        time: event.time || event.Time,
+        status: event.status || "open",
+        isTicketed: false,
+        price: 0,
+        parsedDate: eventDate,
+        relationship: event.relationship // Keep the relationship info
+      };
+    });
+
+    console.log("Processed events:", processedEvents);
+
+    // For non-admin users, we don't need additional filtering since 
+    // the backend already filtered to only show relevant cells
+    const userRole = currentUser.role;
+    let finalEvents = processedEvents;
+
+    if (userRole === "registration") {
+      finalEvents = processedEvents.filter(event => {
+        const eventType = apiCustomTypes.find(
+          et => et.name === (event.eventType || "").trim()
+        );
+        return eventType && (eventType.isTicketed || eventType.isGlobal);
+      });
+    }
+    // No need for admin/non-admin filtering since backend handled it
+
+    const sortedEvents = finalEvents.sort(
+      (a, b) => new Date(a.parsedDate || 0) - new Date(b.parsedDate || 0)
     );
 
-    console.log("Events after filtering:", sortedEvents.length);
+    console.log("Final events after processing:", sortedEvents.length);
+    console.log("Final events list:", sortedEvents);
 
     setEvents(sortedEvents);
     setFilteredEvents(sortedEvents);
@@ -589,29 +601,24 @@ const Events = () => {
     setLoading(false);
   }
 };
-  // Add this after your state declarations
+
   const getFilteredEventTypes = () => {
     if (!currentUser || !currentUser.role) return [];
 
     const role = currentUser.role;
 
     if (role === 'admin') {
-      // Admins see all event types
       return customEventTypes;
     } else if (role === 'registration') {
-      // Registration sees only ticketed and global events
       return customEventTypes.filter(et => et.isTicketed || et.isGlobal);
     } else {
-      // Regular users see only person steps (cells)
       return customEventTypes.filter(et => et.hasPersonSteps);
     }
   };
 
   const EventTypeNavigation = () => {
-    // Get filtered event types based on user role
     const visibleEventTypes = getFilteredEventTypes();
 
-    // Don't show navigation if user has no access to any event types
     if (visibleEventTypes.length === 0 && currentUser.role !== 'admin') {
       return null;
     }
@@ -623,7 +630,6 @@ const Events = () => {
         borderBottomColor: theme.palette.divider
       }}>
         <div style={styles.eventTypeButtons}>
-          {/* All Events Button */}
           <button
             key="all"
             style={{
@@ -654,7 +660,6 @@ const Events = () => {
             ALL EVENTS
           </button>
 
-          {/* Custom Event Type Buttons - FILTERED BY ROLE */}
           {visibleEventTypes.map((type) => {
             const isSelected = selectedEventType === type.name;
             return (
@@ -688,7 +693,6 @@ const Events = () => {
                   {type.name.toUpperCase()}
                 </button>
 
-                {/* Delete button - ONLY for admins */}
                 {isAdmin && (
                   <IconButton
                     onClick={(e) => {
@@ -714,93 +718,89 @@ const Events = () => {
       </div>
     );
   };
-  // Handle event type selection
+
   const handleEventTypeSelect = (eventType) => {
     setSelectedEventType(eventType);
     applyAllFilters(activeFilters, selectedDate, eventType);
   };
 
-  // Updated filter function to include date filtering
-  const applyAllFilters = (filters = activeFilters, dateFilter = selectedDate, eventTypeFilter = selectedEventType) => {
-    let filtered = events.filter(event => {
-      if (event.status === "closed") return false;
+  const applyAllFilters = (
+  filters = activeFilters,
+  dateFilter = selectedDate,
+  eventTypeFilter = selectedEventType
+) => {
+  let filtered = events.filter(event => {
+    const status = (event.status || "").toLowerCase();
+    if (status === "closed" || status === "complete") return false;
 
-      let matches = true;
+    let matches = true;
 
-      // Event Type filter
-      if (eventTypeFilter !== "all" && event.eventType?.toLowerCase() !== eventTypeFilter.toLowerCase()) {
+    if (
+      eventTypeFilter !== "all" &&
+      event.eventType?.toLowerCase() !== eventTypeFilter.toLowerCase()
+    ) {
+      matches = false;
+    }
+
+    if (dateFilter) {
+      const eventDate = new Date(event.date);
+      const filterDate = new Date(dateFilter);
+      if (eventDate.toDateString() !== filterDate.toDateString()) {
         matches = false;
       }
+    }
 
-      // Date filter
-      if (dateFilter) {
-        const eventDate = new Date(event.date);
-        const filterDate = new Date(dateFilter);
-        if (eventDate.toDateString() !== filterDate.toDateString()) {
-          matches = false;
-        }
-      }
+    if (filters.eventType &&
+      event.eventType?.toLowerCase() !== filters.eventType.toLowerCase()) {
+      matches = false;
+    }
 
-      // Other filters
-      if (filters.eventType && event.eventType?.toLowerCase() !== filters.eventType.toLowerCase()) {
+    if (filters.location && event.location !== filters.location) {
+      matches = false;
+    }
+
+    if (filters.eventLeader) {
+      const eventLeaderName = event.eventLeaderName ? event.eventLeaderName.trim().toLowerCase() : "";
+      const filterLeader = filters.eventLeader.trim().toLowerCase();
+      if (eventLeaderName !== filterLeader) {
         matches = false;
       }
+    }
 
-      if (filters.location && event.location !== filters.location) {
+    if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
+      const isTicketed = filters.isTicketed === 'true';
+      if (event.isTicketed !== isTicketed) {
         matches = false;
       }
+    }
 
-      if (filters.eventLeader) {
-        const eventLeaderName = event.eventLeaderName ? event.eventLeaderName.trim().toLowerCase() : "";
-        const filterLeader = filters.eventLeader.trim().toLowerCase();
-        if (eventLeaderName !== filterLeader) {
-          matches = false;
-        }
+    if (filters.recurringDay) {
+      const eventDays = Array.isArray(event.recurringDays)
+        ? event.recurringDays
+        : [event.recurringDays];
+
+      if (!eventDays.includes(filters.recurringDay)) {
+        matches = false;
       }
+    }
 
-      if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
-        const isTicketed = filters.isTicketed === 'true';
-        if (event.isTicketed !== isTicketed) {
-          matches = false;
-        }
-      }
+    return matches;
+  });
 
-      if (filters.recurringDay) {
-        const eventDays = Array.isArray(event.recurringDays)
-          ? event.recurringDays
-          : [event.recurringDays];
+  setFilteredEvents(filtered);
+};
 
-        if (!eventDays.includes(filters.recurringDay)) {
-          matches = false;
-        }
-      }
-
-      return matches;
-    });
-
-    setFilteredEvents(filtered);
-  };
-
-  // Handle date filter change
   const handleDateFilter = (event) => {
     const date = event.target.value;
     setSelectedDate(date);
     applyAllFilters(activeFilters, date, selectedEventType);
   };
 
-  // Clear date filter
   const clearDateFilter = () => {
     setSelectedDate("");
     applyAllFilters(activeFilters, "", selectedEventType);
   };
 
-  // Check if an event type is custom (created by user)
-  // const isCustomEventType = (eventTypeName) => {
-  //   return customEventTypes.some(type => type.name === eventTypeName);
-  // };
-  // console.log("Custom Event Types:", customEventTypes);
-
-  // Get page title based on selected event type
   const getPageTitle = () => {
     if (selectedEventType === "all") {
       return "All Events";
@@ -808,12 +808,10 @@ const Events = () => {
     return selectedEventType;
   };
 
-  // In your Events component, replace the handleCreateEventTypeSubmit function:
   const handleCreateEventTypeSubmit = async (eventTypeData) => {
     try {
       const token = localStorage.getItem("token");
 
-      // Create the event type
       const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -821,17 +819,14 @@ const Events = () => {
       const newEventType = response.data;
 
       if (newEventType) {
-        // Update state with the new event type
         const updatedEventTypes = [...customEventTypes, newEventType];
         setCustomEventTypes(updatedEventTypes);
         setUserCreatedEventTypes(updatedEventTypes);
         setEventTypes(updatedEventTypes.map(type => type.name));
 
-        // Set the newly created event type as selected
         setSelectedEventTypeObj(newEventType);
         setCurrentSelectedEventType(newEventType.name);
 
-        // Close the event type modal and open the event creation modal
         setCreateEventTypeModalOpen(false);
         setCreateEventModalOpen(true);
 
@@ -860,7 +855,6 @@ const Events = () => {
     fetchEvents();
   }, [location.pathname, location.state?.refresh, location.state?.timestamp]);
 
-  // Apply filters to events
   const applyFilters = (filters) => {
     setActiveFilters(filters);
     applyAllFilters(filters, selectedDate, selectedEventType);
@@ -875,8 +869,6 @@ const Events = () => {
     return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
   };
 
-
-  // Legacy filter for backward compatibility
   const legacyFilteredEvents =
     filterType === "all"
       ? filteredEvents
@@ -885,14 +877,13 @@ const Events = () => {
       );
 
   const getBadgeColor = (eventType) => {
-    if (!eventType) return "#6c757d"; // Default grey for unknown
+    if (!eventType) return "#6c757d";
 
     const cleanedType = eventType.trim().toLowerCase();
 
-    // Define a mapping of keyword categories to colors
     const eventCategoryColors = {
-      cell: "#007bff",           // Blue for all "cell"
-      service: "#5A9BD5",        // All services
+      cell: "#007bff",
+      service: "#5A9BD5",
       conference: "#C792EA",
       workshop: "#F7C59F",
       encounter: "#FFADAD",
@@ -903,17 +894,14 @@ const Events = () => {
       children: "#FFA07A",
     };
 
-    // Match event type with category keywords
     for (const keyword in eventCategoryColors) {
       if (cleanedType.includes(keyword)) {
         return eventCategoryColors[keyword];
       }
     }
 
-    // Default color if no keyword matches
     return "#6c757d";
   };
-
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
@@ -961,7 +949,6 @@ const Events = () => {
         hour12: true,
       });
 
-      // Event did not meet
       if (
         data === "did-not-meet" ||
         data === "Mark As Did Not Meet" ||
@@ -984,7 +971,6 @@ const Events = () => {
           userEmail: currentUser?.email || "Unknown",
         });
 
-        // Mark event as closed locally
         setEvents((prev) =>
           prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
         );
@@ -1000,7 +986,6 @@ const Events = () => {
         };
       }
 
-      // Event attended
       if (Array.isArray(data) && data.length > 0) {
         await axios.put(`${BACKEND_URL}/allevents/${eventId}`, {
           attendees: data.map((person) => person.id),
@@ -1018,7 +1003,6 @@ const Events = () => {
           userEmail: currentUser.email,
         });
 
-        // Mark event as closed locally
         setEvents((prev) =>
           prev.map((e) => (e._id === eventId ? { ...e, status: "closed" } : e))
         );
@@ -1061,47 +1045,45 @@ const Events = () => {
   };
 
   const handleDeleteEvent = async () => {
-  if (!currentEvent) return;
-  
-  const eventToDelete = currentEvent;
-  handleMenuClose();
-
-  // IMMEDIATELY remove from UI (optimistic update)
-  setEvents((prev) => prev.filter((e) => e._id !== eventToDelete._id));
-  setFilteredEvents((prev) => prev.filter((e) => e._id !== eventToDelete._id));
-
-  try {
-    const token = localStorage.getItem("token");
-    const baseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
+    if (!currentEvent) return;
     
-    await axios.delete(`${baseUrl}/events/${eventToDelete._id}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const eventToDelete = currentEvent;
+    handleMenuClose();
 
-    setSnackbar({
-      open: true,
-      message: `"${eventToDelete.eventName}" deleted successfully!`,
-      severity: 'success'
-    });
-  } catch (err) {
-    // Handle 404 gracefully - event was already deleted
-    if (err.response?.status === 404) {
+    setEvents((prev) => prev.filter((e) => e._id !== eventToDelete._id));
+    setFilteredEvents((prev) => prev.filter((e) => e._id !== eventToDelete._id));
+
+    try {
+      const token = localStorage.getItem("token");
+      const baseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
+      
+      await axios.delete(`${baseUrl}/events/${eventToDelete._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
       setSnackbar({
         open: true,
-        message: `"${eventToDelete.eventName}" removed`,
+        message: `"${eventToDelete.eventName}" deleted successfully!`,
         severity: 'success'
       });
-    } else {
-      // Only log and show error for real problems
-      console.error("Delete error:", err.response?.data);
-      setSnackbar({
-        open: true,
-        message: `Failed to delete: ${err.response?.data?.detail || err.message}`,
-        severity: 'error'
-      });
+    } catch (err) {
+      if (err.response?.status === 404) {
+        setSnackbar({
+          open: true,
+          message: `"${eventToDelete.eventName}" removed`,
+          severity: 'success'
+        });
+      } else {
+        console.error("Delete error:", err.response?.data);
+        setSnackbar({
+          open: true,
+          message: `Failed to delete: ${err.response?.data?.detail || err.message}`,
+          severity: 'error'
+        });
+      }
     }
-  }
-};
+  };
+
   const renderLeadershipInfo = (event) => {
     const eventTypeNormalized = event.eventType?.toLowerCase() || "";
     const isCell = eventTypeNormalized === "cell";
@@ -1124,7 +1106,6 @@ const Events = () => {
     }
 
     if (isCell) {
-      // Use nullish coalescing to default to empty string
       const leader1 = event.leader1 ?? "";
       const leader12 = event.leader12 ?? "";
 
@@ -1152,7 +1133,6 @@ const Events = () => {
 
   return (
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default, color: theme.palette.text.primary }}>
-      {/* Header */}
       <div style={{ ...styles.header, backgroundColor: theme.palette.background.paper }}>
         <div style={styles.headerLeft}>
           <button
@@ -1187,7 +1167,6 @@ const Events = () => {
             )}
           </button>
 
-          {/* Date Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <input
               type="date"
@@ -1214,6 +1193,24 @@ const Events = () => {
           </div>
         </div>
         <div style={styles.headerRight}>
+          {isAdmin && (
+            <Tooltip title="View My Captured Events" arrow>
+              <IconButton
+                onClick={handleAdminHistoryClick}
+                sx={{
+                  color: theme.palette.primary.main,
+                  '&:hover': {
+                    backgroundColor: theme.palette.action.hover,
+                    transform: 'scale(1.1)',
+                  },
+                  transition: 'all 0.2s ease',
+                }}
+                size="medium"
+              >
+                <HistoryIcon fontSize="medium" />
+              </IconButton>
+            </Tooltip>
+          )}
           <div style={styles.profileIcon}></div>
         </div>
       </div>
@@ -1227,7 +1224,6 @@ const Events = () => {
         {getPageTitle()}
       </h2>
 
-      {/* Results count */}
       <div style={{
         padding: '0 1rem',
         fontSize: '0.875rem',
@@ -1241,7 +1237,6 @@ const Events = () => {
         )}
       </div>
 
-      {/* Events Grid */}
       <div style={styles.eventsGrid}>
         {loading
           ? Array.from({ length: 6 }).map((_, idx) => <EventSkeleton key={idx} />)
@@ -1255,7 +1250,6 @@ const Events = () => {
                   backgroundColor: theme.palette.background.paper,
                 }}
               >
-                {/* Header with Title and Badge */}
                 <div style={styles.eventHeader}>
                   <div style={styles.titleAndBadgeContainer}>
                     <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
@@ -1293,7 +1287,6 @@ const Events = () => {
                   </Menu>
                 </div>
 
-                {/* Leadership Information */}
                 {leaders.length > 0 && (
                   <div style={styles.leadershipSection}>
                     {leaders.map((leader, index) => (
@@ -1307,7 +1300,6 @@ const Events = () => {
                   </div>
                 )}
 
-                {/* Date, Location, Description */}
                 <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>
                   {formatDateTime(event.date)}
                 </p>
@@ -1326,14 +1318,12 @@ const Events = () => {
                   </p>
                 )}
 
-                {/* Ticketed */}
                 {event.isTicketed && (
                   <p style={{ ...styles.eventPrice, color: theme.palette.text.primary }}>
                     Price: {event.price > 0 ? `R${event.price}` : "Free"}
                   </p>
                 )}
 
-                {/* Recurring Days */}
                 {event.recurringDays?.length > 0 && (
                   <div style={{
                     display: "flex",
@@ -1366,32 +1356,26 @@ const Events = () => {
                   </div>
                 )}
 
-
                 <div style={styles.eventActions}>
-                  {/* REMOVE the eventActions div wrapper */}
-                  {/* Capture button */}
-               <button
-  style={{
-    ...styles.actionBtn,
-    ...styles.captureBtn,
-    backgroundColor: event.status === "closed" && !isAdmin ? "#e9ecef" : "#000",
-    color: event.status === "closed" && !isAdmin ? "#6c757d" : "#fff",
-    // marginTop: "0.75rem",
-  
-  }}
-  onClick={() => {
-    if (event.status === "closed" && !isAdmin) {
-      alert("Attendance has already been captured for this event.");
-      return;
-    }
-    handleCaptureClick(event);
-  }}
-  disabled={event.status === "closed" && !isAdmin}
->
-  Capture
-</button>
+                  <button
+                    style={{
+                      ...styles.actionBtn,
+                      ...styles.captureBtn,
+                      backgroundColor: event.status === "closed" && !isAdmin ? "#e9ecef" : "#000",
+                      color: event.status === "closed" && !isAdmin ? "#6c757d" : "#fff",
+                    }}
+                    onClick={() => {
+                      if (event.status === "closed" && !isAdmin) {
+                        alert("Attendance has already been captured for this event.");
+                        return;
+                      }
+                      handleCaptureClick(event);
+                    }}
+                    disabled={event.status === "closed" && !isAdmin}
+                  >
+                    Capture
+                  </button>
 
-                  {/* Captured badge for admins */}
                   {isAdmin && event.status === "closed" && (
                     <span style={{
                       color: 'green',
@@ -1403,8 +1387,6 @@ const Events = () => {
                       ✓ Captured
                     </span>
                   )}
-
-
 
                   <button
                     style={{
@@ -1418,7 +1400,6 @@ const Events = () => {
                       event.isTicketed && navigate(`/event-payment/${event._id}`)
                     }
                   >
-                    {/* {event.isTicketed ? "Payment" : "No Payment"} */}
                   </button>
                 </div>
               </div>
@@ -1436,7 +1417,6 @@ const Events = () => {
         </div>
       )}
 
-      {/* Floating Buttons */}
       {isAdmin ? (
         <button
           style={styles.floatingAddButton}
@@ -1455,7 +1435,6 @@ const Events = () => {
         </button>
       )}
 
-      {/* Filter Modal */}
       <Eventsfilter
         open={showFilter}
         onClose={() => setShowFilter(false)}
@@ -1465,7 +1444,6 @@ const Events = () => {
         eventTypes={eventTypes}
       />
 
-      {/* Attendance Modal */}
       {selectedEvent && (
         <AttendanceModal
           isOpen={attendanceModalOpen}
@@ -1478,7 +1456,6 @@ const Events = () => {
         />
       )}
 
-      {/* Create Options Modal */}
       <EventsModal
         isOpen={createOptionsModalOpen}
         onClose={() => setCreateOptionsModalOpen(false)}
@@ -1487,18 +1464,15 @@ const Events = () => {
         userRole={currentUser?.role}
       />
 
-      {/* Create Event Type Modal */}
       <EventTypesModal
         open={createEventTypeModalOpen}
         onClose={handleCloseCreateEventTypeModal}
         onSubmit={handleCreateEventTypeSubmit}
         setSelectedEventTypeObj={setSelectedEventTypeObj}
         customEventTypes={customEventTypes}
-        userRole={currentUser?.role}  // ✅ ADD THIS
+        userRole={currentUser?.role}
       />
 
-
-      {/* Create Event Modal */}
       {createEventModalOpen && (
         <div
           style={styles.modalOverlay}
@@ -1522,11 +1496,6 @@ const Events = () => {
               </button>
             </div>
             <div style={styles.modalBody}>
-              {/* ADD THESE DEBUG LOGS */}
-              {console.log('DEBUG - currentSelectedEventType:', currentSelectedEventType)}
-              {console.log('DEBUG - selectedEventTypeObj:', selectedEventTypeObj)}
-              {console.log('DEBUG - customEventTypes:', customEventTypes)}
-              {console.log('DEBUG - isTicketed being passed:', selectedEventTypeObj?.isTicketed || false)}
               <CreateEvents
                 user={currentUser}
                 isModal={true}
@@ -1537,14 +1506,11 @@ const Events = () => {
                 isTicketedEvent={selectedEventTypeObj?.isTicketed || false}
                 hasPersonSteps={selectedEventTypeObj?.hasPersonSteps || false}
               />
-
             </div>
           </div>
         </div>
       )}
 
-
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
         <DialogTitle>Delete Event Type</DialogTitle>
         <DialogContent>
@@ -1559,7 +1525,7 @@ const Events = () => {
           </Button>
         </DialogActions>
       </Dialog>
-      {/* Snackbar for notifications */}
+
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
@@ -1577,6 +1543,5 @@ const Events = () => {
     </div>
   );
 };
-
 
 export default Events;
