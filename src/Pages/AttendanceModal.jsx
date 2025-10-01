@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useTheme, Snackbar, Alert } from "@mui/material";
 
-const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
+const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted }) => {
   const theme = useTheme();
 
   const [checked, setChecked] = useState({});
@@ -93,8 +93,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
     }));
   };
 
- const handleSubmit = async () => {
-  const user = JSON.parse(localStorage.getItem('user'));
+
+const handleSubmit = async () => {
   const selected = people.filter(p => checked[p.id]);
 
   if (selected.length === 0) {
@@ -117,38 +117,69 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event }) => {
     return;
   }
 
+  const userStr = localStorage.getItem('userProfile');
+  if (!userStr) {
+    setAlert({
+      open: true,
+      type: "error",
+      message: "User not logged in or user info missing. Please login again.",
+    });
+    return;
+  }
+
+  const user = JSON.parse(userStr);
+  const leaderEmail = user.email || "";
+  const leaderName = user.name || user.fullName || "";
+
+  if (!leaderEmail || !leaderName) {
+    setAlert({
+      open: true,
+      type: "error",
+      message: "User email or name missing. Please login again.",
+    });
+    return;
+  }
+
+  const selectedMapped = selected.map(att => ({
+    id: att.id,
+    name: att.fullName || att.name || "",
+    leader12: att.leader12 || "",
+    leader144: att.leader144 || "",
+  }));
+
   const payload = {
-    attendees: selected,
-    leaderEmail: user?.email,
-    leaderName: user?.name
+    attendees: selectedMapped,
+    leaderEmail,
+    leaderName,
+    did_not_meet: false,
   };
 
   try {
     const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-      method: 'PUT',
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json' }
     });
 
-  if (response.ok) {
-  setAlert({
-    open: true,
-    type: "success",
-    message: `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
-  });
+    if (response.ok) {
+      setAlert({
+        open: true,
+        type: "success",
+        message: `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
+      });
 
-  // Close only for non-admins
-  const userRole = user?.role?.toLowerCase() || "";
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted(eventId);
+      }
 
-  if (userRole !== "admin") {
-    setTimeout(() => {
-      onClose(); // close after short delay
-    }, 2000);
-  }
-}
-else {
+      const userRole = (user.role || "").toLowerCase();
+      if (userRole !== "admin") {
+        setTimeout(() => {
+          onClose();
+        }, 2000);
+      }
+    } else {
       const result = await response.json();
-        console.log("Server response:", result);
       setAlert({
         open: true,
         type: "error",
@@ -156,7 +187,7 @@ else {
       });
     }
   } catch (error) {
-    console.error(error);
+    console.error("Error submitting attendance:", error);
     setAlert({
       open: true,
       type: "error",
@@ -164,6 +195,9 @@ else {
     });
   }
 };
+
+
+
   const handleMarkDidNotMeet = async () => {
     if (onSubmit) {
       const result = await onSubmit("did-not-meet");
