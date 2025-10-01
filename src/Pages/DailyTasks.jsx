@@ -414,15 +414,18 @@ export default function DailyTasks() {
 
   const totalCount = filteredTasks.length;
 
-  const theme = {
-    bg: isDarkMode ? '#1a1a1a' : '#f9fafb',
-    cardBg: isDarkMode ? '#2d2d2d' : '#fff',
-    text: isDarkMode ? '#fff' : '#000',
-    textSecondary: isDarkMode ? '#a0a0a0' : '#666',
-    inputBg: isDarkMode ? '#3a3a3a' : '#f5f5f5',
-    shadow: isDarkMode ? '0 4px 12px rgba(0, 0, 0, 0.5)' : '0 4px 12px rgba(0, 0, 0, 0.15)',
-    border: isDarkMode ? '#444' : '#eee',
-  };
+  // Default to light mode
+
+const theme = {
+  bg: '#f9fafb',
+  cardBg: '#fff',
+  text: '#000',
+  textSecondary: '#666',
+  inputBg: '#f5f5f5',
+  shadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+  border: '#eee',
+};
+
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px', backgroundColor: theme.bg, minHeight: '100vh' }}>
