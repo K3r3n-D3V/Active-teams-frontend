@@ -13,8 +13,7 @@ import dayjs from "dayjs";
 import axios from "axios";
 import Autocomplete from "@mui/material/Autocomplete";
 
-const BASE_URL = "http://localhost:8000";
-
+const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 const ConsolidationModal = ({ open, onClose, onFinish }) => {
   const [recipient, setRecipient] = useState(null); 
   const [assignedTo, setAssignedTo] = useState("");

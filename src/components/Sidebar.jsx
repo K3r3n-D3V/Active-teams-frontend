@@ -32,7 +32,7 @@ const menuItems = [
   { label: 'Events', path: '/events', icon: Event },
   { label: 'Stats', path: '/stats', icon: BarChart },
   { label: 'Service Check-in', path: '/service-check-in', icon: HowToReg },
-  { label: 'Give Today', path: '/give-today', icon: VolunteerActivism },
+  // { label: 'Give Today', path: '/give-today', icon: VolunteerActivism },
   { label: 'Daily Tasks', path: '/daily-tasks', icon: Assignment },
 ];
 

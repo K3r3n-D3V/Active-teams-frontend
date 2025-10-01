@@ -21,6 +21,7 @@
     "@mui/material": "^7.3.1",
     "@mui/x-data-grid": "^8.11.0",
     "@mui/x-date-pickers": "^7.6.0",
+    "aos": "^2.3.4",
     "axios": "^1.11.0",
     "chart.js": "^4.5.0",
     "date-fns": "^4.1.0",

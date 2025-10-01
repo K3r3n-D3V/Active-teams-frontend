@@ -6,9 +6,9 @@ export default function Home() {
   const [openPopup, setOpenPopup] = useState(false);
 
   const sections = [
-    { image: "/banner.jpg" },
+    { image: "/newposter.jpg" },
+    { image: "/newimage.jpg" },
     { image: "/homebanner1.jpg" },
-    { image: "/event.jpg" },
     { image: "/home.jpg" },
   ];
 
@@ -25,11 +25,13 @@ export default function Home() {
         />
       ))}
 
-      {/* Registration Form as Popup with Close Button */}
       {openPopup && (
         <div style={styles.popupOverlay}>
           <div style={styles.popupContent}>
-            <button style={styles.closeButton} onClick={() => setOpenPopup(false)}>
+            <button
+              style={styles.closeButton}
+              onClick={() => setOpenPopup(false)}
+            >
               &times;
             </button>
             <EventRegistrationForm />
@@ -49,7 +51,7 @@ const styles = {
   },
   section: {
     width: "100%",
-    minHeight: "100vh",
+    minHeight: "100vh", // full screen on desktop
     backgroundSize: "cover",
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
@@ -59,6 +61,11 @@ const styles = {
     boxSizing: "border-box",
     transition: "0.3s",
     cursor: "pointer",
+
+    // responsive tweak: smaller height on mobile
+    // (simulate media queries in JS)
+    ...(window.innerWidth < 768 && { minHeight: "70vh" }),
+    ...(window.innerWidth < 480 && { minHeight: "60vh" }),
   },
   popupOverlay: {
     position: "fixed",
@@ -71,13 +78,14 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     zIndex: 9999,
+    padding: "1rem",
   },
   popupContent: {
     position: "relative",
     backgroundColor: "#fff",
-    padding: "2rem",
+    padding: "clamp(1rem, 4vw, 2rem)", // scales with screen size
     borderRadius: "8px",
-    width: "90%",
+    width: "100%",
     maxWidth: "600px",
     maxHeight: "90vh",
     overflowY: "auto",
@@ -87,7 +95,7 @@ const styles = {
     position: "absolute",
     top: "10px",
     right: "14px",
-    fontSize: "24px",
+    fontSize: "clamp(18px, 2.5vw, 24px)", // responsive size
     fontWeight: "bold",
     background: "none",
     border: "none",

@@ -2,48 +2,53 @@ import { useState, useEffect } from 'react';
 import {
   Button, TextField, Checkbox, FormControl, InputLabel, Select, MenuItem,
   Card, CardContent, FormControlLabel, Box, InputAdornment, Snackbar, Alert, Typography,
-  useTheme
+  useTheme, Autocomplete
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
-import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
-const CreateEvents = ({ user }) => {
+const CreateEvents = ({
+  user,
+  isModal = false,
+  onClose,
+  eventTypes = [],
+  selectedEventType = '',
+  isGlobalEvent = false,
+  isTicketedEvent = false,
+  hasPersonSteps = false
+}) => {
+  console.log("DEBUG: isTicketedEvent prop in CreateEvents:", isTicketedEvent);
+
   const navigate = useNavigate();
   const { id: eventId } = useParams();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showNewTypeForm, setShowNewTypeForm] = useState(false);
-  const [newEventType, setNewEventType] = useState('');
   const [successAlert, setSuccessAlert] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorAlert, setErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [peopleData, setPeopleData] = useState([]);
-  const [searchLeader, setSearchLeader] = useState('');
-  const [showPeopleList, setShowPeopleList] = useState(false);
+  const [loadingPeople, setLoadingPeople] = useState(false);
 
-  const [eventTypes, setEventTypes] = useState([
-    'Sunday Service',
-    'Friday Service',
-    'Workshop',
-    'Encounter',
-    'Conference',
-    'J-Activation',
-    'Destiny Training',
-    'Social Event',
-    'Cell'
-  ]);
+  useEffect(() => {
+    if (eventTypes.length === 1) {
+      setFormData(prev => ({ ...prev, eventType: eventTypes[0] }));
+    }
+  }, [eventTypes]);
+
+  const isAdmin = user?.role === "admin";
+  console.log("User role:", user?.role, "isAdmin:", isAdmin);
 
   const [formData, setFormData] = useState({
-    eventType: '',
+    eventType: selectedEventType || '',
     eventName: '',
-    isTicketed: false,
+    ageGroup: '',
+    memberType: '',
     price: '',
     date: '',
     time: '',
@@ -52,9 +57,9 @@ const CreateEvents = ({ user }) => {
     location: '',
     eventLeader: '',
     description: '',
+    leader1: '',
     leader12: '',
-    leader144: '',
-    email: ''
+    leaders: []
   });
 
   const [errors, setErrors] = useState({});
@@ -63,58 +68,55 @@ const CreateEvents = ({ user }) => {
   // Days of the week
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  // Time periods
-  const timePeriods = ['AM', 'PM'];
+  const ageGroupOptions = ['Child', 'Adult'];
+  const memberTypeOptions = ['Guild', 'First Time'];
 
-  const filteredPeople = Array.isArray(peopleData)
-    ? peopleData.filter(person =>
-      person.fullName?.toLowerCase().includes(searchLeader.toLowerCase())
-    )
-    : [];
+  // Fetch people function - FIXED to match AttendanceModal approach
+ const fetchPeople = async (filter = "") => {
+  console.log("fetchPeople called with filter:", filter);
+  try {
+    setLoadingPeople(true);
+    const params = new URLSearchParams();
+    params.append("perPage", "1000"); // Changed from "100" to "1000" to match your logs
+    if (filter) {
+      params.append("name", filter);
+    }
 
-  const handlePersonSelect = (person) => {
-    setSearchLeader(person.fullName);
-    setShowPeopleList(false);
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+    console.log("Request URL:", `${BACKEND_URL}/people?${params.toString()}`);
+    
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    
+    const data = await res.json();
+    const peopleArray = data.people || data.results || [];
+    console.log("Fetched peopleArray:", peopleArray);
 
-    setFormData(prev => ({
-      ...prev,
-      eventLeader: person._id,
-      leader12: person.leader12Id || '',
-      leader144: person.leader144Id || '',
-      email: person.email || ''
+    const formatted = peopleArray.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p.leader1 || "",
+      leader12: p["Leader @12"] || p.leader12 || "",
+      leader144: p["Leader @144"] || p.leader144 || "",
     }));
-  };
 
-  // Fetch people from backend
+    console.log("Formatted peopleData:", formatted);
+    setPeopleData(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    setErrorMessage("Failed to load people data. Please refresh the page.");
+    setErrorAlert(true);
+    setPeopleData([]); // Reset on error
+  } finally {
+    setLoadingPeople(false);
+  }
+};
   useEffect(() => {
-    const fetchPeople = async () => {
-      try {
-        const response = await axios.get(`${BACKEND_URL}/people`);
-
-        if (Array.isArray(response.data)) {
-          const transformedData = response.data.map(person => ({
-            _id: person._id,
-            name: person.Name || person.name,
-            surname: person.Surname || person.surname,
-            email: person.Email || person.email,
-            leader12Id: person["Leader @12 Id"] || '',
-            leader144Id: person["Leader @144 Id"] || '',
-            fullName: `${person.Name || person.name} ${person.Surname || person.surname}`
-          }));
-
-          setPeopleData(transformedData);
-        } else {
-          console.warn('People data is not an array', response.data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch people data:", err);
-        setErrorMessage("Failed to load people data. Please try again.");
-        setErrorAlert(true);
-      }
-    };
-
     fetchPeople();
-  }, [BACKEND_URL]);
+  } , [BACKEND_URL]);
+
 
   // Fetch event data if editing
   useEffect(() => {
@@ -140,13 +142,16 @@ const CreateEvents = ({ user }) => {
 
         data.price = data.price ? data.price.toString() : '';
 
+        // Handle new fields
+        data.ageGroup = data.ageGroup || '';
+        data.memberType = data.memberType || '';
+
         // Collect leaders dynamically
         data.leaders = Object.entries(data)
           .filter(([key, value]) => key.toLowerCase().startsWith("leader") && value)
           .map(([key, value]) => ({ slot: key, name: value }));
 
         setFormData(data);
-        setSearchLeader(data.eventLeader || '');
       } catch (err) {
         console.error("Failed to fetch event:", err);
         setErrorMessage("Failed to load event data. Please try again.");
@@ -158,37 +163,38 @@ const CreateEvents = ({ user }) => {
   }, [eventId, BACKEND_URL]);
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+    console.log(`Changing ${field} to:`, value); // Debug log
 
-    if (field === 'eventType') {
-      const isCell = value.toLowerCase().includes("cell");
-      const wasCell = formData.eventType.toLowerCase().includes("cell");
-
-      if (isCell !== wasCell) {
-        setFormData(prev => ({
-          ...prev,
-          [field]: value,
-          eventName: '',
-          leader12: '',
-          leader144: '',
-          email: '',
-          ...(isCell ? { date: '', time: '', timePeriod: 'AM' } : {})
-        }));
-        setSearchLeader('');
+    setFormData(prev => {
+      // Clear errors for this field outside setFormData for clarity
+      if (errors[field]) {
+        setErrors(prevErrors => ({ ...prevErrors, [field]: '' }));
       }
-    }
 
-    // Clear eventLeader ID when typing manually (not selecting from dropdown)
-    if (field === 'eventLeader') {
-      setFormData(prev => ({
+      if (field === 'eventType') {
+        const isCell = value.toLowerCase().includes("cell");
+        const wasCell = prev.eventType.toLowerCase().includes("cell");
+
+        if (isCell !== wasCell) {
+          // Reset dependent fields on switching to/from cell
+          return {
+            ...prev,
+            [field]: value,
+            eventName: '',
+            leader1: '',
+            leader12: '',
+            eventLeader: '',
+            ...(isCell ? { date: '', time: '', timePeriod: 'AM' } : {})
+          };
+        }
+      }
+
+      // Default: just update the field
+      return {
         ...prev,
-        eventLeader: '',
-        leader12: '',
-        leader144: '',
-        email: ''
-      }));
-    }
+        [field]: value
+      };
+    });
   };
 
   const handleDayChange = (day) => {
@@ -200,15 +206,36 @@ const CreateEvents = ({ user }) => {
     }));
   };
 
-  const addNewEventType = () => {
-    if (!newEventType.trim()) return;
-    if (!eventTypes.includes(newEventType.trim())) {
-      setEventTypes(prev => [...prev, newEventType.trim()]);
-      setFormData(prev => ({ ...prev, eventType: newEventType.trim() }));
-    }
-    setNewEventType('');
-    setShowNewTypeForm(false);
+  const resetForm = () => {
+    setFormData({
+      eventType: '',
+      eventName: '',
+      ageGroup: '',
+      memberType: '',
+      price: '',
+      date: '',
+      time: '',
+      timePeriod: 'AM',
+      recurringDays: [],
+      location: '',
+      eventLeader: '',
+      description: '',
+      leader1: '',
+      leader12: '',
+      leaders: []
+    });
+    setErrors({});
   };
+
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      leaders: [
+        { slot: 'Leader @1', name: prev.leader1 },
+        { slot: 'Leader @12', name: prev.leader12 },
+      ].filter(l => l.name)
+    }));
+  }, [formData.leader1, formData.leader12]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -226,7 +253,7 @@ const CreateEvents = ({ user }) => {
       newErrors.location = 'Location is required';
     }
 
-    if (!searchLeader) {
+    if (!formData.eventLeader) {
       newErrors.eventLeader = 'Event leader is required';
     }
 
@@ -234,11 +261,46 @@ const CreateEvents = ({ user }) => {
       newErrors.description = 'Description is required';
     }
 
-    if (isCell && formData.recurringDays.length === 0) {
-      newErrors.recurringDays = 'Select at least one recurring day';
-    }
+    // Skip additional validations for global events
+    if (!isGlobalEvent) {
+      if (isCell && formData.recurringDays.length === 0) {
+        newErrors.recurringDays = 'Select at least one recurring day';
+      }
 
-    if (!isCell) {
+      if (!isCell) {
+        if (!formData.date) {
+          newErrors.date = 'Date is required';
+        }
+        if (!formData.time) {
+          newErrors.time = 'Time is required';
+        }
+      }
+
+      // Validate ticketed fields when event type is configured as ticketed
+      if (isTicketedEvent) {
+        if (!formData.ageGroup) {
+          newErrors.ageGroup = 'Age group is required for ticketed events';
+        }
+        if (!formData.memberType) {
+          newErrors.memberType = 'Member type is required for ticketed events';
+        }
+        if (!formData.price || parseFloat(formData.price) < 0) {
+          newErrors.price = 'Price is required for ticketed events';
+        }
+      }
+
+      // Validate Person Steps fields - FIXED: removed email validation
+      if (hasPersonSteps && !isGlobalEvent) {
+        if (!formData.leader1) {
+          newErrors.leader1 = "Leader @1 is required";
+        }
+        if (!formData.leader12) {
+          newErrors.leader12 = "Leader @12 is required";
+        }
+      }
+
+    } else {
+      // For global events, only validate basic date/time
       if (!formData.date) {
         newErrors.date = 'Date is required';
       }
@@ -247,136 +309,166 @@ const CreateEvents = ({ user }) => {
       }
     }
 
-    if (formData.isTicketed && !formData.price) {
-      newErrors.price = 'Price is required for ticketed events';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const resetForm = () => {
-    setFormData({
-      eventType: '',
-      eventName: '',
-      isTicketed: false,
-      price: '',
-      date: '',
-      time: '',
-      timePeriod: 'AM',
-      recurringDays: [],
-      location: '',
-      eventLeader: '',
-      description: '',
-      leader12: '',
-      leader144: '',
-      email: ''
-    });
-    setErrors({});
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) return;
-
-  setIsSubmitting(true);
-
-  try {
-    const isCell = formData.eventType.toLowerCase().includes("cell");
-
-    // Prepare payload
-    const payload = {
-      ...formData,
-      eventLeader: formData.eventLeader,
-      leader12: formData.leader12,
-      leader144: formData.leader144,
-      userEmail: user?.email || '',
-      recurring_day: formData.recurringDays
-    };
-
-    // Convert ticketed price to number if needed
-    if (payload.price) {
-      payload.price = parseFloat(payload.price);
-    } else {
-      delete payload.price;
+  useEffect(() => {
+    if (isTicketedEvent) {
+      setFormData((prev) => ({
+        ...prev,
+        price: prev.price || "",
+        ageGroup: prev.ageGroup || "",
+        memberType: prev.memberType || "",
+      }));
     }
+  }, [isTicketedEvent]);
 
-    // Handle date and time
-    if (!isCell) {
-      if (payload.date && payload.time) {
-        const [hoursStr, minutesStr] = payload.time.split(':');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const isCell = formData.eventType.toLowerCase().includes("cell");
+
+      // Prepare payload with field names that match your backend model
+      const payload = {
+        eventType: formData.eventType,
+        eventName: formData.eventName,
+        isTicketed: isTicketedEvent,
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        description: formData.description,
+        userEmail: user?.email || '',
+        recurring_day: formData.recurringDays
+      };
+
+      // Handle ticketed event fields when event type is configured as ticketed
+      if (isTicketedEvent) {
+        payload.ageGroup = formData.ageGroup;
+        payload.memberType = formData.memberType;
+        payload.price = formData.price ? parseFloat(formData.price) : 0;
+      } else {
+        payload.price = null;
+      }
+
+      // FIXED: Add leaders for person steps events (removed isCell dependency and email)
+      if (hasPersonSteps && !isGlobalEvent) {
+        if (formData.leader1) payload.leader1 = formData.leader1;
+        if (formData.leader12) payload.leader12 = formData.leader12;
+      }
+
+      // Handle date for non-cell events OR global events
+      if ((!isCell || isGlobalEvent) && formData.date && formData.time) {
+        const [hoursStr, minutesStr] = formData.time.split(':');
         let hours = Number(hoursStr);
         const minutes = Number(minutesStr);
+        if (formData.timePeriod === 'PM' && hours !== 12) hours += 12;
+        if (formData.timePeriod === 'AM' && hours === 12) hours = 0;
 
-        if (payload.timePeriod === 'PM' && hours !== 12) hours += 12;
-        if (payload.timePeriod === 'AM' && hours === 12) hours = 0;
-
-        const [year, month, day] = payload.date.split('-').map(Number);
-        const dateObj = new Date(year, month - 1, day, hours, minutes, 0); // local time
-        payload.date = dateObj.toISOString(); // send ISO to backend
-      } else {
-        payload.date = null;
+        const dateTimeString = `${formData.date}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+        payload.date = dateTimeString;
       }
-    } else {
-      payload.date = null; // Cell events have no date
+
+      console.log('Payload being sent:', JSON.stringify(payload, null, 2));
+
+      // Send request
+      const response = eventId
+        ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
+        : await axios.post(`${BACKEND_URL}/events`, payload);
+
+      console.log('Server response:', response.data);
+
+      setSuccessMessage(
+        hasPersonSteps && !isGlobalEvent
+          ? `The ${formData.eventName} event with leadership hierarchy has been ${eventId ? 'updated' : 'created'} successfully!`
+          : eventId ? "Event updated successfully!" : "Event created successfully!"
+      );
+      setSuccessAlert(true);
+
+      if (!eventId) resetForm();
+
+      // Close modal or navigate after a brief delay to show success message
+      setTimeout(() => {
+        if (isModal && typeof onClose === 'function') {
+          onClose();
+        } else {
+          navigate("/events", { state: { refresh: true } });
+        }
+      }, 1500);
+
+    } catch (err) {
+      console.error("Error submitting event:", err);
+      console.error("Error response:", err.response?.data);
+
+      let errorMsg = "Something went wrong. Please try again!";
+
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMsg = err.response.data;
+        } else if (err.response.data.message) {
+          errorMsg = err.response.data.message;
+        } else if (err.response.data.detail) {
+          errorMsg = err.response.data.detail;
+        } else if (err.response.data.error) {
+          errorMsg = err.response.data.error;
+        }
+      }
+
+      setErrorMessage(errorMsg);
+      setErrorAlert(true);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Remove time fields
-    delete payload.time;
-    delete payload.timePeriod;
-
-    // Send request
-    if (eventId) {
-      await axios.put(`${BACKEND_URL}/events/${eventId}`, payload);
-    } else {
-      await axios.post(`${BACKEND_URL}/events`, payload);
-    }
-
-    // Update leaders for UI display
-    const selectedLeader = peopleData.find(p => p._id === formData.eventLeader);
-    setFormData(prev => ({
-      ...prev,
-      leaders: [
-        { slot: 'eventLeader', name: selectedLeader?.fullName || '' },
-        { slot: 'leader12', name: formData.leader12 },
-        { slot: 'leader144', name: formData.leader144 }
-      ]
-    }));
-
-    setSuccessMessage(
-      isCell
-        ? `The ${formData.eventName} Cell has been ${eventId ? 'updated' : 'created'} successfully!`
-        : eventId ? "Event updated successfully!" : "Event created successfully!"
-    );
-    setSuccessAlert(true);
-
-    if (!eventId) resetForm();
-
-    setTimeout(() => {
-      navigate("/events");
-    }, 1800);
-
-  } catch (err) {
-    console.error("Error submitting event:", err.response?.data || err.message);
-    setErrorMessage(
-      err.response?.data?.detail ||
-      err.response?.data?.message ||
-      "Something went wrong. Please try again!"
-    );
-    setErrorAlert(true);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const isCell = formData.eventType.toLowerCase().includes("cell");
 
+  // Modified styles for modal use
+  const containerStyle = isModal ? {
+    padding: '0',
+    minHeight: 'auto',
+    backgroundColor: 'transparent',
+    width: '100%',
+    height: '100%',
+    maxHeight: 'none',
+    overflowY: 'auto',
+  } : {
+    minHeight: '100vh',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    bgcolor: isDarkMode ? '#121212' : '#f5f5f5',
+    px: 2
+  };
+
+  const cardStyle = isModal ? {
+    width: '100%',
+    height: '100%',
+    padding: '1.5rem',
+    borderRadius: 0,
+    boxShadow: 'none',
+    backgroundColor: 'transparent',
+    maxHeight: 'none',
+    overflow: 'visible',
+  } : {
+    width: { xs: '100%', sm: '85%', md: '700px' },
+    p: 5,
+    borderRadius: '20px',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+  };
+
   const darkModeStyles = {
-    card: {
-      bgcolor: isDarkMode ? '#1e1e1e' : 'white',
-      color: isDarkMode ? '#ffffff' : 'black',
-      border: isDarkMode ? '1px solid #333' : 'none',
-    },
     textField: {
       '& .MuiOutlinedInput-root': {
         bgcolor: isDarkMode ? '#2d2d2d' : 'white',
@@ -427,110 +519,52 @@ const CreateEvents = ({ user }) => {
     },
     errorText: {
       color: isDarkMode ? '#ff6b6b' : 'red'
-    },
-    warningText: {
-      color: 'orange'
-    },
-    peopleList: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      zIndex: 10,
-      maxHeight: '200px',
-      overflowY: 'auto',
-      border: '1px solid #ccc',
-      borderRadius: '6px',
-      bgcolor: isDarkMode ? '#2d2d2d' : 'white',
-      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-    },
-    personItem: {
-      padding: '12px 16px',
-      cursor: 'pointer',
-      borderBottom: '1px solid #eee',
-      color: isDarkMode ? '#ffffff' : 'inherit',
-      '&:hover': {
-        bgcolor: isDarkMode ? '#3d3d3d' : '#f5f5f5'
-      },
-      '&:last-child': {
-        borderBottom: 'none'
-      }
     }
   };
 
-  return (
-    <Box sx={{
-      minHeight: '100vh',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      bgcolor: isDarkMode ? '#121212' : '#f5f5f5',
-      px: 2
-    }}>
-      <Card sx={{
-        width: { xs: '100%', sm: '85%', md: '700px' },
-        p: 5,
-        borderRadius: '20px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-        ...darkModeStyles.card
-      }}>
-        <CardContent>
-          <Typography variant="h4" fontWeight="bold" textAlign="center" mb={4} color="primary">
-            {eventId ? 'Edit Event' : 'Create New Event'}
-          </Typography>
+  if (isGlobalEvent && !['admin', 'registration'].includes(user?.role)) {
+    return (
+      <Typography variant="h6" color="error" textAlign="center" mt={5}>
+        You do not have permission to view or create this event.
+      </Typography>
+    );
+  }
 
-          {/* New Type Form */}
-          <Box display="flex" gap={1} flexDirection={{ xs: 'column', sm: 'row' }} mb={2}>
-            <Button
-              variant="outlined"
-              onClick={() => setShowNewTypeForm(!showNewTypeForm)}
-              startIcon={<AddIcon />}
-              sx={darkModeStyles.button.outlined}
-            >
-              New Type
-            </Button>
-            {showNewTypeForm && (
-              <>
-                <TextField
-                  placeholder="Enter new event type"
-                  value={newEventType}
-                  onChange={(e) => setNewEventType(e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={darkModeStyles.textField}
-                />
-                <Button
-                  variant="contained"
-                  onClick={addNewEventType}
-                  size="small"
-                  sx={{ bgcolor: 'primary.main', px: 2, py: 0.5 }}
-                >
-                  Add
-                </Button>
-              </>
-            )}
-          </Box>
+  return (
+    <Box sx={containerStyle}>
+      <Card sx={{
+        ...cardStyle,
+        ...(isDarkMode && !isModal ? {
+          bgcolor: '#1e1e1e',
+          color: '#ffffff',
+          border: '1px solid #333',
+        } : {})
+      }}>
+        <CardContent sx={{
+          padding: isModal ? '0' : '1rem',
+          '&:last-child': { paddingBottom: isModal ? '0' : '1rem' }
+        }}>
+          {!isModal && (
+            <Typography variant="h4" fontWeight="bold" textAlign="center" mb={4} color="primary">
+              {eventId ? 'Edit Event' : 'Create New Event'}
+            </Typography>
+          )}
 
           <form onSubmit={handleSubmit}>
-            {/* Event Type */}
-            <FormControl fullWidth size="small" sx={{ mb: 3, ...darkModeStyles.select }}>
-              <InputLabel>Event Type</InputLabel>
-              <Select
-                value={formData.eventType}
-                onChange={(e) => handleChange('eventType', e.target.value)}
-              >
-                {eventTypes.map(type => (
-                  <MenuItem key={type} value={type}>{type}</MenuItem>
-                ))}
-              </Select>
-              {errors.eventType && (
-                <Typography variant="caption" sx={darkModeStyles.errorText}>
-                  {errors.eventType}
-                </Typography>
-              )}
-            </FormControl>
+            {/* Event Type - Always show */}
+            <TextField
+              label={isGlobalEvent ? "Event Group Name" : "Event Type"}
+              value={formData.eventType}
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              InputProps={{
+                readOnly: true,
+              }}
+              disabled
+            />
 
-            {/* Event Name */}
+            {/* Event Name - Always show */}
             <TextField
               label="Event Name"
               value={formData.eventName}
@@ -539,39 +573,77 @@ const CreateEvents = ({ user }) => {
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
               error={!!errors.eventName}
-              helperText={errors.eventName || (isCell ? "Auto-filled when event leader is selected" : "")}
+              helperText={errors.eventName || (isCell && !isGlobalEvent ? "Auto-filled when event leader is selected" : "")}
             />
 
-            {/* Ticketed */}
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isTicketed}
-                  onChange={(e) => handleChange('isTicketed', e.target.checked)}
+            {/* TICKETED EVENT FIELDS - Show ONLY for ticketed events */}
+            {isTicketedEvent && (
+              <>
+                {/* Age Group dropdown */}
+                <TextField
+                  select
+                  label="Age Group"
+                  name="ageGroup"
+                  value={formData.ageGroup}
+                  onChange={handleInputChange}
+                  SelectProps={{ native: true }}
+                  fullWidth
+                  margin="normal"
+                  required
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.ageGroup}
+                  helperText={errors.ageGroup}
+                >
+                  <option value="">Select Age Group</option>
+                  {ageGroupOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </TextField>
+
+                {/* Member Type dropdown */}
+                <TextField
+                  select
+                  label="Member Type"
+                  name="memberType"
+                  value={formData.memberType}
+                  onChange={handleInputChange}
+                  SelectProps={{ native: true }}
+                  fullWidth
+                  margin="normal"
+                  required
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.memberType}
+                  helperText={errors.memberType}
+                >
+                  <option value="">Select Member Type</option>
+                  {memberTypeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </TextField>
+
+                {/* Price input */}
+                <TextField
+                  label="Price (R)"
+                  name="price"
+                  type="number"
+                  value={formData.price}
+                  onChange={handleInputChange}
+                  fullWidth
+                  margin="normal"
+                  required
+                  inputProps={{ min: 0 }}
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.price}
+                  helperText={errors.price}
                 />
-              }
-              label="Ticketed Event"
-              sx={{ mb: 2, ...darkModeStyles.formControlLabel }}
-            />
-
-            {formData.isTicketed && (
-              <TextField
-                label="Price"
-                type="number"
-                value={formData.price}
-                onChange={(e) => handleChange('price', e.target.value)}
-                fullWidth
-                size="small"
-                error={!!errors.price}
-                helperText={errors.price}
-                sx={{ mb: 3, ...darkModeStyles.textField }}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">R</InputAdornment>
-                }}
-              />
+              </>
             )}
 
-            {/* Date & Time */}
+            {/* Date & Time - Show for all events */}
             <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
               <TextField
                 label="Date"
@@ -581,7 +653,6 @@ const CreateEvents = ({ user }) => {
                 fullWidth
                 size="small"
                 InputLabelProps={{ shrink: true }}
-                disabled={isCell}
                 error={!!errors.date}
                 helperText={errors.date}
                 sx={darkModeStyles.textField}
@@ -594,56 +665,46 @@ const CreateEvents = ({ user }) => {
                 fullWidth
                 size="small"
                 InputLabelProps={{ shrink: true }}
-                disabled={isCell}
                 error={!!errors.time}
                 helperText={errors.time}
                 sx={darkModeStyles.textField}
               />
-              <FormControl size="small" sx={{ minWidth: 80, ...darkModeStyles.select }}>
-                <InputLabel>AM/PM</InputLabel>
-                <Select
-                  value={formData.timePeriod}
-                  label="AM/PM"
-                  onChange={(e) => handleChange('timePeriod', e.target.value)}
-                  disabled={isCell}
-                >
-                  {timePeriods.map(period => (
-                    <MenuItem key={period} value={period}>{period}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
             </Box>
 
-            {/* Recurring Days */}
-            {isCell && (
-              <Box mb={3}>
-                <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
-                  Recurring Days <span style={{ color: 'red' }}>*</span>
-                </Typography>
-                <Box display="flex" flexWrap="wrap" gap={2}>
-                  {days.map(day => (
-                    <FormControlLabel
-                      key={day}
-                      control={
-                        <Checkbox
-                          checked={formData.recurringDays.includes(day)}
-                          onChange={() => handleDayChange(day)}
-                        />
-                      }
-                      label={day}
-                      sx={darkModeStyles.formControlLabel}
-                    />
-                  ))}
-                </Box>
-                {errors.recurringDays && (
-                  <Typography variant="caption" sx={darkModeStyles.errorText}>
-                    {errors.recurringDays}
-                  </Typography>
-                )}
-              </Box>
-            )}
 
-            {/* Location */}
+            {/* Recurring Days - Show for all events */}
+            <Box mb={3}>
+              <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
+                Recurring Days {isCell && !isGlobalEvent && <span style={{ color: 'red' }}>*</span>}
+              </Typography>
+              <Typography variant="body2" sx={{ color: isDarkMode ? '#bbb' : '#666', mb: 2 }}>
+                {isCell && !isGlobalEvent
+                  ? 'Select the days this cell meets regularly'
+                  : 'Optional: Select days if this event repeats weekly'}
+              </Typography>
+              <Box display="flex" flexWrap="wrap" gap={2}>
+                {days.map(day => (
+                  <FormControlLabel
+                    key={day}
+                    control={
+                      <Checkbox
+                        checked={formData.recurringDays.includes(day)}
+                        onChange={() => handleDayChange(day)}
+                      />
+                    }
+                    label={day}
+                    sx={darkModeStyles.formControlLabel}
+                  />
+                ))}
+              </Box>
+              {errors.recurringDays && (
+                <Typography variant="caption" sx={darkModeStyles.errorText}>
+                  {errors.recurringDays}
+                </Typography>
+              )}
+            </Box>
+
+            {/* Location - Always show */}
             <TextField
               label="Location"
               value={formData.location}
@@ -658,81 +719,152 @@ const CreateEvents = ({ user }) => {
               }}
             />
 
-            {/* Event Leader */}
-            <Box sx={{ position: 'relative', mb: 3 }}>
-              <TextField
-                label="Event Leader"
-                value={searchLeader}
-                onChange={(e) => {
-                  setSearchLeader(e.target.value);
-                  setShowPeopleList(!!e.target.value);
-                  handleChange('eventLeader', e.target.value);
-                }}
-                fullWidth
-                size="small"
-                sx={darkModeStyles.textField}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><PersonIcon /></InputAdornment>
-                }}
-                error={!!errors.eventLeader}
-                helperText={errors.eventLeader || "Type to search and select a person from the list"}
-              />
+{/* Event Leader */}
+<Autocomplete
+  key={`autocomplete-eventLeader`} // Optional but helpful if things rerender oddly
+  freeSolo
+  filterOptions={(options) => options}
+  loading={loadingPeople}
+  options={peopleData}
+  getOptionLabel={(option) =>
+    typeof option === 'string' ? option : option.fullName || ''
+  }
+  isOptionEqualToValue={(option, value) => {
+    return (
+      (typeof option === 'string' ? option : option.fullName) ===
+      (typeof value === 'string' ? value : value.fullName)
+    );
+  }}
+  renderOption={(props, option) => (
+    <li {...props} key={option.id || option.fullName || Math.random()}>
+      {option.fullName}
+    </li>
+  )}
+  value={
+    typeof formData.eventLeader === 'string'
+      ? formData.eventLeader
+      : peopleData.find(p => p.fullName === formData.eventLeader) || ''
+  }
+  onChange={(event, newValue) => {
+    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+    handleChange('eventLeader', name);
+  }}
+  onInputChange={(event, newInputValue) => {
+    handleChange('eventLeader', newInputValue || '');
+    if (newInputValue && newInputValue.length >= 2) {
+      fetchPeople(newInputValue);
+    } else if (!newInputValue) {
+      fetchPeople('');
+    }
+  }}
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      label="Event Leader"
+      size="small"
+      sx={{ mb: 3, ...darkModeStyles.textField }}
+      error={!!errors.eventLeader}
+      helperText={
+        errors.eventLeader ||
+        (loadingPeople
+          ? "Loading..."
+          : `Type to search (${peopleData.length} found)`)
+      }
+      InputProps={{
+        ...params.InputProps,
+        startAdornment: (
+          <>
+            <InputAdornment position="start">
+              <PersonIcon />
+            </InputAdornment>
+            {params.InputProps.startAdornment}
+          </>
+        )
+      }}
+    />
+  )}
+/>
 
-              {showPeopleList && filteredPeople.length > 0 && (
-                <Box sx={darkModeStyles.peopleList}>
-                  {filteredPeople.map((person, idx) => (
-                    <Box
-                      key={person._id || idx}
-                      onClick={() => handlePersonSelect(person)}
-                      sx={darkModeStyles.personItem}
-                    >
-                      <Typography variant="body1">{person.fullName}</Typography>
-                      {isCell && (
-                        <Typography variant="caption" sx={{ color: isDarkMode ? '#bbb' : '#666' }}>
-                          Leader @12: {person.leader12} | Leader @144: {person.leader144}
-                        </Typography>
-                      )}
-                    </Box>
-                  ))}
-                </Box>
-              )}
+{/* Leader @1 */}
+<Autocomplete
+  freeSolo
+  filterOptions={(options) => options}
+  loading={loadingPeople}
+  options={peopleData}
+  getOptionLabel={(option) =>
+    typeof option === 'string' ? option : option.fullName
+  }
+  value={
+    peopleData.find(p => p.fullName === formData.leader1) || formData.leader1 || ''
+  }
+  onChange={(event, newValue) => {
+    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+    handleChange('leader1', name);
+  }}
+  onInputChange={(event, newInputValue) => {
+    handleChange('leader1', newInputValue || '');
+    if (newInputValue && newInputValue.length >= 2) {
+      fetchPeople(newInputValue);
+    } else if (!newInputValue) {
+      fetchPeople("");
+    }
+  }}
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      label="Leader @1"
+      size="small"
+      sx={{ mb: 2, ...darkModeStyles.textField }}
+      error={!!errors.leader1}
+      helperText={
+        errors.leader1 ||
+        (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
+      }
+    />
+  )}
+/>
 
-              {/* Show warning if user typed but didn't select */}
+{/* Leader @12 */}
+<Autocomplete
+  freeSolo
+  filterOptions={(options) => options}
+  loading={loadingPeople}
+  options={peopleData}
+  getOptionLabel={(option) =>
+    typeof option === 'string' ? option : option.fullName
+  }
+  value={
+    peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''
+  }
+  onChange={(event, newValue) => {
+    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+    handleChange('leader12', name);
+  }}
+  onInputChange={(event, newInputValue) => {
+    handleChange('leader12', newInputValue || '');
+    if (newInputValue && newInputValue.length >= 2) {
+      fetchPeople(newInputValue);
+    } else if (!newInputValue) {
+      fetchPeople("");
+    }
+  }}
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      label="Leader @12"
+      size="small"
+      sx={{ mb: 2, ...darkModeStyles.textField }}
+      error={!!errors.leader12}
+      helperText={
+        errors.leader12 ||
+        (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
+      }
+    />
+  )}
+/>
 
-            </Box>
 
-            {/* Cell Leadership */}
-            {isCell && (
-              <Box mb={3}>
-                <Typography variant="h6" sx={{ mb: 2, color: isDarkMode ? '#ffffff' : 'inherit' }}>
-                  Leadership Hierarchy
-                </Typography>
-                <TextField
-                  label="Leader at 12"
-                  value={formData.leader12}
-                  onChange={(e) => handleChange('leader12', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
-                  }}
-                />
-                <TextField
-                  label="Leader at 144"
-                  value={formData.leader144}
-                  onChange={(e) => handleChange('leader144', e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><DescriptionIcon /></InputAdornment>
-                  }}
-                />
-              </Box>
-            )}
-
-            {/* Description */}
+            {/* Description - Always show */}
             <TextField
               label="Description"
               value={formData.description}
@@ -750,20 +882,31 @@ const CreateEvents = ({ user }) => {
             />
 
             {/* Buttons */}
-            <Box display="flex" gap={2}>
+            <Box display="flex" gap={2} sx={{ mt: 3 }}>
               <Button
                 variant="outlined"
                 fullWidth
-                onClick={() => navigate("/events", { state: { refresh: true } })}
+                onClick={() => {
+                  if (isModal && typeof onClose === 'function') {
+                    onClose();
+                  } else {
+                    navigate("/events", { state: { refresh: true } });
+                  }
+                }}
                 sx={darkModeStyles.button.outlined}
               >
                 Cancel
               </Button>
+
               <Button
                 type="submit"
                 variant="contained"
                 fullWidth
                 disabled={isSubmitting}
+                sx={{
+                  bgcolor: 'primary.main',
+                  '&:hover': { bgcolor: 'primary.dark' }
+                }}
               >
                 {isSubmitting
                   ? (eventId ? 'Updating...' : 'Creating...')
