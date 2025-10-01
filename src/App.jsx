@@ -28,15 +28,19 @@ import SplashScreen from "./components/SplashScreen";
 import withAuthCheck from "./components/withAuthCheck";
 import Admin from "./Pages/Admin";
 
-// Wrap protected pages
-const ProtectedProfile = withAuthCheck(Profile);
-const ProtectedPeople = withAuthCheck(People);
-const ProtectedEvents = withAuthCheck(Events);
-const ProtectedStats = withAuthCheck(Stats);
-const ProtectedCheckIn = withAuthCheck(ServiceCheckIn);
-const ProtectedDailyTasks = withAuthCheck(DailyTasks);
-const ProtectedHome = withAuthCheck(Home);
-const ProtectedAdmin = withAuthCheck(Admin);
+// Wrap protected pages WITH ROLES
+const ProtectedHome = withAuthCheck(Home, ['admin', 'leader', 'user', 'registrant']);
+const ProtectedProfile = withAuthCheck(Profile, ['admin', 'leader', 'user', 'registrant']);
+const ProtectedPeople = withAuthCheck(People, ['admin', 'leader']);
+const ProtectedEvents = withAuthCheck(Events, ['admin', 'leader', 'user', 'registrant']);
+const ProtectedStats = withAuthCheck(Stats, ['admin', 'leader']);
+const ProtectedCheckIn = withAuthCheck(ServiceCheckIn, ['admin', 'registrant']);
+const ProtectedDailyTasks = withAuthCheck(DailyTasks, ['admin', 'leader', 'user', 'registrant']);
+const ProtectedAdmin = withAuthCheck(Admin, ['admin']);
+const ProtectedCreateEvents = withAuthCheck(CreateEvents, ['admin', 'leader']);
+const ProtectedAttendance = withAuthCheck(AttendanceModal, ['admin', 'leader']);
+const ProtectedEventDetails = withAuthCheck(EventDetails, ['admin', 'leader', 'user', 'registrant']);
+const ProtectedEventsHistory = withAuthCheck(EventsHistory, ['admin', 'leader', 'user', 'registrant']);
 
 function App() {
   const { user, loading } = useContext(AuthContext);
@@ -47,13 +51,13 @@ function App() {
 
   const [showSplash, setShowSplash] = useState(true);
 
-  // Define routes that shouldn't show layout
   const noLayoutRoutes = ["/login", "/signup", "/forgot-password", "/reset-password"];
   const hideLayout = noLayoutRoutes.includes(location.pathname);
 
   useEffect(() => {
     console.log('🔍 Debug Info:', {
       user: !!user,
+      userRole: user?.role,
       loading,
       showSplash,
       currentPath: location.pathname,
@@ -61,12 +65,11 @@ function App() {
     });
   }, [user, loading, showSplash, location.pathname]);
 
-  // Show splash screen first, regardless of auth status
   if (showSplash) {
     return (
       <SplashScreen
         onFinish={() => setShowSplash(false)}
-        duration={6000} // 6 seconds splash
+        duration={6000}
       />
     );
   }
@@ -77,7 +80,6 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
 
-      {/* Show layout only when user is authenticated (not just logged in) */}
       {user && !hideLayout && <TopbarProfile />}
       
       <div style={{ display: "flex" }}>
@@ -85,7 +87,7 @@ function App() {
         
         <div style={{ flexGrow: 1 }}>
           <Routes>
-            {/* Public routes - accessible whether logged in or not */}
+            {/* Public routes */}
             <Route 
               path="/login" 
               element={
@@ -109,18 +111,18 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword mode={mode} />} />
             <Route path="/reset-password" element={<ResetPassword mode={mode} />} />
 
-            {/* Protected routes - let withAuthCheck HOC handle redirects */}
+            {/* Protected routes with role restrictions */}
             <Route path="/" element={<ProtectedHome />} />
             <Route path="/admin" element={<ProtectedAdmin />} />
             <Route path="/profile" element={<ProtectedProfile title="Profile" />} />
             <Route path="/people" element={<ProtectedPeople title="People" />} />
             <Route path="/events" element={<ProtectedEvents title="Events" />} />
             <Route path="/stats" element={<ProtectedStats title="Stats" />} />
-            <Route path="/create-events" element={<CreateEvents title="Create Events" />} />
-            <Route path="/edit-event/:id" element={<CreateEvents title="Create Events Edit" />} />
-            <Route path="/attendance" element={<AttendanceModal title="Attendance Modal" />} />
-            <Route path="/event-details" element={<EventDetails title="event-details-screen" />} />
-            <Route path="/events-history" element={<EventsHistory title="Events History" user={user} />} />
+            <Route path="/create-events" element={<ProtectedCreateEvents title="Create Events" />} />
+            <Route path="/edit-event/:id" element={<ProtectedCreateEvents title="Create Events Edit" />} />
+            <Route path="/attendance" element={<ProtectedAttendance title="Attendance Modal" />} />
+            <Route path="/event-details" element={<ProtectedEventDetails title="event-details-screen" />} />
+            <Route path="/events-history" element={<ProtectedEventsHistory title="Events History" />} />
             <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
             <Route path="/daily-tasks" element={<ProtectedDailyTasks title="Daily Tasks" />} />
             <Route path="/event-payment/:eventId" element={<EventRegistrationForm title="Event register" />} />
