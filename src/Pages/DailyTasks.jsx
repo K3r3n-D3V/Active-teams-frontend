@@ -72,7 +72,7 @@ export default function DailyTasks() {
     JSON.parse(localStorage.getItem("userProfile") || "{}")
   );
 
-  const API_URL = import.meta.env.VITE_BACKEND_URL;
+  const API_URL = "http://localhost:8000";
 
   const getCurrentDateTime = () => {
     const now = new Date();
@@ -94,7 +94,7 @@ export default function DailyTasks() {
   const getInitialTaskData = () => ({
     taskType: "",
     recipient: "",
-    assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
+    assignedTo: storedUser?.email || "",
     dueDate: getCurrentDateTime(),
     status: "Open",
     taskStage: "Open",
@@ -197,14 +197,15 @@ export default function DailyTasks() {
       const data = await res.json();
       console.log("Fetched tasks raw:", data);
 
-      const normalizedTasks = (data.tasks || []).map((task) => ({
-        ...task,
-        assignedTo: task.assignedfor || task.assignedTo,
-        date: task.date || task.followup_date,
-        status: (task.status || "Open").toLowerCase(),
-        taskName: task.name || task.taskName,
-        type: task.type || (task.taskType?.toLowerCase().includes("visit") ? "visit" : "call"),
-      }));
+    const normalizedTasks = (Array.isArray(data) ? data : data.tasks || []).map((task) => ({
+      ...task,
+      assignedTo: task.assignedfor || task.assignedTo,
+      date: task.date || task.followup_date,
+      status: (task.status || "Open").toLowerCase(),
+      taskName: task.name || task.taskName,
+      type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
+    }));
+
 
       console.log("Normalized tasks:", normalizedTasks);
       setTasks(normalizedTasks);
@@ -596,7 +597,7 @@ const theme = {
                       setTaskData({
                         taskType: task.taskType || "",
                         recipient: task.contacted_person?.name || "",
-                        assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
+                        assignedTo: storedUser?.email || "",
                         dueDate: task.date ? formatDateTime(task.date) : getCurrentDateTime(),
                         status: task.status || "Open",
                         taskStage: task.status || "Open",
