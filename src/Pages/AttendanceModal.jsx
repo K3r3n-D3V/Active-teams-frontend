@@ -95,8 +95,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
 
 const handleSubmit = async () => {
-  const selected = people.filter(p => checked[p.id]);
+  // Filter selected attendees based on checked state
+  const selected = people.filter((p) => checked[p.id]);
 
+  // Validate selection
   if (selected.length === 0) {
     setAlert({
       open: true,
@@ -106,8 +108,8 @@ const handleSubmit = async () => {
     return;
   }
 
+  // Get event ID (supporting multiple possible keys)
   const eventId = event?.id || event?._id;
-
   if (!eventId) {
     setAlert({
       open: true,
@@ -117,7 +119,8 @@ const handleSubmit = async () => {
     return;
   }
 
-  const userStr = localStorage.getItem('userProfile');
+  // Get user profile from localStorage
+  const userStr = localStorage.getItem("userProfile");
   if (!userStr) {
     setAlert({
       open: true,
@@ -140,13 +143,15 @@ const handleSubmit = async () => {
     return;
   }
 
-  const selectedMapped = selected.map(att => ({
+  // Map selected attendees to expected payload structure
+  const selectedMapped = selected.map((att) => ({
     id: att.id,
     name: att.fullName || att.name || "",
     leader12: att.leader12 || "",
     leader144: att.leader144 || "",
   }));
 
+  // Build payload
   const payload = {
     attendees: selectedMapped,
     leaderEmail,
@@ -155,6 +160,33 @@ const handleSubmit = async () => {
   };
 
   try {
+    // If parent onSubmit function exists, use it instead of direct API call
+    if (typeof onSubmit === "function") {
+      const result = await onSubmit(selected);
+
+      if (result?.success) {
+        setAlert({
+          open: true,
+          type: "success",
+          message: result.message || "Attendance captured successfully!",
+        });
+
+        // Close modal after short delay
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+      } else {
+        setAlert({
+          open: true,
+          type: "error",
+          message: result?.message || "Failed to capture attendance.",
+        });
+      }
+
+      return; // Exit after parent onSubmit handling
+    }
+
+    // Otherwise, submit attendance directly to backend
     const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -168,10 +200,12 @@ const handleSubmit = async () => {
         message: `Attendance successfully submitted for "${event.eventName || event.service_name || "this event"}"!`,
       });
 
+      // Notify parent component if callback exists
       if (typeof onAttendanceSubmitted === "function") {
         onAttendanceSubmitted(eventId);
       }
 
+      // For non-admin users, auto-close modal after delay
       const userRole = (user.role || "").toLowerCase();
       if (userRole !== "admin") {
         setTimeout(() => {
@@ -183,7 +217,7 @@ const handleSubmit = async () => {
       setAlert({
         open: true,
         type: "error",
-        message: result?.message || `Failed to submit attendance.`,
+        message: result?.message || "Failed to submit attendance.",
       });
     }
   } catch (error) {
@@ -191,11 +225,10 @@ const handleSubmit = async () => {
     setAlert({
       open: true,
       type: "error",
-      message: `Something went wrong while submitting attendance.`,
+      message: "Something went wrong while submitting attendance.",
     });
   }
 };
-
 
 
   const handleMarkDidNotMeet = async () => {
