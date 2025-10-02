@@ -931,16 +931,13 @@ const fetchEvents = async () => {
     const cleanedType = eventType.trim().toLowerCase();
 
     const eventCategoryColors = {
-      cell: "#007bff",
+      // cell: "#007bff",
       service: "#5A9BD5",
       conference: "#C792EA",
       workshop: "#F7C59F",
-      encounter: "#FFADAD",
-      training: "#70A1D7",
+      // encounter: "#FFADAD",
       activation: "#F67280",
-      "social event": "#FFD166",
-      meeting: "#A0CED9",
-      children: "#FFA07A",
+      
     };
 
     for (const keyword in eventCategoryColors) {
