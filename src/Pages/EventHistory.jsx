@@ -241,8 +241,8 @@ useEffect(() => {
           <thead>
             <tr style={styles.tableHeaderRow}>
               <th style={styles.tableHeaderCell}>Event Name</th>
-              <th style={styles.tableHeaderCell}>Leader @12</th>
-              <th style={styles.tableHeaderCell}>Leader's Email</th>
+              {/* <th style={styles.tableHeaderCell}>Leader @12</th> */}
+              {/* <th style={styles.tableHeaderCell}>Leader's Email</th> */}
               <th style={styles.tableHeaderCell}>Day</th>
               <th style={styles.tableHeaderCell}>Date Of Event</th>
               <th style={{ ...styles.tableHeaderCell, textAlign: "center" }}>
@@ -264,7 +264,7 @@ useEffect(() => {
               )[0];
 
               return (
-                <tr
+               <tr
                   key={event._id}
                   style={styles.tr}
                   onMouseEnter={(e) =>
@@ -279,8 +279,6 @@ useEffect(() => {
                   }
                 >
                   <td style={styles.td}>{event.service_name}</td>
-                  <td style={styles.td}>{event.leader12 || "-"}</td>
-                  <td style={styles.td}>{event.leader12_email || "-"}</td>
                   <td style={styles.td}>{event.day}</td>
                   <td style={styles.td}>
                     {latest?.closedAt ||
@@ -483,13 +481,13 @@ const getStyles = (theme) => {
       minWidth: "700px",
     },
     tableHeaderRow: {
-      backgroundColor: isDarkMode ? theme.palette.grey[800] : "#9a9494ff"
+      backgroundColor: isDarkMode ? theme.palette.grey[800] : "#000"
     },
     tableHeaderCell: {
       padding: "0.75rem 1rem",
       fontWeight: "700",
       fontSize: "0.9rem",
-      color: isDarkMode ? "#ddd" : "#000",
+      color: isDarkMode ? "#ddd" : "#fff",
       textAlign: "left",
       borderBottom: `2px solid ${isDarkMode ? theme.palette.grey[700] : theme.palette.grey[300]}`,
     },
