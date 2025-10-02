@@ -350,7 +350,8 @@ const CreateEvents = ({
         eventLeader: formData.eventLeader,
         description: formData.description,
         userEmail: user?.email || '',
-        recurring_day: formData.recurringDays
+        recurring_day: formData.recurringDays,
+          status: 'open'  // ADD THIS LINE
       };
 
       // Handle ticketed event fields when event type is configured as ticketed
@@ -785,84 +786,88 @@ const CreateEvents = ({
   )}
 />
 
-{/* Leader @1 */}
-<Autocomplete
-  freeSolo
-  filterOptions={(options) => options}
-  loading={loadingPeople}
-  options={peopleData}
-  getOptionLabel={(option) =>
-    typeof option === 'string' ? option : option.fullName
-  }
-  value={
-    peopleData.find(p => p.fullName === formData.leader1) || formData.leader1 || ''
-  }
-  onChange={(event, newValue) => {
-    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-    handleChange('leader1', name);
-  }}
-  onInputChange={(event, newInputValue) => {
-    handleChange('leader1', newInputValue || '');
-    if (newInputValue && newInputValue.length >= 2) {
-      fetchPeople(newInputValue);
-    } else if (!newInputValue) {
-      fetchPeople("");
-    }
-  }}
-  renderInput={(params) => (
-    <TextField
-      {...params}
-      label="Leader @1"
-      size="small"
-      sx={{ mb: 2, ...darkModeStyles.textField }}
-      error={!!errors.leader1}
-      helperText={
-        errors.leader1 ||
-        (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
+{/* Leader @1 and Leader @12 - ONLY show for Person Steps events */}
+{hasPersonSteps && !isGlobalEvent && (
+  <>
+    {/* Leader @1 */}
+    <Autocomplete
+      freeSolo
+      filterOptions={(options) => options}
+      loading={loadingPeople}
+      options={peopleData}
+      getOptionLabel={(option) =>
+        typeof option === 'string' ? option : option.fullName
       }
-    />
-  )}
-/>
-
-{/* Leader @12 */}
-<Autocomplete
-  freeSolo
-  filterOptions={(options) => options}
-  loading={loadingPeople}
-  options={peopleData}
-  getOptionLabel={(option) =>
-    typeof option === 'string' ? option : option.fullName
-  }
-  value={
-    peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''
-  }
-  onChange={(event, newValue) => {
-    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-    handleChange('leader12', name);
-  }}
-  onInputChange={(event, newInputValue) => {
-    handleChange('leader12', newInputValue || '');
-    if (newInputValue && newInputValue.length >= 2) {
-      fetchPeople(newInputValue);
-    } else if (!newInputValue) {
-      fetchPeople("");
-    }
-  }}
-  renderInput={(params) => (
-    <TextField
-      {...params}
-      label="Leader @12"
-      size="small"
-      sx={{ mb: 2, ...darkModeStyles.textField }}
-      error={!!errors.leader12}
-      helperText={
-        errors.leader12 ||
-        (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
+      value={
+        peopleData.find(p => p.fullName === formData.leader1) || formData.leader1 || ''
       }
+      onChange={(event, newValue) => {
+        const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+        handleChange('leader1', name);
+      }}
+      onInputChange={(event, newInputValue) => {
+        handleChange('leader1', newInputValue || '');
+        if (newInputValue && newInputValue.length >= 2) {
+          fetchPeople(newInputValue);
+        } else if (!newInputValue) {
+          fetchPeople("");
+        }
+      }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label="Leader @1"
+          size="small"
+          sx={{ mb: 2, ...darkModeStyles.textField }}
+          error={!!errors.leader1}
+          helperText={
+            errors.leader1 ||
+            (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
+          }
+        />
+      )}
     />
-  )}
-/>
 
+    {/* Leader @12 */}
+    <Autocomplete
+      freeSolo
+      filterOptions={(options) => options}
+      loading={loadingPeople}
+      options={peopleData}
+      getOptionLabel={(option) =>
+        typeof option === 'string' ? option : option.fullName
+      }
+      value={
+        peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''
+      }
+      onChange={(event, newValue) => {
+        const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+        handleChange('leader12', name);
+      }}
+      onInputChange={(event, newInputValue) => {
+        handleChange('leader12', newInputValue || '');
+        if (newInputValue && newInputValue.length >= 2) {
+          fetchPeople(newInputValue);
+        } else if (!newInputValue) {
+          fetchPeople("");
+        }
+      }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label="Leader @12"
+          size="small"
+          sx={{ mb: 2, ...darkModeStyles.textField }}
+          error={!!errors.leader12}
+          helperText={
+            errors.leader12 ||
+            (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
+          }
+        />
+      )}
+    />
+  </>
+)}
 
             {/* Description - Always show */}
             <TextField

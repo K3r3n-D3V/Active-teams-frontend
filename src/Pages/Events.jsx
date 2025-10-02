@@ -77,7 +77,7 @@ const styles = {
     gap: "0.75rem",
     flexWrap: "wrap",
   },
-  eventTypeNavigation: {
+    eventTypeNavigation: {
     padding: '0.75rem 1.5rem', 
     borderBottom: '1px solid #e9ecef',
     backgroundColor: '#fff',
@@ -86,6 +86,9 @@ const styles = {
     msOverflowStyle: 'none',
     overflowY: 'auto',
     maxHeight: '200px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   eventTypeButtons: {
     display: 'flex',
@@ -486,19 +489,19 @@ const Events = () => {
 
 const fetchEvents = async () => {
   setLoading(true);
-  console.log("🔍 Starting fetchEvents...");
+  console.log("Starting fetchEvents...");
   
   try {
     const token = localStorage.getItem("token");
     if (!token) {
-      console.error("❌ No token found");
+      console.error("No token found");
       setLoading(false);
       return;
     }
     
     const headers = { Authorization: `Bearer ${token}` };
     const userRole = currentUser?.role;
-    console.log("👤 User role:", userRole);
+    console.log("User role:", userRole);
     
     let allEvents = [];
     let apiCustomTypes = [];
@@ -507,41 +510,35 @@ const fetchEvents = async () => {
     try {
       const eventTypesResponse = await axios.get(`${BACKEND_URL}/event-types`, { headers });
       apiCustomTypes = eventTypesResponse.data || [];
-      console.log("📋 Event types loaded:", apiCustomTypes.length);
+      console.log("Event types loaded:", apiCustomTypes.length);
       setCustomEventTypes(apiCustomTypes);
       setUserCreatedEventTypes(apiCustomTypes);
       setEventTypes(apiCustomTypes.map(type => type.name));
     } catch (typeError) {
-      console.error("⚠️ Failed to load event types:", typeError);
+      console.error("Failed to load event types:", typeError);
     }
     
     if (userRole === "admin") {
-      console.log("🔐 Fetching admin cells...");
+      console.log("Fetching admin events...");
       try {
-        const response = await axios.get(`${BACKEND_URL}/admin/events/cells`, { headers });
-
-        console.log("✅ Admin cells response:", response.data);
-        console.log("📊 Events received:", response.data.events?.length || 0);
+        const allEventsResponse = await axios.get(`${BACKEND_URL}/events`, { headers });
+        console.log("Admin events response:", allEventsResponse.data);
         
-        if (response.data.status === "success") {
-          allEvents = response.data.events || [];
-          console.log("✅ Events loaded successfully:", allEvents.length);
-        } else {
-          console.error("❌ Response status not success:", response.data);
-        }
+        allEvents = allEventsResponse.data.events || [];
+        console.log("Events loaded successfully:", allEvents.length);
+        
       } catch (adminError) {
-        console.error("❌ Admin cells fetch failed:");
+        console.error("Admin events fetch failed:");
         console.error("Status:", adminError.response?.status);
         console.error("Data:", adminError.response?.data);
         console.error("Message:", adminError.message);
         
-        // Show error to user
         if (adminError.response?.data?.detail) {
           console.error("Server error detail:", adminError.response.data.detail);
         }
       }
     } else {
-      console.log("👥 Fetching user cells...");
+      console.log("Fetching user cells...");
       const response = await axios.get(`${BACKEND_URL}/events/cells-user`, { headers }).catch((err) => {
         console.error("Cells user endpoint failed:", err);
         return { data: { events: [], status: "error", error: err.message } };
@@ -559,7 +556,7 @@ const fetchEvents = async () => {
       }
     }
     
-    console.log("🔄 Processing", allEvents.length, "events...");
+    console.log("Processing", allEvents.length, "events...");
     
     // Process events to frontend-friendly format
     const processedEvents = allEvents.map((event, index) => {
@@ -583,12 +580,14 @@ const fetchEvents = async () => {
         isTicketed: event.isTicketed || false,
         price: event.price || 0,
         parsedDate: eventDate,
-        relationship: event.relationship
+        relationship: event.relationship,
+        registeredUsers: event.registeredUsers || []  // IMPORTANT: assumes registeredUsers is an array of emails or IDs
       };
       
       console.log(`Event ${index + 1}:`, {
         id: processed._id,
         name: processed.eventName,
+        type: processed.eventType,
         date: processed.date,
         status: processed.status
       });
@@ -603,9 +602,20 @@ const fetchEvents = async () => {
         const eventType = apiCustomTypes.find(
           et => et.name === (event.eventType || "").trim()
         );
-        return eventType && (eventType.isTicketed || eventType.isGlobal);
+        if (!eventType || !(eventType.isTicketed || eventType.isGlobal)) return false;
+
+        // If event is global, show it
+        if (eventType.isGlobal) return true;
+
+        // Otherwise, check if user is registered for this event
+        if (event.registeredUsers && currentUser && currentUser.email) {
+          return event.registeredUsers.includes(currentUser.email);
+        }
+
+        // fallback: exclude event if no registeredUsers info
+        return false;
       });
-      console.log("🎫 Filtered to", finalEvents.length, "registration events");
+      console.log("Filtered to", finalEvents.length, "registrant events");
     }
     
     // Sort by date (handle null dates)
@@ -615,21 +625,20 @@ const fetchEvents = async () => {
       return dateA - dateB;
     });
     
-    console.log("✅ Final events list:", sortedEvents.length, "events");
-    console.log("📅 Events:", sortedEvents.map(e => ({ name: e.eventName, date: e.date })));
+    console.log("Final events list:", sortedEvents.length, "events");
+    console.log("Events:", sortedEvents.map(e => ({ name: e.eventName, type: e.eventType, date: e.date })));
     
     setEvents(sortedEvents);
     setFilteredEvents(sortedEvents);
     
   } catch (err) {
-    console.error("❌ Fatal error in fetchEvents:", err);
+    console.error("Fatal error in fetchEvents:", err);
     console.error("Error details:", err.response?.data || err.message);
   } finally {
     setLoading(false);
-    console.log("✅ fetchEvents completed");
+    console.log("fetchEvents completed");
   }
 };
-
 
   const getFilteredEventTypes = () => {
     if (!currentUser || !currentUser.role) return [];
@@ -753,22 +762,30 @@ const fetchEvents = async () => {
     applyAllFilters(activeFilters, selectedDate, eventType);
   };
 
-  const applyAllFilters = (
+ const applyAllFilters = (
   filters = activeFilters,
   dateFilter = selectedDate,
   eventTypeFilter = selectedEventType
 ) => {
   let filtered = events.filter(event => {
     const status = (event.status || "").toLowerCase();
-    if (status === "closed" || status === "complete") return false;
+     console.log("🔍 Filtering with eventTypeFilter:", eventTypeFilter);
+  console.log("📊 Total events before filter:", events.length);
+  
+    // Only filter out closed/complete events for non-admin users
+    if (!isAdmin && (status === "closed" || status === "complete")) {
+      return false;
+    }
 
     let matches = true;
 
-    if (
-      eventTypeFilter !== "all" &&
-      event.eventType?.toLowerCase() !== eventTypeFilter.toLowerCase()
-    ) {
-      matches = false;
+    // Case-insensitive event type matching
+    if (eventTypeFilter !== "all") {
+      const eventType = (event.eventType || "").toLowerCase().trim();
+      const filterType = eventTypeFilter.toLowerCase().trim();
+      if (eventType !== filterType) {
+        matches = false;
+      }
     }
 
     if (dateFilter) {
@@ -779,9 +796,12 @@ const fetchEvents = async () => {
       }
     }
 
-    if (filters.eventType &&
-      event.eventType?.toLowerCase() !== filters.eventType.toLowerCase()) {
-      matches = false;
+    if (filters.eventType) {
+      const eventType = (event.eventType || "").toLowerCase().trim();
+      const filterType = filters.eventType.toLowerCase().trim();
+      if (eventType !== filterType) {
+        matches = false;
+      }
     }
 
     if (filters.location && event.location !== filters.location) {
@@ -956,19 +976,20 @@ const fetchEvents = async () => {
     setCreateEventTypeModalOpen(false);
   };
 
- const handleAttendanceSubmit = async (data) => {
+
+const handleAttendanceSubmit = async (data) => {
   try {
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
+
     const eventId = selectedEvent._id;
     const eventName = selectedEvent.eventName;
     const eventType = selectedEvent.eventType;
-
     const formattedDate = new Date().toLocaleDateString();
     const formattedTime = new Date().toLocaleTimeString();
 
-    if (data === "did_not_meet") {
-      // Mark event as 'Did Not Meet' (closed)
+    if (data === "did-not-meet") {
+      // Mark event as 'Did Not Meet'
       await axios.put(
         `${BACKEND_URL}/events/${eventId}`,
         {
@@ -991,10 +1012,9 @@ const fetchEvents = async () => {
         userEmail: currentUser.email,
       });
 
-      // Remove event from active events list
+      // Update UI state
       setEvents((prev) => prev.filter((e) => e._id !== eventId));
       setFilteredEvents((prev) => prev.filter((e) => e._id !== eventId));
-
       setAttendanceModalOpen(false);
       setSelectedEvent(null);
 
@@ -1004,10 +1024,9 @@ const fetchEvents = async () => {
         severity: "success",
       });
 
-      // Wait a moment for snackbar to show, then navigate
       setTimeout(() => {
-        navigate("/events-history");
-      }, 1000);
+        navigate("/events-history", { state: { refresh: true, timestamp: Date.now() } });
+      }, 1500);
 
       return {
         success: true,
@@ -1015,13 +1034,16 @@ const fetchEvents = async () => {
       };
     }
 
+    // If there are attendees selected
     if (Array.isArray(data) && data.length > 0) {
-      // Update event with attendees and close it
+      const attendeeIds = data.map((person) => person.id?.toString?.() ?? "").filter(Boolean);
+
+
       await axios.put(
         `${BACKEND_URL}/events/${eventId}`,
         {
           status: "closed",
-          attendees: data.map((person) => person.id),
+          attendees: attendeeIds,
           did_not_meet: false,
         },
         { headers }
@@ -1032,17 +1054,15 @@ const fetchEvents = async () => {
         service_name: eventName,
         eventType,
         status: "attended",
-        attendees: data,
+        attendees: data, // store full objects in history
         closedAt: `${formattedDate}, ${formattedTime}`,
         leader12: selectedEvent.eventLeaderName || "-",
         leader12_email: selectedEvent.eventLeaderEmail || "-",
         userEmail: currentUser.email,
       });
 
-      // Remove event from active events list immediately
       setEvents((prev) => prev.filter((e) => e._id !== eventId));
       setFilteredEvents((prev) => prev.filter((e) => e._id !== eventId));
-
       setAttendanceModalOpen(false);
       setSelectedEvent(null);
 
@@ -1052,10 +1072,9 @@ const fetchEvents = async () => {
         severity: "success",
       });
 
-      // Wait a moment for snackbar to show, then navigate
       setTimeout(() => {
-        navigate("/events-history");
-      }, 1000);
+        navigate("/events-history", { state: { refresh: true, timestamp: Date.now() } });
+      }, 1500);
 
       return {
         success: true,
@@ -1063,19 +1082,34 @@ const fetchEvents = async () => {
       };
     }
 
-    return { success: false, message: "No attendees selected." };
+    // No attendees selected
+    return {
+      success: false,
+      message: "No attendees selected.",
+    };
+
   } catch (error) {
     console.error("Error updating event:", error);
 
+    let errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message;
+
+    if (typeof errorMessage === "object") {
+      try {
+        errorMessage = JSON.stringify(errorMessage);
+      } catch {
+        errorMessage = "Unknown error occurred.";
+      }
+    }
+
     setSnackbar({
       open: true,
-      message: error.response?.data?.detail || "Failed to capture attendance",
+      message: errorMessage,
       severity: "error",
     });
 
     return {
       success: false,
-      message: "Something went wrong while capturing the event.",
+      message: errorMessage,
     };
   }
 };
@@ -1248,7 +1282,7 @@ const fetchEvents = async () => {
         </div>
         <div style={styles.headerRight}>
           {isAdmin && (
-            <Tooltip title="View My Captured Events" arrow>
+            <Tooltip title="View Captured Events" arrow>
               <IconButton
                 onClick={handleAdminHistoryClick}
                 sx={{
@@ -1430,31 +1464,6 @@ const fetchEvents = async () => {
                     Capture
                   </button>
 
-                  {isAdmin && event.status === "closed" && (
-                    <span style={{
-                      color: 'green',
-                      fontWeight: 'bold',
-                      fontSize: '0.85rem',
-                      marginTop: '0.5rem',
-                      display: 'block',
-                    }}>
-                      ✓ Captured
-                    </span>
-                  )}
-
-                  {/* <button
-                    style={{
-                      ...styles.actionBtn,
-                      ...styles.paymentBtn,
-                      ...(event.isTicketed ? {} : styles.disabledBtn),
-                      whiteSpace: 'nowrap',
-                    }}
-                    disabled={!event.isTicketed}
-                    onClick={() =>
-                      event.isTicketed && navigate(`/event-payment/${event._id}`)
-                    }
-                  >
-                  </button> */}
                 </div>
               </div>
             );
