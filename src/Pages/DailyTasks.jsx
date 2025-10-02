@@ -94,7 +94,7 @@ export default function DailyTasks() {
   const getInitialTaskData = () => ({
     taskType: "",
     recipient: "",
-    assignedTo: storedUser?.email || "",
+    assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
     dueDate: getCurrentDateTime(),
     status: "Open",
     taskStage: "Open",
