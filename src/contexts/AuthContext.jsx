@@ -99,10 +99,9 @@
 
 //  export default AuthProvider;
 
-
 import React, { createContext, useState, useEffect } from 'react';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = "http://localhost:8000"
 
 export const AuthContext = createContext();
 
@@ -122,9 +121,7 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
       } catch (error) {
         console.error('Error parsing stored user:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('userId');
-        localStorage.removeItem('userProfile');
+        logout();
       }
     }
     setLoading(false);
@@ -144,18 +141,12 @@ export const AuthProvider = ({ children }) => {
       }
 
       const data = await response.json();
-      console.log('Login response:', data);
-
-      // Store token and user data INCLUDING ROLE
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('userId', data.user.id);
       localStorage.setItem('userProfile', JSON.stringify(data.user));
-      localStorage.setItem('userRole', data.role); // ADD THIS LINE
+      localStorage.setItem('userRole', data.user.role);
 
-      console.log('Stored role:', data.role);
-
-      // Update state - include role in user object
-      setUser({ ...data.user, role: data.role }); // MODIFY THIS LINE
+      setUser({ ...data.user });
       setIsAuthenticated(true);
 
       return data;
@@ -169,13 +160,61 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
     localStorage.removeItem('userProfile');
-    localStorage.removeItem('userRole'); // ADD THIS LINE
+    localStorage.removeItem('userRole');
     setUser(null);
     setIsAuthenticated(false);
   };
 
+  // Forgot Password
+  const requestPasswordReset = async (email) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Request failed');
+
+      return data;
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      throw error;
+    }
+  };
+
+  // Reset Password
+  const resetPassword = async (token, newPassword) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, new_password: newPassword }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Reset failed');
+
+      return data;
+    } catch (error) {
+      console.error('Reset password error:', error);
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, loading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated,
+        loading,
+        login,
+        logout,
+        requestPasswordReset,
+        resetPassword,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
