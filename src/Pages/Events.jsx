@@ -25,6 +25,39 @@ import EventsModal from "./EventsModal";
 import CreateEvents from "./CreateEvents";
 import EventTypesModal from "./EventTypesModal";
 
+// NEW: Utility to save events to localStorage as "incomplete" initially
+const saveEventToLocalStorage = (event, currentUser) => {
+  const currentHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
+  
+  // Check if event already exists in history
+  const existingIndex = currentHistory.findIndex(
+    entry => entry.eventId === event._id
+  );
+  
+  // If event doesn't exist, add it as "incomplete"
+  if (existingIndex === -1) {
+    const newEntry = {
+      eventId: event._id,
+      service_name: event.eventName,
+      eventType: event.eventType,
+      status: "incomplete", // Mark as incomplete initially
+      attendees: [],
+      reason: "",
+      leader12: event.leader12 || event.eventLeaderName || "-",
+      leader12_email: event.eventLeaderEmail || "-",
+      userEmail: currentUser?.email || "-",
+      userName: currentUser?.name || "-",
+      userLeader144: event.leader144 || "-",
+      closedAt: "",
+      timestamp: new Date().toISOString(),
+    };
+    
+    currentHistory.push(newEntry);
+    localStorage.setItem("eventHistory", JSON.stringify(currentHistory));
+    window.dispatchEvent(new Event("eventHistoryUpdated"));
+  }
+};
+
 // Define styles object outside the component
 const styles = {
   container: {
@@ -77,7 +110,7 @@ const styles = {
     gap: "0.75rem",
     flexWrap: "wrap",
   },
-    eventTypeNavigation: {
+  eventTypeNavigation: {
     padding: '0.75rem 1.5rem', 
     borderBottom: '1px solid #e9ecef',
     backgroundColor: '#fff',
@@ -449,196 +482,217 @@ const Events = () => {
     }
   }, [customEventTypes]);
 
-  const handleDeleteEventType = async (id, name) => {
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`${BACKEND_URL}/event-types/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      const updatedEventTypes = customEventTypes.filter(type => type._id !== id);
-      setCustomEventTypes(updatedEventTypes);
-      setUserCreatedEventTypes(updatedEventTypes);
-      setEventTypes(updatedEventTypes.map(type => type.name));
-
-      if (selectedEventType === name) {
-        handleEventTypeSelect("all");
-      }
-    } catch (error) {
-      console.error("Error deleting event type:", error);
-      const updatedEventTypes = customEventTypes.filter(type => type._id !== id);
-      setCustomEventTypes(updatedEventTypes);
-      setUserCreatedEventTypes(updatedEventTypes);
-      setEventTypes(updatedEventTypes.map(type => type.name));
-    }
-  };
-
-  const openDeleteConfirm = (eventType) => {
-    setEventTypeToDelete(eventType);
-    setDeleteConfirmOpen(true);
-  };
-
-  const handleConfirmDelete = () => {
-    if (eventTypeToDelete) {
-      handleDeleteEventType(eventTypeToDelete._id, eventTypeToDelete.name);
-    }
-    setDeleteConfirmOpen(false);
-    setEventTypeToDelete(null);
-  };
-
-
-const fetchEvents = async () => {
-  setLoading(true);
-  console.log("Starting fetchEvents...");
-  
+  // Delete an event type and re-fetch events to update UI
+const handleDeleteEventType = async (id, name) => {
   try {
     const token = localStorage.getItem("token");
     if (!token) {
-      console.error("No token found");
-      setLoading(false);
+      console.error("No token found. Please log in again.");
       return;
     }
-    
-    const headers = { Authorization: `Bearer ${token}` };
-    const userRole = currentUser?.role;
-    console.log("User role:", userRole);
-    
-    let allEvents = [];
-    let apiCustomTypes = [];
-    
-    // Fetch event types (common for both roles)
-    try {
-      const eventTypesResponse = await axios.get(`${BACKEND_URL}/event-types`, { headers });
-      apiCustomTypes = eventTypesResponse.data || [];
-      console.log("Event types loaded:", apiCustomTypes.length);
-      setCustomEventTypes(apiCustomTypes);
-      setUserCreatedEventTypes(apiCustomTypes);
-      setEventTypes(apiCustomTypes.map(type => type.name));
-    } catch (typeError) {
-      console.error("Failed to load event types:", typeError);
-    }
-    
-    if (userRole === "admin") {
-      console.log("Fetching admin events...");
-      try {
-        const allEventsResponse = await axios.get(`${BACKEND_URL}/events`, { headers });
-        console.log("Admin events response:", allEventsResponse.data);
-        
-        allEvents = allEventsResponse.data.events || [];
-        console.log("Events loaded successfully:", allEvents.length);
-        
-      } catch (adminError) {
-        console.error("Admin events fetch failed:");
-        console.error("Status:", adminError.response?.status);
-        console.error("Data:", adminError.response?.data);
-        console.error("Message:", adminError.message);
-        
-        if (adminError.response?.data?.detail) {
-          console.error("Server error detail:", adminError.response.data.detail);
-        }
-      }
-    } else {
-      console.log("Fetching user cells...");
-      const response = await axios.get(`${BACKEND_URL}/events/cells-user`, { headers }).catch((err) => {
-        console.error("Cells user endpoint failed:", err);
-        return { data: { events: [], status: "error", error: err.message } };
-      });
-      
-      const cellsData = response.data;
-      console.log("Cells user response:", cellsData);
-      
-      if (cellsData.status === "success") {
-        allEvents = [
-          ...(cellsData.own_cells || []),
-          ...(cellsData.leader12_cells || []),
-          ...(cellsData.leader144_cells || [])
-        ];
-      }
-    }
-    
-    console.log("Processing", allEvents.length, "events...");
-    
-    // Process events to frontend-friendly format
-    const processedEvents = allEvents.map((event, index) => {
-      let eventDate = event.date ? new Date(event.date) : null;
-      
-      const processed = {
-        ...event,
-        _id: event._id,
-        eventName: event.eventName || event["Event Name"],
-        eventType: event.eventType || "Cell",
-        date: event.date,
-        location: event.location || event.Address || "Not specified",
-        description: event.description || event.eventName || "",
-        eventLeaderName: event.eventLeaderName || event.Leader,
-        eventLeaderEmail: event.eventLeaderEmail || event.Email,
-        leader1: event.leader1 || event["Leader at 1"] || "",
-        leader12: event.leader12 || event["Leader at 12"] || "",
-        leader144: event.leader144 || event["Leader at 144"] || "",
-        time: event.time || event.Time,
-        status: event.status || "open",
-        isTicketed: event.isTicketed || false,
-        price: event.price || 0,
-        parsedDate: eventDate,
-        relationship: event.relationship,
-        registeredUsers: event.registeredUsers || []  // IMPORTANT: assumes registeredUsers is an array of emails or IDs
-      };
-      
-      console.log(`Event ${index + 1}:`, {
-        id: processed._id,
-        name: processed.eventName,
-        type: processed.eventType,
-        date: processed.date,
-        status: processed.status
-      });
-      
-      return processed;
+
+    // Delete the event type from backend
+    await axios.delete(`${BACKEND_URL}/event-types/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
     });
-    
-    // Optional: filter for registration users
-    let finalEvents = processedEvents;
-    if (userRole === "registrant") {
-      finalEvents = processedEvents.filter(event => {
-        const eventType = apiCustomTypes.find(
-          et => et.name === (event.eventType || "").trim()
-        );
-        if (!eventType || !(eventType.isTicketed || eventType.isGlobal)) return false;
+    console.log(`Event type "${name}" deleted successfully.`);
 
-        // If event is global, show it
-        if (eventType.isGlobal) return true;
+    // Update local event types state
+    const updatedEventTypes = customEventTypes.filter(type => type._id !== id);
+    setCustomEventTypes(updatedEventTypes);
+    setUserCreatedEventTypes(updatedEventTypes);
+    setEventTypes(updatedEventTypes.map(type => type.name));
 
-        // Otherwise, check if user is registered for this event
-        if (event.registeredUsers && currentUser && currentUser.email) {
-          return event.registeredUsers.includes(currentUser.email);
-        }
-
-        // fallback: exclude event if no registeredUsers info
-        return false;
-      });
-      console.log("Filtered to", finalEvents.length, "registrant events");
+    // Reset selected event type if it was the one deleted
+    if (selectedEventType === name) {
+      handleEventTypeSelect("all");
     }
-    
-    // Sort by date (handle null dates)
-    const sortedEvents = finalEvents.sort((a, b) => {
-      const dateA = a.parsedDate ? a.parsedDate.getTime() : Infinity;
-      const dateB = b.parsedDate ? b.parsedDate.getTime() : Infinity;
-      return dateA - dateB;
-    });
-    
-    console.log("Final events list:", sortedEvents.length, "events");
-    console.log("Events:", sortedEvents.map(e => ({ name: e.eventName, type: e.eventType, date: e.date })));
-    
-    setEvents(sortedEvents);
-    setFilteredEvents(sortedEvents);
-    
-  } catch (err) {
-    console.error("Fatal error in fetchEvents:", err);
-    console.error("Error details:", err.response?.data || err.message);
-  } finally {
-    setLoading(false);
-    console.log("fetchEvents completed");
+
+    // Re-fetch all events so deleted type is removed from event list
+    await fetchEvents();
+    console.log("Events re-fetched after deleting event type.");
+
+  } catch (error) {
+    console.error("Error deleting event type:", error);
+
+    // Still remove deleted type from local state to keep UI responsive
+    const updatedEventTypes = customEventTypes.filter(type => type._id !== id);
+    setCustomEventTypes(updatedEventTypes);
+    setUserCreatedEventTypes(updatedEventTypes);
+    setEventTypes(updatedEventTypes.map(type => type.name));
   }
 };
+
+// Open confirmation modal
+const openDeleteConfirm = (eventType) => {
+  setEventTypeToDelete(eventType);
+  setDeleteConfirmOpen(true);
+};
+
+// Confirm deletion from modal
+const handleConfirmDelete = async () => {
+  if (eventTypeToDelete) {
+    await handleDeleteEventType(eventTypeToDelete._id, eventTypeToDelete.name);
+  }
+  setDeleteConfirmOpen(false);
+  setEventTypeToDelete(null);
+};
+
+
+  const fetchEvents = async () => {
+    setLoading(true);
+    console.log("Starting fetchEvents...");
+    
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        console.error("No token found");
+        setLoading(false);
+        return;
+      }
+      
+      const headers = { Authorization: `Bearer ${token}` };
+      const userRole = currentUser?.role;
+      console.log("User role:", userRole);
+      
+      let allEvents = [];
+      let apiCustomTypes = [];
+      
+      // Fetch event types (common for both roles)
+      try {
+        const eventTypesResponse = await axios.get(`${BACKEND_URL}/event-types`, { headers });
+        apiCustomTypes = eventTypesResponse.data || [];
+        console.log("Event types loaded:", apiCustomTypes.length);
+        setCustomEventTypes(apiCustomTypes);
+        setUserCreatedEventTypes(apiCustomTypes);
+        setEventTypes(apiCustomTypes.map(type => type.name));
+      } catch (typeError) {
+        console.error("Failed to load event types:", typeError);
+      }
+      
+      if (userRole === "admin") {
+        console.log("Fetching admin events...");
+        try {
+          const allEventsResponse = await axios.get(`${BACKEND_URL}/events`, { headers });
+          console.log("Admin events response:", allEventsResponse.data);
+          
+          allEvents = allEventsResponse.data.events || [];
+          console.log("Events loaded successfully:", allEvents.length);
+          
+        } catch (adminError) {
+          console.error("Admin events fetch failed:");
+          console.error("Status:", adminError.response?.status);
+          console.error("Data:", adminError.response?.data);
+          console.error("Message:", adminError.message);
+          
+          if (adminError.response?.data?.detail) {
+            console.error("Server error detail:", adminError.response.data.detail);
+          }
+        }
+      } else {
+        console.log("Fetching user cells...");
+        const response = await axios.get(`${BACKEND_URL}/events/cells-user`, { headers }).catch((err) => {
+          console.error("Cells user endpoint failed:", err);
+          return { data: { events: [], status: "error", error: err.message } };
+        });
+        
+        const cellsData = response.data;
+        console.log("Cells user response:", cellsData);
+        
+        if (cellsData.status === "success") {
+          allEvents = [
+            ...(cellsData.own_cells || []),
+            ...(cellsData.leader12_cells || []),
+            ...(cellsData.leader144_cells || [])
+          ];
+        }
+      }
+      
+      console.log("Processing", allEvents.length, "events...");
+      
+      // Process events to frontend-friendly format
+      const processedEvents = allEvents.map((event, index) => {
+        let eventDate = event.date ? new Date(event.date) : null;
+        
+        const processed = {
+          ...event,
+          _id: event._id,
+          eventName: event.eventName || event["Event Name"],
+          eventType: event.eventType || "Cell",
+          date: event.date,
+          location: event.location || event.Address || "Not specified",
+          description: event.description || event.eventName || "",
+          eventLeaderName: event.eventLeaderName || event.Leader,
+          eventLeaderEmail: event.eventLeaderEmail || event.Email,
+          leader1: event.leader1 || event["Leader at 1"] || "",
+          leader12: event.leader12 || event["Leader at 12"] || "",
+          leader144: event.leader144 || event["Leader at 144"] || "",
+          time: event.time || event.Time,
+          status: event.status || "open",
+          isTicketed: event.isTicketed || false,
+          price: event.price || 0,
+          parsedDate: eventDate,
+          relationship: event.relationship,
+          registeredUsers: event.registeredUsers || []
+        };
+        
+        console.log(`Event ${index + 1}:`, {
+          id: processed._id,
+          name: processed.eventName,
+          type: processed.eventType,
+          date: processed.date,
+          status: processed.status
+        });
+        
+        return processed;
+      });
+      
+      // Optional: filter for registration users
+      let finalEvents = processedEvents;
+      if (userRole === "registrant") {
+        finalEvents = processedEvents.filter(event => {
+          const eventType = apiCustomTypes.find(
+            et => et.name === (event.eventType || "").trim()
+          );
+          if (!eventType || !(eventType.isTicketed || eventType.isGlobal)) return false;
+
+          if (eventType.isGlobal) return true;
+
+          if (event.registeredUsers && currentUser && currentUser.email) {
+            return event.registeredUsers.includes(currentUser.email);
+          }
+
+          return false;
+        });
+        console.log("Filtered to", finalEvents.length, "registrant events");
+      }
+      
+      // Sort by date (handle null dates)
+      const sortedEvents = finalEvents.sort((a, b) => {
+        const dateA = a.parsedDate ? a.parsedDate.getTime() : Infinity;
+        const dateB = b.parsedDate ? b.parsedDate.getTime() : Infinity;
+        return dateA - dateB;
+      });
+      
+      console.log("Final events list:", sortedEvents.length, "events");
+      console.log("Events:", sortedEvents.map(e => ({ name: e.eventName, type: e.eventType, date: e.date })));
+      
+      setEvents(sortedEvents);
+      setFilteredEvents(sortedEvents);
+      
+      // NEW: Save all events to localStorage as "incomplete" initially
+      sortedEvents.forEach(event => {
+        saveEventToLocalStorage(event, currentUser);
+      });
+      
+    } catch (err) {
+      console.error("Fatal error in fetchEvents:", err);
+      console.error("Error details:", err.response?.data || err.message);
+    } finally {
+      setLoading(false);
+      console.log("fetchEvents completed");
+    }
+  };
 
   const getFilteredEventTypes = () => {
     if (!currentUser || !currentUser.role) return [];
@@ -762,82 +816,82 @@ const fetchEvents = async () => {
     applyAllFilters(activeFilters, selectedDate, eventType);
   };
 
- const applyAllFilters = (
-  filters = activeFilters,
-  dateFilter = selectedDate,
-  eventTypeFilter = selectedEventType
-) => {
-  let filtered = events.filter(event => {
-    const status = (event.status || "").toLowerCase();
-     console.log("🔍 Filtering with eventTypeFilter:", eventTypeFilter);
-  console.log("📊 Total events before filter:", events.length);
-  
-    // Only filter out closed/complete events for non-admin users
-    if (!isAdmin && (status === "closed" || status === "complete")) {
-      return false;
-    }
+  const applyAllFilters = (
+    filters = activeFilters,
+    dateFilter = selectedDate,
+    eventTypeFilter = selectedEventType
+  ) => {
+    let filtered = events.filter(event => {
+      const status = (event.status || "").toLowerCase();
+      console.log("🔍 Filtering with eventTypeFilter:", eventTypeFilter);
+      console.log("📊 Total events before filter:", events.length);
+      
+      // Only filter out closed/complete events for non-admin users
+      if (!isAdmin && (status === "closed" || status === "complete")) {
+        return false;
+      }
 
-    let matches = true;
+      let matches = true;
 
-    // Case-insensitive event type matching
-    if (eventTypeFilter !== "all") {
-      const eventType = (event.eventType || "").toLowerCase().trim();
-      const filterType = eventTypeFilter.toLowerCase().trim();
-      if (eventType !== filterType) {
+      // Case-insensitive event type matching
+      if (eventTypeFilter !== "all") {
+        const eventType = (event.eventType || "").toLowerCase().trim();
+        const filterType = eventTypeFilter.toLowerCase().trim();
+        if (eventType !== filterType) {
+          matches = false;
+        }
+      }
+
+      if (dateFilter) {
+        const eventDate = new Date(event.date);
+        const filterDate = new Date(dateFilter);
+        if (eventDate.toDateString() !== filterDate.toDateString()) {
+          matches = false;
+        }
+      }
+
+      if (filters.eventType) {
+        const eventType = (event.eventType || "").toLowerCase().trim();
+        const filterType = filters.eventType.toLowerCase().trim();
+        if (eventType !== filterType) {
+          matches = false;
+        }
+      }
+
+      if (filters.location && event.location !== filters.location) {
         matches = false;
       }
-    }
 
-    if (dateFilter) {
-      const eventDate = new Date(event.date);
-      const filterDate = new Date(dateFilter);
-      if (eventDate.toDateString() !== filterDate.toDateString()) {
-        matches = false;
+      if (filters.eventLeader) {
+        const eventLeaderName = event.eventLeaderName ? event.eventLeaderName.trim().toLowerCase() : "";
+        const filterLeader = filters.eventLeader.trim().toLowerCase();
+        if (eventLeaderName !== filterLeader) {
+          matches = false;
+        }
       }
-    }
 
-    if (filters.eventType) {
-      const eventType = (event.eventType || "").toLowerCase().trim();
-      const filterType = filters.eventType.toLowerCase().trim();
-      if (eventType !== filterType) {
-        matches = false;
+      if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
+        const isTicketed = filters.isTicketed === 'true';
+        if (event.isTicketed !== isTicketed) {
+          matches = false;
+        }
       }
-    }
 
-    if (filters.location && event.location !== filters.location) {
-      matches = false;
-    }
+      if (filters.recurringDay) {
+        const eventDays = Array.isArray(event.recurringDays)
+          ? event.recurringDays
+          : [event.recurringDays];
 
-    if (filters.eventLeader) {
-      const eventLeaderName = event.eventLeaderName ? event.eventLeaderName.trim().toLowerCase() : "";
-      const filterLeader = filters.eventLeader.trim().toLowerCase();
-      if (eventLeaderName !== filterLeader) {
-        matches = false;
+        if (!eventDays.includes(filters.recurringDay)) {
+          matches = false;
+        }
       }
-    }
 
-    if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
-      const isTicketed = filters.isTicketed === 'true';
-      if (event.isTicketed !== isTicketed) {
-        matches = false;
-      }
-    }
+      return matches;
+    });
 
-    if (filters.recurringDay) {
-      const eventDays = Array.isArray(event.recurringDays)
-        ? event.recurringDays
-        : [event.recurringDays];
-
-      if (!eventDays.includes(filters.recurringDay)) {
-        matches = false;
-      }
-    }
-
-    return matches;
-  });
-
-  setFilteredEvents(filtered);
-};
+    setFilteredEvents(filtered);
+  };
 
   const handleDateFilter = (event) => {
     const date = event.target.value;
@@ -931,13 +985,10 @@ const fetchEvents = async () => {
     const cleanedType = eventType.trim().toLowerCase();
 
     const eventCategoryColors = {
-      // cell: "#007bff",
       service: "#5A9BD5",
       conference: "#C792EA",
       workshop: "#F7C59F",
-      // encounter: "#FFADAD",
       activation: "#F67280",
-      
     };
 
     for (const keyword in eventCategoryColors) {
@@ -973,143 +1024,137 @@ const fetchEvents = async () => {
     setCreateEventTypeModalOpen(false);
   };
 
+  const handleAttendanceSubmit = async (data) => {
+    try {
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
 
-const handleAttendanceSubmit = async (data) => {
-  try {
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
+      const eventId = selectedEvent._id;
+      const eventName = selectedEvent.eventName;
+      const eventType = selectedEvent.eventType;
+      const formattedDate = new Date().toLocaleDateString();
+      const formattedTime = new Date().toLocaleTimeString();
 
-    const eventId = selectedEvent._id;
-    const eventName = selectedEvent.eventName;
-    const eventType = selectedEvent.eventType;
-    const formattedDate = new Date().toLocaleDateString();
-    const formattedTime = new Date().toLocaleTimeString();
+      if (data === "did-not-meet") {
+        await axios.put(
+          `${BACKEND_URL}/events/${eventId}`,
+          {
+            status: "closed",
+            attendees: [],
+            did_not_meet: true,
+          },
+          { headers }
+        );
 
-    if (data === "did-not-meet") {
-      // Mark event as 'Did Not Meet'
-      await axios.put(
-        `${BACKEND_URL}/events/${eventId}`,
-        {
-          status: "closed",
+        await saveToEventHistory({
+          eventId,
+          service_name: eventName,
+          eventType,
+          status: "did_not_meet",
           attendees: [],
-          did_not_meet: true,
-        },
-        { headers }
-      );
+          closedAt: `${formattedDate}, ${formattedTime}`,
+          leader12: selectedEvent.eventLeaderName || "-",
+          leader12_email: selectedEvent.eventLeaderEmail || "-",
+          userEmail: currentUser.email,
+        });
 
-      await saveToEventHistory({
-        eventId,
-        service_name: eventName,
-        eventType,
-        status: "did_not_meet",
-        attendees: [],
-        closedAt: `${formattedDate}, ${formattedTime}`,
-        leader12: selectedEvent.eventLeaderName || "-",
-        leader12_email: selectedEvent.eventLeaderEmail || "-",
-        userEmail: currentUser.email,
-      });
+        setEvents((prev) => prev.filter((e) => e._id !== eventId));
+        setFilteredEvents((prev) => prev.filter((e) => e._id !== eventId));
+        setAttendanceModalOpen(false);
+        setSelectedEvent(null);
 
-      // Update UI state
-      setEvents((prev) => prev.filter((e) => e._id !== eventId));
-      setFilteredEvents((prev) => prev.filter((e) => e._id !== eventId));
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
+        setSnackbar({
+          open: true,
+          message: `${eventName} marked as 'Did Not Meet' and moved to history.`,
+          severity: "success",
+        });
 
-      setSnackbar({
-        open: true,
-        message: `${eventName} marked as 'Did Not Meet' and moved to history.`,
-        severity: "success",
-      });
+        setTimeout(() => {
+          navigate("/events-history", { state: { refresh: true, timestamp: Date.now() } });
+        }, 1500);
 
-      setTimeout(() => {
-        navigate("/events-history", { state: { refresh: true, timestamp: Date.now() } });
-      }, 1500);
-
-      return {
-        success: true,
-        message: `${eventName} marked as 'Did Not Meet'.`,
-      };
-    }
-
-    // If there are attendees selected
-    if (Array.isArray(data) && data.length > 0) {
-      const attendeeIds = data.map((person) => person.id?.toString?.() ?? "").filter(Boolean);
-
-
-      await axios.put(
-        `${BACKEND_URL}/events/${eventId}`,
-        {
-          status: "closed",
-          attendees: attendeeIds,
-          did_not_meet: false,
-        },
-        { headers }
-      );
-
-      await saveToEventHistory({
-        eventId,
-        service_name: eventName,
-        eventType,
-        status: "attended",
-        attendees: data, // store full objects in history
-        closedAt: `${formattedDate}, ${formattedTime}`,
-        leader12: selectedEvent.eventLeaderName || "-",
-        leader12_email: selectedEvent.eventLeaderEmail || "-",
-        userEmail: currentUser.email,
-      });
-
-      setEvents((prev) => prev.filter((e) => e._id !== eventId));
-      setFilteredEvents((prev) => prev.filter((e) => e._id !== eventId));
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-
-      setSnackbar({
-        open: true,
-        message: `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
-
-      setTimeout(() => {
-        navigate("/events-history", { state: { refresh: true, timestamp: Date.now() } });
-      }, 1500);
-
-      return {
-        success: true,
-        message: `Successfully captured attendance for ${eventName}`,
-      };
-    }
-
-    // No attendees selected
-    return {
-      success: false,
-      message: "No attendees selected.",
-    };
-
-  } catch (error) {
-    console.error("Error updating event:", error);
-
-    let errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message;
-
-    if (typeof errorMessage === "object") {
-      try {
-        errorMessage = JSON.stringify(errorMessage);
-      } catch {
-        errorMessage = "Unknown error occurred.";
+        return {
+          success: true,
+          message: `${eventName} marked as 'Did Not Meet'.`,
+        };
       }
+
+      if (Array.isArray(data) && data.length > 0) {
+        const attendeeIds = data.map((person) => person.id?.toString?.() ?? "").filter(Boolean);
+
+        await axios.put(
+          `${BACKEND_URL}/events/${eventId}`,
+          {
+            status: "closed",
+            attendees: attendeeIds,
+            did_not_meet: false,
+          },
+          { headers }
+        );
+
+        await saveToEventHistory({
+          eventId,
+          service_name: eventName,
+          eventType,
+          status: "attended",
+          attendees: data,
+          closedAt: `${formattedDate}, ${formattedTime}`,
+          leader12: selectedEvent.eventLeaderName || "-",
+          leader12_email: selectedEvent.eventLeaderEmail || "-",
+          userEmail: currentUser.email,
+        });
+
+        setEvents((prev) => prev.filter((e) => e._id !== eventId));
+        setFilteredEvents((prev) => prev.filter((e) => e._id !== eventId));
+        setAttendanceModalOpen(false);
+        setSelectedEvent(null);
+
+        setSnackbar({
+          open: true,
+          message: `Successfully captured attendance for ${eventName}`,
+          severity: "success",
+        });
+
+        setTimeout(() => {
+          navigate("/events-history", { state: { refresh: true, timestamp: Date.now() } });
+        }, 1500);
+
+        return {
+          success: true,
+          message: `Successfully captured attendance for ${eventName}`,
+        };
+      }
+
+      return {
+        success: false,
+        message: "No attendees selected.",
+      };
+
+    } catch (error) {
+      console.error("Error updating event:", error);
+
+      let errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message;
+
+      if (typeof errorMessage === "object") {
+        try {
+          errorMessage = JSON.stringify(errorMessage);
+        } catch {
+          errorMessage = "Unknown error occurred.";
+        }
+      }
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error",
+      });
+
+      return {
+        success: false,
+        message: errorMessage,
+      };
     }
-
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: "error",
-    });
-
-    return {
-      success: false,
-      message: errorMessage,
-    };
-  }
-};
+  };
 
   const capitalize = (str) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -1460,7 +1505,6 @@ const handleAttendanceSubmit = async (data) => {
                   >
                     Capture
                   </button>
-
                 </div>
               </div>
             );
@@ -1503,28 +1547,23 @@ const handleAttendanceSubmit = async (data) => {
         currentFilters={activeFilters}
         eventTypes={eventTypes}
       />
-{selectedEvent && (
-  <AttendanceModal
-    isOpen={attendanceModalOpen}
-    onClose={() => {
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-    }}
-    onSubmit={handleAttendanceSubmit}
-    event={selectedEvent}
-    onAttendanceSubmitted={() => {
-      // Refresh your history or events list here
-      fetchEvents(); // or your function to reload history/events
 
-      // Close modal and clear selected event
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-    }}
-  />
-)}
-
-
-      
+      {selectedEvent && (
+        <AttendanceModal
+          isOpen={attendanceModalOpen}
+          onClose={() => {
+            setAttendanceModalOpen(false);
+            setSelectedEvent(null);
+          }}
+          onSubmit={handleAttendanceSubmit}
+          event={selectedEvent}
+          onAttendanceSubmitted={() => {
+            fetchEvents();
+            setAttendanceModalOpen(false);
+            setSelectedEvent(null);
+          }}
+        />
+      )}
 
       <EventsModal
         isOpen={createOptionsModalOpen}
