@@ -72,7 +72,7 @@ export default function DailyTasks() {
     JSON.parse(localStorage.getItem("userProfile") || "{}")
   );
 
-  const API_URL = "http://localhost:8000";
+  const API_URL = `${import.meta.env.VITE_BACKEND_URL}`
 
   const getCurrentDateTime = () => {
     const now = new Date();
@@ -94,7 +94,7 @@ export default function DailyTasks() {
   const getInitialTaskData = () => ({
     taskType: "",
     recipient: "",
-   assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
+    assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
     dueDate: getCurrentDateTime(),
     status: "Open",
     taskStage: "Open",
