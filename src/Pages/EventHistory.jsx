@@ -97,48 +97,48 @@ const EventHistory = ({ user }) => {
 
   // Load events on mount and on custom event
   useEffect(() => {
-  // Handler to update events from grouped history
-  const handleEventHistoryUpdated = () => {
+    // Handler to update events from grouped history
+    const handleEventHistoryUpdated = () => {
+      setEvents(groupHistoryByEvent());
+    };
+
+    // Add event listener on mount
+    window.addEventListener("eventHistoryUpdated", handleEventHistoryUpdated);
+
+    // Initial load
+    handleEventHistoryUpdated();
+
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener("eventHistoryUpdated", handleEventHistoryUpdated);
+    };
+  }, []);
+
+  // Update events when location changes (full path)
+  useEffect(() => {
     setEvents(groupHistoryByEvent());
-  };
+  }, [location]);
 
-  // Add event listener on mount
-  window.addEventListener("eventHistoryUpdated", handleEventHistoryUpdated);
-
-  // Initial load
-  handleEventHistoryUpdated();
-
-  // Cleanup on unmount
-  return () => {
-    window.removeEventListener("eventHistoryUpdated", handleEventHistoryUpdated);
-  };
-}, []);
-
-// Update events when location changes (full path)
-useEffect(() => {
-  setEvents(groupHistoryByEvent());
-}, [location]);
-
-// Refresh events if location.state.refresh or timestamp changes
-useEffect(() => {
-  if (location.state?.refresh) {
-    console.log("Refreshing event history from localStorage due to refresh state");
-    setEvents(groupHistoryByEvent());
-  }
-}, [location.state?.refresh, location.state?.timestamp]);
+  // Refresh events if location.state.refresh or timestamp changes
+  useEffect(() => {
+    if (location.state?.refresh) {
+      console.log("Refreshing event history from localStorage due to refresh state");
+      setEvents(groupHistoryByEvent());
+    }
+  }, [location.state?.refresh, location.state?.timestamp]);
 
 
   // Filtering logic
   const filteredEvents = events.filter((event) => {
     const matchesName = filterName
       ? event.service_name.toLowerCase().includes(filterName.toLowerCase()) ||
-        event.leader12.toLowerCase().includes(filterName.toLowerCase())
+      event.leader12.toLowerCase().includes(filterName.toLowerCase())
       : true;
 
     const matchesDate = filterDate
       ? event.history.some((h) =>
-          new Date(h.timestamp).toISOString().startsWith(filterDate)
-        )
+        new Date(h.timestamp).toISOString().startsWith(filterDate)
+      )
       : true;
 
     return matchesName && matchesDate;
@@ -149,21 +149,25 @@ useEffect(() => {
     event.history.some((h) => h.status === "attended")
   );
 
-  const incompleteEvents = filteredEvents.filter((event) =>
-    event.history.some((h) => h.status === "did-not-meet")
+  const didNotMeetEvents = filteredEvents.filter((event) =>
+    event.history.some((h) => h.status === "did_not_meet")
   );
 
-  const didNotMeetEvents = incompleteEvents; // same as incomplete based on status
+  const incompleteEvents = filteredEvents.filter((event) =>
+    event.history.length === 0 ||
+    !event.history.some((h) => h.status === "attended" || h.status === "did_not_meet")
+  );
 
+  // Events to display depending on filter
   // Events to display depending on filter
   const eventsToShow =
     activeFilter === "complete"
       ? completeEvents
       : activeFilter === "incomplete"
-      ? incompleteEvents
-      : activeFilter === "did-not-meet"
-      ? didNotMeetEvents
-      : filteredEvents;
+        ? incompleteEvents
+        : activeFilter === "did_not_meet"
+          ? didNotMeetEvents
+          : filteredEvents;
 
   // Navigate to event details page with event data in state
   const openEventDetails = (eventId) => {
@@ -203,16 +207,6 @@ useEffect(() => {
 
         <div style={styles.filterTabs}>
           <button
-            onClick={() => setActiveFilter("complete")}
-            style={
-              activeFilter === "complete"
-                ? { ...styles.filterBtn, ...styles.activeCompleteBtn }
-                : styles.filterBtn
-            }
-          >
-            COMPLETE ({completeEvents.length})
-          </button>
-          <button
             onClick={() => setActiveFilter("incomplete")}
             style={
               activeFilter === "incomplete"
@@ -223,9 +217,20 @@ useEffect(() => {
             INCOMPLETE ({incompleteEvents.length})
           </button>
           <button
-            onClick={() => setActiveFilter("did-not-meet")}
+            onClick={() => setActiveFilter("complete")}
             style={
-              activeFilter === "did-not-meet"
+              activeFilter === "complete"
+                ? { ...styles.filterBtn, ...styles.activeCompleteBtn }
+                : styles.filterBtn
+            }
+          >
+            COMPLETE ({completeEvents.length})
+          </button>
+
+          <button
+            onClick={() => setActiveFilter("did_not_meet")}
+            style={
+              activeFilter === "did_not_meet"
                 ? { ...styles.filterBtn, ...styles.activeDidNotMeetBtn }
                 : styles.filterBtn
             }
@@ -252,30 +257,33 @@ useEffect(() => {
           </thead>
           <tbody>
             {eventsToShow.map((event) => {
-              // Pick latest event record matching active filter
-              const filteredHistories = event.history.filter((h) =>
-                activeFilter === "complete"
-                  ? h.status === "attended"
-                  : h.status === "did-not-meet"
-              );
+              // Pick latest event record based on active filter
+              let latest;
 
-              const latest = filteredHistories.sort(
-                (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-              )[0];
+              if (activeFilter === "complete") {
+                const attendedHistories = event.history.filter(h => h.status === "attended");
+                latest = attendedHistories.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+              } else if (activeFilter === "did_not_meet") {
+                const didNotMeetHistories = event.history.filter(h => h.status === "did_not_meet");
+                latest = didNotMeetHistories.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+              } else {
+                // For incomplete, show the latest entry regardless of status
+                latest = event.history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+              }
 
               return (
-               <tr
+                <tr
                   key={event._id}
                   style={styles.tr}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = isDarkMode
-                      ? theme.palette.grey[800]
-                      : theme.palette.grey[50])
+                  (e.currentTarget.style.backgroundColor = isDarkMode
+                    ? theme.palette.grey[800]
+                    : theme.palette.grey[50])
                   }
                   onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = isDarkMode
-                      ? theme.palette.grey[900]
-                      : "#fff")
+                  (e.currentTarget.style.backgroundColor = isDarkMode
+                    ? theme.palette.grey[900]
+                    : "#fff")
                   }
                 >
                   <td style={styles.td}>{event.service_name}</td>

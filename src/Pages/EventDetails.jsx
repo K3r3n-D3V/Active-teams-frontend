@@ -27,7 +27,7 @@ const EventDetails = () => {
       <div style={styles.detailsBox}>
         <p><strong>Event Name:</strong> {event.service_name}</p>
         <p><strong>Event Type:</strong> {event.eventType}</p>
-        <p><strong>Leader:</strong> {event.leader}</p>
+        {/* <p><strong>Leader:</strong> {event.leader}</p> */}
         <p><strong>Date:</strong> {new Date(latest.timestamp).toLocaleDateString("en-GB")}</p>
         <p><strong>Status:</strong> {latest.status === "attended" ? "Attended" : "Did Not Meet"}</p>
       </div>
