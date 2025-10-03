@@ -81,7 +81,7 @@ export default function AdminDashboard() {
     { name: 'registrant', description: 'Event check-in volunteers' }
   ]);
 
-  const API_BASE_URL = 'http://localhost:8000';
+  const API_BASE_URL =  `${import.meta.env.VITE_BACKEND_URL}`;
 
   // Skeleton components
   const SkeletonCard = () => (
