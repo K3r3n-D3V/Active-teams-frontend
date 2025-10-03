@@ -1,15 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import {
   Box,
   TextField,
   Typography,
   Button,
   useTheme,
-  Link,
   useMediaQuery,
+  Link,
 } from "@mui/material";
-import emailjs from "@emailjs/browser";
 import darkLogo from "../assets/active-teams.png";
+import { AuthContext } from "../contexts/AuthContext";
 
 const ForgotPassword = ({ mode }) => {
   const [email, setEmail] = useState("");
@@ -19,8 +19,8 @@ const ForgotPassword = ({ mode }) => {
 
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+  const { requestPasswordReset } = useContext(AuthContext);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,25 +29,9 @@ const ForgotPassword = ({ mode }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/forgot-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Failed to request reset");
-
-      const resetLink = data.reset_link;
-
-      await emailjs.send(
-        "service_pog1o0m",
-        "template_n3blz6h",
-        { email, reset_link: resetLink },
-        "IfPXzIfJfUTXc0Faa"
-      );
-
-      setMessage("Check your email for the reset link.");
+      await requestPasswordReset(email);
+      setMessage("If your email exists, a reset link has been sent.");
+      setEmail("");
     } catch (err) {
       setError(err.message || "Something went wrong.");
     } finally {
@@ -82,13 +66,7 @@ const ForgotPassword = ({ mode }) => {
         }}
       >
         {/* Logo */}
-        <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          textAlign="center"
-          mb={2}
-        >
+        <Box display="flex" justifyContent="center" mb={2}>
           <img
             src={darkLogo}
             alt="The Active Church"
@@ -102,20 +80,13 @@ const ForgotPassword = ({ mode }) => {
           />
         </Box>
 
-        {/* Heading */}
         <Typography variant="h5" fontWeight="bold" mb={2}>
           Forgot Password
         </Typography>
-
-        <Typography
-          variant="body2"
-          mb={2}
-          sx={{ textAlign: "left", display: "block" }}
-        >
+        <Typography variant="body2" mb={2} sx={{ textAlign: "left" }}>
           Enter your email address to reset your password.
         </Typography>
 
-        {/* Email Field */}
         <TextField
           label="Email Address"
           variant="outlined"
@@ -137,12 +108,8 @@ const ForgotPassword = ({ mode }) => {
               color: theme.palette.text.secondary,
             },
           }}
-          InputLabelProps={{
-            style: { color: theme.palette.text.secondary },
-          }}
         />
 
-        {/* Message */}
         {message && (
           <Typography color="success.main" fontSize={14} mb={2}>
             {message}
@@ -154,7 +121,6 @@ const ForgotPassword = ({ mode }) => {
           </Typography>
         )}
 
-        {/* Submit Button */}
         <Button
           type="submit"
           variant="contained"
@@ -175,7 +141,6 @@ const ForgotPassword = ({ mode }) => {
           {loading ? "Sending..." : "Send Reset Link"}
         </Button>
 
-        {/* Back to Login */}
         <Typography fontSize={14}>
           Remember your password?{" "}
           <Link href="/login" underline="hover" color="primary">

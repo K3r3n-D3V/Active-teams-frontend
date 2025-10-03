@@ -1,3 +1,248 @@
+// import React, { useState, useContext } from "react";
+// import { useNavigate } from "react-router-dom";
+// import {
+//   Box,
+//   TextField,
+//   Typography,
+//   Button,
+//   IconButton,
+//   useTheme,
+//   useMediaQuery,
+// } from "@mui/material";
+// import Brightness4Icon from "@mui/icons-material/Brightness4";
+// import Brightness7Icon from "@mui/icons-material/Brightness7";
+// import Visibility from "@mui/icons-material/Visibility";
+// import VisibilityOff from "@mui/icons-material/VisibilityOff";
+// import darkLogo from "../assets/active-teams.png";
+// import { AuthContext } from "../contexts/AuthContext";
+
+// const initialForm = {
+//   email: "",
+//   password: "",
+// };
+
+// const Login = ({ mode, setMode }) => {
+//   const [form, setForm] = useState(initialForm);
+//   const [error, setError] = useState("");
+//   const [success, setSuccess] = useState("");
+//   const [loading, setLoading] = useState(false);
+//   const [showPassword, setShowPassword] = useState(false);
+//   const theme = useTheme();
+//   const navigate = useNavigate();
+//   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
+
+//   const { login } = useContext(AuthContext);
+
+//   const handleChange = (e) => {
+//     setForm({ ...form, [e.target.name]: e.target.value });
+//   };
+
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+//     setError("");
+//     setSuccess("");
+
+//     if (!form.email || !form.password) {
+//       setError("Email and password are required.");
+//       return;
+//     }
+
+//     setLoading(true);
+//     try {
+//       await login(form.email, form.password);
+//       setSuccess("Login successful!");
+//       setForm(initialForm);
+//       navigate("/");
+//     } catch (err) {
+//       setError(err.message || "Login failed.");
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   return (
+//     <Box
+//       sx={{
+//         minHeight: "100vh",
+//         background: theme.palette.background.default,
+//         color: theme.palette.text.primary,
+//         display: "flex",
+//         alignItems: "center",
+//         justifyContent: "center",
+//         px: 2,
+//         position: "relative",
+//       }}
+//     >
+//       {/* Dark/Light Toggle */}
+//       <Box sx={{ position: "absolute", top: 16, right: 16 }}>
+//         <IconButton
+//           onClick={() => {
+//             const next = mode === "light" ? "dark" : "light";
+//             localStorage.setItem("themeMode", next);
+//             setMode(next);
+//           }}
+//           sx={{
+//             color: mode === "dark" ? "#fff" : "#000",
+//             backgroundColor: mode === "dark" ? "#1f1f1f" : "#e0e0e0",
+//             "&:hover": {
+//               backgroundColor: mode === "dark" ? "#2c2c2c" : "#c0c0c0",
+//             },
+//           }}
+//         >
+//           {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
+//         </IconButton>
+//       </Box>
+
+//       <Box
+//         sx={{
+//           maxWidth: 500,
+//           width: "100%",
+//           p: 4,
+//           borderRadius: 4,
+//           boxShadow: 3,
+//           background: theme.palette.background.paper,
+//         }}
+//       >
+//         {/* Logo */}
+//         <Box
+//           display="flex"
+//           justifyContent="center"
+//           alignItems="center"
+//           textAlign="center"
+//           mb={1}
+//         >
+//           <img
+//             src={darkLogo}
+//             alt="The Active Church Logo"
+//             style={{
+//               maxHeight: isSmallScreen ? 60 : 80,
+//               maxWidth: "100%",
+//               objectFit: "contain",
+//               filter: mode === "dark" ? "invert(1)" : "none",
+//               transition: "filter 0.3s ease-in-out",
+//             }}
+//           />
+//         </Box>
+
+//         {/* Header */}
+//         <Typography variant="h5" align="center" fontWeight="bold" mb={2} mt={4}>
+//           LOGIN
+//         </Typography>
+
+//         {/* Form */}
+//         <Box
+//           component="form"
+//           onSubmit={handleSubmit}
+//           display="flex"
+//           flexDirection="column"
+//           gap={3}
+//         >
+//           <TextField
+//             label="Email Address"
+//             name="email"
+//             type="email"
+//             value={form.email}
+//             onChange={handleChange}
+//             fullWidth
+//             error={!!error && !form.email}
+//             helperText={!form.email && error ? "Email is required" : ""}
+//             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+//           />
+
+//           <TextField
+//             label="Password"
+//             name="password"
+//             type={showPassword ? "text" : "password"}
+//             value={form.password}
+//             onChange={handleChange}
+//             fullWidth
+//             error={!!error && !form.password}
+//             helperText={!form.password && error ? "Password is required" : ""}
+//             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+//             InputProps={{
+//               endAdornment: (
+//                 <IconButton
+//                   onClick={() => setShowPassword(!showPassword)}
+//                   edge="end"
+//                 >
+//                   {showPassword ? <VisibilityOff /> : <Visibility />}
+//                 </IconButton>
+//               ),
+//             }}
+//           />
+
+//           {error && (
+//             <Typography color="error" textAlign="center">
+//               {error}
+//             </Typography>
+//           )}
+//           {success && (
+//             <Typography color="success.main" textAlign="center">
+//               {success}
+//             </Typography>
+//           )}
+
+//           <Button
+//             type="submit"
+//             variant="contained"
+//             disabled={loading}
+//             sx={{
+//               backgroundColor: "#000",
+//               color: "#fff",
+//               borderRadius: 8,
+//               fontWeight: "bold",
+//               py: 1.5,
+//               px: 4,
+//               width: "30%",
+//               justifyContent: "center",
+//               alignSelf: "center",
+//               "&:hover": {
+//                 backgroundColor: "#a09c9cff",
+//               },
+//               "&:active": {
+//                 backgroundColor: "#c0c0c0",
+//               },
+//             }}
+//           >
+//             {loading ? "Logging In..." : "Login"}
+//           </Button>
+//         </Box>
+
+//         <Box textAlign="center" mt={3}>
+//           <Typography variant="body2">
+//             <span
+//               style={{
+//                 color: "#42a5f5",
+//                 cursor: "pointer",
+//                 textDecoration: "underline",
+//               }}
+//               onClick={() => navigate("/forgot-password")}
+//             >
+//               Forgot Password?
+//             </span>
+//           </Typography>
+
+//           <Typography variant="body2" mt={1}>
+//             Don’t have an account?{" "}
+//             <span
+//               style={{
+//                 color: "#42a5f5",
+//                 cursor: "pointer",
+//                 textDecoration: "underline",
+//               }}
+//               onClick={() => navigate("/signup")}
+//             >
+//               Sign Up
+//             </span>
+//           </Typography>
+//         </Box>
+//       </Box>
+//     </Box>
+//   );
+// };
+
+// export default Login;
+
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -8,6 +253,7 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
+  Link,
 } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
@@ -27,10 +273,10 @@ const Login = ({ mode, setMode }) => {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
   const theme = useTheme();
   const navigate = useNavigate();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
-
   const { login } = useContext(AuthContext);
 
   const handleChange = (e) => {
@@ -52,7 +298,7 @@ const Login = ({ mode, setMode }) => {
       await login(form.email, form.password);
       setSuccess("Login successful!");
       setForm(initialForm);
-      navigate("/");
+      setTimeout(() => navigate("/"), 500);
     } catch (err) {
       setError(err.message || "Login failed.");
     } finally {
@@ -64,7 +310,7 @@ const Login = ({ mode, setMode }) => {
     <Box
       sx={{
         minHeight: "100vh",
-        background: theme.palette.background.default,
+        backgroundColor: theme.palette.background.default,
         color: theme.palette.text.primary,
         display: "flex",
         alignItems: "center",
@@ -77,9 +323,9 @@ const Login = ({ mode, setMode }) => {
       <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
           onClick={() => {
-            const next = mode === "light" ? "dark" : "light";
-            localStorage.setItem("themeMode", next);
-            setMode(next);
+            const nextMode = mode === "light" ? "dark" : "light";
+            localStorage.setItem("themeMode", nextMode);
+            setMode(nextMode);
           }}
           sx={{
             color: mode === "dark" ? "#fff" : "#000",
@@ -95,48 +341,33 @@ const Login = ({ mode, setMode }) => {
 
       <Box
         sx={{
-          maxWidth: 500,
+          maxWidth: 450,
           width: "100%",
           p: 4,
           borderRadius: 4,
           boxShadow: 3,
-          background: theme.palette.background.paper,
+          backgroundColor: theme.palette.background.paper,
         }}
       >
         {/* Logo */}
-        <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          textAlign="center"
-          mb={1}
-        >
+        <Box display="flex" justifyContent="center" mb={2}>
           <img
             src={darkLogo}
-            alt="The Active Church Logo"
+            alt="Active Teams Logo"
             style={{
               maxHeight: isSmallScreen ? 60 : 80,
               maxWidth: "100%",
               objectFit: "contain",
               filter: mode === "dark" ? "invert(1)" : "none",
-              transition: "filter 0.3s ease-in-out",
             }}
           />
         </Box>
 
-        {/* Header */}
-        <Typography variant="h5" align="center" fontWeight="bold" mb={2} mt={4}>
-          LOGIN
+        <Typography variant="h5" fontWeight="bold" mb={3} textAlign="center">
+          Login
         </Typography>
 
-        {/* Form */}
-        <Box
-          component="form"
-          onSubmit={handleSubmit}
-          display="flex"
-          flexDirection="column"
-          gap={3}
-        >
+        <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={2}>
           <TextField
             label="Email Address"
             name="email"
@@ -161,26 +392,15 @@ const Login = ({ mode, setMode }) => {
             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
             InputProps={{
               endAdornment: (
-                <IconButton
-                  onClick={() => setShowPassword(!showPassword)}
-                  edge="end"
-                >
+                <IconButton onClick={() => setShowPassword((prev) => !prev)} edge="end">
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               ),
             }}
           />
 
-          {error && (
-            <Typography color="error" textAlign="center">
-              {error}
-            </Typography>
-          )}
-          {success && (
-            <Typography color="success.main" textAlign="center">
-              {success}
-            </Typography>
-          )}
+          {error && <Typography color="error.main" textAlign="center">{error}</Typography>}
+          {success && <Typography color="success.main" textAlign="center">{success}</Typography>}
 
           <Button
             type="submit"
@@ -189,19 +409,11 @@ const Login = ({ mode, setMode }) => {
             sx={{
               backgroundColor: "#000",
               color: "#fff",
-              borderRadius: 8,
+              borderRadius: 3,
               fontWeight: "bold",
               py: 1.5,
-              px: 4,
-              width: "30%",
-              justifyContent: "center",
-              alignSelf: "center",
-              "&:hover": {
-                backgroundColor: "#a09c9cff",
-              },
-              "&:active": {
-                backgroundColor: "#c0c0c0",
-              },
+              mt: 1,
+              "&:hover": { backgroundColor: "#222" },
             }}
           >
             {loading ? "Logging In..." : "Login"}
@@ -209,31 +421,23 @@ const Login = ({ mode, setMode }) => {
         </Box>
 
         <Box textAlign="center" mt={3}>
-          <Typography variant="body2">
-            <span
-              style={{
-                color: "#42a5f5",
-                cursor: "pointer",
-                textDecoration: "underline",
-              }}
-              onClick={() => navigate("/forgot-password")}
-            >
-              Forgot Password?
-            </span>
-          </Typography>
-
+          <Link
+            component="button"
+            variant="body2"
+            onClick={() => navigate("/forgot-password")}
+            sx={{ textDecoration: "underline", color: "#42a5f5", mb: 1 }}
+          >
+            Forgot Password?
+          </Link>
           <Typography variant="body2" mt={1}>
             Don’t have an account?{" "}
-            <span
-              style={{
-                color: "#42a5f5",
-                cursor: "pointer",
-                textDecoration: "underline",
-              }}
+            <Link
+              component="button"
               onClick={() => navigate("/signup")}
+              sx={{ textDecoration: "underline", color: "#42a5f5" }}
             >
               Sign Up
-            </span>
+            </Link>
           </Typography>
         </Box>
       </Box>

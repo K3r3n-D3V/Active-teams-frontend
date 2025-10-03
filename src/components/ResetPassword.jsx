@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Box,
   TextField,
-  Button,
   Typography,
-  useTheme,
+  Button,
   IconButton,
-  InputAdornment,
+  useTheme,
   useMediaQuery,
   Link,
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import darkLogo from "../assets/active-teams.png";
+import { AuthContext } from "../contexts/AuthContext";
 
 const ResetPassword = ({ mode }) => {
   const [searchParams] = useSearchParams();
@@ -29,7 +29,8 @@ const ResetPassword = ({ mode }) => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+  const { resetPassword } = useContext(AuthContext);
 
   useEffect(() => {
     if (!token) {
@@ -50,15 +51,7 @@ const ResetPassword = ({ mode }) => {
     }
 
     try {
-      const res = await fetch(`${BACKEND_URL}/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, new_password: password }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Reset failed.");
-
+      await resetPassword(token, password);
       setMessage("Password reset successful. Redirecting to login...");
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
@@ -114,11 +107,7 @@ const ResetPassword = ({ mode }) => {
           Reset Password
         </Typography>
 
-        <Typography
-          variant="body2"
-          mb={1}
-          sx={{ textAlign: "left", display: "block" }}
-        >
+        <Typography variant="body2" mb={1} sx={{ textAlign: "left" }}>
           Enter and confirm your new password to reset your account.
         </Typography>
 
@@ -148,9 +137,7 @@ const ResetPassword = ({ mode }) => {
             "& .MuiOutlinedInput-root": {
               borderRadius: "999px",
               backgroundColor:
-                mode === "dark"
-                  ? theme.palette.background.default
-                  : "#fff",
+                mode === "dark" ? theme.palette.background.default : "#fff",
               color: theme.palette.text.primary,
             },
             "& .MuiInputLabel-root": {
@@ -159,15 +146,12 @@ const ResetPassword = ({ mode }) => {
           }}
           InputProps={{
             endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  edge="end"
-                  aria-label="toggle password visibility"
-                >
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
+              <IconButton
+                onClick={() => setShowPassword((prev) => !prev)}
+                edge="end"
+              >
+                {showPassword ? <VisibilityOff /> : <Visibility />}
+              </IconButton>
             ),
           }}
         />
@@ -186,9 +170,7 @@ const ResetPassword = ({ mode }) => {
             "& .MuiOutlinedInput-root": {
               borderRadius: "999px",
               backgroundColor:
-                mode === "dark"
-                  ? theme.palette.background.default
-                  : "#fff",
+                mode === "dark" ? theme.palette.background.default : "#fff",
               color: theme.palette.text.primary,
             },
             "& .MuiInputLabel-root": {
@@ -197,15 +179,12 @@ const ResetPassword = ({ mode }) => {
           }}
           InputProps={{
             endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => setShowConfirm((prev) => !prev)}
-                  edge="end"
-                  aria-label="toggle confirm password visibility"
-                >
-                  {showConfirm ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
+              <IconButton
+                onClick={() => setShowConfirm((prev) => !prev)}
+                edge="end"
+              >
+                {showConfirm ? <VisibilityOff /> : <Visibility />}
+              </IconButton>
             ),
           }}
         />
