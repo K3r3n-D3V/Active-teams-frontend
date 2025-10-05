@@ -5,17 +5,10 @@ import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 import { saveToEventHistory } from "../utils/eventhistory";
 import IconButton from "@mui/material/IconButton";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
+import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import HistoryIcon from "@mui/icons-material/History";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogActions from "@mui/material/DialogActions";
-import Button from "@mui/material/Button";
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
@@ -25,22 +18,20 @@ import EventsModal from "./EventsModal";
 import CreateEvents from "./CreateEvents";
 import EventTypesModal from "./EventTypesModal";
 
-// NEW: Utility to save events to localStorage as "incomplete" initially
+// Utility to save events to localStorage as "incomplete" initially
 const saveEventToLocalStorage = (event, currentUser) => {
   const currentHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
   
-  // Check if event already exists in history
   const existingIndex = currentHistory.findIndex(
     entry => entry.eventId === event._id
   );
   
-  // If event doesn't exist, add it as "incomplete"
   if (existingIndex === -1) {
     const newEntry = {
       eventId: event._id,
       service_name: event.eventName,
       eventType: event.eventType,
-      status: "incomplete", // Mark as incomplete initially
+      status: "incomplete",
       attendees: [],
       reason: "",
       leader12: event.leader12 || event.eventLeaderName || "-",
@@ -58,7 +49,6 @@ const saveEventToLocalStorage = (event, currentUser) => {
   }
 };
 
-// Define styles object outside the component
 const styles = {
   container: {
     minHeight: "100vh",
@@ -66,14 +56,119 @@ const styles = {
     padding: "1rem",
     boxSizing: "border-box",
   },
-  header: {
+  topSection: {
+    padding: "1.5rem",
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    marginBottom: "1rem",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+  },
+  searchFilterRow: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "1rem 1.5rem",
-    borderBottom: "1px solid #e9ecef",
-    flexWrap: "wrap",
     gap: "1rem",
+    alignItems: "center",
+    marginBottom: "1rem",
+    flexWrap: "wrap",
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: "250px",
+    padding: "0.75rem 1rem",
+    border: "1px solid #dee2e6",
+    borderRadius: "6px",
+    fontSize: "0.95rem",
+  },
+  filterButton: {
+    padding: "0.75rem 1.5rem",
+    backgroundColor: "#007bff",
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    fontSize: "0.95rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    transition: "all 0.2s ease",
+  },
+  statusBadgeContainer: {
+    display: 'flex',
+    gap: '0.75rem',
+    flexWrap: 'wrap',
+  },
+  statusBadge: {
+    padding: '0.5rem 1.25rem',
+    borderRadius: '6px',
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    border: '2px solid',
+    transition: 'all 0.2s ease',
+    textTransform: 'uppercase',
+  },
+  statusBadgeIncomplete: {
+    backgroundColor: '#FFA500',
+    color: '#fff',
+    borderColor: '#FFA500',
+  },
+  statusBadgeComplete: {
+    backgroundColor: '#fff',
+    color: '#28a745',
+    borderColor: '#28a745',
+  },
+  statusBadgeDidNotMeet: {
+    backgroundColor: '#fff',
+    color: '#dc3545',
+    borderColor: '#dc3545',
+  },
+  statusBadgeActive: {
+    transform: 'scale(1.05)',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+  },
+  tableContainer: {
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    overflow: "hidden",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+  },
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+  },
+  tableHeader: {
+    backgroundColor: "#000",
+    color: "#fff",
+  },
+  th: {
+    padding: "1rem",
+    textAlign: "left",
+    fontWeight: 600,
+    fontSize: "0.95rem",
+    borderBottom: "2px solid #000",
+  },
+  tr: {
+    borderBottom: "1px solid #e9ecef",
+    transition: "background-color 0.2s ease",
+  },
+  trHover: {
+    backgroundColor: "#f8f9fa",
+  },
+  td: {
+    padding: "1rem",
+    fontSize: "0.9rem",
+    color: "#212529",
+  },
+  openEventIcon: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '8px',
+    backgroundColor: '#007bff',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    border: 'none',
   },
   floatingAddButton: {
     position: "fixed",
@@ -103,251 +198,6 @@ const styles = {
     boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
     zIndex: 1000,
     whiteSpace: "nowrap",
-  },
-  headerLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.75rem",
-    flexWrap: "wrap",
-  },
-  eventTypeNavigation: {
-    padding: '0.75rem 1.5rem', 
-    borderBottom: '1px solid #e9ecef',
-    backgroundColor: '#fff',
-    whiteSpace: 'nowrap',
-    scrollbarWidth: 'none',
-    msOverflowStyle: 'none',
-    overflowY: 'auto',
-    maxHeight: '200px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  eventTypeButtons: {
-    display: 'flex',
-    gap: '0.3rem',
-    alignItems: 'center',
-    padding: '0.5rem 0',
-    flexWrap: 'wrap',
-  },
-  eventTypeButton: {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#f8f9fa',
-    color: '#6c757d',
-    border: '1px solid #dee2e6',
-    borderRadius: '50px',
-    fontSize: '0.875rem',
-    fontWeight: '500',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.2s ease',
-    textTransform: 'uppercase',
-    letterSpacing: '0.3px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.6rem'
-  },
-  eventTypeButtonActive: {
-    backgroundColor: '#007bff',
-    color: '#fff',
-    border: '1px solid #000'
-  },
-  eventTypeButtonHover: {
-    backgroundColor: '#e9ecef',
-    borderColor: '#adb5bd'
-  },
-  deleteIcon: {
-    width: '20px',
-    height: '20px',
-    cursor: 'pointer',
-    color: '#dc3545',
-    backgroundColor: 'rgba(220, 53, 69, 0.1)',
-    borderRadius: '50%',
-    padding: '2px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    transition: 'all 0.2s ease',
-    marginLeft: '8px'
-  },
-  pageTitle: {
-    padding: '1rem 1.5rem 0.5rem',
-    margin: 0,
-    fontSize: '1.5rem',
-    fontWeight: '600',
-    color: '#212529',
-    textTransform: 'capitalize'
-  },
-  headerRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    marginLeft: "auto",
-  },
-  profileIcon: {
-    width: "2.25rem",
-    height: "2.25rem",
-    borderRadius: "50%",
-    background: "transparent",
-  },
-  button: {
-    borderRadius: "6px",
-    fontWeight: 500,
-    padding: "0.5rem 1rem",
-    cursor: "pointer",
-    fontSize: "0.875rem",
-    border: "none",
-    whiteSpace: "nowrap",
-  },
-  btnFilter: {
-    backgroundColor: "#fff",
-    border: "1px solid #dee2e6",
-    color: "#6c757d",
-  },
-  dateFilterInput: {
-    padding: "0.5rem 1rem",
-    border: "1px solid #dee2e6",
-    borderRadius: "6px",
-    fontSize: "0.875rem",
-    fontWeight: 500,
-    color: "#6c757d",
-    backgroundColor: "#fff",
-    cursor: "pointer",
-  },
-  eventsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-    gap: "1.5rem",
-    padding: "1.5rem 0",
-  },
-  eventCard: {
-    minHeight: "160px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "6px",
-    justifyContent: "flex-start",
-    padding: "12px",
-    borderRadius: "8px",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-  },
-  eventHeader: {
-    display: "flex",
-    alignItems: "flex-start",
-    marginBottom: "0.75rem",
-    gap: "0.5rem",
-  },
-  titleAndBadgeContainer: {
-    flex: 1,
-    minWidth: 0,
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.5rem",
-  },
-  eventTitle: {
-    margin: 0,
-    fontSize: "1.2rem",
-    fontWeight: 600,
-    color: "#212529",
-    wordBreak: "break-word",
-    lineHeight: "1.3",
-  },
-  eventBadge: {
-    fontSize: "0.75rem",
-    fontWeight: 600,
-    padding: "0.25rem 0.75rem",
-    borderRadius: "50px",
-    color: "#fff",
-    textTransform: "uppercase",
-    whiteSpace: "nowrap",
-    alignSelf: "flex-start",
-    width: "fit-content",
-  },
-  leadershipSection: {
-    marginTop: "10px",
-    marginBottom: "10px",
-    padding: "12px",
-    backgroundColor: "rgba(0, 123, 255, 0.05)",
-    borderRadius: "8px",
-    border: "1px solid rgba(0, 123, 255, 0.1)",
-  },
-  leaderRow: {
-    display: "flex",
-    alignItems: "flex-start",
-    marginBottom: "6px",
-    gap: "8px",
-  },
-  leaderLabel: {
-    fontSize: "0.85rem",
-    fontWeight: "600",
-    color: "#495057",
-    minWidth: "90px",
-    flexShrink: 0,
-  },
-  leaderName: {
-    fontSize: "0.9rem",
-    flex: 1,
-    wordBreak: "break-word",
-  },
-  eventDate: {
-    margin: "0.25rem 0",
-    fontSize: "1rem",
-    color: "#495057",
-  },
-  eventLocation: {
-    margin: "0.25rem 0",
-    fontSize: "0.95rem",
-    color: "#6c757d",
-  },
-  eventDescription: {
-    margin: "0.5rem 0",
-    fontSize: "0.9rem",
-    color: "#6c757d",
-    lineHeight: "1.4",
-  },
-  eventPrice: {
-    margin: "0.25rem 0",
-    fontSize: "0.95rem",
-    color: "#000000",
-    fontWeight: 600,
-  },
-  eventActions: {
-    display: 'flex',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    gap: '0.5rem',
-    marginTop: 'auto',
-    paddingTop: '0.5rem',
-    paddingBottom: '0',
-  },
-  actionBtn: {
-    border: "none",
-    borderRadius: "6px",
-    fontWeight: 600,
-    cursor: "pointer",
-    fontSize: "0.90rem",
-    height: "38px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-  },
-  captureBtn: {
-    backgroundColor: "#000",
-    color: "#fff",
-    border: "none",
-    height: "38px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-  },
-  disabledBtn: {
-    opacity: 0.6,
-    cursor: "not-allowed",
-    backgroundColor: "#e9ecef",
-    color: "#6c757d",
   },
   modalOverlay: {
     position: 'fixed',
@@ -409,18 +259,14 @@ const styles = {
     overflow: 'auto',
     padding: '0',
   },
-};
-
-const EventSkeleton = () => {
-  return (
-    <div style={styles.eventCard}>
-      <div style={{ height: 18, width: "60%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
-      <div style={{ height: 12, width: "45%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
-      <div style={{ height: 12, width: "90%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
-      <div style={{ height: 12, width: "85%", borderRadius: 6, backgroundColor: "#e9ecef" }} />
-      <div style={{ height: 12, width: "70%", borderRadius: 6, backgroundColor: "#e9ecef", marginTop: "auto" }} />
-    </div>
-  );
+  loadingSkeleton: {
+    padding: "1rem",
+    backgroundColor: "#f8f9fa",
+    borderRadius: "4px",
+    height: "60px",
+    marginBottom: "0.5rem",
+    animation: "pulse 1.5s ease-in-out infinite",
+  },
 };
 
 const Events = () => {
@@ -433,12 +279,9 @@ const Events = () => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
   const [showFilter, setShowFilter] = useState(false);
-  const [filterType] = useState("all");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [currentEvent, setCurrentEvent] = useState(null);
   const [activeFilters, setActiveFilters] = useState({});
   const [loading, setLoading] = useState(true);
   const [eventTypes, setEventTypes] = useState([]);
@@ -450,16 +293,28 @@ const Events = () => {
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [selectedDate, setSelectedDate] = useState("");
   const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
     return localStorage.getItem("selectedEventType") || '';
   });
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [eventTypeToDelete, setEventTypeToDelete] = useState(null);
-  const [selectedEventType, setSelectedEventType] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState('incomplete');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [hoveredRow, setHoveredRow] = useState(null);
 
   const handleAdminHistoryClick = () => {
     navigate("/events-history", { state: { isAdmin: true } });
+  };
+
+  // Get event status from localStorage
+  const getEventStatus = (eventId) => {
+    const eventHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
+    const historyEntry = eventHistory.find(entry => entry.eventId === eventId);
+    
+    if (!historyEntry) return 'incomplete';
+    
+    if (historyEntry.status === 'did_not_meet') return 'did_not_meet';
+    if (historyEntry.status === 'attended' || historyEntry.status === 'complete') return 'complete';
+    
+    return 'incomplete';
   };
 
   useEffect(() => {
@@ -482,66 +337,8 @@ const Events = () => {
     }
   }, [customEventTypes]);
 
-  // Delete an event type and re-fetch events to update UI
-const handleDeleteEventType = async (id, name) => {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      console.error("No token found. Please log in again.");
-      return;
-    }
-
-    // Delete the event type from backend
-    await axios.delete(`${BACKEND_URL}/event-types/${id}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    console.log(`Event type "${name}" deleted successfully.`);
-
-    // Update local event types state
-    const updatedEventTypes = customEventTypes.filter(type => type._id !== id);
-    setCustomEventTypes(updatedEventTypes);
-    setUserCreatedEventTypes(updatedEventTypes);
-    setEventTypes(updatedEventTypes.map(type => type.name));
-
-    // Reset selected event type if it was the one deleted
-    if (selectedEventType === name) {
-      handleEventTypeSelect("all");
-    }
-
-    // Re-fetch all events so deleted type is removed from event list
-    await fetchEvents();
-    console.log("Events re-fetched after deleting event type.");
-
-  } catch (error) {
-    console.error("Error deleting event type:", error);
-
-    // Still remove deleted type from local state to keep UI responsive
-    const updatedEventTypes = customEventTypes.filter(type => type._id !== id);
-    setCustomEventTypes(updatedEventTypes);
-    setUserCreatedEventTypes(updatedEventTypes);
-    setEventTypes(updatedEventTypes.map(type => type.name));
-  }
-};
-
-// Open confirmation modal
-const openDeleteConfirm = (eventType) => {
-  setEventTypeToDelete(eventType);
-  setDeleteConfirmOpen(true);
-};
-
-// Confirm deletion from modal
-const handleConfirmDelete = async () => {
-  if (eventTypeToDelete) {
-    await handleDeleteEventType(eventTypeToDelete._id, eventTypeToDelete.name);
-  }
-  setDeleteConfirmOpen(false);
-  setEventTypeToDelete(null);
-};
-
-
   const fetchEvents = async () => {
     setLoading(true);
-    console.log("Starting fetchEvents...");
     
     try {
       const token = localStorage.getItem("token");
@@ -553,16 +350,13 @@ const handleConfirmDelete = async () => {
       
       const headers = { Authorization: `Bearer ${token}` };
       const userRole = currentUser?.role;
-      console.log("User role:", userRole);
       
       let allEvents = [];
       let apiCustomTypes = [];
       
-      // Fetch event types (common for both roles)
       try {
         const eventTypesResponse = await axios.get(`${BACKEND_URL}/event-types`, { headers });
         apiCustomTypes = eventTypesResponse.data || [];
-        console.log("Event types loaded:", apiCustomTypes.length);
         setCustomEventTypes(apiCustomTypes);
         setUserCreatedEventTypes(apiCustomTypes);
         setEventTypes(apiCustomTypes.map(type => type.name));
@@ -571,33 +365,19 @@ const handleConfirmDelete = async () => {
       }
       
       if (userRole === "admin") {
-        console.log("Fetching admin events...");
         try {
           const allEventsResponse = await axios.get(`${BACKEND_URL}/events`, { headers });
-          console.log("Admin events response:", allEventsResponse.data);
-          
           allEvents = allEventsResponse.data.events || [];
-          console.log("Events loaded successfully:", allEvents.length);
-          
         } catch (adminError) {
-          console.error("Admin events fetch failed:");
-          console.error("Status:", adminError.response?.status);
-          console.error("Data:", adminError.response?.data);
-          console.error("Message:", adminError.message);
-          
-          if (adminError.response?.data?.detail) {
-            console.error("Server error detail:", adminError.response.data.detail);
-          }
+          console.error("Admin events fetch failed:", adminError);
         }
       } else {
-        console.log("Fetching user cells...");
         const response = await axios.get(`${BACKEND_URL}/events/cells-user`, { headers }).catch((err) => {
           console.error("Cells user endpoint failed:", err);
           return { data: { events: [], status: "error", error: err.message } };
         });
         
         const cellsData = response.data;
-        console.log("Cells user response:", cellsData);
         
         if (cellsData.status === "success") {
           allEvents = [
@@ -608,13 +388,10 @@ const handleConfirmDelete = async () => {
         }
       }
       
-      console.log("Processing", allEvents.length, "events...");
-      
-      // Process events to frontend-friendly format
-      const processedEvents = allEvents.map((event, index) => {
+      const processedEvents = allEvents.map((event) => {
         let eventDate = event.date ? new Date(event.date) : null;
         
-        const processed = {
+        return {
           ...event,
           _id: event._id,
           eventName: event.eventName || event["Event Name"],
@@ -635,19 +412,8 @@ const handleConfirmDelete = async () => {
           relationship: event.relationship,
           registeredUsers: event.registeredUsers || []
         };
-        
-        console.log(`Event ${index + 1}:`, {
-          id: processed._id,
-          name: processed.eventName,
-          type: processed.eventType,
-          date: processed.date,
-          status: processed.status
-        });
-        
-        return processed;
       });
       
-      // Optional: filter for registration users
       let finalEvents = processedEvents;
       if (userRole === "registrant") {
         finalEvents = processedEvents.filter(event => {
@@ -664,191 +430,54 @@ const handleConfirmDelete = async () => {
 
           return false;
         });
-        console.log("Filtered to", finalEvents.length, "registrant events");
       }
       
-      // Sort by date (handle null dates)
       const sortedEvents = finalEvents.sort((a, b) => {
         const dateA = a.parsedDate ? a.parsedDate.getTime() : Infinity;
         const dateB = b.parsedDate ? b.parsedDate.getTime() : Infinity;
         return dateA - dateB;
       });
       
-      console.log("Final events list:", sortedEvents.length, "events");
-      console.log("Events:", sortedEvents.map(e => ({ name: e.eventName, type: e.eventType, date: e.date })));
-      
       setEvents(sortedEvents);
       setFilteredEvents(sortedEvents);
       
-      // NEW: Save all events to localStorage as "incomplete" initially
       sortedEvents.forEach(event => {
         saveEventToLocalStorage(event, currentUser);
       });
       
     } catch (err) {
       console.error("Fatal error in fetchEvents:", err);
-      console.error("Error details:", err.response?.data || err.message);
     } finally {
       setLoading(false);
-      console.log("fetchEvents completed");
     }
-  };
-
-  const getFilteredEventTypes = () => {
-    if (!currentUser || !currentUser.role) return [];
-
-    const role = currentUser.role;
-
-    if (role === 'admin') {
-      return customEventTypes;
-    } else if (role === 'registration') {
-      return customEventTypes.filter(et => et.isTicketed || et.isGlobal);
-    } else {
-      return customEventTypes.filter(et => et.hasPersonSteps);
-    }
-  };
-
-  const EventTypeNavigation = () => {
-    const visibleEventTypes = getFilteredEventTypes();
-
-    if (visibleEventTypes.length === 0 && currentUser.role !== 'admin') {
-      return null;
-    }
-
-    return (
-      <div style={{
-        ...styles.eventTypeNavigation,
-        backgroundColor: theme.palette.background.paper,
-        borderBottomColor: theme.palette.divider
-      }}>
-        <div style={styles.eventTypeButtons}>
-          <button
-            key="all"
-            style={{
-              ...styles.eventTypeButton,
-              ...(selectedEventType === "all" ? styles.eventTypeButtonActive : {}),
-              backgroundColor: selectedEventType === "all"
-                ? theme.palette.primary.main
-                : theme.palette.background.default,
-              color: selectedEventType === "all"
-                ? theme.palette.primary.contrastText
-                : theme.palette.text.primary,
-              borderColor: selectedEventType === "all"
-                ? theme.palette.primary.main
-                : theme.palette.divider
-            }}
-            onClick={() => handleEventTypeSelect("all")}
-            onMouseEnter={(e) => {
-              if (selectedEventType !== "all") {
-                e.target.style.backgroundColor = theme.palette.action.hover;
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (selectedEventType !== "all") {
-                e.target.style.backgroundColor = theme.palette.background.default;
-              }
-            }}
-          >
-            ALL EVENTS
-          </button>
-
-          {visibleEventTypes.map((type) => {
-            const isSelected = selectedEventType === type.name;
-            return (
-              <div key={type._id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <button
-                  style={{
-                    ...styles.eventTypeButton,
-                    ...(isSelected ? styles.eventTypeButtonActive : {}),
-                    backgroundColor: isSelected
-                      ? theme.palette.primary.main
-                      : theme.palette.background.default,
-                    color: isSelected
-                      ? theme.palette.primary.contrastText
-                      : theme.palette.text.primary,
-                    borderColor: isSelected
-                      ? theme.palette.primary.main
-                      : theme.palette.divider
-                  }}
-                  onClick={() => handleEventTypeSelect(type.name)}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.target.style.backgroundColor = theme.palette.action.hover;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      e.target.style.backgroundColor = theme.palette.background.default;
-                    }
-                  }}
-                >
-                  {type.name.toUpperCase()}
-                </button>
-
-                {isAdmin && (
-                  <IconButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openDeleteConfirm(type);
-                    }}
-                    size="small"
-                    sx={{
-                      color: 'error.main',
-                      '&:hover': { bgcolor: 'error.light', color: 'white' },
-                      width: '24px',
-                      height: '24px'
-                    }}
-                    title={`Delete ${type.name} event type`}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const handleEventTypeSelect = (eventType) => {
-    setSelectedEventType(eventType);
-    applyAllFilters(activeFilters, selectedDate, eventType);
   };
 
   const applyAllFilters = (
     filters = activeFilters,
-    dateFilter = selectedDate,
-    eventTypeFilter = selectedEventType
+    statusFilter = selectedStatus,
+    search = searchQuery
   ) => {
     let filtered = events.filter(event => {
-      const status = (event.status || "").toLowerCase();
-      console.log("🔍 Filtering with eventTypeFilter:", eventTypeFilter);
-      console.log("📊 Total events before filter:", events.length);
+      // Get status from localStorage
+      const eventStatus = getEventStatus(event._id);
       
-      // Only filter out closed/complete events for non-admin users
-      if (!isAdmin && (status === "closed" || status === "complete")) {
+      // Filter by status
+      if (statusFilter !== 'all' && eventStatus !== statusFilter) {
         return false;
+      }
+      
+      // Search filter
+      if (search) {
+        const searchLower = search.toLowerCase();
+        const matchesSearch = 
+          (event.eventName || "").toLowerCase().includes(searchLower) ||
+          (event.eventLeaderName || "").toLowerCase().includes(searchLower) ||
+          (event.eventLeaderEmail || "").toLowerCase().includes(searchLower);
+        
+        if (!matchesSearch) return false;
       }
 
       let matches = true;
-
-      // Case-insensitive event type matching
-      if (eventTypeFilter !== "all") {
-        const eventType = (event.eventType || "").toLowerCase().trim();
-        const filterType = eventTypeFilter.toLowerCase().trim();
-        if (eventType !== filterType) {
-          matches = false;
-        }
-      }
-
-      if (dateFilter) {
-        const eventDate = new Date(event.date);
-        const filterDate = new Date(dateFilter);
-        if (eventDate.toDateString() !== filterDate.toDateString()) {
-          matches = false;
-        }
-      }
 
       if (filters.eventType) {
         const eventType = (event.eventType || "").toLowerCase().trim();
@@ -893,22 +522,10 @@ const handleConfirmDelete = async () => {
     setFilteredEvents(filtered);
   };
 
-  const handleDateFilter = (event) => {
-    const date = event.target.value;
-    setSelectedDate(date);
-    applyAllFilters(activeFilters, date, selectedEventType);
-  };
-
-  const clearDateFilter = () => {
-    setSelectedDate("");
-    applyAllFilters(activeFilters, "", selectedEventType);
-  };
-
-  const getPageTitle = () => {
-    if (selectedEventType === "all") {
-      return "All Events";
-    }
-    return selectedEventType;
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    applyAllFilters(activeFilters, selectedStatus, value);
   };
 
   const handleCreateEventTypeSubmit = async (eventTypeData) => {
@@ -932,8 +549,6 @@ const handleConfirmDelete = async () => {
 
         setCreateEventTypeModalOpen(false);
         setCreateEventModalOpen(true);
-
-        console.log('Event type created successfully:', newEventType);
       }
     } catch (error) {
       console.error('Error creating event type:', error);
@@ -950,54 +565,23 @@ const handleConfirmDelete = async () => {
   }, [currentSelectedEventType]);
 
   useEffect(() => {
-    console.log("useEffect triggered with:", {
-      pathname: location.pathname,
-      refresh: location.state?.refresh,
-      timestamp: location.state?.timestamp,
-    });
     fetchEvents();
   }, [location.pathname, location.state?.refresh, location.state?.timestamp]);
 
   const applyFilters = (filters) => {
     setActiveFilters(filters);
-    applyAllFilters(filters, selectedDate, selectedEventType);
+    applyAllFilters(filters, selectedStatus, searchQuery);
   };
 
-  const formatDateTime = (date) => {
-    if (!date) return "Date not set";
+  const formatDate = (date) => {
+    if (!date) return "Not set";
     const dateObj = new Date(date);
-    if (isNaN(dateObj.getTime())) return "Date not set";
-    const options = { weekday: "short", year: "numeric", month: "short", day: "numeric" };
-    const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
-    return `${dateObj.toLocaleDateString("en-US", options)}, ${dateObj.toLocaleTimeString("en-US", timeOptions)}`;
-  };
-
-  const legacyFilteredEvents =
-    filterType === "all"
-      ? filteredEvents
-      : filteredEvents.filter(
-        (e) => e.eventType?.toLowerCase() === filterType.toLowerCase()
-      );
-
-  const getBadgeColor = (eventType) => {
-    if (!eventType) return "#6c757d";
-
-    const cleanedType = eventType.trim().toLowerCase();
-
-    const eventCategoryColors = {
-      service: "#5A9BD5",
-      conference: "#C792EA",
-      workshop: "#F7C59F",
-      activation: "#F67280",
-    };
-
-    for (const keyword in eventCategoryColors) {
-      if (cleanedType.includes(keyword)) {
-        return eventCategoryColors[keyword];
-      }
-    }
-
-    return "#6c757d";
+    if (isNaN(dateObj.getTime())) return "Not set";
+    return dateObj.toLocaleDateString("en-GB", { 
+      day: "2-digit", 
+      month: "2-digit", 
+      year: "numeric" 
+    }).replace(/\//g, ' - ');
   };
 
   const handleCaptureClick = (event) => {
@@ -1058,20 +642,15 @@ const handleConfirmDelete = async () => {
           userEmail: currentUser.email,
         });
 
-        setEvents((prev) => prev.filter((e) => e._id !== eventId));
-        setFilteredEvents((prev) => prev.filter((e) => e._id !== eventId));
+        fetchEvents();
         setAttendanceModalOpen(false);
         setSelectedEvent(null);
 
         setSnackbar({
           open: true,
-          message: `${eventName} marked as 'Did Not Meet' and moved to history.`,
+          message: `${eventName} marked as 'Did Not Meet'.`,
           severity: "success",
         });
-
-        setTimeout(() => {
-          navigate("/events-history", { state: { refresh: true, timestamp: Date.now() } });
-        }, 1500);
 
         return {
           success: true,
@@ -1104,8 +683,7 @@ const handleConfirmDelete = async () => {
           userEmail: currentUser.email,
         });
 
-        setEvents((prev) => prev.filter((e) => e._id !== eventId));
-        setFilteredEvents((prev) => prev.filter((e) => e._id !== eventId));
+        fetchEvents();
         setAttendanceModalOpen(false);
         setSelectedEvent(null);
 
@@ -1114,10 +692,6 @@ const handleConfirmDelete = async () => {
           message: `Successfully captured attendance for ${eventName}`,
           severity: "success",
         });
-
-        setTimeout(() => {
-          navigate("/events-history", { state: { refresh: true, timestamp: Date.now() } });
-        }, 1500);
 
         return {
           success: true,
@@ -1156,173 +730,120 @@ const handleConfirmDelete = async () => {
     }
   };
 
-  const capitalize = (str) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
-
-  const handleMenuOpen = (event, eventData) => {
-    setAnchorEl(event.currentTarget);
-    setCurrentEvent(eventData);
+  const handleEditEvent = (event) => {
+    navigate(`/edit-event/${event._id}`);
   };
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-    setCurrentEvent(null);
-  };
+  const handleDeleteEvent = async (event) => {
+    if (!window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
+      return;
+    }
 
-  const handleEditEvent = () => {
-    if (currentEvent) navigate(`/edit-event/${currentEvent._id}`);
-    handleMenuClose();
-  };
-
-  const handleDeleteEvent = async () => {
-    if (!currentEvent) return;
-    
-    const eventToDelete = currentEvent;
-    handleMenuClose();
-
-    setEvents((prev) => prev.filter((e) => e._id !== eventToDelete._id));
-    setFilteredEvents((prev) => prev.filter((e) => e._id !== eventToDelete._id));
+    setEvents((prev) => prev.filter((e) => e._id !== event._id));
+    setFilteredEvents((prev) => prev.filter((e) => e._id !== event._id));
 
     try {
       const token = localStorage.getItem("token");
       const baseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
       
-      await axios.delete(`${baseUrl}/events/${eventToDelete._id}`, {
+      await axios.delete(`${baseUrl}/events/${event._id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       setSnackbar({
         open: true,
-        message: `"${eventToDelete.eventName}" deleted successfully!`,
+        message: `"${event.eventName}" deleted successfully!`,
         severity: 'success'
       });
     } catch (err) {
-      if (err.response?.status === 404) {
-        setSnackbar({
-          open: true,
-          message: `"${eventToDelete.eventName}" removed`,
-          severity: 'success'
-        });
-      } else {
-        console.error("Delete error:", err.response?.data);
-        setSnackbar({
-          open: true,
-          message: `Failed to delete: ${err.response?.data?.detail || err.message}`,
-          severity: 'error'
-        });
-      }
+      console.error("Delete error:", err.response?.data);
+      setSnackbar({
+        open: true,
+        message: `Failed to delete: ${err.response?.data?.detail || err.message}`,
+        severity: 'error'
+      });
     }
   };
 
-  const renderLeadershipInfo = (event) => {
-    const eventTypeNormalized = event.eventType?.toLowerCase() || "";
-    const isCell = eventTypeNormalized === "cell";
-    const leaders = [];
-
-    if (event.eventLeaderName && event.eventLeaderName !== 'Not specified') {
-      leaders.push({
-        title: "Event Leader",
-        name: event.eventLeaderName,
-        style: { fontWeight: "600", color: theme.palette.text.primary }
-      });
-    }
-
-    if (event.eventLeaderEmail && event.eventLeaderEmail !== 'Not specified') {
-      leaders.push({
-        title: "Leader Email",
-        name: event.eventLeaderEmail,
-        style: { fontSize: "0.85rem", color: theme.palette.text.secondary }
-      });
-    }
-
-    if (isCell) {
-      const leader1 = event.leader1 ?? "";
-      const leader12 = event.leader12 ?? "";
-
-      if (leader1.trim()) {
-        leaders.push({
-          title: "Leader @1",
-          name: leader1,
-          style: { color: theme.palette.text.secondary }
-        });
-      }
-      if (leader12.trim()) {
-        leaders.push({
-          title: "Leader @12",
-          name: leader12,
-          style: { color: theme.palette.text.secondary }
-        });
-      }
-    }
-
-    return { leaders, isCell };
+  const handleOpenEvent = (event) => {
+    navigate(`/event-details/${event._id}`);
   };
 
-  const activeFilterCount = Object.keys(activeFilters).length + (selectedDate ? 1 : 0);
+  const StatusBadges = () => {
+    const statusCounts = {
+      incomplete: events.filter(e => getEventStatus(e._id) === 'incomplete').length,
+      complete: events.filter(e => getEventStatus(e._id) === 'complete').length,
+      did_not_meet: events.filter(e => getEventStatus(e._id) === 'did_not_meet').length,
+    };
+    
+    return (
+      <div style={styles.statusBadgeContainer}>
+        <button
+          style={{
+            ...styles.statusBadge,
+            ...styles.statusBadgeIncomplete,
+            ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => {
+            setSelectedStatus('incomplete');
+            applyAllFilters(activeFilters, 'incomplete', searchQuery);
+          }}
+        >
+          INCOMPLETE ({statusCounts.incomplete})
+        </button>
+        
+        <button
+          style={{
+            ...styles.statusBadge,
+            ...styles.statusBadgeComplete,
+            ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => {
+            setSelectedStatus('complete');
+            applyAllFilters(activeFilters, 'complete', searchQuery);
+          }}
+        >
+          COMPLETE ({statusCounts.complete})
+        </button>
+        
+        <button
+          style={{
+            ...styles.statusBadge,
+            ...styles.statusBadgeDidNotMeet,
+            ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => {
+            setSelectedStatus('did_not_meet');
+            applyAllFilters(activeFilters, 'did_not_meet', searchQuery);
+          }}
+        >
+          DID NOT MEET ({statusCounts.did_not_meet})
+        </button>
+      </div>
+    );
+  };
+
   const allEventTypes = [...(eventTypes || []), ...(userCreatedEventTypes || [])];
 
   return (
-    <div style={{ ...styles.container, backgroundColor: theme.palette.background.default, color: theme.palette.text.primary }}>
-      <div style={{ ...styles.header, backgroundColor: theme.palette.background.paper }}>
-        <div style={styles.headerLeft}>
+    <div style={{ ...styles.container, backgroundColor: theme.palette.background.default }}>
+      <div style={styles.topSection}>
+        <div style={styles.searchFilterRow}>
+          <input
+            type="text"
+            placeholder="Search by Event Name or Event Leader..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            style={styles.searchInput}
+          />
           <button
-            style={{
-              ...styles.button,
-              ...styles.btnFilter,
-              marginLeft: "25px",
-              position: 'relative'
-            }}
+            style={styles.filterButton}
             onClick={() => setShowFilter(true)}
+            onMouseEnter={(e) => e.target.style.backgroundColor = '#0056b3'}
+            onMouseLeave={(e) => e.target.style.backgroundColor = '#007bff'}
           >
-            FILTER EVENTS
-            {activeFilterCount > 0 && (
-              <span style={{
-                position: 'absolute',
-                top: -8,
-                right: -8,
-                backgroundColor: '#007bff',
-                color: 'white',
-                borderRadius: '50%',
-                padding: '2px 6px',
-                fontSize: '0.75rem',
-                fontWeight: 'bold',
-                minWidth: '18px',
-                height: '18px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                {activeFilterCount}
-              </span>
-            )}
+            FILTER
           </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={handleDateFilter}
-              style={styles.dateFilterInput}
-              title="Filter by date"
-            />
-            {selectedDate && (
-              <button
-                onClick={clearDateFilter}
-                style={{
-                  ...styles.button,
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  padding: '0.25rem 0.5rem',
-                  fontSize: '0.75rem',
-                }}
-                title="Clear date filter"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-        <div style={styles.headerRight}>
           {isAdmin && (
             <Tooltip title="View Captured Events" arrow>
               <IconButton
@@ -1331,195 +852,126 @@ const handleConfirmDelete = async () => {
                   color: theme.palette.primary.main,
                   '&:hover': {
                     backgroundColor: theme.palette.action.hover,
-                    transform: 'scale(1.1)',
                   },
-                  transition: 'all 0.2s ease',
                 }}
-                size="medium"
               >
-                <HistoryIcon fontSize="medium" />
+                <HistoryIcon />
               </IconButton>
             </Tooltip>
           )}
-          <div style={styles.profileIcon}></div>
         </div>
+
+        <StatusBadges />
       </div>
 
-      <EventTypeNavigation />
-
-      <h2 style={{
-        ...styles.pageTitle,
-        color: theme.palette.text.primary
-      }}>
-        {getPageTitle()}
-      </h2>
-
-      <div style={{
-        padding: '0 1rem',
-        fontSize: '0.875rem',
-        color: theme.palette.text.secondary
-      }}>
-        Showing {legacyFilteredEvents.length} of {events.filter(e => e.status !== "closed").length} events
-        {selectedDate && (
-          <span style={{ marginLeft: '1rem', fontStyle: 'italic' }}>
-            (filtered by date: {new Date(selectedDate).toLocaleDateString()})
-          </span>
-        )}
-      </div>
-
-      <div style={styles.eventsGrid}>
-        {loading
-          ? Array.from({ length: 6 }).map((_, idx) => <EventSkeleton key={idx} />)
-          : legacyFilteredEvents.map((event) => {
-            const { leaders } = renderLeadershipInfo(event);
-            return (
-              <div
-                key={event._id}
-                style={{
-                  ...styles.eventCard,
-                  backgroundColor: theme.palette.background.paper,
-                }}
-              >
-                <div style={styles.eventHeader}>
-                  <div style={styles.titleAndBadgeContainer}>
-                    <h3 style={{ ...styles.eventTitle, color: theme.palette.text.primary }}>
-                      {event.eventName}
-                    </h3>
-                    <span
-                      style={{
-                        ...styles.eventBadge,
-                        backgroundColor: getBadgeColor(event.eventType),
-                      }}
-                    >
-                      {capitalize(event.eventType)}
-                    </span>
-                  </div>
-
-                  {isAdmin && (
-                    <IconButton
-                      size="small"
-                      onClick={(e) => handleMenuOpen(e, event)}
-                      style={{
-                        color: theme.palette.text.primary,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <MoreVertIcon />
-                    </IconButton>
-                  )}
-                  <Menu
-                    anchorEl={anchorEl}
-                    open={Boolean(anchorEl) && currentEvent?._id === event._id}
-                    onClose={handleMenuClose}
-                  >
-                    <MenuItem onClick={handleEditEvent}>Edit</MenuItem>
-                    <MenuItem onClick={handleDeleteEvent}>Delete</MenuItem>
-                  </Menu>
-                </div>
-
-                {leaders.length > 0 && (
-                  <div style={styles.leadershipSection}>
-                    {leaders.map((leader, index) => (
-                      <div key={index} style={styles.leaderRow}>
-                        <span style={styles.leaderLabel}>{leader.title}:</span>
-                        <span style={{ ...styles.leaderName, ...leader.style }}>
-                          {leader.name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <p style={{ ...styles.eventDate, color: theme.palette.text.secondary }}>
-                  {formatDateTime(event.date)}
-                </p>
-                <p style={{ ...styles.eventLocation, color: theme.palette.text.secondary }}>
-                  {event.location}
-                </p>
-                {event.description && (
-                  <p style={{
-                    ...styles.eventDescription,
-                    color: theme.palette.text.secondary,
-                    fontSize: '0.9rem',
-                    marginTop: '0.5rem',
-                    lineHeight: '1.4'
-                  }}>
-                    {event.description}
-                  </p>
-                )}
-
-                {event.isTicketed && (
-                  <p style={{ ...styles.eventPrice, color: theme.palette.text.primary }}>
-                    Price: {event.price > 0 ? `R${event.price}` : "Free"}
-                  </p>
-                )}
-
-                {event.recurringDays?.length > 0 && (
-                  <div style={{
-                    display: "flex",
-                    gap: "6px",
-                    marginTop: "8px",
-                    flexWrap: "wrap"
-                  }}>
-                    <span style={{
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: theme.palette.text.secondary,
-                      marginRight: "8px"
-                    }}>
-                      Recurring:
-                    </span>
-                    {event.recurringDays.map((day, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          backgroundColor: "#6c757d",
-                          color: "#fff",
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          fontSize: "0.8rem",
-                        }}
-                      >
-                        {day}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div style={styles.eventActions}>
-                  <button
+      <div style={styles.tableContainer}>
+        <table style={styles.table}>
+          <thead style={styles.tableHeader}>
+            <tr>
+              <th style={styles.th}>Event Name</th>
+              <th style={styles.th}>Leader</th>
+              <th style={styles.th}>Leader at 12</th>
+              <th style={styles.th}>Day</th>
+              <th style={styles.th}>Email</th>
+              <th style={styles.th}>Date Of Event</th>
+              <th style={styles.th}>Open Event</th>
+              <th style={styles.th}>Edit Event</th>
+              {isAdmin && <th style={styles.th}>Delete Event</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, idx) => (
+                <tr key={idx}>
+                  <td colSpan={isAdmin ? 9 : 8} style={styles.td}>
+                    <div style={styles.loadingSkeleton} />
+                  </td>
+                </tr>
+              ))
+            ) : filteredEvents.length === 0 ? (
+              <tr>
+                <td colSpan={isAdmin ? 9 : 8} style={{ ...styles.td, textAlign: 'center', padding: '2rem' }}>
+                  No events found matching your criteria.
+                </td>
+              </tr>
+            ) : (
+              filteredEvents.map((event) => {
+                const dayOfWeek = event.parsedDate 
+                  ? event.parsedDate.toLocaleDateString('en-US', { weekday: 'long' })
+                  : 'Not set';
+                
+                return (
+                  <tr
+                    key={event._id}
                     style={{
-                      ...styles.actionBtn,
-                      ...styles.captureBtn,
-                      backgroundColor: event.status === "closed" && !isAdmin ? "#e9ecef" : "#000",
-                      color: event.status === "closed" && !isAdmin ? "#6c757d" : "#fff",
+                      ...styles.tr,
+                      ...(hoveredRow === event._id ? styles.trHover : {}),
                     }}
-                    onClick={() => {
-                      if (event.status === "closed" && !isAdmin) {
-                        alert("Attendance has already been captured for this event.");
-                        return;
-                      }
-                      handleCaptureClick(event);
-                    }}
-                    disabled={event.status === "closed" && !isAdmin}
+                    onMouseEnter={() => setHoveredRow(event._id)}
+                    onMouseLeave={() => setHoveredRow(null)}
                   >
-                    Capture
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                    <td style={styles.td}>{event.eventName}</td>
+                    <td style={styles.td}>{event.eventLeaderName || '-'}</td>
+                    <td style={styles.td}>{event.leader12 || '-'}</td>
+                    <td style={styles.td}>{dayOfWeek}</td>
+                    <td style={styles.td}>{event.eventLeaderEmail || '-'}</td>
+                    <td style={styles.td}>{formatDate(event.date)}</td>
+                    <td style={styles.td}>
+                      <Tooltip title="Open Event Details" arrow>
+                        <button
+                          style={styles.openEventIcon}
+                          onClick={() => handleOpenEvent(event)}
+                          onMouseEnter={(e) => {
+                            e.target.style.transform = 'scale(1.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = 'scale(1)';
+                          }}
+                        >
+                          <CheckBoxIcon />
+                        </button>
+                      </Tooltip>
+                    </td>
+                    <td style={styles.td}>
+                      <Tooltip title="Edit Event" arrow>
+                        <IconButton
+                          onClick={() => handleEditEvent(event)}
+                          size="small"
+                          sx={{ color: '#007bff' }}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </td>
+                    {isAdmin && (
+                      <td style={styles.td}>
+                        <Tooltip title="Delete Event" arrow>
+                          <IconButton
+                            onClick={() => handleDeleteEvent(event)}
+                            size="small"
+                            sx={{ color: '#dc3545' }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {legacyFilteredEvents.length === 0 && !loading && (
-        <div style={{
-          textAlign: 'center',
-          padding: '2rem',
-          color: theme.palette.text.secondary
-        }}>
-          <p>No events found matching your criteria.</p>
-        </div>
-      )}
+      <div style={{ 
+        padding: '1rem', 
+        textAlign: 'center', 
+        color: theme.palette.text.secondary,
+        fontSize: '0.875rem'
+      }}>
+        Showing {filteredEvents.length} of {events.length} events
+      </div>
 
       {isAdmin ? (
         <button
@@ -1543,7 +995,7 @@ const handleConfirmDelete = async () => {
         open={showFilter}
         onClose={() => setShowFilter(false)}
         onApplyFilter={applyFilters}
-        events={events.filter((e) => e.status !== "closed")}
+        events={events}
         currentFilters={activeFilters}
         eventTypes={eventTypes}
       />
@@ -1619,21 +1071,6 @@ const handleConfirmDelete = async () => {
           </div>
         </div>
       )}
-
-      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
-        <DialogTitle>Delete Event Type</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete "{eventTypeToDelete?.name}"? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-          <Button onClick={handleConfirmDelete} color="error" variant="contained">
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <Snackbar
         open={snackbar.open}
