@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
-import { saveToEventHistory } from "../utils/eventhistory";
+// import { saveToEventHistory } from "../utils/eventhistory";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -13,41 +13,10 @@ import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
 
-import Eventsfilter from "./Eventsfilter";
-import EventsModal from "./EventsModal";
+import Eventsfilter from "./AddPersonToEvents";
+// import EventsModal from "./EventsModal";
 import CreateEvents from "./CreateEvents";
 import EventTypesModal from "./EventTypesModal";
-
-// Utility to save events to localStorage as "incomplete" initially
-const saveEventToLocalStorage = (event, currentUser) => {
-  const currentHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
-  
-  const existingIndex = currentHistory.findIndex(
-    entry => entry.eventId === event._id
-  );
-  
-  if (existingIndex === -1) {
-    const newEntry = {
-      eventId: event._id,
-      service_name: event.eventName,
-      eventType: event.eventType,
-      status: "incomplete",
-      attendees: [],
-      reason: "",
-      leader12: event.leader12 || event.eventLeaderName || "-",
-      leader12_email: event.eventLeaderEmail || "-",
-      userEmail: currentUser?.email || "-",
-      userName: currentUser?.name || "-",
-      userLeader144: event.leader144 || "-",
-      closedAt: "",
-      timestamp: new Date().toISOString(),
-    };
-    
-    currentHistory.push(newEntry);
-    localStorage.setItem("eventHistory", JSON.stringify(currentHistory));
-    window.dispatchEvent(new Event("eventHistoryUpdated"));
-  }
-};
 
 const styles = {
   container: {
@@ -183,21 +152,6 @@ const styles = {
     cursor: "pointer",
     boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
     zIndex: 1000,
-  },
-  floatingHistoryButton: {
-    position: "fixed",
-    bottom: "20px",
-    right: "20px",
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "50px",
-    padding: "0.75rem 1.25rem",
-    fontSize: "1rem",
-    cursor: "pointer",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    zIndex: 1000,
-    whiteSpace: "nowrap",
   },
   modalOverlay: {
     position: 'fixed',
@@ -335,7 +289,6 @@ const Events = () => {
       
       let allEvents = [];
       
-      // Fetch event types
       try {
         const eventTypesResponse = await axios.get(`${BACKEND_URL}/event-types`, { headers });
         const apiCustomTypes = eventTypesResponse.data || [];
@@ -346,7 +299,6 @@ const Events = () => {
         console.error("Failed to load event types:", typeError);
       }
       
-      // Fetch events based on role
       if (userRole === "admin") {
         try {
           const response = await axios.get(`${BACKEND_URL}/admin/events/cells`, { headers });
@@ -365,7 +317,6 @@ const Events = () => {
         }
       }
       
-      // Process and sort events by day of week
       const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
       const sortedEvents = allEvents.sort((a, b) => {
         const dayA = (a.day || '').toLowerCase();
@@ -385,17 +336,14 @@ const Events = () => {
     }
   };
 
-  // Filter logic using database status
   const applyAllFilters = (
     filters = activeFilters,
     statusFilter = selectedStatus,
     search = searchQuery
   ) => {
     let filtered = events.filter(event => {
-      // Get status directly from database
       const eventStatus = (event.status || '').toLowerCase();
       
-      // Map database status to filter status
       let mappedStatus = 'incomplete';
       if (eventStatus === 'complete' || eventStatus === 'closed') {
         mappedStatus = 'complete';
@@ -403,12 +351,10 @@ const Events = () => {
         mappedStatus = 'did_not_meet';
       }
       
-      // Filter by status
       if (statusFilter !== 'all' && mappedStatus !== statusFilter) {
         return false;
       }
       
-      // Search filter
       if (search) {
         const searchLower = search.toLowerCase();
         const matchesSearch = 
@@ -668,10 +614,6 @@ const Events = () => {
     }
   };
 
-  const handleOpenEvent = (event) => {
-    navigate(`/event-details/${event._id}`);
-  };
-
   const StatusBadges = () => {
     const statusCounts = {
       incomplete: events.filter(e => {
@@ -771,7 +713,7 @@ const Events = () => {
               <th style={styles.th}>Day</th>
               <th style={styles.th}>Email</th>
               <th style={styles.th}>Date Of Event</th>
-              <th style={styles.th}>Open Event</th>
+              <th style={styles.th}>Capture Attendance</th>
               <th style={styles.th}>Edit Event</th>
               {isAdmin && <th style={styles.th}>Delete Event</th>}
             </tr>
@@ -812,10 +754,10 @@ const Events = () => {
                     <td style={styles.td}>{event.eventLeaderEmail || '-'}</td>
                     <td style={styles.td}>{formatDate(event.date)}</td>
                     <td style={styles.td}>
-                      <Tooltip title="Open Event Details" arrow>
+                      <Tooltip title="Capture Attendance" arrow>
                         <button
                           style={styles.openEventIcon}
-                          onClick={() => handleOpenEvent(event)}
+                          onClick={() => handleCaptureClick(event)}
                           onMouseEnter={(e) => {
                             e.target.style.transform = 'scale(1.1)';
                           }}
@@ -868,7 +810,6 @@ const Events = () => {
         Showing {filteredEvents.length} of {events.length} events
       </div>
 
-      {/* Admin sees + button, regular users see nothing */}
       {isAdmin && (
         <button
           style={styles.floatingAddButton}
@@ -905,7 +846,6 @@ const Events = () => {
         />
       )}
 
-      {/* Admin Event Type Modal */}
       {isAdmin && (
         <EventTypesModal
           open={createEventTypeModalOpen}
@@ -917,7 +857,6 @@ const Events = () => {
         />
       )}
 
-      {/* Create Event Modal */}
       {createEventModalOpen && (
         <div
           style={styles.modalOverlay}
