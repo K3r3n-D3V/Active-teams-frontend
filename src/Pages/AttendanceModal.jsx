@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Search, UserPlus, X, CheckCircle, ChevronDown } from "lucide-react";
 
-const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
+const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   const [formData, setFormData] = useState({
     invitedBy: "",
     name: "",
@@ -28,11 +28,14 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
 
     try {
       setLoadingInviters(true);
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+      
       const params = new URLSearchParams();
       params.append("name", searchTerm);
       params.append("perPage", "20");
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
       const data = await res.json();
       const peopleArray = data.people || data.results || [];
 
@@ -77,9 +80,15 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
     }
 
     try {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
       const response = await fetch(`${BACKEND_URL}/people`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: headers,
         body: JSON.stringify({
           Name: formData.name,
           Surname: formData.surname,
@@ -121,10 +130,11 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
         }, 1500);
       } else {
         const error = await response.json();
+        console.error("Add person error:", error);
         setAlert({
           open: true,
           type: "error",
-          message: error.message || "Failed to add person",
+          message: error.detail || error.message || "Failed to add person",
         });
         setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
       }
@@ -430,7 +440,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
   );
 };
 
-const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted }) => {
+const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser  }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
   const [decisions, setDecisions] = useState({});
@@ -443,6 +453,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
+  const [manualHeadcount, setManualHeadcount] = useState("");
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -454,11 +465,14 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const fetchPeople = async (filter = "") => {
     try {
       setLoading(true);
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+      
       const params = new URLSearchParams();
       if (filter) params.append("name", filter);
       params.append("perPage", "100");
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
       const data = await res.json();
       const peopleArray = data.people || data.results || [];
 
@@ -481,7 +495,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
   const fetchCommonAttendees = async (cellId) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/events/cell/${cellId}/common-attendees`);
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      const res = await fetch(`${BACKEND_URL}/events/cell/${cellId}/common-attendees`, { headers });
       const data = await res.json();
       const attendeesArray = data.common_attendees || [];
 
@@ -560,159 +577,180 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     setOpenDecisionDropdown(null);
   };
 
+  // FIX #2 & #4: Updated handleSave to send correct data format
   const handleSave = async () => {
-    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+  const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
 
-    if (attendeesList.length === 0) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Please check in at least one attendee before saving.",
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-      return;
-    }
-
-    const eventId = event?.id || event?._id;
-    if (!eventId) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Event ID is missing, cannot submit attendance.",
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-      return;
-    }
-
-    // Get user info from localStorage
-    const userStr = localStorage.getItem("userProfile");
-    let leaderEmail = "";
-    let leaderName = "";
-
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        leaderEmail = user.email || "";
-        leaderName = user.name || user.fullName || "";
-      } catch (err) {
-        console.error("Error parsing user profile:", err);
-      }
-    }
-
-    const allPeople = [...commonAttendees, ...people];
-    const selectedAttendees = attendeesList.map((id) => {
-      const person = allPeople.find((p) => p.id === id);
-      return {
-        id: person.id,
-        name: person.fullName,
-        leader12: person.leader12 || "",
-        leader144: person.leader144 || "",
-        decision: decisions[id] ? decisionTypes[id] || "" : "",
-      };
+  if (attendeesList.length === 0) {
+    setAlert({
+      open: true,
+      type: "error",
+      message: "Please check in at least one attendee before saving.",
     });
+    setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+    return;
+  }
+
+  const eventId = event?.id || event?._id;
+  if (!eventId) {
+    setAlert({
+      open: true,
+      type: "error",
+      message: "Event ID is missing, cannot submit attendance.",
+    });
+    setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+    return;
+  }
+
+  const allPeople = [...commonAttendees, ...people];
+
+  // Format attendees for payload
+  const selectedAttendees = attendeesList.map((id) => {
+    const person = allPeople.find((p) => p.id === id);
+    return {
+      id: person?.id,
+      name: person?.fullName || "",
+      email: person?.email || "",
+      fullName: person?.fullName || "",
+      leader12: person?.leader12 || "",
+      leader144: person?.leader144 || "",
+      phone: person?.phone || "",
+      time: new Date().toISOString(),
+      decision: decisions[id] ? decisionTypes[id] || "" : "",
+    };
+  });
+
+  console.log("📝 Sending attendees to parent:", selectedAttendees);
+
+  try {
+    // Define headers for fetch
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token") || ""}`, // remove if backend doesn't require auth
+    };
 
     const payload = {
       attendees: selectedAttendees,
-      leaderEmail: leaderEmail,
-      leaderName: leaderName,
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
       did_not_meet: false,
     };
 
-    try {
-      if (typeof onSubmit === "function") {
-        const result = await onSubmit(payload);
-        if (result?.success) {
-          setAlert({
-            open: true,
-            type: "success",
-            message: result.message || "Attendance saved successfully!",
-          });
-          setTimeout(() => onClose(), 1500);
-        } else {
-          setAlert({
-            open: true,
-            type: "error",
-            message: result?.message || "Failed to save attendance.",
-          });
-          setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-        }
-        return;
-      }
-
+    // Use onSubmit if provided
+    let result = { success: false };
+    if (typeof onSubmit === "function") {
+      result = await onSubmit(selectedAttendees);
+    } else {
       const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: "Attendance saved successfully!",
-        });
+      result = await response.json();
+      if (!response.ok) result.success = false;
+    }
 
-        if (typeof onAttendanceSubmitted === "function") {
-          onAttendanceSubmitted(eventId);
-        }
+    if (result?.success) {
+      setAlert({
+        open: true,
+        type: "success",
+        message: result.message || "Attendance saved successfully!",
+      });
 
-        setTimeout(() => onClose(), 1500);
-      } else {
-        const result = await response.json();
-        setAlert({
-          open: true,
-          type: "error",
-          message: result?.message || "Failed to save attendance.",
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted(eventId);
       }
-    } catch (error) {
-      console.error("Error saving attendance:", error);
+
+      setTimeout(() => {
+        setAlert({ open: false, type: "success", message: "" });
+        onClose();
+      }, 1500);
+    } else {
       setAlert({
         open: true,
         type: "error",
-        message: "Something went wrong while saving attendance.",
+        message: result?.message || "Failed to save attendance.",
       });
       setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
-  };
+  } catch (error) {
+    console.error("Error saving attendance:", error);
+    setAlert({
+      open: true,
+      type: "error",
+      message: "Something went wrong while saving attendance.",
+    });
+    setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+  }
+};
 
-  const handleDidNotMeet = async () => {
-    const eventId = event?.id || event?._id;
-    if (!eventId) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Event ID is missing.",
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-      return;
-    }
+  // FIX #2: Updated handleDidNotMeet to send correct format
+ const handleDidNotMeet = async () => {
+  const eventId = event?.id || event?._id;
+  if (!eventId) {
+    setAlert({
+      open: true,
+      type: "error",
+      message: "Event ID is missing.",
+    });
+    setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+    return;
+  }
 
-    const payload = {
-      status: "did-not-meet",
-      did_not_meet: true,
+  console.log("📝 Marking as did not meet");
+
+  try {
+    // Define headers for fetch
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token") || ""}`, // remove if backend doesn't require auth
     };
 
-    if (onSubmit) {
-      const result = await onSubmit(payload);
-      if (result?.success) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: result.message || "Event marked as did not meet.",
-        });
-        setTimeout(() => onClose(), 1500);
-      } else {
-        setAlert({
-          open: true,
-          type: "error",
-          message: result?.message || "Failed to mark as did not meet.",
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-      }
+    const payload = {
+      attendees: [],
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      status: "did_not_meet", 
+    };
+
+    const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result?.success) {
+      setAlert({
+        open: true,
+        type: "success",
+        message: result.message || "Event marked as did not meet.",
+      });
+      setTimeout(() => {
+        setAlert({ open: false, type: "success", message: "" });
+        onClose();
+      }, 1500);
+    } else {
+      setAlert({
+        open: true,
+        type: "error",
+        message: result?.message || "Failed to mark as did not meet.",
+      });
+      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
-  };
+
+  } catch (error) {
+    console.error("Error marking as did not meet:", error);
+    setAlert({
+      open: true,
+      type: "error",
+      message: "Something went wrong.",
+    });
+    setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+  }
+};
 
   const handleAssociatePerson = (person) => {
     if (!commonAttendees.some((p) => p.id === person.id)) {
@@ -726,7 +764,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  const handlePersonAdded = (newPerson) => {
+  const handlePersonAdded = () => {
     fetchPeople();
     if (event && event.eventType === "cell") {
       fetchCommonAttendees(event._id || event.id);
@@ -1055,8 +1093,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       person.fullName &&
       person.fullName.toLowerCase().includes(associateSearch.toLowerCase())
   );
-
-  const [manualHeadcount, setManualHeadcount] = useState("");
 
   const attendeesCount = Object.values(checkedIn).filter(Boolean).length;
   const totalHeadcount = manualHeadcount || Object.keys(checkedIn).length;

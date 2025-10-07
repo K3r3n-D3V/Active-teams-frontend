@@ -3,18 +3,15 @@ import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
-// import { saveToEventHistory } from "../utils/eventhistory";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import HistoryIcon from "@mui/icons-material/History";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
 
 import Eventsfilter from "./AddPersonToEvents";
-// import EventsModal from "./EventsModal";
 import CreateEvents from "./CreateEvents";
 import EventTypesModal from "./EventTypesModal";
 
@@ -23,6 +20,7 @@ const styles = {
     minHeight: "100vh",
     fontFamily: "system-ui, sans-serif",
     padding: "1rem",
+    paddingTop: "5rem",
     boxSizing: "border-box",
   },
   topSection: {
@@ -30,22 +28,24 @@ const styles = {
     backgroundColor: "#fff",
     borderRadius: "8px",
     marginBottom: "1rem",
+    marginTop: "1rem",
     boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
   },
   searchFilterRow: {
     display: "flex",
     gap: "1rem",
     alignItems: "center",
-    marginBottom: "1rem",
+    marginBottom: "1.5rem",
     flexWrap: "wrap",
   },
   searchInput: {
     flex: 1,
-    minWidth: "250px",
+    minWidth: "200px",
     padding: "0.75rem 1rem",
     border: "1px solid #dee2e6",
     borderRadius: "6px",
     fontSize: "0.95rem",
+    boxSizing: "border-box",
   },
   filterButton: {
     padding: "0.75rem 1.5rem",
@@ -65,14 +65,15 @@ const styles = {
     flexWrap: 'wrap',
   },
   statusBadge: {
-    padding: '0.5rem 1.25rem',
+    padding: '0.5rem 1rem',
     borderRadius: '6px',
-    fontSize: '0.875rem',
+    fontSize: '0.75rem',
     fontWeight: '600',
     cursor: 'pointer',
     border: '2px solid',
     transition: 'all 0.2s ease',
     textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
   },
   statusBadgeIncomplete: {
     backgroundColor: '#FFA500',
@@ -96,12 +97,14 @@ const styles = {
   tableContainer: {
     backgroundColor: "#fff",
     borderRadius: "8px",
-    overflow: "hidden",
+    overflow: "auto",
     boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+    maxWidth: "100%",
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
+    minWidth: "800px",
   },
   tableHeader: {
     backgroundColor: "#000",
@@ -113,6 +116,7 @@ const styles = {
     fontWeight: 600,
     fontSize: "0.95rem",
     borderBottom: "2px solid #000",
+    whiteSpace: "nowrap",
   },
   tr: {
     borderBottom: "1px solid #e9ecef",
@@ -221,6 +225,17 @@ const styles = {
     marginBottom: "0.5rem",
     animation: "pulse 1.5s ease-in-out infinite",
   },
+  eventsCounter: {
+    padding: '1rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+  },
+  overdueLabel: {
+    color: 'red',
+    fontSize: '0.8rem',
+    marginTop: '0.2rem',
+    fontWeight: 'bold',
+  }
 };
 
 const Events = () => {
@@ -336,19 +351,55 @@ const Events = () => {
     }
   };
 
+  // FIX 1: Check if event is overdue - Works for ALL cells
+  const isOverdue = (event) => {
+    if (!event?.date) return false;
+    
+    // Only show overdue if attendance hasn't been captured
+    const status = (event.status || '').toLowerCase().trim();
+    const hasBeenCaptured = status === 'complete' || status === 'closed' || status === 'did_not_meet';
+    
+    if (hasBeenCaptured) return false;
+    
+    const eventDate = new Date(event.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    eventDate.setHours(0, 0, 0, 0);
+    
+    return eventDate < today;
+  };
+
   const applyAllFilters = (
     filters = activeFilters,
     statusFilter = selectedStatus,
     search = searchQuery
   ) => {
     let filtered = events.filter(event => {
-      const eventStatus = (event.status || '').toLowerCase();
+      const eventStatus = (event.status || '').toLowerCase().trim();
+      
+      const hasBeenCaptured = 
+        eventStatus === 'complete' || 
+        eventStatus === 'closed' || 
+        eventStatus === 'did_not_meet';
+      
+      if (!hasBeenCaptured && event.date) {
+        const eventDate = new Date(event.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        eventDate.setHours(0, 0, 0, 0);
+        
+        if (eventDate < today) {
+          return false;
+        }
+      }
       
       let mappedStatus = 'incomplete';
       if (eventStatus === 'complete' || eventStatus === 'closed') {
         mappedStatus = 'complete';
       } else if (eventStatus === 'did_not_meet') {
         mappedStatus = 'did_not_meet';
+      } else {
+        mappedStatus = 'incomplete';
       }
       
       if (statusFilter !== 'all' && mappedStatus !== statusFilter) {
@@ -485,99 +536,119 @@ const Events = () => {
     setCreateEventTypeModalOpen(false);
   };
 
-  const handleAttendanceSubmit = async (data) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
+// Replace your current handleAttendanceSubmit with this
+const handleAttendanceSubmit = async (data) => {
+  try {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
 
-      const eventId = selectedEvent._id;
-      const eventName = selectedEvent.eventName;
-      const eventType = selectedEvent.eventType;
+    const eventId = selectedEvent._id;
+    const eventName = selectedEvent.eventName || 'Event';
 
-      if (data === "did-not-meet") {
-        await axios.put(
-          `${BACKEND_URL}/events/${eventId}`,
-          {
-            Status: "did_not_meet",
-            attendees: [],
-            did_not_meet: true,
-          },
-          { headers }
-        );
+    // Build leaderName and leaderEmail from currentUser (defined at top of file)
+    const leaderEmail = currentUser?.email || '';
+    const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
-        fetchEvents();
-        setAttendanceModalOpen(false);
-        setSelectedEvent(null);
+    // DID NOT MEET case: send empty attendees + did_not_meet: true
+    if (data === "did_not_meet") {
+      await axios.put(
+        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+        {
+          attendees: [],
+          leaderEmail,
+          leaderName,
+          did_not_meet: true,
+        },
+        { headers }
+      );
 
-        setSnackbar({
-          open: true,
-          message: `${eventName} marked as 'Did Not Meet'.`,
-          severity: "success",
-        });
-
-        return {
-          success: true,
-          message: `${eventName} marked as 'Did Not Meet'.`,
-        };
-      }
-
-      if (Array.isArray(data) && data.length > 0) {
-        await axios.put(
-          `${BACKEND_URL}/events/${eventId}`,
-          {
-            Status: "Complete",
-            attendees: data,
-            did_not_meet: false,
-          },
-          { headers }
-        );
-
-        fetchEvents();
-        setAttendanceModalOpen(false);
-        setSelectedEvent(null);
-
-        setSnackbar({
-          open: true,
-          message: `Successfully captured attendance for ${eventName}`,
-          severity: "success",
-        });
-
-        return {
-          success: true,
-          message: `Successfully captured attendance for ${eventName}`,
-        };
-      }
-
-      return {
-        success: false,
-        message: "No attendees selected.",
-      };
-
-    } catch (error) {
-      console.error("Error updating event:", error);
-
-      let errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message;
-
-      if (typeof errorMessage === "object") {
-        try {
-          errorMessage = JSON.stringify(errorMessage);
-        } catch {
-          errorMessage = "Unknown error occurred.";
-        }
-      }
+      await fetchEvents();
+      setAttendanceModalOpen(false);
+      setSelectedEvent(null);
 
       setSnackbar({
         open: true,
-        message: errorMessage,
-        severity: "error",
+        message: `${eventName} marked as 'Did Not Meet'.`,
+        severity: "success",
       });
 
-      return {
-        success: false,
-        message: errorMessage,
-      };
+      return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
     }
-  };
+
+    // Normal submission: ensure data is array of attendee objects and map fields as backend expects
+    if (Array.isArray(data) && data.length > 0) {
+      // Map/normalize attendee objects so keys match your Pydantic Attendee model
+      const attendeesPayload = data.map(person => ({
+        id: person.id ?? person._id ?? person.ID ?? null,
+        name: person.name ?? person.fullName ?? '',
+        fullName: person.fullName ?? person.name ?? '',
+        leader12: person.leader12 ?? person.leader12 ?? null,
+        leader144: person.leader144 ?? person.leader144 ?? null,
+        time: person.time ?? null,
+        // include other fields you want stored (email/phone/decision) if available:
+        email: person.email ?? person.email ?? null,
+        phone: person.phone ?? null,
+        decision: person.decision ?? null,
+      }));
+
+      await axios.put(
+        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+        {
+          attendees: attendeesPayload,
+          leaderEmail,
+          leaderName,
+          did_not_meet: false,
+        },
+        { headers }
+      );
+
+      await fetchEvents();
+      setAttendanceModalOpen(false);
+      setSelectedEvent(null);
+
+      setSnackbar({
+        open: true,
+        message: `Successfully captured attendance for ${eventName}`,
+        severity: "success",
+      });
+
+      return { success: true, message: `Successfully captured attendance for ${eventName}` };
+    }
+
+    // if we get here, invalid payload
+    setSnackbar({
+      open: true,
+      message: "Please select at least one attendee or mark as 'Did Not Meet'.",
+      severity: "error",
+    });
+    return { success: false, message: "No attendees selected." };
+
+  } catch (error) {
+    console.error("Error updating event:", error);
+
+    // Friendly error extraction from backend (handles the validation_exception_handler output)
+    const errData = error.response?.data;
+    let errorMessage = error.message;
+
+    if (errData) {
+      if (Array.isArray(errData?.errors)) {
+        // your custom handler returns { errors: [{field, message}, ...] }
+        errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+      } else {
+        errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+      }
+    }
+
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: "error",
+    });
+
+    return { success: false, message: errorMessage };
+  }
+};
+
 
   const handleEditEvent = (event) => {
     navigate(`/edit-event/${event._id}`);
@@ -617,15 +688,17 @@ const Events = () => {
   const StatusBadges = () => {
     const statusCounts = {
       incomplete: events.filter(e => {
-        const status = (e.status || '').toLowerCase();
-        return status !== 'complete' && status !== 'closed' && status !== 'did_not_meet';
+        const status = (e.status || '').toLowerCase().trim();
+        return status === 'incomplete' || status === '' || (!status);
       }).length,
+      
       complete: events.filter(e => {
-        const status = (e.status || '').toLowerCase();
+        const status = (e.status || '').toLowerCase().trim();
         return status === 'complete' || status === 'closed';
       }).length,
+      
       did_not_meet: events.filter(e => {
-        const status = (e.status || '').toLowerCase();
+        const status = (e.status || '').toLowerCase().trim();
         return status === 'did_not_meet';
       }).length,
     };
@@ -750,7 +823,14 @@ const Events = () => {
                     <td style={styles.td}>{event.eventName}</td>
                     <td style={styles.td}>{event.eventLeaderName || '-'}</td>
                     <td style={styles.td}>{event.leader12 || '-'}</td>
-                    <td style={styles.td}>{dayOfWeek}</td>
+                    <td style={styles.td}>
+                      <div>{dayOfWeek}</div>
+                      {isOverdue(event) && (
+                        <div style={styles.overdueLabel}>
+                          Overdue
+                        </div>
+                      )}
+                    </td>
                     <td style={styles.td}>{event.eventLeaderEmail || '-'}</td>
                     <td style={styles.td}>{formatDate(event.date)}</td>
                     <td style={styles.td}>
@@ -802,10 +882,8 @@ const Events = () => {
       </div>
 
       <div style={{ 
-        padding: '1rem', 
-        textAlign: 'center', 
+        ...styles.eventsCounter,
         color: theme.palette.text.secondary,
-        fontSize: '0.875rem'
       }}>
         Showing {filteredEvents.length} of {events.length} events
       </div>
@@ -838,6 +916,7 @@ const Events = () => {
           }}
           onSubmit={handleAttendanceSubmit}
           event={selectedEvent}
+          currentUser={currentUser} 
           onAttendanceSubmitted={() => {
             fetchEvents();
             setAttendanceModalOpen(false);
@@ -909,6 +988,98 @@ const Events = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <style jsx>{`
+        @media (max-width: 768px) {
+          .container {
+            padding: 0.5rem !important;
+            padding-top: 4rem !important;
+          }
+          
+          .topSection {
+            padding: 1rem !important;
+          }
+          
+          .searchFilterRow {
+            flex-direction: column !important;
+          }
+          
+          .searchInput {
+            width: 100% !important;
+            min-width: 100% !important;
+          }
+          
+          .filterButton {
+            width: 100% !important;
+          }
+          
+          .statusBadgeContainer {
+            justify-content: center !important;
+          }
+          
+          .statusBadge {
+            font-size: 0.7rem !important;
+            padding: 0.4rem 0.8rem !important;
+          }
+          
+          .tableContainer {
+            margin: 0 -0.5rem !important;
+            border-radius: 0 !important;
+          }
+          
+          .table {
+            font-size: 0.8rem !important;
+          }
+          
+          .th, .td {
+            padding: 0.5rem !important;
+            font-size: 0.75rem !important;
+          }
+          
+          .floatingAddButton {
+            bottom: 15px !important;
+            right: 15px !important;
+            padding: 0.6rem 1rem !important;
+            font-size: 1.2rem !important;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .container {
+            padding: 0.25rem !important;
+            padding-top: 3.5rem !important;
+          }
+          
+          .topSection {
+            padding: 0.75rem !important;
+            margin-bottom: 0.5rem !important;
+          }
+          
+          .statusBadge {
+            font-size: 0.65rem !important;
+            padding: 0.35rem 0.6rem !important;
+          }
+          
+          .th, .td {
+            padding: 0.4rem !important;
+            font-size: 0.7rem !important;
+          }
+          
+          .openEventIcon {
+            width: 32px !important;
+            height: 32px !important;
+          }
+        }
+        
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+      `}</style>
     </div>
   );
 };
