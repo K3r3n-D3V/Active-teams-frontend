@@ -289,7 +289,6 @@ const Events = () => {
   const [customEventTypes, setCustomEventTypes] = useState([]);
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
-  const [createOptionsModalOpen, setCreateOptionsModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -299,23 +298,6 @@ const Events = () => {
   const [selectedStatus, setSelectedStatus] = useState('incomplete');
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredRow, setHoveredRow] = useState(null);
-
-  const handleAdminHistoryClick = () => {
-    navigate("/events-history", { state: { isAdmin: true } });
-  };
-
-  // Get event status from localStorage
-  const getEventStatus = (eventId) => {
-    const eventHistory = JSON.parse(localStorage.getItem("eventHistory")) || [];
-    const historyEntry = eventHistory.find(entry => entry.eventId === eventId);
-    
-    if (!historyEntry) return 'incomplete';
-    
-    if (historyEntry.status === 'did_not_meet') return 'did_not_meet';
-    if (historyEntry.status === 'attended' || historyEntry.status === 'complete') return 'complete';
-    
-    return 'incomplete';
-  };
 
   useEffect(() => {
     const savedEventTypes = localStorage.getItem("customEventTypes");
@@ -352,11 +334,11 @@ const Events = () => {
       const userRole = currentUser?.role;
       
       let allEvents = [];
-      let apiCustomTypes = [];
       
+      // Fetch event types
       try {
         const eventTypesResponse = await axios.get(`${BACKEND_URL}/event-types`, { headers });
-        apiCustomTypes = eventTypesResponse.data || [];
+        const apiCustomTypes = eventTypesResponse.data || [];
         setCustomEventTypes(apiCustomTypes);
         setUserCreatedEventTypes(apiCustomTypes);
         setEventTypes(apiCustomTypes.map(type => type.name));
@@ -364,86 +346,37 @@ const Events = () => {
         console.error("Failed to load event types:", typeError);
       }
       
+      // Fetch events based on role
       if (userRole === "admin") {
         try {
-          const allEventsResponse = await axios.get(`${BACKEND_URL}/events`, { headers });
-          allEvents = allEventsResponse.data.events || [];
+          const response = await axios.get(`${BACKEND_URL}/admin/events/cells`, { headers });
+          allEvents = response.data.events || [];
         } catch (adminError) {
           console.error("Admin events fetch failed:", adminError);
         }
       } else {
-        const response = await axios.get(`${BACKEND_URL}/events/cells-user`, { headers }).catch((err) => {
-          console.error("Cells user endpoint failed:", err);
-          return { data: { events: [], status: "error", error: err.message } };
-        });
-        
-        const cellsData = response.data;
-        
-        if (cellsData.status === "success") {
-          allEvents = [
-            ...(cellsData.own_cells || []),
-            ...(cellsData.leader12_cells || []),
-            ...(cellsData.leader144_cells || [])
-          ];
+        try {
+          const response = await axios.get(`${BACKEND_URL}/events/cells-user`, { headers });
+          if (response.data.status === "success") {
+            allEvents = response.data.events || [];
+          }
+        } catch (userError) {
+          console.error("User events fetch failed:", userError);
         }
       }
       
-      const processedEvents = allEvents.map((event) => {
-        let eventDate = event.date ? new Date(event.date) : null;
-        
-        return {
-          ...event,
-          _id: event._id,
-          eventName: event.eventName || event["Event Name"],
-          eventType: event.eventType || "Cell",
-          date: event.date,
-          location: event.location || event.Address || "Not specified",
-          description: event.description || event.eventName || "",
-          eventLeaderName: event.eventLeaderName || event.Leader,
-          eventLeaderEmail: event.eventLeaderEmail || event.Email,
-          leader1: event.leader1 || event["Leader at 1"] || "",
-          leader12: event.leader12 || event["Leader at 12"] || "",
-          leader144: event.leader144 || event["Leader at 144"] || "",
-          time: event.time || event.Time,
-          status: event.status || "open",
-          isTicketed: event.isTicketed || false,
-          price: event.price || 0,
-          parsedDate: eventDate,
-          relationship: event.relationship,
-          registeredUsers: event.registeredUsers || []
-        };
-      });
-      
-      let finalEvents = processedEvents;
-      if (userRole === "registrant") {
-        finalEvents = processedEvents.filter(event => {
-          const eventType = apiCustomTypes.find(
-            et => et.name === (event.eventType || "").trim()
-          );
-          if (!eventType || !(eventType.isTicketed || eventType.isGlobal)) return false;
-
-          if (eventType.isGlobal) return true;
-
-          if (event.registeredUsers && currentUser && currentUser.email) {
-            return event.registeredUsers.includes(currentUser.email);
-          }
-
-          return false;
-        });
-      }
-      
-      const sortedEvents = finalEvents.sort((a, b) => {
-        const dateA = a.parsedDate ? a.parsedDate.getTime() : Infinity;
-        const dateB = b.parsedDate ? b.parsedDate.getTime() : Infinity;
-        return dateA - dateB;
+      // Process and sort events by day of week
+      const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      const sortedEvents = allEvents.sort((a, b) => {
+        const dayA = (a.day || '').toLowerCase();
+        const dayB = (b.day || '').toLowerCase();
+        const indexA = dayOrder.indexOf(dayA);
+        const indexB = dayOrder.indexOf(dayB);
+        return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
       });
       
       setEvents(sortedEvents);
       setFilteredEvents(sortedEvents);
-      
-      sortedEvents.forEach(event => {
-        saveEventToLocalStorage(event, currentUser);
-      });
       
     } catch (err) {
       console.error("Fatal error in fetchEvents:", err);
@@ -452,17 +385,26 @@ const Events = () => {
     }
   };
 
+  // Filter logic using database status
   const applyAllFilters = (
     filters = activeFilters,
     statusFilter = selectedStatus,
     search = searchQuery
   ) => {
     let filtered = events.filter(event => {
-      // Get status from localStorage
-      const eventStatus = getEventStatus(event._id);
+      // Get status directly from database
+      const eventStatus = (event.status || '').toLowerCase();
+      
+      // Map database status to filter status
+      let mappedStatus = 'incomplete';
+      if (eventStatus === 'complete' || eventStatus === 'closed') {
+        mappedStatus = 'complete';
+      } else if (eventStatus === 'did_not_meet') {
+        mappedStatus = 'did_not_meet';
+      }
       
       // Filter by status
-      if (statusFilter !== 'all' && eventStatus !== statusFilter) {
+      if (statusFilter !== 'all' && mappedStatus !== statusFilter) {
         return false;
       }
       
@@ -499,19 +441,10 @@ const Events = () => {
         }
       }
 
-      if (filters.isTicketed !== undefined && filters.isTicketed !== '') {
-        const isTicketed = filters.isTicketed === 'true';
-        if (event.isTicketed !== isTicketed) {
-          matches = false;
-        }
-      }
-
       if (filters.recurringDay) {
-        const eventDays = Array.isArray(event.recurringDays)
-          ? event.recurringDays
-          : [event.recurringDays];
-
-        if (!eventDays.includes(filters.recurringDay)) {
+        const eventDay = (event.day || '').toLowerCase().trim();
+        const filterDay = filters.recurringDay.toLowerCase().trim();
+        if (eventDay !== filterDay) {
           matches = false;
         }
       }
@@ -590,12 +523,10 @@ const Events = () => {
   };
 
   const handleCreateEvent = () => {
-    setCreateOptionsModalOpen(false);
     setCreateEventModalOpen(true);
   };
 
   const handleCreateEventType = () => {
-    setCreateOptionsModalOpen(false);
     setCreateEventTypeModalOpen(true);
   };
 
@@ -616,31 +547,17 @@ const Events = () => {
       const eventId = selectedEvent._id;
       const eventName = selectedEvent.eventName;
       const eventType = selectedEvent.eventType;
-      const formattedDate = new Date().toLocaleDateString();
-      const formattedTime = new Date().toLocaleTimeString();
 
       if (data === "did-not-meet") {
         await axios.put(
           `${BACKEND_URL}/events/${eventId}`,
           {
-            status: "closed",
+            Status: "did_not_meet",
             attendees: [],
             did_not_meet: true,
           },
           { headers }
         );
-
-        await saveToEventHistory({
-          eventId,
-          service_name: eventName,
-          eventType,
-          status: "did_not_meet",
-          attendees: [],
-          closedAt: `${formattedDate}, ${formattedTime}`,
-          leader12: selectedEvent.eventLeaderName || "-",
-          leader12_email: selectedEvent.eventLeaderEmail || "-",
-          userEmail: currentUser.email,
-        });
 
         fetchEvents();
         setAttendanceModalOpen(false);
@@ -659,29 +576,15 @@ const Events = () => {
       }
 
       if (Array.isArray(data) && data.length > 0) {
-        const attendeeIds = data.map((person) => person.id?.toString?.() ?? "").filter(Boolean);
-
         await axios.put(
           `${BACKEND_URL}/events/${eventId}`,
           {
-            status: "closed",
-            attendees: attendeeIds,
+            Status: "Complete",
+            attendees: data,
             did_not_meet: false,
           },
           { headers }
         );
-
-        await saveToEventHistory({
-          eventId,
-          service_name: eventName,
-          eventType,
-          status: "attended",
-          attendees: data,
-          closedAt: `${formattedDate}, ${formattedTime}`,
-          leader12: selectedEvent.eventLeaderName || "-",
-          leader12_email: selectedEvent.eventLeaderEmail || "-",
-          userEmail: currentUser.email,
-        });
 
         fetchEvents();
         setAttendanceModalOpen(false);
@@ -771,9 +674,18 @@ const Events = () => {
 
   const StatusBadges = () => {
     const statusCounts = {
-      incomplete: events.filter(e => getEventStatus(e._id) === 'incomplete').length,
-      complete: events.filter(e => getEventStatus(e._id) === 'complete').length,
-      did_not_meet: events.filter(e => getEventStatus(e._id) === 'did_not_meet').length,
+      incomplete: events.filter(e => {
+        const status = (e.status || '').toLowerCase();
+        return status !== 'complete' && status !== 'closed' && status !== 'did_not_meet';
+      }).length,
+      complete: events.filter(e => {
+        const status = (e.status || '').toLowerCase();
+        return status === 'complete' || status === 'closed';
+      }).length,
+      did_not_meet: events.filter(e => {
+        const status = (e.status || '').toLowerCase();
+        return status === 'did_not_meet';
+      }).length,
     };
     
     return (
@@ -844,21 +756,6 @@ const Events = () => {
           >
             FILTER
           </button>
-          {isAdmin && (
-            <Tooltip title="View Captured Events" arrow>
-              <IconButton
-                onClick={handleAdminHistoryClick}
-                sx={{
-                  color: theme.palette.primary.main,
-                  '&:hover': {
-                    backgroundColor: theme.palette.action.hover,
-                  },
-                }}
-              >
-                <HistoryIcon />
-              </IconButton>
-            </Tooltip>
-          )}
         </div>
 
         <StatusBadges />
@@ -896,9 +793,7 @@ const Events = () => {
               </tr>
             ) : (
               filteredEvents.map((event) => {
-                const dayOfWeek = event.parsedDate 
-                  ? event.parsedDate.toLocaleDateString('en-US', { weekday: 'long' })
-                  : 'Not set';
+                const dayOfWeek = event.day || 'Not set';
                 
                 return (
                   <tr
@@ -973,21 +868,14 @@ const Events = () => {
         Showing {filteredEvents.length} of {events.length} events
       </div>
 
-      {isAdmin ? (
+      {/* Admin sees + button, regular users see nothing */}
+      {isAdmin && (
         <button
           style={styles.floatingAddButton}
-          onClick={() => setCreateOptionsModalOpen(true)}
-          title="Add New Event"
+          onClick={handleCreateEvent}
+          title="Create New Event"
         >
           +
-        </button>
-      ) : (
-        <button
-          style={styles.floatingHistoryButton}
-          onClick={() => navigate("/events-history")}
-          title="View Event History"
-        >
-          History
         </button>
       )}
 
@@ -1017,23 +905,19 @@ const Events = () => {
         />
       )}
 
-      <EventsModal
-        isOpen={createOptionsModalOpen}
-        onClose={() => setCreateOptionsModalOpen(false)}
-        onCreateEvent={handleCreateEvent}
-        onCreateEventType={handleCreateEventType}
-        userRole={currentUser?.role}
-      />
+      {/* Admin Event Type Modal */}
+      {isAdmin && (
+        <EventTypesModal
+          open={createEventTypeModalOpen}
+          onClose={handleCloseCreateEventTypeModal}
+          onSubmit={handleCreateEventTypeSubmit}
+          setSelectedEventTypeObj={setSelectedEventTypeObj}
+          customEventTypes={customEventTypes}
+          userRole={currentUser?.role}
+        />
+      )}
 
-      <EventTypesModal
-        open={createEventTypeModalOpen}
-        onClose={handleCloseCreateEventTypeModal}
-        onSubmit={handleCreateEventTypeSubmit}
-        setSelectedEventTypeObj={setSelectedEventTypeObj}
-        customEventTypes={customEventTypes}
-        userRole={currentUser?.role}
-      />
-
+      {/* Create Event Modal */}
       {createEventModalOpen && (
         <div
           style={styles.modalOverlay}
