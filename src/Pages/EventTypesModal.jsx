@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState , useEffect} from "react";
 import {
   Modal,
   Box,
@@ -10,7 +10,7 @@ import {
   Alert,
 } from "@mui/material";
 
-const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj,   }) => {
+const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj,  selectedEventType }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "", // Changed from eventGroupName to match backend
@@ -102,7 +102,7 @@ const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj,   }
     setErrors({});
   };
 
-// In your EventTypesModal component, fix the handleSubmit function:
+
 const handleSubmit = async () => {
   if (!validateForm()) return;
 
@@ -110,31 +110,31 @@ const handleSubmit = async () => {
   try {
     const eventTypeData = {
       name: formData.name.trim(),
+      description: formData.description.trim(),
       isTicketed: formData.isTicketed,
       isGlobal: formData.isGlobal,
-      hasPersonSteps: formData.hasPersonSteps,
-      description: formData.description.trim(),
+      hasPersonSteps: formData.hasPersonSteps
     };
 
-    console.log('Submitting event type data:', eventTypeData);
-
-    // Call the onSubmit prop which should handle the API call
-    const result = await onSubmit(eventTypeData);
-    
-    if (result && setSelectedEventTypeObj) {
-      setSelectedEventTypeObj(result);
+    let result;
+    if (selectedEventType && selectedEventType._id) {
+      // EDIT
+      result = await onSubmit(eventTypeData, selectedEventType._id);
+    } else {
+      // CREATE
+      result = await onSubmit(eventTypeData);
     }
 
     resetForm();
     onClose();
-    
+    return result;
   } catch (error) {
-    console.error("Error creating event type:", error);
+    console.error("Error saving event type:", error);
+    throw error;
   } finally {
     setLoading(false);
   }
 };
-
 
   const handleClose = () => {
     if (!loading) {
@@ -142,6 +142,19 @@ const handleSubmit = async () => {
       onClose();
     }
   };
+useEffect(() => {
+  if (selectedEventType) {
+    setFormData({
+      name: selectedEventType.name || "",
+      description: selectedEventType.description || "",
+      isTicketed: !!selectedEventType.isTicketed,
+      isGlobal: !!selectedEventType.isGlobal,
+      hasPersonSteps: !!selectedEventType.hasPersonSteps,
+    });
+  } else {
+    resetForm();
+  }
+}, [selectedEventType, open]);
 
   // Determine which event type is selected for display
   const getSelectedEventType = () => {
@@ -186,17 +199,17 @@ const handleSubmit = async () => {
             alignItems: "center",
           }}
         >
-          <Typography
-            variant="h5"
-            component="h2"
-            sx={{
-              fontWeight: "bold",
-              margin: 0,
-              fontSize: "1.5rem",
-            }}
-          >
-            Create New Event Type
-          </Typography>
+         <Typography
+  variant="h5"
+  component="h2"
+  sx={{
+    fontWeight: "bold",
+    margin: 0,
+    fontSize: "1.5rem",
+  }}
+>
+  {selectedEventType ? 'Edit Event Type' : 'Create New Event Type'}
+</Typography>
           <button
             onClick={handleClose}
             disabled={loading}
@@ -236,33 +249,35 @@ const handleSubmit = async () => {
           }}
         >
           {/* Event Group Name */}
-          <TextField
-            label="Event Type Name"
-            name="name"
-            fullWidth
-            margin="normal"
-            value={formData.name}
-            onChange={handleInputChange}
-            error={!!errors.name}
-            helperText={errors.name}
-            placeholder="Craete an event type"
-            disabled={loading}
-            sx={{
-              mb: 3,
-              mt: 0,
-              '& .MuiOutlinedInput-root': {
-                '& fieldset': {
-                  borderColor: '#ddd',
-                },
-                '&:hover fieldset': {
-                  borderColor: '#bbb',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: '#1976d2',
-                },
-              },
-            }}
-          />
+       <TextField
+  label="Event Type Name"
+  name="name"
+  fullWidth
+  margin="normal"
+  value={formData.name}
+  onChange={handleInputChange}
+  error={!!errors.name}
+  helperText={errors.name}
+  placeholder={selectedEventType ? "Edit event type name" : "Create an event type"}
+  disabled={loading}
+  sx={{
+    mb: 3,
+    mt: 0,
+    '& .MuiOutlinedInput-root': {
+      '& fieldset': {
+        borderColor: '#ddd',
+      },
+      '&:hover fieldset': {
+        borderColor: '#bbb',
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: '#1976d2',
+      },
+    },
+  }}
+/>
+
+
 
           {/* Event Type Selection */}
           <Box sx={{ mb: 3 }}>

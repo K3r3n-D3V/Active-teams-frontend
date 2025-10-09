@@ -162,6 +162,19 @@ const CreateEvents = ({
     fetchEventData();
   }, [eventId, BACKEND_URL]);
 
+  useEffect(() => {
+  const selectedEventType = localStorage.getItem('selectedEventType');
+  if (selectedEventType) {
+    const parsed = JSON.parse(selectedEventType);
+    setFormData(prev => ({
+      ...prev,
+      eventType: parsed.name || '',
+      // Optionally set other fields like isTicketed, isGlobal, hasPersonSteps
+    }));
+    // You can also use parsed.isTicketed, parsed.isGlobal, etc. for conditional rendering
+  }
+}, []);
+
   const handleChange = (field, value) => {
     console.log(`Changing ${field} to:`, value); // Debug log
 
