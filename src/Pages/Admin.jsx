@@ -198,9 +198,9 @@ const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj }) =
         />
 
         <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: '#333' }}>
+          {/* <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: '#333' }}>
             Event Type (Select One):
-          </Typography>
+          </Typography> */}
 
           {errors.eventType && (
             <Alert severity="error" sx={{ mb: 2, fontSize: '0.8rem' }}>

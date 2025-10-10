@@ -458,33 +458,37 @@ const Events = () => {
     applyAllFilters(activeFilters, selectedStatus, value);
   };
 
-  const handleCreateEventTypeSubmit = async (eventTypeData) => {
-    try {
-      const token = localStorage.getItem("token");
+const handleCreateEventTypeSubmit = async (eventTypeData) => {
+  try {
+    const token = localStorage.getItem("token");
 
-      const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+    const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
-      const newEventType = response.data;
+    const newEventType = response.data;
 
-      if (newEventType) {
-        const updatedEventTypes = [...customEventTypes, newEventType];
-        setCustomEventTypes(updatedEventTypes);
-        setUserCreatedEventTypes(updatedEventTypes);
-        setEventTypes(updatedEventTypes.map(type => type.name));
+    if (newEventType) {
+      const updatedEventTypes = [...customEventTypes, newEventType];
+      setCustomEventTypes(updatedEventTypes);
+      setUserCreatedEventTypes(updatedEventTypes);
+      setEventTypes(updatedEventTypes.map(type => type.name));
 
-        setSelectedEventTypeObj(newEventType);
-        setCurrentSelectedEventType(newEventType.name);
+      // Store the complete event type object
+      setSelectedEventTypeObj(newEventType);
+      setCurrentSelectedEventType(newEventType.name);
+      
+      // Store in localStorage for CreateEvents to access
+      localStorage.setItem('selectedEventTypeObj', JSON.stringify(newEventType));
 
-        setCreateEventTypeModalOpen(false);
-        setCreateEventModalOpen(true);
-      }
-    } catch (error) {
-      console.error('Error creating event type:', error);
-      alert('Failed to create event type. Please try again.');
+      setCreateEventTypeModalOpen(false);
+      setCreateEventModalOpen(true);
     }
-  };
+  } catch (error) {
+    console.error('Error creating event type:', error);
+    alert('Failed to create event type. Please try again.');
+  }
+};
 
   useEffect(() => {
     if (currentSelectedEventType) {
@@ -926,53 +930,56 @@ const handleAttendanceSubmit = async (data) => {
       )}
 
       {isAdmin && (
-        <EventTypesModal
-          open={createEventTypeModalOpen}
-          onClose={handleCloseCreateEventTypeModal}
-          onSubmit={handleCreateEventTypeSubmit}
-          setSelectedEventTypeObj={setSelectedEventTypeObj}
-          customEventTypes={customEventTypes}
-          userRole={currentUser?.role}
-        />
+ <EventTypesModal
+  open={createEventTypeModalOpen}
+  onClose={handleCloseCreateEventTypeModal}
+  onSubmit={handleCreateEventTypeSubmit}
+  setSelectedEventTypeObj={setSelectedEventTypeObj}
+  // selectedEventType={selectedEventType}  
+  customEventTypes={customEventTypes}
+  userRole={currentUser?.role}
+/>
+
       )}
 
-      {createEventModalOpen && (
-        <div
-          style={styles.modalOverlay}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              handleCloseCreateEventModal();
-            }
-          }}
+   {createEventModalOpen && (
+  <div
+    style={styles.modalOverlay}
+    onClick={(e) => {
+      if (e.target === e.currentTarget) {
+        handleCloseCreateEventModal();
+      }
+    }}
+  >
+    <div style={styles.modalContent}>
+      <div style={styles.modalHeader}>
+        <h2 style={styles.modalTitle}>
+          {selectedEventTypeObj?.name === "CELLS" ? "Create New Cell" : "Create New Event"}
+        </h2>
+        <button
+          style={styles.modalCloseButton}
+          onClick={handleCloseCreateEventModal}
+          title="Close"
         >
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
-              <h2 style={styles.modalTitle}>
-                {selectedEventTypeObj?.name === "CELLS" ? "Create New Cell" : "Create New Event"}
-              </h2>
-              <button
-                style={styles.modalCloseButton}
-                onClick={handleCloseCreateEventModal}
-                title="Close"
-              >
-                ×
-              </button>
-            </div>
-            <div style={styles.modalBody}>
-              <CreateEvents
-                user={currentUser}
-                isModal={true}
-                onClose={handleCloseCreateEventModal}
-                selectedEventType={currentSelectedEventType}
-                eventTypes={allEventTypes}
-                isGlobalEvent={selectedEventTypeObj?.isGlobal || false}
-                isTicketedEvent={selectedEventTypeObj?.isTicketed || false}
-                hasPersonSteps={selectedEventTypeObj?.hasPersonSteps || false}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+          ×
+        </button>
+      </div>
+      <div style={styles.modalBody}>
+        <CreateEvents
+          user={currentUser}
+          isModal={true}
+          onClose={handleCloseCreateEventModal}
+          selectedEventTypeObj={selectedEventTypeObj}   
+          selectedEventType={currentSelectedEventType}
+          eventTypes={allEventTypes}
+          isGlobalEvent={selectedEventTypeObj?.isGlobal || false}
+          isTicketedEvent={selectedEventTypeObj?.isTicketed || false} 
+          hasPersonSteps={selectedEventTypeObj?.hasPersonSteps || false}  
+        />
+      </div>
+    </div>
+  </div>
+)}
 
       <Snackbar
         open={snackbar.open}

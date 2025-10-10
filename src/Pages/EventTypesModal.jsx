@@ -1,4 +1,4 @@
-import React, { useState , useEffect} from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   Box,
@@ -10,10 +10,10 @@ import {
   Alert,
 } from "@mui/material";
 
-const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj,  selectedEventType }) => {
+const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj, selectedEventType }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: "", // Changed from eventGroupName to match backend
+    name: "",
     isTicketed: false,
     isGlobal: false,
     hasPersonSteps: false,
@@ -21,6 +21,7 @@ const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj,  se
   });
 
   const [errors, setErrors] = useState({});
+
   const handleCheckboxChange = (name) => (event) => {
     const { checked } = event.target;
     
@@ -82,11 +83,6 @@ const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj,  se
       newErrors.description = "Description must be at least 10 characters";
     }
 
-    // Validate that at least one event type is selected
-    if (!formData.isTicketed && !formData.isGlobal && !formData.hasPersonSteps) {
-      newErrors.eventType = "Please select at least one event type";
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -102,39 +98,44 @@ const EventTypesModal = ({ open, onClose, onSubmit, setSelectedEventTypeObj,  se
     setErrors({});
   };
 
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
 
-const handleSubmit = async () => {
-  if (!validateForm()) return;
+    setLoading(true);
+    try {
+      const eventTypeData = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        isTicketed: formData.isTicketed,
+        isGlobal: formData.isGlobal,
+        hasPersonSteps: formData.hasPersonSteps,
+      };
 
-  setLoading(true);
-  try {
-    const eventTypeData = {
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-      isTicketed: formData.isTicketed,
-      isGlobal: formData.isGlobal,
-      hasPersonSteps: formData.hasPersonSteps
-    };
+      let result;
+      if (selectedEventType && selectedEventType._id) {
+        result = await onSubmit(eventTypeData, selectedEventType._id);
+      } else {
+        result = await onSubmit(eventTypeData);
+      }
 
-    let result;
-    if (selectedEventType && selectedEventType._id) {
-      // EDIT
-      result = await onSubmit(eventTypeData, selectedEventType._id);
-    } else {
-      // CREATE
-      result = await onSubmit(eventTypeData);
+      // IMPORTANT: Update the selected event type object
+      if (setSelectedEventTypeObj) {
+        setSelectedEventTypeObj({
+          ...eventTypeData,
+          _id: selectedEventType?._id || result?._id
+        });
+      }
+
+      resetForm();
+      onClose();
+      return result;
+    } catch (error) {
+      console.error("Error saving event type:", error);
+      throw error;
+    } finally {
+      setLoading(false);
     }
-
-    resetForm();
-    onClose();
-    return result;
-  } catch (error) {
-    console.error("Error saving event type:", error);
-    throw error;
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleClose = () => {
     if (!loading) {
@@ -142,27 +143,20 @@ const handleSubmit = async () => {
       onClose();
     }
   };
-useEffect(() => {
-  if (selectedEventType) {
-    setFormData({
-      name: selectedEventType.name || "",
-      description: selectedEventType.description || "",
-      isTicketed: !!selectedEventType.isTicketed,
-      isGlobal: !!selectedEventType.isGlobal,
-      hasPersonSteps: !!selectedEventType.hasPersonSteps,
-    });
-  } else {
-    resetForm();
-  }
-}, [selectedEventType, open]);
 
-  // Determine which event type is selected for display
-  const getSelectedEventType = () => {
-    if (formData.isTicketed) return "Ticketed Event";
-    if (formData.isGlobal) return "Global Event";
-    if (formData.hasPersonSteps) return "Personal Steps Event";
-    return "No event type selected";
-  };
+  useEffect(() => {
+    if (selectedEventType) {
+      setFormData({
+        name: selectedEventType.name || "",
+        description: selectedEventType.description || "",
+        isTicketed: !!selectedEventType.isTicketed,
+        isGlobal: !!selectedEventType.isGlobal,
+        hasPersonSteps: !!selectedEventType.hasPersonSteps,
+      });
+    } else {
+      resetForm();
+    }
+  }, [selectedEventType, open]);
 
   return (
     <Modal 
@@ -199,17 +193,17 @@ useEffect(() => {
             alignItems: "center",
           }}
         >
-         <Typography
-  variant="h5"
-  component="h2"
-  sx={{
-    fontWeight: "bold",
-    margin: 0,
-    fontSize: "1.5rem",
-  }}
->
-  {selectedEventType ? 'Edit Event Type' : 'Create New Event Type'}
-</Typography>
+          <Typography
+            variant="h5"
+            component="h2"
+            sx={{
+              fontWeight: "bold",
+              margin: 0,
+              fontSize: "1.5rem",
+            }}
+          >
+            {selectedEventType ? 'Edit Event Type' : 'Create New Event Type'}
+          </Typography>
           <button
             onClick={handleClose}
             disabled={loading}
@@ -248,49 +242,37 @@ useEffect(() => {
             padding: "24px",
           }}
         >
-          {/* Event Group Name */}
-       <TextField
-  label="Event Type Name"
-  name="name"
-  fullWidth
-  margin="normal"
-  value={formData.name}
-  onChange={handleInputChange}
-  error={!!errors.name}
-  helperText={errors.name}
-  placeholder={selectedEventType ? "Edit event type name" : "Create an event type"}
-  disabled={loading}
-  sx={{
-    mb: 3,
-    mt: 0,
-    '& .MuiOutlinedInput-root': {
-      '& fieldset': {
-        borderColor: '#ddd',
-      },
-      '&:hover fieldset': {
-        borderColor: '#bbb',
-      },
-      '&.Mui-focused fieldset': {
-        borderColor: '#1976d2',
-      },
-    },
-  }}
-/>
+          {/* Event Type Name */}
+          <TextField
+            label="Event Type Name"
+            name="name"
+            fullWidth
+            margin="normal"
+            value={formData.name}
+            onChange={handleInputChange}
+            error={!!errors.name}
+            helperText={errors.name}
+            placeholder={selectedEventType ? "Edit event type name" : "Create an event type"}
+            disabled={loading}
+            sx={{
+              mb: 3,
+              mt: 0,
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': {
+                  borderColor: '#ddd',
+                },
+                '&:hover fieldset': {
+                  borderColor: '#bbb',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#1976d2',
+                },
+              },
+            }}
+          />
 
-
-
-          {/* Event Type Selection */}
+          {/* Event Type Selection - NO "Selected" text anymore */}
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: '#333' }}>
-              Event Type (Select One):
-            </Typography>
-            
-            {errors.eventType && (
-              <Alert severity="error" sx={{ mb: 2, fontSize: '0.8rem' }}>
-                {errors.eventType}
-              </Alert>
-            )}
-
             <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 2 }}>
               <FormControlLabel
                 control={
@@ -300,19 +282,9 @@ useEffect(() => {
                     onChange={handleCheckboxChange('isTicketed')}
                     color="primary"
                     disabled={loading}
-                    sx={{ 
-                      '& .MuiSvgIcon-root': { fontSize: 20 }
-                    }}
                   />
                 }
-                label="Ticketed"
-                sx={{ 
-                  '& .MuiFormControlLabel-label': { 
-                    fontSize: '0.95rem',
-                    color: '#333',
-                    fontWeight: formData.isTicketed ? 'bold' : 'normal'
-                  }
-                }}
+                label="Ticketed Event"
               />
 
               <FormControlLabel
@@ -323,19 +295,9 @@ useEffect(() => {
                     onChange={handleCheckboxChange('isGlobal')}
                     color="primary"
                     disabled={loading}
-                    sx={{ 
-                      '& .MuiSvgIcon-root': { fontSize: 20 }
-                    }}
                   />
                 }
                 label="Global Event"
-                sx={{ 
-                  '& .MuiFormControlLabel-label': { 
-                    fontSize: '0.95rem',
-                    color: '#333',
-                    fontWeight: formData.isGlobal ? 'bold' : 'normal'
-                  }
-                }}
               />
 
               <FormControlLabel
@@ -346,32 +308,12 @@ useEffect(() => {
                     onChange={handleCheckboxChange('hasPersonSteps')}
                     color="primary"
                     disabled={loading}
-                    sx={{ 
-                      '& .MuiSvgIcon-root': { fontSize: 20 }
-                    }}
                   />
                 }
-                label="Person Steps"
-                sx={{ 
-                  '& .MuiFormControlLabel-label': { 
-                    fontSize: '0.95rem',
-                    color: '#333',
-                    fontWeight: formData.hasPersonSteps ? 'bold' : 'normal'
-                  }
-                }}
+                label="Personal Steps Event"
               />
             </Box>
-
-            {/* Selected type indicator */}
-            {formData.isTicketed || formData.isGlobal || formData.hasPersonSteps ? (
-              <Typography variant="body2" sx={{ 
-                color: '#1976d2', 
-                fontStyle: 'italic',
-                mt: 1 
-              }}>
-                Selected: {getSelectedEventType()}
-              </Typography>
-            ) : null}
+            {/* REMOVED: "Selected: Global Event" text that was here */}
           </Box>
 
           {/* Description */}
@@ -384,8 +326,8 @@ useEffect(() => {
             value={formData.description}
             onChange={handleInputChange}
             error={!!errors.description}
-            helperText={errors.description || "Describe the purpose and details of this event group"}
-            placeholder="Enter a detailed description of this event group..."
+            helperText={errors.description || "Describe the purpose and details of this event type"}
+            placeholder="Enter a detailed description of this event type..."
             disabled={loading}
             sx={{
               mb: 3,
@@ -449,7 +391,7 @@ useEffect(() => {
                 }
               }}
             >
-              {loading ? "Creating..." : "Submit"}
+              {loading ? "Saving..." : "Submit"}
             </Button>
           </Box>
         </Box>
