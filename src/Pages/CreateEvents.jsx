@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import {
   Button, TextField, Checkbox, FormControl, InputLabel, Select, MenuItem,
   Card, CardContent, FormControlLabel, Box, InputAdornment, Snackbar, Alert, Typography,
-  useTheme, Autocomplete
+  useTheme, Autocomplete, IconButton
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
+import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -18,7 +19,7 @@ const CreateEvents = ({
   selectedEventType = '',
   isGlobalEvent = false,
   isTicketedEvent = false,
-  hasPersonSteps = false
+  hasPersonSteps = false,
 }) => {
   console.log("DEBUG: isTicketedEvent prop in CreateEvents:", isTicketedEvent);
 
@@ -49,6 +50,7 @@ const CreateEvents = ({
     eventName: '',
     ageGroup: '',
     memberType: '',
+    paymentMethod: '',
     price: '',
     date: '',
     time: '',
@@ -59,25 +61,26 @@ const CreateEvents = ({
     description: '',
     leader1: '',
     leader12: '',
-    leaders: []
+    leaders: [],
+    customAgeGroups: [],
+    customMemberTypes: [],
+    customPaymentMethods: [],
+    newAgeGroup: '',
+    newMemberType: '',
+    newPaymentMethod: ''
   });
 
   const [errors, setErrors] = useState({});
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-  // Days of the week
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  // const ageGroupOptions = ['Child', 'Adult'];
-  // const memberTypeOptions = ['Guild', 'First Time'];
-
-  // Fetch people function - FIXED to match AttendanceModal approach
   const fetchPeople = async (filter = "") => {
     console.log("fetchPeople called with filter:", filter);
     try {
       setLoadingPeople(true);
       const params = new URLSearchParams();
-      params.append("perPage", "1000"); // Changed from "100" to "1000" to match your logs
+      params.append("perPage", "1000");
       if (filter) {
         params.append("name", filter);
       }
@@ -108,17 +111,16 @@ const CreateEvents = ({
       console.error("Error fetching people:", err);
       setErrorMessage("Failed to load people data. Please refresh the page.");
       setErrorAlert(true);
-      setPeopleData([]); // Reset on error
+      setPeopleData([]);
     } finally {
       setLoadingPeople(false);
     }
   };
+
   useEffect(() => {
     fetchPeople();
   }, [BACKEND_URL]);
 
-
-  // Fetch event data if editing
   useEffect(() => {
     if (!eventId) return;
 
@@ -141,12 +143,9 @@ const CreateEvents = ({
         }
 
         data.price = data.price ? data.price.toString() : '';
-
-        // Handle new fields
         data.ageGroup = data.ageGroup || '';
         data.memberType = data.memberType || '';
 
-        // Collect leaders dynamically
         data.leaders = Object.entries(data)
           .filter(([key, value]) => key.toLowerCase().startsWith("leader") && value)
           .map(([key, value]) => ({ slot: key, name: value }));
@@ -162,11 +161,21 @@ const CreateEvents = ({
     fetchEventData();
   }, [eventId, BACKEND_URL]);
 
+  useEffect(() => {
+    const selectedEventType = localStorage.getItem('selectedEventType');
+    if (selectedEventType) {
+      const parsed = JSON.parse(selectedEventType);
+      setFormData(prev => ({
+        ...prev,
+        eventType: parsed.name || '',
+      }));
+    }
+  }, []);
+
   const handleChange = (field, value) => {
-    console.log(`Changing ${field} to:`, value); // Debug log
+    console.log(`Changing ${field} to:`, value);
 
     setFormData(prev => {
-      // Clear errors for this field outside setFormData for clarity
       if (errors[field]) {
         setErrors(prevErrors => ({ ...prevErrors, [field]: '' }));
       }
@@ -176,7 +185,6 @@ const CreateEvents = ({
         const wasCell = prev.eventType.toLowerCase().includes("cell");
 
         if (isCell !== wasCell) {
-          // Reset dependent fields on switching to/from cell
           return {
             ...prev,
             [field]: value,
@@ -189,12 +197,42 @@ const CreateEvents = ({
         }
       }
 
-      // Default: just update the field
       return {
         ...prev,
         [field]: value
       };
     });
+  };
+
+  const handleAddCustomOption = (fieldType, newValue) => {
+    if (!newValue.trim()) return;
+
+    const fieldMap = {
+      ageGroup: {
+        customField: 'customAgeGroups',
+        valueField: 'ageGroup',
+        newField: 'newAgeGroup'
+      },
+      memberType: {
+        customField: 'customMemberTypes',
+        valueField: 'memberType',
+        newField: 'newMemberType'
+      },
+      paymentMethod: {
+        customField: 'customPaymentMethods',
+        valueField: 'paymentMethod',
+        newField: 'newPaymentMethod'
+      }
+    };
+
+    const { customField, valueField, newField } = fieldMap[fieldType];
+
+    setFormData(prev => ({
+      ...prev,
+      [customField]: [...(prev[customField] || []), newValue.trim()],
+      [valueField]: newValue.trim(),
+      [newField]: ''
+    }));
   };
 
   const handleDayChange = (day) => {
@@ -212,6 +250,7 @@ const CreateEvents = ({
       eventName: '',
       ageGroup: '',
       memberType: '',
+      paymentMethod: '',
       price: '',
       date: '',
       time: '',
@@ -222,7 +261,13 @@ const CreateEvents = ({
       description: '',
       leader1: '',
       leader12: '',
-      leaders: []
+      leaders: [],
+      customAgeGroups: [],
+      customMemberTypes: [],
+      customPaymentMethods: [],
+      newAgeGroup: '',
+      newMemberType: '',
+      newPaymentMethod: ''
     });
     setErrors({});
   };
@@ -261,7 +306,6 @@ const CreateEvents = ({
       newErrors.description = 'Description is required';
     }
 
-    // Skip additional validations for global events
     if (!isGlobalEvent) {
       if (isCell && formData.recurringDays.length === 0) {
         newErrors.recurringDays = 'Select at least one recurring day';
@@ -276,7 +320,6 @@ const CreateEvents = ({
         }
       }
 
-      // Validate ticketed fields when event type is configured as ticketed
       if (isTicketedEvent) {
         if (!formData.ageGroup) {
           newErrors.ageGroup = 'Age group is required for ticketed events';
@@ -284,12 +327,14 @@ const CreateEvents = ({
         if (!formData.memberType) {
           newErrors.memberType = 'Member type is required for ticketed events';
         }
+        if (!formData.paymentMethod) {
+          newErrors.paymentMethod = 'Payment method is required for ticketed events';
+        }
         if (!formData.price || parseFloat(formData.price) < 0) {
           newErrors.price = 'Price is required for ticketed events';
         }
       }
 
-      // Validate Person Steps fields - FIXED: removed email validation
       if (hasPersonSteps && !isGlobalEvent) {
         if (!formData.leader1) {
           newErrors.leader1 = "Leader @1 is required";
@@ -300,7 +345,6 @@ const CreateEvents = ({
       }
 
     } else {
-      // For global events, only validate basic date/time
       if (!formData.date) {
         newErrors.date = 'Date is required';
       }
@@ -308,7 +352,7 @@ const CreateEvents = ({
         newErrors.time = 'Time is required';
       }
     }
-
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -341,7 +385,6 @@ const CreateEvents = ({
     try {
       const isCell = formData.eventType.toLowerCase().includes("cell");
 
-      // Prepare payload with field names that match your backend model
       const payload = {
         eventType: formData.eventType,
         eventName: formData.eventName,
@@ -351,25 +394,23 @@ const CreateEvents = ({
         description: formData.description,
         userEmail: user?.email || '',
         recurring_day: formData.recurringDays,
-        status: 'open'  // ADD THIS LINE
+        status: 'open'  
       };
 
-      // Handle ticketed event fields when event type is configured as ticketed
       if (isTicketedEvent) {
         payload.ageGroup = formData.ageGroup;
         payload.memberType = formData.memberType;
+        payload.paymentMethod = formData.paymentMethod;  
         payload.price = formData.price ? parseFloat(formData.price) : 0;
       } else {
         payload.price = null;
       }
 
-      // FIXED: Add leaders for person steps events (removed isCell dependency and email)
       if (hasPersonSteps && !isGlobalEvent) {
         if (formData.leader1) payload.leader1 = formData.leader1;
         if (formData.leader12) payload.leader12 = formData.leader12;
       }
 
-      // Handle date for non-cell events OR global events
       if ((!isCell || isGlobalEvent) && formData.date && formData.time) {
         const [hoursStr, minutesStr] = formData.time.split(':');
         let hours = Number(hoursStr);
@@ -383,7 +424,6 @@ const CreateEvents = ({
 
       console.log('Payload being sent:', JSON.stringify(payload, null, 2));
 
-      // Send request
       const response = eventId
         ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
         : await axios.post(`${BACKEND_URL}/events`, payload);
@@ -399,7 +439,6 @@ const CreateEvents = ({
 
       if (!eventId) resetForm();
 
-      // Close modal or navigate after a brief delay to show success message
       setTimeout(() => {
         if (isModal && typeof onClose === 'function') {
           onClose();
@@ -435,7 +474,6 @@ const CreateEvents = ({
 
   const isCell = formData.eventType.toLowerCase().includes("cell");
 
-  // Modified styles for modal use
   const containerStyle = isModal ? {
     padding: '0',
     minHeight: 'auto',
@@ -552,7 +590,7 @@ const CreateEvents = ({
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Event Type - Always show */}
+            {/* Event Type */}
             <TextField
               label={isGlobalEvent ? "Event Group Name" : "Event Type"}
               value={formData.eventType}
@@ -565,7 +603,7 @@ const CreateEvents = ({
               disabled
             />
 
-            {/* Event Name - Always show */}
+            {/* Event Name */}
             <TextField
               label="Event Name"
               value={formData.eventName}
@@ -577,57 +615,194 @@ const CreateEvents = ({
               helperText={errors.eventName || (isCell && !isGlobalEvent ? "Auto-filled when event leader is selected" : "")}
             />
 
-            {/* TICKETED EVENT FIELDS - Show ONLY for ticketed events */}
+            {/* TICKETED EVENT FIELDS */}
             {isTicketedEvent && (
               <>
-                {/* Age Group input (changed from dropdown) */}
-                <TextField
-                  label="Age Group"
-                  name="ageGroup"
-                  value={formData.ageGroup}
-                  onChange={handleInputChange}
-                  fullWidth
-                  margin="normal"
-                  required
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.ageGroup}
-                  helperText={errors.ageGroup}
-                />
+                <Typography variant="h6" sx={{ mb: 2, mt: 3, color: isDarkMode ? '#ffffff' : 'inherit' }}>
+                  Ticket Information
+                </Typography>
 
-                {/* Member Type input (changed from dropdown) */}
-                <TextField
-                  label="Member Type"
-                  name="memberType"
-                  value={formData.memberType}
-                  onChange={handleInputChange}
-                  fullWidth
-                  margin="normal"
-                  required
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.memberType}
-                  helperText={errors.memberType}
-                />
+                {/* Age Group */}
+                <Box sx={{ mb: 2 }}>
+                  <FormControl fullWidth sx={{ ...darkModeStyles.select }} error={!!errors.ageGroup}>
+                    <InputLabel>Age Group *</InputLabel>
+                    <Select
+                      name="ageGroup"
+                      value={formData.ageGroup}
+                      onChange={handleInputChange}
+                      label="Age Group *"
+                    >
+                      <MenuItem value="Child">Child</MenuItem>
+                      <MenuItem value="Adult">Adult</MenuItem>
+                      <MenuItem value="Senior">Senior</MenuItem>
+                      <MenuItem value="All Ages">All Ages</MenuItem>
+                      {formData.customAgeGroups?.map((group, index) => (
+                        <MenuItem key={`custom-age-${index}`} value={group}>
+                          {group}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={formData.newAgeGroup || ''}
+                    onChange={(e) => handleChange('newAgeGroup', e.target.value)}
+                    placeholder="Add custom age group (e.g., Early Birds, Students)"
+                    sx={{ mt: 1, ...darkModeStyles.textField }}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && formData.newAgeGroup?.trim()) {
+                        e.preventDefault();
+                        handleAddCustomOption('ageGroup', formData.newAgeGroup);
+                      }
+                    }}
+                    InputProps={{
+                      endAdornment: formData.newAgeGroup?.trim() && (
+                        <InputAdornment position="end">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleAddCustomOption('ageGroup', formData.newAgeGroup)}
+                          >
+                            <AddIcon fontSize="small" />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                  {errors.ageGroup && (
+                    <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                      {errors.ageGroup}
+                    </Typography>
+                  )}
+                </Box>
 
+                {/* Member Type */}
+                <Box sx={{ mb: 2 }}>
+                  <FormControl fullWidth sx={{ ...darkModeStyles.select }} error={!!errors.memberType}>
+                    <InputLabel>Member Type *</InputLabel>
+                    <Select
+                      name="memberType"
+                      value={formData.memberType}
+                      onChange={handleInputChange}
+                      label="Member Type *"
+                    >
+                      <MenuItem value="Member">Member</MenuItem>
+                      <MenuItem value="First Time">First Time</MenuItem>
+                      <MenuItem value="Guest">Guest</MenuItem>
+                      <MenuItem value="VIP">VIP</MenuItem>
+                      {formData.customMemberTypes?.map((type, index) => (
+                        <MenuItem key={`custom-member-${index}`} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={formData.newMemberType || ''}
+                    onChange={(e) => handleChange('newMemberType', e.target.value)}
+                    placeholder="Add custom member type (e.g., Early Bird, Student)"
+                    sx={{ mt: 1, ...darkModeStyles.textField }}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && formData.newMemberType?.trim()) {
+                        e.preventDefault();
+                        handleAddCustomOption('memberType', formData.newMemberType);
+                      }
+                    }}
+                    InputProps={{
+                      endAdornment: formData.newMemberType?.trim() && (
+                        <InputAdornment position="end">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleAddCustomOption('memberType', formData.newMemberType)}
+                          >
+                            <AddIcon fontSize="small" />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                  {errors.memberType && (
+                    <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                      {errors.memberType}
+                    </Typography>
+                  )}
+                </Box>
 
-                {/* Price input */}
+                {/* Payment Method */}
+                <Box sx={{ mb: 2 }}>
+                  <FormControl fullWidth sx={{ ...darkModeStyles.select }} error={!!errors.paymentMethod}>
+                    <InputLabel>Payment Method *</InputLabel>
+                    <Select
+                      name="paymentMethod"
+                      value={formData.paymentMethod}
+                      onChange={handleInputChange}
+                      label="Payment Method *"
+                    >
+                      <MenuItem value="Cash">Cash</MenuItem>
+                      <MenuItem value="EFT">EFT</MenuItem>
+                      <MenuItem value="Card">Card</MenuItem>
+                      <MenuItem value="Mobile Money">Mobile Money</MenuItem>
+                      <MenuItem value="Free">Free</MenuItem>
+                      {formData.customPaymentMethods?.map((method, index) => (
+                        <MenuItem key={`custom-payment-${index}`} value={method}>
+                          {method}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={formData.newPaymentMethod || ''}
+                    onChange={(e) => handleChange('newPaymentMethod', e.target.value)}
+                    placeholder="Add custom payment method (e.g., Crypto, Bank Transfer)"
+                    sx={{ mt: 1, ...darkModeStyles.textField }}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && formData.newPaymentMethod?.trim()) {
+                        e.preventDefault();
+                        handleAddCustomOption('paymentMethod', formData.newPaymentMethod);
+                      }
+                    }}
+                    InputProps={{
+                      endAdornment: formData.newPaymentMethod?.trim() && (
+                        <InputAdornment position="end">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleAddCustomOption('paymentMethod', formData.newPaymentMethod)}
+                          >
+                            <AddIcon fontSize="small" />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                  {errors.paymentMethod && (
+                    <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                      {errors.paymentMethod}
+                    </Typography>
+                  )}
+                </Box>
+
+                {/* Price */}
                 <TextField
-                  label="Price (R)"
+                  label="Price (R) *"
                   name="price"
                   type="number"
                   value={formData.price}
                   onChange={handleInputChange}
                   fullWidth
-                  margin="normal"
-                  required
-                  inputProps={{ min: 0 }}
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  sx={{ mb: 3, ...darkModeStyles.textField }}
+                  inputProps={{ min: 0, step: "0.01" }}
+                  placeholder="0.00"
                   error={!!errors.price}
                   helperText={errors.price}
                 />
               </>
             )}
 
-            {/* Date & Time - Show for all events */}
+            {/* Date & Time */}
             <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} mb={3}>
               <TextField
                 label="Date"
@@ -655,8 +830,7 @@ const CreateEvents = ({
               />
             </Box>
 
-
-            {/* Recurring Days - Show for all events */}
+            {/* Recurring Days */}
             <Box mb={3}>
               <Typography fontWeight="bold" mb={1} sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
                 Recurring Days {isCell && !isGlobalEvent && <span style={{ color: 'red' }}>*</span>}
@@ -679,7 +853,8 @@ const CreateEvents = ({
                     label={day}
                     sx={darkModeStyles.formControlLabel}
                   />
-                ))}
+                
+               ))}
               </Box>
               {errors.recurringDays && (
                 <Typography variant="caption" sx={darkModeStyles.errorText}>
@@ -688,7 +863,7 @@ const CreateEvents = ({
               )}
             </Box>
 
-            {/* Location - Always show */}
+            {/* Location */}
             <TextField
               label="Location"
               value={formData.location}
@@ -703,9 +878,9 @@ const CreateEvents = ({
               }}
             />
 
-            {/* Event Leader */}
+            {/* Event Leader - WITH AUTO-FILL FOR PERSON STEPS */}
             <Autocomplete
-              key={`autocomplete-eventLeader`} // Optional but helpful if things rerender oddly
+              key={`autocomplete-eventLeader`}
               freeSolo
               filterOptions={(options) => options}
               loading={loadingPeople}
@@ -730,8 +905,27 @@ const CreateEvents = ({
                   : peopleData.find(p => p.fullName === formData.eventLeader) || ''
               }
               onChange={(event, newValue) => {
-                const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-                handleChange('eventLeader', name);
+                if (newValue) {
+                  const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+                  
+                  if (hasPersonSteps && !isGlobalEvent && typeof newValue === 'object') {
+                    // Auto-fill leaders for Personal Steps events
+                    setFormData(prev => ({
+                      ...prev,
+                      eventLeader: name,
+                      eventName: name,
+                      leader1: newValue.leader1 || '',
+                      leader12: newValue.leader144 || '', // Using leader144 from database for Leader @12
+                    }));
+                  } else {
+                    handleChange('eventLeader', name);
+                    if (isCell && !isGlobalEvent) {
+                      setFormData(prev => ({ ...prev, eventName: name }));
+                    }
+                  }
+                } else {
+                  handleChange('eventLeader', '');
+                }
               }}
               onInputChange={(event, newInputValue) => {
                 handleChange('eventLeader', newInputValue || '');
@@ -752,7 +946,9 @@ const CreateEvents = ({
                     errors.eventLeader ||
                     (loadingPeople
                       ? "Loading..."
-                      : `Type to search (${peopleData.length} found)`)
+                      : hasPersonSteps && !isGlobalEvent
+                        ? `Select leader to auto-fill hierarchy (${peopleData.length} found)`
+                        : `Type to search (${peopleData.length} found)`)
                   }
                   InputProps={{
                     ...params.InputProps,
@@ -772,87 +968,53 @@ const CreateEvents = ({
             {/* Leader @1 and Leader @12 - ONLY show for Person Steps events */}
             {hasPersonSteps && !isGlobalEvent && (
               <>
-                {/* Leader @1 */}
-                <Autocomplete
-                  freeSolo
-                  filterOptions={(options) => options}
-                  loading={loadingPeople}
-                  options={peopleData}
-                  getOptionLabel={(option) =>
-                    typeof option === 'string' ? option : option.fullName
+                {/* Leader @1 - READ ONLY, AUTO-FILLED */}
+                <TextField
+                  label="Leader @1"
+                  value={formData.leader1 || ''}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.leader1}
+                  helperText={
+                    errors.leader1 || "Auto-filled from Event Leader's hierarchy"
                   }
-                  value={
-                    peopleData.find(p => p.fullName === formData.leader1) || formData.leader1 || ''
-                  }
-                  onChange={(event, newValue) => {
-                    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-                    handleChange('leader1', name);
+                  InputProps={{
+                    readOnly: true,
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    )
                   }}
-                  onInputChange={(event, newInputValue) => {
-                    handleChange('leader1', newInputValue || '');
-                    if (newInputValue && newInputValue.length >= 2) {
-                      fetchPeople(newInputValue);
-                    } else if (!newInputValue) {
-                      fetchPeople("");
-                    }
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Leader @1"
-                      size="small"
-                      sx={{ mb: 2, ...darkModeStyles.textField }}
-                      error={!!errors.leader1}
-                      helperText={
-                        errors.leader1 ||
-                        (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
-                      }
-                    />
-                  )}
+                  placeholder="Will be auto-filled when Event Leader is selected"
                 />
 
-                {/* Leader @12 */}
-                <Autocomplete
-                  freeSolo
-                  filterOptions={(options) => options}
-                  loading={loadingPeople}
-                  options={peopleData}
-                  getOptionLabel={(option) =>
-                    typeof option === 'string' ? option : option.fullName
+                {/* Leader @12 - READ ONLY, AUTO-FILLED */}
+                <TextField
+                  label="Leader @12"
+                  value={formData.leader12 || ''}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.leader12}
+                  helperText={
+                    errors.leader12 || "Auto-filled from Event Leader's Leader @144"
                   }
-                  value={
-                    peopleData.find(p => p.fullName === formData.leader12) || formData.leader12 || ''
-                  }
-                  onChange={(event, newValue) => {
-                    const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-                    handleChange('leader12', name);
+                  InputProps={{
+                    readOnly: true,
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    )
                   }}
-                  onInputChange={(event, newInputValue) => {
-                    handleChange('leader12', newInputValue || '');
-                    if (newInputValue && newInputValue.length >= 2) {
-                      fetchPeople(newInputValue);
-                    } else if (!newInputValue) {
-                      fetchPeople("");
-                    }
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Leader @12"
-                      size="small"
-                      sx={{ mb: 2, ...darkModeStyles.textField }}
-                      error={!!errors.leader12}
-                      helperText={
-                        errors.leader12 ||
-                        (loadingPeople ? "Loading..." : `Type to search (${peopleData.length} available)`)
-                      }
-                    />
-                  )}
+                  placeholder="Will be auto-filled when Event Leader is selected"
                 />
               </>
             )}
 
-            {/* Description - Always show */}
+            {/* Description */}
             <TextField
               label="Description"
               value={formData.description}
