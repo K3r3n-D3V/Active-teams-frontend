@@ -467,7 +467,6 @@ const handleCreateEventTypeSubmit = async (eventTypeData) => {
     });
 
     const newEventType = response.data;
-
     if (newEventType) {
       const updatedEventTypes = [...customEventTypes, newEventType];
       setCustomEventTypes(updatedEventTypes);
