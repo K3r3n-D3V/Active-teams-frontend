@@ -846,7 +846,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       padding: "0",
       borderRadius: "12px",
       width: "100%",
-      maxWidth: "1200px",
+       maxWidth: "1200px", 
       maxHeight: "90vh",
       display: "flex",
       flexDirection: "column",

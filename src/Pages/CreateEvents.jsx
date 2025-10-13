@@ -111,7 +111,7 @@ const CreateEvents = ({
       try {
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
         const data = response.data;
-
+    onClose(); 
         if (data.date) {
           const dt = new Date(data.date);
           data.date = dt.toISOString().split('T')[0];
@@ -316,19 +316,26 @@ const CreateEvents = ({
     try {
       const isCell = formData.eventType.toLowerCase().includes("cell");
 
-      const payload = {
-        eventType: formData.eventType,
-        eventName: formData.eventName,
-        isTicketed: isTicketedEvent,
-        isGlobal: isGlobalEvent,
-        hasPersonSteps: hasPersonSteps,
-        location: formData.location,
-        eventLeader: formData.eventLeader,
-        description: formData.description,
-        userEmail: user?.email || '',
-        recurring_day: formData.recurringDays,
-        status: 'open'  
-      };
+    const eventTypeToSend = selectedEventTypeObj?.name === "CELLS"
+  ? "Cell"
+  : typeof formData.eventType === 'string'
+    ? JSON.parse(formData.eventType)
+    : formData.eventType;
+
+const payload = {
+  eventType: eventTypeToSend,
+  eventName: formData.eventName,
+  isTicketed: isTicketedEvent,
+  isGlobal: isGlobalEvent,
+  hasPersonSteps: hasPersonSteps,
+  location: formData.location,
+  eventLeader: formData.eventLeader,
+  description: formData.description,
+  userEmail: user?.email || '',
+  recurring_day: formData.recurringDays,
+  status: 'open',
+};
+
 
       // Add price tiers for ticketed events
       if (isTicketedEvent) {
