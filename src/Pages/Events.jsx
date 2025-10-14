@@ -327,7 +327,96 @@ const fabStyles = {
   },
 };
 
-
+const eventTypeStyles = {
+  container: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: '12px',
+    padding: '1.5rem',
+    marginBottom: '1.5rem',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  },
+  header: {
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: '#6c757d',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '1rem',
+  },
+  selectedTypeDisplay: {
+    fontSize: '1.25rem',
+    fontWeight: '700',
+    color: '#007bff',
+    marginBottom: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  checkIcon: {
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    backgroundColor: '#28a745',
+    color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    fontWeight: 'bold',
+  },
+  typesGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+    gap: '0.75rem',
+  },
+  typeCard: {
+    padding: '1rem',
+    borderRadius: '8px',
+    border: '2px solid transparent',
+    backgroundColor: 'white',
+    cursor: 'pointer',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  typeCardActive: {
+    borderColor: '#007bff',
+    backgroundColor: '#e7f3ff',
+    transform: 'translateX(8px) scale(1.02)',
+    boxShadow: '0 4px 12px rgba(0, 123, 255, 0.2)',
+  },
+  typeCardHover: {
+    borderColor: '#ddd',
+    transform: 'translateY(-2px)',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+  },
+  typeName: {
+    fontSize: '0.9rem',
+    fontWeight: '600',
+    color: '#495057',
+    textAlign: 'center',
+    display: 'block',
+  },
+  typeNameActive: {
+    color: '#007bff',
+  },
+  activeIndicator: {
+    position: 'absolute',
+    top: '8px',
+    right: '8px',
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    backgroundColor: '#007bff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'white',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    animation: 'slideIn 0.3s ease-out',
+  },
+};
 const Events = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -353,6 +442,7 @@ const Events = () => {
   const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
+  const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState('all');
   const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
     return localStorage.getItem("selectedEventType") || '';
   });
@@ -460,29 +550,34 @@ const Events = () => {
   return eventDate < today;
 };
 
- const applyAllFilters = (
+const applyAllFilters = (
   filters = activeFilters,
   statusFilter = selectedStatus,
   search = searchQuery
 ) => {
   let filtered = events.filter(event => {
-    const rawStatus = (event.status || event.Status || '').toLowerCase().trim();
-    const didNotMeet = event.did_not_meet || false;
-    
-    // ✅ FIX: Proper status mapping with did_not_meet check
+    // ✅ FIX: Check did_not_meet flag FIRST (highest priority)
     let mappedStatus = 'incomplete';
     
-    if (didNotMeet || rawStatus === 'did_not_meet') {
+    if (event.did_not_meet === true) {
       mappedStatus = 'did_not_meet';
-    } else if (rawStatus === 'complete' || rawStatus === 'closed') {
+    }
+    else if (event.attendees && event.attendees.length > 0) {
       mappedStatus = 'complete';
+    }
+    else {
+      const rawStatus = (event.status || event.Status || '').toLowerCase().trim();
+      if (rawStatus === 'complete' || rawStatus === 'closed') {
+        mappedStatus = 'complete';
+      } else if (rawStatus === 'did_not_meet') {
+        mappedStatus = 'did_not_meet';
+      }
     }
     
     // Filter by selected status tab
     if (statusFilter !== 'all' && mappedStatus !== statusFilter) {
       return false;
-    }
-    
+    }    
     // Search filter
     if (search) {
       const searchLower = search.toLowerCase();
@@ -614,11 +709,14 @@ const Events = () => {
     setCreateEventTypeModalOpen(false);
   };
 
- const handleAttendanceSubmit = async (data) => {
+ 
+
+     
+
+   const handleAttendanceSubmit = async (data) => {
   try {
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
-
     const eventId = selectedEvent._id;
     const eventName = selectedEvent.eventName || 'Event';
 
@@ -637,7 +735,9 @@ const Events = () => {
         { headers }
       );
 
+      // ✅ CRITICAL: Refresh events immediately
       await fetchEvents();
+      
       setAttendanceModalOpen(false);
       setSelectedEvent(null);
 
@@ -655,10 +755,10 @@ const Events = () => {
         id: person.id ?? person._id ?? person.ID ?? null,
         name: person.name ?? person.fullName ?? '',
         fullName: person.fullName ?? person.name ?? '',
-        leader12: person.leader12 ?? person.leader12 ?? null,
-        leader144: person.leader144 ?? person.leader144 ?? null,
+        leader12: person.leader12 ?? null,
+        leader144: person.leader144 ?? null,
         time: person.time ?? null,
-        email: person.email ?? person.email ?? null,
+        email: person.email ?? null,
         phone: person.phone ?? null,
         decision: person.decision ?? null,
       }));
@@ -674,7 +774,9 @@ const Events = () => {
         { headers }
       );
 
+      // ✅ CRITICAL: Refresh events immediately
       await fetchEvents();
+      
       setAttendanceModalOpen(false);
       setSelectedEvent(null);
 
@@ -696,7 +798,6 @@ const Events = () => {
 
   } catch (error) {
     console.error("Error updating event:", error);
-
     const errData = error.response?.data;
     let errorMessage = error.message;
 
@@ -752,28 +853,117 @@ const Events = () => {
       });
     }
   };
+  
 
-  const StatusBadges = () => {
+  const EventTypeSelector = () => {
+  const [hoveredType, setHoveredType] = useState(null);
+  const allTypes = ['CELLS', ...eventTypes];
+  const isAdmin = currentUser?.role === "admin"; // ✅ your admin check
+  
+  const getDisplayName = (type) => {
+    if (type === 'CELLS') return type;
+    if (typeof type === 'string') return type;
+    return type.name || type;
+  };
+
+  const getTypeValue = (type) => {
+    if (type === 'CELLS') return 'all';
+    if (typeof type === 'string') return type.toLowerCase();
+    return (type.name || type).toLowerCase();
+  };
+
+  const selectedDisplayName =
+    selectedEventTypeFilter === 'all'
+      ? 'CELLS'
+      : eventTypes.find((t) => {
+          const tValue = typeof t === 'string' ? t : t.name;
+          return tValue?.toLowerCase() === selectedEventTypeFilter;
+        }) || selectedEventTypeFilter;
+
+  const finalDisplayName =
+    typeof selectedDisplayName === 'string'
+      ? selectedDisplayName
+      : selectedDisplayName?.name || 'CELLS';
+
+  return (
+    <div style={eventTypeStyles.container}>
+      <div style={eventTypeStyles.header}>Filter by Event Type</div>
+
+      <div style={eventTypeStyles.selectedTypeDisplay}>
+        <div style={eventTypeStyles.checkIcon}>✓</div>
+        <span>{finalDisplayName}</span>
+      </div>
+
+      {/* ✅ Only show this part if user is admin */}
+      {isAdmin && (
+        <div style={eventTypeStyles.typesGrid}>
+          {allTypes.map((type) => {
+            const displayName = getDisplayName(type);
+            const typeValue = getTypeValue(type);
+            const isActive = selectedEventTypeFilter === typeValue;
+            const isHovered = hoveredType === typeValue;
+
+            return (
+              <div
+                key={typeValue}
+                style={{
+                  ...eventTypeStyles.typeCard,
+                  ...(isActive ? eventTypeStyles.typeCardActive : {}),
+                  ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+                }}
+                onClick={() => {
+                  setSelectedEventTypeFilter(typeValue);
+                  applyAllFilters(
+                    typeValue === 'all'
+                      ? { ...activeFilters, eventType: undefined }
+                      : { ...activeFilters, eventType: typeValue },
+                    selectedStatus,
+                    searchQuery
+                  );
+                }}
+                onMouseEnter={() => setHoveredType(typeValue)}
+                onMouseLeave={() => setHoveredType(null)}
+              >
+                {isActive && <div style={eventTypeStyles.activeIndicator}>✓</div>}
+                <span
+                  style={{
+                    ...eventTypeStyles.typeName,
+                    ...(isActive ? eventTypeStyles.typeNameActive : {}),
+                  }}
+                >
+                  {displayName}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StatusBadges = () => {
   const statusCounts = {
     incomplete: events.filter(e => {
+      if (e.did_not_meet === true) return false;
+      if (e.attendees && e.attendees.length > 0) return false;
       const status = (e.status || e.Status || '').toLowerCase().trim();
-      const didNotMeet = e.did_not_meet || false;
-      return !didNotMeet && (!status || status === 'incomplete' || status === '');
+      return status !== 'complete' && status !== 'closed' && status !== 'did_not_meet';
     }).length,
     
     complete: events.filter(e => {
-      const status = (e.status || e.Status || '').toLowerCase().trim();
-      const didNotMeet = e.did_not_meet || false;
-      return !didNotMeet && (status === 'complete' || status === 'closed');
+      if (e.did_not_meet === true) return false;
+      return (e.attendees && e.attendees.length > 0) || 
+             ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
     }).length,
     
     did_not_meet: events.filter(e => {
-      const status = (e.status || e.Status || '').toLowerCase().trim();
-      const didNotMeet = e.did_not_meet || false;
-      return didNotMeet || status === 'did_not_meet';
+      return e.did_not_meet === true;
     }).length,
   };
-  
+    
+ 
+
   return (
     <div style={styles.statusBadgeContainer}>
       <button
@@ -897,6 +1087,7 @@ const Events = () => {
   return (
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default }}>
       <div style={styles.topSection}>
+        <EventTypeSelector />
         <div style={styles.searchFilterRow}>
           <input
             type="text"
@@ -1189,16 +1380,27 @@ const Events = () => {
         </Alert>
       </Snackbar>
 
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-      `}</style>
+     <style jsx>{`
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: scale(0) rotate(-180deg);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+  }
+`}</style>
     </div>
   );
 };

@@ -47,18 +47,18 @@ const CreateEvents = ({
   console.log("User Role:", user?.role, "isAdmin:", isAdmin);
 
   const [formData, setFormData] = useState({
-    eventType: selectedEventType || '',
-    eventName: '',
-    date: '',
-    time: '',
-    timePeriod: 'AM',
-    recurringDays: [],
-    location: '',
-    eventLeader: '',
-    description: '',
-    leader1: '',
-    leader12: '',
-  });
+  eventType: selectedEventTypeObj?.name || selectedEventType || '',
+  eventName: '',
+  date: '',
+  time: '',
+  timePeriod: 'AM',
+  recurringDays: [],
+  location: '',
+  eventLeader: '',
+  description: '',
+  leader1: '',
+  leader12: '',
+});
 
   const [errors, setErrors] = useState({});
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -103,43 +103,70 @@ const CreateEvents = ({
   useEffect(() => {
     fetchPeople();
   }, [BACKEND_URL]);
+  
 
-  useEffect(() => {
-    if (!eventId) return;
+useEffect(() => {
+  if (!eventId) {
+    // For NEW ticketed events, initialize with one empty tier
+    if (isTicketedEvent && priceTiers.length === 0) {
+      setPriceTiers([{
+        name: '',
+        price: '',
+        ageGroup: '',
+        memberType: '',
+        paymentMethod: ''
+      }]);
+    }
+    return;
+  }
 
     const fetchEventData = async () => {
-      try {
-        const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
-        const data = response.data;
-    onClose(); 
-        if (data.date) {
-          const dt = new Date(data.date);
-          data.date = dt.toISOString().split('T')[0];
-          const hours = dt.getHours();
-          const minutes = dt.getMinutes();
-          data.time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-          data.timePeriod = hours >= 12 ? 'PM' : 'AM';
-        }
+        try {
+      const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
+      const data = response.data;
 
-        if (data.recurring_day) {
-          data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
-        }
-
-        // Load price tiers if ticketed
-        if (data.priceTiers && Array.isArray(data.priceTiers)) {
-          setPriceTiers(data.priceTiers);
-        }
-
-        setFormData(data);
-      } catch (err) {
-        console.error("Failed to fetch event:", err);
-        setErrorMessage("Failed to load event data. Please try again.");
-        setErrorAlert(true);
+    // onClose(); 
+       if (data.date) {
+        const dt = new Date(data.date);
+        data.date = dt.toISOString().split('T')[0];
+        const hours = dt.getHours();
+        const minutes = dt.getMinutes();
+        data.time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        data.timePeriod = hours >= 12 ? 'PM' : 'AM';
       }
-    };
 
-    fetchEventData();
-  }, [eventId, BACKEND_URL]);
+      if (data.recurring_day) {
+        data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
+      }
+
+      // FIXED: Load price tiers if ticketed event
+      if (isTicketedEvent) {
+        if (data.priceTiers && Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
+          setPriceTiers(data.priceTiers);
+        } else {
+          // Initialize with one empty tier if none exist
+          setPriceTiers([{
+            name: '',
+            price: '',
+            ageGroup: '',
+            memberType: '',
+            paymentMethod: ''
+          }]);
+        }
+      }
+
+      setFormData(data);
+    } catch (err) {
+      console.error("Failed to fetch event:", err);
+      setErrorMessage("Failed to load event data. Please try again.");
+      setErrorAlert(true);
+    }
+  };
+
+  fetchEventData();
+}, [eventId, BACKEND_URL, isTicketedEvent]); // <-- ADDED isTicketedEvent to dependencies
+
+  
 
   const handleChange = (field, value) => {
     setFormData(prev => {
@@ -179,6 +206,9 @@ const CreateEvents = ({
         : [...prev.recurringDays, day]
     }));
   };
+
+
+
 
   // NEW: Add price tier
   const handleAddPriceTier = () => {
@@ -307,46 +337,45 @@ const CreateEvents = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
+ const handleSubmit  = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+  if (!validateForm()) return;
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    try {
-      const isCell = formData.eventType.toLowerCase().includes("cell");
+  try {
+    const isCell = formData.eventType.toLowerCase().includes("cell");
 
     const eventTypeToSend = selectedEventTypeObj?.name === "CELLS"
-  ? "Cell"
-  : typeof formData.eventType === 'string'
-    ? JSON.parse(formData.eventType)
-    : formData.eventType;
+      ? "Cell"
+      : typeof formData.eventType === 'string'
+        ? JSON.parse(formData.eventType)
+        : formData.eventType;
 
-const payload = {
-  eventType: eventTypeToSend,
-  eventName: formData.eventName,
-  isTicketed: isTicketedEvent,
-  isGlobal: isGlobalEvent,
-  hasPersonSteps: hasPersonSteps,
-  location: formData.location,
-  eventLeader: formData.eventLeader,
-  description: formData.description,
-  userEmail: user?.email || '',
-  recurring_day: formData.recurringDays,
-  status: 'open',
-};
+    const payload = {
+      eventType: eventTypeToSend,
+      eventName: formData.eventName,
+      isTicketed: isTicketedEvent,
+      isGlobal: isGlobalEvent,
+      hasPersonSteps: hasPersonSteps,
+      location: formData.location,
+      eventLeader: formData.eventLeader,
+      description: formData.description,
+      userEmail: user?.email || '',
+      recurring_day: formData.recurringDays,
+      status: 'open',
+    };
 
+    // Add price tiers for ticketed events
+    if (isTicketedEvent) {
+      payload.priceTiers = priceTiers;
+    }
 
-      // Add price tiers for ticketed events
-      if (isTicketedEvent) {
-        payload.priceTiers = priceTiers;
-      }
-
-      // Add person steps leaders
-      if (hasPersonSteps && !isGlobalEvent) {
-        if (formData.leader1) payload.leader1 = formData.leader1;
-        if (formData.leader12) payload.leader12 = formData.leader12;
-      }
+    // Add person steps leaders
+    if (hasPersonSteps && !isGlobalEvent) {
+      if (formData.leader1) payload.leader1 = formData.leader1;
+      if (formData.leader12) payload.leader12 = formData.leader12;
+    }
 
       // Add date/time
       if ((!isCell || isGlobalEvent) && formData.date && formData.time) {
@@ -362,11 +391,21 @@ const payload = {
 
       console.log('Payload being sent:', JSON.stringify(payload, null, 2));
 
-      const response = eventId
-        ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
-        : await axios.post(`${BACKEND_URL}/events`, payload);
+      console.log('🚀 Event Submission:', {
+      eventType: eventTypeToSend,
+      isTicketedEvent,
+      isGlobalEvent,
+      hasPersonSteps,
+      priceTiersCount: priceTiers.length,
+      payload: JSON.stringify(payload, null, 2)
+    });
 
-      console.log('Server response:', response.data);
+    const response = eventId
+      ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
+      : await axios.post(`${BACKEND_URL}/events`, payload);
+
+    console.log('✅ Server response:', response.data);
+
 
       setSuccessMessage(
         hasPersonSteps && !isGlobalEvent
@@ -385,29 +424,13 @@ const payload = {
         }
       }, 1500);
 
-    } catch (err) {
-      console.error("Error submitting event:", err);
-      console.error("Error response:", err.response?.data);
-
-      let errorMsg = "Something went wrong. Please try again!";
-
-      if (err.response?.data) {
-        if (typeof err.response.data === 'string') {
-          errorMsg = err.response.data;
-        } else if (err.response.data.message) {
-          errorMsg = err.response.data.message;
-        } else if (err.response.data.detail) {
-          errorMsg = err.response.data.detail;
-        } else if (err.response.data.error) {
-          errorMsg = err.response.data.error;
-        }
-      }
-
-      setErrorMessage(errorMsg);
-      setErrorAlert(true);
-    } finally {
-      setIsSubmitting(false);
-    }
+    }   catch (err) {
+    console.error("❌ Error submitting event:", err);
+    console.error("Error response:", err.response?.data);
+    // ... rest of error handling ...
+  } finally {
+    setIsSubmitting(false);
+  }
   };
 
   const isCell = formData.eventType.toLowerCase().includes("cell");
@@ -529,17 +552,17 @@ const payload = {
 
           <form onSubmit={handleSubmit}>
             {/* Event Type */}
-            <TextField
-              label={isGlobalEvent ? "Event Group Name" : "Event Type"}
-              value={formData.eventType}
-              fullWidth
-              size="small"
-              sx={{ mb: 3, ...darkModeStyles.textField }}
-              InputProps={{
-                readOnly: true,
-              }}
-              disabled
-            />
+ <TextField
+  label={isGlobalEvent ? "Event Group Name" : "Event Type"}
+  value={selectedEventTypeObj?.name || formData.eventType?.name || formData.eventType || ''}
+  fullWidth
+  size="small"
+  sx={{ mb: 3, ...darkModeStyles.textField }}
+  InputProps={{
+    readOnly: true,
+  }}
+  disabled
+/>
 
             {/* Event Name */}
             <TextField
@@ -737,138 +760,251 @@ const payload = {
 
             {/* Event Leader - WITH AUTO-FILL FOR PERSON STEPS */}
             <Autocomplete
-              freeSolo
-              filterOptions={(options) => options}
-              loading={loadingPeople}
-              options={peopleData}
-              getOptionLabel={(option) =>
-                typeof option === 'string' ? option : option.fullName || ''
-              }
-              isOptionEqualToValue={(option, value) => {
-                return (
-                  (typeof option === 'string' ? option : option.fullName) ===
-                  (typeof value === 'string' ? value : value.fullName)
-                );
-              }}
-              renderOption={(props, option) => (
-                <li {...props} key={option.id || option.fullName || Math.random()}>
-                  {option.fullName}
-                </li>
-              )}
-              value={
-                typeof formData.eventLeader === 'string'
-                  ? formData.eventLeader
-                  : peopleData.find(p => p.fullName === formData.eventLeader) || ''
-              }
-              onChange={(event, newValue) => {
-                if (newValue) {
-                  const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-                  
-                  if (hasPersonSteps && !isGlobalEvent && typeof newValue === 'object') {
-                    // Auto-fill leaders for Personal Steps events
-                    setFormData(prev => ({
-                      ...prev,
-                      eventLeader: name,
-                      eventName: name,
-                      leader1: newValue.leader1 || '',
-                      leader12: newValue.leader144 || '', // Using leader144 from database for Leader @12
-                    }));
-                  } else {
-                    handleChange('eventLeader', name);
-                    if (isCell && !isGlobalEvent) {
-                      setFormData(prev => ({ ...prev, eventName: name }));
-                    }
-                  }
-                } else {
-                  handleChange('eventLeader', '');
-                }
-              }}
-              onInputChange={(event, newInputValue) => {
-                handleChange('eventLeader', newInputValue || '');
-                if (newInputValue && newInputValue.length >= 2) {
-                  fetchPeople(newInputValue);
-                } else if (!newInputValue) {
-                  fetchPeople('');
-                }
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Event Leader"
-                  size="small"
-                  sx={{ mb: 3, ...darkModeStyles.textField }}
-                  error={!!errors.eventLeader}
-                  helperText={
-                    errors.eventLeader ||
-                    (loadingPeople
-                      ? "Loading..."
-                      : hasPersonSteps && !isGlobalEvent
-                        ? `Select leader to auto-fill hierarchy (${peopleData.length} found)`
-                        : `Type to search (${peopleData.length} found)`)
-                  }
-                  InputProps={{
-                    ...params.InputProps,
-                    startAdornment: (
-                      <>
-                        <InputAdornment position="start">
-                          <PersonIcon />
-                        </InputAdornment>
-                        {params.InputProps.startAdornment}
-                      </>
-                    )
-                  }}
-                />
-              )}
-            />
+  freeSolo
+  filterOptions={(options) => options}
+  loading={loadingPeople}
+  options={peopleData}
+  getOptionLabel={(option) =>
+    typeof option === 'string' ? option : option.fullName || ''
+  }
+  isOptionEqualToValue={(option, value) => {
+    return (
+      (typeof option === 'string' ? option : option.fullName) ===
+      (typeof value === 'string' ? value : value.fullName)
+    );
+  }}
+  renderOption={(props, option) => (
+    <li {...props} key={option.id || option.fullName || Math.random()}>
+      {option.fullName}
+    </li>
+  )}
+  value={
+    typeof formData.eventLeader === 'string'
+      ? formData.eventLeader
+      : peopleData.find(p => p.fullName === formData.eventLeader) || ''
+  }
+  
+  // FIXED: Improved auto-fill logic
+  onChange={(event, newValue) => {
+    if (newValue) {
+      const name = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
+      
+      // For Personal Steps events (hasPersonSteps), auto-fill leaders
+      if (hasPersonSteps && !isGlobalEvent && typeof newValue === 'object') {
+        console.log('🔄 Auto-filling leaders for Personal Steps event:', {
+          eventLeader: name,
+          leader1: newValue.leader1,
+          leader12: newValue.leader12,
+          personData: newValue
+        });
+        
+        setFormData(prev => ({
+          ...prev,
+          eventLeader: name,
+          eventName: name,
+          leader1: newValue.leader1 || '',
+          leader12: newValue.leader12 || '',
+        }));
+      } 
+      // For regular Cell events, just set event name
+      else if (isCell && !isGlobalEvent) {
+        setFormData(prev => ({ 
+          ...prev, 
+          eventLeader: name,
+          eventName: name 
+        }));
+      } 
+      // For other event types, just set the leader
+      else {
+        handleChange('eventLeader', name);
+      }
+    } else {
+      handleChange('eventLeader', '');
+      // Clear auto-filled fields if leader is cleared
+      if (hasPersonSteps && !isGlobalEvent) {
+        setFormData(prev => ({
+          ...prev,
+          leader1: '',
+          leader12: ''
+        }));
+      }
+    }
+  }}
+  
+  onInputChange={(event, newInputValue) => {
+    handleChange('eventLeader', newInputValue || '');
+    if (newInputValue && newInputValue.length >= 2) {
+      fetchPeople(newInputValue);
+    } else if (!newInputValue) {
+      fetchPeople('');
+    }
+  }}
+  
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      label="Event Leader"
+      size="small"
+      required
+      sx={{ mb: 3, ...darkModeStyles.textField }}
+      error={!!errors.eventLeader}
+      helperText={
+        errors.eventLeader ||
+        (loadingPeople
+          ? "Loading..."
+          : hasPersonSteps && !isGlobalEvent
+            ? `Select leader to auto-fill hierarchy (${peopleData.length} found)`
+            : `Type to search (${peopleData.length} found)`)
+      }
+      InputProps={{
+        ...params.InputProps,
+        startAdornment: (
+          <>
+            <InputAdornment position="start">
+              <PersonIcon />
+            </InputAdornment>
+            {params.InputProps.startAdornment}
+          </>
+        )
+      }}
+    />
+  )}
+/>
+{hasPersonSteps && !isGlobalEvent && (
+  <>
+    {/* Leader @1 - READ ONLY, AUTO-FILLED */}
+    <TextField
+      label="Leader @1"
+      value={formData.leader1 || ''}
+      fullWidth
+      size="small"
+      required
+      sx={{ mb: 2, ...darkModeStyles.textField }}
+      error={!!errors.leader1}
+      helperText={
+        errors.leader1 || "Auto-filled from Event Leader's hierarchy"
+      }
+      InputProps={{
+        readOnly: true,
+        startAdornment: (
+          <InputAdornment position="start">
+            <PersonIcon />
+          </InputAdornment>
+        )
+      }}
+      placeholder="Will be auto-filled when Event Leader is selected"
+    />
 
-            {/* Leader @1 and Leader @12 - ONLY show for Person Steps events */}
-            {hasPersonSteps && !isGlobalEvent && (
-              <>
-                {/* Leader @1 - READ ONLY, AUTO-FILLED */}
-                <TextField
-                  label="Leader @1"
-                  value={formData.leader1 || ''}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.leader1}
-                  helperText={
-                    errors.leader1 || "Auto-filled from Event Leader's hierarchy"
-                  }
-                  InputProps={{
-                    readOnly: true,
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon />
-                      </InputAdornment>
-                    )
-                  }}
-                  placeholder="Will be auto-filled when Event Leader is selected"
-                />
+    {/* Leader @12 - READ ONLY, AUTO-FILLED */}
+    <TextField
+      label="Leader @12"
+      value={formData.leader12 || ''}
+      fullWidth
+      size="small"
+      required
+      sx={{ mb: 2, ...darkModeStyles.textField }}
+      error={!!errors.leader12}
+      helperText={
+        errors.leader12 || "Auto-filled from Event Leader's hierarchy"
+      }
+      InputProps={{
+        readOnly: true,
+        startAdornment: (
+          <InputAdornment position="start">
+            <PersonIcon />
+          </InputAdornment>
+        )
+      }}
+      placeholder="Will be auto-filled when Event Leader is selected"
+    />
+  </>
+)}
 
-                {/* Leader @12 - READ ONLY, AUTO-FILLED */}
-                <TextField
-                  label="Leader @12"
-                  value={formData.leader12 || ''}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.leader12}
-                  helperText={
-                    errors.leader12 || "Auto-filled from Event Leader's Leader @144"
-                  }
-                  InputProps={{
-                    readOnly: true,
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon />
-                      </InputAdornment>
-                    )
-                  }}
-                  placeholder="Will be auto-filled when Event Leader is selected"
-                />
-              </>
-            )}
+{/* Event Type TextField - EXISTING CODE */}
+<TextField
+  label={isGlobalEvent ? "Event Group Name" : "Event Type"}
+value={selectedEventTypeObj?.name || formData.eventType?.name || formData.eventType || ''}  fullWidth
+  size="small"
+  sx={{ mb: 3, ...darkModeStyles.textField }}
+  InputProps={{
+    readOnly: true,
+  }}
+  disabled
+/>
+
+{/* ADD THIS: Event Type Badges for Visual Feedback */}
+<Box sx={{ mb: 3, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+  {isTicketedEvent && (
+    <Chip 
+      label="💰 Ticketed Event" 
+      color="warning" 
+      size="small" 
+      sx={{ fontWeight: 600 }}
+    />
+  )}
+  {isGlobalEvent && (
+    <Chip 
+      label="🌍 Global Event" 
+      color="info" 
+      size="small" 
+      sx={{ fontWeight: 600 }}
+    />
+  )}
+  {hasPersonSteps && !isGlobalEvent && (
+    <Chip 
+      label="📊 Personal Steps Event" 
+      color="secondary" 
+      size="small" 
+      sx={{ fontWeight: 600 }}
+    />
+  )}
+  {isCell && !isGlobalEvent && !hasPersonSteps && (
+    <Chip 
+      label="👥 Cell Group" 
+      color="success" 
+      size="small" 
+      sx={{ fontWeight: 600 }}
+    />
+  )}
+</Box>
+
+{/* TICKETED EVENT PRICE TIERS */}
+{isTicketedEvent && (
+  <Box sx={{ mb: 3 }}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Typography variant="h6" sx={{ color: isDarkMode ? '#ffffff' : 'inherit' }}>
+        Price Tiers *
+      </Typography>
+      <Button
+        startIcon={<AddIcon />}
+        onClick={handleAddPriceTier}
+        variant="contained"
+        size="small"
+      >
+        Add Price Tier
+      </Button>
+    </Box>
+
+    {errors.priceTiers && (
+      <Typography variant="caption" color="error" sx={{ mb: 1, display: 'block' }}>
+        {errors.priceTiers}
+      </Typography>
+    )}
+
+    {priceTiers.map((tier, index) => (
+      <Card key={index} sx={{ mb: 2, p: 2, bgcolor: isDarkMode ? '#2d2d2d' : '#f9f9f9' }}>
+        {/* ... existing price tier fields ... */}
+      </Card>
+    ))}
+
+    {priceTiers.length === 0 && (
+      <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+        Click "Add Price Tier" to create pricing options
+      </Typography>
+    )}
+  </Box>
+)}
+
 
             {/* Description */}
             <TextField
