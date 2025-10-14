@@ -734,8 +734,6 @@ const applyAllFilters = (
         },
         { headers }
       );
-
-      // ✅ CRITICAL: Refresh events immediately
       await fetchEvents();
       
       setAttendanceModalOpen(false);
@@ -858,7 +856,7 @@ const applyAllFilters = (
   const EventTypeSelector = () => {
   const [hoveredType, setHoveredType] = useState(null);
   const allTypes = ['CELLS', ...eventTypes];
-  const isAdmin = currentUser?.role === "admin"; // ✅ your admin check
+  const isAdmin = currentUser?.role === "admin"; 
   
   const getDisplayName = (type) => {
     if (type === 'CELLS') return type;
@@ -894,7 +892,6 @@ const applyAllFilters = (
         <span>{finalDisplayName}</span>
       </div>
 
-      {/* ✅ Only show this part if user is admin */}
       {isAdmin && (
         <div style={eventTypeStyles.typesGrid}>
           {allTypes.map((type) => {
