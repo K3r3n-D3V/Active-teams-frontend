@@ -557,6 +557,16 @@ const applyAllFilters = (
   search = searchQuery
 ) => {
   let filtered = events.filter(event => {
+    // ✅ FIXED: Event Type Filtering - Only show events that match the selected type
+    if (selectedEventTypeFilter !== 'all') {
+      const eventEventType = (event.eventType || "").toLowerCase().trim();
+      const selectedType = selectedEventTypeFilter.toLowerCase().trim();
+      
+      if (eventEventType !== selectedType) {
+        return false;
+      }
+    }
+
     // ✅ FIXED: Consistent status mapping
     let mappedStatus = 'incomplete';
     
@@ -590,8 +600,8 @@ const applyAllFilters = (
       if (!matchesSearch) return false;
     }
 
-    // Apply additional filters
-    if (filters.eventType) {
+    // Apply additional filters from the filter modal
+    if (filters.eventType && filters.eventType !== selectedEventTypeFilter) {
       const eventType = (event.eventType || "").toLowerCase().trim();
       const filterType = filters.eventType.toLowerCase().trim();
       if (eventType !== filterType) {
@@ -922,9 +932,17 @@ const handleAttendanceSubmit = async (data) => {
 };
 
 const StatusBadges = () => {
+  // Filter events by selected event type first
+  const eventsForCurrentType = selectedEventTypeFilter === 'all' 
+    ? events 
+    : events.filter(event => {
+        const eventEventType = (event.eventType || "").toLowerCase().trim();
+        const selectedType = selectedEventTypeFilter.toLowerCase().trim();
+        return eventEventType === selectedType;
+      });
+
   const statusCounts = {
-    incomplete: events.filter(e => {
-      // ✅ FIXED: Use same logic as applyAllFilters
+    incomplete: eventsForCurrentType.filter(e => {
       if (e.did_not_meet === true) return false;
       if ((e.attendees && e.attendees.length > 0) || 
           ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
@@ -933,21 +951,17 @@ const StatusBadges = () => {
       return true;
     }).length,
     
-    complete: events.filter(e => {
-      // ✅ FIXED: Exclude did_not_meet events from complete count
+    complete: eventsForCurrentType.filter(e => {
       if (e.did_not_meet === true) return false;
       return (e.attendees && e.attendees.length > 0) || 
              ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
     }).length,
     
-    did_not_meet: events.filter(e => {
-      // ✅ FIXED: Only count actual did_not_meet events
+    did_not_meet: eventsForCurrentType.filter(e => {
       return e.did_not_meet === true;
     }).length,
   };
     
- 
-
   return (
      <div style={styles.statusBadgeContainer}>
       <button

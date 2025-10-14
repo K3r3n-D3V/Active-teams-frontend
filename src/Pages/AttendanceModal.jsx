@@ -20,38 +20,39 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
-  const fetchInviters = async (searchTerm) => {
-    if (!searchTerm || searchTerm.length < 2) {
-      setInviterResults([]);
-      return;
-    }
+const fetchInviters = async (searchTerm) => {
+  if (!searchTerm || searchTerm.length < 2) {
+    setInviterResults([]);
+    return;
+  }
 
-    try {
-      setLoadingInviters(true);
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      
-      const params = new URLSearchParams();
-      params.append("name", searchTerm);
-      params.append("perPage", "20");
+  try {
+    setLoadingInviters(true);
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+    
+    const params = new URLSearchParams();
+    // FIXED: Change from "search" to "name" parameter
+    params.append("name", searchTerm);  // ← CHANGE THIS LINE
+    params.append("perPage", "20");
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+    const data = await res.json();
+    const peopleArray = data.people || data.results || [];
 
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-      }));
+    const formatted = peopleArray.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+    }));
 
-      setInviterResults(formatted);
-    } catch (err) {
-      console.error("Error fetching inviters:", err);
-    } finally {
-      setLoadingInviters(false);
-    }
-  };
+    setInviterResults(formatted);
+  } catch (err) {
+    console.error("Error fetching inviters:", err);
+  } finally {
+    setLoadingInviters(false);
+  }
+};
 
   useEffect(() => {
     const delay = setTimeout(() => {
@@ -471,6 +472,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
+  const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
   // NEW: Persistent storage for common attendees
   const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
 
@@ -515,35 +517,36 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   }, [event]);
 
   const fetchPeople = async (filter = "") => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      
-      const params = new URLSearchParams();
-      if (filter) params.append("name", filter);
-      params.append("perPage", "100");
+  try {
+    setLoading(true);
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+    
+    const params = new URLSearchParams();
+    // FIXED: Change from "search" to "name" parameter
+    if (filter) params.append("name", filter);  // ← CHANGE THIS LINE
+    params.append("perPage", "100");
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+    const data = await res.json();
+    const peopleArray = data.people || data.results || [];
 
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-        leader144: p["Leader @144"] || p.leader144 || "",
-        phone: p.Phone || p.phone || "",
-      }));
+    const formatted = peopleArray.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader12: p["Leader @12"] || p.leader12 || "",
+      leader144: p["Leader @144"] || p.leader144 || "",
+      phone: p.Phone || p.phone || "",
+    }));
 
-      setPeople(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setPeople(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchCommonAttendees = async (cellId) => {
     try {
@@ -885,13 +888,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   };
 
   const handleDidNotMeet = () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to mark this event as 'Did Not Meet'?\n\n" +
-      "This will clear all checked-in attendees and mark the event as not held."
-    );
-    
-    if (!confirmed) return;
+    setShowDidNotMeetConfirm(true);
+  };
 
+  const confirmDidNotMeet = () => {
+    setShowDidNotMeetConfirm(false);
     setDidNotMeet(true);
     setCheckedIn({});
     setDecisions({});
@@ -907,6 +908,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       message: "Event marked as 'Did Not Meet'. Click SAVE to submit.",
     });
     setTimeout(() => setAlert({ open: false, type: "success", message: "" }), 3000);
+  };
+
+  const cancelDidNotMeet = () => {
+    setShowDidNotMeetConfirm(false);
   };
 
   const handlePersonAdded = () => {
@@ -1278,18 +1283,23 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       flex: isMobile ? "1 1 100%" : "none",
       minWidth: "120px",
     },
-    didNotMeetBtn: {
-      background: "#dc3545",
-      color: "#fff",
-      border: "none",
-      padding: "12px 20px",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "16px",
-      fontWeight: "500",
-      flex: isMobile ? "1 1 100%" : "none",
-      minWidth: "140px",
-    },
+    // Add these hover effects to your existing button styles
+didNotMeetBtn: {
+  background: "#dc3545",
+  color: "#fff",
+  border: "none",
+  padding: "12px 20px",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontSize: "16px",
+  fontWeight: "500",
+  flex: isMobile ? "1 1 100%" : "none",
+  minWidth: "140px",
+  transition: "background-color 0.2s",
+  ':hover': {
+    backgroundColor: "#c82333",
+  },
+},
     saveBtn: {
       background: "#28a745",
       color: "#fff",
@@ -1368,6 +1378,90 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       fontWeight: "600",
       marginLeft: "8px",
     },
+    // Add these styles to your existing styles object
+confirmOverlay: {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: "rgba(0,0,0,0.6)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  zIndex: 10002,
+  padding: "20px",
+},
+confirmModal: {
+  background: "#fff",
+  borderRadius: "12px",
+  width: "100%",
+  maxWidth: "450px",
+  boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+  overflow: "hidden",
+},
+confirmHeader: {
+  padding: "20px 24px 0",
+  textAlign: "center",
+},
+confirmTitle: {
+  fontSize: "20px",
+  fontWeight: "600",
+  color: "#333",
+  margin: 0,
+},
+confirmBody: {
+  padding: "24px",
+  textAlign: "center",
+},
+confirmIcon: {
+  marginBottom: "16px",
+  display: "flex",
+  justifyContent: "center",
+},
+confirmMessage: {
+  fontSize: "16px",
+  color: "#333",
+  margin: "0 0 12px 0",
+  lineHeight: "1.5",
+},
+confirmSubMessage: {
+  fontSize: "14px",
+  color: "#666",
+  margin: 0,
+  lineHeight: "1.4",
+},
+confirmFooter: {
+  padding: "20px 24px 24px",
+  display: "flex",
+  gap: "12px",
+  justifyContent: "flex-end",
+  borderTop: "1px solid #e0e0e0",
+},
+confirmCancelBtn: {
+  padding: "10px 20px",
+  background: "transparent",
+  border: "1px solid #ddd",
+  borderRadius: "6px",
+  color: "#666",
+  cursor: "pointer",
+  fontSize: "14px",
+  fontWeight: "500",
+  minWidth: "80px",
+  transition: "all 0.2s",
+},
+confirmProceedBtn: {
+  padding: "10px 20px",
+  background: "#dc3545",
+  border: "none",
+  borderRadius: "6px",
+  color: "#fff",
+  cursor: "pointer",
+  fontSize: "14px",
+  fontWeight: "500",
+  minWidth: "140px",
+  transition: "all 0.2s",
+},
   };
 
   // Use combined attendees for display
@@ -1409,7 +1503,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const renderMobileAttendeeCard = (person) => {
     const isPersistent = persistentCommonAttendees.some(p => p.id === person.id);
     
-    return (
+return (
       <div key={person.id} style={styles.mobileAttendeeCard}>
         <div style={styles.mobileCardRow}>
           <div style={styles.mobileCardInfo}>
@@ -1537,7 +1631,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     );
   };
 
-  return (
+  // ADD THE MISSING CLOSING BRACE HERE
+  if (!isOpen) return null;
+
+ return (
     <>
       <div style={styles.overlay}>
         <div style={styles.modal}>
@@ -2108,8 +2205,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
               <button
                 style={styles.didNotMeetBtn}
                 onClick={handleDidNotMeet}
-                onMouseEnter={(e) => (e.target.style.backgroundColor = "#c82333")}
-                onMouseLeave={(e) => (e.target.style.backgroundColor = "#dc3545")}
               >
                 DID NOT MEET
               </button>
@@ -2123,6 +2218,42 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           </div>
         </div>
       </div>
+
+      {/* Professional Did Not Meet Confirmation Modal */}
+      {showDidNotMeetConfirm && (
+        <div style={styles.confirmOverlay}>
+          <div style={styles.confirmModal}>
+            <div style={styles.confirmHeader}>
+              <h3 style={styles.confirmTitle}>Confirm Event Status</h3>
+            </div>
+            <div style={styles.confirmBody}>
+              <div style={styles.confirmIcon}>
+                <X size={32} color="#dc3545" />
+              </div>
+              <p style={styles.confirmMessage}>
+                Are you sure you want to mark this event as <strong>'Did Not Meet'</strong>?
+              </p>
+              <p style={styles.confirmSubMessage}>
+                This will clear all current attendance data and cannot be undone.
+              </p>
+            </div>
+            <div style={styles.confirmFooter}>
+              <button
+                style={styles.confirmCancelBtn}
+                onClick={cancelDidNotMeet}
+              >
+                Cancel
+              </button>
+              <button
+                style={styles.confirmProceedBtn}
+                onClick={confirmDidNotMeet}
+              >
+                Mark as Did Not Meet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {alert.open && (
         <div
@@ -2148,6 +2279,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       />
     </>
   );
-};
+}; // <-- THIS CLOSING BRACE WAS MISSING
 
 export default AttendanceModal;
