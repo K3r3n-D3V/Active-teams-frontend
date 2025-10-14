@@ -437,12 +437,20 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   );
 };
 
-const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser  }) => {
+const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
   const [decisions, setDecisions] = useState({});
   const [decisionTypes, setDecisionTypes] = useState({});
   const [openDecisionDropdown, setOpenDecisionDropdown] = useState(null);
+  
+  // NEW: Ticketed event fields
+  const [priceTiers, setPriceTiers] = useState({});
+  const [paymentMethods, setPaymentMethods] = useState({});
+  const [paidAmounts, setPaidAmounts] = useState({});
+  const [openPriceTierDropdown, setOpenPriceTierDropdown] = useState(null);
+  const [openPaymentDropdown, setOpenPaymentDropdown] = useState(null);
+  
   const [people, setPeople] = useState([]);
   const [commonAttendees, setCommonAttendees] = useState([]);
   const [searchName, setSearchName] = useState("");
@@ -455,10 +463,17 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
+  // Check if this is a ticketed event
+  const isTicketedEvent = event?.isTicketed || false;
+  const eventPriceTiers = event?.priceTiers || [];
+
   const decisionOptions = [
     { value: "first-time", label: "First-time commitment" },
     { value: "re-commitment", label: "Re-commitment" },
   ];
+
+  // Get unique payment methods from price tiers
+  const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
   const fetchPeople = async (filter = "") => {
     try {
@@ -521,6 +536,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       setCheckedIn({});
       setDecisions({});
       setDecisionTypes({});
+      setPriceTiers({});
+      setPaymentMethods({});
+      setPaidAmounts({});
       setSearchName("");
       setAssociateSearch("");
       setActiveTab(0);
@@ -559,6 +577,22 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           delete updated[id];
           return updated;
         });
+        // Clear ticketed event fields
+        setPriceTiers((prev) => {
+          const updated = { ...prev };
+          delete updated[id];
+          return updated;
+        });
+        setPaymentMethods((prev) => {
+          const updated = { ...prev };
+          delete updated[id];
+          return updated;
+        });
+        setPaidAmounts((prev) => {
+          const updated = { ...prev };
+          delete updated[id];
+          return updated;
+        });
       }
       return newState;
     });
@@ -576,11 +610,45 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     setOpenDecisionDropdown(null);
   };
 
+  const handlePriceTierSelect = (id, tierIndex) => {
+    const selectedTier = eventPriceTiers[tierIndex];
+    setPriceTiers((prev) => ({
+      ...prev,
+      [id]: {
+        name: selectedTier.name,
+        price: parseFloat(selectedTier.price),
+        ageGroup: selectedTier.ageGroup,
+        memberType: selectedTier.memberType,
+      }
+    }));
+    setOpenPriceTierDropdown(null);
+  };
+
+  const handlePaymentMethodSelect = (id, method) => {
+    setPaymentMethods((prev) => ({
+      ...prev,
+      [id]: method
+    }));
+    setOpenPaymentDropdown(null);
+  };
+
+  const handlePaidAmountChange = (id, value) => {
+    const numValue = parseFloat(value) || 0;
+    setPaidAmounts((prev) => ({
+      ...prev,
+      [id]: numValue
+    }));
+  };
+
+  const calculateOwing = (id) => {
+    const price = priceTiers[id]?.price || 0;
+    const paid = paidAmounts[id] || 0;
+    return price - paid;
+  };
+
   const handleSave = async () => {
-    // ✅ FIX: Allow submission even if didNotMeet is true
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
 
-    // Only validate attendees if NOT marking as did not meet
     if (!didNotMeet && attendeesList.length === 0) {
       setAlert({
         open: true,
@@ -589,6 +657,30 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       });
       setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
       return;
+    }
+
+    // Validate ticketed event fields
+    if (isTicketedEvent && !didNotMeet) {
+      for (const id of attendeesList) {
+        if (!priceTiers[id]) {
+          setAlert({
+            open: true,
+            type: "error",
+            message: "Please select a price tier for all checked-in attendees.",
+          });
+          setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+          return;
+        }
+        if (!paymentMethods[id]) {
+          setAlert({
+            open: true,
+            type: "error",
+            message: "Please select a payment method for all checked-in attendees.",
+          });
+          setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+          return;
+        }
+      }
     }
 
     const eventId = event?.id || event?._id;
@@ -604,10 +696,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
     const allPeople = [...commonAttendees, ...people];
 
-    // Format attendees for payload
     const selectedAttendees = attendeesList.map((id) => {
       const person = allPeople.find((p) => p.id === id);
-      return {
+      const attendee = {
         id: person?.id,
         name: person?.fullName || "",
         email: person?.email || "",
@@ -618,6 +709,19 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         time: new Date().toISOString(),
         decision: decisions[id] ? decisionTypes[id] || "" : "",
       };
+
+      // Add ticketed event fields
+      if (isTicketedEvent) {
+        attendee.priceTier = priceTiers[id]?.name || "";
+        attendee.price = priceTiers[id]?.price || 0;
+        attendee.ageGroup = priceTiers[id]?.ageGroup || "";
+        attendee.memberType = priceTiers[id]?.memberType || "";
+        attendee.paymentMethod = paymentMethods[id] || "";
+        attendee.paid = paidAmounts[id] || 0;
+        attendee.owing = calculateOwing(id);
+      }
+
+      return attendee;
     });
 
     console.log("📝 Sending attendees to parent:", selectedAttendees);
@@ -633,6 +737,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         leaderEmail: currentUser?.email || "",
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
         did_not_meet: didNotMeet,
+        isTicketed: isTicketedEvent,
       };
 
       let result = { success: false };
@@ -687,7 +792,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     const confirmed = window.confirm("Are you sure you want to mark this event as 'Did Not Meet'?");
     if (!confirmed) return;
 
-    // ✅ FIX: Set state to enable the SAVE button
     setDidNotMeet(true);
     setCheckedIn({});
     setDecisions({});
@@ -742,7 +846,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       padding: "0",
       borderRadius: "12px",
       width: "100%",
-      maxWidth: "1100px",
+       maxWidth: "1200px", 
       maxHeight: "90vh",
       display: "flex",
       flexDirection: "column",
@@ -760,6 +864,18 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       fontWeight: "600",
       margin: 0,
       color: "#333",
+      display: "flex",
+      alignItems: "center",
+      gap: "12px",
+    },
+    ticketBadge: {
+      background: "#ffc107",
+      color: "#000",
+      padding: "4px 12px",
+      borderRadius: "12px",
+      fontSize: "12px",
+      fontWeight: "600",
+      textTransform: "uppercase",
     },
     addPersonBtn: {
       background: "#2563eb",
@@ -904,10 +1020,73 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       color: "#333",
       transition: "background 0.2s",
     },
+    priceTierButton: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "8px 12px",
+      background: "#fff3cd",
+      border: "1px solid #ffc107",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontSize: "14px",
+      color: "#856404",
+      minWidth: "200px",
+      justifyContent: "space-between",
+      fontWeight: "500",
+    },
+    paymentButton: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "8px 12px",
+      background: "#d1ecf1",
+      border: "1px solid #17a2b8",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontSize: "14px",
+      color: "#0c5460",
+      minWidth: "150px",
+      justifyContent: "space-between",
+      fontWeight: "500",
+    },
+    priceInput: {
+      padding: "8px 12px",
+      fontSize: "14px",
+      borderRadius: "6px",
+      border: "1px solid #ddd",
+      backgroundColor: "#f8f9fa",
+      color: "#666",
+      width: "100px",
+      textAlign: "right",
+    },
+    paidInput: {
+      padding: "8px 12px",
+      fontSize: "14px",
+      borderRadius: "6px",
+      border: "1px solid #28a745",
+      backgroundColor: "#fff",
+      color: "#333",
+      width: "100px",
+      textAlign: "right",
+    },
+    owingText: {
+      padding: "8px 12px",
+      fontSize: "14px",
+      fontWeight: "600",
+      textAlign: "right",
+    },
+    owingPositive: {
+      color: "#28a745",
+    },
+    owingNegative: {
+      color: "#dc3545",
+    },
     statsContainer: {
       display: "flex",
       gap: "20px",
       marginBottom: "20px",
+      flexWrap: "wrap",
     },
     statBox: {
       flex: 1,
@@ -916,6 +1095,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       borderRadius: "8px",
       textAlign: "center",
       position: "relative",
+      minWidth: "150px",
     },
     statBoxInput: {
       flex: 1,
@@ -928,6 +1108,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
+      minWidth: "150px",
     },
     headcountInput: {
       fontSize: "36px",
@@ -1055,12 +1236,26 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     (id) => decisions[id] && decisionTypes[id] === "re-commitment"
   ).length;
 
+  // Calculate totals for ticketed events
+  const totalPaid = Object.keys(checkedIn)
+    .filter(id => checkedIn[id])
+    .reduce((sum, id) => sum + (paidAmounts[id] || 0), 0);
+
+  const totalOwing = Object.keys(checkedIn)
+    .filter(id => checkedIn[id])
+    .reduce((sum, id) => sum + calculateOwing(id), 0);
+
   return (
     <>
       <div style={styles.overlay}>
         <div style={styles.modal}>
           <div style={styles.header}>
-            <h1 style={styles.title}>Current Event Information</h1>
+            <h1 style={styles.title}>
+              Current Event Information
+              {isTicketedEvent && (
+                <span style={styles.ticketBadge}>Ticketed Event</span>
+              )}
+            </h1>
             <button
               style={styles.addPersonBtn}
               onClick={() => setShowAddPersonModal(true)}
@@ -1110,24 +1305,39 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                     <tr>
                       <th style={styles.th}>Attendees Name</th>
                       <th style={styles.th}>Attendees Email</th>
-                      <th style={styles.th}>Attendees Leader @12</th>
-                      <th style={styles.th}>Attendees Leader @144</th>
-                      <th style={styles.th}>Attendees Number</th>
+                      {!isTicketedEvent && (
+                        <>
+                          <th style={styles.th}>Attendees Leader @12</th>
+                          <th style={styles.th}>Attendees Leader @144</th>
+                          <th style={styles.th}>Attendees Number</th>
+                        </>
+                      )}
                       <th style={{...styles.th, textAlign: "center"}}>Check In</th>
-                      <th style={{...styles.th, textAlign: "center"}}>Decision</th>
+                      {isTicketedEvent && (
+                        <>
+                          <th style={{...styles.th, textAlign: "center"}}>Price Tier</th>
+                          <th style={{...styles.th, textAlign: "center"}}>Payment Method</th>
+                          <th style={{...styles.th, textAlign: "right"}}>Price</th>
+                          <th style={{...styles.th, textAlign: "right"}}>Paid</th>
+                          <th style={{...styles.th, textAlign: "right"}}>Owing</th>
+                        </>
+                      )}
+                      {!isTicketedEvent && (
+                        <th style={{...styles.th, textAlign: "center"}}>Decision</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {loading && (
                       <tr>
-                        <td colSpan="7" style={{...styles.td, textAlign: "center"}}>
+                        <td colSpan={isTicketedEvent ? "8" : "7"} style={{...styles.td, textAlign: "center"}}>
                           Loading...
                         </td>
                       </tr>
                     )}
                     {!loading && filteredCommonAttendees.length === 0 && (
                       <tr>
-                        <td colSpan="7" style={{...styles.td, textAlign: "center"}}>
+                        <td colSpan={isTicketedEvent ? "8" : "7"} style={{...styles.td, textAlign: "center"}}>
                           No attendees found.
                         </td>
                       </tr>
@@ -1136,9 +1346,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                       <tr key={person.id}>
                         <td style={styles.td}>{person.fullName}</td>
                         <td style={styles.td}>{person.email}</td>
-                        <td style={styles.td}>{person.leader12}</td>
-                        <td style={styles.td}>{person.leader144}</td>
-                        <td style={styles.td}>{person.phone}</td>
+                        {!isTicketedEvent && (
+                          <>
+                            <td style={styles.td}>{person.leader12}</td>
+                            <td style={styles.td}>{person.leader144}</td>
+                            <td style={styles.td}>{person.phone}</td>
+                          </>
+                        )}
                         <td style={{...styles.td, ...styles.radioCell}}>
                           <button
                             style={{
@@ -1152,59 +1366,216 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                             )}
                           </button>
                         </td>
-                        <td style={{...styles.td, ...styles.radioCell}}>
-                          {checkedIn[person.id] ? (
-                            <div style={styles.decisionDropdown}>
-                              <button
-                                style={styles.decisionButton}
-                                onClick={() =>
-                                  setOpenDecisionDropdown(
-                                    openDecisionDropdown === person.id ? null : person.id
-                                  )
-                                }
-                              >
-                                <span>
-                                  {decisionTypes[person.id]
-                                    ? decisionOptions.find(
-                                        (opt) => opt.value === decisionTypes[person.id]
-                                      )?.label
-                                    : "Select Decision"}
-                                </span>
-                                <ChevronDown size={16} />
-                              </button>
-                              {openDecisionDropdown === person.id && (
-                                <div style={styles.decisionMenu}>
-                                  {decisionOptions.map((option) => (
-                                    <div
-                                      key={option.value}
-                                      style={styles.decisionMenuItem}
-                                      onClick={() =>
-                                        handleDecisionTypeSelect(person.id, option.value)
-                                      }
-                                      onMouseEnter={(e) =>
-                                        (e.target.style.background = "#f0f0f0")
-                                      }
-                                      onMouseLeave={(e) =>
-                                        (e.target.style.background = "transparent")
-                                      }
-                                    >
-                                      {option.label}
+                        
+                        {isTicketedEvent && (
+                          <>
+                            <td style={{...styles.td, ...styles.radioCell}}>
+                              {checkedIn[person.id] ? (
+                                <div style={styles.decisionDropdown}>
+                                  <button
+                                    style={styles.priceTierButton}
+                                    onClick={() =>
+                                      setOpenPriceTierDropdown(
+                                        openPriceTierDropdown === person.id ? null : person.id
+                                      )
+                                    }
+                                  >
+                                    <span>
+                                      {priceTiers[person.id]
+                                        ? `${priceTiers[person.id].name} (R${priceTiers[person.id].price.toFixed(2)})`
+                                        : "Select Price Tier"}
+                                    </span>
+                                    <ChevronDown size={16} />
+                                  </button>
+                                  {openPriceTierDropdown === person.id && (
+                                    <div style={styles.decisionMenu}>
+                                      {eventPriceTiers.map((tier, index) => (
+                                        <div
+                                          key={index}
+                                          style={styles.decisionMenuItem}
+                                          onClick={() =>
+                                            handlePriceTierSelect(person.id, index)
+                                          }
+                                          onMouseEnter={(e) =>
+                                            (e.target.style.background = "#f0f0f0")
+                                          }
+                                          onMouseLeave={(e) =>
+                                            (e.target.style.background = "transparent")
+                                          }
+                                        >
+                                          {tier.name} - R{parseFloat(tier.price).toFixed(2)}
+                                          <div style={{ fontSize: "12px", color: "#666" }}>
+                                            {tier.ageGroup} • {tier.memberType}
+                                          </div>
+                                        </div>
+                                      ))}
                                     </div>
-                                  ))}
+                                  )}
                                 </div>
+                              ) : (
+                                <button
+                                  style={{
+                                    ...styles.radioButton,
+                                    opacity: 0.3,
+                                    cursor: "not-allowed",
+                                  }}
+                                  disabled
+                                />
                               )}
-                            </div>
-                          ) : (
-                            <button
-                              style={{
-                                ...styles.radioButton,
-                                opacity: 0.3,
-                                cursor: "not-allowed",
-                              }}
-                              disabled
-                            />
-                          )}
-                        </td>
+                            </td>
+                            
+                            <td style={{...styles.td, ...styles.radioCell}}>
+                              {checkedIn[person.id] ? (
+                                <div style={styles.decisionDropdown}>
+                                  <button
+                                    style={styles.paymentButton}
+                                    onClick={() =>
+                                      setOpenPaymentDropdown(
+                                        openPaymentDropdown === person.id ? null : person.id
+                                      )
+                                    }
+                                  >
+                                    <span>
+                                      {paymentMethods[person.id] || "Select Payment"}
+                                    </span>
+                                    <ChevronDown size={16} />
+                                  </button>
+                                  {openPaymentDropdown === person.id && (
+                                    <div style={styles.decisionMenu}>
+                                      {availablePaymentMethods.map((method, index) => (
+                                        <div
+                                          key={index}
+                                          style={styles.decisionMenuItem}
+                                          onClick={() =>
+                                            handlePaymentMethodSelect(person.id, method)
+                                          }
+                                          onMouseEnter={(e) =>
+                                            (e.target.style.background = "#f0f0f0")
+                                          }
+                                          onMouseLeave={(e) =>
+                                            (e.target.style.background = "transparent")
+                                          }
+                                        >
+                                          {method}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <button
+                                  style={{
+                                    ...styles.radioButton,
+                                    opacity: 0.3,
+                                    cursor: "not-allowed",
+                                  }}
+                                  disabled
+                                />
+                              )}
+                            </td>
+                            
+                            <td style={{...styles.td, textAlign: "right"}}>
+                              {checkedIn[person.id] && priceTiers[person.id] ? (
+                                <span style={styles.priceInput}>
+                                  R{priceTiers[person.id].price.toFixed(2)}
+                                </span>
+                              ) : (
+                                <span style={{ color: "#ccc" }}>-</span>
+                              )}
+                            </td>
+                            
+                            <td style={{...styles.td, textAlign: "right"}}>
+                              {checkedIn[person.id] ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={paidAmounts[person.id] || ""}
+                                  onChange={(e) =>
+                                    handlePaidAmountChange(person.id, e.target.value)
+                                  }
+                                  placeholder="0.00"
+                                  style={styles.paidInput}
+                                />
+                              ) : (
+                                <span style={{ color: "#ccc" }}>-</span>
+                              )}
+                            </td>
+                            
+                            <td style={{...styles.td, textAlign: "right"}}>
+                              {checkedIn[person.id] && priceTiers[person.id] ? (
+                                <span
+                                  style={{
+                                    ...styles.owingText,
+                                    ...(calculateOwing(person.id) === 0
+                                      ? styles.owingPositive
+                                      : styles.owingNegative),
+                                  }}
+                                >
+                                  R{calculateOwing(person.id).toFixed(2)}
+                                </span>
+                              ) : (
+                                <span style={{ color: "#ccc" }}>-</span>
+                              )}
+                            </td>
+                          </>
+                        )}
+                        
+                        {!isTicketedEvent && (
+                          <td style={{...styles.td, ...styles.radioCell}}>
+                            {checkedIn[person.id] ? (
+                              <div style={styles.decisionDropdown}>
+                                <button
+                                  style={styles.decisionButton}
+                                  onClick={() =>
+                                    setOpenDecisionDropdown(
+                                      openDecisionDropdown === person.id ? null : person.id
+                                    )
+                                  }
+                                >
+                                  <span>
+                                    {decisionTypes[person.id]
+                                      ? decisionOptions.find(
+                                          (opt) => opt.value === decisionTypes[person.id]
+                                        )?.label
+                                      : "Select Decision"}
+                                  </span>
+                                  <ChevronDown size={16} />
+                                </button>
+                                {openDecisionDropdown === person.id && (
+                                  <div style={styles.decisionMenu}>
+                                    {decisionOptions.map((option) => (
+                                      <div
+                                        key={option.value}
+                                        style={styles.decisionMenuItem}
+                                        onClick={() =>
+                                          handleDecisionTypeSelect(person.id, option.value)
+                                        }
+                                        onMouseEnter={(e) =>
+                                          (e.target.style.background = "#f0f0f0")
+                                        }
+                                        onMouseLeave={(e) =>
+                                          (e.target.style.background = "transparent")
+                                        }
+                                      >
+                                        {option.label}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                style={{
+                                  ...styles.radioButton,
+                                  opacity: 0.3,
+                                  cursor: "not-allowed",
+                                }}
+                                disabled
+                              />
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -1226,22 +1597,45 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                     />
                     <div style={styles.statLabel}>Total Headcounts</div>
                   </div>
-                  <div style={styles.statBox}>
-                    <div style={{...styles.statNumber, color: "#ffc107"}}>
-                      {decisionsCount}
-                    </div>
-                    <div style={styles.statLabel}>Decisions</div>
-                    {decisionsCount > 0 && (
-                      <div style={styles.decisionBreakdown}>
-                        {firstTimeCount > 0 && (
-                          <span>First-time: {firstTimeCount}</span>
-                        )}
-                        {reCommitmentCount > 0 && (
-                          <span>Re-commitment: {reCommitmentCount}</span>
-                        )}
+                  
+                  {!isTicketedEvent && (
+                    <div style={styles.statBox}>
+                      <div style={{...styles.statNumber, color: "#ffc107"}}>
+                        {decisionsCount}
                       </div>
-                    )}
-                  </div>
+                      <div style={styles.statLabel}>Decisions</div>
+                      {decisionsCount > 0 && (
+                        <div style={styles.decisionBreakdown}>
+                          {firstTimeCount > 0 && (
+                            <span>First-time: {firstTimeCount}</span>
+                          )}
+                          {reCommitmentCount > 0 && (
+                            <span>Re-commitment: {reCommitmentCount}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {isTicketedEvent && (
+                    <>
+                      <div style={styles.statBox}>
+                        <div style={{...styles.statNumber, color: "#28a745"}}>
+                          R{totalPaid.toFixed(2)}
+                        </div>
+                        <div style={styles.statLabel}>Total Paid</div>
+                      </div>
+                      <div style={styles.statBox}>
+                        <div style={{
+                          ...styles.statNumber,
+                          color: totalOwing === 0 ? "#28a745" : "#dc3545"
+                        }}>
+                          R{totalOwing.toFixed(2)}
+                        </div>
+                        <div style={styles.statLabel}>Total Owing</div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </>
             )}
