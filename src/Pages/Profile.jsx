@@ -1,4 +1,3 @@
-
 import React, {
   useState,
   useCallback,
@@ -171,14 +170,14 @@ export default function Profile() {
   const [hasChanges, setHasChanges] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [form, setForm] = useState({
+    leader: "",
     name: "",
     surname: "",
-    dob: "",
+    username: "",
     email: "",
-    address: "",
-    phone: "",
     invitedBy: "",
-    gender: "",
+    role: "",
+    type: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
@@ -315,14 +314,14 @@ export default function Profile() {
   // Helper function to update form with profile data
   const updateFormWithProfile = (profile) => {
     const formData = {
+      leader: profile?.leader || "",
       name: profile?.name || "",
       surname: profile?.surname || "",
-      dob: profile?.date_of_birth || "",
+      username: profile?.username || "",
       email: profile?.email || "",
-      address: profile?.home_address || "",
-      phone: profile?.phone_number || "",
       invitedBy: profile?.invited_by || "",
-      gender: profile?.gender || "",
+      role: profile?.role || "",
+      type: profile?.type || "",
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
@@ -455,14 +454,14 @@ export default function Profile() {
     if (!validate()) return;
 
     const payload = {
+      leader: form.leader,
       name: form.name,
       surname: form.surname,
-      date_of_birth: form.dob,
+      username: form.username,
       email: form.email,
-      home_address: form.address,
-      phone_number: form.phone,
       invited_by: form.invitedBy,
-      gender: form.gender,
+      role: form.role,
+      type: form.type,
     };
 
     try {
@@ -871,6 +870,27 @@ export default function Profile() {
             <Box component="form" onSubmit={handleSubmit}>
               {/* Personal Information Fields */}
               <Grid container spacing={3}>
+                {/* Leader */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Leader
+                  </Typography>
+                  <TextField
+                    value={form.leader || ""}
+                    onChange={handleChange("leader")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
                 {/* Name */}
                 <Grid item xs={12} sm={6}>
                   <Typography
@@ -917,7 +937,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                {/* Date of Birth */}
+                {/* User Name */}
                 <Grid item xs={12} sm={6}>
                   <Typography
                     variant="body2"
@@ -927,15 +947,13 @@ export default function Profile() {
                       color: isDark ? "#cccccc" : "#666666",
                     }}
                   >
-                    Date Of Birth
+                    User Name
                   </Typography>
                   <TextField
-                    value={form.dob || ""}
-                    onChange={handleChange("dob")}
+                    value={form.username || ""}
+                    onChange={handleChange("username")}
                     fullWidth
-                    type="date"
                     disabled
-                    InputLabelProps={{ shrink: true }}
                     sx={commonFieldSx}
                   />
                 </Grid>
@@ -950,7 +968,7 @@ export default function Profile() {
                       color: isDark ? "#cccccc" : "#666666",
                     }}
                   >
-                    Email Address
+                    Email
                   </Typography>
                   <TextField
                     value={form.email || ""}
@@ -959,48 +977,6 @@ export default function Profile() {
                     disabled={!editMode}
                     error={!!errors.email}
                     helperText={errors.email}
-                    sx={commonFieldSx}
-                  />
-                </Grid>
-
-                {/* Home Address */}
-                <Grid item xs={12} sm={6}>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      mb: 1,
-                      fontWeight: 600,
-                      color: isDark ? "#cccccc" : "#666666",
-                    }}
-                  >
-                    Home Address
-                  </Typography>
-                  <TextField
-                    value={form.address || ""}
-                    onChange={handleChange("address")}
-                    fullWidth
-                    disabled={!editMode}
-                    sx={commonFieldSx}
-                  />
-                </Grid>
-
-                {/* Phone Number */}
-                <Grid item xs={12} sm={6}>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      mb: 1,
-                      fontWeight: 600,
-                      color: isDark ? "#cccccc" : "#666666",
-                    }}
-                  >
-                    Phone Number
-                  </Typography>
-                  <TextField
-                    value={form.phone || ""}
-                    onChange={handleChange("phone")}
-                    fullWidth
-                    disabled={!editMode}
                     sx={commonFieldSx}
                   />
                 </Grid>
@@ -1026,7 +1002,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                {/* Gender */}
+                {/* Role */}
                 <Grid item xs={12} sm={6}>
                   <Typography
                     variant="body2"
@@ -1036,11 +1012,32 @@ export default function Profile() {
                       color: isDark ? "#cccccc" : "#666666",
                     }}
                   >
-                    Gender
+                    Role
                   </Typography>
                   <TextField
-                    value={form.gender || ""}
-                    onChange={handleChange("gender")}
+                    value={form.role || ""}
+                    onChange={handleChange("role")}
+                    fullWidth
+                    disabled
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Type */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Type
+                  </Typography>
+                  <TextField
+                    value={form.type || ""}
+                    onChange={handleChange("type")}
                     fullWidth
                     disabled
                     sx={commonFieldSx}
