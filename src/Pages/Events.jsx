@@ -1356,8 +1356,8 @@ const StatusBadges = () => {
                 user={currentUser}
                 isModal={true}
                 onClose={handleCloseCreateEventModal}
-                selectedEventTypeObj={selectedEventTypeObj}   
-                selectedEventType={currentSelectedEventType}
+                selectedEventTypeObj={selectedEventTypeObj}   // <-- Pass the selected event type object
+                selectedEventType={currentSelectedEventType}   // <-- Pass the selected event type name
                 eventTypes={allEventTypes}
               />
             </div>

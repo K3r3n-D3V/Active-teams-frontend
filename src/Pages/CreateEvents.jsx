@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Button, TextField, Checkbox, FormControl, InputLabel, Select, MenuItem,
+  Button, TextField, Checkbox,Chip,
   Card, CardContent, FormControlLabel, Box, InputAdornment, Snackbar, Alert, Typography,
   useTheme, Autocomplete, IconButton
 } from '@mui/material';
@@ -552,7 +552,7 @@ useEffect(() => {
 
           <form onSubmit={handleSubmit}>
             {/* Event Type */}
- <TextField
+            <TextField
   label={isGlobalEvent ? "Event Group Name" : "Event Type"}
   value={selectedEventTypeObj?.name || formData.eventType?.name || formData.eventType || ''}
   fullWidth
