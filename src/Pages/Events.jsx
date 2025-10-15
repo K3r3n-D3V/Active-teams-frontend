@@ -550,34 +550,45 @@ const Events = () => {
   return eventDate < today;
 };
 
+
 const applyAllFilters = (
   filters = activeFilters,
   statusFilter = selectedStatus,
   search = searchQuery
 ) => {
   let filtered = events.filter(event => {
-    // ✅ FIX: Check did_not_meet flag FIRST (highest priority)
+    // ✅ FIXED: Event Type Filtering - Only show events that match the selected type
+    if (selectedEventTypeFilter !== 'all') {
+      const eventEventType = (event.eventType || "").toLowerCase().trim();
+      const selectedType = selectedEventTypeFilter.toLowerCase().trim();
+      
+      if (eventEventType !== selectedType) {
+        return false;
+      }
+    }
+
+    // ✅ FIXED: Consistent status mapping
     let mappedStatus = 'incomplete';
     
+    // Check did_not_meet FIRST (highest priority)
     if (event.did_not_meet === true) {
       mappedStatus = 'did_not_meet';
     }
-    else if (event.attendees && event.attendees.length > 0) {
+    // Then check if it's complete (has attendees or status is complete/closed)
+    else if ((event.attendees && event.attendees.length > 0) || 
+             ['complete', 'closed'].includes((event.status || event.Status || '').toLowerCase().trim())) {
       mappedStatus = 'complete';
     }
+    // Otherwise it's incomplete
     else {
-      const rawStatus = (event.status || event.Status || '').toLowerCase().trim();
-      if (rawStatus === 'complete' || rawStatus === 'closed') {
-        mappedStatus = 'complete';
-      } else if (rawStatus === 'did_not_meet') {
-        mappedStatus = 'did_not_meet';
-      }
+      mappedStatus = 'incomplete';
     }
     
-    // Filter by selected status tab
+    // ✅ FIXED: Filter by selected status tab
     if (statusFilter !== 'all' && mappedStatus !== statusFilter) {
       return false;
-    }    
+    }
+    
     // Search filter
     if (search) {
       const searchLower = search.toLowerCase();
@@ -589,8 +600,8 @@ const applyAllFilters = (
       if (!matchesSearch) return false;
     }
 
-    // Apply additional filters
-    if (filters.eventType) {
+    // Apply additional filters from the filter modal
+    if (filters.eventType && filters.eventType !== selectedEventTypeFilter) {
       const eventType = (event.eventType || "").toLowerCase().trim();
       const filterType = filters.eventType.toLowerCase().trim();
       if (eventType !== filterType) {
@@ -712,8 +723,7 @@ const applyAllFilters = (
  
 
      
-
-   const handleAttendanceSubmit = async (data) => {
+const handleAttendanceSubmit = async (data) => {
   try {
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
@@ -723,81 +733,60 @@ const applyAllFilters = (
     const leaderEmail = currentUser?.email || '';
     const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
+    console.log("🎯 handleAttendanceSubmit called with:", data);
+
+    let payload;
+
+    // ✅ Handle different data formats
     if (data === "did_not_meet") {
-      await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        {
-          attendees: [],
-          leaderEmail,
-          leaderName,
-          did_not_meet: true,
-        },
-        { headers }
-      );
-
-      // ✅ CRITICAL: Refresh events immediately
-      await fetchEvents();
-      
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-
-      setSnackbar({
-        open: true,
-        message: `${eventName} marked as 'Did Not Meet'.`,
-        severity: "success",
-      });
-
-      return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
+      console.log("🔴 Marking as DID NOT MEET");
+      payload = {
+        attendees: [],
+        leaderEmail,
+        leaderName,
+        did_not_meet: true,
+      };
+    } else if (Array.isArray(data)) {
+      console.log("✅ Capturing attendance with", data.length, "attendees");
+      payload = {
+        attendees: data,
+        leaderEmail,
+        leaderName,
+        did_not_meet: false,
+      };
+    } else {
+      console.log("📦 Using provided payload:", data);
+      payload = data;
     }
 
-    if (Array.isArray(data) && data.length > 0) {
-      const attendeesPayload = data.map(person => ({
-        id: person.id ?? person._id ?? person.ID ?? null,
-        name: person.name ?? person.fullName ?? '',
-        fullName: person.fullName ?? person.name ?? '',
-        leader12: person.leader12 ?? null,
-        leader144: person.leader144 ?? null,
-        time: person.time ?? null,
-        email: person.email ?? null,
-        phone: person.phone ?? null,
-        decision: person.decision ?? null,
-      }));
+    console.log("🚀 Final payload:", payload);
 
-      await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        {
-          attendees: attendeesPayload,
-          leaderEmail,
-          leaderName,
-          did_not_meet: false,
-        },
-        { headers }
-      );
+    const response = await axios.put(
+      `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+      payload,
+      { headers }
+    );
 
-      // ✅ CRITICAL: Refresh events immediately
-      await fetchEvents();
-      
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-
-      setSnackbar({
-        open: true,
-        message: `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
-
-      return { success: true, message: `Successfully captured attendance for ${eventName}` };
-    }
+    console.log("✅ Backend response:", response.data);
+    
+    // Refresh events list
+    await fetchEvents();
+    
+    setAttendanceModalOpen(false);
+    setSelectedEvent(null);
 
     setSnackbar({
       open: true,
-      message: "Please select at least one attendee or mark as 'Did Not Meet'.",
-      severity: "error",
+      message: payload.did_not_meet 
+        ? `${eventName} marked as 'Did Not Meet'.`
+        : `Successfully captured attendance for ${eventName}`,
+      severity: "success",
     });
-    return { success: false, message: "No attendees selected." };
+
+    return { success: true, message: "Attendance submitted successfully" };
 
   } catch (error) {
-    console.error("Error updating event:", error);
+    console.error("❌ Error in handleAttendanceSubmit:", error);
     const errData = error.response?.data;
     let errorMessage = error.message;
 
@@ -818,6 +807,7 @@ const applyAllFilters = (
     return { success: false, message: errorMessage };
   }
 };
+
 
   const handleEditEvent = (event) => {
     navigate(`/edit-event/${event._id}`);
@@ -894,7 +884,6 @@ const applyAllFilters = (
         <span>{finalDisplayName}</span>
       </div>
 
-      {/* ✅ Only show this part if user is admin */}
       {isAdmin && (
         <div style={eventTypeStyles.typesGrid}>
           {allTypes.map((type) => {
@@ -943,29 +932,38 @@ const applyAllFilters = (
 };
 
 const StatusBadges = () => {
+  // Filter events by selected event type first
+  const eventsForCurrentType = selectedEventTypeFilter === 'all' 
+    ? events 
+    : events.filter(event => {
+        const eventEventType = (event.eventType || "").toLowerCase().trim();
+        const selectedType = selectedEventTypeFilter.toLowerCase().trim();
+        return eventEventType === selectedType;
+      });
+
   const statusCounts = {
-    incomplete: events.filter(e => {
+    incomplete: eventsForCurrentType.filter(e => {
       if (e.did_not_meet === true) return false;
-      if (e.attendees && e.attendees.length > 0) return false;
-      const status = (e.status || e.Status || '').toLowerCase().trim();
-      return status !== 'complete' && status !== 'closed' && status !== 'did_not_meet';
+      if ((e.attendees && e.attendees.length > 0) || 
+          ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
+        return false;
+      }
+      return true;
     }).length,
     
-    complete: events.filter(e => {
+    complete: eventsForCurrentType.filter(e => {
       if (e.did_not_meet === true) return false;
       return (e.attendees && e.attendees.length > 0) || 
              ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
     }).length,
     
-    did_not_meet: events.filter(e => {
+    did_not_meet: eventsForCurrentType.filter(e => {
       return e.did_not_meet === true;
     }).length,
   };
     
- 
-
   return (
-    <div style={styles.statusBadgeContainer}>
+     <div style={styles.statusBadgeContainer}>
       <button
         style={{
           ...styles.statusBadge,
@@ -1010,7 +1008,6 @@ const StatusBadges = () => {
     </div>
   );
 };
-
 
   // NEW: Mobile card view component
   const MobileEventCard = ({ event }) => {
