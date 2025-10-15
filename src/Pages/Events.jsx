@@ -68,7 +68,7 @@ const styles = {
   statusBadge: {
     padding: '0.5rem 1rem',
     borderRadius: '6px',
-    fontSize: '0.75rem',
+    fontSize: '0.95rem',
     fontWeight: '600',
     cursor: 'pointer',
     border: '2px solid',
@@ -265,6 +265,42 @@ const styles = {
     marginTop: '1rem',
     justifyContent: 'flex-end',
   },
+  statusAndEventTypeRow: {
+  display: 'flex',
+  gap: '2rem',
+  alignItems: 'flex-start',
+  flexWrap: 'wrap',
+},
+viewFilterContainer: {
+  display: 'flex',
+  gap: '1rem',
+  alignItems: 'center',
+  marginBottom: '1.5rem',
+},
+viewFilterLabel: {
+  fontSize: '1rem',
+  fontWeight: '600',
+  color: '#495057',
+},
+viewFilterRadio: {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  cursor: 'pointer',
+},
+viewFilterText: {
+  fontSize: '1.1rem',
+  transition: 'all 0.2s ease',
+},
+// Add this to your styles object
+viewFilterRow: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: '1.5rem',
+  flexWrap: 'wrap',
+  gap: '1rem',
+},
 };
 const fabStyles = {
   fabContainer: {
@@ -449,6 +485,8 @@ const Events = () => {
   const [selectedStatus, setSelectedStatus] = useState('incomplete');
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredRow, setHoveredRow] = useState(null);
+  const [hoveredType, setHoveredType] = useState(null);
+  const [viewFilter, setViewFilter] = useState('all');
 
   useEffect(() => {
     const savedEventTypes = localStorage.getItem("customEventTypes");
@@ -471,69 +509,85 @@ const Events = () => {
   }, [customEventTypes]);
 
   const fetchEvents = async () => {
-    setLoading(true);
+  setLoading(true);
+  
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.error("No token found");
+      setLoading(false);
+      return;
+    }
+    
+    const headers = { Authorization: `Bearer ${token}` };
+    const userRole = currentUser?.role;
+    
+    let allEvents = [];
     
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        console.error("No token found");
-        setLoading(false);
-        return;
-      }
-      
-      const headers = { Authorization: `Bearer ${token}` };
-      const userRole = currentUser?.role;
-      
-      let allEvents = [];
-      
-      try {
-        const eventTypesResponse = await axios.get(`${BACKEND_URL}/event-types`, { headers });
-        const apiCustomTypes = eventTypesResponse.data || [];
-        setCustomEventTypes(apiCustomTypes);
-        setUserCreatedEventTypes(apiCustomTypes);
-        setEventTypes(apiCustomTypes.map(type => type.name));
-      } catch (typeError) {
-        console.error("Failed to load event types:", typeError);
-      }
-      
-      if (userRole === "admin") {
-        try {
-          const response = await axios.get(`${BACKEND_URL}/admin/events/cells`, { headers });
-          allEvents = response.data.events || [];
-        } catch (adminError) {
-          console.error("Admin events fetch failed:", adminError);
-        }
-      } else {
-        try {
-          const response = await axios.get(`${BACKEND_URL}/events/cells-user`, { headers });
-          if (response.data.status === "success") {
-            allEvents = response.data.events || [];
-          }
-        } catch (userError) {
-          console.error("User events fetch failed:", userError);
-        }
-      }
-      
-      const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      const sortedEvents = allEvents.sort((a, b) => {
-        const dayA = (a.day || '').toLowerCase();
-        const dayB = (b.day || '').toLowerCase();
-        const indexA = dayOrder.indexOf(dayA);
-        const indexB = dayOrder.indexOf(dayB);
-        return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
-      });
-      
-      setEvents(sortedEvents);
-      setFilteredEvents(sortedEvents);
-      
-    } catch (err) {
-      console.error("Fatal error in fetchEvents:", err);
-    } finally {
-      setLoading(false);
+      const eventTypesResponse = await axios.get(`${BACKEND_URL}/event-types`, { headers });
+      const apiCustomTypes = eventTypesResponse.data || [];
+      setCustomEventTypes(apiCustomTypes);
+      setUserCreatedEventTypes(apiCustomTypes);
+      setEventTypes(apiCustomTypes.map(type => type.name));
+    } catch (typeError) {
+      console.error("Failed to load event types:", typeError);
     }
-  };
+    
+    if (userRole === "admin") {
+      try {
+        const response = await axios.get(`${BACKEND_URL}/admin/events/cells`, { headers });
+        allEvents = response.data.events || [];
+      } catch (adminError) {
+        console.error("Admin events fetch failed:", adminError);
+      }
+    } else {
+      try {
+        const response = await axios.get(`${BACKEND_URL}/events/cells-user`, { headers });
+        if (response.data.status === "success") {
+          allEvents = response.data.events || [];
+        }
+      } catch (userError) {
+        console.error("User events fetch failed:", userError);
+      }
+    }
+    
+    // ✅ FILTER OUT EVENTS BEFORE OCTOBER 13TH, 2025
+    const filteredEvents = allEvents.filter(event => {
+      if (!event.date) return false;
+      
+      const eventDate = new Date(event.date);
+      const cutoffDate = new Date('2025-10-13');
+      
+      return eventDate >= cutoffDate;
+    });
+    
+    const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const sortedEvents = filteredEvents.sort((a, b) => {
+      const dayA = (a.day || '').toLowerCase();
+      const dayB = (b.day || '').toLowerCase();
+      const indexA = dayOrder.indexOf(dayA);
+      const indexB = dayOrder.indexOf(dayB);
+      return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+    });
+    
+    setEvents(sortedEvents);
+    setFilteredEvents(sortedEvents);
+    
+  } catch (err) {
+    console.error("Fatal error in fetchEvents:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const isOverdue = (event) => {
+  // ✅ Use the _is_overdue flag from backend if available
+  if (event?._is_overdue !== undefined) {
+    return event._is_overdue;
+  }
+  
+  // Fallback logic
   if (!event?.date) return false;
   
   const status = (event.status || event.Status || '').toLowerCase().trim();
@@ -550,14 +604,33 @@ const Events = () => {
   return eventDate < today;
 };
 
-
 const applyAllFilters = (
   filters = activeFilters,
   statusFilter = selectedStatus,
-  search = searchQuery
+  search = searchQuery,
+  view = viewFilter
 ) => {
   let filtered = events.filter(event => {
-    // ✅ FIXED: Event Type Filtering - Only show events that match the selected type
+    // ✅ FILTER OUT EVENTS BEFORE OCTOBER 13TH, 2025
+    if (event.date) {
+      const eventDate = new Date(event.date);
+      const cutoffDate = new Date('2025-10-13');
+      if (eventDate < cutoffDate) {
+        return false;
+      }
+    }
+
+    // ✅ View Filter - Personal vs All events
+    if (view === 'personal') {
+      const userEmail = currentUser?.email?.toLowerCase().trim();
+      const eventLeaderEmail = (event.eventLeaderEmail || '').toLowerCase().trim();
+      
+      if (eventLeaderEmail !== userEmail) {
+        return false;
+      }
+    }
+
+    // ✅ Event Type Filtering
     if (selectedEventTypeFilter !== 'all') {
       const eventEventType = (event.eventType || "").toLowerCase().trim();
       const selectedType = selectedEventTypeFilter.toLowerCase().trim();
@@ -567,7 +640,7 @@ const applyAllFilters = (
       }
     }
 
-    // ✅ FIXED: Consistent status mapping
+    // ✅ FIXED: Consistent status mapping - SIMPLIFIED
     let mappedStatus = 'incomplete';
     
     // Check did_not_meet FIRST (highest priority)
@@ -584,7 +657,7 @@ const applyAllFilters = (
       mappedStatus = 'incomplete';
     }
     
-    // ✅ FIXED: Filter by selected status tab
+    // ✅ FIXED: Filter by selected status tab - ONLY filter if not "all"
     if (statusFilter !== 'all' && mappedStatus !== statusFilter) {
       return false;
     }
@@ -634,12 +707,11 @@ const applyAllFilters = (
 
   setFilteredEvents(filtered);
 };
-
-  const handleSearchChange = (e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-    applyAllFilters(activeFilters, selectedStatus, value);
-  };
+ const handleSearchChange = (e) => {
+  const value = e.target.value;
+  setSearchQuery(value);
+  applyAllFilters(activeFilters, selectedStatus, value, viewFilter);
+};
 
   const handleCreateEventTypeSubmit = async (eventTypeData) => {
     try {
@@ -684,7 +756,7 @@ const applyAllFilters = (
 
   const applyFilters = (filters) => {
     setActiveFilters(filters);
-    applyAllFilters(filters, selectedStatus, searchQuery);
+      applyAllFilters(filters, selectedStatus, searchQuery, viewFilter);
   };
 
   const formatDate = (date) => {
@@ -719,9 +791,6 @@ const applyAllFilters = (
   const handleCloseCreateEventTypeModal = () => {
     setCreateEventTypeModalOpen(false);
   };
-
- 
-
      
 const handleAttendanceSubmit = async (data) => {
   try {
@@ -845,15 +914,16 @@ const handleAttendanceSubmit = async (data) => {
   };
   
 
-  const EventTypeSelector = () => {
-  const [hoveredType, setHoveredType] = useState(null);
+ 
+const EventTypeSelector = () => {
+
   const allTypes = ['CELLS', ...eventTypes];
-  const isAdmin = currentUser?.role === "admin"; // ✅ your admin check
+  const isAdmin = currentUser?.role === "admin";
   
   const getDisplayName = (type) => {
     if (type === 'CELLS') return type;
-    if (typeof type === 'string') return type;
-    return type.name || type;
+    if (typeof type === 'string') return type.toUpperCase(); 
+    return (type.name || type).toUpperCase(); 
   };
 
   const getTypeValue = (type) => {
@@ -907,7 +977,8 @@ const handleAttendanceSubmit = async (data) => {
                       ? { ...activeFilters, eventType: undefined }
                       : { ...activeFilters, eventType: typeValue },
                     selectedStatus,
-                    searchQuery
+                    searchQuery,
+                    viewFilter
                   );
                 }}
                 onMouseEnter={() => setHoveredType(typeValue)}
@@ -972,7 +1043,7 @@ const StatusBadges = () => {
         }}
         onClick={() => {
           setSelectedStatus('incomplete');
-          applyAllFilters(activeFilters, 'incomplete', searchQuery);
+          applyAllFilters(activeFilters, 'incomplete', searchQuery, viewFilter);
         }}
       >
         INCOMPLETE ({statusCounts.incomplete})
@@ -986,7 +1057,7 @@ const StatusBadges = () => {
         }}
         onClick={() => {
           setSelectedStatus('complete');
-          applyAllFilters(activeFilters, 'complete', searchQuery);
+          applyAllFilters(activeFilters, 'complete', searchQuery, viewFilter);
         }}
       >
         COMPLETE ({statusCounts.complete})
@@ -1000,7 +1071,7 @@ const StatusBadges = () => {
         }}
         onClick={() => {
           setSelectedStatus('did_not_meet');
-          applyAllFilters(activeFilters, 'did_not_meet', searchQuery);
+          applyAllFilters(activeFilters, 'did_not_meet', searchQuery, viewFilter);
         }}
       >
         DID NOT MEET ({statusCounts.did_not_meet})
@@ -1009,7 +1080,57 @@ const StatusBadges = () => {
   );
 };
 
-  // NEW: Mobile card view component
+
+const ViewFilterButtons = () => {
+  return (
+    <div style={styles.viewFilterContainer}>
+      <span style={styles.viewFilterLabel}>View:</span>
+      
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="all"
+          checked={viewFilter === 'all'}
+          onChange={(e) => {
+            setViewFilter(e.target.value);
+            applyAllFilters(activeFilters, selectedStatus, searchQuery, e.target.value);
+          }}
+          style={{ cursor: 'pointer' }}
+        />
+        <span style={{
+          ...styles.viewFilterText,
+          color: viewFilter === 'all' ? '#007bff' : '#6c757d',
+          fontWeight: viewFilter === 'all' ? '600' : '400',
+        }}>
+          View All
+        </span>
+      </label>
+      
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="personal"
+          checked={viewFilter === 'personal'}
+          onChange={(e) => {
+            setViewFilter(e.target.value);
+            applyAllFilters(activeFilters, selectedStatus, searchQuery, e.target.value);
+          }}
+          style={{ cursor: 'pointer' }}
+        />
+        <span style={{
+          ...styles.viewFilterText,
+          color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
+          fontWeight: viewFilter === 'personal' ? '600' : '400',
+        }}>
+          Personal
+        </span>
+      </label>
+    </div>
+  );
+};
+
   const MobileEventCard = ({ event }) => {
     const dayOfWeek = event.day || 'Not set';
     
@@ -1083,28 +1204,32 @@ const StatusBadges = () => {
 
   return (
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default }}>
-      <div style={styles.topSection}>
-        <EventTypeSelector />
-        <div style={styles.searchFilterRow}>
-          <input
-            type="text"
-            placeholder="Search by Event Name or Event Leader..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            style={styles.searchInput}
-          />
-          <button
-            style={styles.filterButton}
-            onClick={() => setShowFilter(true)}
-            onMouseEnter={(e) => e.target.style.backgroundColor = '#0056b3'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = '#007bff'}
-          >
-            FILTER
-          </button>
-        </div>
+     <div style={styles.topSection}>
+  <EventTypeSelector />
+  <div style={styles.searchFilterRow}>
+    <input
+      type="text"
+      placeholder="Search by Event Name or Event Leader..."
+      value={searchQuery}
+      onChange={handleSearchChange}
+      style={styles.searchInput}
+    />
+    <button
+      style={styles.filterButton}
+      onClick={() => setShowFilter(true)}
+      onMouseEnter={(e) => e.target.style.backgroundColor = '#0056b3'}
+      onMouseLeave={(e) => e.target.style.backgroundColor = '#007bff'}
+    >
+      FILTER
+    </button>
+  </div>
 
-        <StatusBadges />
-      </div>
+  {/* NEW: This row contains StatusBadges on left and ViewFilter on right */}
+  <div style={styles.viewFilterRow}>
+    <StatusBadges />
+    <ViewFilterButtons />
+  </div>
+</div>
 
       {/* MOBILE VIEW: Card Layout */}
       {isMobile ? (
