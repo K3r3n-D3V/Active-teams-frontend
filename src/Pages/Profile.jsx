@@ -25,6 +25,8 @@ import {
   CardContent,
   Divider,
   Skeleton,
+  Switch,
+  FormControlLabel,
 } from "@mui/material";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
@@ -899,6 +901,31 @@ export default function Profile() {
         >
           <CardContent sx={{ p: { xs: 3, sm: 4 }, pt: 4 }}>
             <Box component="form" onSubmit={handleSubmit}>
+              {/* Edit Toggle */}
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={editMode}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        if (!on) {
+                          // reset unsaved edits when turning off
+                          setForm({ ...originalForm });
+                          setErrors({});
+                        }
+                        setEditMode(on);
+                      }}
+                      color="primary"
+                    />
+                  }
+                  label={editMode ? "Editing Enabled" : "Editing Disabled"}
+                  sx={{
+                    color: isDark ? "#cccccc" : "#666666",
+                    userSelect: "none",
+                  }}
+                />
+              </Box>
               {/* Personal Information Fields */}
               <Grid container spacing={3}>
                 {/* Leader */}
