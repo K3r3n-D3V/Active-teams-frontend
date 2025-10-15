@@ -171,13 +171,23 @@ export default function Profile() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [form, setForm] = useState({
     leader: "",
+    title: "",
     name: "",
     surname: "",
     username: "",
     email: "",
+    phoneNumber: "",
     invitedBy: "",
     role: "",
     type: "",
+    personType: "",
+    gender: "",
+    maritalStatus: "",
+    occupation: "",
+    homePhone: "",
+    address: "",
+    personStatus: "",
+    dateOfBirth: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
@@ -315,13 +325,23 @@ export default function Profile() {
   const updateFormWithProfile = (profile) => {
     const formData = {
       leader: profile?.leader || "",
+      title: profile?.title || "",
       name: profile?.name || "",
       surname: profile?.surname || "",
       username: profile?.username || "",
       email: profile?.email || "",
+      phoneNumber: profile?.phoneNumber || profile?.phone_number || "",
       invitedBy: profile?.invited_by || "",
       role: profile?.role || "",
       type: profile?.type || "",
+      personType: profile?.personType || profile?.person_type || "",
+      gender: profile?.gender || "",
+      maritalStatus: profile?.maritalStatus || profile?.marital_status || "",
+      relation: profile?.relation || "",
+      occupation: profile?.occupation || "",
+      homePhone: profile?.homePhone || profile?.home_phone || "",
+      address: profile?.address || "",
+      dateOfBirth: profile?.dateOfBirth || profile?.date_of_birth || "",
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
@@ -455,13 +475,24 @@ export default function Profile() {
 
     const payload = {
       leader: form.leader,
+      title: form.title,
       name: form.name,
       surname: form.surname,
       username: form.username,
       email: form.email,
+      phone_number: form.phoneNumber,
       invited_by: form.invitedBy,
       role: form.role,
       type: form.type,
+      person_type: form.personType,
+      gender: form.gender,
+      marital_status: form.maritalStatus,
+      occupation: form.occupation,
+      home_phone: form.homePhone,
+      address: form.address,
+      person_status: form.personStatus,
+      date_of_birth: form.dateOfBirth,
+      
     };
 
     try {
@@ -1040,6 +1071,237 @@ export default function Profile() {
                     onChange={handleChange("type")}
                     fullWidth
                     disabled
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+              </Grid>
+
+              {/* Additional Profile Fields (from design) */}
+              <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
+              <Grid container spacing={3}>
+                {/* Title */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}
+                  >
+                    Title
+                  </Typography>
+                  <TextField
+                    value={form.title || ""}
+                    onChange={handleChange("title")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Person Type */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Person Type
+                  </Typography>
+                  <TextField
+                    value={form.personType || ""}
+                    onChange={handleChange("personType")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Phone Number */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Phone Number
+                  </Typography>
+                  <TextField
+                    value={form.phoneNumber || ""}
+                    onChange={handleChange("phoneNumber")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Gender */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Gender
+                  </Typography>
+                  <TextField
+                    value={form.gender || ""}
+                    onChange={handleChange("gender")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Marital Status */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Marital Status
+                  </Typography>
+                  <TextField
+                    value={form.maritalStatus || ""}
+                    onChange={handleChange("maritalStatus")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Relation */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Relation
+                  </Typography>
+                  <TextField
+                    value={form.relation || ""}
+                    onChange={handleChange("relation")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Occupation */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Occupation
+                  </Typography>
+                  <TextField
+                    value={form.occupation || ""}
+                    onChange={handleChange("occupation")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Entity Type */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Entity Type
+                  </Typography>
+                  <TextField
+                    value={form.entityType || ""}
+                    onChange={handleChange("entityType")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Home Phone */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Home Phone
+                  </Typography>
+                  <TextField
+                    value={form.homePhone || ""}
+                    onChange={handleChange("homePhone")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Office Phone */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Office Phone
+                  </Typography>
+                  <TextField
+                    value={form.officePhone || ""}
+                    onChange={handleChange("officePhone")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Place of Employment */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Place of Employment
+                  </Typography>
+                  <TextField
+                    value={form.placeOfEmployment || ""}
+                    onChange={handleChange("placeOfEmployment")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Address */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Address
+                  </Typography>
+                  <TextField
+                    value={form.address || ""}
+                    onChange={handleChange("address")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* First Visit Date */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    First Visit Date
+                  </Typography>
+                  <TextField
+                    value={form.firstVisitDate || ""}
+                    onChange={handleChange("firstVisitDate")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Date of Birth */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Date of Birth
+                  </Typography>
+                  <TextField
+                    value={form.dateOfBirth || ""}
+                    onChange={handleChange("dateOfBirth")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Person Status */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Person Status
+                  </Typography>
+                  <TextField
+                    value={form.personStatus || ""}
+                    onChange={handleChange("personStatus")}
+                    fullWidth
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* School/University */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    School/University
+                  </Typography>
+                  <TextField
+                    value={form.schoolUniversity || ""}
+                    onChange={handleChange("schoolUniversity")}
+                    fullWidth
+                    disabled={!editMode}
                     sx={commonFieldSx}
                   />
                 </Grid>
