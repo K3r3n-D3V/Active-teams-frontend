@@ -25,6 +25,8 @@ import {
   CardContent,
   Divider,
   Skeleton,
+  Tooltip,
+  Chip,
 } from "@mui/material";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
@@ -321,7 +323,7 @@ export default function Profile() {
   // Helper function to update form with profile data
   const updateFormWithProfile = (profile) => {
     const formData = {
-      leader: profile?.leader || "",
+      leader: profile?.invited_by || profile?.leader || "",
       title: profile?.title || "",
       name: profile?.name || "",
       surname: profile?.surname || "",
@@ -385,7 +387,11 @@ export default function Profile() {
   };
 
   const handleChange = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    const value = e.target.value;
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
@@ -474,7 +480,6 @@ export default function Profile() {
       username: form.username,
       email: form.email,
       phone_number: form.phoneNumber,
-      invited_by: form.invitedBy,
       gender: form.gender,
       marital_status: form.maritalStatus,
       home_phone: form.homePhone,
@@ -483,6 +488,10 @@ export default function Profile() {
       date_of_birth: form.dateOfBirth,
       
     };
+
+    if (isAdmin) {
+      payload.invited_by = form.invitedBy;
+    }
 
     try {
       const updated = await updateUserProfile(payload);
@@ -552,6 +561,7 @@ export default function Profile() {
   };
 
   const currentCarouselItem = carouselTexts[carouselIndex];
+  const isAdmin = ((form.role || userProfile?.role || "").toLowerCase().includes("admin"));
 
   const commonFieldSx = {
     "& .MuiOutlinedInput-root": {
@@ -1032,23 +1042,37 @@ export default function Profile() {
                   />
                 </Grid>
 
-                {/* Invited By */}
+                {/* Invited By (Admin-only editable) */}
                 <Grid item xs={12} sm={6}>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      mb: 1,
-                      fontWeight: 600,
-                      color: isDark ? "#cccccc" : "#666666",
-                    }}
-                  >
-                    Invited By
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 600,
+                        color: isDark ? "#cccccc" : "#666666",
+                      }}
+                    >
+                      Invited By
+                    </Typography>
+                    <Tooltip title={isAdmin ? "Admins can edit this field" : "Read-only for non-admins"} arrow>
+                      <Chip
+                        label={isAdmin ? "Admin" : "Read-only"}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          bgcolor: isAdmin ? `${currentCarouselItem.color}22` : (isDark ? '#222' : '#eee'),
+                          color: isAdmin ? currentCarouselItem.color : (isDark ? '#bbb' : '#666'),
+                          '& .MuiChip-label': { px: 1, py: 0.25, fontWeight: 600, fontSize: 12 },
+                          borderRadius: 1,
+                        }}
+                      />
+                    </Tooltip>
+                  </Box>
                   <TextField
                     value={form.invitedBy || ""}
                     onChange={handleChange("invitedBy")}
                     fullWidth
-                    disabled={!editMode}
+                    disabled={!isAdmin || !editMode}
                     sx={commonFieldSx}
                   />
                 </Grid>
