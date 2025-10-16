@@ -110,6 +110,10 @@ const initialForm = {
   surname: "",
   date_of_birth: "",
   home_address: "",
+  title: "",
+  marital_status: "",
+  home_phone: "",
+  person_status: "",
   invited_by: "",
   phone_number: "",
   email: "",
@@ -179,6 +183,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
     else if (new Date(form.date_of_birth) > new Date())
       newErrors.date_of_birth = "Date cannot be in the future";
     if (!form.home_address.trim()) newErrors.home_address = "Home Address is required";
+    if (!form.title.trim()) newErrors.title = "Title is required";
+    if (!form.marital_status.trim()) newErrors.marital_status = "Marital Status is required";
+    if (!form.home_phone.trim()) newErrors.home_phone = "Home Phone is required";
+    if (!form.person_status.trim()) newErrors.person_status = "Person Status is required";
     if (!form.invited_by.trim()) newErrors.invited_by = "Invited By is required";
     if (!form.phone_number.trim()) newErrors.phone_number = "Phone Number is required";
     if (!form.email.trim()) newErrors.email = "Email is required";
@@ -236,6 +244,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
           surname: submitData.surname,
           date_of_birth: submitData.date_of_birth,
           home_address: submitData.home_address,
+          address: submitData.home_address,
+          title: submitData.title,
+          marital_status: submitData.marital_status,
+          home_phone: submitData.home_phone,
+          person_status: submitData.person_status,
           invited_by: submitData.invited_by,
           phone_number: submitData.phone_number,
           email: submitData.email,
@@ -359,6 +372,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
               ["email", "Email Address", "email"],
               ["home_address", "Home Address"],
               ["phone_number", "Phone Number"],
+              ["marital_status", "Marital Status"],
+              ["home_phone", "Home Phone"],
+              ["person_status", "Person Status"],
             ].map(([name, label, type]) => (
               <TextField
                 key={name}
@@ -377,6 +393,35 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 }}
               />
             ))}
+
+            {/* Title - Select */}
+            <FormControl fullWidth error={!!errors.title}>
+              <InputLabel>Title</InputLabel>
+              <Select
+                name="title"
+                value={form.title}
+                onChange={handleChange}
+                label="Title"
+                sx={{ borderRadius: 3 }}
+              >
+                <MenuItem value=""><em>Select Title</em></MenuItem>
+                <MenuItem value="Mr">Mr</MenuItem>
+                <MenuItem value="Mrs">Mrs</MenuItem>
+                <MenuItem value="Miss">Miss</MenuItem>
+                <MenuItem value="Ms">Ms</MenuItem>
+                <MenuItem value="Dr">Dr</MenuItem>
+                <MenuItem value="Prof">Prof</MenuItem>
+                <MenuItem value="Pastor">Pastor</MenuItem>
+                <MenuItem value="Bishop">Bishop</MenuItem>
+                <MenuItem value="Apostle">Apostle</MenuItem>
+                <MenuItem value="Other">Other</MenuItem>
+              </Select>
+              {errors.title && (
+                <Typography variant="caption" color="error">
+                  {errors.title}
+                </Typography>
+              )}
+            </FormControl>
 
             {/* Replace the invited_by TextField with Autocomplete */}
             <Autocomplete
