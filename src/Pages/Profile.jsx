@@ -25,8 +25,6 @@ import {
   CardContent,
   Divider,
   Skeleton,
-  Switch,
-  FormControlLabel,
 } from "@mui/material";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
@@ -901,30 +899,36 @@ export default function Profile() {
         >
           <CardContent sx={{ p: { xs: 3, sm: 4 }, pt: 4 }}>
             <Box component="form" onSubmit={handleSubmit}>
-              {/* Edit Toggle */}
+              {/* Edit Toggle - Blue Pill Button */}
               <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={editMode}
-                      onChange={(e) => {
-                        const on = e.target.checked;
-                        if (!on) {
-                          // reset unsaved edits when turning off
-                          setForm({ ...originalForm });
-                          setErrors({});
-                        }
-                        setEditMode(on);
-                      }}
-                      color="primary"
-                    />
-                  }
-                  label={editMode ? "Editing Enabled" : "Editing Disabled"}
-                  sx={{
-                    color: isDark ? "#cccccc" : "#666666",
-                    userSelect: "none",
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    const next = !editMode;
+                    if (!next) {
+                      setForm({ ...originalForm });
+                      setErrors({});
+                    }
+                    setEditMode(next);
                   }}
-                />
+                  sx={{
+                    bgcolor: currentCarouselItem.color,
+                    color: "#fff",
+                    borderRadius: 999,
+                    px: 3,
+                    py: 1,
+                    textTransform: "none",
+                    fontWeight: 700,
+                    boxShadow: `0 6px 18px ${currentCarouselItem.color}66`,
+                    '&:hover': {
+                      bgcolor: currentCarouselItem.color,
+                      opacity: 0.9,
+                      boxShadow: `0 8px 24px ${currentCarouselItem.color}88`,
+                    },
+                  }}
+                >
+                  {editMode ? 'Disable Editing' : 'Enable Editing'}
+                </Button>
               </Box>
               {/* Personal Information Fields */}
               <Grid container spacing={3}>
