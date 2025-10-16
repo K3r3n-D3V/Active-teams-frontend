@@ -414,7 +414,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 <MenuItem value="Pastor">Pastor</MenuItem>
                 <MenuItem value="Bishop">Bishop</MenuItem>
                 <MenuItem value="Apostle">Apostle</MenuItem>
-                <MenuItem value="Other">Other</MenuItem>
               </Select>
               {errors.title && (
                 <Typography variant="caption" color="error">
