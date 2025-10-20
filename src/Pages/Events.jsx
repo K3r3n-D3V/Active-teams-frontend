@@ -10,6 +10,7 @@ import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
+import { Box, useMediaQuery } from "@mui/material";
 
 import Eventsfilter from "./AddPersonToEvents";
 import CreateEvents from "./CreateEvents";
@@ -67,7 +68,7 @@ const styles = {
   statusBadge: {
     padding: '0.5rem 1rem',
     borderRadius: '6px',
-    fontSize: '0.75rem',
+    fontSize: '0.95rem',
     fontWeight: '600',
     cursor: 'pointer',
     border: '2px solid',
@@ -104,7 +105,7 @@ const styles = {
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: "800px",
+    minWidth: "1000px",
   },
   tableHeader: {
     backgroundColor: "#000",
@@ -129,11 +130,17 @@ const styles = {
     padding: "1rem",
     fontSize: "0.9rem",
     color: "#212529",
+    verticalAlign: "top",
+  },
+  actionIcons: {
+    display: 'flex',
+    gap: '0.5rem',
+    alignItems: 'center',
   },
   openEventIcon: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '8px',
+    width: '36px',
+    height: '36px',
+    borderRadius: '6px',
     backgroundColor: '#007bff',
     color: '#fff',
     display: 'flex',
@@ -142,6 +149,17 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     border: 'none',
+    fontSize: '18px',
+  },
+  editIcon: {
+    color: '#007bff',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  deleteIcon: {
+    color: '#dc3545',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
   },
   floatingAddButton: {
     position: "fixed",
@@ -235,13 +253,235 @@ const styles = {
     fontSize: '0.8rem',
     marginTop: '0.2rem',
     fontWeight: 'bold',
-  }
+  },
+  // Mobile card styles
+  mobileCard: {
+    backgroundColor: '#fff',
+    borderRadius: '8px',
+    padding: '1rem',
+    marginBottom: '1rem',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+  },
+  mobileCardRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '0.5rem',
+    fontSize: '0.9rem',
+  },
+  mobileCardLabel: {
+    fontWeight: 600,
+    color: '#666',
+  },
+  mobileCardValue: {
+    color: '#212529',
+    textAlign: 'right',
+  },
+  mobileActions: {
+    display: 'flex',
+    gap: '0.5rem',
+    marginTop: '1rem',
+    justifyContent: 'flex-end',
+  },
+  viewFilterRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '1.5rem',
+    flexWrap: 'wrap',
+    gap: '1rem',
+  },
+  viewFilterContainer: {
+    display: 'flex',
+    gap: '1rem',
+    alignItems: 'center',
+  },
+  viewFilterLabel: {
+    fontSize: '1rem',
+    fontWeight: '600',
+    color: '#495057',
+  },
+  viewFilterRadio: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    cursor: 'pointer',
+  },
+  viewFilterText: {
+    fontSize: '1.1rem',
+    transition: 'all 0.2s ease',
+  },
+  // Text truncation for long names
+  truncatedText: {
+    maxWidth: '200px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  emailText: {
+    maxWidth: '180px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+};
+
+const fabStyles = {
+  fabContainer: {
+    position: "fixed",
+    bottom: "20px",
+    right: "20px",
+    zIndex: 1000,
+  },
+  fabMenu: {
+    position: "absolute",
+    bottom: "70px",
+    right: "0",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    transition: "all 0.3s ease",
+  },
+  fabMenuItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    background: "#fff",
+    padding: "12px 16px",
+    borderRadius: "50px",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    transition: "all 0.2s ease",
+  },
+  fabMenuLabel: {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#333",
+  },
+  fabMenuIcon: {
+    width: "24px",
+    height: "24px",
+    borderRadius: "50%",
+    backgroundColor: "#007bff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#fff",
+    fontSize: "16px",
+  },
+  mainFab: {
+    backgroundColor: "#007bff",
+    color: "white",
+    border: "none",
+    borderRadius: "50%",
+    width: "56px",
+    height: "56px",
+    fontSize: "1.5rem",
+    cursor: "pointer",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.3s ease",
+  },
+};
+
+const eventTypeStyles = {
+  container: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: '12px',
+    padding: '1.5rem',
+    marginBottom: '1.5rem',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  },
+  header: {
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: '#6c757d',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '1rem',
+  },
+  selectedTypeDisplay: {
+    fontSize: '1.25rem',
+    fontWeight: '700',
+    color: '#007bff',
+    marginBottom: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  checkIcon: {
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    backgroundColor: '#28a745',
+    color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    fontWeight: 'bold',
+  },
+  typesGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+    gap: '0.75rem',
+  },
+  typeCard: {
+    padding: '1rem',
+    borderRadius: '8px',
+    border: '2px solid transparent',
+    backgroundColor: 'white',
+    cursor: 'pointer',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  typeCardActive: {
+    borderColor: '#007bff',
+    backgroundColor: '#e7f3ff',
+    transform: 'translateX(8px) scale(1.02)',
+    boxShadow: '0 4px 12px rgba(0, 123, 255, 0.2)',
+  },
+  typeCardHover: {
+    borderColor: '#ddd',
+    transform: 'translateY(-2px)',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+  },
+  typeName: {
+    fontSize: '0.9rem',
+    fontWeight: '600',
+    color: '#495057',
+    textAlign: 'center',
+    display: 'block',
+  },
+  typeNameActive: {
+    color: '#007bff',
+  },
+  activeIndicator: {
+    position: 'absolute',
+    top: '8px',
+    right: '8px',
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    backgroundColor: '#007bff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'white',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    animation: 'slideIn 0.3s ease-out',
+  },
 };
 
 const Events = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const isAdmin = currentUser?.role === "admin";
@@ -261,12 +501,16 @@ const Events = () => {
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [fabMenuOpen, setFabMenuOpen] = useState(false);
+  const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState('all');
   const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
     return localStorage.getItem("selectedEventType") || '';
   });
   const [selectedStatus, setSelectedStatus] = useState('incomplete');
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredRow, setHoveredRow] = useState(null);
+  const [hoveredType, setHoveredType] = useState(null);
+  const [viewFilter, setViewFilter] = useState('all');
 
   useEffect(() => {
     const savedEventTypes = localStorage.getItem("customEventTypes");
@@ -332,8 +576,18 @@ const Events = () => {
         }
       }
       
+      // ✅ FILTER OUT EVENTS BEFORE OCTOBER 13TH, 2025
+      const filteredEvents = allEvents.filter(event => {
+        if (!event.date) return false;
+        
+        const eventDate = new Date(event.date);
+        const cutoffDate = new Date('2025-10-13');
+        
+        return eventDate >= cutoffDate;
+      });
+      
       const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      const sortedEvents = allEvents.sort((a, b) => {
+      const sortedEvents = filteredEvents.sort((a, b) => {
         const dayA = (a.day || '').toLowerCase();
         const dayB = (b.day || '').toLowerCase();
         const indexA = dayOrder.indexOf(dayA);
@@ -351,13 +605,16 @@ const Events = () => {
     }
   };
 
-  // FIX 1: Check if event is overdue - Works for ALL cells
   const isOverdue = (event) => {
+    if (event?._is_overdue !== undefined) {
+      return event._is_overdue;
+    }
+    
     if (!event?.date) return false;
     
-    // Only show overdue if attendance hasn't been captured
-    const status = (event.status || '').toLowerCase().trim();
-    const hasBeenCaptured = status === 'complete' || status === 'closed' || status === 'did_not_meet';
+    const status = (event.status || event.Status || '').toLowerCase().trim();
+    const didNotMeet = event.did_not_meet || false;
+    const hasBeenCaptured = status === 'complete' || status === 'closed' || status === 'did_not_meet' || didNotMeet;
     
     if (hasBeenCaptured) return false;
     
@@ -372,40 +629,62 @@ const Events = () => {
   const applyAllFilters = (
     filters = activeFilters,
     statusFilter = selectedStatus,
-    search = searchQuery
+    search = searchQuery,
+    view = viewFilter
   ) => {
     let filtered = events.filter(event => {
-      const eventStatus = (event.status || '').toLowerCase().trim();
-      
-      const hasBeenCaptured = 
-        eventStatus === 'complete' || 
-        eventStatus === 'closed' || 
-        eventStatus === 'did_not_meet';
-      
-      if (!hasBeenCaptured && event.date) {
+      // ✅ FILTER OUT EVENTS BEFORE OCTOBER 13TH, 2025
+      if (event.date) {
         const eventDate = new Date(event.date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        eventDate.setHours(0, 0, 0, 0);
-        
-        if (eventDate < today) {
+        const cutoffDate = new Date('2025-10-13');
+        if (eventDate < cutoffDate) {
           return false;
         }
       }
-      
+
+      // ✅ View Filter - Personal vs All events
+      if (view === 'personal') {
+        const userEmail = currentUser?.email?.toLowerCase().trim();
+        const eventLeaderEmail = (event.eventLeaderEmail || '').toLowerCase().trim();
+        
+        if (eventLeaderEmail !== userEmail) {
+          return false;
+        }
+      }
+
+      // ✅ Event Type Filtering
+      if (selectedEventTypeFilter !== 'all') {
+        const eventEventType = (event.eventType || "").toLowerCase().trim();
+        const selectedType = selectedEventTypeFilter.toLowerCase().trim();
+        
+        if (eventEventType !== selectedType) {
+          return false;
+        }
+      }
+
+      // ✅ FIXED: Consistent status mapping - SIMPLIFIED
       let mappedStatus = 'incomplete';
-      if (eventStatus === 'complete' || eventStatus === 'closed') {
-        mappedStatus = 'complete';
-      } else if (eventStatus === 'did_not_meet') {
+      
+      // Check did_not_meet FIRST (highest priority)
+      if (event.did_not_meet === true) {
         mappedStatus = 'did_not_meet';
-      } else {
+      }
+      // Then check if it's complete (has attendees or status is complete/closed)
+      else if ((event.attendees && event.attendees.length > 0) || 
+               ['complete', 'closed'].includes((event.status || event.Status || '').toLowerCase().trim())) {
+        mappedStatus = 'complete';
+      }
+      // Otherwise it's incomplete
+      else {
         mappedStatus = 'incomplete';
       }
       
+      // ✅ FIXED: Filter by selected status tab - ONLY filter if not "all"
       if (statusFilter !== 'all' && mappedStatus !== statusFilter) {
         return false;
       }
       
+      // Search filter
       if (search) {
         const searchLower = search.toLowerCase();
         const matchesSearch = 
@@ -416,25 +695,24 @@ const Events = () => {
         if (!matchesSearch) return false;
       }
 
-      let matches = true;
-
-      if (filters.eventType) {
+      // Apply additional filters from the filter modal
+      if (filters.eventType && filters.eventType !== selectedEventTypeFilter) {
         const eventType = (event.eventType || "").toLowerCase().trim();
         const filterType = filters.eventType.toLowerCase().trim();
         if (eventType !== filterType) {
-          matches = false;
+          return false;
         }
       }
 
       if (filters.location && event.location !== filters.location) {
-        matches = false;
+        return false;
       }
 
       if (filters.eventLeader) {
         const eventLeaderName = event.eventLeaderName ? event.eventLeaderName.trim().toLowerCase() : "";
         const filterLeader = filters.eventLeader.trim().toLowerCase();
         if (eventLeaderName !== filterLeader) {
-          matches = false;
+          return false;
         }
       }
 
@@ -442,11 +720,11 @@ const Events = () => {
         const eventDay = (event.day || '').toLowerCase().trim();
         const filterDay = filters.recurringDay.toLowerCase().trim();
         if (eventDay !== filterDay) {
-          matches = false;
+          return false;
         }
       }
 
-      return matches;
+      return true;
     });
 
     setFilteredEvents(filtered);
@@ -455,40 +733,37 @@ const Events = () => {
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
-    applyAllFilters(activeFilters, selectedStatus, value);
+    applyAllFilters(activeFilters, selectedStatus, value, viewFilter);
   };
 
-const handleCreateEventTypeSubmit = async (eventTypeData) => {
-  try {
-    const token = localStorage.getItem("token");
+  const handleCreateEventTypeSubmit = async (eventTypeData) => {
+    try {
+      const token = localStorage.getItem("token");
 
-    const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+      const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-    const newEventType = response.data;
+      const newEventType = response.data;
+      if (newEventType) {
+        const updatedEventTypes = [...customEventTypes, newEventType];
+        setCustomEventTypes(updatedEventTypes);
+        setUserCreatedEventTypes(updatedEventTypes);
+        setEventTypes(updatedEventTypes.map(type => type.name));
 
-    if (newEventType) {
-      const updatedEventTypes = [...customEventTypes, newEventType];
-      setCustomEventTypes(updatedEventTypes);
-      setUserCreatedEventTypes(updatedEventTypes);
-      setEventTypes(updatedEventTypes.map(type => type.name));
+        setSelectedEventTypeObj(newEventType);
+        setCurrentSelectedEventType(newEventType.name);
+        
+        localStorage.setItem('selectedEventTypeObj', JSON.stringify(newEventType));
 
-      // Store the complete event type object
-      setSelectedEventTypeObj(newEventType);
-      setCurrentSelectedEventType(newEventType.name);
-      
-      // Store in localStorage for CreateEvents to access
-      localStorage.setItem('selectedEventTypeObj', JSON.stringify(newEventType));
-
-      setCreateEventTypeModalOpen(false);
-      setCreateEventModalOpen(true);
+        setCreateEventTypeModalOpen(false);
+        setCreateEventModalOpen(true);
+      }
+    } catch (error) {
+      console.error('Error creating event type:', error);
+      alert('Failed to create event type. Please try again.');
     }
-  } catch (error) {
-    console.error('Error creating event type:', error);
-    alert('Failed to create event type. Please try again.');
-  }
-};
+  };
 
   useEffect(() => {
     if (currentSelectedEventType) {
@@ -504,7 +779,7 @@ const handleCreateEventTypeSubmit = async (eventTypeData) => {
 
   const applyFilters = (filters) => {
     setActiveFilters(filters);
-    applyAllFilters(filters, selectedStatus, searchQuery);
+    applyAllFilters(filters, selectedStatus, searchQuery, viewFilter);
   };
 
   const formatDate = (date) => {
@@ -539,120 +814,91 @@ const handleCreateEventTypeSubmit = async (eventTypeData) => {
   const handleCloseCreateEventTypeModal = () => {
     setCreateEventTypeModalOpen(false);
   };
+     
+  const handleAttendanceSubmit = async (data) => {
+    try {
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+      const eventId = selectedEvent._id;
+      const eventName = selectedEvent.eventName || 'Event';
 
-// Replace your current handleAttendanceSubmit with this
-const handleAttendanceSubmit = async (data) => {
-  try {
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
+      const leaderEmail = currentUser?.email || '';
+      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
-    const eventId = selectedEvent._id;
-    const eventName = selectedEvent.eventName || 'Event';
+      console.log("🎯 handleAttendanceSubmit called with:", data);
 
-    // Build leaderName and leaderEmail from currentUser (defined at top of file)
-    const leaderEmail = currentUser?.email || '';
-    const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
+      let payload;
 
-    // DID NOT MEET case: send empty attendees + did_not_meet: true
-    if (data === "did_not_meet") {
-      await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        {
+      // ✅ Handle different data formats
+      if (data === "did_not_meet") {
+        console.log("🔴 Marking as DID NOT MEET");
+        payload = {
           attendees: [],
           leaderEmail,
           leaderName,
           did_not_meet: true,
-        },
-        { headers }
-      );
-
-      await fetchEvents();
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-
-      setSnackbar({
-        open: true,
-        message: `${eventName} marked as 'Did Not Meet'.`,
-        severity: "success",
-      });
-
-      return { success: true, message: `${eventName} marked as 'Did Not Meet'.` };
-    }
-
-    // Normal submission: ensure data is array of attendee objects and map fields as backend expects
-    if (Array.isArray(data) && data.length > 0) {
-      // Map/normalize attendee objects so keys match your Pydantic Attendee model
-      const attendeesPayload = data.map(person => ({
-        id: person.id ?? person._id ?? person.ID ?? null,
-        name: person.name ?? person.fullName ?? '',
-        fullName: person.fullName ?? person.name ?? '',
-        leader12: person.leader12 ?? person.leader12 ?? null,
-        leader144: person.leader144 ?? person.leader144 ?? null,
-        time: person.time ?? null,
-        // include other fields you want stored (email/phone/decision) if available:
-        email: person.email ?? person.email ?? null,
-        phone: person.phone ?? null,
-        decision: person.decision ?? null,
-      }));
-
-      await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        {
-          attendees: attendeesPayload,
+        };
+      } else if (Array.isArray(data)) {
+        console.log("✅ Capturing attendance with", data.length, "attendees");
+        payload = {
+          attendees: data,
           leaderEmail,
           leaderName,
           did_not_meet: false,
-        },
+        };
+      } else {
+        console.log("📦 Using provided payload:", data);
+        payload = data;
+      }
+
+      console.log("🚀 Final payload:", payload);
+
+      const response = await axios.put(
+        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+        payload,
         { headers }
       );
 
+      console.log("✅ Backend response:", response.data);
+      
+      // Refresh events list
       await fetchEvents();
+      
       setAttendanceModalOpen(false);
       setSelectedEvent(null);
 
       setSnackbar({
         open: true,
-        message: `Successfully captured attendance for ${eventName}`,
+        message: payload.did_not_meet 
+          ? `${eventName} marked as 'Did Not Meet'.`
+          : `Successfully captured attendance for ${eventName}`,
         severity: "success",
       });
 
-      return { success: true, message: `Successfully captured attendance for ${eventName}` };
-    }
+      return { success: true, message: "Attendance submitted successfully" };
 
-    // if we get here, invalid payload
-    setSnackbar({
-      open: true,
-      message: "Please select at least one attendee or mark as 'Did Not Meet'.",
-      severity: "error",
-    });
-    return { success: false, message: "No attendees selected." };
+    } catch (error) {
+      console.error("❌ Error in handleAttendanceSubmit:", error);
+      const errData = error.response?.data;
+      let errorMessage = error.message;
 
-  } catch (error) {
-    console.error("Error updating event:", error);
-
-    // Friendly error extraction from backend (handles the validation_exception_handler output)
-    const errData = error.response?.data;
-    let errorMessage = error.message;
-
-    if (errData) {
-      if (Array.isArray(errData?.errors)) {
-        // your custom handler returns { errors: [{field, message}, ...] }
-        errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
-      } else {
-        errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+      if (errData) {
+        if (Array.isArray(errData?.errors)) {
+          errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+        } else {
+          errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+        }
       }
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error",
+      });
+
+      return { success: false, message: errorMessage };
     }
-
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: "error",
-    });
-
-    return { success: false, message: errorMessage };
-  }
-};
-
+  };
 
   const handleEditEvent = (event) => {
     navigate(`/edit-event/${event._id}`);
@@ -689,24 +935,123 @@ const handleAttendanceSubmit = async (data) => {
     }
   };
 
+  const EventTypeSelector = () => {
+    const allTypes = ['CELLS', ...eventTypes];
+    const isAdmin = currentUser?.role === "admin";
+    
+    const getDisplayName = (type) => {
+      if (type === 'CELLS') return type;
+      if (typeof type === 'string') return type.toUpperCase(); 
+      return (type.name || type).toUpperCase(); 
+    };
+
+    const getTypeValue = (type) => {
+      if (type === 'CELLS') return 'all';
+      if (typeof type === 'string') return type.toLowerCase();
+      return (type.name || type).toLowerCase();
+    };
+
+    const selectedDisplayName =
+      selectedEventTypeFilter === 'all'
+        ? 'CELLS'
+        : eventTypes.find((t) => {
+            const tValue = typeof t === 'string' ? t : t.name;
+            return tValue?.toLowerCase() === selectedEventTypeFilter;
+          }) || selectedEventTypeFilter;
+
+    const finalDisplayName =
+      typeof selectedDisplayName === 'string'
+        ? selectedDisplayName
+        : selectedDisplayName?.name || 'CELLS';
+
+    return (
+      <div style={eventTypeStyles.container}>
+        <div style={eventTypeStyles.header}>Filter by Event Type</div>
+
+        <div style={eventTypeStyles.selectedTypeDisplay}>
+          <div style={eventTypeStyles.checkIcon}>✓</div>
+          <span>{finalDisplayName}</span>
+        </div>
+
+        {isAdmin && (
+          <div style={eventTypeStyles.typesGrid}>
+            {allTypes.map((type) => {
+              const displayName = getDisplayName(type);
+              const typeValue = getTypeValue(type);
+              const isActive = selectedEventTypeFilter === typeValue;
+              const isHovered = hoveredType === typeValue;
+
+              return (
+                <div
+                  key={typeValue}
+                  style={{
+                    ...eventTypeStyles.typeCard,
+                    ...(isActive ? eventTypeStyles.typeCardActive : {}),
+                    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+                  }}
+                  onClick={() => {
+                    setSelectedEventTypeFilter(typeValue);
+                    applyAllFilters(
+                      typeValue === 'all'
+                        ? { ...activeFilters, eventType: undefined }
+                        : { ...activeFilters, eventType: typeValue },
+                      selectedStatus,
+                      searchQuery,
+                      viewFilter
+                    );
+                  }}
+                  onMouseEnter={() => setHoveredType(typeValue)}
+                  onMouseLeave={() => setHoveredType(null)}
+                >
+                  {isActive && <div style={eventTypeStyles.activeIndicator}>✓</div>}
+                  <span
+                    style={{
+                      ...eventTypeStyles.typeName,
+                      ...(isActive ? eventTypeStyles.typeNameActive : {}),
+                    }}
+                  >
+                    {displayName}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const StatusBadges = () => {
+    // Filter events by selected event type first
+    const eventsForCurrentType = selectedEventTypeFilter === 'all' 
+      ? events 
+      : events.filter(event => {
+          const eventEventType = (event.eventType || "").toLowerCase().trim();
+          const selectedType = selectedEventTypeFilter.toLowerCase().trim();
+          return eventEventType === selectedType;
+        });
+
     const statusCounts = {
-      incomplete: events.filter(e => {
-        const status = (e.status || '').toLowerCase().trim();
-        return status === 'incomplete' || status === '' || (!status);
+      incomplete: eventsForCurrentType.filter(e => {
+        if (e.did_not_meet === true) return false;
+        if ((e.attendees && e.attendees.length > 0) || 
+            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
+          return false;
+        }
+        return true;
       }).length,
       
-      complete: events.filter(e => {
-        const status = (e.status || '').toLowerCase().trim();
-        return status === 'complete' || status === 'closed';
+      complete: eventsForCurrentType.filter(e => {
+        if (e.did_not_meet === true) return false;
+        return (e.attendees && e.attendees.length > 0) || 
+               ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
       }).length,
       
-      did_not_meet: events.filter(e => {
-        const status = (e.status || '').toLowerCase().trim();
-        return status === 'did_not_meet';
+      did_not_meet: eventsForCurrentType.filter(e => {
+        return e.did_not_meet === true;
       }).length,
     };
-    
+      
     return (
       <div style={styles.statusBadgeContainer}>
         <button
@@ -717,7 +1062,7 @@ const handleAttendanceSubmit = async (data) => {
           }}
           onClick={() => {
             setSelectedStatus('incomplete');
-            applyAllFilters(activeFilters, 'incomplete', searchQuery);
+            applyAllFilters(activeFilters, 'incomplete', searchQuery, viewFilter);
           }}
         >
           INCOMPLETE ({statusCounts.incomplete})
@@ -731,7 +1076,7 @@ const handleAttendanceSubmit = async (data) => {
           }}
           onClick={() => {
             setSelectedStatus('complete');
-            applyAllFilters(activeFilters, 'complete', searchQuery);
+            applyAllFilters(activeFilters, 'complete', searchQuery, viewFilter);
           }}
         >
           COMPLETE ({statusCounts.complete})
@@ -745,11 +1090,130 @@ const handleAttendanceSubmit = async (data) => {
           }}
           onClick={() => {
             setSelectedStatus('did_not_meet');
-            applyAllFilters(activeFilters, 'did_not_meet', searchQuery);
+            applyAllFilters(activeFilters, 'did_not_meet', searchQuery, viewFilter);
           }}
         >
           DID NOT MEET ({statusCounts.did_not_meet})
         </button>
+      </div>
+    );
+  };
+
+  const ViewFilterButtons = () => {
+    return (
+      <div style={styles.viewFilterContainer}>
+        <span style={styles.viewFilterLabel}>View:</span>
+        
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="all"
+            checked={viewFilter === 'all'}
+            onChange={(e) => {
+              setViewFilter(e.target.value);
+              applyAllFilters(activeFilters, selectedStatus, searchQuery, e.target.value);
+            }}
+            style={{ cursor: 'pointer' }}
+          />
+          <span style={{
+            ...styles.viewFilterText,
+            color: viewFilter === 'all' ? '#007bff' : '#6c757d',
+            fontWeight: viewFilter === 'all' ? '600' : '400',
+          }}>
+            View All
+          </span>
+        </label>
+        
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="personal"
+            checked={viewFilter === 'personal'}
+            onChange={(e) => {
+              setViewFilter(e.target.value);
+              applyAllFilters(activeFilters, selectedStatus, searchQuery, e.target.value);
+            }}
+            style={{ cursor: 'pointer' }}
+          />
+          <span style={{
+            ...styles.viewFilterText,
+            color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
+            fontWeight: viewFilter === 'personal' ? '600' : '400',
+          }}>
+            Personal
+          </span>
+        </label>
+      </div>
+    );
+  };
+
+  const MobileEventCard = ({ event }) => {
+    const dayOfWeek = event.day || 'Not set';
+    
+    return (
+      <div style={styles.mobileCard}>
+        <div style={styles.mobileCardRow}>
+          <span style={styles.mobileCardLabel}>Event Name:</span>
+          <span style={styles.mobileCardValue}>{event.eventName}</span>
+        </div>
+        <div style={styles.mobileCardRow}>
+          <span style={styles.mobileCardLabel}>Leader:</span>
+          <span style={styles.mobileCardValue}>{event.eventLeaderName || '-'}</span>
+        </div>
+        <div style={styles.mobileCardRow}>
+          <span style={styles.mobileCardLabel}>Leader at 12:</span>
+          <span style={styles.mobileCardValue}>{event.leader12 || '-'}</span>
+        </div>
+        <div style={styles.mobileCardRow}>
+          <span style={styles.mobileCardLabel}>Day:</span>
+          <span style={styles.mobileCardValue}>
+            <div>{dayOfWeek}</div>
+            {isOverdue(event) && (
+              <div style={styles.overdueLabel}>Overdue</div>
+            )}
+          </span>
+        </div>
+        <div style={styles.mobileCardRow}>
+          <span style={styles.mobileCardLabel}>Email:</span>
+          <span style={styles.mobileCardValue}>{event.eventLeaderEmail || '-'}</span>
+        </div>
+        <div style={styles.mobileCardRow}>
+          <span style={styles.mobileCardLabel}>Date:</span>
+          <span style={styles.mobileCardValue}>{formatDate(event.date)}</span>
+        </div>
+        
+        <div style={styles.mobileActions}>
+          <Tooltip title="Capture Attendance" arrow>
+            <button
+              style={styles.openEventIcon}
+              onClick={() => handleCaptureClick(event)}
+            >
+              <CheckBoxIcon />
+            </button>
+          </Tooltip>
+          <Tooltip title="Edit Event" arrow>
+            <IconButton
+              onClick={() => handleEditEvent(event)}
+              size="small"
+              sx={{ color: '#007bff', border: '1px solid #007bff' }}
+            >
+              <EditIcon />
+            </IconButton>
+          </Tooltip>
+          {isAdmin && (
+            <Tooltip title="Delete Event" arrow>
+              <IconButton
+                onClick={() => handleDeleteEvent(event)}
+                size="small"
+                sx={{ color: '#dc3545', border: '1px solid #dc3545' }}
+              >
+                <DeleteIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+        </div>
       </div>
     );
   };
@@ -759,6 +1223,7 @@ const handleAttendanceSubmit = async (data) => {
   return (
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default }}>
       <div style={styles.topSection}>
+        <EventTypeSelector />
         <div style={styles.searchFilterRow}>
           <input
             type="text"
@@ -777,113 +1242,158 @@ const handleAttendanceSubmit = async (data) => {
           </button>
         </div>
 
-        <StatusBadges />
+        <div style={styles.viewFilterRow}>
+          <StatusBadges />
+          <ViewFilterButtons />
+        </div>
       </div>
 
-      <div style={styles.tableContainer}>
-        <table style={styles.table}>
-          <thead style={styles.tableHeader}>
-            <tr>
-              <th style={styles.th}>Event Name</th>
-              <th style={styles.th}>Leader</th>
-              <th style={styles.th}>Leader at 12</th>
-              <th style={styles.th}>Day</th>
-              <th style={styles.th}>Email</th>
-              <th style={styles.th}>Date Of Event</th>
-              <th style={styles.th}>Capture Attendance</th>
-              <th style={styles.th}>Edit Event</th>
-              {isAdmin && <th style={styles.th}>Delete Event</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, idx) => (
-                <tr key={idx}>
-                  <td colSpan={isAdmin ? 9 : 8} style={styles.td}>
-                    <div style={styles.loadingSkeleton} />
+      {/* MOBILE VIEW: Card Layout */}
+      {isMobile ? (
+        <Box>
+          {loading ? (
+            Array.from({ length: 5 }).map((_, idx) => (
+              <div key={idx} style={styles.loadingSkeleton} />
+            ))
+          ) : filteredEvents.length === 0 ? (
+            <div style={{ ...styles.mobileCard, textAlign: 'center', padding: '2rem' }}>
+              No events found matching your criteria.
+            </div>
+          ) : (
+            filteredEvents.map((event) => (
+              <MobileEventCard key={event._id} event={event} />
+            ))
+          )}
+        </Box>
+      ) : (
+        /* DESKTOP VIEW: Table Layout - UPDATED TO MATCH IMAGE */
+        <div style={styles.tableContainer}>
+          <table style={styles.table}>
+            <thead style={styles.tableHeader}>
+              <tr>
+                <th style={styles.th}>Event Name</th>
+                <th style={styles.th}>Leader</th>
+                <th style={styles.th}>Leader at 12</th>
+                <th style={styles.th}>Day</th>
+                <th style={styles.th}>Email</th>
+                <th style={styles.th}>Date Of Event</th>
+                <th style={styles.th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={idx}>
+                    <td colSpan={7} style={styles.td}>
+                      <div style={styles.loadingSkeleton} />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredEvents.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ ...styles.td, textAlign: 'center', padding: '2rem' }}>
+                    No events found matching your criteria.
                   </td>
                 </tr>
-              ))
-            ) : filteredEvents.length === 0 ? (
-              <tr>
-                <td colSpan={isAdmin ? 9 : 8} style={{ ...styles.td, textAlign: 'center', padding: '2rem' }}>
-                  No events found matching your criteria.
-                </td>
-              </tr>
-            ) : (
-              filteredEvents.map((event) => {
-                const dayOfWeek = event.day || 'Not set';
-                
-                return (
-                  <tr
-                    key={event._id}
-                    style={{
-                      ...styles.tr,
-                      ...(hoveredRow === event._id ? styles.trHover : {}),
-                    }}
-                    onMouseEnter={() => setHoveredRow(event._id)}
-                    onMouseLeave={() => setHoveredRow(null)}
-                  >
-                    <td style={styles.td}>{event.eventName}</td>
-                    <td style={styles.td}>{event.eventLeaderName || '-'}</td>
-                    <td style={styles.td}>{event.leader12 || '-'}</td>
-                    <td style={styles.td}>
-                      <div>{dayOfWeek}</div>
-                      {isOverdue(event) && (
-                        <div style={styles.overdueLabel}>
-                          Overdue
-                        </div>
-                      )}
-                    </td>
-                    <td style={styles.td}>{event.eventLeaderEmail || '-'}</td>
-                    <td style={styles.td}>{formatDate(event.date)}</td>
-                    <td style={styles.td}>
-                      <Tooltip title="Capture Attendance" arrow>
-                        <button
-                          style={styles.openEventIcon}
-                          onClick={() => handleCaptureClick(event)}
-                          onMouseEnter={(e) => {
-                            e.target.style.transform = 'scale(1.1)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.transform = 'scale(1)';
-                          }}
-                        >
-                          <CheckBoxIcon />
-                        </button>
-                      </Tooltip>
-                    </td>
-                    <td style={styles.td}>
-                      <Tooltip title="Edit Event" arrow>
-                        <IconButton
-                          onClick={() => handleEditEvent(event)}
-                          size="small"
-                          sx={{ color: '#007bff' }}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </td>
-                    {isAdmin && (
+              ) : (
+                filteredEvents.map((event) => {
+                  const dayOfWeek = event.day || 'Not set';
+                  
+                  return (
+                    <tr
+                      key={event._id}
+                      style={{
+                        ...styles.tr,
+                        ...(hoveredRow === event._id ? styles.trHover : {}),
+                      }}
+                      onMouseEnter={() => setHoveredRow(event._id)}
+                      onMouseLeave={() => setHoveredRow(null)}
+                    >
                       <td style={styles.td}>
-                        <Tooltip title="Delete Event" arrow>
-                          <IconButton
-                            onClick={() => handleDeleteEvent(event)}
-                            size="small"
-                            sx={{ color: '#dc3545' }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
+                        <div style={styles.truncatedText} title={event.eventName}>
+                          {event.eventName}
+                        </div>
                       </td>
-                    )}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                      <td style={styles.td}>
+                        <div style={styles.truncatedText} title={event.eventLeaderName}>
+                          {event.eventLeaderName || '-'}
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <div style={styles.truncatedText} title={event.leader12}>
+                          {event.leader12 || '-'}
+                        </div>
+                      </td>
+                      <td style={styles.td}>
+                        <div>{dayOfWeek}</div>
+                        {isOverdue(event) && (
+                          <div style={styles.overdueLabel}>
+                            Overdue
+                          </div>
+                        )}
+                      </td>
+                      <td style={styles.td}>
+                        <div style={styles.emailText} title={event.eventLeaderEmail}>
+                          {event.eventLeaderEmail || '-'}
+                        </div>
+                      </td>
+                      <td style={styles.td}>{formatDate(event.date)}</td>
+                      <td style={styles.td}>
+                        <div style={styles.actionIcons}>
+                          <Tooltip title="Capture Attendance" arrow>
+                            <button
+                              style={styles.openEventIcon}
+                              onClick={() => handleCaptureClick(event)}
+                              onMouseEnter={(e) => {
+                                e.target.style.transform = 'scale(1.1)';
+                                e.target.style.backgroundColor = '#0056b3';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.target.style.transform = 'scale(1)';
+                                e.target.style.backgroundColor = '#007bff';
+                              }}
+                            >
+                              <CheckBoxIcon />
+                            </button>
+                          </Tooltip>
+                          
+                          <Tooltip title="Edit Event" arrow>
+                            <IconButton
+                              onClick={() => handleEditEvent(event)}
+                              size="small"
+                              sx={{ 
+                                color: '#007bff',
+                                '&:hover': { backgroundColor: 'rgba(0, 123, 255, 0.1)' }
+                              }}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
+                          
+                          {isAdmin && (
+                            <Tooltip title="Delete Event" arrow>
+                              <IconButton
+                                onClick={() => handleDeleteEvent(event)}
+                                size="small"
+                                sx={{ 
+                                  color: '#dc3545',
+                                  '&:hover': { backgroundColor: 'rgba(220, 53, 69, 0.1)' }
+                                }}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div style={{ 
         ...styles.eventsCounter,
@@ -893,13 +1403,52 @@ const handleAttendanceSubmit = async (data) => {
       </div>
 
       {isAdmin && (
-        <button
-          style={styles.floatingAddButton}
-          onClick={handleCreateEvent}
-          title="Create New Event"
-        >
-          +
-        </button>
+        <div style={fabStyles.fabContainer}>
+          {/* Menu Items */}
+          {fabMenuOpen && (
+            <div style={fabStyles.fabMenu}>
+              <div
+                style={fabStyles.fabMenuItem}
+                onClick={() => {
+                  setFabMenuOpen(false);
+                  handleCreateEventType();
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <span style={fabStyles.fabMenuLabel}>Create Event Type</span>
+                <div style={fabStyles.fabMenuIcon}>📋</div>
+              </div>
+              
+              <div
+                style={fabStyles.fabMenuItem}
+                onClick={() => {
+                  setFabMenuOpen(false);
+                  handleCreateEvent();
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <span style={fabStyles.fabMenuLabel}>Create Event</span>
+                <div style={fabStyles.fabMenuIcon}>📅</div>
+              </div>
+            </div>
+          )}
+          
+          {/* Main FAB Button */}
+          <button
+            style={{
+              ...fabStyles.mainFab,
+              transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+            }}
+            onClick={() => setFabMenuOpen(!fabMenuOpen)}
+            title="Menu"
+            onMouseEnter={(e) => e.target.style.transform = fabMenuOpen ? 'rotate(45deg) scale(1.1)' : 'scale(1.1)'}
+            onMouseLeave={(e) => e.target.style.transform = fabMenuOpen ? 'rotate(45deg)' : 'scale(1)'}
+          >
+            +
+          </button>
+        </div>
       )}
 
       <Eventsfilter
@@ -930,56 +1479,51 @@ const handleAttendanceSubmit = async (data) => {
       )}
 
       {isAdmin && (
- <EventTypesModal
-  open={createEventTypeModalOpen}
-  onClose={handleCloseCreateEventTypeModal}
-  onSubmit={handleCreateEventTypeSubmit}
-  setSelectedEventTypeObj={setSelectedEventTypeObj}
-  // selectedEventType={selectedEventType}  
-  customEventTypes={customEventTypes}
-  userRole={currentUser?.role}
-/>
-
+        <EventTypesModal
+          open={createEventTypeModalOpen}
+          onClose={handleCloseCreateEventTypeModal}
+          onSubmit={handleCreateEventTypeSubmit}
+          setSelectedEventTypeObj={setSelectedEventTypeObj}
+          customEventTypes={customEventTypes}
+          userRole={currentUser?.role}
+        />
       )}
 
-   {createEventModalOpen && (
-  <div
-    style={styles.modalOverlay}
-    onClick={(e) => {
-      if (e.target === e.currentTarget) {
-        handleCloseCreateEventModal();
-      }
-    }}
-  >
-    <div style={styles.modalContent}>
-      <div style={styles.modalHeader}>
-        <h2 style={styles.modalTitle}>
-          {selectedEventTypeObj?.name === "CELLS" ? "Create New Cell" : "Create New Event"}
-        </h2>
-        <button
-          style={styles.modalCloseButton}
-          onClick={handleCloseCreateEventModal}
-          title="Close"
+      {createEventModalOpen && (
+        <div
+          style={styles.modalOverlay}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseCreateEventModal();
+            }
+          }}
         >
-          ×
-        </button>
-      </div>
-      <div style={styles.modalBody}>
-        <CreateEvents
-          user={currentUser}
-          isModal={true}
-          onClose={handleCloseCreateEventModal}
-          selectedEventTypeObj={selectedEventTypeObj}   
-          selectedEventType={currentSelectedEventType}
-          eventTypes={allEventTypes}
-          isGlobalEvent={selectedEventTypeObj?.isGlobal || false}
-          isTicketedEvent={selectedEventTypeObj?.isTicketed || false} 
-          hasPersonSteps={selectedEventTypeObj?.hasPersonSteps || false}  
-        />
-      </div>
-    </div>
-  </div>
-)}
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>
+                {selectedEventTypeObj?.name === "CELLS" ? "Create New Cell" : "Create New Event"}
+              </h2>
+              <button
+                style={styles.modalCloseButton}
+                onClick={handleCloseCreateEventModal}
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              <CreateEvents
+                user={currentUser}
+                isModal={true}
+                onClose={handleCloseCreateEventModal}
+                selectedEventTypeObj={selectedEventTypeObj}   
+                selectedEventType={currentSelectedEventType}
+                eventTypes={allEventTypes}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <Snackbar
         open={snackbar.open}
@@ -997,93 +1541,23 @@ const handleAttendanceSubmit = async (data) => {
       </Snackbar>
 
       <style jsx>{`
-        @media (max-width: 768px) {
-          .container {
-            padding: 0.5rem !important;
-            padding-top: 4rem !important;
-          }
-          
-          .topSection {
-            padding: 1rem !important;
-          }
-          
-          .searchFilterRow {
-            flex-direction: column !important;
-          }
-          
-          .searchInput {
-            width: 100% !important;
-            min-width: 100% !important;
-          }
-          
-          .filterButton {
-            width: 100% !important;
-          }
-          
-          .statusBadgeContainer {
-            justify-content: center !important;
-          }
-          
-          .statusBadge {
-            font-size: 0.7rem !important;
-            padding: 0.4rem 0.8rem !important;
-          }
-          
-          .tableContainer {
-            margin: 0 -0.5rem !important;
-            border-radius: 0 !important;
-          }
-          
-          .table {
-            font-size: 0.8rem !important;
-          }
-          
-          .th, .td {
-            padding: 0.5rem !important;
-            font-size: 0.75rem !important;
-          }
-          
-          .floatingAddButton {
-            bottom: 15px !important;
-            right: 15px !important;
-            padding: 0.6rem 1rem !important;
-            font-size: 1.2rem !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .container {
-            padding: 0.25rem !important;
-            padding-top: 3.5rem !important;
-          }
-          
-          .topSection {
-            padding: 0.75rem !important;
-            margin-bottom: 0.5rem !important;
-          }
-          
-          .statusBadge {
-            font-size: 0.65rem !important;
-            padding: 0.35rem 0.6rem !important;
-          }
-          
-          .th, .td {
-            padding: 0.4rem !important;
-            font-size: 0.7rem !important;
-          }
-          
-          .openEventIcon {
-            width: 32px !important;
-            height: 32px !important;
-          }
-        }
-        
         @keyframes pulse {
           0%, 100% {
             opacity: 1;
           }
           50% {
             opacity: 0.5;
+          }
+        }
+        
+        @keyframes slideIn {
+          from {
+            transform: scale(0) rotate(-180deg);
+            opacity: 0;
+          }
+          to {
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
           }
         }
       `}</style>
