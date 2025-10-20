@@ -176,7 +176,6 @@ export default function Profile() {
     title: "",
     name: "",
     surname: "",
-    username: "",
     email: "",
     phoneNumber: "",
     invitedBy: "",
@@ -327,7 +326,6 @@ export default function Profile() {
       title: profile?.title || "",
       name: profile?.name || "",
       surname: profile?.surname || "",
-      username: profile?.username || "",
       email: profile?.email || "",
       phoneNumber: profile?.phoneNumber || profile?.phone_number || "",
       invitedBy: profile?.invited_by || "",
@@ -477,7 +475,6 @@ export default function Profile() {
       title: form.title,
       name: form.name,
       surname: form.surname,
-      username: form.username,
       email: form.email,
       phone_number: form.phoneNumber,
       gender: form.gender,
@@ -994,27 +991,6 @@ export default function Profile() {
                     disabled={!editMode}
                     error={!!errors.surname}
                     helperText={errors.surname}
-                    sx={commonFieldSx}
-                  />
-                </Grid>
-
-                {/* User Name */}
-                <Grid item xs={12} sm={6}>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      mb: 1,
-                      fontWeight: 600,
-                      color: isDark ? "#cccccc" : "#666666",
-                    }}
-                  >
-                    User Name
-                  </Typography>
-                  <TextField
-                    value={form.username || ""}
-                    onChange={handleChange("username")}
-                    fullWidth
-                    disabled
                     sx={commonFieldSx}
                   />
                 </Grid>
