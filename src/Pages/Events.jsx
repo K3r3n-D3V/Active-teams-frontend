@@ -24,7 +24,7 @@ const styles = {
     padding: "1rem",
     paddingTop: "5rem",
     boxSizing: "border-box",
-    overflow: "hidden", // Prevent main container from scrolling
+    overflow: "hidden",
   },
   topSection: {
     padding: "1.5rem",
@@ -100,10 +100,10 @@ const styles = {
   tableContainer: {
     backgroundColor: "#fff",
     borderRadius: "8px",
-    overflow: "hidden", // Changed from "auto" to "hidden"
+    overflow: "hidden",
     boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
     maxWidth: "100%",
-    maxHeight: "calc(100vh - 300px)", // Limit height to prevent full screen overflow
+    maxHeight: "calc(100vh - 300px)",
     display: "flex",
     flexDirection: "column",
   },
@@ -114,7 +114,7 @@ const styles = {
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: "1200px",
+    minWidth: "1300px",
   },
   tableHeader: {
     backgroundColor: "#000",
@@ -161,18 +161,8 @@ const styles = {
     border: 'none',
     fontSize: '18px',
   },
-  editIcon: {
-    color: '#007bff',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-  },
-  deleteIcon: {
-    color: '#dc3545',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-  },
   truncatedText: {
-    maxWidth: '200px',
+    maxWidth: '150px',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -182,20 +172,6 @@ const styles = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-  },
-  floatingAddButton: {
-    position: "fixed",
-    bottom: "20px",
-    right: "20px",
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "50px",
-    padding: "0.75rem 1.25rem",
-    fontSize: "1.5rem",
-    cursor: "pointer",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    zIndex: 1000,
   },
   modalOverlay: {
     position: 'fixed',
@@ -265,18 +241,12 @@ const styles = {
     marginBottom: "0.5rem",
     animation: "pulse 1.5s ease-in-out infinite",
   },
-  eventsCounter: {
-    padding: '1rem',
-    textAlign: 'center',
-    fontSize: '0.875rem',
-  },
   overdueLabel: {
     color: 'red',
     fontSize: '0.8rem',
     marginTop: '0.2rem',
     fontWeight: 'bold',
   },
-  // Mobile card styles
   mobileCard: {
     backgroundColor: '#fff',
     borderRadius: '8px',
@@ -344,13 +314,37 @@ const styles = {
     color: '#6c757d',
     cursor: 'not-allowed',
   },
-
   rowsSelect: {
     padding: '0.25rem 0.5rem',
     border: '1px solid #dee2e6',
     borderRadius: '4px',
     backgroundColor: '#fff',
     fontSize: '0.875rem',
+  },
+  paginationContainer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    padding: '1rem',
+    borderTop: '1px solid #e9ecef',
+    backgroundColor: '#f8f9fa',
+    gap: '1.5rem',
+  },
+  rowsPerPage: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    color: '#6c757d',
+  },
+  paginationInfo: {
+    fontSize: '0.875rem',
+    color: '#6c757d',
+  },
+  paginationControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.25rem',
   },
 };
 
@@ -504,33 +498,7 @@ const eventTypeStyles = {
     fontWeight: 'bold',
     animation: 'slideIn 0.3s ease-out',
   },
-  paginationContainer: {
-    display: 'flex',
-    justifyContent: 'flex-end', // This pushes EVERYTHING to the right
-    alignItems: 'center',
-    padding: '1rem',
-    borderTop: '1px solid #e9ecef',
-    backgroundColor: '#f8f9fa',
-    gap: '1.5rem', // Space between all elements
-  },
-  rowsPerPage: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.875rem',
-    color: '#6c757d',
-  },
-  paginationInfo: {
-    fontSize: '0.875rem',
-    color: '#6c757d',
-  },
-  paginationControls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-  },
 };
-
 
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -589,12 +557,12 @@ const Events = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
 
-
-    const debouncedSearchQuery = useDebounce(searchQuery, 500); 
+  const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
   useEffect(() => {
     if (debouncedSearchQuery !== undefined) {
-      setCurrentPage(1); // ADD THIS LINE
+      setCurrentPage(1);
       fetchEvents({
         search: debouncedSearchQuery.trim() || undefined,
         status: selectedStatus !== 'all' ? selectedStatus : undefined,
@@ -602,6 +570,15 @@ const Events = () => {
       });
     }
   }, [debouncedSearchQuery]);
+
+  useEffect(() => {
+    const fetchCurrentUserLeaderAt1 = async () => {
+      const leaderAt1 = await getCurrentUserLeaderAt1();
+      setCurrentUserLeaderAt1(leaderAt1);
+    };
+
+    fetchCurrentUserLeaderAt1();
+  }, []);
 
   useEffect(() => {
     const savedEventTypes = localStorage.getItem("customEventTypes");
@@ -631,15 +608,10 @@ const Events = () => {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Build query parameters - TRY BOTH 'limit' AND 'per_page'
       const params = new URLSearchParams();
-
-      // Try 'per_page' first (more common), fallback to 'limit'
       params.append('page', currentPage.toString());
-      params.append('per_page', rowsPerPage.toString()); // Try 'per_page'
-      // params.append('limit', rowsPerPage.toString()); // Alternative
+      params.append('per_page', rowsPerPage.toString());
 
-      // Add filters
       if (filters.status && filters.status !== 'all') {
         params.append('status', filters.status);
       }
@@ -664,9 +636,6 @@ const Events = () => {
       console.log(`📡 Fetching from: ${endpoint}`);
 
       const response = await axios.get(endpoint, { headers });
-      console.log("✅ RAW API RESPONSE:", response.data);
-
-      // Handle different response formats
       const responseData = response.data;
       const events = responseData.events || responseData.results || [];
       const total_events = responseData.total_events || responseData.total || 0;
@@ -683,10 +652,6 @@ const Events = () => {
 
     } catch (err) {
       console.error("❌ Error fetching events:", err);
-      if (err.response) {
-        console.error("Response error:", err.response.status, err.response.data);
-      }
-      // Reset on error
       setEvents([]);
       setFilteredEvents([]);
       setTotalEvents(0);
@@ -697,7 +662,6 @@ const Events = () => {
       setIsLoading(false);
     }
   };
-
 
   const isOverdue = (event) => {
     if (event?._is_overdue !== undefined) {
@@ -720,19 +684,14 @@ const Events = () => {
     return eventDate < today;
   };
 
-
-  // Calculate pagination display variables
   const startIndex = totalEvents > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
   const endIndex = Math.min(currentPage * rowsPerPage, totalEvents);
-  const paginatedEvents = filteredEvents; // Backend handles pagination
-  // Handle rows per page change
+  const paginatedEvents = filteredEvents;
+
   const handleRowsPerPageChange = (e) => {
     setRowsPerPage(Number(e.target.value));
     setCurrentPage(1);
   };
-
-
-  // Search handler
 
   const handleSearchChange = (e) => {
     const value = e.target.value;
@@ -741,7 +700,6 @@ const Events = () => {
 
   const applyFilters = (filters) => {
     setActiveFilters(filters);
-    // Convert the filter format if needed and call fetchEvents
     fetchEvents({
       ...filters,
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
@@ -749,20 +707,20 @@ const Events = () => {
       search: searchQuery || undefined
     });
   };
-  // Status filter handler
+
   const handleStatusClick = (status) => {
     setSelectedStatus(status);
-    setCurrentPage(1); // ADD THIS LINE
+    setCurrentPage(1);
     fetchEvents({
       status: status !== 'all' ? status : undefined,
       search: searchQuery.trim() || undefined,
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined
     });
   };
-  // Event type filter handler (in your EventTypeSelector)
+
   const handleEventTypeClick = (typeValue) => {
     setSelectedEventTypeFilter(typeValue);
-    setCurrentPage(1); // ADD THIS LINE
+    setCurrentPage(1);
     fetchEvents({
       event_type: typeValue !== 'all' ? typeValue : undefined,
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
@@ -808,7 +766,6 @@ const Events = () => {
   }, [currentSelectedEventType]);
 
   useEffect(() => {
-    // Fetch with proper initial filters
     const initialFilters = {};
 
     if (selectedStatus !== 'all') {
@@ -822,10 +779,7 @@ const Events = () => {
     }
 
     fetchEvents(initialFilters);
-  }, [location.pathname, location.state?.refresh, location.state?.timestamp, currentPage, rowsPerPage, selectedStatus, selectedEventTypeFilter // Use debounced search instead of searchQuery
-  ]);
-
-
+  }, [location.pathname, location.state?.refresh, location.state?.timestamp, currentPage, rowsPerPage, selectedStatus, selectedEventTypeFilter]);
 
   const formatDate = (date) => {
     if (!date) return "Not set";
@@ -870,12 +824,9 @@ const Events = () => {
       const leaderEmail = currentUser?.email || '';
       const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
-      console.log("🎯 handleAttendanceSubmit called with:", data);
-
       let payload;
 
       if (data === "did_not_meet") {
-        console.log("🔴 Marking as DID NOT MEET");
         payload = {
           attendees: [],
           leaderEmail,
@@ -883,7 +834,6 @@ const Events = () => {
           did_not_meet: true,
         };
       } else if (Array.isArray(data)) {
-        console.log("✅ Capturing attendance with", data.length, "attendees");
         payload = {
           attendees: data,
           leaderEmail,
@@ -891,19 +841,14 @@ const Events = () => {
           did_not_meet: false,
         };
       } else {
-        console.log("📦 Using provided payload:", data);
         payload = data;
       }
-
-      console.log("🚀 Final payload:", payload);
 
       const response = await axios.put(
         `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
         payload,
         { headers }
       );
-
-      console.log("✅ Backend response:", response.data);
 
       await fetchEvents();
 
@@ -943,14 +888,12 @@ const Events = () => {
     }
   };
 
-  // Handle previous page
   const handlePreviousPage = () => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     }
   };
 
-  // Handle next page
   const handleNextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
@@ -971,7 +914,7 @@ const Events = () => {
         });
 
         if (response.status === 200) {
-          fetchEvents(); // Refresh the list
+          fetchEvents();
           setSnackbar({
             open: true,
             message: "Event deleted successfully",
@@ -989,15 +932,13 @@ const Events = () => {
     }
   };
 
-
   useEffect(() => {
-    // Initial fetch when component mounts
     fetchEvents({
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
       search: searchQuery || undefined
     });
-  }, []); // Empty dependency array for initial mount only
+  }, []);
 
   const handleSaveEvent = async (updatedData) => {
     try {
@@ -1016,15 +957,13 @@ const Events = () => {
       });
 
       if (response.ok) {
-        // Show success message
         setAlert({
           open: true,
           type: "success",
           message: "Event updated successfully!",
         });
 
-        // Refresh your events data
-        fetchEvents(); // Your function to fetch events
+        fetchEvents();
 
         setTimeout(() => setAlert({ open: false, type: "success", message: "" }), 3000);
       } else {
@@ -1038,6 +977,23 @@ const Events = () => {
         message: "Failed to update event",
       });
       setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+    }
+  };
+
+  const getCurrentUserLeaderAt1 = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(
+        `${BACKEND_URL}/current-user/leader-at-1`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      return response.data.leader_at_1 || '';
+    } catch (error) {
+      console.error('Error getting current user leader at 1:', error);
+      return '';
     }
   };
 
@@ -1070,7 +1026,6 @@ const Events = () => {
       typeof selectedDisplayName === 'string'
         ? selectedDisplayName
         : selectedDisplayName?.name || 'CELLS';
-
 
     return (
       <div style={eventTypeStyles.container}>
@@ -1127,122 +1082,112 @@ const Events = () => {
   };
 
   // StatusBadges Component
-  // StatusBadges Component - FIXED VERSION
-const StatusBadges = () => {
-  const [statusCounts, setStatusCounts] = useState({
-    incomplete: 0,
-    complete: 0,
-    did_not_meet: 0
-  });
+  const StatusBadges = () => {
+    const [statusCounts, setStatusCounts] = useState({
+      incomplete: 0,
+      complete: 0,
+      did_not_meet: 0
+    });
 
-  // Fetch counts whenever filters change
-  useEffect(() => {
-    const fetchStatusCounts = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const headers = { Authorization: `Bearer ${token}` };
-        
-        const params = new URLSearchParams();
-        
-        // Apply the same filters as main events fetch
-        if (selectedEventTypeFilter !== 'all') {
-          params.append('event_type', selectedEventTypeFilter);
+    useEffect(() => {
+      const fetchStatusCounts = async () => {
+        try {
+          const token = localStorage.getItem("token");
+          const headers = { Authorization: `Bearer ${token}` };
+
+          const params = new URLSearchParams();
+
+          if (selectedEventTypeFilter !== 'all') {
+            params.append('event_type', selectedEventTypeFilter);
+          }
+          if (searchQuery && searchQuery.trim() !== '') {
+            params.append('search', searchQuery.trim());
+          }
+
+          let endpoint = '';
+          const userRole = currentUser?.role?.toLowerCase();
+
+          if (userRole === "admin") {
+            endpoint = `${BACKEND_URL}/admin/events/status-counts?${params}`;
+          } else if (userRole === "registrant") {
+            endpoint = `${BACKEND_URL}/registrant/events/status-counts?${params}`;
+          } else {
+            endpoint = `${BACKEND_URL}/events/status-counts?${params}`;
+          }
+
+          const response = await axios.get(endpoint, { headers });
+          setStatusCounts(response.data);
+
+        } catch (error) {
+          console.error("Error fetching status counts:", error);
+          calculateClientSideCounts();
         }
-        if (searchQuery && searchQuery.trim() !== '') {
-          params.append('search', searchQuery.trim());
-        }
+      };
 
-        let endpoint = '';
-        const userRole = currentUser?.role?.toLowerCase();
+      fetchStatusCounts();
+    }, [selectedEventTypeFilter, searchQuery, selectedStatus]);
 
-        if (userRole === "admin") {
-          endpoint = `${BACKEND_URL}/admin/events/status-counts?${params}`;
-        } else if (userRole === "registrant") {
-          endpoint = `${BACKEND_URL}/registrant/events/status-counts?${params}`;
-        } else {
-          endpoint = `${BACKEND_URL}/events/status-counts?${params}`;
-        }
+    const calculateClientSideCounts = () => {
+      const counts = {
+        incomplete: events.filter(e => {
+          if (e.did_not_meet === true) return false;
+          if ((e.attendees && e.attendees.length > 0) ||
+            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
+            return false;
+          }
+          return true;
+        }).length,
 
-        console.log(`📊 Fetching status counts from: ${endpoint}`);
-        const response = await axios.get(endpoint, { headers });
-        console.log(`📊 Status counts received:`, response.data);
-        
-        setStatusCounts(response.data);
+        complete: events.filter(e => {
+          if (e.did_not_meet === true) return false;
+          return (e.attendees && e.attendees.length > 0) ||
+            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
+        }).length,
 
-      } catch (error) {
-        console.error("Error fetching status counts:", error);
-        // Fallback to client-side calculation if endpoint doesn't exist
-        calculateClientSideCounts();
-      }
+        did_not_meet: events.filter(e => e.did_not_meet === true).length,
+      };
+
+      setStatusCounts(counts);
     };
 
-    fetchStatusCounts();
-  }, [selectedEventTypeFilter, searchQuery, selectedStatus]); // Re-run when these change
+    return (
+      <div style={styles.statusBadgeContainer}>
+        <button
+          style={{
+            ...styles.statusBadge,
+            ...styles.statusBadgeIncomplete,
+            ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => handleStatusClick('incomplete')}
+        >
+          INCOMPLETE ({statusCounts.incomplete})
+        </button>
 
-  // Fallback: client-side calculation (less accurate)
-  const calculateClientSideCounts = () => {
-    console.log("🔄 Using client-side status count calculation");
-    
-    const counts = {
-      incomplete: events.filter(e => {
-        if (e.did_not_meet === true) return false;
-        if ((e.attendees && e.attendees.length > 0) ||
-          ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
-          return false;
-        }
-        return true;
-      }).length,
+        <button
+          style={{
+            ...styles.statusBadge,
+            ...styles.statusBadgeComplete,
+            ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => handleStatusClick('complete')}
+        >
+          COMPLETE ({statusCounts.complete})
+        </button>
 
-      complete: events.filter(e => {
-        if (e.did_not_meet === true) return false;
-        return (e.attendees && e.attendees.length > 0) ||
-          ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
-      }).length,
-
-      did_not_meet: events.filter(e => e.did_not_meet === true).length,
-    };
-
-    console.log("📊 Client-side counts:", counts);
-    setStatusCounts(counts);
+        <button
+          style={{
+            ...styles.statusBadge,
+            ...styles.statusBadgeDidNotMeet,
+            ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => handleStatusClick('did_not_meet')}
+        >
+          DID NOT MEET ({statusCounts.did_not_meet})
+        </button>
+      </div>
+    );
   };
 
-  return (
-    <div style={styles.statusBadgeContainer}>
-      <button
-        style={{
-          ...styles.statusBadge,
-          ...styles.statusBadgeIncomplete,
-          ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
-        }}
-        onClick={() => handleStatusClick('incomplete')}
-      >
-        INCOMPLETE ({statusCounts.incomplete})
-      </button>
-
-      <button
-        style={{
-          ...styles.statusBadge,
-          ...styles.statusBadgeComplete,
-          ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
-        }}
-        onClick={() => handleStatusClick('complete')}
-      >
-        COMPLETE ({statusCounts.complete})
-      </button>
-
-      <button
-        style={{
-          ...styles.statusBadge,
-          ...styles.statusBadgeDidNotMeet,
-          ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
-        }}
-        onClick={() => handleStatusClick('did_not_meet')}
-      >
-        DID NOT MEET ({statusCounts.did_not_meet})
-      </button>
-    </div>
-  );
-};
   // ViewFilterButtons Component
   const ViewFilterButtons = () => {
     return (
@@ -1302,9 +1247,12 @@ const StatusBadges = () => {
     );
   };
 
-  // MobileEventCard Component
+  // MobileEventCard Component - FIXED
   const MobileEventCard = ({ event }) => {
     const dayOfWeek = event.day || 'Not set';
+    
+    // Determine if we should show leaders - don't show if main leader is Gavin/Vicky Enslin
+    const shouldShowLeaders = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
 
     return (
       <div style={styles.mobileCard}>
@@ -1316,10 +1264,24 @@ const StatusBadges = () => {
           <span style={styles.mobileCardLabel}>Leader:</span>
           <span style={styles.mobileCardValue}>{event.eventLeaderName || '-'}</span>
         </div>
-        <div style={styles.mobileCardRow}>
-          <span style={styles.mobileCardLabel}>Leader at 12:</span>
-          <span style={styles.mobileCardValue}>{event.leader12 || '-'}</span>
-        </div>
+        
+        {shouldShowLeaders && (
+          <>
+            <div style={styles.mobileCardRow}>
+              <span style={styles.mobileCardLabel}>Leader at 1:</span>
+              <span style={styles.mobileCardValue}>
+                {event.leader1 || '-'}
+              </span>
+            </div>
+            <div style={styles.mobileCardRow}>
+              <span style={styles.mobileCardLabel}>Leader at 12:</span>
+              <span style={styles.mobileCardValue}>
+                {event.leader12 || '-'}
+              </span>
+            </div>
+          </>
+        )}
+        
         <div style={styles.mobileCardRow}>
           <span style={styles.mobileCardLabel}>Day:</span>
           <span style={styles.mobileCardValue}>
@@ -1369,9 +1331,7 @@ const StatusBadges = () => {
               </IconButton>
             </Tooltip>
           )}
-
         </div>
-
       </div>
     );
   };
@@ -1422,7 +1382,6 @@ const StatusBadges = () => {
               ))}
 
               {/* Mobile Pagination */}
-              {/* Mobile Pagination */}
               <div style={{
                 ...styles.paginationContainer,
                 flexDirection: 'column',
@@ -1472,6 +1431,7 @@ const StatusBadges = () => {
                 <tr>
                   <th style={styles.th}>Event Name</th>
                   <th style={styles.th}>Leader</th>
+                  <th style={styles.th}>Leader at 1</th>
                   <th style={styles.th}>Leader at 12</th>
                   <th style={styles.th}>Day</th>
                   <th style={styles.th}>Email</th>
@@ -1483,20 +1443,24 @@ const StatusBadges = () => {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, idx) => (
                     <tr key={idx}>
-                      <td colSpan={7} style={styles.td}>
+                      <td colSpan={8} style={styles.td}>
                         <div style={styles.loadingSkeleton} />
                       </td>
                     </tr>
                   ))
                 ) : paginatedEvents.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ ...styles.td, textAlign: 'center', padding: '2rem' }}>
+                    <td colSpan={8} style={{ ...styles.td, textAlign: 'center', padding: '2rem' }}>
                       No events found matching your criteria.
                     </td>
                   </tr>
                 ) : (
                   paginatedEvents.map((event) => {
                     const dayOfWeek = event.day || 'Not set';
+                    
+                    // Determine if we should show leaders - don't show if main leader is Gavin/Vicky Enslin
+                    const shouldShowLeaderAt1 = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
+                    const shouldShowLeaderAt12 = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
 
                     return (
                       <tr
@@ -1519,8 +1483,13 @@ const StatusBadges = () => {
                           </div>
                         </td>
                         <td style={styles.td}>
-                          <div style={styles.truncatedText} title={event.leader12}>
-                            {event.leader12 || '-'}
+                          <div style={styles.truncatedText}>
+                            {shouldShowLeaderAt1 ? (event.leader1 || '-') : '-'}
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.truncatedText}>
+                            {shouldShowLeaderAt12 ? (event.leader12 || '-') : '-'}
                           </div>
                         </td>
                         <td style={styles.td}>
@@ -1626,11 +1595,10 @@ const StatusBadges = () => {
         </div>
       )}
 
-      {/* FAB Button - Visible to ALL users */}
+      {/* FAB Button */}
       <div style={fabStyles.fabContainer}>
         {fabMenuOpen && (
           <div style={fabStyles.fabMenu}>
-            {/* Only show "Create Event Type" for admins */}
             {isAdmin && (
               <div
                 style={fabStyles.fabMenuItem}
@@ -1644,7 +1612,6 @@ const StatusBadges = () => {
               </div>
             )}
 
-            {/* Show "Create Event" for admins and registrants */}
             {(isAdmin || currentUser?.role?.toLowerCase() === "registrant") && (
               <div
                 style={fabStyles.fabMenuItem}
@@ -1658,7 +1625,6 @@ const StatusBadges = () => {
               </div>
             )}
 
-            {/* Regular users can only create cells */}
             {currentUser?.role?.toLowerCase() === "user" && (
               <div
                 style={fabStyles.fabMenuItem}
@@ -1685,7 +1651,6 @@ const StatusBadges = () => {
           +
         </button>
       </div>
-
 
       <Eventsfilter
         open={showFilter}
