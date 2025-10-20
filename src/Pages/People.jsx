@@ -1,4 +1,4 @@
-// People.jsx (Updated with pagination for grid view and fixed drag-drop)
+// People.jsx (Updated with edit functionality)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import axios from 'axios';
@@ -189,11 +189,9 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
 
     const newStage = destination.droppableId;
     
-    // Store original person data for potential revert
     const originalPerson = allPeople.find(p => String(p._id) === String(draggableId));
     if (!originalPerson) return;
 
-    // Update both the displayed people and allPeople immediately (optimistic update)
     const updatePeopleStage = (peopleArray) => {
       return peopleArray.map(p => 
         String(p._id) === String(draggableId) 
@@ -205,7 +203,6 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
     setAllPeople(updatePeopleStage);
 
     try {
-      // Get the person data to send
       const personToUpdate = allPeople.find(p => String(p._id) === String(draggableId));
       
       const response = await axios.patch(`${BACKEND_URL}/people/${draggableId}`, {
@@ -222,15 +219,10 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
         "Leader @144": personToUpdate.leaders.leader144,
         "Leader @1728": personToUpdate.leaders.leader1728
       }, {
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         timeout: 10000
       });
 
-      console.log('Stage update successful:', response.data);
-
-      // Update with server response (including lastUpdated)
       const updateWithTimestamp = (peopleArray) => {
         return peopleArray.map(p =>
           String(p._id) === String(draggableId) 
@@ -251,12 +243,10 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
     } catch (err) {
       console.error("Failed to update Stage:", err.response?.data || err.message);
       
-      // Revert on error - restore original person data
       setAllPeople(prev => prev.map(p => 
         String(p._id) === String(draggableId) ? originalPerson : p
       ));
       
-      // Show error notification
       alert(`Failed to update stage: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
     }
   };
@@ -321,9 +311,9 @@ export const PeopleSection = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
   const [formData, setFormData] = useState({
-    name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '',
-    invitedBy: '', gender: '', leader1: '', leader12: '', leader144: '', leader1728: '',
-    Stage: 'Win'
+    name: '', surname: '', dob: '', address: '', email: '', number: '',
+    invitedBy: '', gender: '', leader12: '', leader144: '', leader1728: '',
+    stage: 'Win'
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [viewMode, setViewMode] = useState('grid');
@@ -353,6 +343,7 @@ export const PeopleSection = () => {
         phone: (raw.Number || raw.Phone || "").toString().trim(),
         Stage: (raw.Stage || "Win").toString().trim(),
         lastUpdated: raw.UpdatedAt || null,
+        invitedBy: (raw.InvitedBy || "").toString().trim(),
         leaders: {
           leader1: (raw["Leader @1"] || "").toString().trim(),
           leader12: (raw["Leader @12"] || "").toString().trim(),
@@ -451,6 +442,85 @@ export const PeopleSection = () => {
     }
   };
 
+// Handle edit - populate form with person data
+  const handleEditPerson = (person) => {
+    setEditingPerson(person);
+    
+    // Format DOB for input field (expects YYYY-MM-DD)
+    let formattedDob = '';
+    if (person.dob) {
+      try {
+        const date = new Date(person.dob);
+        if (!isNaN(date.getTime())) {
+          formattedDob = date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        console.error('Error formatting DOB:', e);
+      }
+    }
+    
+    setFormData({
+      name: person.name || '',
+      surname: person.surname || '',
+      dob: formattedDob,
+      address: person.location || '',
+      email: person.email || '',
+      number: person.phone || '',
+      invitedBy: person.invitedBy || '',
+      gender: person.gender || '',
+      leader12: person.leaders?.leader12 || '',
+      leader144: person.leaders?.leader144 || '',
+      leader1728: person.leaders?.leader1728 || '',
+      stage: person.Stage || 'Win'
+    });
+    setIsModalOpen(true);
+  };
+
+  // Handle save from dialog
+  const handleSaveFromDialog = (savedPerson) => {
+    // Map the saved person to internal format
+    const mappedPerson = {
+      _id: savedPerson._id || editingPerson?._id,
+      name: savedPerson.name || '',
+      surname: savedPerson.surname || '',
+      gender: savedPerson.gender || '',
+      dob: savedPerson.dob || '',
+      location: savedPerson.address || '',
+      email: savedPerson.email || '',
+      phone: savedPerson.number || '',
+      Stage: savedPerson.stage || 'Win',
+      lastUpdated: new Date().toISOString(),
+      invitedBy: savedPerson.invitedBy || '',
+      leaders: {
+        leader1: savedPerson.invitedBy || '',
+        leader12: savedPerson.leaders?.[0] || '',
+        leader144: savedPerson.leaders?.[1] || '',
+        leader1728: savedPerson.leaders?.[2] || ''
+      }
+    };
+
+    if (editingPerson) {
+      // Update existing person
+      updatePersonInCache(editingPerson._id, mappedPerson);
+      setSnackbar({ open: true, message: 'Person updated successfully', severity: 'success' });
+    } else {
+      // Add new person
+      addPersonToCache(mappedPerson);
+      setSnackbar({ open: true, message: 'Person added successfully', severity: 'success' });
+    }
+  };
+
+  // Handle close dialog
+  const handleCloseDialog = () => {
+    setIsModalOpen(false);
+    setEditingPerson(null);
+    setFormData({
+      name: '', surname: '', dob: '', address: '', email: '', number: '',
+      invitedBy: '', gender: '', leader12: '', leader144: '', leader1728: '',
+      stage: 'Win'
+    });
+  };
+
   const isSearching = debouncedSearchTerm.trim().length > 0;
 
   return (
@@ -524,10 +594,8 @@ export const PeopleSection = () => {
             <DragDropBoard
               people={paginatedPeople}
               setPeople={(updateFn) => {
-                // Update paginated view
                 if (typeof updateFn === 'function') {
                   const updated = updateFn(paginatedPeople);
-                  // We need to maintain the update in allPeople as well
                   setAllPeople(prev => {
                     const newAll = [...prev];
                     updated.forEach(updatedPerson => {
@@ -540,7 +608,7 @@ export const PeopleSection = () => {
                   });
                 }
               }}
-              onEditPerson={(p) => { setEditingPerson(p); setIsModalOpen(true); }}
+              onEditPerson={handleEditPerson}
               onDeletePerson={(id) => {
                 removePersonFromCache(id);
               }}
@@ -568,7 +636,7 @@ export const PeopleSection = () => {
           <Box sx={{ px: 2 }}>
             <PeopleListView
               people={filteredPeople}
-              onEdit={(p) => { setEditingPerson(p); setIsModalOpen(true); }}
+              onEdit={handleEditPerson}
               onDelete={(id) => {
                 removePersonFromCache(id);
               }}
@@ -579,17 +647,12 @@ export const PeopleSection = () => {
 
         <AddPersonDialog
           open={isModalOpen}
+          onClose={handleCloseDialog}
+          onSave={handleSaveFromDialog}
           formData={formData}
           setFormData={setFormData}
-          editingPerson={editingPerson}
-          onClose={() => setIsModalOpen(false)}
-          onSuccess={(newPerson) => {
-            if (editingPerson) {
-              updatePersonInCache(editingPerson._id, newPerson);
-            } else {
-              addPersonToCache(newPerson);
-            }
-          }}
+          isEdit={!!editingPerson}
+          personId={editingPerson?._id || null}
         />
 
         <Snackbar
