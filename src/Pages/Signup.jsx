@@ -137,43 +137,47 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  // Add state for people list
-  const [peopleList, setPeopleList] = useState([]);
-  const [loadingPeople, setLoadingPeople] = useState(false);
+  // Invited By async search state
+  const [invitedOptions, setInvitedOptions] = useState([]);
+  const [loadingInvited, setLoadingInvited] = useState(false);
+  const [invitedSearch, setInvitedSearch] = useState("");
 
-  // Fetch people when component mounts
+  // Server-side search for invited_by field
+  const fetchInvitedOptions = async (query) => {
+    if (!query?.trim()) {
+      setInvitedOptions([]);
+      return;
+    }
+    try {
+      setLoadingInvited(true);
+      const res = await axios.get(`${BACKEND_URL}/people/search`, {
+        params: { query, limit: 20 },
+      });
+      const results = res.data?.results || res.data?.people || [];
+      const mapped = results.map((p) => ({
+        label: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        person: p,
+      }));
+      setInvitedOptions(mapped);
+    } catch (err) {
+      console.error("Failed to search people:", err);
+      setInvitedOptions([]);
+    } finally {
+      setLoadingInvited(false);
+    }
+  };
+
+  // Debounce invited_by search input
   useEffect(() => {
-    const fetchAllPeople = async () => {
-      setLoadingPeople(true);
-      const allPeople = [];
-      let page = 1;
-      const perPage = 1000;
-      let moreData = true;
-
-      try {
-        while (moreData) {
-          const response = await axios.get(`${BACKEND_URL}/people?page=${page}&perPage=${perPage}`);
-          const results = response.data?.results || [];
-          allPeople.push(...results);
-          
-          if (results.length < perPage) {
-            moreData = false;
-          } else {
-            page += 1;
-          }
-        }
-        setPeopleList(allPeople);
-        console.log("Total people fetched for signup:", allPeople.length);
-      } catch (err) {
-        console.error("Failed to fetch people for signup:", err);
-        setPeopleList([]);
-      } finally {
-        setLoadingPeople(false);
+    const handler = setTimeout(() => {
+      if (invitedSearch && invitedSearch.trim().length >= 2) {
+        fetchInvitedOptions(invitedSearch.trim());
+      } else {
+        setInvitedOptions([]);
       }
-    };
-
-    fetchAllPeople();
-  }, []);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [invitedSearch]);
 
   const validate = () => {
     const newErrors = {};
@@ -282,11 +286,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
-  // Create people options for autocomplete
-  const peopleOptions = peopleList.map(person => {
-    const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
-    return { label: fullName, person };
-  });
+  // Options are fetched server-side; no local mapping needed here
 
   return (
     <Box
@@ -425,15 +425,16 @@ const Signup = ({ onSignup, mode, setMode }) => {
             {/* Replace the invited_by TextField with Autocomplete */}
             <Autocomplete
               freeSolo
-              disabled={loading || loadingPeople}
-              options={peopleOptions}
+              disabled={loading || loadingInvited}
+              options={invitedOptions}
               getOptionLabel={(option) => typeof option === "string" ? option : option.label}
               value={
-                peopleOptions.find(option => option.label === form.invited_by) || null
+                invitedOptions.find(option => option.label === form.invited_by) || null
               }
               onChange={(e, newValue) => handleInvitedByChange(newValue)}
               onInputChange={(e, newInputValue, reason) => {
                 if (reason === "input") {
+                  setInvitedSearch(newInputValue);
                   setForm(prev => ({ ...prev, invited_by: newInputValue }));
                 }
               }}
@@ -443,7 +444,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
                   label="Invited By"
                   name="invited_by"
                   error={!!errors.invited_by}
-                  helperText={errors.invited_by || (loadingPeople ? "Loading people..." : "")}
+                  helperText={errors.invited_by || (loadingInvited ? "Searching..." : "")}
                   fullWidth
                   sx={{
                     "& .MuiOutlinedInput-root": { borderRadius: 3 },
