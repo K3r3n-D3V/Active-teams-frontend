@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Phone, UserPlus } from "lucide-react";
+import { Phone, UserPlus, Plus } from "lucide-react";
 
 function Modal({ isOpen, onClose, children, theme }) {
   if (!isOpen) return null;
@@ -61,9 +61,11 @@ function Modal({ isOpen, onClose, children, theme }) {
 
 export default function DailyTasks() {
   const [tasks, setTasks] = useState([]);
+  const [taskTypes, setTaskTypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedTask, setSelectedTask] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddTypeModalOpen, setIsAddTypeModalOpen] = useState(false);
   const [formType, setFormType] = useState("");
   const [dateRange, setDateRange] = useState("today");
   const [filterType, setFilterType] = useState("all");
@@ -71,8 +73,11 @@ export default function DailyTasks() {
   const [storedUser, setStoredUser] = useState(() =>
     JSON.parse(localStorage.getItem("userProfile") || "{}")
   );
+  const [newTaskTypeName, setNewTaskTypeName] = useState("");
+  const [addingTaskType, setAddingTaskType] = useState(false);
+  
 
-  const API_URL = `${import.meta.env.VITE_BACKEND_URL}`
+  const API_URL = `${import.meta.env.VITE_BACKEND_URL}` || "http://localhost:3000";
 
   const getCurrentDateTime = () => {
     const now = new Date();
@@ -81,19 +86,10 @@ export default function DailyTasks() {
     return localDate.toISOString().slice(0, 16);
   };
 
-  const [taskOptions] = useState([
-    "Cell request",
-    "Visit",
-    "Service Invitation",
-    "Follow Up",
-    "Wrong Number",
-    "Awaiting Call",
-    "No Answer",
-  ]);
-
   const getInitialTaskData = () => ({
     taskType: "",
-    recipient: "",
+    recipient: null,
+    recipientDisplay: "",
     assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
     dueDate: getCurrentDateTime(),
     status: "Open",
@@ -177,6 +173,60 @@ export default function DailyTasks() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
+  const fetchTaskTypes = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_URL}/tasktypes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch task types");
+      const data = await res.json();
+      setTaskTypes(Array.isArray(data) ? data : data.taskTypes || []);
+    } catch (err) {
+      console.error("Error fetching task types:", err.message);
+    }
+  };
+
+  const createTaskType = async () => {
+    if (!newTaskTypeName.trim()) {
+      alert("Please enter a task type name");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    setAddingTaskType(true);
+    try {
+      const res = await fetch(`${API_URL}/tasktypes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newTaskTypeName.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to create task type');
+      }
+
+      setTaskTypes([...taskTypes, data.taskType || data]);
+      setNewTaskTypeName("");
+      setIsAddTypeModalOpen(false);
+    } catch (err) {
+      console.error("Error creating task type:", err.message);
+      alert("Failed to create task type: " + err.message);
+    } finally {
+      setAddingTaskType(false);
+    }
+  };
+
   const fetchUserTasks = async (userId) => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -186,28 +236,22 @@ export default function DailyTasks() {
 
     try {
       setLoading(true);
-      console.log("Fetching tasks for userEmail:", storedUser.email);
-      
       const res = await fetch(`${API_URL}/tasks?user_email=${storedUser.email}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
-      console.log("Fetched tasks raw:", data);
 
-    const normalizedTasks = (Array.isArray(data) ? data : data.tasks || []).map((task) => ({
-      ...task,
-      assignedTo: task.assignedfor || task.assignedTo,
-      date: task.date || task.followup_date,
-      status: (task.status || "Open").toLowerCase(),
-      taskName: task.name || task.taskName,
-      type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
-    }));
+      const normalizedTasks = (Array.isArray(data) ? data : data.tasks || []).map((task) => ({
+        ...task,
+        assignedTo: task.assignedfor || task.assignedTo,
+        date: task.date || task.followup_date,
+        status: (task.status || "Open").toLowerCase(),
+        taskName: task.name || task.taskName,
+        type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
+      }));
 
-
-      console.log("Normalized tasks:", normalizedTasks);
       setTasks(normalizedTasks);
     } catch (err) {
       console.error("Error fetching user tasks:", err.message);
@@ -216,25 +260,55 @@ export default function DailyTasks() {
     }
   };
 
-  const fetchPeople = async (q) => {
-    if (!q.trim()) return setSearchResults([]);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/people?name=${encodeURIComponent(q)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setSearchResults(data.results || []);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-    }
-  };
+ const fetchPeople = async (q) => {
+  if (!q.trim()) return setSearchResults([]);
+
+  const parts = q.trim().split(/\s+/);
+  const name = parts[0];
+  const surname = parts.slice(1).join(" ");
+
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_URL}/people?name=${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) throw new Error("Failed to fetch people");
+
+    const data = await res.json();
+
+    // Filter results
+    let filtered = (data?.results || []).filter(p =>
+      p.Name.toLowerCase().includes(name.toLowerCase()) &&
+      (!surname || p.Surname.toLowerCase().includes(surname.toLowerCase()))
+    );
+
+    // Sort alphabetically by Name, then Surname
+    filtered.sort((a, b) => {
+      const nameA = a.Name.toLowerCase();
+      const nameB = b.Name.toLowerCase();
+      const surnameA = (a.Surname || "").toLowerCase();
+      const surnameB = (b.Surname || "").toLowerCase();
+
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      if (surnameA < surnameB) return -1;
+      if (surnameA > surnameB) return 1;
+      return 0;
+    });
+
+    setSearchResults(filtered);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    setSearchResults([]);
+  }
+};
 
   const fetchAssigned = async (q) => {
     if (!q.trim()) return setAssignedResults([]);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/people?name=${encodeURIComponent(q)}`, {
+      const res = await fetch(`${API_URL}/assigned?name=${encodeURIComponent(q.trim())}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -259,12 +333,10 @@ export default function DailyTasks() {
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.message || 'Failed to create task');
       }
-
-      console.log("Task created:", data);
 
       if (data.task) {
         setTasks((prev) => [
@@ -279,7 +351,7 @@ export default function DailyTasks() {
           ...prev,
         ]);
       }
-      
+
       return data;
     } catch (err) {
       console.error("Error creating task:", err.message);
@@ -291,7 +363,6 @@ export default function DailyTasks() {
     const handleStorageChange = () => {
       const freshUser = JSON.parse(localStorage.getItem("userProfile") || "{}");
       const userId = freshUser?.userId || freshUser?.id;
-      console.log("Storage changed, fetching tasks for userId:", userId);
       if (userId) {
         setStoredUser(freshUser);
         fetchUserTasks(userId);
@@ -299,13 +370,11 @@ export default function DailyTasks() {
     };
 
     window.addEventListener('storage', handleStorageChange);
-    
+
     const userId = storedUser?.userId || storedUser?.id;
-    console.log("Initial fetch for userId:", userId, "storedUser:", storedUser);
     if (userId) {
       fetchUserTasks(userId);
-    } else {
-      console.log("No userId found in storedUser:", storedUser);
+      fetchTaskTypes();
     }
 
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -334,25 +403,83 @@ export default function DailyTasks() {
     setTaskData({ ...taskData, [name]: value });
   };
 
+  const updateTask = async (taskId, updatedData) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_URL}/tasks/${taskId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedData),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update task");
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t._id === taskId ? { ...t, ...data.updatedTask, date: data.updatedTask.followup_date } : t
+        )
+      );
+
+      alert("Task updated successfully!");
+      handleClose();
+    } catch (err) {
+      console.error("Error updating task:", err.message);
+      alert("Failed to update task: " + err.message);
+    }
+  };
+
+  const handleEdit = (task) => {
+  // If task is completed, prevent editing
+  if (task.status?.toLowerCase() === "completed") {
+    alert("This task has been marked as completed and cannot be edited.");
+    return;
+  }
+
+  setSelectedTask(task);
+  setFormType(task.type);
+  setIsModalOpen(true);
+  setTaskData({
+    taskType: task.taskType || "",
+    recipient: {
+      Name: task.contacted_person?.name?.split(" ")[0] || "",
+      Surname: task.contacted_person?.name?.split(" ")[1] || "",
+      Phone: task.contacted_person?.phone || "",
+      Email: task.contacted_person?.email || "",
+    },
+    recipientDisplay: task.contacted_person?.name || "",
+    assignedTo: task.name || storedUser.name,
+    dueDate: formatDateTime(task.date),
+    status: task.status,
+    taskStage: task.status,
+  });
+};
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
       if (!storedUser?.id) throw new Error("Logged-in user ID not found");
 
-      const sanitizedEmail = taskData.recipient
-        ? taskData.recipient.toLowerCase().replace(/\s+/g, "") + "@gmail.com"
-        : "unknown@gmail.com";
+      const person = taskData.recipient;
+
+      if (!person || !person.Name) {
+        throw new Error("Person details not found. Please select a valid recipient.");
+      }
 
       const taskPayload = {
         memberID: storedUser.id,
         name: taskData.assignedTo || storedUser.name,
         taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
-          name: taskData.recipient || "Unknown",
-          phone: "0786655753",
-          email: sanitizedEmail,
+          name: `${person.Name} ${person.Surname}` || "Unknown",
+          phone: person.Phone || "",
+          email: person.Email || "",
         },
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
@@ -360,10 +487,13 @@ export default function DailyTasks() {
         assignedfor: storedUser.email,
       };
 
-      console.log("Submitting task payload:", taskPayload);
-      const result = await createTask(taskPayload);
-      console.log("Task creation result:", result);
+       if (selectedTask && selectedTask._id) {
+        await updateTask(selectedTask._id, taskPayload);
+      } else {
+        await createTask(taskPayload);
+      }
 
+      const result = await createTask(taskPayload);
       handleClose();
     } catch (err) {
       console.error("Error adding task:", err.message);
@@ -377,7 +507,10 @@ export default function DailyTasks() {
     const taskDate = parseDate(task.date);
     if (!taskDate) return false;
 
-    let matchesType = filterType === "all" || task.type === filterType;
+    let matchesType =
+      filterType === "all" ||
+      task.type === filterType ||
+      (filterType === "consolidation" && task.taskType === "consolidation");
     let matchesDate = true;
 
     const today = new Date();
@@ -415,22 +548,18 @@ export default function DailyTasks() {
 
   const totalCount = filteredTasks.length;
 
-  // Default to light mode
-
-const theme = {
-  bg: '#f9fafb',
-  cardBg: '#fff',
-  text: '#000',
-  textSecondary: '#666',
-  inputBg: '#f5f5f5',
-  shadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-  border: '#eee',
-};
-
+  const theme = {
+    bg: '#f9fafb',
+    cardBg: '#fff',
+    text: '#000',
+    textSecondary: '#666',
+    inputBg: '#f5f5f5',
+    shadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+    border: '#eee',
+  };
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px', backgroundColor: theme.bg, minHeight: '100vh' }}>
-      {/* Counter Card */}
       <div style={{
         backgroundColor: theme.cardBg,
         color: theme.text,
@@ -445,8 +574,7 @@ const theme = {
         </h1>
         <p style={{ marginTop: '12px', fontSize: '18px', letterSpacing: '0.5px' }}>Tasks Complete</p>
 
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '32px', flexWrap: 'wrap' }}>
           <button
             style={{
               display: 'flex',
@@ -485,9 +613,108 @@ const theme = {
           >
             <UserPlus size={20} /> Visit Task
           </button>
+          <button
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: '#0f0e13ff',
+              color: '#fff',
+              fontWeight: '600',
+              padding: '12px 24px',
+              borderRadius: '12px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+              boxShadow: theme.shadow,
+            }}
+            onClick={() => setIsAddTypeModalOpen(true)}
+          >
+            <Plus size={20} /> New Task Type
+          </button>
         </div>
 
-        {/* Date filter */}
+            {/* Modal */}
+        {isAddTypeModalOpen && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 1000,
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "#fff",
+                padding: "24px",
+                borderRadius: "12px",
+                width: "400px",
+                maxWidth: "90%",
+                boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>
+                Add New Task Type
+              </h2>
+              <input
+                type="text"
+                value={newTaskTypeName}
+                onChange={(e) => setNewTaskTypeName(e.target.value)}
+                placeholder="Enter task type name"
+                autoFocus
+                style={{
+                  padding: "10px",
+                  fontSize: "14px",
+                  borderRadius: "8px",
+                  border: "1px solid #ccc",
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={createTaskType}
+                  disabled={addingTaskType}
+                  style={{
+                    padding: "10px 16px",
+                    backgroundColor: "#0f0e13ff",
+                    color: "#fff",
+                    fontWeight: "600",
+                    borderRadius: "8px",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                  }}
+                >
+                  {addingTaskType ? "Adding..." : "Add"}
+                </button>
+                <button
+                  onClick={() => setIsAddTypeModalOpen(false)}
+                  style={{
+                    padding: "10px 16px",
+                    backgroundColor: "#ccc",
+                    color: "#0f0e13ff",
+                    fontWeight: "600",
+                    borderRadius: "8px",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ marginTop: '24px' }}>
           <select
             style={{
@@ -511,9 +738,8 @@ const theme = {
         </div>
       </div>
 
-      {/* Type filter */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '32px' }}>
-        {["all", "call", "visit"].map((type) => (
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '32px', flexWrap: 'wrap' }}>
+        {["all", "call", "visit", "consolidation"].map((type) => (
           <button
             key={type}
             style={{
@@ -529,12 +755,11 @@ const theme = {
             }}
             onClick={() => setFilterType(type)}
           >
-            {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1) + "s"}
+            {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
           </button>
         ))}
       </div>
 
-      {/* Task List */}
       <div style={{ marginTop: '32px' }}>
         {loading ? (
           <p style={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic' }}>Loading tasks...</p>
@@ -557,7 +782,12 @@ const theme = {
                 boxShadow: theme.shadow,
               }}
             >
-              <div>
+              <div
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  alert(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
+                }}
+              >
                 <p style={{ fontWeight: '600', color: theme.text, margin: 0 }}>
                   {task.contacted_person?.name}
                 </p>
@@ -591,21 +821,7 @@ const theme = {
                     color: task.status === "open" ? theme.text : task.status === "completed" ? theme.cardBg : theme.text,
                     borderColor: task.status === "open" ? theme.text : task.status === "completed" ? theme.text : theme.textSecondary,
                   }}
-                  onClick={() => {
-                    if (task.status === "awaiting task") {
-                      setSelectedTask(task);
-                      setTaskData({
-                        taskType: task.taskType || "",
-                        recipient: task.contacted_person?.name || "",
-                        assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
-                        dueDate: task.date ? formatDateTime(task.date) : getCurrentDateTime(),
-                        status: task.status || "Open",
-                        taskStage: task.status || "Open",
-                      });
-                      setFormType(task.type || "call");
-                      setIsModalOpen(true);
-                    }
-                  }}
+                  onClick={() => handleEdit(task)}
                 >
                   {task.status}
                 </span>
@@ -616,7 +832,6 @@ const theme = {
         )}
       </div>
 
-      {/* Modal Form */}
       <Modal isOpen={isModalOpen} onClose={handleClose} theme={theme}>
         <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} onSubmit={handleSubmit}>
           <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: theme.text, margin: 0 }}>
@@ -627,7 +842,7 @@ const theme = {
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
               Task Type
             </label>
-            <select 
+            <select
               name="taskType"
               value={taskData.taskType}
               onChange={handleChange}
@@ -642,9 +857,9 @@ const theme = {
               }}
             >
               <option value="">Select a task type</option>
-              {taskOptions.map((opt, idx) => (
-                <option key={idx} value={opt}>
-                  {opt}
+              {taskTypes.map((opt, idx) => (
+                <option key={idx} value={opt.name || opt}>
+                  {opt.name || opt}
                 </option>
               ))}
             </select>
@@ -656,11 +871,15 @@ const theme = {
             </label>
             <input
               type="text"
-              name="recipient"
-              value={taskData.recipient}
+              name="recipientDisplay"
+              value={
+                typeof taskData.recipient === "object" && taskData.recipient?.Name
+                  ? `${taskData.recipient.Name} ${taskData.recipient.Surname || ""}`.trim()
+                  : taskData.recipientDisplay || ""
+              }
               onChange={(e) => {
                 const value = e.target.value;
-                setTaskData({ ...taskData, recipient: value });
+                setTaskData({ ...taskData, recipientDisplay: value, recipient: null });
                 fetchPeople(value);
               }}
               autoComplete="off"
@@ -704,9 +923,10 @@ const theme = {
                     onClick={() => {
                       setTaskData({
                         ...taskData,
-                        recipient: `${person.Name} ${person.Surname}`,
+                        recipient: person,
+                        recipientDisplay: `${person.Name} ${person.Surname}`,
                         contacted_person: {
-                          name: person.Name,
+                          name: `${person.Name} ${person.Surname}`,
                           phone: person.Phone || "",
                           email: person.Email || "",
                         },
@@ -724,7 +944,15 @@ const theme = {
           </div>
 
           <div style={{ position: 'relative' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: theme.text,
+                marginBottom: '8px',
+              }}
+            >
               Assigned To
             </label>
             <input
@@ -732,9 +960,11 @@ const theme = {
               name="assignedTo"
               value={taskData.assignedTo}
               onChange={(e) => {
-                handleChange(e);
-                fetchAssigned(e.target.value);
+                const value = e.target.value;
+                setTaskData({ ...taskData, assignedTo: value });
+                fetchAssigned(value);
               }}
+              autoComplete="off"
               required
               style={{
                 width: '100%',
@@ -745,48 +975,56 @@ const theme = {
                 backgroundColor: theme.inputBg,
                 color: theme.text,
               }}
+              placeholder="Enter name to assign task"
             />
             {assignedResults.length > 0 && (
-              <ul style={{
-                position: 'absolute',
-                zIndex: 10,
-                width: '100%',
-                backgroundColor: theme.cardBg,
-                border: 'none',
-                borderRadius: '8px',
-                marginTop: '4px',
-                maxHeight: '200px',
-                overflowY: 'auto',
-                listStyle: 'none',
-                padding: 0,
-                margin: '4px 0 0 0',
-                boxShadow: theme.shadow,
-              }}>
-                {assignedResults.map((person) => (
-                  <li
-                    key={person._id}
-                    style={{
-                      padding: '8px 12px',
-                      cursor: 'pointer',
-                      borderBottom: `1px solid ${theme.border}`,
-                      color: theme.text,
-                    }}
-                    onClick={() => {
-                      setTaskData({
-                        ...taskData,
-                        assignedTo: `${person.Name} ${person.Surname}`,
-                      });
-                      setAssignedResults([]);
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = theme.inputBg}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                  >
-                    {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+              <ul
+                style={{
+                  position: 'absolute',
+                  zIndex: 10,
+                  width: '100%',
+                  backgroundColor: theme.cardBg,
+                  border: 'none',
+                  borderRadius: '8px',
+                  marginTop: '4px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  listStyle: 'none',
+                  padding: 0,
+                  margin: '4px 0 0 0',
+                  boxShadow: theme.shadow,
+                }}
+              >
+
+      {assignedResults.map((person) => (
+        <li
+          key={person._id}
+          style={{
+            padding: '8px 12px',
+            cursor: 'pointer',
+            borderBottom: `1px solid ${theme.border}`,
+            color: theme.text,
+          }}
+          onClick={() => {
+            setTaskData({
+              ...taskData,
+              assignedTo: `${person.Name} ${person.Surname}`,
+              assignedEmail: person.Email || "",
+            });
+            setAssignedResults([]);
+          }}
+          onMouseEnter={(e) =>
+            (e.target.style.backgroundColor = theme.inputBg)
+          }
+          onMouseLeave={(e) => (e.target.style.backgroundColor = 'transparent')}
+        >
+          {person.Name} {person.Surname}{' '}
+          {person.Location ? `(${person.Location})` : ''}
+        </li>
+      ))}
+    </ul>
+  )}
+</div>
 
           <div>
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
