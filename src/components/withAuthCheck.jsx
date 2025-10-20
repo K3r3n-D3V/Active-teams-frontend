@@ -28,12 +28,15 @@ import { Block } from "@mui/icons-material";
 
 const withAuthCheck = (WrappedComponent, allowedRoles = []) => {
   return function AuthenticatedComponent(props) {
-    const { user, loading } = useContext(AuthContext);
+    const { user, loading, isAuthenticated } = useContext(AuthContext);
     const location = useLocation();
 
+    // Wait for authentication state to be determined
     if (loading) return null;
 
-    if (!user) {
+    // Only redirect to login if we're sure the user is not authenticated
+    // This prevents redirecting during the brief moment when loading is false but user hasn't been restored yet
+    if (!loading && !isAuthenticated && !user) {
       return <Navigate to="/login" state={{ from: location.pathname }} replace />;
     }
 
