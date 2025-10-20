@@ -291,6 +291,7 @@ if (name === "invitedBy") {
         <Grid container spacing={3} sx={{ mt: 0.5 }}>
           <Grid item xs={12} sm={6}>
             {leftFields.map(renderTextField)}
+            {renderTextField({ name: "invitedBy" })}
           </Grid>
           <Grid item xs={12} sm={6}>
             {rightFields.map(renderTextField)}
