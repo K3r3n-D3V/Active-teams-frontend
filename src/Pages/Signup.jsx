@@ -264,6 +264,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
         try {
           await login(submitData.email, submitData.password);
+          // Store password temporarily in sessionStorage for display in profile
+          sessionStorage.setItem('tempPassword', submitData.password);
+          sessionStorage.setItem('showPasswordInProfile', 'true');
         } catch (loginErr) {
           console.error("Auto-login failed:", loginErr);
           navigate("/login");

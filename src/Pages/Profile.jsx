@@ -198,6 +198,8 @@ export default function Profile() {
     confirm: false,
   });
   const [errors, setErrors] = useState({});
+  const [tempPassword, setTempPassword] = useState("");
+  const [showTempPassword, setShowTempPassword] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -211,6 +213,17 @@ export default function Profile() {
       4000
     );
     return () => clearInterval(t);
+  }, []);
+
+  // Check for temporary password from signup
+  useEffect(() => {
+    const shouldShowPassword = sessionStorage.getItem('showPasswordInProfile');
+    const tempPass = sessionStorage.getItem('tempPassword');
+    
+    if (shouldShowPassword === 'true' && tempPass) {
+      setTempPassword(tempPass);
+      setShowTempPassword(true);
+    }
   }, []);
 
   // UPDATED: Load profile data only once
@@ -357,6 +370,13 @@ export default function Profile() {
 
   const togglePasswordVisibility = (field) =>
     setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const clearTempPassword = () => {
+    sessionStorage.removeItem('tempPassword');
+    sessionStorage.removeItem('showPasswordInProfile');
+    setTempPassword("");
+    setShowTempPassword(false);
+  };
 
   const validate = () => {
     const n = {};
@@ -508,6 +528,9 @@ export default function Profile() {
             message: "Profile and password updated successfully! Please use your new password for future logins.",
             severity: "success",
           });
+          
+          // Clear temporary password since user has changed it
+          clearTempPassword();
           
           setForm(prev => ({
             ...prev,
@@ -1212,6 +1235,66 @@ export default function Profile() {
                   >
                     Change Password (Optional)
                   </Typography>
+
+                  {/* Show temporary password if available */}
+                  {showTempPassword && tempPassword && (
+                    <Box sx={{ mb: 3, p: 2, bgcolor: isDark ? "#2d2d2d" : "#f5f5f5", borderRadius: 2 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          mb: 1,
+                          fontWeight: 600,
+                          color: isDark ? "#cccccc" : "#666666",
+                        }}
+                      >
+                        Your Password (from signup)
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <TextField
+                          value={tempPassword}
+                          type={showTempPassword ? "text" : "password"}
+                          fullWidth
+                          disabled
+                          sx={{
+                            "& .MuiInputBase-input": {
+                              color: isDark ? "#ffffff" : "#000000",
+                              fontWeight: 600,
+                            },
+                          }}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton
+                                  onClick={() => setShowTempPassword(!showTempPassword)}
+                                  edge="end"
+                                  sx={{ color: isDark ? "#cccccc" : "#666666" }}
+                                >
+                                  {showTempPassword ? <VisibilityOff /> : <Visibility />}
+                                </IconButton>
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={clearTempPassword}
+                          sx={{ minWidth: 'auto', px: 2 }}
+                        >
+                          Hide
+                        </Button>
+                      </Box>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: isDark ? "#888888" : "#666666",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        This password was shown after your signup. You can hide it or change it below.
+                      </Typography>
+                    </Box>
+                  )}
 
                   <Grid container spacing={3}>
                     {/* Current Password */}
