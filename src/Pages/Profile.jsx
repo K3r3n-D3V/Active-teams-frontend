@@ -181,10 +181,7 @@ export default function Profile() {
     invitedBy: "",
     role: "",
     gender: "",
-    maritalStatus: "",
-    homePhone: "",
     address: "",
-    personStatus: "",
     dateOfBirth: "",
     currentPassword: "",
     newPassword: "",
@@ -344,9 +341,7 @@ export default function Profile() {
       invitedBy: profile?.invited_by || "",
       role: profile?.role || "",
       gender: profile?.gender || "",
-      maritalStatus: profile?.maritalStatus || profile?.marital_status || "",
-      homePhone: profile?.homePhone || profile?.home_phone || "",
-      address: profile?.address || "",
+      address: profile?.address || profile?.home_address || "", // Map home_address to address
       dateOfBirth: profile?.dateOfBirth || profile?.date_of_birth || "",
       currentPassword: "",
       newPassword: "",
@@ -498,10 +493,7 @@ export default function Profile() {
       email: form.email,
       phone_number: form.phoneNumber,
       gender: form.gender,
-      marital_status: form.maritalStatus,
-      home_phone: form.homePhone,
-      address: form.address,
-      person_status: form.personStatus,
+      home_address: form.address, // Map address to home_address for backend
       date_of_birth: form.dateOfBirth,
       
     };
@@ -1148,34 +1140,6 @@ export default function Profile() {
                   />
                 </Grid>
 
-                {/* Marital Status */}
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
-                    Marital Status
-                  </Typography>
-                  <TextField
-                    value={form.maritalStatus || ""}
-                    onChange={handleChange("maritalStatus")}
-                    fullWidth
-                    disabled={!editMode}
-                    sx={commonFieldSx}
-                  />
-                </Grid>
-
-                {/* Home Phone */}
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
-                    Home Phone
-                  </Typography>
-                  <TextField
-                    value={form.homePhone || ""}
-                    onChange={handleChange("homePhone")}
-                    fullWidth
-                    disabled={!editMode}
-                    sx={commonFieldSx}
-                  />
-                </Grid>
-
                 {/* Address */}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
@@ -1204,21 +1168,6 @@ export default function Profile() {
                     sx={commonFieldSx}
                   />
                 </Grid>
-
-                {/* Person Status */}
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
-                    Person Status
-                  </Typography>
-                  <TextField
-                    value={form.personStatus || ""}
-                    onChange={handleChange("personStatus")}
-                    fullWidth
-                    disabled={!editMode}
-                    sx={commonFieldSx}
-                  />
-                </Grid>
-
               </Grid>
 
               {/* Password Section */}
