@@ -500,22 +500,6 @@ const eventTypeStyles = {
   },
 };
 
-const useDebounce = (value, delay) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-};
-
 const Events = () => {
   const location = useLocation();
   const theme = useTheme();
@@ -556,20 +540,12 @@ const Events = () => {
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [eventsCache, setEventsCache] = useState({});
+  const [lastFetchTime, setLastFetchTime] = useState(0);
 
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
-  useEffect(() => {
-    if (debouncedSearchQuery !== undefined) {
-      setCurrentPage(1);
-      fetchEvents({
-        search: debouncedSearchQuery.trim() || undefined,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined
-      });
-    }
-  }, [debouncedSearchQuery]);
+
 
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
@@ -600,7 +576,8 @@ const Events = () => {
     }
   }, [customEventTypes]);
 
-  const fetchEvents = async (filters = {}) => {
+
+  const fetchEvents = async (filters = {}, forceRefresh = false) => {
     setLoading(true);
     setIsLoading(true);
 
@@ -608,55 +585,53 @@ const Events = () => {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      const params = new URLSearchParams();
-      params.append('page', currentPage.toString());
-      params.append('per_page', rowsPerPage.toString());
+      const params = {
+        page: filters.page || currentPage,
+        limit: filters.limit || rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: searchQuery.trim() || undefined,
+        ...filters
+      };
 
-      if (filters.status && filters.status !== 'all') {
-        params.append('status', filters.status);
-      }
-      if (filters.event_type && filters.event_type !== 'all') {
-        params.append('event_type', filters.event_type);
-      }
-      if (filters.search && filters.search.trim() !== '') {
-        params.append('search', filters.search.trim());
-      }
+      // Clean up undefined params
+      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-      let endpoint = '';
+      console.log('🔍 Fetching events with params:', params);
+
+      let endpoint = `${BACKEND_URL}/admin/events/cells-debug`;
       const userRole = currentUser?.role?.toLowerCase();
+      if (userRole === "registrant") endpoint = `${BACKEND_URL}/registrant/events`;
+      if (userRole === "user") endpoint = `${BACKEND_URL}/events/cells-user`;
 
-      if (userRole === "admin") {
-        endpoint = `${BACKEND_URL}/admin/events/cells?${params}`;
-      } else if (userRole === "registrant") {
-        endpoint = `${BACKEND_URL}/registrant/events?${params}`;
-      } else {
-        endpoint = `${BACKEND_URL}/events/cells-user?${params}`;
-      }
-
-      console.log(`📡 Fetching from: ${endpoint}`);
-
-      const response = await axios.get(endpoint, { headers });
+      const response = await axios.get(endpoint, { headers, params, timeout: 30000 });
       const responseData = response.data;
-      const events = responseData.events || responseData.results || [];
-      const total_events = responseData.total_events || responseData.total || 0;
-      const page = responseData.page || currentPage;
-      const total_pages = responseData.total_pages || responseData.pages || 1;
+      const newEvents = responseData.events || responseData.results || [];
 
-      setEvents(events);
-      setFilteredEvents(events);
-      setTotalEvents(total_events);
-      setTotalPages(total_pages);
-      setCurrentPage(page);
+      console.log("✅ API Response - Total events:", responseData.total_events);
+      console.log("✅ API Response - Current page events:", newEvents.length);
 
-      return responseData;
+      // Always replace events when searching or filtering
+      setEvents(newEvents);
+      setFilteredEvents(newEvents);
+
+      setTotalEvents(responseData.total_events || responseData.total || 0);
+      setTotalPages(responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1);
+
+      // Only update current page if explicitly provided in filters
+      if (filters.page) {
+        setCurrentPage(filters.page);
+      }
 
     } catch (err) {
       console.error("❌ Error fetching events:", err);
+      setSnackbar({
+        open: true,
+        message: "Failed to load events",
+        severity: "error",
+      });
       setEvents([]);
       setFilteredEvents([]);
-      setTotalEvents(0);
-      setTotalPages(1);
-      throw err;
     } finally {
       setLoading(false);
       setIsLoading(false);
@@ -683,30 +658,93 @@ const Events = () => {
 
     return eventDate < today;
   };
-
-  const startIndex = totalEvents > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
+  const startIndex = totalEvents > 0 ? ((currentPage - 1) * rowsPerPage) + 1 : 0;
   const endIndex = Math.min(currentPage * rowsPerPage, totalEvents);
-  const paginatedEvents = filteredEvents;
+  const paginatedEvents = events;
 
   const handleRowsPerPageChange = (e) => {
-    setRowsPerPage(Number(e.target.value));
-    setCurrentPage(1);
+    const newRowsPerPage = Number(e.target.value);
+    setRowsPerPage(newRowsPerPage);
+    setCurrentPage(1); // Reset to first page
+    // Trigger fetch with new rows per page
+    fetchEvents({
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      search: searchQuery.trim() || undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      page: 1,
+      limit: newRowsPerPage
+    }, true);
   };
 
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
   };
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setCurrentPage(1);
+    fetchEvents({ page: 1 }, true);
+  };
 
-  const applyFilters = (filters) => {
-    setActiveFilters(filters);
+  const handleSearchSubmit = () => {
+    setCurrentPage(1); // Always reset to page 1 when searching
     fetchEvents({
-      ...filters,
+      page: 1,
+      limit: rowsPerPage,
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery || undefined
-    });
+      search: searchQuery.trim() || undefined
+    }, true);
   };
+
+  // ADD THESE MISSING PAGINATION FUNCTIONS:
+ const handlePreviousPage = () => {
+    if (currentPage > 1 && !isLoading) {
+      const newPage = currentPage - 1;
+      setCurrentPage(newPage);
+      
+      fetchEvents({
+        page: newPage,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: searchQuery.trim() || undefined
+      });
+    }
+  };
+
+ const handleNextPage = () => {
+    if (currentPage < totalPages && !isLoading) {
+      const newPage = currentPage + 1;
+      setCurrentPage(newPage);
+      
+      fetchEvents({
+        page: newPage,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: searchQuery.trim() || undefined
+      });
+    }
+  };
+
+
+const applyFilters = (filters) => {
+  console.log("🔍 APPLYING FILTERS:", filters);
+  
+  // Let backend handle filtering instead of client-side
+  setActiveFilters(filters);
+  setCurrentPage(1);
+  
+  fetchEvents({
+    page: 1,
+    leader: filters.leader,
+    day: filters.day !== 'all' ? filters.day : undefined,
+    location: filters.location,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+  }, true);
+};
 
   const handleStatusClick = (status) => {
     setSelectedStatus(status);
@@ -715,11 +753,51 @@ const Events = () => {
       status: status !== 'all' ? status : undefined,
       search: searchQuery.trim() || undefined,
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined
-    });
+    }, true); // force refresh when status changes
+  };
+
+  // Add this function to fix leaders using your existing backend endpoints
+  const handleFixLeaders = async () => {
+    if (!window.confirm("This will fix missing Leader at 1 assignments for all events. Continue?")) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+
+      // Use the fix-missing-leader-at-1 endpoint
+      const response = await axios.post(
+        `${BACKEND_URL}/admin/events/fix-missing-leader-at-1`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSnackbar({
+        open: true,
+        message: response.data.message,
+        severity: "success",
+      });
+
+      console.log("✅ Fix leaders result:", response.data);
+
+      // Refresh events to see the changes
+      fetchEvents({}, true);
+    } catch (error) {
+      console.error("Error fixing leaders:", error);
+      setSnackbar({
+        open: true,
+        message: "Failed to fix leaders. Please try again.",
+        severity: "error",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEventTypeClick = (typeValue) => {
     setSelectedEventTypeFilter(typeValue);
+
     setCurrentPage(1);
     fetchEvents({
       event_type: typeValue !== 'all' ? typeValue : undefined,
@@ -764,22 +842,60 @@ const Events = () => {
       localStorage.removeItem("selectedEventType");
     }
   }, [currentSelectedEventType]);
-
+  // Add this useEffect to debug the issue
   useEffect(() => {
-    const initialFilters = {};
+    console.log('🔍 CURRENT STATE DEBUG:');
+    console.log('Events length:', events.length);
+    console.log('Filtered Events length:', filteredEvents.length);
+    console.log('Current Page:', currentPage);
+    console.log('Total Pages:', totalPages);
+    console.log('Start Index:', startIndex);
+    console.log('End Index:', endIndex);
+    console.log('Paginated Events length:', paginatedEvents.length);
+    console.log('Search Query:', searchQuery);
+    console.log('Active Filters:', activeFilters);
+  }, [events, filteredEvents, currentPage, totalPages, paginatedEvents]);
 
+  // Only run on initial load and major filter changes
+  useEffect(() => {
+    console.log('🔄 Initial fetch triggered');
+
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage
+    };
+
+    // Only add filters if they're not 'all'
     if (selectedStatus !== 'all') {
-      initialFilters.status = selectedStatus;
+      fetchParams.status = selectedStatus;
     }
     if (selectedEventTypeFilter !== 'all') {
-      initialFilters.event_type = selectedEventTypeFilter;
+      fetchParams.event_type = selectedEventTypeFilter;
     }
-    if (searchQuery && searchQuery.trim() !== '') {
-      initialFilters.search = searchQuery.trim();
+    if (searchQuery.trim()) {
+      fetchParams.search = searchQuery.trim();
     }
 
-    fetchEvents(initialFilters);
-  }, [location.pathname, location.state?.refresh, location.state?.timestamp, currentPage, rowsPerPage, selectedStatus, selectedEventTypeFilter]);
+    console.log('📤 Initial fetch params:', fetchParams);
+    fetchEvents(fetchParams, true);
+  }, [selectedStatus, selectedEventTypeFilter, location.pathname, location.state?.refresh]);
+
+  // Debounced search
+  // Remove or modify this useEffect - it's causing the issue
+  // Instead, rely on the search submit button or implement proper debouncing:
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim() !== '') {
+        handleSearchSubmit();
+      } else if (searchQuery.trim() === '' && events.length > 0) {
+        // Only refresh if search was previously active
+        handleSearchSubmit();
+      }
+    }, 800); // Increased debounce time
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   const formatDate = (date) => {
     if (!date) return "Not set";
@@ -888,18 +1004,6 @@ const Events = () => {
     }
   };
 
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
   const handleEditEvent = (event) => {
     setSelectedEvent(event);
     setEditModalOpen(true);
@@ -933,12 +1037,12 @@ const Events = () => {
   };
 
   useEffect(() => {
+    setCurrentPage(1);
     fetchEvents({
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery || undefined
+      search: searchQuery.trim() || undefined
     });
-  }, []);
+  }, [selectedStatus]);
 
   const handleSaveEvent = async (updatedData) => {
     try {
@@ -1120,12 +1224,71 @@ const Events = () => {
 
         } catch (error) {
           console.error("Error fetching status counts:", error);
-          calculateClientSideCounts();
+          // Fallback to client-side calculation
+          const counts = {
+            incomplete: events.filter(e => e.status === 'incomplete').length,
+            complete: events.filter(e => e.status === 'complete').length,
+            did_not_meet: events.filter(e => e.status === 'did_not_meet').length,
+          };
+          setStatusCounts(counts);
         }
       };
 
       fetchStatusCounts();
-    }, [selectedEventTypeFilter, searchQuery, selectedStatus]);
+    }, [selectedEventTypeFilter, searchQuery, selectedStatus, events.length]);
+
+    // Add this function to debug leader assignment
+    const debugLeaderAssignment = async (leaderAt12Name) => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(
+          `${BACKEND_URL}/debug/leader-check/${encodeURIComponent(leaderAt12Name)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log(`🔍 DEBUG Leader at 12 "${leaderAt12Name}":`, response.data);
+        return response.data;
+      } catch (error) {
+        console.error(`❌ Error debugging leader ${leaderAt12Name}:`, error);
+        return null;
+      }
+    };
+
+    // Add this function to bulk debug all missing Leader at 1
+    const debugAllMissingLeaderAt1 = async () => {
+      const eventsWithMissingLeader1 = events.filter(event =>
+        event.leader12 && !event.leader1
+      );
+
+      console.log(`🔍 Found ${eventsWithMissingLeader1.length} events with missing Leader at 1`);
+
+      for (const event of eventsWithMissingLeader1.slice(0, 5)) { // Limit to first 5 for debugging
+        await debugLeaderAssignment(event.leader12);
+      }
+    };
+
+    // Call this when events are loaded
+    // Add this useEffect to monitor the Leader at 1 issue
+    useEffect(() => {
+      if (events.length > 0) {
+        const eventsWithLeader12 = events.filter(event => event.leader12 && event.leader12.trim());
+        const eventsMissingLeader1 = eventsWithLeader12.filter(event => !event.leader1 || !event.leader1.trim());
+
+        console.log(`📊 Leader at 1 Status Report:`);
+        console.log(`   Total events: ${events.length}`);
+        console.log(`   Events with Leader at 12: ${eventsWithLeader12.length}`);
+        console.log(`   Events missing Leader at 1: ${eventsMissingLeader1.length}`);
+
+        if (eventsMissingLeader1.length > 0) {
+          console.log(`❌ Missing Leader at 1 examples:`,
+            eventsMissingLeader1.slice(0, 3).map(event => ({
+              eventName: event.eventName,
+              leader12: event.leader12,
+              leader1: event.leader1
+            }))
+          );
+        }
+      }
+    }, [events]);
 
     const calculateClientSideCounts = () => {
       const counts = {
@@ -1189,6 +1352,7 @@ const Events = () => {
   };
 
   // ViewFilterButtons Component
+  // ViewFilterButtons Component
   const ViewFilterButtons = () => {
     return (
       <div style={styles.viewFilterContainer}>
@@ -1202,10 +1366,12 @@ const Events = () => {
             checked={viewFilter === 'all'}
             onChange={(e) => {
               setViewFilter(e.target.value);
+              setCurrentPage(1); // Add this
               fetchEvents({
                 status: selectedStatus !== 'all' ? selectedStatus : undefined,
                 event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: searchQuery || undefined
+                search: searchQuery || undefined,
+                page: 1 // Add this
               });
             }}
             style={{ cursor: 'pointer' }}
@@ -1227,10 +1393,12 @@ const Events = () => {
             checked={viewFilter === 'personal'}
             onChange={(e) => {
               setViewFilter(e.target.value);
+              setCurrentPage(1); // Add this
               fetchEvents({
                 status: selectedStatus !== 'all' ? selectedStatus : undefined,
                 event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: searchQuery || undefined
+                search: searchQuery || undefined,
+                page: 1 // Add this
               });
             }}
             style={{ cursor: 'pointer' }}
@@ -1246,11 +1414,10 @@ const Events = () => {
       </div>
     );
   };
-
   // MobileEventCard Component - FIXED
   const MobileEventCard = ({ event }) => {
     const dayOfWeek = event.day || 'Not set';
-    
+
     // Determine if we should show leaders - don't show if main leader is Gavin/Vicky Enslin
     const shouldShowLeaders = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
 
@@ -1264,7 +1431,7 @@ const Events = () => {
           <span style={styles.mobileCardLabel}>Leader:</span>
           <span style={styles.mobileCardValue}>{event.eventLeaderName || '-'}</span>
         </div>
-        
+
         {shouldShowLeaders && (
           <>
             <div style={styles.mobileCardRow}>
@@ -1281,7 +1448,7 @@ const Events = () => {
             </div>
           </>
         )}
-        
+
         <div style={styles.mobileCardRow}>
           <span style={styles.mobileCardLabel}>Day:</span>
           <span style={styles.mobileCardValue}>
@@ -1348,13 +1515,35 @@ const Events = () => {
             placeholder="Search by Event Name or Event Leader..."
             value={searchQuery}
             onChange={handleSearchChange}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSearchSubmit();
+              }
+            }}
             style={styles.searchInput}
           />
           <button
             style={styles.filterButton}
-            onClick={() => setShowFilter(true)}
+            onClick={handleSearchSubmit}
           >
-            FILTER
+            SEARCH
+          </button>
+
+          {/* Add CLEAR button */}
+          <button
+            style={{ ...styles.filterButton, backgroundColor: '#6c757d' }}
+            onClick={handleClearSearch}
+            disabled={isLoading || !searchQuery}
+          >
+            CLEAR
+          </button>
+
+          <button
+            style={{ ...styles.filterButton, backgroundColor: '#28a745' }}
+            onClick={() => fetchEvents({ page: 1 }, true)}
+            disabled={isLoading}
+          >
+            {isLoading ? '🔄' : '🔄 REFRESH'}
           </button>
         </div>
 
@@ -1390,11 +1579,10 @@ const Events = () => {
               }}>
                 <div style={styles.paginationInfo}>
                   {totalEvents > 0 ?
-                    `${startIndex}-${endIndex} of ${totalEvents}` :
+                    `${startIndex}-${endIndex} of ${totalEvents}` : // Use totalEvents from backend
                     '0-0 of 0'
                   }
                 </div>
-
                 <div style={styles.paginationControls}>
                   <button
                     style={{
@@ -1404,20 +1592,25 @@ const Events = () => {
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1 || isLoading}
                   >
-                    {isLoading ? '...' : '<'}
+                    {isLoading ? '⏳' : '< Previous'}
                   </button>
+
+                  <span style={{ padding: '0 1rem', color: '#6c757d' }}>
+                    Page {currentPage} of {totalPages}
+                  </span>
 
                   <button
                     style={{
                       ...styles.paginationButton,
-                      ...(currentPage === totalPages || totalPages === 0 || isLoading ? styles.paginationButtonDisabled : {}),
+                      ...(currentPage >= totalPages || isLoading ? styles.paginationButtonDisabled : {}),
                     }}
                     onClick={handleNextPage}
-                    disabled={currentPage === totalPages || totalPages === 0 || isLoading}
+                    disabled={currentPage >= totalPages || isLoading || totalPages === 0}
                   >
-                    {isLoading ? '...' : '>'}
+                    {isLoading ? '⏳' : 'Next >'}
                   </button>
                 </div>
+
               </div>
             </>
           )}
@@ -1457,7 +1650,7 @@ const Events = () => {
                 ) : (
                   paginatedEvents.map((event) => {
                     const dayOfWeek = event.day || 'Not set';
-                    
+
                     // Determine if we should show leaders - don't show if main leader is Gavin/Vicky Enslin
                     const shouldShowLeaderAt1 = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
                     const shouldShowLeaderAt12 = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
@@ -1564,7 +1757,7 @@ const Events = () => {
 
             <div style={styles.paginationInfo}>
               {totalEvents > 0 ?
-                `${startIndex}-${endIndex} of ${totalEvents}` :
+                `${startIndex}-${endIndex} of ${totalEvents}` : // Use totalEvents from backend
                 '0-0 of 0'
               }
             </div>
@@ -1577,18 +1770,22 @@ const Events = () => {
                 onClick={handlePreviousPage}
                 disabled={currentPage === 1 || isLoading}
               >
-                {isLoading ? '...' : '< Previous'}
+                {isLoading ? '⏳' : '< Previous'}
               </button>
+
+              <span style={{ padding: '0 1rem', color: '#6c757d' }}>
+                Page {currentPage} of {totalPages}
+              </span>
 
               <button
                 style={{
                   ...styles.paginationButton,
-                  ...(currentPage === totalPages || totalPages === 0 || isLoading ? styles.paginationButtonDisabled : {}),
+                  ...(currentPage >= totalPages || isLoading ? styles.paginationButtonDisabled : {}),
                 }}
                 onClick={handleNextPage}
-                disabled={currentPage === totalPages || totalPages === 0 || isLoading}
+                disabled={currentPage >= totalPages || isLoading || totalPages === 0}
               >
-                {isLoading ? '...' : 'Next >'}
+                {isLoading ? '⏳' : 'Next >'}
               </button>
             </div>
           </div>
