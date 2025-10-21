@@ -77,7 +77,8 @@ export default function DailyTasks() {
   const [addingTaskType, setAddingTaskType] = useState(false);
   
 
-  const API_URL = `${import.meta.env.VITE_BACKEND_URL}` || "http://localhost:3000";
+  // const API_URL = `${import.meta.env.VITE_BACKEND_URL}` || "http://127.0.0.1:8000";
+  const API_URL = "http://127.0.0.1:8000"
 
   const getCurrentDateTime = () => {
     const now = new Date();
@@ -460,7 +461,7 @@ export default function DailyTasks() {
   });
 };
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
@@ -487,13 +488,12 @@ export default function DailyTasks() {
         assignedfor: storedUser.email,
       };
 
-       if (selectedTask && selectedTask._id) {
+      if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
       } else {
         await createTask(taskPayload);
       }
 
-      const result = await createTask(taskPayload);
       handleClose();
     } catch (err) {
       console.error("Error adding task:", err.message);
@@ -549,45 +549,45 @@ export default function DailyTasks() {
   const totalCount = filteredTasks.length;
 
   const theme = {
-    bg: '#f9fafb',
-    cardBg: '#fff',
-    text: '#000',
-    textSecondary: '#666',
-    inputBg: '#f5f5f5',
-    shadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-    border: '#eee',
+    bg: '#ffffff',
+    cardBg: '#ffffff',
+    text: '#1a1a24',
+    textSecondary: '#6b7280',
+    inputBg: '#f3f4f6',
+    shadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
+    border: '#e5e7eb',
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px', backgroundColor: theme.bg, minHeight: '100vh' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px', backgroundColor: theme.bg, minHeight: '100vh' }}>
       <div style={{
         backgroundColor: theme.cardBg,
         color: theme.text,
-        borderRadius: '16px',
-        padding: '32px',
+        borderRadius: '20px',
+        padding: '48px 32px',
         textAlign: 'center',
         boxShadow: theme.shadow,
-        marginTop: '40px',
+        border: `1px solid ${theme.border}`,
       }}>
-        <h1 style={{ fontSize: '60px', fontWeight: '800', margin: 0 }}>
+        <h1 style={{ fontSize: '72px', fontWeight: '700', margin: 0, letterSpacing: '-2px' }}>
           {totalCount}
         </h1>
-        <p style={{ marginTop: '12px', fontSize: '18px', letterSpacing: '0.5px' }}>Tasks Complete</p>
+        <p style={{ marginTop: '12px', fontSize: '16px', letterSpacing: '1px', textTransform: 'uppercase', color: theme.textSecondary, fontWeight: '600' }}>Tasks Complete</p>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '32px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '40px', flexWrap: 'wrap' }}>
           <button
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '10px',
               backgroundColor: theme.cardBg,
               color: theme.text,
               fontWeight: '600',
-              padding: '12px 24px',
+              padding: '14px 28px',
               borderRadius: '12px',
-              border: 'none',
+              border: `2px solid ${theme.border}`,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: '15px',
               boxShadow: theme.shadow,
             }}
             onClick={() => handleOpen("call")}
@@ -598,134 +598,57 @@ export default function DailyTasks() {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '10px',
               backgroundColor: theme.cardBg,
               color: theme.text,
               fontWeight: '600',
-              padding: '12px 24px',
+              padding: '14px 28px',
               borderRadius: '12px',
-              border: 'none',
+              border: `2px solid ${theme.border}`,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: '15px',
               boxShadow: theme.shadow,
             }}
             onClick={() => handleOpen("visit")}
           >
             <UserPlus size={20} /> Visit Task
           </button>
-          <button
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              backgroundColor: '#0f0e13ff',
-              color: '#fff',
-              fontWeight: '600',
-              padding: '12px 24px',
-              borderRadius: '12px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px',
-              boxShadow: theme.shadow,
-            }}
-            onClick={() => setIsAddTypeModalOpen(true)}
-          >
-            <Plus size={20} /> New Task Type
-          </button>
+          
+          {storedUser?.role === 'admin' && (
+            <button
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                backgroundColor: '#0f0e13ff',
+                color: '#fff',
+                fontWeight: '600',
+                padding: '14px 28px',
+                borderRadius: '12px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '15px',
+                boxShadow: theme.shadow,
+              }}
+              onClick={() => setIsAddTypeModalOpen(true)}
+            >
+              <Plus size={20} /> New Task Type
+            </button>
+          )}
         </div>
 
-            {/* Modal */}
-        {isAddTypeModalOpen && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              zIndex: 1000,
-            }}
-          >
-            <div
-              style={{
-                backgroundColor: "#fff",
-                padding: "24px",
-                borderRadius: "12px",
-                width: "400px",
-                maxWidth: "90%",
-                boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "16px",
-              }}
-            >
-              <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>
-                Add New Task Type
-              </h2>
-              <input
-                type="text"
-                value={newTaskTypeName}
-                onChange={(e) => setNewTaskTypeName(e.target.value)}
-                placeholder="Enter task type name"
-                autoFocus
-                style={{
-                  padding: "10px",
-                  fontSize: "14px",
-                  borderRadius: "8px",
-                  border: "1px solid #ccc",
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
-              />
-              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
-                <button
-                  onClick={createTaskType}
-                  disabled={addingTaskType}
-                  style={{
-                    padding: "10px 16px",
-                    backgroundColor: "#0f0e13ff",
-                    color: "#fff",
-                    fontWeight: "600",
-                    borderRadius: "8px",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                  }}
-                >
-                  {addingTaskType ? "Adding..." : "Add"}
-                </button>
-                <button
-                  onClick={() => setIsAddTypeModalOpen(false)}
-                  style={{
-                    padding: "10px 16px",
-                    backgroundColor: "#ccc",
-                    color: "#0f0e13ff",
-                    fontWeight: "600",
-                    borderRadius: "8px",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div style={{ marginTop: '24px' }}>
+        <div style={{ marginTop: '32px' }}>
           <select
             style={{
-              padding: '8px 16px',
+              padding: '12px 20px',
               borderRadius: '12px',
-              border: 'none',
-              backgroundColor: theme.cardBg,
+              border: `2px solid ${theme.border}`,
+              backgroundColor: theme.inputBg,
               color: theme.text,
               fontSize: '14px',
               cursor: 'pointer',
-              boxShadow: theme.shadow,
+              fontWeight: '500',
+              outline: 'none',
             }}
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
@@ -738,20 +661,20 @@ export default function DailyTasks() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '32px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '32px', flexWrap: 'wrap' }}>
         {["all", "call", "visit", "consolidation"].map((type) => (
           <button
             key={type}
             style={{
-              padding: '8px 24px',
+              padding: '10px 24px',
               borderRadius: '24px',
-              border: 'none',
-              fontWeight: '500',
+              border: filterType === type ? 'none' : `2px solid ${theme.border}`,
+              fontWeight: '600',
               cursor: 'pointer',
               backgroundColor: filterType === type ? theme.text : theme.cardBg,
               color: filterType === type ? theme.cardBg : theme.text,
               fontSize: '14px',
-              boxShadow: theme.shadow,
+              boxShadow: filterType === type ? theme.shadow : 'none',
             }}
             onClick={() => setFilterType(type)}
           >
@@ -762,7 +685,7 @@ export default function DailyTasks() {
 
       <div style={{ marginTop: '32px' }}>
         {loading ? (
-          <p style={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic' }}>Loading tasks...</p>
+          <p style={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic', padding: '40px' }}>Loading tasks...</p>
         ) : filteredTasks.length === 0 ? (
           <p style={{ textAlign: 'center', color: theme.textSecondary }}>No tasks yet.</p>
         ) : (
@@ -774,10 +697,10 @@ export default function DailyTasks() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 backgroundColor: theme.cardBg,
-                padding: '20px',
+                padding: '24px',
                 borderRadius: '16px',
-                border: 'none',
-                marginBottom: '16px',
+                border: `1px solid ${theme.border}`,
+                marginBottom: '12px',
                 cursor: 'pointer',
                 boxShadow: theme.shadow,
               }}
@@ -788,19 +711,22 @@ export default function DailyTasks() {
                   alert(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
                 }}
               >
-                <p style={{ fontWeight: '600', color: theme.text, margin: 0 }}>
+                <p style={{ fontWeight: '700', color: theme.text, margin: 0, fontSize: '16px' }}>
                   {task.contacted_person?.name}
                 </p>
-                <p style={{ fontSize: '14px', color: theme.textSecondary, margin: '4px 0 0 0' }}>{task.name}</p>
+                <p style={{ fontSize: '14px', color: theme.textSecondary, margin: '6px 0 0 0' }}>{task.name}</p>
                 {task.isRecurring && (
                   <span style={{
-                    fontSize: '12px',
-                    fontWeight: '600',
+                    fontSize: '11px',
+                    fontWeight: '700',
                     backgroundColor: '#fde047',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
+                    color: '#854d0e',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
                     display: 'inline-block',
-                    marginTop: '4px',
+                    marginTop: '8px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
                   }}>
                     Recurring
                   </span>
@@ -810,10 +736,10 @@ export default function DailyTasks() {
                 <span
                   style={{
                     display: 'inline-block',
-                    padding: '4px 12px',
-                    borderRadius: '16px',
-                    fontSize: '12px',
-                    fontWeight: '500',
+                    padding: '6px 16px',
+                    borderRadius: '20px',
+                    fontSize: '13px',
+                    fontWeight: '600',
                     textTransform: 'capitalize',
                     border: '2px solid',
                     cursor: 'pointer',
@@ -825,12 +751,95 @@ export default function DailyTasks() {
                 >
                   {task.status}
                 </span>
-                <div style={{ fontSize: '12px', color: theme.textSecondary, marginTop: '4px' }}>{formatDate(task.date)}</div>
+                <div style={{ fontSize: '12px', color: theme.textSecondary, marginTop: '8px', fontWeight: '500' }}>{formatDate(task.date)}</div>
               </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Modal */}
+      {isAddTypeModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              padding: "32px",
+              borderRadius: "16px",
+              width: "440px",
+              maxWidth: "90%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "20px",
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700" }}>
+              Add New Task Type
+            </h2>
+            <input
+              type="text"
+              value={newTaskTypeName}
+              onChange={(e) => setNewTaskTypeName(e.target.value)}
+              placeholder="Enter task type name"
+              autoFocus
+              style={{
+                padding: "14px 16px",
+                fontSize: "15px",
+                borderRadius: "12px",
+                border: "2px solid #e5e5e5",
+                width: "100%",
+                boxSizing: "border-box",
+                outline: 'none',
+              }}
+            />
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button
+                onClick={createTaskType}
+                disabled={addingTaskType}
+                style={{
+                  padding: "12px 24px",
+                  backgroundColor: "#0f0e13ff",
+                  color: "#fff",
+                  fontWeight: "600",
+                  borderRadius: "12px",
+                  border: "none",
+                  cursor: addingTaskType ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: addingTaskType ? 0.7 : 1,
+                }}
+              >
+                {addingTaskType ? "Adding..." : "Add"}
+              </button>
+              <button
+                onClick={() => setIsAddTypeModalOpen(false)}
+                style={{
+                  padding: "12px 24px",
+                  backgroundColor: "#e5e5e5",
+                  color: "#0f0e13ff",
+                  fontWeight: "600",
+                  borderRadius: "12px",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Modal isOpen={isModalOpen} onClose={handleClose} theme={theme}>
         <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} onSubmit={handleSubmit}>
@@ -848,12 +857,13 @@ export default function DailyTasks() {
               onChange={handleChange}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 fontSize: '14px',
                 backgroundColor: theme.inputBg,
                 color: theme.text,
+                outline: 'none',
               }}
             >
               <option value="">Select a task type</option>
@@ -886,12 +896,13 @@ export default function DailyTasks() {
               required
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 fontSize: '14px',
                 backgroundColor: theme.inputBg,
                 color: theme.text,
+                outline: 'none',
               }}
               placeholder="Enter recipient name"
             />
@@ -901,8 +912,8 @@ export default function DailyTasks() {
                 zIndex: 10,
                 width: '100%',
                 backgroundColor: theme.cardBg,
-                border: 'none',
-                borderRadius: '8px',
+                border: `2px solid ${theme.border}`,
+                borderRadius: '10px',
                 marginTop: '4px',
                 maxHeight: '200px',
                 overflowY: 'auto',
@@ -915,7 +926,7 @@ export default function DailyTasks() {
                   <li
                     key={person._id}
                     style={{
-                      padding: '8px 12px',
+                      padding: '10px 12px',
                       cursor: 'pointer',
                       borderBottom: `1px solid ${theme.border}`,
                       color: theme.text,
@@ -968,12 +979,13 @@ export default function DailyTasks() {
               required
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 fontSize: '14px',
                 backgroundColor: theme.inputBg,
                 color: theme.text,
+                outline: 'none',
               }}
               placeholder="Enter name to assign task"
             />
@@ -984,8 +996,8 @@ export default function DailyTasks() {
                   zIndex: 10,
                   width: '100%',
                   backgroundColor: theme.cardBg,
-                  border: 'none',
-                  borderRadius: '8px',
+                  border: `2px solid ${theme.border}`,
+                  borderRadius: '10px',
                   marginTop: '4px',
                   maxHeight: '200px',
                   overflowY: 'auto',
@@ -995,36 +1007,35 @@ export default function DailyTasks() {
                   boxShadow: theme.shadow,
                 }}
               >
-
-      {assignedResults.map((person) => (
-        <li
-          key={person._id}
-          style={{
-            padding: '8px 12px',
-            cursor: 'pointer',
-            borderBottom: `1px solid ${theme.border}`,
-            color: theme.text,
-          }}
-          onClick={() => {
-            setTaskData({
-              ...taskData,
-              assignedTo: `${person.Name} ${person.Surname}`,
-              assignedEmail: person.Email || "",
-            });
-            setAssignedResults([]);
-          }}
-          onMouseEnter={(e) =>
-            (e.target.style.backgroundColor = theme.inputBg)
-          }
-          onMouseLeave={(e) => (e.target.style.backgroundColor = 'transparent')}
-        >
-          {person.Name} {person.Surname}{' '}
-          {person.Location ? `(${person.Location})` : ''}
-        </li>
-      ))}
-    </ul>
-  )}
-</div>
+                {assignedResults.map((person) => (
+                  <li
+                    key={person._id}
+                    style={{
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      borderBottom: `1px solid ${theme.border}`,
+                      color: theme.text,
+                    }}
+                    onClick={() => {
+                      setTaskData({
+                        ...taskData,
+                        assignedTo: `${person.Name} ${person.Surname}`,
+                        assignedEmail: person.Email || "",
+                      });
+                      setAssignedResults([]);
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.target.style.backgroundColor = theme.inputBg)
+                    }
+                    onMouseLeave={(e) => (e.target.style.backgroundColor = 'transparent')}
+                  >
+                    {person.Name} {person.Surname}{' '}
+                    {person.Location ? `(${person.Location})` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div>
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
@@ -1038,12 +1049,13 @@ export default function DailyTasks() {
               disabled
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 backgroundColor: theme.inputBg,
                 fontSize: '14px',
                 color: theme.text,
+                outline: 'none',
               }}
             />
           </div>
@@ -1058,12 +1070,13 @@ export default function DailyTasks() {
               onChange={handleChange}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 fontSize: '14px',
                 backgroundColor: theme.inputBg,
                 color: theme.text,
+                outline: 'none',
               }}
             >
               <option value="Open">Open</option>
@@ -1076,8 +1089,8 @@ export default function DailyTasks() {
             <button
               type="button"
               style={{
-                padding: '8px 20px',
-                borderRadius: '8px',
+                padding: '10px 24px',
+                borderRadius: '10px',
                 backgroundColor: '#e5e5e5',
                 color: '#000',
                 fontWeight: '600',
@@ -1093,8 +1106,8 @@ export default function DailyTasks() {
             <button
               type="submit"
               style={{
-                padding: '8px 20px',
-                borderRadius: '8px',
+                padding: '10px 24px',
+                borderRadius: '10px',
                 backgroundColor: submitting ? '#666' : '#000',
                 color: '#fff',
                 fontWeight: '600',
