@@ -1,18 +1,21 @@
-// People.jsx
+// People.jsx (Updated with edit functionality)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import axios from 'axios';
 import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
-  TextField, InputAdornment, Button, Snackbar, Alert, Skeleton
+  TextField, InputAdornment, Button, Snackbar, Alert, Skeleton, ToggleButton, 
+  ToggleButtonGroup, Tooltip, Pagination
 } from '@mui/material';
 import {
   Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
   Edit as EditIcon, Delete as DeleteIcon, Email as EmailIcon,
-  Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon
+  Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon,
+  ViewModule as ViewModuleIcon, ViewList as ViewListIcon
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
+import PeopleListView from '../components/PeopleListView';
 
 // Custom hook for debounced search
 const useDebounce = (value, delay) => {
@@ -112,8 +115,14 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
           )}
 
           {/* Leaders block */}
-          {(person.leaders.leader12 || person.leaders.leader144 || person.leaders.leader1728) && (
+          {(person.leaders.leader1 || person.leaders.leader12 || person.leaders.leader144 || person.leaders.leader1728) && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>
+              {person.leaders.leader1 && (
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <GroupIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  <Typography variant="caption">Leader @1: {person.leaders.leader1}</Typography>
+                </Box>
+              )}
               {person.leaders.leader12 && (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <GroupIcon fontSize="small" sx={{ mr: 0.5 }} />
@@ -166,11 +175,12 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
 });
 
 // ---------------- DragDropBoard ----------------
-const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loading, updatePersonInCache }) => {
+const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loading, updatePersonInCache, allPeople, setAllPeople }) => {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isMedium = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  
   const handleDragEnd = async (result) => {
     if (!result.destination) return;
 
@@ -178,86 +188,66 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
     const newStage = destination.droppableId;
+    
+    const originalPerson = allPeople.find(p => String(p._id) === String(draggableId));
+    if (!originalPerson) return;
 
-    // Store the original people state in case we need to revert
-    const originalPeople = [...people];
+    const updatePeopleStage = (peopleArray) => {
+      return peopleArray.map(p => 
+        String(p._id) === String(draggableId) 
+          ? { ...p, Stage: newStage }
+          : p
+      );
+    };
 
-    // Optimistically update the UI first
-    setPeople(prev => {
-      const updated = [...prev];
-      const movingIndex = updated.findIndex(p => String(p._id) === String(draggableId));
-      if (movingIndex === -1) return prev;
+    setAllPeople(updatePeopleStage);
 
-      const [movingPerson] = updated.splice(movingIndex, 1);
-      movingPerson.Stage = newStage;
-
-      // Insert at correct index in destination Stage
-      const stagePeople = updated.filter(p => p.Stage === newStage);
-      let insertIndex = Math.min(destination.index, stagePeople.length);
-
-      let fullIndex = 0, count = 0;
-      while (fullIndex < updated.length) {
-        if (updated[fullIndex].Stage === newStage) {
-          if (count === insertIndex) break;
-          count++;
-        }
-        fullIndex++;
-      }
-
-      updated.splice(fullIndex, 0, movingPerson);
-      return updated;
-    });
-
-    // Now update the backend
     try {
-      console.log(`Updating person ${draggableId} to stage: ${newStage}`);
-
+      const personToUpdate = allPeople.find(p => String(p._id) === String(draggableId));
+      
       const response = await axios.patch(`${BACKEND_URL}/people/${draggableId}`, {
-        Stage: newStage
+        Name: personToUpdate.name,
+        Surname: personToUpdate.surname,
+        Gender: personToUpdate.gender,
+        Birthday: personToUpdate.dob,
+        Address: personToUpdate.location,
+        Email: personToUpdate.email,
+        Number: personToUpdate.phone,
+        Stage: newStage,
+        "Leader @1": personToUpdate.leaders.leader1,
+        "Leader @12": personToUpdate.leaders.leader12,
+        "Leader @144": personToUpdate.leaders.leader144,
+        "Leader @1728": personToUpdate.leaders.leader1728
       }, {
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         timeout: 10000
       });
 
-      console.log('Backend response:', response.data);
+      const updateWithTimestamp = (peopleArray) => {
+        return peopleArray.map(p =>
+          String(p._id) === String(draggableId) 
+            ? { ...p, Stage: newStage, lastUpdated: response.data.UpdatedAt || new Date().toISOString() }
+            : p
+        );
+      };
 
-      // Update the cache with the backend response
+      setAllPeople(updateWithTimestamp);
+
       if (updatePersonInCache) {
         updatePersonInCache(draggableId, {
-          Stage: response.data.Stage,
-          lastUpdated: response.data.UpdatedAt
+          Stage: newStage,
+          lastUpdated: response.data.UpdatedAt || new Date().toISOString()
         });
       }
 
-      // Verify the backend actually saved the correct stage
-      if (response.data.Stage !== newStage) {
-        console.warn(`Stage mismatch! Expected: ${newStage}, Got: ${response.data.Stage}`);
-        // Update the frontend to match backend
-        setPeople(prev => prev.map(p =>
-          String(p._id) === String(draggableId) 
-            ? { ...p, Stage: response.data.Stage, lastUpdated: response.data.UpdatedAt } 
-            : p
-        ));
-      } else {
-        // Update just the timestamp in the current view
-        setPeople(prev => prev.map(p =>
-          String(p._id) === String(draggableId) 
-            ? { ...p, lastUpdated: response.data.UpdatedAt } 
-            : p
-        ));
-      }
-
     } catch (err) {
-      console.error("Failed to update Stage:", err);
-
-      // Revert the optimistic update on error
-      setPeople(originalPeople);
-
-      // Show error message to user
-      // Note: setSnackbar is not available in this component, you might want to pass it as a prop
-      console.error(`Failed to move person: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
+      console.error("Failed to update Stage:", err.response?.data || err.message);
+      
+      setAllPeople(prev => prev.map(p => 
+        String(p._id) === String(draggableId) ? originalPerson : p
+      ));
+      
+      alert(`Failed to update stage: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
     }
   };
 
@@ -311,123 +301,33 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
   );
 };
 
-// ---------------- FloatingTunnelPagination ----------------
-const FloatingTunnelPagination = ({ page, setPage, totalPages = 160, isSearching }) => {
-  const scrollRef = useRef(null);
-
-  const handleScroll = () => {
-    if (!scrollRef.current) return;
-    const container = scrollRef.current;
-    const containerCenter = container.offsetWidth / 2;
-    const buttons = container.querySelectorAll('button');
-
-    buttons.forEach(btn => {
-      const rect = btn.getBoundingClientRect();
-      const btnCenter = rect.left + rect.width / 2 - container.getBoundingClientRect().left;
-      const offset = btnCenter - containerCenter;
-      const rotation = Math.max(Math.min(offset / 5, 45), -45);
-      const scale = Math.max(1 - Math.abs(offset) / 300, 0.8);
-      btn.style.transform = `rotateY(${rotation}deg) scale(${scale})`;
-      btn.style.zIndex = `${Math.floor(scale * 100)}`;
-      btn.style.transition = 'transform 0.1s';
-    });
-  };
-
-  useEffect(() => {
-    handleScroll();
-    const container = scrollRef.current;
-    if (!container) return;
-    
-    container.addEventListener('scroll', handleScroll);
-    window.addEventListener('resize', handleScroll);
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleScroll);
-    };
-  }, []);
-
-  // Hide pagination when searching
-  if (isSearching) return null;
-
-  return (
-    <Box
-      ref={scrollRef}
-      sx={{
-        position: 'absolute',
-        bottom: 20,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        overflowX: 'auto',
-        maxWidth: '90%',
-        py: 1,
-        px: 1,
-        bgcolor: 'background.paper',
-        borderRadius: 3,
-        boxShadow: 4,
-        "&::-webkit-scrollbar": { height: 10 },
-        "&::-webkit-scrollbar-thumb": { backgroundColor: "#888", borderRadius: 5 },
-        "&::-webkit-scrollbar-track": { backgroundColor: "#f0f0f0", borderRadius: 5 },
-        perspective: 800,
-        zIndex: 999
-      }}
-    >
-      {Array.from({ length: totalPages }, (_, i) => (
-        <Button
-          key={i + 1}
-          onClick={() => setPage(i + 1)}
-          variant={i + 1 === page ? 'contained' : 'outlined'}
-          size="small"
-          sx={{
-            minWidth: 40,
-            mx: 0.5,
-            borderRadius: 10,
-            px: 1.5,
-            py: 0.5,
-            textTransform: 'none',
-            fontSize: 12,
-            transformStyle: 'preserve-3d'
-          }}
-        >
-          {i + 1}
-        </Button>
-      ))}
-    </Box>
-  );
-};
-
 // ---------------- PeopleSection ----------------
 export const PeopleSection = () => {
   const theme = useTheme();
-  const [people, setPeople] = useState([]);
+  const [allPeople, setAllPeople] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('name');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
   const [formData, setFormData] = useState({
-    name: '', surname: '', dob: '', email: '', phone: '', homeAddress: '',
+    name: '', surname: '', dob: '', address: '', email: '', number: '',
     invitedBy: '', gender: '', leader12: '', leader144: '', leader1728: '',
-    Stage: 'Win'
+    stage: 'Win'
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [page, setPage] = useState(1);
-  const [allPeople, setAllPeople] = useState([]); // Store all fetched people
-  const [hasInitialFetch, setHasInitialFetch] = useState(false);
+  const [viewMode, setViewMode] = useState('grid');
+  const [gridPage, setGridPage] = useState(1);
+  const ITEMS_PER_PAGE = 100;
 
-  const PER_PAGE = 200;
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Use debounced search term to prevent lag
-  const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms delay
-
-  // Initial fetch function - only called once or on hard refresh
   const fetchAllPeople = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch a large amount or all people at once
       const res = await axios.get(`${BACKEND_URL}/people`, { 
-        params: { perPage: 0 }, // perPage: 0 fetches all
+        params: { perPage: 0 },
         timeout: 80000 
       });
       const rawPeople = res.data?.results || [];
@@ -437,37 +337,36 @@ export const PeopleSection = () => {
         name: (raw.Name || raw.name || "").toString().trim(),
         surname: (raw.Surname || raw.surname || "").toString().trim(),
         gender: (raw.Gender || raw.gender || "").toString().trim(),
-        dob: raw.DateOfBirth || raw.Birthday || "",
-        location: (raw.Location || raw.address || raw.HomeAddress || "").toString().trim(),
+        dob: raw.Birthday || raw.DateOfBirth || "",
+        location: (raw.Address || raw.address || "").toString().trim(),
         email: (raw.Email || raw.email || "").toString().trim(),
-        phone: (raw.Phone || raw.Number || "").toString().trim(),
+        phone: (raw.Number || raw.Phone || "").toString().trim(),
         Stage: (raw.Stage || "Win").toString().trim(),
         lastUpdated: raw.UpdatedAt || null,
+        invitedBy: (raw.InvitedBy || "").toString().trim(),
         leaders: {
+          leader1: (raw["Leader @1"] || "").toString().trim(),
           leader12: (raw["Leader @12"] || "").toString().trim(),
           leader144: (raw["Leader @144"] || "").toString().trim(),
-          leader1728: (raw["Leader @1728"] || raw["Leader @ 1728"] || "").toString().trim(),
+          leader1728: (raw["Leader @1728"] || "").toString().trim(),
         }
       }));
 
       setAllPeople(mapped);
-      setHasInitialFetch(true);
-
     } catch (err) {
       setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
       setAllPeople([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [BACKEND_URL]);
 
-  // Memoized search function for better performance
-  const searchPeople = useCallback((people, searchValue, field) => {
-    if (!searchValue.trim()) return people;
+  const searchPeople = useCallback((peopleList, searchValue, field) => {
+    if (!searchValue.trim()) return peopleList;
 
     const searchLower = searchValue.toLowerCase().trim();
     
-    return people.filter(person => {
+    return peopleList.filter(person => {
       switch (field) {
         case 'name':
           return person.name.toLowerCase().includes(searchLower) || 
@@ -476,11 +375,12 @@ export const PeopleSection = () => {
         case 'email':
           return person.email.toLowerCase().includes(searchLower);
         case 'phone':
-          return person.phone.includes(searchValue); // Don't lowercase phone numbers
+          return person.phone.includes(searchValue);
         case 'location':
           return person.location.toLowerCase().includes(searchLower);
         case 'leaders':
-          return person.leaders.leader12.toLowerCase().includes(searchLower) ||
+          return person.leaders.leader1.toLowerCase().includes(searchLower) ||
+                 person.leaders.leader12.toLowerCase().includes(searchLower) ||
                  person.leaders.leader144.toLowerCase().includes(searchLower) ||
                  person.leaders.leader1728.toLowerCase().includes(searchLower);
         default:
@@ -489,62 +389,37 @@ export const PeopleSection = () => {
     });
   }, []);
 
-  // Filter and paginate from cached data using debounced search
-  const filteredAndPaginatedPeople = useMemo(() => {
-    if (!hasInitialFetch) return [];
+  const filteredPeople = useMemo(() => {
+    return searchPeople(allPeople, debouncedSearchTerm, searchField);
+  }, [allPeople, debouncedSearchTerm, searchField, searchPeople]);
 
-    // Apply search filter with debounced search term
-    const filtered = searchPeople(allPeople, debouncedSearchTerm, searchField);
-
-    // If searching, show all results (no pagination during search)
-    if (debouncedSearchTerm.trim()) {
-      return filtered; // Return all search results
+  const paginatedPeople = useMemo(() => {
+    if (viewMode === 'list' || debouncedSearchTerm.trim()) {
+      return filteredPeople;
     }
+    
+    const startIndex = (gridPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return filteredPeople.slice(startIndex, endIndex);
+  }, [filteredPeople, gridPage, viewMode, debouncedSearchTerm]);
 
-    // Apply pagination only when not searching
-    const startIndex = (page - 1) * PER_PAGE;
-    const endIndex = startIndex + PER_PAGE;
-    return filtered.slice(startIndex, endIndex);
-  }, [allPeople, debouncedSearchTerm, searchField, page, hasInitialFetch, searchPeople]);
-
-  // Calculate total pages for pagination
   const totalPages = useMemo(() => {
-    if (!hasInitialFetch) return 0;
-    if (debouncedSearchTerm.trim()) return 1; // Only one page when searching
-    return Math.ceil(allPeople.length / PER_PAGE);
-  }, [allPeople.length, debouncedSearchTerm, hasInitialFetch]);
+    if (viewMode === 'list' || debouncedSearchTerm.trim()) return 1;
+    return Math.ceil(filteredPeople.length / ITEMS_PER_PAGE);
+  }, [filteredPeople.length, viewMode, debouncedSearchTerm]);
 
-  // Update people state when filtered data changes
   useEffect(() => {
-    setPeople(filteredAndPaginatedPeople);
-  }, [filteredAndPaginatedPeople]);
+    fetchAllPeople();
+  }, [fetchAllPeople]);
 
-  // Reset to page 1 when search changes (but not for debounced changes)
-  useEffect(() => { 
-    setPage(1); 
-  }, [searchField]); // Only reset page when search field changes, not search term
-
-  // Reset to page 1 when starting a new search
   useEffect(() => {
-    if (debouncedSearchTerm.trim()) {
-      setPage(1);
-    }
-  }, [debouncedSearchTerm]);
+    setGridPage(1);
+  }, [debouncedSearchTerm, searchField]);
 
-  // Initial fetch on component mount
-  useEffect(() => {
-    if (!hasInitialFetch) {
-      fetchAllPeople();
-    }
-  }, [fetchAllPeople, hasInitialFetch]);
-
-  // Function to manually refresh data (can be called by refresh button)
   const handleRefresh = () => {
-    setHasInitialFetch(false);
     fetchAllPeople();
   };
 
-  // Update a single person in the cached data
   const updatePersonInCache = useCallback((personId, updates) => {
     setAllPeople(prev => prev.map(person => 
       String(person._id) === String(personId) 
@@ -553,15 +428,98 @@ export const PeopleSection = () => {
     ));
   }, []);
 
-  // Add person to cache
   const addPersonToCache = useCallback((newPerson) => {
     setAllPeople(prev => [...prev, newPerson]);
   }, []);
 
-  // Remove person from cache
   const removePersonFromCache = useCallback((personId) => {
     setAllPeople(prev => prev.filter(person => String(person._id) !== String(personId)));
   }, []);
+
+  const handleViewChange = (event, newView) => {
+    if (newView !== null) {
+      setViewMode(newView);
+    }
+  };
+
+// Handle edit - populate form with person data
+  const handleEditPerson = (person) => {
+    setEditingPerson(person);
+    
+    // Format DOB for input field (expects YYYY-MM-DD)
+    let formattedDob = '';
+    if (person.dob) {
+      try {
+        const date = new Date(person.dob);
+        if (!isNaN(date.getTime())) {
+          formattedDob = date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        console.error('Error formatting DOB:', e);
+      }
+    }
+    
+    setFormData({
+      name: person.name || '',
+      surname: person.surname || '',
+      dob: formattedDob,
+      address: person.location || '',
+      email: person.email || '',
+      number: person.phone || '',
+      invitedBy: person.invitedBy || '',
+      gender: person.gender || '',
+      leader12: person.leaders?.leader12 || '',
+      leader144: person.leaders?.leader144 || '',
+      leader1728: person.leaders?.leader1728 || '',
+      stage: person.Stage || 'Win'
+    });
+    setIsModalOpen(true);
+  };
+
+  // Handle save from dialog
+  const handleSaveFromDialog = (savedPerson) => {
+    // Map the saved person to internal format
+    const mappedPerson = {
+      _id: savedPerson._id || editingPerson?._id,
+      name: savedPerson.name || '',
+      surname: savedPerson.surname || '',
+      gender: savedPerson.gender || '',
+      dob: savedPerson.dob || '',
+      location: savedPerson.address || '',
+      email: savedPerson.email || '',
+      phone: savedPerson.number || '',
+      Stage: savedPerson.stage || 'Win',
+      lastUpdated: new Date().toISOString(),
+      invitedBy: savedPerson.invitedBy || '',
+      leaders: {
+        leader1: savedPerson.invitedBy || '',
+        leader12: savedPerson.leaders?.[0] || '',
+        leader144: savedPerson.leaders?.[1] || '',
+        leader1728: savedPerson.leaders?.[2] || ''
+      }
+    };
+
+    if (editingPerson) {
+      // Update existing person
+      updatePersonInCache(editingPerson._id, mappedPerson);
+      setSnackbar({ open: true, message: 'Person updated successfully', severity: 'success' });
+    } else {
+      // Add new person
+      addPersonToCache(mappedPerson);
+      setSnackbar({ open: true, message: 'Person added successfully', severity: 'success' });
+    }
+  };
+
+  // Handle close dialog
+  const handleCloseDialog = () => {
+    setIsModalOpen(false);
+    setEditingPerson(null);
+    setFormData({
+      name: '', surname: '', dob: '', address: '', email: '', number: '',
+      invitedBy: '', gender: '', leader12: '', leader144: '', leader1728: '',
+      stage: 'Win'
+    });
+  };
 
   const isSearching = debouncedSearchTerm.trim().length > 0;
 
@@ -569,19 +527,37 @@ export const PeopleSection = () => {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, mb: 1 }}>
         <Typography variant="h6">
-          My People {isSearching && `(${people.length} results)`}
+          My People {isSearching && `(${filteredPeople.length} results)`}
         </Typography>
-        <Button 
-          variant="outlined" 
-          size="small" 
-          onClick={handleRefresh}
-          disabled={loading}
-        >
-          {loading ? 'Loading...' : 'Refresh'}
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={handleViewChange}
+            size="small"
+          >
+            <Tooltip title="Grid View" arrow>
+              <ToggleButton value="grid" aria-label="grid view">
+                <ViewModuleIcon fontSize="small" />
+              </ToggleButton>
+            </Tooltip>
+            <Tooltip title="List View" arrow>
+              <ToggleButton value="list" aria-label="list view">
+                <ViewListIcon fontSize="small" />
+              </ToggleButton>
+            </Tooltip>
+          </ToggleButtonGroup>
+          <Button 
+            variant="outlined" 
+            size="small" 
+            onClick={handleRefresh}
+            disabled={loading}
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </Button>
+        </Box>
       </Box>
 
-      {/* Search Controls */}
       <Box sx={{ display: 'flex', gap: 2, mb: 2, px: 1 }}>
         <TextField
           size="small"
@@ -613,38 +589,70 @@ export const PeopleSection = () => {
       </Box>
 
       <Box sx={{ flex: 1, border: '1px solid #e0e0e0', borderRadius: 2, py: 2, mb: 2, position: 'relative' }}>
-        <DragDropBoard
-          people={people}
-          setPeople={setPeople}
-          onEditPerson={(p) => { setEditingPerson(p); setIsModalOpen(true); }}
-          onDeletePerson={(id) => {
-            setPeople(prev => prev.filter(p => p._id !== id));
-            removePersonFromCache(id);
-          }}
-          loading={loading}
-          updatePersonInCache={updatePersonInCache}
-        />
-
-        <FloatingTunnelPagination 
-          page={page} 
-          setPage={setPage} 
-          totalPages={totalPages}
-          isSearching={isSearching}
-        />
+        {viewMode === 'grid' ? (
+          <>
+            <DragDropBoard
+              people={paginatedPeople}
+              setPeople={(updateFn) => {
+                if (typeof updateFn === 'function') {
+                  const updated = updateFn(paginatedPeople);
+                  setAllPeople(prev => {
+                    const newAll = [...prev];
+                    updated.forEach(updatedPerson => {
+                      const idx = newAll.findIndex(p => String(p._id) === String(updatedPerson._id));
+                      if (idx !== -1) {
+                        newAll[idx] = updatedPerson;
+                      }
+                    });
+                    return newAll;
+                  });
+                }
+              }}
+              onEditPerson={handleEditPerson}
+              onDeletePerson={(id) => {
+                removePersonFromCache(id);
+              }}
+              loading={loading}
+              updatePersonInCache={updatePersonInCache}
+              allPeople={allPeople}
+              setAllPeople={setAllPeople}
+            />
+            
+            {!isSearching && totalPages > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                <Pagination 
+                  count={totalPages} 
+                  page={gridPage} 
+                  onChange={(e, page) => setGridPage(page)}
+                  color="primary"
+                  size="large"
+                  showFirstButton
+                  showLastButton
+                />
+              </Box>
+            )}
+          </>
+        ) : (
+          <Box sx={{ px: 2 }}>
+            <PeopleListView
+              people={filteredPeople}
+              onEdit={handleEditPerson}
+              onDelete={(id) => {
+                removePersonFromCache(id);
+              }}
+              loading={loading}
+            />
+          </Box>
+        )}
 
         <AddPersonDialog
           open={isModalOpen}
+          onClose={handleCloseDialog}
+          onSave={handleSaveFromDialog}
           formData={formData}
           setFormData={setFormData}
-          editingPerson={editingPerson}
-          onClose={() => setIsModalOpen(false)}
-          onSuccess={(newPerson) => {
-            if (editingPerson) {
-              updatePersonInCache(editingPerson._id, newPerson);
-            } else {
-              addPersonToCache(newPerson);
-            }
-          }}
+          isEdit={!!editingPerson}
+          personId={editingPerson?._id || null}
         />
 
         <Snackbar
