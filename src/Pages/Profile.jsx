@@ -27,6 +27,10 @@ import {
   Skeleton,
   Tooltip,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
@@ -164,7 +168,6 @@ export default function Profile() {
   const [croppingOpen, setCroppingOpen] = useState(false);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   
-  // NEW: Track if profile has been loaded at least once
   const [hasProfileLoaded, setHasProfileLoaded] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
@@ -223,14 +226,12 @@ export default function Profile() {
     }
   }, []);
 
-  // UPDATED: Load profile data only once
+  // Load profile data
   useEffect(() => {
-    // Check if we already have profile data loaded
     const storedProfile = localStorage.getItem("userProfile");
     const profileLoaded = localStorage.getItem("profileLoaded") === "true";
     
     if (profileLoaded && storedProfile) {
-      // Profile already loaded, use cached data
       const parsedProfile = JSON.parse(storedProfile);
       setUserProfile(parsedProfile);
       updateFormWithProfile(parsedProfile);
@@ -248,12 +249,9 @@ export default function Profile() {
       return;
     }
 
-    // Otherwise, load profile from backend
     const loadProfile = async () => {
       try {
         setLoadingProfile(true);
-
-        // Try to fetch from backend first
         try {
           const serverProfile = await fetchUserProfile();
           
@@ -261,7 +259,6 @@ export default function Profile() {
             setUserProfile(serverProfile);
             updateFormWithProfile(serverProfile);
             
-            // Set profile picture from server response
             const pic = serverProfile?.profile_picture || 
                        serverProfile?.avatarUrl || 
                        serverProfile?.profilePicUrl ||
@@ -271,7 +268,6 @@ export default function Profile() {
               setProfilePic(pic);
             }
             
-            // Mark as loaded and cache data
             localStorage.setItem("userProfile", JSON.stringify(serverProfile));
             localStorage.setItem("profileLoaded", "true");
             setHasProfileLoaded(true);
@@ -285,7 +281,6 @@ export default function Profile() {
         } catch (fetchError) {
           console.warn("Failed to fetch from backend, using cached data:", fetchError);
           
-          // Fallback to localStorage if available
           if (storedProfile) {
             const parsedProfile = JSON.parse(storedProfile);
             setUserProfile(parsedProfile);
@@ -341,7 +336,7 @@ export default function Profile() {
       invitedBy: profile?.invited_by || "",
       role: profile?.role || "",
       gender: profile?.gender || "",
-      address: profile?.address || profile?.home_address || "", // Map home_address to address
+      address: profile?.address || profile?.home_address || "",
       dateOfBirth: profile?.dateOfBirth || profile?.date_of_birth || "",
       currentPassword: "",
       newPassword: "",
@@ -493,9 +488,8 @@ export default function Profile() {
       email: form.email,
       phone_number: form.phoneNumber,
       gender: form.gender,
-      home_address: form.address, // Map address to home_address for backend
+      home_address: form.address,
       date_of_birth: form.dateOfBirth,
-      
     };
 
     if (isAdmin) {
@@ -521,7 +515,6 @@ export default function Profile() {
             severity: "success",
           });
           
-          // Clear temporary password since user has changed it
           clearTempPassword();
           
           setForm(prev => ({
@@ -596,18 +589,8 @@ export default function Profile() {
       fontSize: "0.875rem",
       lineHeight: "1.4375em",
     },
-    "& .MuiInputBase-inputMultiline": {
-      padding: "16px 14px",
-      height: "24px !important",
-      overflow: "hidden",
-      resize: "none",
-    },
-    "& .MuiOutlinedInput-inputMultiline": {
-      padding: "0",
-    },
   };
 
-  // NEW: Skeleton loading component
   const ProfileSkeleton = () => (
     <Box
       sx={{
@@ -616,7 +599,6 @@ export default function Profile() {
         pb: 4,
       }}
     >
-      {/* Hero Section Skeleton */}
       <Box
         sx={{
           position: "relative",
@@ -643,7 +625,6 @@ export default function Profile() {
         />
       </Box>
 
-      {/* Avatar Skeleton */}
       <Box
         sx={{
           position: "relative",
@@ -677,7 +658,6 @@ export default function Profile() {
         </Box>
       </Box>
 
-      {/* Form Skeleton */}
       <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
         <Card
           sx={{
@@ -715,7 +695,6 @@ export default function Profile() {
               ))}
             </Grid>
             
-            {/* Action Button Skeleton */}
             <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
               <Skeleton
                 variant="rectangular"
@@ -733,7 +712,6 @@ export default function Profile() {
     </Box>
   );
 
-  // Show skeleton only on initial load, not when returning from other pages
   if (loadingProfile && !hasProfileLoaded) {
     return <ProfileSkeleton />;
   }
@@ -910,7 +888,7 @@ export default function Profile() {
         >
           <CardContent sx={{ p: { xs: 3, sm: 4 }, pt: 4 }}>
             <Box component="form" onSubmit={handleSubmit}>
-              {/* Edit Toggle - Blue Pill Button */}
+              {/* Edit Toggle - Single Button */}
               <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
                 <Button
                   variant="contained"
@@ -938,9 +916,10 @@ export default function Profile() {
                     },
                   }}
                 >
-                  {editMode ? 'Disable Editing' : 'Enable Editing'}
+                  {editMode ? 'Cancel Editing' : 'Edit Profile'}
                 </Button>
               </Box>
+
               {/* Personal Information Fields */}
               <Grid container spacing={3}>
                 {/* Leader */}
@@ -962,6 +941,47 @@ export default function Profile() {
                     disabled={!editMode}
                     sx={commonFieldSx}
                   />
+                </Grid>
+
+                {/* Title - Fixed as Select */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Title
+                  </Typography>
+                  <FormControl fullWidth sx={commonFieldSx}>
+                    <Select
+                      value={form.title || ""}
+                      onChange={handleChange("title")}
+                      disabled={!editMode}
+                      displayEmpty
+                      sx={{
+                        height: "56px",
+                        "& .MuiSelect-select": {
+                          padding: "16px 14px",
+                          display: "flex",
+                          alignItems: "center",
+                        }
+                      }}
+                    >
+                      <MenuItem value=""><em>Select Title</em></MenuItem>
+                      <MenuItem value="Mr">Mr</MenuItem>
+                      <MenuItem value="Mrs">Mrs</MenuItem>
+                      <MenuItem value="Miss">Miss</MenuItem>
+                      <MenuItem value="Ms">Ms</MenuItem>
+                      <MenuItem value="Dr">Dr</MenuItem>
+                      <MenuItem value="Prof">Prof</MenuItem>
+                      <MenuItem value="Pastor">Pastor</MenuItem>
+                      <MenuItem value="Bishop">Bishop</MenuItem>
+                      <MenuItem value="Apostle">Apostle</MenuItem>
+                    </Select>
+                  </FormControl>
                 </Grid>
 
                 {/* Name */}
@@ -1089,29 +1109,30 @@ export default function Profile() {
                   />
                 </Grid>
 
-                
+                {/* Gender - Read Only */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
+                    Gender
+                  </Typography>
+                  <TextField
+                    value={form.gender || ""}
+                    fullWidth
+                    disabled
+                    sx={commonFieldSx}
+                  />
+                </Grid>
               </Grid>
 
               {/* Additional Profile Fields */}
               <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
               <Grid container spacing={3}>
-                {/* Title */}
-                <Grid item xs={12} sm={6}>
-                  <Typography
-                    variant="body2"
-                    sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}
-                  >
-                    Title
-                  </Typography>
-                  <TextField
-                    value={form.title || ""}
-                    onChange={handleChange("title")}
-                    fullWidth
-                    disabled={!editMode}
-                    sx={commonFieldSx}
-                  />
-                </Grid>
-
                 {/* Phone Number */}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
@@ -1126,36 +1147,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                {/* Gender */}
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
-                    Gender
-                  </Typography>
-                  <TextField
-                    value={form.gender || ""}
-                    onChange={handleChange("gender")}
-                    fullWidth
-                    disabled={!editMode}
-                    sx={commonFieldSx}
-                  />
-                </Grid>
-
-                {/* Address */}
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
-                    Address
-                  </Typography>
-                  <TextField
-                    value={form.address || ""}
-                    onChange={handleChange("address")}
-                    fullWidth
-                    disabled={!editMode}
-                    sx={commonFieldSx}
-                  />
-                </Grid>
-
-
-                {/* Date of Birth */}
+                {/* Date of Birth - Date Picker */}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
                     Date of Birth
@@ -1163,6 +1155,22 @@ export default function Profile() {
                   <TextField
                     value={form.dateOfBirth || ""}
                     onChange={handleChange("dateOfBirth")}
+                    type="date"
+                    fullWidth
+                    disabled={!editMode}
+                    InputLabelProps={{ shrink: true }}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+                {/* Address */}
+                <Grid item xs={12}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                    Address
+                  </Typography>
+                  <TextField
+                    value={form.address || ""}
+                    onChange={handleChange("address")}
                     fullWidth
                     disabled={!editMode}
                     sx={commonFieldSx}
@@ -1370,28 +1378,7 @@ export default function Profile() {
                   flexWrap: "wrap",
                 }}
               >
-                {!editMode ? (
-                  <Button
-                    variant="contained"
-                    startIcon={<Edit />}
-                    onClick={() => setEditMode(true)}
-                    sx={{
-                      bgcolor: currentCarouselItem.color,
-                      "&:hover": {
-                        bgcolor: currentCarouselItem.color,
-                        opacity: 0.9,
-                      },
-                      borderRadius: 2,
-                      px: 4,
-                      py: 1.5,
-                      fontWeight: 600,
-                      textTransform: "none",
-                      fontSize: "1rem",
-                    }}
-                  >
-                    Edit Profile
-                  </Button>
-                ) : (
+                {editMode && (
                   <>
                     <Button
                       variant="outlined"

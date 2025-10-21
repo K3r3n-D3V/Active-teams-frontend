@@ -12,7 +12,7 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
-  Autocomplete, // Add this import
+  Autocomplete,
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
@@ -21,11 +21,11 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
-import axios from "axios"; // Add this import
+import axios from "axios";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-// WelcomeOverlay component remains the same...
+// WelcomeOverlay component remains the same
 const WelcomeOverlay = ({ name, mode }) => {
   const pieces = Array.from({ length: 90 }).map((_, index) => {
     const left = Math.random() * 100;
@@ -134,12 +134,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  // Invited By async search state
+  // Invited By async search state - FIXED
   const [invitedOptions, setInvitedOptions] = useState([]);
   const [loadingInvited, setLoadingInvited] = useState(false);
   const [invitedSearch, setInvitedSearch] = useState("");
 
-  // Server-side search for invited_by field
+  // Server-side search for invited_by field - FIXED
   const fetchInvitedOptions = async (query) => {
     if (!query?.trim()) {
       setInvitedOptions([]);
@@ -150,21 +150,44 @@ const Signup = ({ onSignup, mode, setMode }) => {
       const res = await axios.get(`${BACKEND_URL}/people/search`, {
         params: { query, limit: 20 },
       });
-      const results = res.data?.results || res.data?.people || [];
+      
+      // Handle different response formats
+      let results = [];
+      if (Array.isArray(res.data)) {
+        results = res.data;
+      } else if (res.data?.results) {
+        results = res.data.results;
+      } else if (res.data?.people) {
+        results = res.data.people;
+      } else if (res.data) {
+        results = [res.data];
+      }
+      
       const mapped = results.map((p) => ({
-        label: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        label: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim() || 'Unknown',
+        value: p._id || p.id || `${p.Name || p.name} ${p.Surname || p.surname}`,
         person: p,
       }));
+      
       setInvitedOptions(mapped);
     } catch (err) {
       console.error("Failed to search people:", err);
-      setInvitedOptions([]);
+      // Fallback: create an option from the current search
+      if (query.trim()) {
+        setInvitedOptions([{
+          label: query,
+          value: query,
+          person: { name: query }
+        }]);
+      } else {
+        setInvitedOptions([]);
+      }
     } finally {
       setLoadingInvited(false);
     }
   };
 
-  // Debounce invited_by search input
+  // Debounce invited_by search input - FIXED
   useEffect(() => {
     const handler = setTimeout(() => {
       if (invitedSearch && invitedSearch.trim().length >= 2) {
@@ -172,7 +195,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
       } else {
         setInvitedOptions([]);
       }
-    }, 300);
+    }, 500); // Increased delay for better debouncing
     return () => clearTimeout(handler);
   }, [invitedSearch]);
 
@@ -202,17 +225,40 @@ const Signup = ({ onSignup, mode, setMode }) => {
   };
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    
+    // Clear error when user types
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: "" }));
+    }
   };
 
-  // Handle autocomplete change for invited_by
-  const handleInvitedByChange = (value) => {
-    const invitedByValue = typeof value === "string" ? value : (value?.label || "");
+  // Handle autocomplete change for invited_by - FIXED
+  const handleInvitedByChange = (event, newValue) => {
+    let invitedByValue = "";
+    
+    if (typeof newValue === "string") {
+      invitedByValue = newValue;
+    } else if (newValue && newValue.label) {
+      invitedByValue = newValue.label;
+    }
+    
     setForm(prev => ({ ...prev, invited_by: invitedByValue }));
     
     // Clear error when user selects/types something
     if (errors.invited_by) {
       setErrors(prev => ({ ...prev, invited_by: "" }));
+    }
+  };
+
+  // Handle input change for invited_by - FIXED
+  const handleInvitedByInputChange = (event, newInputValue) => {
+    setInvitedSearch(newInputValue);
+    
+    // Also update the form if user is typing freely
+    if (event && event.type === 'change') {
+      setForm(prev => ({ ...prev, invited_by: newInputValue }));
     }
   };
 
@@ -222,7 +268,13 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
     setLoading(true);
 
-    const submitData = { ...form };
+    const submitData = { 
+      ...form,
+      // Ensure title is properly saved
+      title: form.title || "",
+      // Ensure invited_by is properly saved
+      invited_by: form.invited_by || ""
+    };
     delete submitData.confirm_password;
     
     try {
@@ -243,9 +295,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
           date_of_birth: submitData.date_of_birth,
           home_address: submitData.home_address,
           address: submitData.home_address,
-          title: submitData.title,
-          person_status: submitData.person_status,
-          invited_by: submitData.invited_by,
+          title: submitData.title, // Ensure title is saved
+          invited_by: submitData.invited_by, // Ensure invited_by is saved
           phone_number: submitData.phone_number,
           email: submitData.email,
           gender: submitData.gender,
@@ -280,8 +331,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
       setLoading(false);
     }
   };
-
-  // Options are fetched server-side; no local mapping needed here
 
   return (
     <Box
@@ -367,7 +416,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               ["email", "Email Address", "email"],
               ["home_address", "Home Address"],
               ["phone_number", "Phone Number"],
-              ["person_status", "Person Status"],
             ].map(([name, label, type]) => (
               <TextField
                 key={name}
@@ -387,7 +435,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               />
             ))}
 
-            {/* Title - Select */}
+            {/* Title - Select - ENSURED PROPER SAVING */}
             <FormControl fullWidth error={!!errors.title}>
               <InputLabel>Title</InputLabel>
               <Select
@@ -415,29 +463,24 @@ const Signup = ({ onSignup, mode, setMode }) => {
               )}
             </FormControl>
 
-            {/* Replace the invited_by TextField with Autocomplete */}
+            {/* Invited By - FIXED Autocomplete */}
             <Autocomplete
               freeSolo
-              disabled={loading || loadingInvited}
+              disabled={loading}
               options={invitedOptions}
+              loading={loadingInvited}
               getOptionLabel={(option) => typeof option === "string" ? option : option.label}
-              value={
-                invitedOptions.find(option => option.label === form.invited_by) || null
-              }
-              onChange={(e, newValue) => handleInvitedByChange(newValue)}
-              onInputChange={(e, newInputValue, reason) => {
-                if (reason === "input") {
-                  setInvitedSearch(newInputValue);
-                  setForm(prev => ({ ...prev, invited_by: newInputValue }));
-                }
-              }}
+              value={form.invited_by}
+              onChange={handleInvitedByChange}
+              onInputChange={handleInvitedByInputChange}
+              inputValue={invitedSearch}
               renderInput={(params) => (
                 <TextField
                   {...params}
                   label="Invited By"
                   name="invited_by"
                   error={!!errors.invited_by}
-                  helperText={errors.invited_by || (loadingInvited ? "Searching..." : "")}
+                  helperText={errors.invited_by || (loadingInvited ? "Searching..." : "Type to search for people")}
                   fullWidth
                   sx={{
                     "& .MuiOutlinedInput-root": { borderRadius: 3 },
@@ -446,6 +489,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
                     },
                   }}
                 />
+              )}
+              renderOption={(props, option) => (
+                <li {...props} key={option.value}>
+                  {option.label}
+                </li>
               )}
             />
 
@@ -471,6 +519,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               )}
             </FormControl>
 
+            {/* Password Fields - KEPT AS REQUESTED */}
             <TextField
               label="Password"
               name="password"
