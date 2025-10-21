@@ -540,8 +540,8 @@ const Events = () => {
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [eventsCache, setEventsCache] = useState({});
-  const [lastFetchTime, setLastFetchTime] = useState(0);
+  // const [eventsCache, setEventsCache] = useState({});
+  // const [lastFetchTime, setLastFetchTime] = useState(0);
 
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
 
@@ -578,65 +578,87 @@ const Events = () => {
 
 
   const fetchEvents = async (filters = {}, forceRefresh = false) => {
-    setLoading(true);
-    setIsLoading(true);
+  setLoading(true);
+  setIsLoading(true);
 
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
 
-      const params = {
-        page: filters.page || currentPage,
-        limit: filters.limit || rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery.trim() || undefined,
-        ...filters
-      };
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter = 
+      viewFilter === 'personal' && 
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
-      // Clean up undefined params
-      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+    const params = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      ...filters
+    };
 
-      console.log('🔍 Fetching events with params:', params);
+    // Clean up undefined params
+    Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-      let endpoint = `${BACKEND_URL}/admin/events/cells-debug`;
-      const userRole = currentUser?.role?.toLowerCase();
-      if (userRole === "registrant") endpoint = `${BACKEND_URL}/registrant/events`;
-      if (userRole === "user") endpoint = `${BACKEND_URL}/events/cells-user`;
+    console.log('🔍 Fetching events with params:', params);
+    console.log('📄 Current page in fetch:', currentPage);
+    console.log('🎯 Requested page:', filters.page);
 
-      const response = await axios.get(endpoint, { headers, params, timeout: 30000 });
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
+    let endpoint = `${BACKEND_URL}/admin/events/cells-debug`;
+    const userRole = currentUser?.role?.toLowerCase();
+    if (userRole === "registrant") endpoint = `${BACKEND_URL}/registrant/events`;
+    if (userRole === "user") endpoint = `${BACKEND_URL}/events/cells-user`;
 
-      console.log("✅ API Response - Total events:", responseData.total_events);
-      console.log("✅ API Response - Current page events:", newEvents.length);
+    const response = await axios.get(endpoint, { headers, params, timeout: 30000 });
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
 
-      // Always replace events when searching or filtering
-      setEvents(newEvents);
-      setFilteredEvents(newEvents);
+    console.log("✅ API Response - Total events:", responseData.total_events);
+    console.log("✅ API Response - Current page events:", newEvents.length);
+    console.log("✅ API Response - Page info:", {
+      current_page: responseData.current_page,
+      total_pages: responseData.total_pages,
+      total_events: responseData.total_events
+    });
 
-      setTotalEvents(responseData.total_events || responseData.total || 0);
-      setTotalPages(responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1);
+    // Always replace events when searching or filtering
+    setEvents(newEvents);
+    setFilteredEvents(newEvents);
 
-      // Only update current page if explicitly provided in filters
-      if (filters.page) {
-        setCurrentPage(filters.page);
-      }
+    // Update pagination info from API response
+    setTotalEvents(responseData.total_events || responseData.total || 0);
+    const calculatedTotalPages = responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1;
+    setTotalPages(calculatedTotalPages);
 
-    } catch (err) {
-      console.error("❌ Error fetching events:", err);
-      setSnackbar({
-        open: true,
-        message: "Failed to load events",
-        severity: "error",
-      });
-      setEvents([]);
-      setFilteredEvents([]);
-    } finally {
-      setLoading(false);
-      setIsLoading(false);
+    // Update current page if explicitly provided in filters
+    if (filters.page !== undefined) {
+      console.log('🔄 Updating current page to:', filters.page);
+      setCurrentPage(filters.page);
     }
-  };
+
+    console.log('📊 Final state:', {
+      currentPage,
+      totalPages: calculatedTotalPages,
+      totalEvents: responseData.total_events || responseData.total || 0
+    });
+
+  } catch (err) {
+    console.error("❌ Error fetching events:", err);
+    setSnackbar({
+      open: true,
+      message: "Failed to load events",
+      severity: "error",
+    });
+    setEvents([]);
+    setFilteredEvents([]);
+  } finally {
+    setLoading(false);
+    setIsLoading(false);
+  }
+};
 
   const isOverdue = (event) => {
     if (event?._is_overdue !== undefined) {
@@ -663,18 +685,27 @@ const Events = () => {
   const paginatedEvents = events;
 
   const handleRowsPerPageChange = (e) => {
-    const newRowsPerPage = Number(e.target.value);
-    setRowsPerPage(newRowsPerPage);
-    setCurrentPage(1); // Reset to first page
-    // Trigger fetch with new rows per page
-    fetchEvents({
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      search: searchQuery.trim() || undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      page: 1,
-      limit: newRowsPerPage
-    }, true);
-  };
+  const newRowsPerPage = Number(e.target.value);
+  console.log('📊 Changing rows per page to:', newRowsPerPage);
+  
+  setRowsPerPage(newRowsPerPage);
+  setCurrentPage(1); // Reset to first page
+  
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+  // Trigger fetch with new rows per page
+  fetchEvents({
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    search: searchQuery.trim() || undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    page: 1,
+    limit: newRowsPerPage,
+    personal: shouldApplyPersonalFilter ? true : undefined
+  }, true);
+};
 
   const handleSearchChange = (e) => {
     const value = e.target.value;
@@ -686,75 +717,107 @@ const Events = () => {
     fetchEvents({ page: 1 }, true);
   };
 
-  const handleSearchSubmit = () => {
-    setCurrentPage(1); // Always reset to page 1 when searching
-    fetchEvents({
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery.trim() || undefined
-    }, true);
-  };
 
-  // ADD THESE MISSING PAGINATION FUNCTIONS:
- const handlePreviousPage = () => {
-    if (currentPage > 1 && !isLoading) {
-      const newPage = currentPage - 1;
-      setCurrentPage(newPage);
-      
-      fetchEvents({
-        page: newPage,
-        limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery.trim() || undefined
-      });
-    }
-  };
-
- const handleNextPage = () => {
-    if (currentPage < totalPages && !isLoading) {
-      const newPage = currentPage + 1;
-      setCurrentPage(newPage);
-      
-      fetchEvents({
-        page: newPage,
-        limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery.trim() || undefined
-      });
-    }
-  };
-
-
-const applyFilters = (filters) => {
-  console.log("🔍 APPLYING FILTERS:", filters);
+const handleSearchSubmit = () => {
+  const trimmedSearch = searchQuery.trim();
+  console.log('🔍 Search submitted:', trimmedSearch);
   
-  // Let backend handle filtering instead of client-side
-  setActiveFilters(filters);
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
   setCurrentPage(1);
   
   fetchEvents({
     page: 1,
-    leader: filters.leader,
-    day: filters.day !== 'all' ? filters.day : undefined,
-    location: filters.location,
+    limit: rowsPerPage,
     status: selectedStatus !== 'all' ? selectedStatus : undefined,
     event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: trimmedSearch || undefined,
+    personal: shouldApplyPersonalFilter ? true : undefined
   }, true);
 };
 
-  const handleStatusClick = (status) => {
-    setSelectedStatus(status);
-    setCurrentPage(1);
+
+const handleStatusClick = (status) => {
+  setSelectedStatus(status);
+  
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+  setCurrentPage(1);
+  
+  fetchEvents({
+    status: status !== 'all' ? status : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: searchQuery || undefined,
+    page: 1,
+    personal: shouldApplyPersonalFilter ? true : undefined
+  });
+};
+
+const handleEventTypeClick = (typeValue) => {
+  setSelectedEventTypeFilter(typeValue);
+  
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+  setCurrentPage(1);
+  
+  fetchEvents({
+    event_type: typeValue !== 'all' ? typeValue : undefined,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    search: searchQuery || undefined,
+    page: 1,
+    personal: shouldApplyPersonalFilter ? true : undefined
+  });
+};
+const handlePreviousPage = () => {
+  if (currentPage > 1 && !isLoading) {
+    const newPage = currentPage - 1;
+    console.log('⬅️ Going to previous page:', newPage);
+    
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter = 
+      viewFilter === 'personal' && 
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
     fetchEvents({
-      status: status !== 'all' ? status : undefined,
+      page: newPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
       search: searchQuery.trim() || undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined
-    }, true); // force refresh when status changes
-  };
+      personal: shouldApplyPersonalFilter ? true : undefined
+    });
+  }
+};
+
+const handleNextPage = () => {
+  if (currentPage < totalPages && !isLoading) {
+    const newPage = currentPage + 1;
+    console.log('➡️ Going to next page:', newPage);
+    
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter = 
+      viewFilter === 'personal' && 
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    fetchEvents({
+      page: newPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined
+    });
+  }
+};
 
   // Add this function to fix leaders using your existing backend endpoints
   const handleFixLeaders = async () => {
@@ -795,17 +858,7 @@ const applyFilters = (filters) => {
     }
   };
 
-  const handleEventTypeClick = (typeValue) => {
-    setSelectedEventTypeFilter(typeValue);
-
-    setCurrentPage(1);
-    fetchEvents({
-      event_type: typeValue !== 'all' ? typeValue : undefined,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      search: searchQuery || undefined
-    });
-  };
-
+ 
   const handleCreateEventTypeSubmit = async (eventTypeData) => {
     try {
       const token = localStorage.getItem("token");
@@ -856,29 +909,38 @@ const applyFilters = (filters) => {
     console.log('Active Filters:', activeFilters);
   }, [events, filteredEvents, currentPage, totalPages, paginatedEvents]);
 
-  // Only run on initial load and major filter changes
-  useEffect(() => {
-    console.log('🔄 Initial fetch triggered');
+ useEffect(() => {
+  console.log('🔄 Main fetch triggered');
+  console.log('👤 Current user:', currentUser?.name, 'Role:', currentUser?.role);
+  console.log('👀 Current view filter:', viewFilter);
 
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage
-    };
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
-    // Only add filters if they're not 'all'
-    if (selectedStatus !== 'all') {
-      fetchParams.status = selectedStatus;
-    }
-    if (selectedEventTypeFilter !== 'all') {
-      fetchParams.event_type = selectedEventTypeFilter;
-    }
-    if (searchQuery.trim()) {
-      fetchParams.search = searchQuery.trim();
-    }
+  const fetchParams = {
+    page: 1, // Always start from page 1 when filters change
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: searchQuery.trim() || undefined,
+    personal: shouldApplyPersonalFilter ? true : undefined
+  };
 
-    console.log('📤 Initial fetch params:', fetchParams);
-    fetchEvents(fetchParams, true);
-  }, [selectedStatus, selectedEventTypeFilter, location.pathname, location.state?.refresh]);
+  // Clean up undefined params
+  Object.keys(fetchParams).forEach(key => {
+    if (fetchParams[key] === undefined || fetchParams[key] === '' || fetchParams[key] === 'all') {
+      delete fetchParams[key];
+    }
+  });
+
+  console.log('📤 Main fetch params:', fetchParams);
+  
+  // Reset to page 1 when filters change
+  setCurrentPage(1);
+  fetchEvents(fetchParams, true);
+}, [selectedStatus, selectedEventTypeFilter, viewFilter, location.pathname, location.state?.refresh, currentUser?.role]);
 
   // Debounced search
   // Remove or modify this useEffect - it's causing the issue
@@ -929,6 +991,28 @@ const applyFilters = (filters) => {
   const handleCloseCreateEventTypeModal = () => {
     setCreateEventTypeModalOpen(false);
   };
+
+const applyFilters = (filters) => {
+  console.log("🔍 APPLYING FILTERS:", filters);
+  
+  setActiveFilters(filters);
+  setCurrentPage(1);
+  
+  // Build search query from filters
+  let searchQuery = '';
+  if (filters.leader) {
+    searchQuery = filters.leader;
+  }
+  
+  fetchEvents({
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: searchQuery || undefined,
+    day: filters.day !== 'all' ? filters.day : undefined
+  }, true);
+};
 
   const handleAttendanceSubmit = async (data) => {
     try {
@@ -1266,29 +1350,7 @@ const applyFilters = (filters) => {
       }
     };
 
-    // Call this when events are loaded
-    // Add this useEffect to monitor the Leader at 1 issue
-    useEffect(() => {
-      if (events.length > 0) {
-        const eventsWithLeader12 = events.filter(event => event.leader12 && event.leader12.trim());
-        const eventsMissingLeader1 = eventsWithLeader12.filter(event => !event.leader1 || !event.leader1.trim());
-
-        console.log(`📊 Leader at 1 Status Report:`);
-        console.log(`   Total events: ${events.length}`);
-        console.log(`   Events with Leader at 12: ${eventsWithLeader12.length}`);
-        console.log(`   Events missing Leader at 1: ${eventsMissingLeader1.length}`);
-
-        if (eventsMissingLeader1.length > 0) {
-          console.log(`❌ Missing Leader at 1 examples:`,
-            eventsMissingLeader1.slice(0, 3).map(event => ({
-              eventName: event.eventName,
-              leader12: event.leader12,
-              leader1: event.leader1
-            }))
-          );
-        }
-      }
-    }, [events]);
+  
 
     const calculateClientSideCounts = () => {
       const counts = {
@@ -1351,69 +1413,74 @@ const applyFilters = (filters) => {
     );
   };
 
-  // ViewFilterButtons Component
-  // ViewFilterButtons Component
-  const ViewFilterButtons = () => {
-    return (
-      <div style={styles.viewFilterContainer}>
-        <span style={styles.viewFilterLabel}>View:</span>
+// ViewFilterButtons Component - FIXED
+// ViewFilterButtons Component - FIXED
+const ViewFilterButtons = () => {
+  return (
+    <div style={styles.viewFilterContainer}>
+      <span style={styles.viewFilterLabel}>View:</span>
 
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="all"
-            checked={viewFilter === 'all'}
-            onChange={(e) => {
-              setViewFilter(e.target.value);
-              setCurrentPage(1); // Add this
-              fetchEvents({
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: searchQuery || undefined,
-                page: 1 // Add this
-              });
-            }}
-            style={{ cursor: 'pointer' }}
-          />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'all' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'all' ? '600' : '400',
-          }}>
-            View All
-          </span>
-        </label>
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="all"
+          checked={viewFilter === 'all'}
+          onChange={(e) => {
+            const newViewFilter = e.target.value;
+            setViewFilter(newViewFilter);
+            setCurrentPage(1);
+            fetchEvents({
+              status: selectedStatus !== 'all' ? selectedStatus : undefined,
+              event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+              search: searchQuery || undefined,
+              page: 1,
+              personal: false // Explicitly set personal to false for "View All"
+            });
+          }}
+          style={{ cursor: 'pointer' }}
+        />
+        <span style={{
+          ...styles.viewFilterText,
+          color: viewFilter === 'all' ? '#007bff' : '#6c757d',
+          fontWeight: viewFilter === 'all' ? '600' : '400',
+        }}>
+          View All
+        </span>
+      </label>
 
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="personal"
-            checked={viewFilter === 'personal'}
-            onChange={(e) => {
-              setViewFilter(e.target.value);
-              setCurrentPage(1); // Add this
-              fetchEvents({
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: searchQuery || undefined,
-                page: 1 // Add this
-              });
-            }}
-            style={{ cursor: 'pointer' }}
-          />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'personal' ? '600' : '400',
-          }}>
-            Personal
-          </span>
-        </label>
-      </div>
-    );
-  };
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="personal"
+          checked={viewFilter === 'personal'}
+          onChange={(e) => {
+            const newViewFilter = e.target.value;
+            setViewFilter(newViewFilter);
+            setCurrentPage(1);
+            fetchEvents({
+              status: selectedStatus !== 'all' ? selectedStatus : undefined,
+              event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+              search: searchQuery || undefined,
+              page: 1,
+              personal: true // Add personal filter for "Personal" view
+            });
+          }}
+          style={{ cursor: 'pointer' }}
+        />
+        <span style={{
+          ...styles.viewFilterText,
+          color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
+          fontWeight: viewFilter === 'personal' ? '600' : '400',
+        }}>
+          Personal
+        </span>
+      </label>
+    </div>
+  );
+};
+
   // MobileEventCard Component - FIXED
   const MobileEventCard = ({ event }) => {
     const dayOfWeek = event.day || 'Not set';
@@ -1509,44 +1576,46 @@ const applyFilters = (filters) => {
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default }}>
       <div style={styles.topSection}>
         <EventTypeSelector />
-        <div style={styles.searchFilterRow}>
-          <input
-            type="text"
-            placeholder="Search by Event Name or Event Leader..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleSearchSubmit();
-              }
-            }}
-            style={styles.searchInput}
-          />
-          <button
-            style={styles.filterButton}
-            onClick={handleSearchSubmit}
-          >
-            SEARCH
-          </button>
+<div style={styles.searchFilterRow}>
+  <input
+    type="text"
+    placeholder="Search by Event Name, Leader, or Email..."
+    value={searchQuery}
+    onChange={handleSearchChange}
+    onKeyPress={(e) => {
+      if (e.key === 'Enter') {
+        handleSearchSubmit();
+      }
+    }}
+    style={styles.searchInput}
+  />
+  <button
+    style={styles.filterButton}
+    onClick={handleSearchSubmit}
+    disabled={isLoading}
+  >
+    {isLoading ? '⏳' : 'SEARCH'}
+  </button>
 
-          {/* Add CLEAR button */}
-          <button
-            style={{ ...styles.filterButton, backgroundColor: '#6c757d' }}
-            onClick={handleClearSearch}
-            disabled={isLoading || !searchQuery}
-          >
-            CLEAR
-          </button>
-
-          <button
-            style={{ ...styles.filterButton, backgroundColor: '#28a745' }}
-            onClick={() => fetchEvents({ page: 1 }, true)}
-            disabled={isLoading}
-          >
-            {isLoading ? '🔄' : '🔄 REFRESH'}
-          </button>
-        </div>
-
+  <button
+    style={{ ...styles.filterButton, backgroundColor: '#dc3545' }}
+    onClick={() => {
+      console.log('🧹 Clearing search');
+      setSearchQuery('');
+      setCurrentPage(1);
+      fetchEvents({ 
+        page: 1,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: undefined
+      }, true);
+    }}
+    disabled={isLoading}
+  >
+    {isLoading ? '⏳' : 'CLEAR'}
+  </button>
+</div>
         <div style={styles.viewFilterRow}>
           <StatusBadges />
           <ViewFilterButtons />
