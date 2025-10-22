@@ -48,6 +48,7 @@ function App() {
   const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
 
   const [showSplash, setShowSplash] = useState(true);
+  const [splashFinished, setSplashFinished] = useState(false);
 
   const noLayoutRoutes = ["/login", "/signup", "/forgot-password", "/reset-password"];
   const hideLayout = noLayoutRoutes.includes(location.pathname);
@@ -58,21 +59,33 @@ function App() {
       userRole: user?.role,
       loading,
       showSplash,
+      splashFinished,
       currentPath: location.pathname,
       shouldRedirect: !loading && !user && !showSplash
     });
-  }, [user, loading, showSplash, location.pathname]);
+  }, [user, loading, showSplash, splashFinished, location.pathname]);
 
+  // Handle splash screen completion
+  const handleSplashFinish = () => {
+    setSplashFinished(true);
+  };
+
+  // Only hide splash when both splash animation is done AND auth is loaded
+  useEffect(() => {
+    if (splashFinished && !loading) {
+      setShowSplash(false);
+    }
+  }, [splashFinished, loading]);
+
+  // Show splash screen while waiting for auth or splash animation
   if (showSplash) {
     return (
       <SplashScreen
-        onFinish={() => setShowSplash(false)}
+        onFinish={handleSplashFinish}
         duration={6000}
       />
     );
   }
-
-  if (loading) return null; 
 
   return (
     <ThemeProvider theme={theme}>
