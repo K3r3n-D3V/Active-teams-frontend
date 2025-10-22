@@ -1014,80 +1014,114 @@ const applyFilters = (filters) => {
   }, true);
 };
 
-  const handleAttendanceSubmit = async (data) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      const eventId = selectedEvent._id;
-      const eventName = selectedEvent.eventName || 'Event';
+const handleAttendanceSubmit = async (data) => {
+  try {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+    const eventId = selectedEvent._id;
+    const eventName = selectedEvent.eventName || 'Event';
 
-      const leaderEmail = currentUser?.email || '';
-      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
+    const leaderEmail = currentUser?.email || '';
+    const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
-      let payload;
+    console.log("🎯 Submitting attendance for event:", eventName);
+    console.log("📦 Submission data:", data);
 
-      if (data === "did_not_meet") {
-        payload = {
-          attendees: [],
-          leaderEmail,
-          leaderName,
-          did_not_meet: true,
-        };
-      } else if (Array.isArray(data)) {
-        payload = {
-          attendees: data,
-          leaderEmail,
-          leaderName,
-          did_not_meet: false,
-        };
-      } else {
-        payload = data;
-      }
+    let payload;
+    let endpoint = `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`;
 
-      const response = await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        payload,
-        { headers }
-      );
-
-      await fetchEvents();
-
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-
-      setSnackbar({
-        open: true,
-        message: payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
-
-      return { success: true, message: "Attendance submitted successfully" };
-
-    } catch (error) {
-      console.error("❌ Error in handleAttendanceSubmit:", error);
-      const errData = error.response?.data;
-      let errorMessage = error.message;
-
-      if (errData) {
-        if (Array.isArray(errData?.errors)) {
-          errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
-        } else {
-          errorMessage = errData.detail || errData.message || JSON.stringify(errData);
-        }
-      }
-
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
-
-      return { success: false, message: errorMessage };
+    // Handle "Did Not Meet" case
+    if (data === "did_not_meet") {
+      console.log("🚫 Marking event as 'Did Not Meet'");
+      payload = {
+        attendees: [],
+        leaderEmail,
+        leaderName,
+        did_not_meet: true,
+        isTicketed: selectedEvent?.isTicketed || false
+      };
+    } 
+    // Handle regular attendance data (array of attendees)
+    else if (Array.isArray(data)) {
+      console.log("✅ Submitting regular attendance with", data.length, "attendees");
+      payload = {
+        attendees: data,
+        leaderEmail,
+        leaderName,
+        did_not_meet: false,
+        isTicketed: selectedEvent?.isTicketed || false
+      };
+    } 
+    // Handle case where data is already a complete payload object
+    else {
+      console.log("📋 Using provided payload object");
+      payload = {
+        ...data,
+        leaderEmail: data.leaderEmail || leaderEmail,
+        leaderName: data.leaderName || leaderName,
+        did_not_meet: data.did_not_meet || false,
+        isTicketed: data.isTicketed || selectedEvent?.isTicketed || false
+      };
     }
-  };
 
+    console.log("📤 Final payload:", payload);
+
+    const response = await axios.put(endpoint, payload, { headers });
+
+    console.log("✅ Attendance submission successful:", response.data);
+
+    // Refresh events to see the changes
+    await fetchEvents();
+
+    // Close modal and reset state
+    setAttendanceModalOpen(false);
+    setSelectedEvent(null);
+
+    // Show success message
+    const successMessage = payload.did_not_meet
+      ? `${eventName} successfully marked as 'Did Not Meet'.`
+      : `Successfully captured attendance for ${eventName} with ${payload.attendees?.length || 0} attendees`;
+
+    setSnackbar({
+      open: true,
+      message: successMessage,
+      severity: "success",
+    });
+
+    return { success: true, message: "Attendance submitted successfully" };
+
+  } catch (error) {
+    console.error("❌ Error in handleAttendanceSubmit:", error);
+    
+    // Enhanced error logging
+    console.error("Error details:", {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+
+    const errData = error.response?.data;
+    let errorMessage = "Failed to submit attendance. Please try again.";
+
+    if (errData) {
+      if (Array.isArray(errData?.errors)) {
+        errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+      } else {
+        errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: "error",
+    });
+
+    return { success: false, message: errorMessage };
+  }
+};
   const handleEditEvent = (event) => {
     setSelectedEvent(event);
     setEditModalOpen(true);

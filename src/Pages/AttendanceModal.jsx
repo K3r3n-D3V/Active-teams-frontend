@@ -86,80 +86,83 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     }
   };
 
-  const handleSubmit = async (leaderInfo) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
+const handleSubmit = async (leaderInfo) => {
+  try {
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
 
-      const personData = {
-        Name: formData.name,
-        Surname: formData.surname,
-        Email: formData.email,
-        Phone: formData.mobile,
-        Gender: formData.gender,
-        DateOfBirth: formData.dob,
-        Address: formData.address,
-        InvitedBy: formData.invitedBy,
-        ...leaderInfo // Add leader info from the second modal
-      };
+    const personData = {
+      Name: formData.name,
+      Surname: formData.surname,
+      Email: formData.email,
+      Phone: formData.mobile,
+      Gender: formData.gender,
+      DateOfBirth: formData.dob,
+      Address: formData.address,
+      InvitedBy: formData.invitedBy,
+      // Add all leader fields
+      "Leader @1": leaderInfo.leader1 || "",
+      "Leader @12": leaderInfo.leader12 || "",
+      "Leader @144": leaderInfo.leader144 || "",
+    };
 
-      const response = await fetch(`${BACKEND_URL}/people`, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(personData),
+    const response = await fetch(`${BACKEND_URL}/people`, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(personData),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      setAlert({
+        open: true,
+        type: "success",
+        message: "Person added successfully!",
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setAlert({
-          open: true,
-          type: "success",
-          message: "Person added successfully!",
-        });
-
-        if (typeof onPersonAdded === "function") {
-          onPersonAdded(data);
-        }
-
-        setTimeout(() => {
-          onClose();
-          setFormData({
-            invitedBy: "",
-            name: "",
-            surname: "",
-            gender: "",
-            email: "",
-            mobile: "",
-            dob: "",
-            address: "",
-          });
-          setInviterSearch("");
-          setInviterResults([]);
-          setShowLeaderModal(false);
-        }, 1500);
-      } else {
-        const error = await response.json();
-        console.error("Add person error:", error);
-        setAlert({
-          open: true,
-          type: "error",
-          message: error.detail || error.message || "Failed to add person",
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      if (typeof onPersonAdded === "function") {
+        onPersonAdded(data);
       }
-    } catch (error) {
-      console.error("Error adding person:", error);
+
+      setTimeout(() => {
+        onClose();
+        setFormData({
+          invitedBy: "",
+          name: "",
+          surname: "",
+          gender: "",
+          email: "",
+          mobile: "",
+          dob: "",
+          address: "",
+        });
+        setInviterSearch("");
+        setInviterResults([]);
+        setShowLeaderModal(false);
+      }, 1500);
+    } else {
+      const error = await response.json();
+      console.error("Add person error:", error);
       setAlert({
         open: true,
         type: "error",
-        message: "Something went wrong while adding person.",
+        message: error.detail || error.message || "Failed to add person",
       });
       setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
-  };
+  } catch (error) {
+    console.error("Error adding person:", error);
+    setAlert({
+      open: true,
+      type: "error",
+      message: "Something went wrong while adding person.",
+    });
+    setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+  }
+};
 
   const handleClose = () => {
     setFormData({
@@ -500,28 +503,114 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 };
 
 // Second Modal - Leader Selection
-const LeaderSelectionModal = ({ isOpen, onBack, onSubmit }) => {
-  const [selectedLeader, setSelectedLeader] = useState("");
-  const [leaders] = useState([
-    { id: 1, name: "Leader @1" },
-    { id: 12, name: "Leader @12" },
-    { id: 144, name: "Leader @144" }
-  ]);
+// Second Modal - Leader Selection
+// Second Modal - Leader Selection
+const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData }) => {
+  const [leaderData, setLeaderData] = useState({
+    leader1: "",
+    leader12: "", 
+    leader144: ""
+    
+  });
 
-  if (!isOpen) return null;
+  const [leaderSearches, setLeaderSearches] = useState({
+    leader1: "",
+    leader12: "",
+    leader144: ""
+  });
 
-  const handleSave = () => {
-    // Prepare leader info based on selection
-    const leaderInfo = {};
-    if (selectedLeader === "Leader @1") {
-      leaderInfo.leader1 = selectedLeader;
-    } else if (selectedLeader === "Leader @12") {
-      leaderInfo.leader12 = selectedLeader;
-    } else if (selectedLeader === "Leader @144") {
-      leaderInfo.leader144 = selectedLeader;
+  const [leaderResults, setLeaderResults] = useState({
+    leader1: [],
+    leader12: [],
+    leader144: []
+  });
+
+  const [showDropdowns, setShowDropdowns] = useState({
+    leader1: false,
+    leader12: false,
+    leader144: false,
+  });
+
+  const [loadingLeaders, setLoadingLeaders] = useState(false);
+
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
+
+  // Fetch leaders from People database
+  const fetchLeaders = async (searchTerm, leaderField) => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setLeaderResults(prev => ({ ...prev, [leaderField]: [] }));
+      return;
     }
 
-    onSubmit(leaderInfo);
+    try {
+      setLoadingLeaders(true);
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const params = new URLSearchParams();
+      params.append("name", searchTerm);
+      params.append("perPage", "20");
+
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+      const data = await res.json();
+      const peopleArray = data.people || data.results || [];
+
+      const formatted = peopleArray.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p.leader1 || "",
+        leader12: p["Leader @12"] || p.leader12 || "",
+        leader144: p["Leader @144"] || p.leader144 || "",
+      }));
+
+      setLeaderResults(prev => ({ ...prev, [leaderField]: formatted }));
+    } catch (err) {
+      console.error("Error fetching leaders:", err);
+    } finally {
+      setLoadingLeaders(false);
+    }
+  };
+
+  // Debounced search for each leader field
+  useEffect(() => {
+    const delays = {};
+    
+    Object.keys(leaderSearches).forEach(field => {
+      if (delays[field]) clearTimeout(delays[field]);
+      
+      delays[field] = setTimeout(() => {
+        if (leaderSearches[field].length >= 2) {
+          fetchLeaders(leaderSearches[field], field);
+        }
+      }, 300);
+    });
+
+    return () => {
+      Object.values(delays).forEach(delay => clearTimeout(delay));
+    };
+  }, [leaderSearches]);
+
+  const handleLeaderSelect = (person, leaderField) => {
+    setLeaderData(prev => ({
+      ...prev,
+      [leaderField]: person.fullName
+    }));
+    setLeaderSearches(prev => ({
+      ...prev,
+      [leaderField]: person.fullName
+    }));
+    setShowDropdowns(prev => ({ ...prev, [leaderField]: false }));
+  };
+
+  const handleLeaderSearchChange = (value, leaderField) => {
+    setLeaderSearches(prev => ({ ...prev, [leaderField]: value }));
+    setLeaderData(prev => ({ ...prev, [leaderField]: value }));
+    setShowDropdowns(prev => ({ ...prev, [leaderField]: true }));
+  };
+
+  const handleSave = () => {
+    onSubmit(leaderData);
   };
 
   const styles = {
@@ -562,28 +651,56 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit }) => {
       borderBottom: '1px solid #e0e0e0',
       paddingBottom: '10px'
     },
-    leaderList: {
+    form: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '12px',
-      marginBottom: '30px',
+      gap: '16px',
     },
-    leaderOption: {
-      padding: '15px',
-      border: '2px solid #e0e0e0',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-      backgroundColor: '#fff',
+    inputGroup: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      position: 'relative',
     },
-    leaderOptionSelected: {
-      borderColor: '#6366f1',
-      backgroundColor: '#f0f4ff',
+    label: {
+      fontSize: "14px",
+      fontWeight: "500",
+      color: "#555",
     },
-    leaderName: {
-      fontWeight: '600',
-      color: '#333',
-      fontSize: '16px',
+    input: {
+      padding: "12px",
+      fontSize: "16px",
+      borderRadius: "8px",
+      border: "1px solid #ddd",
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
+    },
+    dropdown: {
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      marginTop: "4px",
+      background: "#fff",
+      border: "1px solid #ddd",
+      borderRadius: "8px",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      zIndex: 1000,
+      maxHeight: "200px",
+      overflowY: "auto",
+    },
+    dropdownItem: {
+      padding: "12px",
+      cursor: "pointer",
+      borderBottom: "1px solid #f0f0f0",
+      transition: "background 0.2s",
+    },
+    dropdownEmpty: {
+      padding: "12px",
+      color: "#999",
+      textAlign: "center",
+      fontSize: "14px",
     },
     buttonGroup: {
       display: "flex",
@@ -619,19 +736,41 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit }) => {
       fontWeight: "500",
       minWidth: "120px",
     },
-    disabledBtn: {
-      flex: "1 1 120px",
-      background: "#ccc",
-      color: "#666",
-      border: "none",
-      padding: "12px 16px",
-      borderRadius: "6px",
-      cursor: "not-allowed",
-      fontSize: "16px",
-      fontWeight: "500",
-      minWidth: "120px",
-    }
   };
+
+  // Render dropdown for a specific leader field
+  const renderLeaderDropdown = (leaderField) => {
+    if (!showDropdowns[leaderField] || leaderSearches[leaderField].length < 2) {
+      return null;
+    }
+
+    return (
+      <div style={styles.dropdown}>
+        {loadingLeaders && (
+          <div style={styles.dropdownEmpty}>Loading...</div>
+        )}
+        {!loadingLeaders && leaderResults[leaderField].length === 0 && (
+          <div style={styles.dropdownEmpty}>No people found</div>
+        )}
+        {!loadingLeaders && leaderResults[leaderField].map((person) => (
+          <div
+            key={`${leaderField}-${person.id}`}
+            style={styles.dropdownItem}
+            onClick={() => handleLeaderSelect(person, leaderField)}
+            onMouseEnter={(e) => e.target.style.background = "#f8f9fa"}
+            onMouseLeave={(e) => e.target.style.background = "transparent"}
+          >
+            <div style={{ fontWeight: "500" }}>{person.fullName}</div>
+            <div style={{ fontSize: "12px", color: "#666" }}>
+              {person.email} • {person[leaderField] || `No ${leaderField}`}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  if (!isOpen) return null;
 
   return (
     <div style={styles.overlay}>
@@ -645,44 +784,74 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit }) => {
 
         <div style={{ height: '2px', background: '#e0e0e0', margin: '20px 0' }}></div>
 
-        <div style={styles.leaderList}>
-          {leaders.map((leader) => (
-            <div
-              key={leader.id}
-              style={{
-                ...styles.leaderOption,
-                ...(selectedLeader === leader.name ? styles.leaderOptionSelected : {})
-              }}
-              onClick={() => setSelectedLeader(leader.name)}
-            >
-              <div style={styles.leaderName}>{leader.name}</div>
-            </div>
-          ))}
-        </div>
+        <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
+          {/* Leader @1 Field */}
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Leader @1</label>
+            <input
+              type="text"
+              value={leaderSearches.leader1}
+              onChange={(e) => handleLeaderSearchChange(e.target.value, 'leader1')}
+              onFocus={() => setShowDropdowns(prev => ({ ...prev, leader1: true }))}
+              style={styles.input}
+              placeholder="Leader @1..."
+              autoComplete="off"
+            />
+            {renderLeaderDropdown('leader1')}
+          </div>
 
-        <div style={styles.buttonGroup}>
-          <button
-            type="button"
-            style={styles.backBtn}
-            onClick={onBack}
-          >
-            <ArrowLeft size={16} />
-            BACK
-          </button>
-          <button
-            type="button"
-            style={selectedLeader ? styles.saveBtn : styles.disabledBtn}
-            onClick={handleSave}
-            disabled={!selectedLeader}
-          >
-            SAVE
-          </button>
-        </div>
+          {/* Leader @12 Field */}
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Leader @12</label>
+            <input
+              type="text"
+              value={leaderSearches.leader12}
+              onChange={(e) => handleLeaderSearchChange(e.target.value, 'leader12')}
+              onFocus={() => setShowDropdowns(prev => ({ ...prev, leader12: true }))}
+              style={styles.input}
+              placeholder="Leader @12..."
+              autoComplete="off"
+            />
+            {renderLeaderDropdown('leader12')}
+          </div>
+
+          {/* Leader @144 Field */}
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Leader @144</label>
+            <input
+              type="text"
+              value={leaderSearches.leader144}
+              onChange={(e) => handleLeaderSearchChange(e.target.value, 'leader144')}
+              onFocus={() => setShowDropdowns(prev => ({ ...prev, leader144: true }))}
+              style={styles.input}
+              placeholder="Leader @144..."
+              autoComplete="off"
+            />
+            {renderLeaderDropdown('leader144')}
+          </div>
+
+          <div style={styles.buttonGroup}>
+            <button
+              type="button"
+              style={styles.backBtn}
+              onClick={onBack}
+            >
+              <ArrowLeft size={16} />
+              BACK
+            </button>
+            <button
+              type="button"
+              style={styles.saveBtn}
+              onClick={handleSave}
+            >
+              SAVE
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 };
-
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
@@ -755,38 +924,50 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   }, [event]);
 
-  const fetchPeople = async (filter = "") => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
+ const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
 
-      const params = new URLSearchParams();
-      if (filter) params.append("name", filter);
-      params.append("perPage", "100");
-
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "", // ADD THIS
-        leader12: p["Leader @12"] || p.leader12 || "",
-        leader144: p["Leader @144"] || p.leader144 || "",
-        leader1728: p["Leader @1728"] || p.leader1728 || "", // ADD THIS
-        phone: p.Phone || p.phone || "",
-      }));
-
-      setPeople(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-    } finally {
-      setLoading(false);
+    const params = new URLSearchParams();
+    if (filter) params.append("name", filter);
+    
+    // Add leader filters
+    if (leader1) {
+      params.append("leader", leader1);
+    } else if (leader12) {
+      params.append("leader", leader12);
+    } else if (leader144) {
+      params.append("leader", leader144);
+    } else if (leader1728) {
+      params.append("leader", leader1728);
     }
-  };
+    
+    params.append("perPage", "100");
+
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+    const data = await res.json();
+    const peopleArray = data.people || data.results || [];
+
+    const formatted = peopleArray.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p.leader1 || "",
+      leader12: p["Leader @12"] || p.leader12 || "",
+      leader144: p["Leader @144"] || p.leader144 || "",
+      leader1728: p["Leader @1728"] || p.leader1728 || "",
+      phone: p.Phone || p.phone || "",
+    }));
+
+    setPeople(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchCommonAttendees = async (cellId) => {
     try {
@@ -811,6 +992,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       console.error("Failed to fetch common attendees:", err);
     }
   };
+
+
+
 
   // NEW: Save persistent common attendees to localStorage
   const savePersistentCommonAttendees = (attendees) => {
@@ -1018,12 +1202,14 @@ const testLastAttendanceEndpoint = async (eventId) => {
     }
   }, [isOpen, event]);
 
-  useEffect(() => {
-    const delay = setTimeout(() => {
-      if (isOpen && activeTab === 1) fetchPeople(associateSearch);
-    }, 300);
-    return () => clearTimeout(delay);
-  }, [associateSearch, isOpen, activeTab]);
+useEffect(() => {
+  const delay = setTimeout(() => {
+    if (isOpen && activeTab === 1) {
+      fetchPeople(associateSearch, leader1Filter, leader12Filter, leader144Filter, leader1728Filter);
+    }
+  }, 300);
+  return () => clearTimeout(delay);
+}, [associateSearch, isOpen, activeTab, leader1Filter, leader12Filter, leader144Filter, leader1728Filter]);
 
   const handleCheckIn = (id, name) => {
     setCheckedIn((prev) => {
@@ -2018,6 +2204,8 @@ const testLastAttendanceEndpoint = async (eventId) => {
         (person.leader1728 && person.leader1728.toLowerCase().includes(leader1728Filter.toLowerCase())))
   );
 
+
+
   const filteredPeople = people.filter(
     (person) =>
       person.fullName &&
@@ -2052,6 +2240,58 @@ const testLastAttendanceEndpoint = async (eventId) => {
   const totalOwing = Object.keys(checkedIn)
     .filter(id => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
+
+
+
+
+
+    const fetchPeopleWithFilters = async (leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const params = new URLSearchParams();
+    
+    // Add name search if available
+    if (associateSearch) params.append("name", associateSearch);
+    
+    // Add leader filters - your backend expects a single "leader" parameter
+    // that searches across all leader fields
+    if (leader1) {
+      params.append("leader", leader1);
+    } else if (leader12) {
+      params.append("leader", leader12);
+    } else if (leader144) {
+      params.append("leader", leader144);
+    } else if (leader1728) {
+      params.append("leader", leader1728);
+    }
+    
+    params.append("perPage", "100");
+
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+    const data = await res.json();
+    const peopleArray = data.people || data.results || [];
+
+    const formatted = peopleArray.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p.leader1 || "",
+      leader12: p["Leader @12"] || p.leader12 || "",
+      leader144: p["Leader @144"] || p.leader144 || "",
+      leader1728: p["Leader @1728"] || p.leader1728 || "",
+      phone: p.Phone || p.phone || "",
+    }));
+
+    setPeople(formatted);
+  } catch (err) {
+    console.error("Error fetching people with filters:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const renderMobileAttendeeCard = (person) => {
     const isPersistent = persistentCommonAttendees.some(p => p.id === person.id);
@@ -2197,68 +2437,100 @@ const testLastAttendanceEndpoint = async (eventId) => {
       </h1>
 
       {/* NEW: Leader Filter Input Fields */}
-      <div style={styles.filterContainer}>
-        <div style={styles.leaderInputGroup}>
-          <input
-            type="text"
-            placeholder="Leader at 1"
-            value={leader1Filter}
-            onChange={(e) => setLeader1Filter(e.target.value)}
-            style={styles.leaderInput}
-          />
-        </div>
-        <div style={styles.leaderInputGroup}>
-          <input
-            type="text"
-            placeholder="Leader at 12"
-            value={leader12Filter}
-            onChange={(e) => setLeader12Filter(e.target.value)}
-            style={styles.leaderInput}
-          />
-        </div>
-        <div style={styles.leaderInputGroup}>
-          <input
-            type="text"
-            placeholder="Leader at 144"
-            value={leader144Filter}
-            onChange={(e) => setLeader144Filter(e.target.value)}
-            style={styles.leaderInput}
-          />
-        </div>
-        <div style={styles.leaderInputGroup}>
-          <input
-            type="text"
-            placeholder="Leader at 1728"
-            value={leader1728Filter}
-            onChange={(e) => setLeader1728Filter(e.target.value)}
-            style={styles.leaderInput}
-          />
-        </div>
+<div style={styles.filterContainer}>
+  <div style={styles.leaderInputGroup}>
+    <input
+      type="text"
+      placeholder="Leader at 1"
+      value={leader1Filter}
+      onChange={(e) => {
+        setLeader1Filter(e.target.value);
+        // Trigger search when user types
+        if (e.target.value.length >= 2) {
+          fetchPeopleWithFilters(e.target.value, leader12Filter, leader144Filter, leader1728Filter);
+        } else if (e.target.value === "") {
+          // Clear filter and refetch
+          fetchPeopleWithFilters("", leader12Filter, leader144Filter, leader1728Filter);
+        }
+      }}
+      style={styles.leaderInput}
+    />
+  </div>
+  <div style={styles.leaderInputGroup}>
+    <input
+      type="text"
+      placeholder="Leader at 12"
+      value={leader12Filter}
+      onChange={(e) => {
+        setLeader12Filter(e.target.value);
+        if (e.target.value.length >= 2) {
+          fetchPeopleWithFilters(leader1Filter, e.target.value, leader144Filter, leader1728Filter);
+        } else if (e.target.value === "") {
+          fetchPeopleWithFilters(leader1Filter, "", leader144Filter, leader1728Filter);
+        }
+      }}
+      style={styles.leaderInput}
+    />
+  </div>
+  <div style={styles.leaderInputGroup}>
+    <input
+      type="text"
+      placeholder="Leader at 144"
+      value={leader144Filter}
+      onChange={(e) => {
+        setLeader144Filter(e.target.value);
+        if (e.target.value.length >= 2) {
+          fetchPeopleWithFilters(leader1Filter, leader12Filter, e.target.value, leader1728Filter);
+        } else if (e.target.value === "") {
+          fetchPeopleWithFilters(leader1Filter, leader12Filter, "", leader1728Filter);
+        }
+      }}
+      style={styles.leaderInput}
+    />
+  </div>
+  <div style={styles.leaderInputGroup}>
+    <input
+      type="text"
+      placeholder="Leader at 1728"
+      value={leader1728Filter}
+      onChange={(e) => {
+        setLeader1728Filter(e.target.value);
+        if (e.target.value.length >= 2) {
+          fetchPeopleWithFilters(leader1Filter, leader12Filter, leader144Filter, e.target.value);
+        } else if (e.target.value === "") {
+          fetchPeopleWithFilters(leader1Filter, leader12Filter, leader144Filter, "");
+        }
+      }}
+      style={styles.leaderInput}
+    />
+  </div>
 
-        {/* Clear Filters Button */}
-        {(leader1Filter || leader12Filter || leader144Filter || leader1728Filter) && (
-          <button
-            style={styles.clearFilterBtn}
-            onClick={() => {
-              setLeader1Filter("");
-              setLeader12Filter("");
-              setLeader144Filter("");
-              setLeader1728Filter("");
-            }}
-            title="Clear all leader filters"
-          >
-            <X size={16} />
-          </button>
-        )}
+  {/* Clear Filters Button */}
+  {(leader1Filter || leader12Filter || leader144Filter || leader1728Filter) && (
+    <button
+      style={styles.clearFilterBtn}
+      onClick={() => {
+        setLeader1Filter("");
+        setLeader12Filter("");
+        setLeader144Filter("");
+        setLeader1728Filter("");
+        // Refetch without filters
+        fetchPeople();
+      }}
+      title="Clear all leader filters"
+    >
+      <X size={16} />
+    </button>
+  )}
 
-        <button
-          style={styles.addPersonBtn}
-          onClick={() => setShowAddPersonModal(true)}
-        >
-          <UserPlus size={18} />
-          {isMobile ? "Add" : "Add Person"}
-        </button>
-      </div>
+  <button
+    style={styles.addPersonBtn}
+    onClick={() => setShowAddPersonModal(true)}
+  >
+    <UserPlus size={18} />
+    {isMobile ? "Add" : "Add Person"}
+  </button>
+</div>
     </div>
 
     {/* Tabs Navigation */}
