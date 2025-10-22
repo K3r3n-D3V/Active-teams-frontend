@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, UserPlus, X, CheckCircle, ChevronDown, Menu } from "lucide-react";
+import { Search, UserPlus, X, CheckCircle, ChevronDown, Menu, ArrowLeft } from "lucide-react";
 
 const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   const [formData, setFormData] = useState({
@@ -17,6 +17,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   const [inviterResults, setInviterResults] = useState([]);
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
   const [loadingInviters, setLoadingInviters] = useState(false);
+  const [showLeaderModal, setShowLeaderModal] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -32,8 +33,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      // FIXED: Change from "search" to "name" parameter
-      params.append("name", searchTerm);  // ← CHANGE THIS LINE
+      params.append("name", searchTerm);
       params.append("perPage", "20");
 
       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
@@ -67,9 +67,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     setShowInviterDropdown(false);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
+  const validateForm = () => {
     if (!formData.name || !formData.surname || !formData.email) {
       setAlert({
         open: true,
@@ -77,9 +75,18 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         message: "Please fill in required fields (Name, Surname, Email)",
       });
       setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-      return;
+      return false;
     }
+    return true;
+  };
 
+  const handleNext = () => {
+    if (validateForm()) {
+      setShowLeaderModal(true);
+    }
+  };
+
+  const handleSubmit = async (leaderInfo) => {
     try {
       const token = localStorage.getItem("token");
       const headers = {
@@ -87,19 +94,22 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         Authorization: `Bearer ${token}`,
       };
 
+      const personData = {
+        Name: formData.name,
+        Surname: formData.surname,
+        Email: formData.email,
+        Phone: formData.mobile,
+        Gender: formData.gender,
+        DateOfBirth: formData.dob,
+        Address: formData.address,
+        InvitedBy: formData.invitedBy,
+        ...leaderInfo // Add leader info from the second modal
+      };
+
       const response = await fetch(`${BACKEND_URL}/people`, {
         method: "POST",
         headers: headers,
-        body: JSON.stringify({
-          Name: formData.name,
-          Surname: formData.surname,
-          Email: formData.email,
-          Phone: formData.mobile,
-          Gender: formData.gender,
-          DateOfBirth: formData.dob,
-          Address: formData.address,
-          InvitedBy: formData.invitedBy,
-        }),
+        body: JSON.stringify(personData),
       });
 
       if (response.ok) {
@@ -128,6 +138,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
           });
           setInviterSearch("");
           setInviterResults([]);
+          setShowLeaderModal(false);
         }, 1500);
       } else {
         const error = await response.json();
@@ -148,6 +159,23 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       });
       setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
+  };
+
+  const handleClose = () => {
+    setFormData({
+      invitedBy: "",
+      name: "",
+      surname: "",
+      gender: "",
+      email: "",
+      mobile: "",
+      dob: "",
+      address: "",
+    });
+    setInviterSearch("");
+    setInviterResults([]);
+    setShowLeaderModal(false);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -180,6 +208,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       fontWeight: "600",
       marginBottom: "20px",
       color: "#333",
+      textAlign: "center",
     },
     form: {
       display: "flex",
@@ -262,9 +291,9 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       fontWeight: "500",
       minWidth: "120px",
     },
-    saveBtn: {
+    nextBtn: {
       flex: "1 1 120px",
-      background: "#28a745",
+      background: "#6366f1",
       color: "#fff",
       border: "none",
       padding: "12px 16px",
@@ -274,17 +303,27 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       fontWeight: "500",
       minWidth: "120px",
     },
-    alertWarning: {
-  background: "#ffc107",
-},
   };
 
   return (
     <>
       <div style={styles.overlay}>
         <div style={styles.modal}>
-          <h2 style={styles.title}>Add New Person to Event</h2>
-          <form style={styles.form} onSubmit={handleSubmit}>
+          <h2 style={styles.title}>Create New Person</h2>
+          <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
+            {/* Two-column layout for headers */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '20px',
+              marginBottom: '20px',
+              borderBottom: '1px solid #e0e0e0',
+              paddingBottom: '10px'
+            }}>
+              <div style={{ fontWeight: '600', color: '#333' }}>NEW PERSON INFO</div>
+              <div style={{ fontWeight: '600', color: '#333' }}>LEADER INFO</div>
+            </div>
+
             <div style={styles.inputGroup}>
               <label style={styles.label}>Invited By *</label>
               <input
@@ -346,7 +385,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Gender *</label>
+              <label style={styles.label}>Gender **</label>
               <div style={styles.radioGroup}>
                 <label style={styles.radioLabel}>
                   <input
@@ -413,16 +452,27 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
             </div>
 
             <div style={styles.buttonGroup}>
-              <button type="button" style={styles.closeBtn} onClick={onClose}>
-                CLOSE
+              <button type="button" style={styles.closeBtn} onClick={handleClose}>
+                CANCEL
               </button>
-              <button type="submit" style={styles.saveBtn}>
-                SAVE
+              <button type="button" style={styles.nextBtn} onClick={handleNext}>
+                NEXT
               </button>
             </div>
           </form>
         </div>
       </div>
+
+      {/* Leader Selection Modal */}
+      {showLeaderModal && (
+        <LeaderSelectionModal
+          isOpen={showLeaderModal}
+          onClose={() => setShowLeaderModal(false)}
+          onBack={() => setShowLeaderModal(false)}
+          onSubmit={handleSubmit}
+          personData={formData}
+        />
+      )}
 
       {alert.open && (
         <div
@@ -449,6 +499,190 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   );
 };
 
+// Second Modal - Leader Selection
+const LeaderSelectionModal = ({ isOpen, onBack, onSubmit }) => {
+  const [selectedLeader, setSelectedLeader] = useState("");
+  const [leaders] = useState([
+    { id: 1, name: "Leader @1" },
+    { id: 12, name: "Leader @12" },
+    { id: 144, name: "Leader @144" }
+  ]);
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    // Prepare leader info based on selection
+    const leaderInfo = {};
+    if (selectedLeader === "Leader @1") {
+      leaderInfo.leader1 = selectedLeader;
+    } else if (selectedLeader === "Leader @12") {
+      leaderInfo.leader12 = selectedLeader;
+    } else if (selectedLeader === "Leader @144") {
+      leaderInfo.leader144 = selectedLeader;
+    }
+
+    onSubmit(leaderInfo);
+  };
+
+  const styles = {
+    overlay: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10001,
+      padding: "10px",
+    },
+    modal: {
+      background: "#fff",
+      borderRadius: "12px",
+      width: "100%",
+      maxWidth: "500px",
+      maxHeight: "90vh",
+      overflowY: "auto",
+      padding: "20px",
+    },
+    title: {
+      fontSize: "clamp(20px, 4vw, 24px)",
+      fontWeight: "600",
+      marginBottom: "20px",
+      color: "#333",
+      textAlign: "center",
+    },
+    headerSection: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '20px',
+      marginBottom: '20px',
+      borderBottom: '1px solid #e0e0e0',
+      paddingBottom: '10px'
+    },
+    leaderList: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+      marginBottom: '30px',
+    },
+    leaderOption: {
+      padding: '15px',
+      border: '2px solid #e0e0e0',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+      backgroundColor: '#fff',
+    },
+    leaderOptionSelected: {
+      borderColor: '#6366f1',
+      backgroundColor: '#f0f4ff',
+    },
+    leaderName: {
+      fontWeight: '600',
+      color: '#333',
+      fontSize: '16px',
+    },
+    buttonGroup: {
+      display: "flex",
+      gap: "12px",
+      marginTop: "24px",
+      flexWrap: "wrap",
+    },
+    backBtn: {
+      flex: "1 1 120px",
+      background: "transparent",
+      border: "1px solid #ddd",
+      color: "#666",
+      padding: "12px 16px",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontSize: "16px",
+      fontWeight: "500",
+      minWidth: "120px",
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px'
+    },
+    saveBtn: {
+      flex: "1 1 120px",
+      background: "#28a745",
+      color: "#fff",
+      border: "none",
+      padding: "12px 16px",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontSize: "16px",
+      fontWeight: "500",
+      minWidth: "120px",
+    },
+    disabledBtn: {
+      flex: "1 1 120px",
+      background: "#ccc",
+      color: "#666",
+      border: "none",
+      padding: "12px 16px",
+      borderRadius: "6px",
+      cursor: "not-allowed",
+      fontSize: "16px",
+      fontWeight: "500",
+      minWidth: "120px",
+    }
+  };
+
+  return (
+    <div style={styles.overlay}>
+      <div style={styles.modal}>
+        <h2 style={styles.title}>Create New Person</h2>
+
+        <div style={styles.headerSection}>
+          <div style={{ fontWeight: '600', color: '#999' }}>NEW PERSON INFO</div>
+          <div style={{ fontWeight: '600', color: '#333' }}>LEADER INFO</div>
+        </div>
+
+        <div style={{ height: '2px', background: '#e0e0e0', margin: '20px 0' }}></div>
+
+        <div style={styles.leaderList}>
+          {leaders.map((leader) => (
+            <div
+              key={leader.id}
+              style={{
+                ...styles.leaderOption,
+                ...(selectedLeader === leader.name ? styles.leaderOptionSelected : {})
+              }}
+              onClick={() => setSelectedLeader(leader.name)}
+            >
+              <div style={styles.leaderName}>{leader.name}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={styles.buttonGroup}>
+          <button
+            type="button"
+            style={styles.backBtn}
+            onClick={onBack}
+          >
+            <ArrowLeft size={16} />
+            BACK
+          </button>
+          <button
+            type="button"
+            style={selectedLeader ? styles.saveBtn : styles.disabledBtn}
+            onClick={handleSave}
+            disabled={!selectedLeader}
+          >
+            SAVE
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
@@ -462,7 +696,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [paidAmounts, setPaidAmounts] = useState({});
   const [openPriceTierDropdown, setOpenPriceTierDropdown] = useState(null);
   const [openPaymentDropdown, setOpenPaymentDropdown] = useState(null);
-
   const [people, setPeople] = useState([]);
   const [commonAttendees, setCommonAttendees] = useState([]);
   const [searchName, setSearchName] = useState("");
@@ -474,7 +707,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [didNotMeet, setDidNotMeet] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-
+  const [leader1Filter, setLeader1Filter] = useState("");
+  const [leader12Filter, setLeader12Filter] = useState("");
+  const [leader144Filter, setLeader144Filter] = useState("");
+  const [leader1728Filter, setLeader1728Filter] = useState("");
   const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
   // NEW: Persistent storage for common attendees
   const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
@@ -526,8 +762,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      // FIXED: Change from "search" to "name" parameter
-      if (filter) params.append("name", filter);  // ← CHANGE THIS LINE
+      if (filter) params.append("name", filter);
       params.append("perPage", "100");
 
       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
@@ -538,8 +773,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         id: p._id,
         fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
         email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p.leader1 || "", // ADD THIS
         leader12: p["Leader @12"] || p.leader12 || "",
         leader144: p["Leader @144"] || p.leader144 || "",
+        leader1728: p["Leader @1728"] || p.leader1728 || "", // ADD THIS
         phone: p.Phone || p.phone || "",
       }));
 
@@ -583,60 +820,203 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  // REPLACE THIS useEffect:
-useEffect(() => {
-  if (isOpen) {
-    fetchPeople();
+const loadExistingAttendance = async () => {
+  if (!event) return;
+
+  const eventId = event._id || event.id;
+  
+  console.log("📥 Loading attendance data for event:", eventId);
+  console.log("   Event status:", event.status);
+  console.log("   Event attendees count:", event.attendees?.length || 0);
+
+  // ✅ CHECK 1: Does this event have CURRENT WEEK's attendance captured?
+  const hasCurrentWeekData = 
+    event.status === 'complete' || 
+    event.status === 'did_not_meet' ||
+    (event.attendees && event.attendees.length > 0);
+
+  if (hasCurrentWeekData) {
+    // ✅ CURRENT WEEK HAS DATA: Load it normally (CHECKED)
+    console.log("✅ Current week HAS data - loading checked state");
+    
+    const newCheckedIn = {};
+    const newDecisions = {};
+    const newDecisionTypes = {};
+    const newPriceTiers = {};
+    const newPaymentMethods = {};
+    const newPaidAmounts = {};
+
+    if (event.attendees && Array.isArray(event.attendees)) {
+      event.attendees.forEach(attendee => {
+        if (attendee.id) {
+          newCheckedIn[attendee.id] = true; // ✅ CHECKED
+
+          if (attendee.decision) {
+            newDecisions[attendee.id] = true;
+            newDecisionTypes[attendee.id] = attendee.decision;
+          }
+
+          if (isTicketedEvent) {
+            if (attendee.priceTier) {
+              newPriceTiers[attendee.id] = {
+                name: attendee.priceTier,
+                price: attendee.price || 0,
+                ageGroup: attendee.ageGroup || "",
+                memberType: attendee.memberType || ""
+              };
+            }
+            if (attendee.paymentMethod) {
+              newPaymentMethods[attendee.id] = attendee.paymentMethod;
+            }
+            if (attendee.paid !== undefined) {
+              newPaidAmounts[attendee.id] = attendee.paid;
+            }
+          }
+        }
+      });
+    }
+
+    setCheckedIn(newCheckedIn);
+    setDecisions(newDecisions);
+    setDecisionTypes(newDecisionTypes);
+    setPriceTiers(newPriceTiers);
+    setPaymentMethods(newPaymentMethods);
+    setPaidAmounts(newPaidAmounts);
+
+    if (event.totalHeadcount) {
+      setManualHeadcount(event.totalHeadcount.toString());
+    }
+
+    if (event.did_not_meet) {
+      setDidNotMeet(true);
+    }
+
+    console.log("✅ Loaded current week state (checked):", {
+      checkedCount: Object.keys(newCheckedIn).length
+    });
+
+  } else {
+    // ✅ NEW WEEK: Fetch last week's attendees (UNCHECKED)
+    console.log("🆕 New week detected - fetching last week's attendees (unchecked)");
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${BACKEND_URL}/events/${eventId}/last-attendance`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.has_previous_attendance && data.attendees) {
+          console.log("📋 Found previous week's attendees:", data.attendees.length);
+          console.log("   Last week:", data.last_week);
+          
+          // ✅ Add to persistent common attendees (but UNCHECKED)
+          const previousAttendees = data.attendees.map(attendee => ({
+            id: attendee.id,
+            fullName: attendee.name || attendee.fullName || "",
+            email: attendee.email || "",
+            leader12: attendee.leader12 || "",
+            leader144: attendee.leader144 || "",
+            phone: attendee.phone || ""
+          }));
+
+          // Merge with existing persistent attendees (avoid duplicates)
+          const merged = [...persistentCommonAttendees];
+          previousAttendees.forEach(prevAttendee => {
+            if (!merged.some(p => p.id === prevAttendee.id)) {
+              merged.push(prevAttendee);
+            }
+          });
+
+          setPersistentCommonAttendees(merged);
+          savePersistentCommonAttendees(merged);
+
+          console.log("✅ Pre-populated names from last week (UNCHECKED)");
+          
+          // ✅ CRITICAL: Do NOT check them in automatically
+          // User must tick them again for this new week
+          
+        } else {
+          console.log("ℹ️ No previous attendance found - starting fresh");
+        }
+      } else {
+        console.log("⚠️ Could not fetch last attendance:", response.status);
+      }
+    } catch (error) {
+      console.error("❌ Error fetching last attendance:", error);
+    }
+
+    // ✅ Reset all states for new week
     setCheckedIn({});
     setDecisions({});
     setDecisionTypes({});
     setPriceTiers({});
     setPaymentMethods({});
     setPaidAmounts({});
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
     setManualHeadcount("");
     setDidNotMeet(false);
-    setShowMobileMenu(false);
 
-    if (event && event.eventType === "cell") {
-      fetchCommonAttendees(event._id || event.id);
-    } else {
-      setCommonAttendees([]);
-    }
+    console.log("✅ Ready for new week - all states cleared");
   }
-}, [isOpen]);
+};  
 
-// WITH THIS:
-useEffect(() => {
-  if (isOpen && event) {
-    console.log("🎯 Modal opened with event:", event);
+const testLastAttendanceEndpoint = async (eventId) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch(
+      `${BACKEND_URL}/events/${eventId}/last-attendance`,
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
     
-    // Reset search and UI state only
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
-    setShowMobileMenu(false);
+    console.log("🔍 Last attendance endpoint test:", {
+      status: response.status,
+      ok: response.ok
+    });
     
-    // Don't reset attendance data - load existing data instead
-    loadExistingAttendance();
-
-    // Fetch people and common attendees
-    fetchPeople();
-    
-    if (event.eventType === "cell") {
-      fetchCommonAttendees(event._id || event.id);
-    } else {
-      setCommonAttendees([]);
+    if (response.ok) {
+      const data = await response.json();
+      console.log("📊 Last attendance data:", data);
     }
-
-    // Set didNotMeet status based on event data
-    if (event.did_not_meet) {
-      setDidNotMeet(true);
-    }
+  } catch (error) {
+    console.error("❌ Last attendance endpoint error:", error);
   }
-}, [isOpen, event]); 
+};
+
+  useEffect(() => {
+    if (isOpen && event) {
+      console.log("🎯 Modal opened with event:", event);
+
+      // Reset search and UI state only
+      setSearchName("");
+      setAssociateSearch("");
+      setActiveTab(0);
+      setShowMobileMenu(false);
+
+      // Don't reset attendance data - load existing data instead
+      loadExistingAttendance();
+
+      // Fetch people and common attendees
+      fetchPeople();
+
+      if (event.eventType === "cell") {
+        fetchCommonAttendees(event._id || event.id);
+      } else {
+        setCommonAttendees([]);
+      }
+
+      // Set didNotMeet status based on event data
+      if (event.did_not_meet) {
+        setDidNotMeet(true);
+      }
+    }
+  }, [isOpen, event]);
 
   useEffect(() => {
     const delay = setTimeout(() => {
@@ -1038,71 +1418,6 @@ useEffect(() => {
       setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
   };
-// NEW: Function to load existing attendance data from event
-const loadExistingAttendance = () => {
-  if (!event || !event.attendees || event.attendees.length === 0) {
-    return;
-  }
-
-  console.log("📥 Loading existing attendance data:", event.attendees);
-
-  const newCheckedIn = {};
-  const newDecisions = {};
-  const newDecisionTypes = {};
-  const newPriceTiers = {};
-  const newPaymentMethods = {};
-  const newPaidAmounts = {};
-
-  event.attendees.forEach(attendee => {
-    if (attendee.id) {
-      newCheckedIn[attendee.id] = true;
-      
-      if (attendee.decision) {
-        newDecisions[attendee.id] = true;
-        newDecisionTypes[attendee.id] = attendee.decision;
-      }
-
-      // Load ticketed event data if available
-      if (isTicketedEvent) {
-        if (attendee.priceTier) {
-          newPriceTiers[attendee.id] = {
-            name: attendee.priceTier,
-            price: attendee.price || 0,
-            ageGroup: attendee.ageGroup || "",
-            memberType: attendee.memberType || ""
-          };
-        }
-        if (attendee.paymentMethod) {
-          newPaymentMethods[attendee.id] = attendee.paymentMethod;
-        }
-        if (attendee.paid !== undefined) {
-          newPaidAmounts[attendee.id] = attendee.paid;
-        }
-      }
-    }
-  });
-
-  setCheckedIn(newCheckedIn);
-  setDecisions(newDecisions);
-  setDecisionTypes(newDecisionTypes);
-  setPriceTiers(newPriceTiers);
-  setPaymentMethods(newPaymentMethods);
-  setPaidAmounts(newPaidAmounts);
-
-  // Set manual headcount from event data if available
-  if (event.totalHeadcount) {
-    setManualHeadcount(event.totalHeadcount.toString());
-  }
-
-  console.log("✅ Loaded attendance state:", {
-    checkedIn: newCheckedIn,
-    decisions: newDecisions,
-    decisionTypes: newDecisionTypes,
-    priceTiers: newPriceTiers,
-    paymentMethods: newPaymentMethods,
-    paidAmounts: newPaidAmounts
-  });
-};
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
@@ -1118,6 +1433,7 @@ const loadExistingAttendance = () => {
   if (!isOpen) return null;
 
   const styles = {
+    // ... your existing styles object remains the same
     overlay: {
       position: "fixed",
       top: 0,
@@ -1477,7 +1793,6 @@ const loadExistingAttendance = () => {
       flex: isMobile ? "1 1 100%" : "none",
       minWidth: "120px",
     },
-    // Add these hover effects to your existing button styles
     didNotMeetBtn: {
       background: "#dc3545",
       color: "#fff",
@@ -1490,9 +1805,6 @@ const loadExistingAttendance = () => {
       flex: isMobile ? "1 1 100%" : "none",
       minWidth: "140px",
       transition: "background-color 0.2s",
-      ':hover': {
-        backgroundColor: "#c82333",
-      },
     },
     saveBtn: {
       background: "#28a745",
@@ -1572,7 +1884,6 @@ const loadExistingAttendance = () => {
       fontWeight: "600",
       marginLeft: "8px",
     },
-    // Add these styles to your existing styles object
     confirmOverlay: {
       position: "fixed",
       top: 0,
@@ -1656,6 +1967,38 @@ const loadExistingAttendance = () => {
       minWidth: "140px",
       transition: "all 0.2s",
     },
+    filterContainer: {
+      display: "flex",
+      alignItems: "center",
+      gap: "12px",
+      flexWrap: "wrap",
+    },
+    leaderInputGroup: {
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    leaderInput: {
+      padding: '8px 12px',
+      fontSize: '14px',
+      borderRadius: '6px',
+      border: '1px solid #ddd',
+      backgroundColor: '#fff',
+      color: '#333',
+      width: '120px',
+      outline: 'none',
+      boxSizing: 'border-box',
+    },
+    clearFilterBtn: {
+      background: "transparent",
+      border: "none",
+      cursor: "pointer",
+      color: "#666",
+      padding: "4px",
+      borderRadius: "4px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
   };
 
   // Use combined attendees for display
@@ -1664,15 +2007,31 @@ const loadExistingAttendance = () => {
   const filteredCommonAttendees = allCommonAttendees.filter(
     (person) =>
       person.fullName &&
-      person.fullName.toLowerCase().includes(searchName.toLowerCase())
+      person.fullName.toLowerCase().includes(searchName.toLowerCase()) &&
+      (leader1Filter === "" ||
+        (person.leader1 && person.leader1.toLowerCase().includes(leader1Filter.toLowerCase()))) &&
+      (leader12Filter === "" ||
+        (person.leader12 && person.leader12.toLowerCase().includes(leader12Filter.toLowerCase()))) &&
+      (leader144Filter === "" ||
+        (person.leader144 && person.leader144.toLowerCase().includes(leader144Filter.toLowerCase()))) &&
+      (leader1728Filter === "" ||
+        (person.leader1728 && person.leader1728.toLowerCase().includes(leader1728Filter.toLowerCase())))
   );
 
   const filteredPeople = people.filter(
     (person) =>
       person.fullName &&
-      person.fullName.toLowerCase().includes(associateSearch.toLowerCase())
+      person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) &&
+      (leader1Filter === "" ||
+        (person.leader1 && person.leader1.toLowerCase().includes(leader1Filter.toLowerCase()))) &&
+      (leader12Filter === "" ||
+        (person.leader12 && person.leader12.toLowerCase().includes(leader12Filter.toLowerCase()))) &&
+      (leader144Filter === "" ||
+        (person.leader144 && person.leader144.toLowerCase().includes(leader144Filter.toLowerCase()))) &&
+      (leader1728Filter === "" ||
+        (person.leader1728 && person.leader1728.toLowerCase().includes(leader1728Filter.toLowerCase())))
   );
-
+ 
   const attendeesCount = Object.values(checkedIn).filter(Boolean).length;
   const totalHeadcount = manualHeadcount || Object.keys(checkedIn).length;
   const decisionsCount = Object.values(decisions).filter(Boolean).length;
@@ -1825,82 +2184,118 @@ const loadExistingAttendance = () => {
     );
   };
 
-  // ADD THE MISSING CLOSING BRACE HERE
-  if (!isOpen) return null;
-
   return (
     <>
-      <div style={styles.overlay}>
-        <div style={styles.modal}>
-          <div style={styles.header}>
-            <h1 style={styles.title}>
-              Current Event Information
-              {isTicketedEvent && (
-                <span style={styles.ticketBadge}>Ticketed Event</span>
-              )}
-            </h1>
-            <button
-              style={styles.addPersonBtn}
-              onClick={() => setShowAddPersonModal(true)}
-            >
-              <UserPlus size={18} />
-              {isMobile ? "Add" : "Add Person"}
-            </button>
+  <div style={styles.overlay}>
+  <div style={styles.modal}>
+    <div style={styles.header}>
+      <h1 style={styles.title}>
+        Current Event Information
+        {isTicketedEvent && (
+          <span style={styles.ticketBadge}>Ticketed Event</span>
+        )}
+      </h1>
+
+      {/* NEW: Leader Filter Input Fields */}
+      <div style={styles.filterContainer}>
+        <div style={styles.leaderInputGroup}>
+          <input
+            type="text"
+            placeholder="Leader at 1"
+            value={leader1Filter}
+            onChange={(e) => setLeader1Filter(e.target.value)}
+            style={styles.leaderInput}
+          />
+        </div>
+        <div style={styles.leaderInputGroup}>
+          <input
+            type="text"
+            placeholder="Leader at 12"
+            value={leader12Filter}
+            onChange={(e) => setLeader12Filter(e.target.value)}
+            style={styles.leaderInput}
+          />
+        </div>
+        <div style={styles.leaderInputGroup}>
+          <input
+            type="text"
+            placeholder="Leader at 144"
+            value={leader144Filter}
+            onChange={(e) => setLeader144Filter(e.target.value)}
+            style={styles.leaderInput}
+          />
+        </div>
+        <div style={styles.leaderInputGroup}>
+          <input
+            type="text"
+            placeholder="Leader at 1728"
+            value={leader1728Filter}
+            onChange={(e) => setLeader1728Filter(e.target.value)}
+            style={styles.leaderInput}
+          />
+        </div>
+
+        {/* Clear Filters Button */}
+        {(leader1Filter || leader12Filter || leader144Filter || leader1728Filter) && (
+          <button
+            style={styles.clearFilterBtn}
+            onClick={() => {
+              setLeader1Filter("");
+              setLeader12Filter("");
+              setLeader144Filter("");
+              setLeader1728Filter("");
+            }}
+            title="Clear all leader filters"
+          >
+            <X size={16} />
+          </button>
+        )}
+
+        <button
+          style={styles.addPersonBtn}
+          onClick={() => setShowAddPersonModal(true)}
+        >
+          <UserPlus size={18} />
+          {isMobile ? "Add" : "Add Person"}
+        </button>
+      </div>
+    </div>
+
+    {/* Tabs Navigation */}
+    <div style={styles.tabsContainer}>
+      <button 
+        style={{
+          ...styles.tab,
+          ...(activeTab === 0 ? styles.tabActive : {})
+        }}
+        onClick={() => setActiveTab(0)}
+      >
+        CAPTURE ATTENDEES
+      </button>
+      <button 
+        style={{
+          ...styles.tab,
+          ...(activeTab === 1 ? styles.tabActive : {})
+        }}
+        onClick={() => setActiveTab(1)}
+      >
+        ASSOCIATE PERSON
+      </button>
+    </div>
+
+    <div style={styles.contentArea}>
+      {activeTab === 0 && (
+        <>
+          <div style={styles.searchBox}>
+            <Search size={20} style={styles.searchIcon} />
+            <input
+              type="text"
+              placeholder="Search Person By Name"
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
+              style={styles.input}
+            />
           </div>
-
-          <div style={styles.tabsContainer}>
-            {isMobile && (
-              <button
-                style={styles.mobileMenuButton}
-                onClick={() => setShowMobileMenu(!showMobileMenu)}
-              >
-                <Menu size={20} />
-              </button>
-            )}
-            {(!isMobile || showMobileMenu) && (
-              <>
-                <button
-                  style={{
-                    ...styles.tab,
-                    ...(activeTab === 0 ? styles.tabActive : {}),
-                  }}
-                  onClick={() => {
-                    setActiveTab(0);
-                    if (isMobile) setShowMobileMenu(false);
-                  }}
-                >
-                  CAPTURE ATTENDEES
-                </button>
-                <button
-                  style={{
-                    ...styles.tab,
-                    ...(activeTab === 1 ? styles.tabActive : {}),
-                  }}
-                  onClick={() => {
-                    setActiveTab(1);
-                    if (isMobile) setShowMobileMenu(false);
-                  }}
-                >
-                  ASSOCIATE PERSON
-                </button>
-              </>
-            )}
-          </div>
-
-          <div style={styles.contentArea}>
-            {activeTab === 0 && (
-              <>
-                <div style={styles.searchBox}>
-                  <Search size={20} style={styles.searchIcon} />
-                  <input
-                    type="text"
-                    placeholder="Search Person By Name"
-                    value={searchName}
-                    onChange={(e) => setSearchName(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-
                 {isMobile ? (
                   <div>
                     {loading && (
@@ -2473,6 +2868,6 @@ const loadExistingAttendance = () => {
       />
     </>
   );
-}; // <-- THIS CLOSING BRACE WAS MISSING
+};
 
 export default AttendanceModal;

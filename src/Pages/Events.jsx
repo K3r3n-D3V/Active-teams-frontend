@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 import IconButton from "@mui/material/IconButton";
@@ -15,6 +15,7 @@ import { Box, useMediaQuery } from "@mui/material";
 import Eventsfilter from "./AddPersonToEvents";
 import CreateEvents from "./CreateEvents";
 import EventTypesModal from "./EventTypesModal";
+import EditEventModal from "./EditEventModal";
 
 const styles = {
   container: {
@@ -23,6 +24,7 @@ const styles = {
     padding: "1rem",
     paddingTop: "5rem",
     boxSizing: "border-box",
+    overflow: "hidden",
   },
   topSection: {
     padding: "1.5rem",
@@ -98,14 +100,21 @@ const styles = {
   tableContainer: {
     backgroundColor: "#fff",
     borderRadius: "8px",
-    overflow: "auto",
+    overflow: "hidden",
     boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
     maxWidth: "100%",
+    maxHeight: "calc(100vh - 300px)",
+    display: "flex",
+    flexDirection: "column",
+  },
+  tableWrapper: {
+    overflow: "auto",
+    flex: 1,
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: "1000px",
+    minWidth: "1300px",
   },
   tableHeader: {
     backgroundColor: "#000",
@@ -136,6 +145,7 @@ const styles = {
     display: 'flex',
     gap: '0.5rem',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   openEventIcon: {
     width: '36px',
@@ -151,29 +161,17 @@ const styles = {
     border: 'none',
     fontSize: '18px',
   },
-  editIcon: {
-    color: '#007bff',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
+  truncatedText: {
+    maxWidth: '150px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
-  deleteIcon: {
-    color: '#dc3545',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-  },
-  floatingAddButton: {
-    position: "fixed",
-    bottom: "20px",
-    right: "20px",
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "50px",
-    padding: "0.75rem 1.25rem",
-    fontSize: "1.5rem",
-    cursor: "pointer",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    zIndex: 1000,
+  emailText: {
+    maxWidth: '180px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   modalOverlay: {
     position: 'fixed',
@@ -243,18 +241,12 @@ const styles = {
     marginBottom: "0.5rem",
     animation: "pulse 1.5s ease-in-out infinite",
   },
-  eventsCounter: {
-    padding: '1rem',
-    textAlign: 'center',
-    fontSize: '0.875rem',
-  },
   overdueLabel: {
     color: 'red',
     fontSize: '0.8rem',
     marginTop: '0.2rem',
     fontWeight: 'bold',
   },
-  // Mobile card styles
   mobileCard: {
     backgroundColor: '#fff',
     borderRadius: '8px',
@@ -310,18 +302,49 @@ const styles = {
     fontSize: '1.1rem',
     transition: 'all 0.2s ease',
   },
-  // Text truncation for long names
-  truncatedText: {
-    maxWidth: '200px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+  paginationButton: {
+    padding: '0.5rem 1rem',
+    border: '1px solid #dee2e6',
+    backgroundColor: '#fff',
+    cursor: 'pointer',
+    borderRadius: '4px',
   },
-  emailText: {
-    maxWidth: '180px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+  paginationButtonDisabled: {
+    backgroundColor: '#f8f9fa',
+    color: '#6c757d',
+    cursor: 'not-allowed',
+  },
+  rowsSelect: {
+    padding: '0.25rem 0.5rem',
+    border: '1px solid #dee2e6',
+    borderRadius: '4px',
+    backgroundColor: '#fff',
+    fontSize: '0.875rem',
+  },
+  paginationContainer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    padding: '1rem',
+    borderTop: '1px solid #e9ecef',
+    backgroundColor: '#f8f9fa',
+    gap: '1.5rem',
+  },
+  rowsPerPage: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.875rem',
+    color: '#6c757d',
+  },
+  paginationInfo: {
+    fontSize: '0.875rem',
+    color: '#6c757d',
+  },
+  paginationControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.25rem',
   },
 };
 
@@ -478,7 +501,6 @@ const eventTypeStyles = {
 };
 
 const Events = () => {
-  const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -488,7 +510,6 @@ const Events = () => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
   const [showFilter, setShowFilter] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState(null);
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [activeFilters, setActiveFilters] = useState({});
@@ -503,6 +524,10 @@ const Events = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState('all');
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
     return localStorage.getItem("selectedEventType") || '';
   });
@@ -511,6 +536,25 @@ const Events = () => {
   const [hoveredRow, setHoveredRow] = useState(null);
   const [hoveredType, setHoveredType] = useState(null);
   const [viewFilter, setViewFilter] = useState('all');
+  const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+  const [totalEvents, setTotalEvents] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  // const [eventsCache, setEventsCache] = useState({});
+  // const [lastFetchTime, setLastFetchTime] = useState(0);
+
+  const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
+
+
+
+  useEffect(() => {
+    const fetchCurrentUserLeaderAt1 = async () => {
+      const leaderAt1 = await getCurrentUserLeaderAt1();
+      setCurrentUserLeaderAt1(leaderAt1);
+    };
+
+    fetchCurrentUserLeaderAt1();
+  }, []);
 
   useEffect(() => {
     const savedEventTypes = localStorage.getItem("customEventTypes");
@@ -532,210 +576,289 @@ const Events = () => {
     }
   }, [customEventTypes]);
 
-  const fetchEvents = async () => {
-    setLoading(true);
-    
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        console.error("No token found");
-        setLoading(false);
-        return;
-      }
-      
-      const headers = { Authorization: `Bearer ${token}` };
-      const userRole = currentUser?.role;
-      
-      let allEvents = [];
-      
-      try {
-        const eventTypesResponse = await axios.get(`${BACKEND_URL}/event-types`, { headers });
-        const apiCustomTypes = eventTypesResponse.data || [];
-        setCustomEventTypes(apiCustomTypes);
-        setUserCreatedEventTypes(apiCustomTypes);
-        setEventTypes(apiCustomTypes.map(type => type.name));
-      } catch (typeError) {
-        console.error("Failed to load event types:", typeError);
-      }
-      
-      if (userRole === "admin") {
-        try {
-          const response = await axios.get(`${BACKEND_URL}/admin/events/cells`, { headers });
-          allEvents = response.data.events || [];
-        } catch (adminError) {
-          console.error("Admin events fetch failed:", adminError);
-        }
-      } else {
-        try {
-          const response = await axios.get(`${BACKEND_URL}/events/cells-user`, { headers });
-          if (response.data.status === "success") {
-            allEvents = response.data.events || [];
-          }
-        } catch (userError) {
-          console.error("User events fetch failed:", userError);
-        }
-      }
-      
-      // ✅ FILTER OUT EVENTS BEFORE OCTOBER 13TH, 2025
-      const filteredEvents = allEvents.filter(event => {
-        if (!event.date) return false;
-        
-        const eventDate = new Date(event.date);
-        const cutoffDate = new Date('2025-10-13');
-        
-        return eventDate >= cutoffDate;
-      });
-      
-      const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      const sortedEvents = filteredEvents.sort((a, b) => {
-        const dayA = (a.day || '').toLowerCase();
-        const dayB = (b.day || '').toLowerCase();
-        const indexA = dayOrder.indexOf(dayA);
-        const indexB = dayOrder.indexOf(dayB);
-        return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
-      });
-      
-      setEvents(sortedEvents);
-      setFilteredEvents(sortedEvents);
-      
-    } catch (err) {
-      console.error("Fatal error in fetchEvents:", err);
-    } finally {
-      setLoading(false);
+
+  const fetchEvents = async (filters = {}, forceRefresh = false) => {
+  setLoading(true);
+  setIsLoading(true);
+
+  try {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter = 
+      viewFilter === 'personal' && 
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    const params = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      ...filters
+    };
+
+    // Clean up undefined params
+    Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+    console.log('🔍 Fetching events with params:', params);
+    console.log('📄 Current page in fetch:', currentPage);
+    console.log('🎯 Requested page:', filters.page);
+
+    let endpoint = `${BACKEND_URL}/admin/events/cells-debug`;
+    const userRole = currentUser?.role?.toLowerCase();
+    if (userRole === "registrant") endpoint = `${BACKEND_URL}/registrant/events`;
+    if (userRole === "user") endpoint = `${BACKEND_URL}/events/cells-user`;
+
+    const response = await axios.get(endpoint, { headers, params, timeout: 30000 });
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
+
+    console.log("✅ API Response - Total events:", responseData.total_events);
+    console.log("✅ API Response - Current page events:", newEvents.length);
+    console.log("✅ API Response - Page info:", {
+      current_page: responseData.current_page,
+      total_pages: responseData.total_pages,
+      total_events: responseData.total_events
+    });
+
+    // Always replace events when searching or filtering
+    setEvents(newEvents);
+    setFilteredEvents(newEvents);
+
+    // Update pagination info from API response
+    setTotalEvents(responseData.total_events || responseData.total || 0);
+    const calculatedTotalPages = responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1;
+    setTotalPages(calculatedTotalPages);
+
+    // Update current page if explicitly provided in filters
+    if (filters.page !== undefined) {
+      console.log('🔄 Updating current page to:', filters.page);
+      setCurrentPage(filters.page);
     }
-  };
+
+    console.log('📊 Final state:', {
+      currentPage,
+      totalPages: calculatedTotalPages,
+      totalEvents: responseData.total_events || responseData.total || 0
+    });
+
+  } catch (err) {
+    console.error("❌ Error fetching events:", err);
+    setSnackbar({
+      open: true,
+      message: "Failed to load events",
+      severity: "error",
+    });
+    setEvents([]);
+    setFilteredEvents([]);
+  } finally {
+    setLoading(false);
+    setIsLoading(false);
+  }
+};
 
   const isOverdue = (event) => {
     if (event?._is_overdue !== undefined) {
       return event._is_overdue;
     }
-    
+
     if (!event?.date) return false;
-    
+
     const status = (event.status || event.Status || '').toLowerCase().trim();
     const didNotMeet = event.did_not_meet || false;
     const hasBeenCaptured = status === 'complete' || status === 'closed' || status === 'did_not_meet' || didNotMeet;
-    
+
     if (hasBeenCaptured) return false;
-    
+
     const eventDate = new Date(event.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     eventDate.setHours(0, 0, 0, 0);
-    
+
     return eventDate < today;
   };
+  const startIndex = totalEvents > 0 ? ((currentPage - 1) * rowsPerPage) + 1 : 0;
+  const endIndex = Math.min(currentPage * rowsPerPage, totalEvents);
+  const paginatedEvents = events;
 
-  const applyAllFilters = (
-    filters = activeFilters,
-    statusFilter = selectedStatus,
-    search = searchQuery,
-    view = viewFilter
-  ) => {
-    let filtered = events.filter(event => {
-      // ✅ FILTER OUT EVENTS BEFORE OCTOBER 13TH, 2025
-      if (event.date) {
-        const eventDate = new Date(event.date);
-        const cutoffDate = new Date('2025-10-13');
-        if (eventDate < cutoffDate) {
-          return false;
-        }
-      }
+  const handleRowsPerPageChange = (e) => {
+  const newRowsPerPage = Number(e.target.value);
+  console.log('📊 Changing rows per page to:', newRowsPerPage);
+  
+  setRowsPerPage(newRowsPerPage);
+  setCurrentPage(1); // Reset to first page
+  
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
-      // ✅ View Filter - Personal vs All events
-      if (view === 'personal') {
-        const userEmail = currentUser?.email?.toLowerCase().trim();
-        const eventLeaderEmail = (event.eventLeaderEmail || '').toLowerCase().trim();
-        
-        if (eventLeaderEmail !== userEmail) {
-          return false;
-        }
-      }
-
-      // ✅ Event Type Filtering
-      if (selectedEventTypeFilter !== 'all') {
-        const eventEventType = (event.eventType || "").toLowerCase().trim();
-        const selectedType = selectedEventTypeFilter.toLowerCase().trim();
-        
-        if (eventEventType !== selectedType) {
-          return false;
-        }
-      }
-
-      // ✅ FIXED: Consistent status mapping - SIMPLIFIED
-      let mappedStatus = 'incomplete';
-      
-      // Check did_not_meet FIRST (highest priority)
-      if (event.did_not_meet === true) {
-        mappedStatus = 'did_not_meet';
-      }
-      // Then check if it's complete (has attendees or status is complete/closed)
-      else if ((event.attendees && event.attendees.length > 0) || 
-               ['complete', 'closed'].includes((event.status || event.Status || '').toLowerCase().trim())) {
-        mappedStatus = 'complete';
-      }
-      // Otherwise it's incomplete
-      else {
-        mappedStatus = 'incomplete';
-      }
-      
-      // ✅ FIXED: Filter by selected status tab - ONLY filter if not "all"
-      if (statusFilter !== 'all' && mappedStatus !== statusFilter) {
-        return false;
-      }
-      
-      // Search filter
-      if (search) {
-        const searchLower = search.toLowerCase();
-        const matchesSearch = 
-          (event.eventName || "").toLowerCase().includes(searchLower) ||
-          (event.eventLeaderName || "").toLowerCase().includes(searchLower) ||
-          (event.eventLeaderEmail || "").toLowerCase().includes(searchLower);
-        
-        if (!matchesSearch) return false;
-      }
-
-      // Apply additional filters from the filter modal
-      if (filters.eventType && filters.eventType !== selectedEventTypeFilter) {
-        const eventType = (event.eventType || "").toLowerCase().trim();
-        const filterType = filters.eventType.toLowerCase().trim();
-        if (eventType !== filterType) {
-          return false;
-        }
-      }
-
-      if (filters.location && event.location !== filters.location) {
-        return false;
-      }
-
-      if (filters.eventLeader) {
-        const eventLeaderName = event.eventLeaderName ? event.eventLeaderName.trim().toLowerCase() : "";
-        const filterLeader = filters.eventLeader.trim().toLowerCase();
-        if (eventLeaderName !== filterLeader) {
-          return false;
-        }
-      }
-
-      if (filters.recurringDay) {
-        const eventDay = (event.day || '').toLowerCase().trim();
-        const filterDay = filters.recurringDay.toLowerCase().trim();
-        if (eventDay !== filterDay) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    setFilteredEvents(filtered);
-  };
+  // Trigger fetch with new rows per page
+  fetchEvents({
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    search: searchQuery.trim() || undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    page: 1,
+    limit: newRowsPerPage,
+    personal: shouldApplyPersonalFilter ? true : undefined
+  }, true);
+};
 
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
-    applyAllFilters(activeFilters, selectedStatus, value, viewFilter);
+  };
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setCurrentPage(1);
+    fetchEvents({ page: 1 }, true);
   };
 
+
+const handleSearchSubmit = () => {
+  const trimmedSearch = searchQuery.trim();
+  console.log('🔍 Search submitted:', trimmedSearch);
+  
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+  setCurrentPage(1);
+  
+  fetchEvents({
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: trimmedSearch || undefined,
+    personal: shouldApplyPersonalFilter ? true : undefined
+  }, true);
+};
+
+
+const handleStatusClick = (status) => {
+  setSelectedStatus(status);
+  
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+  setCurrentPage(1);
+  
+  fetchEvents({
+    status: status !== 'all' ? status : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: searchQuery || undefined,
+    page: 1,
+    personal: shouldApplyPersonalFilter ? true : undefined
+  });
+};
+
+const handleEventTypeClick = (typeValue) => {
+  setSelectedEventTypeFilter(typeValue);
+  
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+  setCurrentPage(1);
+  
+  fetchEvents({
+    event_type: typeValue !== 'all' ? typeValue : undefined,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    search: searchQuery || undefined,
+    page: 1,
+    personal: shouldApplyPersonalFilter ? true : undefined
+  });
+};
+const handlePreviousPage = () => {
+  if (currentPage > 1 && !isLoading) {
+    const newPage = currentPage - 1;
+    console.log('⬅️ Going to previous page:', newPage);
+    
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter = 
+      viewFilter === 'personal' && 
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    fetchEvents({
+      page: newPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined
+    });
+  }
+};
+
+const handleNextPage = () => {
+  if (currentPage < totalPages && !isLoading) {
+    const newPage = currentPage + 1;
+    console.log('➡️ Going to next page:', newPage);
+    
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter = 
+      viewFilter === 'personal' && 
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    fetchEvents({
+      page: newPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined
+    });
+  }
+};
+
+  // Add this function to fix leaders using your existing backend endpoints
+  const handleFixLeaders = async () => {
+    if (!window.confirm("This will fix missing Leader at 1 assignments for all events. Continue?")) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+
+      // Use the fix-missing-leader-at-1 endpoint
+      const response = await axios.post(
+        `${BACKEND_URL}/admin/events/fix-missing-leader-at-1`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSnackbar({
+        open: true,
+        message: response.data.message,
+        severity: "success",
+      });
+
+      console.log("✅ Fix leaders result:", response.data);
+
+      // Refresh events to see the changes
+      fetchEvents({}, true);
+    } catch (error) {
+      console.error("Error fixing leaders:", error);
+      setSnackbar({
+        open: true,
+        message: "Failed to fix leaders. Please try again.",
+        severity: "error",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+ 
   const handleCreateEventTypeSubmit = async (eventTypeData) => {
     try {
       const token = localStorage.getItem("token");
@@ -753,7 +876,7 @@ const Events = () => {
 
         setSelectedEventTypeObj(newEventType);
         setCurrentSelectedEventType(newEventType.name);
-        
+
         localStorage.setItem('selectedEventTypeObj', JSON.stringify(newEventType));
 
         setCreateEventTypeModalOpen(false);
@@ -772,24 +895,78 @@ const Events = () => {
       localStorage.removeItem("selectedEventType");
     }
   }, [currentSelectedEventType]);
+  // Add this useEffect to debug the issue
+  useEffect(() => {
+    console.log('🔍 CURRENT STATE DEBUG:');
+    console.log('Events length:', events.length);
+    console.log('Filtered Events length:', filteredEvents.length);
+    console.log('Current Page:', currentPage);
+    console.log('Total Pages:', totalPages);
+    console.log('Start Index:', startIndex);
+    console.log('End Index:', endIndex);
+    console.log('Paginated Events length:', paginatedEvents.length);
+    console.log('Search Query:', searchQuery);
+    console.log('Active Filters:', activeFilters);
+  }, [events, filteredEvents, currentPage, totalPages, paginatedEvents]);
+
+ useEffect(() => {
+  console.log('🔄 Main fetch triggered');
+  console.log('👤 Current user:', currentUser?.name, 'Role:', currentUser?.role);
+  console.log('👀 Current view filter:', viewFilter);
+
+  // Determine if we should apply personal filter
+  const shouldApplyPersonalFilter = 
+    viewFilter === 'personal' && 
+    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+  const fetchParams = {
+    page: 1, // Always start from page 1 when filters change
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: searchQuery.trim() || undefined,
+    personal: shouldApplyPersonalFilter ? true : undefined
+  };
+
+  // Clean up undefined params
+  Object.keys(fetchParams).forEach(key => {
+    if (fetchParams[key] === undefined || fetchParams[key] === '' || fetchParams[key] === 'all') {
+      delete fetchParams[key];
+    }
+  });
+
+  console.log('📤 Main fetch params:', fetchParams);
+  
+  // Reset to page 1 when filters change
+  setCurrentPage(1);
+  fetchEvents(fetchParams, true);
+}, [selectedStatus, selectedEventTypeFilter, viewFilter, location.pathname, location.state?.refresh, currentUser?.role]);
+
+  // Debounced search
+  // Remove or modify this useEffect - it's causing the issue
+  // Instead, rely on the search submit button or implement proper debouncing:
 
   useEffect(() => {
-    fetchEvents();
-  }, [location.pathname, location.state?.refresh, location.state?.timestamp]);
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim() !== '') {
+        handleSearchSubmit();
+      } else if (searchQuery.trim() === '' && events.length > 0) {
+        // Only refresh if search was previously active
+        handleSearchSubmit();
+      }
+    }, 800); // Increased debounce time
 
-  const applyFilters = (filters) => {
-    setActiveFilters(filters);
-    applyAllFilters(filters, selectedStatus, searchQuery, viewFilter);
-  };
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   const formatDate = (date) => {
     if (!date) return "Not set";
     const dateObj = new Date(date);
     if (isNaN(dateObj.getTime())) return "Not set";
-    return dateObj.toLocaleDateString("en-GB", { 
-      day: "2-digit", 
-      month: "2-digit", 
-      year: "numeric" 
+    return dateObj.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
     }).replace(/\//g, ' - ');
   };
 
@@ -814,7 +991,29 @@ const Events = () => {
   const handleCloseCreateEventTypeModal = () => {
     setCreateEventTypeModalOpen(false);
   };
-     
+
+const applyFilters = (filters) => {
+  console.log("🔍 APPLYING FILTERS:", filters);
+  
+  setActiveFilters(filters);
+  setCurrentPage(1);
+  
+  // Build search query from filters
+  let searchQuery = '';
+  if (filters.leader) {
+    searchQuery = filters.leader;
+  }
+  
+  fetchEvents({
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: searchQuery || undefined,
+    day: filters.day !== 'all' ? filters.day : undefined
+  }, true);
+};
+
   const handleAttendanceSubmit = async (data) => {
     try {
       const token = localStorage.getItem("token");
@@ -825,13 +1024,9 @@ const Events = () => {
       const leaderEmail = currentUser?.email || '';
       const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
-      console.log("🎯 handleAttendanceSubmit called with:", data);
-
       let payload;
 
-      // ✅ Handle different data formats
       if (data === "did_not_meet") {
-        console.log("🔴 Marking as DID NOT MEET");
         payload = {
           attendees: [],
           leaderEmail,
@@ -839,7 +1034,6 @@ const Events = () => {
           did_not_meet: true,
         };
       } else if (Array.isArray(data)) {
-        console.log("✅ Capturing attendance with", data.length, "attendees");
         payload = {
           attendees: data,
           leaderEmail,
@@ -847,11 +1041,8 @@ const Events = () => {
           did_not_meet: false,
         };
       } else {
-        console.log("📦 Using provided payload:", data);
         payload = data;
       }
-
-      console.log("🚀 Final payload:", payload);
 
       const response = await axios.put(
         `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
@@ -859,17 +1050,14 @@ const Events = () => {
         { headers }
       );
 
-      console.log("✅ Backend response:", response.data);
-      
-      // Refresh events list
       await fetchEvents();
-      
+
       setAttendanceModalOpen(false);
       setSelectedEvent(null);
 
       setSnackbar({
         open: true,
-        message: payload.did_not_meet 
+        message: payload.did_not_meet
           ? `${eventName} marked as 'Did Not Meet'.`
           : `Successfully captured attendance for ${eventName}`,
         severity: "success",
@@ -901,48 +1089,111 @@ const Events = () => {
   };
 
   const handleEditEvent = (event) => {
-    navigate(`/edit-event/${event._id}`);
+    setSelectedEvent(event);
+    setEditModalOpen(true);
   };
 
   const handleDeleteEvent = async (event) => {
-    if (!window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
-      return;
-    }
+    if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.delete(`${BACKEND_URL}/events/${event._id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-    setEvents((prev) => prev.filter((e) => e._id !== event._id));
-    setFilteredEvents((prev) => prev.filter((e) => e._id !== event._id));
-
-    try {
-      const token = localStorage.getItem("token");
-      const baseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
-      
-      await axios.delete(`${baseUrl}/events/${event._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setSnackbar({
-        open: true,
-        message: `"${event.eventName}" deleted successfully!`,
-        severity: 'success'
-      });
-    } catch (err) {
-      console.error("Delete error:", err.response?.data);
-      setSnackbar({
-        open: true,
-        message: `Failed to delete: ${err.response?.data?.detail || err.message}`,
-        severity: 'error'
-      });
+        if (response.status === 200) {
+          fetchEvents();
+          setSnackbar({
+            open: true,
+            message: "Event deleted successfully",
+            severity: "success",
+          });
+        }
+      } catch (error) {
+        console.error("Error deleting event:", error);
+        setSnackbar({
+          open: true,
+          message: "Failed to delete event",
+          severity: "error",
+        });
+      }
     }
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchEvents({
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      search: searchQuery.trim() || undefined
+    });
+  }, [selectedStatus]);
+
+  const handleSaveEvent = async (updatedData) => {
+    try {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const eventId = selectedEvent._id || selectedEvent.id;
+
+      const response = await fetch(`${BACKEND_URL}/events/${eventId}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(updatedData),
+      });
+
+      if (response.ok) {
+        setAlert({
+          open: true,
+          type: "success",
+          message: "Event updated successfully!",
+        });
+
+        fetchEvents();
+
+        setTimeout(() => setAlert({ open: false, type: "success", message: "" }), 3000);
+      } else {
+        throw new Error("Failed to update event");
+      }
+    } catch (error) {
+      console.error("Error updating event:", error);
+      setAlert({
+        open: true,
+        type: "error",
+        message: "Failed to update event",
+      });
+      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+    }
+  };
+
+  const getCurrentUserLeaderAt1 = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(
+        `${BACKEND_URL}/current-user/leader-at-1`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      return response.data.leader_at_1 || '';
+    } catch (error) {
+      console.error('Error getting current user leader at 1:', error);
+      return '';
+    }
+  };
+
+  // EventTypeSelector Component
   const EventTypeSelector = () => {
     const allTypes = ['CELLS', ...eventTypes];
     const isAdmin = currentUser?.role === "admin";
-    
+
     const getDisplayName = (type) => {
       if (type === 'CELLS') return type;
-      if (typeof type === 'string') return type.toUpperCase(); 
-      return (type.name || type).toUpperCase(); 
+      if (typeof type === 'string') return type.toUpperCase();
+      return (type.name || type).toUpperCase();
     };
 
     const getTypeValue = (type) => {
@@ -955,9 +1206,9 @@ const Events = () => {
       selectedEventTypeFilter === 'all'
         ? 'CELLS'
         : eventTypes.find((t) => {
-            const tValue = typeof t === 'string' ? t : t.name;
-            return tValue?.toLowerCase() === selectedEventTypeFilter;
-          }) || selectedEventTypeFilter;
+          const tValue = typeof t === 'string' ? t : t.name;
+          return tValue?.toLowerCase() === selectedEventTypeFilter;
+        }) || selectedEventTypeFilter;
 
     const finalDisplayName =
       typeof selectedDisplayName === 'string'
@@ -991,14 +1242,11 @@ const Events = () => {
                   }}
                   onClick={() => {
                     setSelectedEventTypeFilter(typeValue);
-                    applyAllFilters(
-                      typeValue === 'all'
-                        ? { ...activeFilters, eventType: undefined }
-                        : { ...activeFilters, eventType: typeValue },
-                      selectedStatus,
-                      searchQuery,
-                      viewFilter
-                    );
+                    fetchEvents({
+                      event_type: typeValue !== 'all' ? typeValue : undefined,
+                      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                      search: searchQuery || undefined
+                    });
                   }}
                   onMouseEnter={() => setHoveredType(typeValue)}
                   onMouseLeave={() => setHoveredType(null)}
@@ -1021,37 +1269,112 @@ const Events = () => {
     );
   };
 
+  // StatusBadges Component
   const StatusBadges = () => {
-    // Filter events by selected event type first
-    const eventsForCurrentType = selectedEventTypeFilter === 'all' 
-      ? events 
-      : events.filter(event => {
-          const eventEventType = (event.eventType || "").toLowerCase().trim();
-          const selectedType = selectedEventTypeFilter.toLowerCase().trim();
-          return eventEventType === selectedType;
-        });
+    const [statusCounts, setStatusCounts] = useState({
+      incomplete: 0,
+      complete: 0,
+      did_not_meet: 0
+    });
 
-    const statusCounts = {
-      incomplete: eventsForCurrentType.filter(e => {
-        if (e.did_not_meet === true) return false;
-        if ((e.attendees && e.attendees.length > 0) || 
-            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
-          return false;
+    useEffect(() => {
+      const fetchStatusCounts = async () => {
+        try {
+          const token = localStorage.getItem("token");
+          const headers = { Authorization: `Bearer ${token}` };
+
+          const params = new URLSearchParams();
+
+          if (selectedEventTypeFilter !== 'all') {
+            params.append('event_type', selectedEventTypeFilter);
+          }
+          if (searchQuery && searchQuery.trim() !== '') {
+            params.append('search', searchQuery.trim());
+          }
+
+          let endpoint = '';
+          const userRole = currentUser?.role?.toLowerCase();
+
+          if (userRole === "admin") {
+            endpoint = `${BACKEND_URL}/admin/events/status-counts?${params}`;
+          } else if (userRole === "registrant") {
+            endpoint = `${BACKEND_URL}/registrant/events/status-counts?${params}`;
+          } else {
+            endpoint = `${BACKEND_URL}/events/status-counts?${params}`;
+          }
+
+          const response = await axios.get(endpoint, { headers });
+          setStatusCounts(response.data);
+
+        } catch (error) {
+          console.error("Error fetching status counts:", error);
+          // Fallback to client-side calculation
+          const counts = {
+            incomplete: events.filter(e => e.status === 'incomplete').length,
+            complete: events.filter(e => e.status === 'complete').length,
+            did_not_meet: events.filter(e => e.status === 'did_not_meet').length,
+          };
+          setStatusCounts(counts);
         }
-        return true;
-      }).length,
-      
-      complete: eventsForCurrentType.filter(e => {
-        if (e.did_not_meet === true) return false;
-        return (e.attendees && e.attendees.length > 0) || 
-               ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
-      }).length,
-      
-      did_not_meet: eventsForCurrentType.filter(e => {
-        return e.did_not_meet === true;
-      }).length,
+      };
+
+      fetchStatusCounts();
+    }, [selectedEventTypeFilter, searchQuery, selectedStatus, events.length]);
+
+    // Add this function to debug leader assignment
+    const debugLeaderAssignment = async (leaderAt12Name) => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(
+          `${BACKEND_URL}/debug/leader-check/${encodeURIComponent(leaderAt12Name)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log(`🔍 DEBUG Leader at 12 "${leaderAt12Name}":`, response.data);
+        return response.data;
+      } catch (error) {
+        console.error(`❌ Error debugging leader ${leaderAt12Name}:`, error);
+        return null;
+      }
     };
-      
+
+    // Add this function to bulk debug all missing Leader at 1
+    const debugAllMissingLeaderAt1 = async () => {
+      const eventsWithMissingLeader1 = events.filter(event =>
+        event.leader12 && !event.leader1
+      );
+
+      console.log(`🔍 Found ${eventsWithMissingLeader1.length} events with missing Leader at 1`);
+
+      for (const event of eventsWithMissingLeader1.slice(0, 5)) { // Limit to first 5 for debugging
+        await debugLeaderAssignment(event.leader12);
+      }
+    };
+
+  
+
+    const calculateClientSideCounts = () => {
+      const counts = {
+        incomplete: events.filter(e => {
+          if (e.did_not_meet === true) return false;
+          if ((e.attendees && e.attendees.length > 0) ||
+            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
+            return false;
+          }
+          return true;
+        }).length,
+
+        complete: events.filter(e => {
+          if (e.did_not_meet === true) return false;
+          return (e.attendees && e.attendees.length > 0) ||
+            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
+        }).length,
+
+        did_not_meet: events.filter(e => e.did_not_meet === true).length,
+      };
+
+      setStatusCounts(counts);
+    };
+
     return (
       <div style={styles.statusBadgeContainer}>
         <button
@@ -1060,38 +1383,29 @@ const Events = () => {
             ...styles.statusBadgeIncomplete,
             ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
           }}
-          onClick={() => {
-            setSelectedStatus('incomplete');
-            applyAllFilters(activeFilters, 'incomplete', searchQuery, viewFilter);
-          }}
+          onClick={() => handleStatusClick('incomplete')}
         >
           INCOMPLETE ({statusCounts.incomplete})
         </button>
-        
+
         <button
           style={{
             ...styles.statusBadge,
             ...styles.statusBadgeComplete,
             ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
           }}
-          onClick={() => {
-            setSelectedStatus('complete');
-            applyAllFilters(activeFilters, 'complete', searchQuery, viewFilter);
-          }}
+          onClick={() => handleStatusClick('complete')}
         >
           COMPLETE ({statusCounts.complete})
         </button>
-        
+
         <button
           style={{
             ...styles.statusBadge,
             ...styles.statusBadgeDidNotMeet,
             ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
           }}
-          onClick={() => {
-            setSelectedStatus('did_not_meet');
-            applyAllFilters(activeFilters, 'did_not_meet', searchQuery, viewFilter);
-          }}
+          onClick={() => handleStatusClick('did_not_meet')}
         >
           DID NOT MEET ({statusCounts.did_not_meet})
         </button>
@@ -1099,59 +1413,81 @@ const Events = () => {
     );
   };
 
-  const ViewFilterButtons = () => {
-    return (
-      <div style={styles.viewFilterContainer}>
-        <span style={styles.viewFilterLabel}>View:</span>
-        
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="all"
-            checked={viewFilter === 'all'}
-            onChange={(e) => {
-              setViewFilter(e.target.value);
-              applyAllFilters(activeFilters, selectedStatus, searchQuery, e.target.value);
-            }}
-            style={{ cursor: 'pointer' }}
-          />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'all' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'all' ? '600' : '400',
-          }}>
-            View All
-          </span>
-        </label>
-        
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="personal"
-            checked={viewFilter === 'personal'}
-            onChange={(e) => {
-              setViewFilter(e.target.value);
-              applyAllFilters(activeFilters, selectedStatus, searchQuery, e.target.value);
-            }}
-            style={{ cursor: 'pointer' }}
-          />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'personal' ? '600' : '400',
-          }}>
-            Personal
-          </span>
-        </label>
-      </div>
-    );
-  };
+// ViewFilterButtons Component - FIXED
+// ViewFilterButtons Component - FIXED
+const ViewFilterButtons = () => {
+  return (
+    <div style={styles.viewFilterContainer}>
+      <span style={styles.viewFilterLabel}>View:</span>
 
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="all"
+          checked={viewFilter === 'all'}
+          onChange={(e) => {
+            const newViewFilter = e.target.value;
+            setViewFilter(newViewFilter);
+            setCurrentPage(1);
+            fetchEvents({
+              status: selectedStatus !== 'all' ? selectedStatus : undefined,
+              event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+              search: searchQuery || undefined,
+              page: 1,
+              personal: false // Explicitly set personal to false for "View All"
+            });
+          }}
+          style={{ cursor: 'pointer' }}
+        />
+        <span style={{
+          ...styles.viewFilterText,
+          color: viewFilter === 'all' ? '#007bff' : '#6c757d',
+          fontWeight: viewFilter === 'all' ? '600' : '400',
+        }}>
+          View All
+        </span>
+      </label>
+
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="personal"
+          checked={viewFilter === 'personal'}
+          onChange={(e) => {
+            const newViewFilter = e.target.value;
+            setViewFilter(newViewFilter);
+            setCurrentPage(1);
+            fetchEvents({
+              status: selectedStatus !== 'all' ? selectedStatus : undefined,
+              event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+              search: searchQuery || undefined,
+              page: 1,
+              personal: true // Add personal filter for "Personal" view
+            });
+          }}
+          style={{ cursor: 'pointer' }}
+        />
+        <span style={{
+          ...styles.viewFilterText,
+          color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
+          fontWeight: viewFilter === 'personal' ? '600' : '400',
+        }}>
+          Personal
+        </span>
+      </label>
+    </div>
+  );
+};
+
+  // MobileEventCard Component - FIXED
   const MobileEventCard = ({ event }) => {
     const dayOfWeek = event.day || 'Not set';
-    
+
+    // Determine if we should show leaders - don't show if main leader is Gavin/Vicky Enslin
+    const shouldShowLeaders = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
+
     return (
       <div style={styles.mobileCard}>
         <div style={styles.mobileCardRow}>
@@ -1162,10 +1498,24 @@ const Events = () => {
           <span style={styles.mobileCardLabel}>Leader:</span>
           <span style={styles.mobileCardValue}>{event.eventLeaderName || '-'}</span>
         </div>
-        <div style={styles.mobileCardRow}>
-          <span style={styles.mobileCardLabel}>Leader at 12:</span>
-          <span style={styles.mobileCardValue}>{event.leader12 || '-'}</span>
-        </div>
+
+        {shouldShowLeaders && (
+          <>
+            <div style={styles.mobileCardRow}>
+              <span style={styles.mobileCardLabel}>Leader at 1:</span>
+              <span style={styles.mobileCardValue}>
+                {event.leader1 || '-'}
+              </span>
+            </div>
+            <div style={styles.mobileCardRow}>
+              <span style={styles.mobileCardLabel}>Leader at 12:</span>
+              <span style={styles.mobileCardValue}>
+                {event.leader12 || '-'}
+              </span>
+            </div>
+          </>
+        )}
+
         <div style={styles.mobileCardRow}>
           <span style={styles.mobileCardLabel}>Day:</span>
           <span style={styles.mobileCardValue}>
@@ -1183,7 +1533,7 @@ const Events = () => {
           <span style={styles.mobileCardLabel}>Date:</span>
           <span style={styles.mobileCardValue}>{formatDate(event.date)}</span>
         </div>
-        
+
         <div style={styles.mobileActions}>
           <Tooltip title="Capture Attendance" arrow>
             <button
@@ -1193,6 +1543,7 @@ const Events = () => {
               <CheckBoxIcon />
             </button>
           </Tooltip>
+
           <Tooltip title="Edit Event" arrow>
             <IconButton
               onClick={() => handleEditEvent(event)}
@@ -1202,6 +1553,7 @@ const Events = () => {
               <EditIcon />
             </IconButton>
           </Tooltip>
+
           {isAdmin && (
             <Tooltip title="Delete Event" arrow>
               <IconButton
@@ -1224,24 +1576,46 @@ const Events = () => {
     <div style={{ ...styles.container, backgroundColor: theme.palette.background.default }}>
       <div style={styles.topSection}>
         <EventTypeSelector />
-        <div style={styles.searchFilterRow}>
-          <input
-            type="text"
-            placeholder="Search by Event Name or Event Leader..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            style={styles.searchInput}
-          />
-          <button
-            style={styles.filterButton}
-            onClick={() => setShowFilter(true)}
-            onMouseEnter={(e) => e.target.style.backgroundColor = '#0056b3'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = '#007bff'}
-          >
-            FILTER
-          </button>
-        </div>
+<div style={styles.searchFilterRow}>
+  <input
+    type="text"
+    placeholder="Search by Event Name, Leader, or Email..."
+    value={searchQuery}
+    onChange={handleSearchChange}
+    onKeyPress={(e) => {
+      if (e.key === 'Enter') {
+        handleSearchSubmit();
+      }
+    }}
+    style={styles.searchInput}
+  />
+  <button
+    style={styles.filterButton}
+    onClick={handleSearchSubmit}
+    disabled={isLoading}
+  >
+    {isLoading ? '⏳' : 'SEARCH'}
+  </button>
 
+  <button
+    style={{ ...styles.filterButton, backgroundColor: '#dc3545' }}
+    onClick={() => {
+      console.log('🧹 Clearing search');
+      setSearchQuery('');
+      setCurrentPage(1);
+      fetchEvents({ 
+        page: 1,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: undefined
+      }, true);
+    }}
+    disabled={isLoading}
+  >
+    {isLoading ? '⏳' : 'CLEAR'}
+  </button>
+</div>
         <div style={styles.viewFilterRow}>
           <StatusBadges />
           <ViewFilterButtons />
@@ -1260,196 +1634,289 @@ const Events = () => {
               No events found matching your criteria.
             </div>
           ) : (
-            filteredEvents.map((event) => (
-              <MobileEventCard key={event._id} event={event} />
-            ))
+            <>
+              {paginatedEvents.map((event) => (
+                <MobileEventCard key={event._id} event={event} />
+              ))}
+
+              {/* Mobile Pagination */}
+              <div style={{
+                ...styles.paginationContainer,
+                flexDirection: 'column',
+                gap: '1rem',
+                alignItems: 'center'
+              }}>
+                <div style={styles.paginationInfo}>
+                  {totalEvents > 0 ?
+                    `${startIndex}-${endIndex} of ${totalEvents}` : // Use totalEvents from backend
+                    '0-0 of 0'
+                  }
+                </div>
+                <div style={styles.paginationControls}>
+                  <button
+                    style={{
+                      ...styles.paginationButton,
+                      ...(currentPage === 1 || isLoading ? styles.paginationButtonDisabled : {}),
+                    }}
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1 || isLoading}
+                  >
+                    {isLoading ? '⏳' : '< Previous'}
+                  </button>
+
+                  <span style={{ padding: '0 1rem', color: '#6c757d' }}>
+                    Page {currentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    style={{
+                      ...styles.paginationButton,
+                      ...(currentPage >= totalPages || isLoading ? styles.paginationButtonDisabled : {}),
+                    }}
+                    onClick={handleNextPage}
+                    disabled={currentPage >= totalPages || isLoading || totalPages === 0}
+                  >
+                    {isLoading ? '⏳' : 'Next >'}
+                  </button>
+                </div>
+
+              </div>
+            </>
           )}
         </Box>
       ) : (
-        /* DESKTOP VIEW: Table Layout - UPDATED TO MATCH IMAGE */
-        <div style={styles.tableContainer}>
-          <table style={styles.table}>
-            <thead style={styles.tableHeader}>
-              <tr>
-                <th style={styles.th}>Event Name</th>
-                <th style={styles.th}>Leader</th>
-                <th style={styles.th}>Leader at 12</th>
-                <th style={styles.th}>Day</th>
-                <th style={styles.th}>Email</th>
-                <th style={styles.th}>Date Of Event</th>
-                <th style={styles.th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, idx) => (
-                  <tr key={idx}>
-                    <td colSpan={7} style={styles.td}>
-                      <div style={styles.loadingSkeleton} />
-                    </td>
-                  </tr>
-                ))
-              ) : filteredEvents.length === 0 ? (
+        /* DESKTOP VIEW: Table with Pagination */
+        <div style={{ ...styles.tableContainer, position: 'relative' }}>
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead style={styles.tableHeader}>
                 <tr>
-                  <td colSpan={7} style={{ ...styles.td, textAlign: 'center', padding: '2rem' }}>
-                    No events found matching your criteria.
-                  </td>
+                  <th style={styles.th}>Event Name</th>
+                  <th style={styles.th}>Leader</th>
+                  <th style={styles.th}>Leader at 1</th>
+                  <th style={styles.th}>Leader at 12</th>
+                  <th style={styles.th}>Day</th>
+                  <th style={styles.th}>Email</th>
+                  <th style={styles.th}>Date Of Event</th>
+                  <th style={styles.th}>Actions</th>
                 </tr>
-              ) : (
-                filteredEvents.map((event) => {
-                  const dayOfWeek = event.day || 'Not set';
-                  
-                  return (
-                    <tr
-                      key={event._id}
-                      style={{
-                        ...styles.tr,
-                        ...(hoveredRow === event._id ? styles.trHover : {}),
-                      }}
-                      onMouseEnter={() => setHoveredRow(event._id)}
-                      onMouseLeave={() => setHoveredRow(null)}
-                    >
-                      <td style={styles.td}>
-                        <div style={styles.truncatedText} title={event.eventName}>
-                          {event.eventName}
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <div style={styles.truncatedText} title={event.eventLeaderName}>
-                          {event.eventLeaderName || '-'}
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <div style={styles.truncatedText} title={event.leader12}>
-                          {event.leader12 || '-'}
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <div>{dayOfWeek}</div>
-                        {isOverdue(event) && (
-                          <div style={styles.overdueLabel}>
-                            Overdue
-                          </div>
-                        )}
-                      </td>
-                      <td style={styles.td}>
-                        <div style={styles.emailText} title={event.eventLeaderEmail}>
-                          {event.eventLeaderEmail || '-'}
-                        </div>
-                      </td>
-                      <td style={styles.td}>{formatDate(event.date)}</td>
-                      <td style={styles.td}>
-                        <div style={styles.actionIcons}>
-                          <Tooltip title="Capture Attendance" arrow>
-                            <button
-                              style={styles.openEventIcon}
-                              onClick={() => handleCaptureClick(event)}
-                              onMouseEnter={(e) => {
-                                e.target.style.transform = 'scale(1.1)';
-                                e.target.style.backgroundColor = '#0056b3';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.target.style.transform = 'scale(1)';
-                                e.target.style.backgroundColor = '#007bff';
-                              }}
-                            >
-                              <CheckBoxIcon />
-                            </button>
-                          </Tooltip>
-                          
-                          <Tooltip title="Edit Event" arrow>
-                            <IconButton
-                              onClick={() => handleEditEvent(event)}
-                              size="small"
-                              sx={{ 
-                                color: '#007bff',
-                                '&:hover': { backgroundColor: 'rgba(0, 123, 255, 0.1)' }
-                              }}
-                            >
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
-                          
-                          {isAdmin && (
-                            <Tooltip title="Delete Event" arrow>
-                              <IconButton
-                                onClick={() => handleDeleteEvent(event)}
-                                size="small"
-                                sx={{ 
-                                  color: '#dc3545',
-                                  '&:hover': { backgroundColor: 'rgba(220, 53, 69, 0.1)' }
-                                }}
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </div>
+              </thead>
+              <tbody>
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <tr key={idx}>
+                      <td colSpan={8} style={styles.td}>
+                        <div style={styles.loadingSkeleton} />
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ))
+                ) : paginatedEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ ...styles.td, textAlign: 'center', padding: '2rem' }}>
+                      No events found matching your criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedEvents.map((event) => {
+                    const dayOfWeek = event.day || 'Not set';
+
+                    // Determine if we should show leaders - don't show if main leader is Gavin/Vicky Enslin
+                    const shouldShowLeaderAt1 = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
+                    const shouldShowLeaderAt12 = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
+
+                    return (
+                      <tr
+                        key={event._id}
+                        style={{
+                          ...styles.tr,
+                          ...(hoveredRow === event._id ? styles.trHover : {}),
+                        }}
+                        onMouseEnter={() => setHoveredRow(event._id)}
+                        onMouseLeave={() => setHoveredRow(null)}
+                      >
+                        <td style={styles.td}>
+                          <div style={styles.truncatedText} title={event.eventName}>
+                            {event.eventName}
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.truncatedText} title={event.eventLeaderName}>
+                            {event.eventLeaderName || '-'}
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.truncatedText}>
+                            {shouldShowLeaderAt1 ? (event.leader1 || '-') : '-'}
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.truncatedText}>
+                            {shouldShowLeaderAt12 ? (event.leader12 || '-') : '-'}
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          <div>{dayOfWeek}</div>
+                          {isOverdue(event) && (
+                            <div style={styles.overdueLabel}>
+                              Overdue
+                            </div>
+                          )}
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.emailText} title={event.eventLeaderEmail}>
+                            {event.eventLeaderEmail || '-'}
+                          </div>
+                        </td>
+                        <td style={styles.td}>{formatDate(event.date)}</td>
+                        <td style={styles.td}>
+                          <div style={styles.actionIcons}>
+                            <Tooltip title="Capture Attendance" arrow>
+                              <button
+                                style={styles.openEventIcon}
+                                onClick={() => handleCaptureClick(event)}
+                              >
+                                <CheckBoxIcon />
+                              </button>
+                            </Tooltip>
+
+                            <Tooltip title="Edit Event" arrow>
+                              <IconButton
+                                onClick={() => handleEditEvent(event)}
+                                size="small"
+                              >
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+
+                            {isAdmin && (
+                              <Tooltip title="Delete Event" arrow>
+                                <IconButton
+                                  onClick={() => handleDeleteEvent(event)}
+                                  size="small"
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={styles.paginationContainer}>
+            <div style={styles.rowsPerPage}>
+              <span>Rows per page:</span>
+              <select
+                value={rowsPerPage}
+                onChange={handleRowsPerPageChange}
+                style={styles.rowsSelect}
+                disabled={isLoading}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            <div style={styles.paginationInfo}>
+              {totalEvents > 0 ?
+                `${startIndex}-${endIndex} of ${totalEvents}` : // Use totalEvents from backend
+                '0-0 of 0'
+              }
+            </div>
+            <div style={styles.paginationControls}>
+              <button
+                style={{
+                  ...styles.paginationButton,
+                  ...(currentPage === 1 || isLoading ? styles.paginationButtonDisabled : {}),
+                }}
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1 || isLoading}
+              >
+                {isLoading ? '⏳' : '< Previous'}
+              </button>
+
+              <span style={{ padding: '0 1rem', color: '#6c757d' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                style={{
+                  ...styles.paginationButton,
+                  ...(currentPage >= totalPages || isLoading ? styles.paginationButtonDisabled : {}),
+                }}
+                onClick={handleNextPage}
+                disabled={currentPage >= totalPages || isLoading || totalPages === 0}
+              >
+                {isLoading ? '⏳' : 'Next >'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <div style={{ 
-        ...styles.eventsCounter,
-        color: theme.palette.text.secondary,
-      }}>
-        Showing {filteredEvents.length} of {events.length} events
-      </div>
-
-      {isAdmin && (
-        <div style={fabStyles.fabContainer}>
-          {/* Menu Items */}
-          {fabMenuOpen && (
-            <div style={fabStyles.fabMenu}>
+      {/* FAB Button */}
+      <div style={fabStyles.fabContainer}>
+        {fabMenuOpen && (
+          <div style={fabStyles.fabMenu}>
+            {isAdmin && (
               <div
                 style={fabStyles.fabMenuItem}
                 onClick={() => {
                   setFabMenuOpen(false);
                   handleCreateEventType();
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >
                 <span style={fabStyles.fabMenuLabel}>Create Event Type</span>
                 <div style={fabStyles.fabMenuIcon}>📋</div>
               </div>
-              
+            )}
+
+            {(isAdmin || currentUser?.role?.toLowerCase() === "registrant") && (
               <div
                 style={fabStyles.fabMenuItem}
                 onClick={() => {
                   setFabMenuOpen(false);
                   handleCreateEvent();
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >
                 <span style={fabStyles.fabMenuLabel}>Create Event</span>
                 <div style={fabStyles.fabMenuIcon}>📅</div>
               </div>
-            </div>
-          )}
-          
-          {/* Main FAB Button */}
-          <button
-            style={{
-              ...fabStyles.mainFab,
-              transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-            }}
-            onClick={() => setFabMenuOpen(!fabMenuOpen)}
-            title="Menu"
-            onMouseEnter={(e) => e.target.style.transform = fabMenuOpen ? 'rotate(45deg) scale(1.1)' : 'scale(1.1)'}
-            onMouseLeave={(e) => e.target.style.transform = fabMenuOpen ? 'rotate(45deg)' : 'scale(1)'}
-          >
-            +
-          </button>
-        </div>
-      )}
+            )}
+
+            {currentUser?.role?.toLowerCase() === "user" && (
+              <div
+                style={fabStyles.fabMenuItem}
+                onClick={() => {
+                  setFabMenuOpen(false);
+                  handleCreateEvent();
+                }}
+              >
+                <span style={fabStyles.fabMenuLabel}>Create Cell</span>
+                <div style={fabStyles.fabMenuIcon}>🏠</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <button
+          style={{
+            ...fabStyles.mainFab,
+            transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+          }}
+          onClick={() => setFabMenuOpen(!fabMenuOpen)}
+          title="Menu"
+        >
+          +
+        </button>
+      </div>
 
       <Eventsfilter
         open={showFilter}
@@ -1469,7 +1936,7 @@ const Events = () => {
           }}
           onSubmit={handleAttendanceSubmit}
           event={selectedEvent}
-          currentUser={currentUser} 
+          currentUser={currentUser}
           onAttendanceSubmitted={() => {
             fetchEvents();
             setAttendanceModalOpen(false);
@@ -1516,7 +1983,7 @@ const Events = () => {
                 user={currentUser}
                 isModal={true}
                 onClose={handleCloseCreateEventModal}
-                selectedEventTypeObj={selectedEventTypeObj}   
+                selectedEventTypeObj={selectedEventTypeObj}
                 selectedEventType={currentSelectedEventType}
                 eventTypes={allEventTypes}
               />
@@ -1524,6 +1991,13 @@ const Events = () => {
           </div>
         </div>
       )}
+
+      <EditEventModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        event={selectedEvent}
+        onSave={handleSaveEvent}
+      />
 
       <Snackbar
         open={snackbar.open}
