@@ -1,29 +1,7 @@
-// import React, { useContext } from "react";
-// import { Navigate, useLocation } from "react-router-dom";
-// import { AuthContext } from "../contexts/AuthContext";
-
-// const withAuthCheck = (WrappedComponent) => {
-//   return function AuthenticatedComponent(props) {
-//     const { user, loading } = useContext(AuthContext);
-//     const location = useLocation();
-
-//     if (loading) return null; // ✅ wait until user is restored
-
-//     if (!user) {
-//       return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-//     }
-
-//     return <WrappedComponent {...props} />;
-//   };
-// };
-
-// export default withAuthCheck;
-
-
 import React, { useContext } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../contexts/AuthContext";
-import { Box, Typography, Paper, Button } from "@mui/material";
+import { Box, Typography, Paper, Button, CircularProgress } from "@mui/material";
 import { Block } from "@mui/icons-material";
 
 const withAuthCheck = (WrappedComponent, allowedRoles = []) => {
@@ -31,14 +9,29 @@ const withAuthCheck = (WrappedComponent, allowedRoles = []) => {
     const { user, loading } = useContext(AuthContext);
     const location = useLocation();
 
-    if (loading) return null;
+    // Show loading indicator while auth is being initialized
+    if (loading) {
+      return (
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '100vh' 
+        }}>
+          <CircularProgress size={48} />
+        </Box>
+      );
+    }
 
+    // Redirect to login if not authenticated
     if (!user) {
+      console.log('🔒 No user found, redirecting to login from:', location.pathname);
       return <Navigate to="/login" state={{ from: location.pathname }} replace />;
     }
 
     // Check role-based access
     if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+      console.log('🚫 Access denied. User role:', user.role, 'Required:', allowedRoles);
       return (
         <Box sx={{ 
           display: 'flex', 
@@ -68,6 +61,7 @@ const withAuthCheck = (WrappedComponent, allowedRoles = []) => {
       );
     }
 
+    console.log('✅ Auth check passed for:', location.pathname, 'User:', user.email);
     return <WrappedComponent {...props} />;
   };
 };
