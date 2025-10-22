@@ -903,7 +903,6 @@ const CreateEvents = ({
               }}
             />
 
-            {/* Event Leader - WITH AUTO-FILL FOR PERSON STEPS */}
             <Autocomplete
               freeSolo
               filterOptions={(options) => options}

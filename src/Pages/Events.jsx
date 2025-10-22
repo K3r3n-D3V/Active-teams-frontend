@@ -235,7 +235,7 @@ const styles = {
   },
   loadingSkeleton: {
     padding: "1rem",
-    backgroundColor: "#d3d3d3",
+    backgroundColor: "#d3d3d3" ,
     borderRadius: "4px",
     height: "60px",
     marginBottom: "0.5rem",
