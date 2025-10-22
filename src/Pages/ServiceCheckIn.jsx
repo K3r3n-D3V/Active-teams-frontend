@@ -48,6 +48,7 @@ import ConsolidationModal from "../components/ConsolidationModal";
 import EmojiPeopleIcon from "@mui/icons-material/EmojiPeople";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import MergeIcon from "@mui/icons-material/Merge";
+import EventHistory from "../components/EventHistory";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -124,6 +125,8 @@ function ServiceCheckIn() {
     leader144: "",
   });
 
+  const [consolidatedPeople, setConsolidatedPeople] = useState([]);
+
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
@@ -195,6 +198,51 @@ function ServiceCheckIn() {
       id: attendee._id, // DataGrid requires 'id' field
     }));
   };
+
+  // Fetch consolidated people for the current event
+  const fetchConsolidatedPeople = async () => {
+    if (!currentEventId) {
+      setConsolidatedPeople([]);
+      return;
+    }
+
+    try {
+      // Try to get consolidations from the consolidations endpoint
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${BASE_URL}/consolidations`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        params: {
+          event_id: currentEventId
+        }
+      });
+
+      if (response.data && Array.isArray(response.data.consolidations)) {
+        setConsolidatedPeople(response.data.consolidations);
+      } else {
+        // Fallback: get from event attendees
+        const eventResponse = await axios.get(`${BASE_URL}/events/${currentEventId}`);
+        const event = eventResponse.data;
+        
+        const consolidatedFromEvent = event.attendees?.filter(attendee => 
+          attendee.is_consolidation || attendee.consolidation_id || attendee.decision
+        ) || [];
+        
+        setConsolidatedPeople(consolidatedFromEvent);
+      }
+    } catch (error) {
+      console.error("Error fetching consolidated people:", error);
+      // Fallback to empty array
+      setConsolidatedPeople([]);
+    }
+  };
+
+  useEffect(() => {
+    if (currentEventId) {
+      fetchConsolidatedPeople();
+    }
+  }, [currentEventId]);
 
   useEffect(() => {
     if (hasDataLoaded) return;
@@ -288,6 +336,9 @@ function ServiceCheckIn() {
         ...prev,
         [currentEventId]: (prev[currentEventId] || 0) + task.consolidatedCount,
       }));
+      
+      // Refresh consolidated people list
+      fetchConsolidatedPeople();
     }
   };
 
@@ -346,9 +397,15 @@ function ServiceCheckIn() {
       
       setPage(0);
       toast.success(`${newPerson.name} ${newPerson.surname} added successfully!`);
+      
+      // Remove "First Time" tag at end of day (midnight)
+      const now = new Date();
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const timeUntilMidnight = endOfDay.getTime() - now.getTime();
+      
       setTimeout(() => {
         setFirstTimeAddedIds((prev) => prev.filter((id) => id !== newPersonId));
-      }, 10000);
+      }, timeUntilMidnight);
     } else {
       toast.success(`${newPerson.name} ${newPerson.surname} updated successfully!`);
     }
@@ -487,6 +544,18 @@ function ServiceCheckIn() {
     newPeoplePage * newPeopleRowsPerPage + newPeopleRowsPerPage
   );
 
+  // Filter consolidated people
+  const filteredConsolidatedPeople = consolidatedPeople.filter((person) => {
+    const lc = consolidatedSearch.toLowerCase();
+    const searchString = `${person.name || ''} ${person.surname || ''} ${person.email || ''} ${person.phone || ''} ${person.assigned_to || ''} ${person.decision_type || ''}`.toLowerCase();
+    return searchString.includes(lc);
+  });
+
+  const consolidatedPaginatedList = filteredConsolidatedPeople.slice(
+    consolidatedPage * consolidatedRowsPerPage,
+    consolidatedPage * consolidatedRowsPerPage + consolidatedRowsPerPage
+  );
+
   const AttendeeCard = ({ attendee, showNumber, index }) => (
     <Card
       variant="outlined"
@@ -546,6 +615,74 @@ function ServiceCheckIn() {
     </Card>
   );
 
+  // Consolidated Person Card Component
+  const ConsolidatedPersonCard = ({ person, showNumber, index }) => (
+    <Card
+      variant="outlined"
+      sx={{
+        mb: 1,
+        boxShadow: 2,
+        "&:last-child": { mb: 0 },
+        border: `2px solid ${theme.palette.secondary.main}`,
+        backgroundColor: theme.palette.secondary.light + "0a",
+      }}
+    >
+      <CardContent sx={{ p: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <Box flex={1}>
+            <Typography variant="subtitle2" fontWeight={600}>
+              {showNumber && `${index}. `}{person.name || person.person_name} {person.surname || person.person_surname}
+              <Chip 
+                label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'} 
+                size="small" 
+                sx={{ ml: 1, fontSize: "0.7rem", height: 20 }} 
+                color="secondary" 
+              />
+            </Typography>
+            {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
+            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+          </Box>
+        </Box>
+
+        <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
+          <Chip 
+            label={`Assigned to: ${person.assigned_to || person.assignedTo || 'Not assigned'}`} 
+            size="small" 
+            variant="outlined"
+            color="primary"
+          />
+        </Stack>
+
+        {(person.decision_date || person.decision_type) && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+              {person.decision_date && (
+                <Chip label={`Date: ${person.decision_date}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+              {person.decision_type && (
+                <Chip 
+                  label={`Type: ${person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}`} 
+                  size="small" 
+                  variant="outlined" 
+                  sx={{ fontSize: "0.7rem", height: 20 }} 
+                />
+              )}
+              {person.status && (
+                <Chip 
+                  label={`Status: ${person.status}`} 
+                  size="small" 
+                  color={person.status === 'completed' ? 'success' : 'default'}
+                  sx={{ fontSize: "0.7rem", height: 20 }} 
+                />
+              )}
+            </Stack>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   // DataGrid columns for main attendees table (desktop only)
   const mainColumns = [
     { 
@@ -554,8 +691,8 @@ function ServiceCheckIn() {
       flex: 1, 
       minWidth: 150,
       renderCell: (params) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+          <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
             {params.row.name} {params.row.surname}
           </Typography>
           {firstTimeAddedIds.includes(params.row._id) && (
@@ -613,13 +750,9 @@ function ServiceCheckIn() {
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
       <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
-      <Typography variant={titleVariant} fontWeight={700} gutterBottom textAlign="center" sx={{ mb: cardSpacing }}>
-        Service Check-In
-      </Typography>
-
       {/* Stats Cards */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
-        <Grid item xs={6} sm={3}>
+        <Grid item xs={6} sm={6} md={3}>
           <Paper
             variant="outlined"
             sx={{ 
@@ -641,7 +774,7 @@ function ServiceCheckIn() {
             </Typography>
           </Paper>
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid item xs={6} sm={6} md={3}>
           <Paper 
             variant="outlined" 
             sx={{ 
@@ -665,7 +798,7 @@ function ServiceCheckIn() {
             </Typography>
           </Paper>
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid item xs={6} sm={6} md={3}>
           <Paper 
             variant="outlined" 
             sx={{ 
@@ -681,7 +814,7 @@ function ServiceCheckIn() {
             <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
               <MergeIcon color="secondary" sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
               <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color="secondary.main">
-                {consolidationsForEvent}
+                {consolidatedPeople.length}
               </Typography>
             </Stack>
             <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
@@ -768,7 +901,7 @@ function ServiceCheckIn() {
                 onPageChange={(e, newPage) => setPage(newPage)} 
                 rowsPerPage={rowsPerPage} 
                 onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} 
-                rowsPerPageOptions={[50, 100, 200]} 
+                rowsPerPageOptions={[25, 50, 100]} 
                 sx={{ boxShadow: 2, borderRadius: 1, mt: 1 }}
               />
             </Box>
@@ -778,7 +911,7 @@ function ServiceCheckIn() {
                 <DataGrid
                   rows={filteredAttendees}
                   columns={mainColumns}
-                  pageSizeOptions={[50, 100, 200]}
+                  pageSizeOptions={[25, 50, 100]}
                   slots={{ toolbar: GridToolbar }}
                   slotProps={{
                     toolbar: {
@@ -802,14 +935,7 @@ function ServiceCheckIn() {
         )}
 
         {activeTab === 1 && (
-          <Paper variant="outlined" sx={{ p: 4, textAlign: "center", minHeight: 400, boxShadow: 3 }}>
-            <Typography variant="h5" color="text.secondary" mb={2}>
-              Event History
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Event history functionality will be displayed here
-            </Typography>
-          </Paper>
+          <EventHistory/>
         )}
       </Box>
 
@@ -933,7 +1059,7 @@ function ServiceCheckIn() {
               onPageChange={(e, newPage) => setModalPage(newPage)}
               rowsPerPage={modalRowsPerPage}
               onRowsPerPageChange={(e) => { setModalRowsPerPage(parseInt(e.target.value, 10)); setModalPage(0); }}
-              rowsPerPageOptions={[50, 100, 200]}
+              rowsPerPageOptions={[25, 50, 100]}
               sx={{
                 ...(isSmDown && {
                   '& .MuiTablePagination-toolbar': {
@@ -1069,7 +1195,7 @@ function ServiceCheckIn() {
                   onPageChange={(e, newPage) => setNewPeoplePage(newPage)}
                   rowsPerPage={newPeopleRowsPerPage}
                   onRowsPerPageChange={(e) => { setNewPeopleRowsPerPage(parseInt(e.target.value, 10)); setNewPeoplePage(0); }}
-                  rowsPerPageOptions={[50, 100, 200]}
+                  rowsPerPageOptions={[25, 50, 100]}
                 />
               </Box>
             </>
@@ -1087,7 +1213,7 @@ function ServiceCheckIn() {
         open={consolidatedModalOpen} 
         onClose={() => setConsolidatedModalOpen(false)} 
         fullWidth 
-        maxWidth="sm"
+        maxWidth="md"
         PaperProps={{
           sx: {
             boxShadow: 6,
@@ -1100,39 +1226,135 @@ function ServiceCheckIn() {
         }}
       >
         <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          Consolidated People
+          Consolidated People: {consolidatedPeople.length}
         </DialogTitle>
-        <DialogContent dividers sx={{ p: isSmDown ? 2 : 3 }}>
+        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
+          <TextField
+            size="small"
+            placeholder="Search consolidated people..."
+            value={consolidatedSearch}
+            onChange={(e) => { setConsolidatedSearch(e.target.value); setConsolidatedPage(0); }}
+            fullWidth
+            sx={{ mb: 2, boxShadow: 1 }}
+          />
+
           {!currentEventId ? (
             <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-              Please select an event to view consolidations
+              Please select an event to view consolidated people
+            </Typography>
+          ) : consolidatedPeople.length === 0 ? (
+            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+              No consolidated people for this event
             </Typography>
           ) : (
-            <Paper variant="outlined" sx={{ p: 4, textAlign: "center", boxShadow: 2 }}>
-              <Stack direction="row" alignItems="center" justifyContent="center" spacing={2} mb={2}>
-                <MergeIcon color="secondary" sx={{ fontSize: 48 }} />
-                <Typography variant="h2" fontWeight={600} color="secondary">
-                  {consolidationsForEvent}
-                </Typography>
-              </Stack>
-              <Typography variant="h6" color="text.secondary" mb={3}>
-                People Consolidated for This Event
-              </Typography>
-              <Button 
-                variant="contained" 
-                startIcon={<EmojiPeopleIcon />}
-                onClick={() => {
-                  setConsolidatedModalOpen(false);
-                  handleConsolidationClick();
-                }}
-                size="large"
-              >
-                Start Consolidation
-              </Button>
-            </Paper>
+            <>
+              {isSmDown ? (
+                <Box>
+                  {consolidatedPaginatedList.map((person, idx) => (
+                    <ConsolidatedPersonCard 
+                      key={person._id || person.id || idx} 
+                      person={person} 
+                      showNumber={true} 
+                      index={consolidatedPage * consolidatedRowsPerPage + idx + 1} 
+                    />
+                  ))}
+                  {consolidatedPaginatedList.length === 0 && (
+                    <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+                      No matching consolidated people
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {consolidatedPaginatedList.map((person, idx) => (
+                      <TableRow key={person._id || person.id || idx} hover sx={{ '&:hover': { boxShadow: 1 } }}>
+                        <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="medium">
+                            {person.name || person.person_name} {person.surname || person.person_surname}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Box>
+                            {person.email && <Typography variant="body2">{person.email}</Typography>}
+                            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'} 
+                            size="small" 
+                            color="secondary"
+                            variant="filled"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {person.assigned_to || person.assignedTo || 'Not assigned'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {person.decision_date || 'No date'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={person.status || 'Active'} 
+                            size="small" 
+                            color={person.status === 'completed' ? 'success' : 'default'}
+                            variant="outlined"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {consolidatedPaginatedList.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} align="center">No matching consolidated people</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+
+              <Box mt={1}>
+                <TablePagination
+                  component="div"
+                  count={filteredConsolidatedPeople.length}
+                  page={consolidatedPage}
+                  onPageChange={(e, newPage) => setConsolidatedPage(newPage)}
+                  rowsPerPage={consolidatedRowsPerPage}
+                  onRowsPerPageChange={(e) => { setConsolidatedRowsPerPage(parseInt(e.target.value, 10)); setConsolidatedPage(0); }}
+                  rowsPerPageOptions={[25, 50, 100]}
+                />
+              </Box>
+            </>
           )}
         </DialogContent>
         <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+          <Button 
+            variant="contained" 
+            startIcon={<EmojiPeopleIcon />}
+            onClick={() => {
+              setConsolidatedModalOpen(false);
+              handleConsolidationClick();
+            }}
+            size={isSmDown ? "small" : "medium"}
+          >
+            Add Consolidation
+          </Button>
           <Button onClick={() => setConsolidatedModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
             Close
           </Button>
