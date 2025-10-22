@@ -62,7 +62,7 @@ const createAuthenticatedRequest = () => {
     baseURL: BACKEND_URL,
     headers: {
       "Content-Type": "application/json",
-      "Authorization": token ? `Bearer ${token}` : undefined,
+      Authorization: token ? `Bearer ${token}` : undefined,
     },
   });
 };
@@ -99,12 +99,14 @@ async function uploadAvatarFromDataUrl(dataUrl) {
     headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
-  
+
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: "Failed to upload avatar" }));
+    const error = await res
+      .json()
+      .catch(() => ({ message: "Failed to upload avatar" }));
     throw new Error(error.message || "Failed to upload avatar");
   }
-  
+
   return res.json();
 }
 
@@ -114,15 +116,19 @@ async function updatePassword(currentPassword, newPassword) {
   if (!token || !userId) throw new Error("Authentication required");
 
   try {
-    const res = await axios.put(`${BACKEND_URL}/users/${userId}/password`, {
-      currentPassword,
-      newPassword
-    }, {
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
+    const res = await axios.put(
+      `${BACKEND_URL}/users/${userId}/password`,
+      {
+        currentPassword,
+        newPassword,
       },
-    });
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
 
     return res.data;
   } catch (error) {
@@ -138,7 +144,7 @@ async function updatePassword(currentPassword, newPassword) {
 async function fetchUserProfile() {
   const userId = localStorage.getItem("userId");
   const token = localStorage.getItem("token");
-  
+
   if (!userId || !token) throw new Error("Authentication required");
 
   try {
@@ -167,7 +173,7 @@ export default function Profile() {
   const [croppingSrc, setCroppingSrc] = useState(null);
   const [croppingOpen, setCroppingOpen] = useState(false);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-  
+
   const [hasProfileLoaded, setHasProfileLoaded] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
@@ -217,10 +223,10 @@ export default function Profile() {
 
   // Check for temporary password from signup
   useEffect(() => {
-    const shouldShowPassword = sessionStorage.getItem('showPasswordInProfile');
-    const tempPass = sessionStorage.getItem('tempPassword');
-    
-    if (shouldShowPassword === 'true' && tempPass) {
+    const shouldShowPassword = sessionStorage.getItem("showPasswordInProfile");
+    const tempPass = sessionStorage.getItem("tempPassword");
+
+    if (shouldShowPassword === "true" && tempPass) {
       setTempPassword(tempPass);
       setShowTempPassword(true);
     }
@@ -230,20 +236,21 @@ export default function Profile() {
   useEffect(() => {
     const storedProfile = localStorage.getItem("userProfile");
     const profileLoaded = localStorage.getItem("profileLoaded") === "true";
-    
+
     if (profileLoaded && storedProfile) {
       const parsedProfile = JSON.parse(storedProfile);
       setUserProfile(parsedProfile);
       updateFormWithProfile(parsedProfile);
-      
-      const pic = parsedProfile?.profile_picture ||
-                 parsedProfile?.avatarUrl ||
-                 parsedProfile?.profilePicUrl ||
-                 null;
+
+      const pic =
+        parsedProfile?.profile_picture ||
+        parsedProfile?.avatarUrl ||
+        parsedProfile?.profilePicUrl ||
+        null;
       if (pic && setProfilePic) {
         setProfilePic(pic);
       }
-      
+
       setHasProfileLoaded(true);
       setLoadingProfile(false);
       return;
@@ -254,24 +261,25 @@ export default function Profile() {
         setLoadingProfile(true);
         try {
           const serverProfile = await fetchUserProfile();
-          
+
           if (serverProfile) {
             setUserProfile(serverProfile);
             updateFormWithProfile(serverProfile);
-            
-            const pic = serverProfile?.profile_picture || 
-                       serverProfile?.avatarUrl || 
-                       serverProfile?.profilePicUrl ||
-                       null;
-            
+
+            const pic =
+              serverProfile?.profile_picture ||
+              serverProfile?.avatarUrl ||
+              serverProfile?.profilePicUrl ||
+              null;
+
             if (pic && setProfilePic) {
               setProfilePic(pic);
             }
-            
+
             localStorage.setItem("userProfile", JSON.stringify(serverProfile));
             localStorage.setItem("profileLoaded", "true");
             setHasProfileLoaded(true);
-            
+
             setSnackbar({
               open: true,
               message: "Profile loaded successfully",
@@ -279,24 +287,28 @@ export default function Profile() {
             });
           }
         } catch (fetchError) {
-          console.warn("Failed to fetch from backend, using cached data:", fetchError);
-          
+          console.warn(
+            "Failed to fetch from backend, using cached data:",
+            fetchError
+          );
+
           if (storedProfile) {
             const parsedProfile = JSON.parse(storedProfile);
             setUserProfile(parsedProfile);
             updateFormWithProfile(parsedProfile);
-            
-            const pic = parsedProfile?.profile_picture ||
-                       parsedProfile?.avatarUrl ||
-                       parsedProfile?.profilePicUrl ||
-                       null;
+
+            const pic =
+              parsedProfile?.profile_picture ||
+              parsedProfile?.avatarUrl ||
+              parsedProfile?.profilePicUrl ||
+              null;
             if (pic && setProfilePic) {
               setProfilePic(pic);
             }
-            
+
             localStorage.setItem("profileLoaded", "true");
             setHasProfileLoaded(true);
-            
+
             setSnackbar({
               open: true,
               message: "Profile loaded from cache",
@@ -362,8 +374,8 @@ export default function Profile() {
     setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
 
   const clearTempPassword = () => {
-    sessionStorage.removeItem('tempPassword');
-    sessionStorage.removeItem('showPasswordInProfile');
+    sessionStorage.removeItem("tempPassword");
+    sessionStorage.removeItem("showPasswordInProfile");
     setTempPassword("");
     setShowTempPassword(false);
   };
@@ -389,7 +401,7 @@ export default function Profile() {
         n.confirmPassword = "Please confirm your new password";
       }
     }
-    
+
     setErrors(n);
     return Object.keys(n).length === 0;
   };
@@ -427,23 +439,24 @@ export default function Profile() {
   const onCropSave = async () => {
     try {
       const croppedImage = await getCroppedImg(croppingSrc, croppedAreaPixels);
-      
+
       try {
         const res = await uploadAvatarFromDataUrl(croppedImage);
-        const url = res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
-        
+        const url =
+          res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
+
         if (url) {
           if (setProfilePic) setProfilePic(url);
-          
-          const updatedProfile = { 
-            ...userProfile, 
+
+          const updatedProfile = {
+            ...userProfile,
             profile_picture: url,
             avatarUrl: url,
-            profilePicUrl: url
+            profilePicUrl: url,
           };
           setUserProfile(updatedProfile);
           localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
-          
+
           setSnackbar({
             open: true,
             message: "Profile picture uploaded and saved successfully",
@@ -454,16 +467,17 @@ export default function Profile() {
         }
       } catch (uploadError) {
         console.error("Avatar upload failed, using local image:", uploadError);
-        
+
         if (setProfilePic) setProfilePic(croppedImage);
-        
+
         setSnackbar({
           open: true,
-          message: "Profile picture updated locally. Please check your internet connection for server sync.",
+          message:
+            "Profile picture updated locally. Please check your internet connection for server sync.",
           severity: "warning",
         });
       }
-      
+
       setCroppingOpen(false);
     } catch (e) {
       console.error("Could not crop image:", e);
@@ -504,31 +518,33 @@ export default function Profile() {
         _id: updated.id || updated._id,
       };
 
-      const hasPasswordChange = form.newPassword && form.confirmPassword && form.currentPassword;
-      
+      const hasPasswordChange =
+        form.newPassword && form.confirmPassword && form.currentPassword;
+
       if (hasPasswordChange) {
         try {
           await updatePassword(form.currentPassword, form.newPassword);
           setSnackbar({
             open: true,
-            message: "Profile and password updated successfully! Please use your new password for future logins.",
+            message:
+              "Profile and password updated successfully! Please use your new password for future logins.",
             severity: "success",
           });
-          
+
           clearTempPassword();
-          
-          setForm(prev => ({
+
+          setForm((prev) => ({
             ...prev,
             currentPassword: "",
             newPassword: "",
-            confirmPassword: ""
+            confirmPassword: "",
           }));
-          
-          setOriginalForm(prev => ({
+
+          setOriginalForm((prev) => ({
             ...prev,
             currentPassword: "",
             newPassword: "",
-            confirmPassword: ""
+            confirmPassword: "",
           }));
         } catch (passwordError) {
           setSnackbar({
@@ -550,7 +566,6 @@ export default function Profile() {
 
       setEditMode(false);
       updateFormWithProfile(updatedUserProfile);
-
     } catch (err) {
       setSnackbar({
         open: true,
@@ -566,7 +581,9 @@ export default function Profile() {
   };
 
   const currentCarouselItem = carouselTexts[carouselIndex];
-  const isAdmin = ((form.role || userProfile?.role || "").toLowerCase().includes("admin"));
+  const isAdmin = (form.role || userProfile?.role || "")
+    .toLowerCase()
+    .includes("admin");
 
   const commonFieldSx = {
     "& .MuiOutlinedInput-root": {
@@ -618,9 +635,9 @@ export default function Profile() {
           variant="text"
           width="60%"
           height={60}
-          sx={{ 
-            bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-            borderRadius: 2
+          sx={{
+            bgcolor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+            borderRadius: 2,
           }}
         />
       </Box>
@@ -640,8 +657,8 @@ export default function Profile() {
             variant="circular"
             width={150}
             height={150}
-            sx={{ 
-              bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+            sx={{
+              bgcolor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
               border: `6px solid ${isDark ? "#0a0a0a" : "#ffffff"}`,
             }}
           />
@@ -649,16 +666,19 @@ export default function Profile() {
             variant="text"
             width={200}
             height={40}
-            sx={{ 
+            sx={{
               mt: 2,
-              bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-              borderRadius: 1
+              bgcolor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+              borderRadius: 1,
             }}
           />
         </Box>
       </Box>
 
-      <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
+      <Container
+        maxWidth="md"
+        sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}
+      >
         <Card
           sx={{
             bgcolor: isDark ? "#111111" : "#ffffff",
@@ -677,32 +697,36 @@ export default function Profile() {
                     variant="text"
                     width="40%"
                     height={20}
-                    sx={{ 
+                    sx={{
                       mb: 1,
-                      bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                      borderRadius: 1
+                      bgcolor: isDark
+                        ? "rgba(255,255,255,0.1)"
+                        : "rgba(0,0,0,0.1)",
+                      borderRadius: 1,
                     }}
                   />
                   <Skeleton
                     variant="rectangular"
                     height={56}
-                    sx={{ 
-                      bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                      borderRadius: 1
+                    sx={{
+                      bgcolor: isDark
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,0,0,0.05)",
+                      borderRadius: 1,
                     }}
                   />
                 </Grid>
               ))}
             </Grid>
-            
+
             <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
               <Skeleton
                 variant="rectangular"
                 width={150}
                 height={48}
-                sx={{ 
-                  bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                  borderRadius: 2
+                sx={{
+                  bgcolor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+                  borderRadius: 2,
                 }}
               />
             </Box>
@@ -761,12 +785,14 @@ export default function Profile() {
         />
 
         {/* Carousel Text */}
-        <Box sx={{ 
-          position: "relative", 
-          zIndex: 2, 
-          textAlign: "center", 
-          px: 2,
-        }}>
+        <Box
+          sx={{
+            position: "relative",
+            zIndex: 2,
+            textAlign: "center",
+            px: 2,
+          }}
+        >
           <Fade in key={carouselIndex} timeout={1000}>
             <Typography
               variant="h3"
@@ -875,7 +901,10 @@ export default function Profile() {
       </Box>
 
       {/* Main Content */}
-      <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
+      <Container
+        maxWidth="md"
+        sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}
+      >
         <Card
           sx={{
             bgcolor: isDark ? "#111111" : "#ffffff",
@@ -909,14 +938,14 @@ export default function Profile() {
                     textTransform: "none",
                     fontWeight: 700,
                     boxShadow: `0 6px 18px ${currentCarouselItem.color}66`,
-                    '&:hover': {
+                    "&:hover": {
                       bgcolor: currentCarouselItem.color,
                       opacity: 0.9,
                       boxShadow: `0 8px 24px ${currentCarouselItem.color}88`,
                     },
                   }}
                 >
-                  {editMode ? 'Cancel Editing' : 'Edit Profile'}
+                  {editMode ? "Cancel Editing" : "Edit Profile"}
                 </Button>
               </Box>
 
@@ -967,10 +996,12 @@ export default function Profile() {
                           padding: "16px 14px",
                           display: "flex",
                           alignItems: "center",
-                        }
+                        },
                       }}
                     >
-                      <MenuItem value=""><em>Select Title</em></MenuItem>
+                      <MenuItem value="">
+                        <em>Select Title</em>
+                      </MenuItem>
                       <MenuItem value="Mr">Mr</MenuItem>
                       <MenuItem value="Mrs">Mrs</MenuItem>
                       <MenuItem value="Miss">Miss</MenuItem>
@@ -1055,7 +1086,14 @@ export default function Profile() {
 
                 {/* Invited By (Admin-only editable) */}
                 <Grid item xs={12} sm={6}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      mb: 1,
+                    }}
+                  >
                     <Typography
                       variant="body2"
                       sx={{
@@ -1065,15 +1103,35 @@ export default function Profile() {
                     >
                       Invited By
                     </Typography>
-                    <Tooltip title={isAdmin ? "Admins can edit this field" : "Read-only for non-admins"} arrow>
+                    <Tooltip
+                      title={
+                        isAdmin
+                          ? "Admins can edit this field"
+                          : "Read-only for non-admins"
+                      }
+                      arrow
+                    >
                       <Chip
                         label={isAdmin ? "Admin" : "Read-only"}
                         size="small"
                         sx={{
                           height: 20,
-                          bgcolor: isAdmin ? `${currentCarouselItem.color}22` : (isDark ? '#222' : '#eee'),
-                          color: isAdmin ? currentCarouselItem.color : (isDark ? '#bbb' : '#666'),
-                          '& .MuiChip-label': { px: 1, py: 0.25, fontWeight: 600, fontSize: 12 },
+                          bgcolor: isAdmin
+                            ? `${currentCarouselItem.color}22`
+                            : isDark
+                            ? "#222"
+                            : "#eee",
+                          color: isAdmin
+                            ? currentCarouselItem.color
+                            : isDark
+                            ? "#bbb"
+                            : "#666",
+                          "& .MuiChip-label": {
+                            px: 1,
+                            py: 0.25,
+                            fontWeight: 600,
+                            fontSize: 12,
+                          },
                           borderRadius: 1,
                         }}
                       />
@@ -1131,11 +1189,20 @@ export default function Profile() {
               </Grid>
 
               {/* Additional Profile Fields */}
-              <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
+              <Divider
+                sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }}
+              />
               <Grid container spacing={3}>
                 {/* Phone Number */}
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
                     Phone Number
                   </Typography>
                   <TextField
@@ -1149,7 +1216,14 @@ export default function Profile() {
 
                 {/* Date of Birth - Date Picker */}
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
                     Date of Birth
                   </Typography>
                   <TextField
@@ -1165,7 +1239,14 @@ export default function Profile() {
 
                 {/* Address */}
                 <Grid item xs={12}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mb: 1,
+                      fontWeight: 600,
+                      color: isDark ? "#cccccc" : "#666666",
+                    }}
+                  >
                     Address
                   </Typography>
                   <TextField
@@ -1181,7 +1262,9 @@ export default function Profile() {
               {/* Password Section */}
               {editMode && (
                 <>
-                  <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
+                  <Divider
+                    sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }}
+                  />
                   <Typography
                     variant="h6"
                     sx={{
@@ -1195,7 +1278,14 @@ export default function Profile() {
 
                   {/* Show temporary password if available */}
                   {showTempPassword && tempPassword && (
-                    <Box sx={{ mb: 3, p: 2, bgcolor: isDark ? "#2d2d2d" : "#f5f5f5", borderRadius: 2 }}>
+                    <Box
+                      sx={{
+                        mb: 3,
+                        p: 2,
+                        bgcolor: isDark ? "#2d2d2d" : "#f5f5f5",
+                        borderRadius: 2,
+                      }}
+                    >
                       <Typography
                         variant="body2"
                         sx={{
@@ -1206,7 +1296,9 @@ export default function Profile() {
                       >
                         Your Password (from signup)
                       </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
                         <TextField
                           value={tempPassword}
                           type={showTempPassword ? "text" : "password"}
@@ -1222,11 +1314,17 @@ export default function Profile() {
                             endAdornment: (
                               <InputAdornment position="end">
                                 <IconButton
-                                  onClick={() => setShowTempPassword(!showTempPassword)}
+                                  onClick={() =>
+                                    setShowTempPassword(!showTempPassword)
+                                  }
                                   edge="end"
                                   sx={{ color: isDark ? "#cccccc" : "#666666" }}
                                 >
-                                  {showTempPassword ? <VisibilityOff /> : <Visibility />}
+                                  {showTempPassword ? (
+                                    <VisibilityOff />
+                                  ) : (
+                                    <Visibility />
+                                  )}
                                 </IconButton>
                               </InputAdornment>
                             ),
@@ -1235,8 +1333,15 @@ export default function Profile() {
                         <Button
                           variant="outlined"
                           size="small"
-                          onClick={clearTempPassword}
-                          sx={{ minWidth: 'auto', px: 2 }}
+                          onClick={() => {
+                            // Clear both values
+                            setTempPassword("");
+                            setForm((prev) => ({
+                              ...prev,
+                              currentPassword: "",
+                            }));
+                          }}
+                          sx={{ minWidth: "auto", px: 2 }}
                         >
                           Hide
                         </Button>
@@ -1248,7 +1353,8 @@ export default function Profile() {
                           fontStyle: "italic",
                         }}
                       >
-                        This password was shown after your signup. You can hide it or change it below.
+                        This password was shown after your signup. You can hide
+                        it or change it below.
                       </Typography>
                     </Box>
                   )}
@@ -1268,7 +1374,14 @@ export default function Profile() {
                       </Typography>
                       <TextField
                         value={form.currentPassword || ""}
-                        onChange={handleChange("currentPassword")}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setForm((prev) => ({
+                            ...prev,
+                            currentPassword: value,
+                          }));
+                          setTempPassword(value); // 🔁 keep in sync
+                        }}
                         type={showPassword.current ? "text" : "password"}
                         fullWidth
                         error={!!errors.currentPassword}
@@ -1278,11 +1391,17 @@ export default function Profile() {
                           endAdornment: (
                             <InputAdornment position="end">
                               <IconButton
-                                onClick={() => togglePasswordVisibility("current")}
+                                onClick={() =>
+                                  togglePasswordVisibility("current")
+                                }
                                 edge="end"
                                 sx={{ color: isDark ? "#cccccc" : "#666666" }}
                               >
-                                {showPassword.current ? <VisibilityOff /> : <Visibility />}
+                                {showPassword.current ? (
+                                  <VisibilityOff />
+                                ) : (
+                                  <Visibility />
+                                )}
                               </IconButton>
                             </InputAdornment>
                           ),
@@ -1319,7 +1438,11 @@ export default function Profile() {
                                 edge="end"
                                 sx={{ color: isDark ? "#cccccc" : "#666666" }}
                               >
-                                {showPassword.new ? <VisibilityOff /> : <Visibility />}
+                                {showPassword.new ? (
+                                  <VisibilityOff />
+                                ) : (
+                                  <Visibility />
+                                )}
                               </IconButton>
                             </InputAdornment>
                           ),
@@ -1352,11 +1475,17 @@ export default function Profile() {
                           endAdornment: (
                             <InputAdornment position="end">
                               <IconButton
-                                onClick={() => togglePasswordVisibility("confirm")}
+                                onClick={() =>
+                                  togglePasswordVisibility("confirm")
+                                }
                                 edge="end"
                                 sx={{ color: isDark ? "#cccccc" : "#666666" }}
                               >
-                                {showPassword.confirm ? <VisibilityOff /> : <Visibility />}
+                                {showPassword.confirm ? (
+                                  <VisibilityOff />
+                                ) : (
+                                  <Visibility />
+                                )}
                               </IconButton>
                             </InputAdornment>
                           ),
@@ -1514,7 +1643,9 @@ export default function Profile() {
                 }}
               />
             </Box>
-            <Box sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "center" }}>
+            <Box
+              sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "center" }}
+            >
               <Button
                 variant="outlined"
                 onClick={() => setCroppingOpen(false)}
