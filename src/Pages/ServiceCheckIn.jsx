@@ -1074,7 +1074,7 @@ function ServiceCheckIn() {
             sx={{ borderBottom: 1, borderColor: 'divider' }}
           >
             <Tab label="All Attendees" />
-            <Tab label="Consolidated" />
+            {/* <Tab label="Consolidated" /> */}
             <Tab label="Event History" />
           </Tabs>
         </Paper>
