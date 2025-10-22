@@ -63,9 +63,9 @@ const styles = {
     transition: "all 0.2s ease",
   },
   statusBadgeContainer: {
-    display: 'flex',
-    gap: '0.75rem',
-    flexWrap: 'wrap',
+    display: "flex",
+    gap: "0.75rem",
+    flexWrap: "wrap",
   },
   statusBadge: {
     padding: '0.5rem 1rem',
@@ -79,23 +79,23 @@ const styles = {
     whiteSpace: 'nowrap',
   },
   statusBadgeIncomplete: {
-    backgroundColor: '#FFA500',
-    color: '#fff',
-    borderColor: '#FFA500',
+    backgroundColor: "#FFA500",
+    color: "#fff",
+    borderColor: "#FFA500",
   },
   statusBadgeComplete: {
-    backgroundColor: '#fff',
-    color: '#28a745',
-    borderColor: '#28a745',
+    backgroundColor: "#fff",
+    color: "#28a745",
+    borderColor: "#28a745",
   },
   statusBadgeDidNotMeet: {
-    backgroundColor: '#fff',
-    color: '#dc3545',
-    borderColor: '#dc3545',
+    backgroundColor: "#fff",
+    color: "#dc3545",
+    borderColor: "#dc3545",
   },
   statusBadgeActive: {
-    transform: 'scale(1.05)',
-    boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+    transform: "scale(1.05)",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
   },
   tableContainer: {
     backgroundColor: "#fff",
@@ -174,64 +174,64 @@ const styles = {
     whiteSpace: 'nowrap',
   },
   modalOverlay: {
-    position: 'fixed',
+    position: "fixed",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 2000,
-    padding: '20px',
+    padding: "20px",
   },
   modalContent: {
-    position: 'relative',
-    width: '90%',
-    maxWidth: '700px',
-    maxHeight: '95vh',
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
+    position: "relative",
+    width: "90%",
+    maxWidth: "700px",
+    maxHeight: "95vh",
+    backgroundColor: "white",
+    borderRadius: "12px",
+    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
   },
   modalHeader: {
-    backgroundColor: '#333',
-    color: 'white',
-    padding: '20px 24px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopLeftRadius: '12px',
-    borderTopRightRadius: '12px',
+    backgroundColor: "#333",
+    color: "white",
+    padding: "20px 24px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopLeftRadius: "12px",
+    borderTopRightRadius: "12px",
   },
   modalTitle: {
-    fontSize: '1.5rem',
-    fontWeight: 'bold',
+    fontSize: "1.5rem",
+    fontWeight: "bold",
     margin: 0,
   },
   modalCloseButton: {
-    background: 'rgba(255, 255, 255, 0.2)',
-    border: 'none',
-    borderRadius: '50%',
-    width: '32px',
-    height: '32px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    fontSize: '20px',
-    color: 'white',
-    fontWeight: 'bold',
-    transition: 'all 0.2s ease',
+    background: "rgba(255, 255, 255, 0.2)",
+    border: "none",
+    borderRadius: "50%",
+    width: "32px",
+    height: "32px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontSize: "20px",
+    color: "white",
+    fontWeight: "bold",
+    transition: "all 0.2s ease",
   },
   modalBody: {
     flex: 1,
-    overflow: 'auto',
-    padding: '0',
+    overflow: "auto",
+    padding: "0",
   },
   loadingSkeleton: {
     padding: "1rem",
@@ -242,37 +242,37 @@ const styles = {
     animation: "pulse 1.5s ease-in-out infinite",
   },
   overdueLabel: {
-    color: 'red',
-    fontSize: '0.8rem',
-    marginTop: '0.2rem',
-    fontWeight: 'bold',
+    color: "red",
+    fontSize: "0.8rem",
+    marginTop: "0.2rem",
+    fontWeight: "bold",
   },
   mobileCard: {
-    backgroundColor: '#fff',
-    borderRadius: '8px',
-    padding: '1rem',
-    marginBottom: '1rem',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    padding: "1rem",
+    marginBottom: "1rem",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
   },
   mobileCardRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    marginBottom: '0.5rem',
-    fontSize: '0.9rem',
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "0.5rem",
+    fontSize: "0.9rem",
   },
   mobileCardLabel: {
     fontWeight: 600,
-    color: '#666',
+    color: "#666",
   },
   mobileCardValue: {
-    color: '#212529',
-    textAlign: 'right',
+    color: "#212529",
+    textAlign: "right",
   },
   mobileActions: {
-    display: 'flex',
-    gap: '0.5rem',
-    marginTop: '1rem',
-    justifyContent: 'flex-end',
+    display: "flex",
+    gap: "0.5rem",
+    marginTop: "1rem",
+    justifyContent: "flex-end",
   },
   viewFilterRow: {
     display: 'flex',
@@ -411,99 +411,99 @@ const fabStyles = {
 
 const eventTypeStyles = {
   container: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: '12px',
-    padding: '1.5rem',
-    marginBottom: '1.5rem',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    backgroundColor: "#f8f9fa",
+    borderRadius: "12px",
+    padding: "1.5rem",
+    marginBottom: "1.5rem",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
   },
   header: {
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    color: '#6c757d',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    marginBottom: '1rem',
+    fontSize: "0.875rem",
+    fontWeight: "600",
+    color: "#6c757d",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginBottom: "1rem",
   },
   selectedTypeDisplay: {
-    fontSize: '1.25rem',
-    fontWeight: '700',
-    color: '#007bff',
-    marginBottom: '1rem',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
+    fontSize: "1.25rem",
+    fontWeight: "700",
+    color: "#007bff",
+    marginBottom: "1rem",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
   },
   checkIcon: {
-    width: '24px',
-    height: '24px',
-    borderRadius: '50%',
-    backgroundColor: '#28a745',
-    color: 'white',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '14px',
-    fontWeight: 'bold',
+    width: "24px",
+    height: "24px",
+    borderRadius: "50%",
+    backgroundColor: "#28a745",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "14px",
+    fontWeight: "bold",
   },
   typesGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-    gap: '0.75rem',
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+    gap: "0.75rem",
   },
   typeCard: {
-    padding: '1rem',
-    borderRadius: '8px',
-    border: '2px solid transparent',
-    backgroundColor: 'white',
-    cursor: 'pointer',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    position: 'relative',
-    overflow: 'hidden',
+    padding: "1rem",
+    borderRadius: "8px",
+    border: "2px solid transparent",
+    backgroundColor: "white",
+    cursor: "pointer",
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    position: "relative",
+    overflow: "hidden",
   },
   typeCardActive: {
-    borderColor: '#007bff',
-    backgroundColor: '#e7f3ff',
-    transform: 'translateX(8px) scale(1.02)',
-    boxShadow: '0 4px 12px rgba(0, 123, 255, 0.2)',
+    borderColor: "#007bff",
+    backgroundColor: "#e7f3ff",
+    transform: "translateX(8px) scale(1.02)",
+    boxShadow: "0 4px 12px rgba(0, 123, 255, 0.2)",
   },
   typeCardHover: {
-    borderColor: '#ddd',
-    transform: 'translateY(-2px)',
-    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+    borderColor: "#ddd",
+    transform: "translateY(-2px)",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
   },
   typeName: {
-    fontSize: '0.9rem',
-    fontWeight: '600',
-    color: '#495057',
-    textAlign: 'center',
-    display: 'block',
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    color: "#495057",
+    textAlign: "center",
+    display: "block",
   },
   typeNameActive: {
-    color: '#007bff',
+    color: "#007bff",
   },
   activeIndicator: {
-    position: 'absolute',
-    top: '8px',
-    right: '8px',
-    width: '20px',
-    height: '20px',
-    borderRadius: '50%',
-    backgroundColor: '#007bff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'white',
-    fontSize: '12px',
-    fontWeight: 'bold',
-    animation: 'slideIn 0.3s ease-out',
+    position: "absolute",
+    top: "8px",
+    right: "8px",
+    width: "20px",
+    height: "20px",
+    borderRadius: "50%",
+    backgroundColor: "#007bff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "white",
+    fontSize: "12px",
+    fontWeight: "bold",
+    animation: "slideIn 0.3s ease-out",
   },
 };
 
 const Events = () => {
   const location = useLocation();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const isAdmin = currentUser?.role === "admin";
@@ -531,8 +531,9 @@ const Events = () => {
   const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
     return localStorage.getItem("selectedEventType") || '';
   });
-  const [selectedStatus, setSelectedStatus] = useState('incomplete');
-  const [searchQuery, setSearchQuery] = useState('');
+
+  const [selectedStatus, setSelectedStatus] = useState("incomplete");
+  const [searchQuery, setSearchQuery] = useState("");
   const [hoveredRow, setHoveredRow] = useState(null);
   const [hoveredType, setHoveredType] = useState(null);
   const [viewFilter, setViewFilter] = useState('all');
@@ -563,7 +564,7 @@ const Events = () => {
         const parsed = JSON.parse(savedEventTypes);
         setCustomEventTypes(parsed);
         setUserCreatedEventTypes(parsed);
-        setEventTypes(parsed.map(type => type.name));
+        setEventTypes(parsed.map((type) => type.name));
       } catch (error) {
         console.error("Error parsing saved event types:", error);
       }
@@ -572,7 +573,10 @@ const Events = () => {
 
   useEffect(() => {
     if (customEventTypes.length > 0) {
-      localStorage.setItem("customEventTypes", JSON.stringify(customEventTypes));
+      localStorage.setItem(
+        "customEventTypes",
+        JSON.stringify(customEventTypes)
+      );
     }
   }, [customEventTypes]);
 
@@ -863,16 +867,20 @@ const handleNextPage = () => {
     try {
       const token = localStorage.getItem("token");
 
-      const response = await axios.post(`${BACKEND_URL}/event-types`, eventTypeData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.post(
+        `${BACKEND_URL}/event-types`,
+        eventTypeData,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       const newEventType = response.data;
       if (newEventType) {
         const updatedEventTypes = [...customEventTypes, newEventType];
         setCustomEventTypes(updatedEventTypes);
         setUserCreatedEventTypes(updatedEventTypes);
-        setEventTypes(updatedEventTypes.map(type => type.name));
+        setEventTypes(updatedEventTypes.map((type) => type.name));
 
         setSelectedEventTypeObj(newEventType);
         setCurrentSelectedEventType(newEventType.name);
@@ -883,8 +891,9 @@ const handleNextPage = () => {
         setCreateEventModalOpen(true);
       }
     } catch (error) {
-      console.error('Error creating event type:', error);
-      alert('Failed to create event type. Please try again.');
+      console.log("Submitting Event Type:", formData);
+      console.error("Error creating event type:", error);
+      alert("Failed to create event type. Please try again.");
     }
   };
 
@@ -1064,7 +1073,6 @@ const applyFilters = (filters) => {
       });
 
       return { success: true, message: "Attendance submitted successfully" };
-
     } catch (error) {
       console.error("❌ Error in handleAttendanceSubmit:", error);
       const errData = error.response?.data;
@@ -1161,10 +1169,19 @@ const applyFilters = (filters) => {
       console.error("Error updating event:", error);
       setAlert({
         open: true,
-        type: "error",
-        message: "Failed to update event",
+        message: `"${event.eventName}" deleted successfully!`,
+        severity: "success",
       });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+    // } catch (err) {
+    //   console.error("Delete error:", err.response?.data);
+    //   setSnackbar({
+    //     open: true,
+    //     message: `Failed to delete: ${
+    //       err.response?.data?.detail || err.message
+    //     }`,
+    //     severity: "error",
+    //   });
+    //   setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
   };
 
@@ -1187,33 +1204,34 @@ const applyFilters = (filters) => {
 
   // EventTypeSelector Component
   const EventTypeSelector = () => {
-    const allTypes = ['CELLS', ...eventTypes];
-    const isAdmin = currentUser?.role === "admin";
+    const [hoveredType, setHoveredType] = useState(null);
+    const allTypes = ["CELLS", ...eventTypes];
+    const isAdmin = currentUser?.role === "admin"; // ✅ your admin check
 
     const getDisplayName = (type) => {
-      if (type === 'CELLS') return type;
-      if (typeof type === 'string') return type.toUpperCase();
-      return (type.name || type).toUpperCase();
+      if (type === "CELLS") return type;
+      if (typeof type === "string") return type;
+      return type.name || type;
     };
 
     const getTypeValue = (type) => {
-      if (type === 'CELLS') return 'all';
-      if (typeof type === 'string') return type.toLowerCase();
+      if (type === "CELLS") return "all";
+      if (typeof type === "string") return type.toLowerCase();
       return (type.name || type).toLowerCase();
     };
 
     const selectedDisplayName =
-      selectedEventTypeFilter === 'all'
-        ? 'CELLS'
+      selectedEventTypeFilter === "all"
+        ? "CELLS"
         : eventTypes.find((t) => {
-          const tValue = typeof t === 'string' ? t : t.name;
-          return tValue?.toLowerCase() === selectedEventTypeFilter;
-        }) || selectedEventTypeFilter;
+            const tValue = typeof t === "string" ? t : t.name;
+            return tValue?.toLowerCase() === selectedEventTypeFilter;
+          }) || selectedEventTypeFilter;
 
     const finalDisplayName =
-      typeof selectedDisplayName === 'string'
+      typeof selectedDisplayName === "string"
         ? selectedDisplayName
-        : selectedDisplayName?.name || 'CELLS';
+        : selectedDisplayName?.name || "CELLS";
 
     return (
       <div style={eventTypeStyles.container}>
@@ -1238,15 +1256,50 @@ const applyFilters = (filters) => {
                   style={{
                     ...eventTypeStyles.typeCard,
                     ...(isActive ? eventTypeStyles.typeCardActive : {}),
-                    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+                    ...(isHovered && !isActive
+                      ? eventTypeStyles.typeCardHover
+                      : {}),
                   }}
                   onClick={() => {
+                    const selectedTypeObj =
+                      typeValue === "all"
+                        ? null
+                        : customEventTypes.find(
+                            (t) => t.name.toLowerCase() === typeValue
+                          ) || null;
+
                     setSelectedEventTypeFilter(typeValue);
-                    fetchEvents({
-                      event_type: typeValue !== 'all' ? typeValue : undefined,
-                      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                      search: searchQuery || undefined
+                    setSelectedEventTypeObj(selectedTypeObj);
+
+                    // 🧠 Track which event type you're currently on
+                    console.log(
+                      "🟢 Switched to Event Type:",
+                      selectedTypeObj?.name || typeValue
+                    );
+                    console.log("🧩 Config:", {
+                      isTicketed: selectedTypeObj?.isTicketed,
+                      isGlobal: selectedTypeObj?.isGlobal,
+                      hasPersonSteps: selectedTypeObj?.hasPersonSteps,
                     });
+
+                    // Store locally so CreateEvents can read it instantly
+                    if (selectedTypeObj) {
+                      localStorage.setItem(
+                        "selectedEventTypeObj",
+                        JSON.stringify(selectedTypeObj)
+                      );
+                    } else {
+                      localStorage.removeItem("selectedEventTypeObj");
+                    }
+
+                    // Apply filter
+                    applyAllFilters(
+                      typeValue === "all"
+                        ? { ...activeFilters, eventType: undefined }
+                        : { ...activeFilters, eventType: typeValue },
+                      selectedStatus,
+                      searchQuery
+                    );
                   }}
                   onMouseEnter={() => setHoveredType(typeValue)}
                   onMouseLeave={() => setHoveredType(null)}
@@ -1496,7 +1549,9 @@ const ViewFilterButtons = () => {
         </div>
         <div style={styles.mobileCardRow}>
           <span style={styles.mobileCardLabel}>Leader:</span>
-          <span style={styles.mobileCardValue}>{event.eventLeaderName || '-'}</span>
+          <span style={styles.mobileCardValue}>
+            {event.eventLeaderName || "-"}
+          </span>
         </div>
 
         {shouldShowLeaders && (
@@ -1520,14 +1575,14 @@ const ViewFilterButtons = () => {
           <span style={styles.mobileCardLabel}>Day:</span>
           <span style={styles.mobileCardValue}>
             <div>{dayOfWeek}</div>
-            {isOverdue(event) && (
-              <div style={styles.overdueLabel}>Overdue</div>
-            )}
+            {isOverdue(event) && <div style={styles.overdueLabel}>Overdue</div>}
           </span>
         </div>
         <div style={styles.mobileCardRow}>
           <span style={styles.mobileCardLabel}>Email:</span>
-          <span style={styles.mobileCardValue}>{event.eventLeaderEmail || '-'}</span>
+          <span style={styles.mobileCardValue}>
+            {event.eventLeaderEmail || "-"}
+          </span>
         </div>
         <div style={styles.mobileCardRow}>
           <span style={styles.mobileCardLabel}>Date:</span>
@@ -1548,7 +1603,7 @@ const ViewFilterButtons = () => {
             <IconButton
               onClick={() => handleEditEvent(event)}
               size="small"
-              sx={{ color: '#007bff', border: '1px solid #007bff' }}
+              sx={{ color: "#007bff", border: "1px solid #007bff" }}
             >
               <EditIcon />
             </IconButton>
@@ -1559,7 +1614,7 @@ const ViewFilterButtons = () => {
               <IconButton
                 onClick={() => handleDeleteEvent(event)}
                 size="small"
-                sx={{ color: '#dc3545', border: '1px solid #dc3545' }}
+                sx={{ color: "#dc3545", border: "1px solid #dc3545" }}
               >
                 <DeleteIcon />
               </IconButton>
@@ -1570,10 +1625,18 @@ const ViewFilterButtons = () => {
     );
   };
 
-  const allEventTypes = [...(eventTypes || []), ...(userCreatedEventTypes || [])];
+  const allEventTypes = [
+    ...(eventTypes || []),
+    ...(userCreatedEventTypes || []),
+  ];
 
   return (
-    <div style={{ ...styles.container, backgroundColor: theme.palette.background.default }}>
+    <div
+      style={{
+        ...styles.container,
+        backgroundColor: theme.palette.background.default,
+      }}
+    >
       <div style={styles.topSection}>
         <EventTypeSelector />
 <div style={styles.searchFilterRow}>
@@ -1630,7 +1693,13 @@ const ViewFilterButtons = () => {
               <div key={idx} style={styles.loadingSkeleton} />
             ))
           ) : filteredEvents.length === 0 ? (
-            <div style={{ ...styles.mobileCard, textAlign: 'center', padding: '2rem' }}>
+            <div
+              style={{
+                ...styles.mobileCard,
+                textAlign: "center",
+                padding: "2rem",
+              }}
+            >
               No events found matching your criteria.
             </div>
           ) : (
@@ -1968,7 +2037,9 @@ const ViewFilterButtons = () => {
           <div style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>
-                {selectedEventTypeObj?.name === "CELLS" ? "Create New Cell" : "Create New Event"}
+                {selectedEventTypeObj?.name === "CELLS"
+                  ? "Create New Cell"
+                  : "Create New Event"}
               </h2>
               <button
                 style={styles.modalCloseButton}
@@ -1983,8 +2054,8 @@ const ViewFilterButtons = () => {
                 user={currentUser}
                 isModal={true}
                 onClose={handleCloseCreateEventModal}
-                selectedEventTypeObj={selectedEventTypeObj}
-                selectedEventType={currentSelectedEventType}
+                selectedEventTypeObj={selectedEventTypeObj} // <-- Pass the selected event type object
+                selectedEventType={selectedEventTypeFilter} // <-- Pass the selected event type name
                 eventTypes={allEventTypes}
               />
             </div>
@@ -2003,12 +2074,12 @@ const ViewFilterButtons = () => {
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          sx={{ width: "100%" }}
         >
           {snackbar.message}
         </Alert>
@@ -2024,11 +2095,7 @@ const ViewFilterButtons = () => {
           }
         }
         
-        @keyframes slideIn {
-          from {
-            transform: scale(0) rotate(-180deg);
             opacity: 0;
-          }
           to {
             transform: scale(1) rotate(0deg);
             opacity: 1;
