@@ -702,7 +702,8 @@ const Events = () => {
   }
 };
 
-  const isOverdue = (event) => {
+
+const isOverdue = (event) => {
     if (event?._is_overdue !== undefined) {
       return event._is_overdue;
     }
@@ -711,8 +712,12 @@ const Events = () => {
 
     const status = (event.status || event.Status || '').toLowerCase().trim();
     const didNotMeet = event.did_not_meet || false;
-    const hasBeenCaptured = status === 'complete' || status === 'closed' || status === 'did_not_meet' || didNotMeet;
+    const hasAttendees = event.attendees && event.attendees.length > 0;
+    
+    // Check if event has been captured - either has attendees, marked as did_not_meet, or status is complete/closed
+    const hasBeenCaptured = hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || didNotMeet;
 
+    // If captured, never show as overdue
     if (hasBeenCaptured) return false;
 
     const eventDate = new Date(event.date);
@@ -722,6 +727,7 @@ const Events = () => {
 
     return eventDate < today;
   };
+
   const startIndex = totalEvents > 0 ? ((currentPage - 1) * rowsPerPage) + 1 : 0;
   const endIndex = Math.min(currentPage * rowsPerPage, totalEvents);
   const paginatedEvents = events;
