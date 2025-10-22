@@ -1246,125 +1246,115 @@ const applyFilters = (filters) => {
     }
   };
 
-  // EventTypeSelector Component
-  const EventTypeSelector = () => {
-    const [hoveredType, setHoveredType] = useState(null);
-    const allTypes = ["CELLS", ...eventTypes];
-    const isAdmin = currentUser?.role === "admin"; // ✅ your admin check
+const EventTypeSelector = () => {
+  const [hoveredType, setHoveredType] = useState(null);
+  const allTypes = ["CELLS", ...eventTypes];
+  const isAdmin = currentUser?.role === "admin";
 
-    const getDisplayName = (type) => {
-      if (type === "CELLS") return type;
-      if (typeof type === "string") return type;
-      return type.name || type;
-    };
-
-    const getTypeValue = (type) => {
-      if (type === "CELLS") return "all";
-      if (typeof type === "string") return type.toLowerCase();
-      return (type.name || type).toLowerCase();
-    };
-
-    const selectedDisplayName =
-      selectedEventTypeFilter === "all"
-        ? "CELLS"
-        : eventTypes.find((t) => {
-            const tValue = typeof t === "string" ? t : t.name;
-            return tValue?.toLowerCase() === selectedEventTypeFilter;
-          }) || selectedEventTypeFilter;
-
-    const finalDisplayName =
-      typeof selectedDisplayName === "string"
-        ? selectedDisplayName
-        : selectedDisplayName?.name || "CELLS";
-
-    return (
-      <div style={eventTypeStyles.container}>
-        <div style={eventTypeStyles.header}>Filter by Event Type</div>
-
-        <div style={eventTypeStyles.selectedTypeDisplay}>
-          <div style={eventTypeStyles.checkIcon}>✓</div>
-          <span>{finalDisplayName}</span>
-        </div>
-
-        {isAdmin && (
-          <div style={eventTypeStyles.typesGrid}>
-            {allTypes.map((type) => {
-              const displayName = getDisplayName(type);
-              const typeValue = getTypeValue(type);
-              const isActive = selectedEventTypeFilter === typeValue;
-              const isHovered = hoveredType === typeValue;
-
-              return (
-                <div
-                  key={typeValue}
-                  style={{
-                    ...eventTypeStyles.typeCard,
-                    ...(isActive ? eventTypeStyles.typeCardActive : {}),
-                    ...(isHovered && !isActive
-                      ? eventTypeStyles.typeCardHover
-                      : {}),
-                  }}
-                  onClick={() => {
-                    const selectedTypeObj =
-                      typeValue === "all"
-                        ? null
-                        : customEventTypes.find(
-                            (t) => t.name.toLowerCase() === typeValue
-                          ) || null;
-
-                    setSelectedEventTypeFilter(typeValue);
-                    setSelectedEventTypeObj(selectedTypeObj);
-
-                    // 🧠 Track which event type you're currently on
-                    console.log(
-                      "🟢 Switched to Event Type:",
-                      selectedTypeObj?.name || typeValue
-                    );
-                    console.log("🧩 Config:", {
-                      isTicketed: selectedTypeObj?.isTicketed,
-                      isGlobal: selectedTypeObj?.isGlobal,
-                      hasPersonSteps: selectedTypeObj?.hasPersonSteps,
-                    });
-
-                    // Store locally so CreateEvents can read it instantly
-                    if (selectedTypeObj) {
-                      localStorage.setItem(
-                        "selectedEventTypeObj",
-                        JSON.stringify(selectedTypeObj)
-                      );
-                    } else {
-                      localStorage.removeItem("selectedEventTypeObj");
-                    }
-
-                    // Apply filter
-                    applyAllFilters(
-                      typeValue === "all"
-                        ? { ...activeFilters, eventType: undefined }
-                        : { ...activeFilters, eventType: typeValue },
-                      selectedStatus,
-                      searchQuery
-                    );
-                  }}
-                  onMouseEnter={() => setHoveredType(typeValue)}
-                  onMouseLeave={() => setHoveredType(null)}
-                >
-                  {isActive && <div style={eventTypeStyles.activeIndicator}>✓</div>}
-                  <span
-                    style={{
-                      ...eventTypeStyles.typeName,
-                      ...(isActive ? eventTypeStyles.typeNameActive : {}),
-                    }}
-                  >
-                    {displayName}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
+  const getDisplayName = (type) => {
+    if (type === "CELLS") return type;
+    if (typeof type === "string") return type;
+    return type.name || type;
   };
+
+  const getTypeValue = (type) => {
+    if (type === "CELLS") return "all";
+    if (typeof type === "string") return type.toLowerCase();
+    return (type.name || type).toLowerCase();
+  };
+
+  const selectedDisplayName =
+    selectedEventTypeFilter === "all"
+      ? "CELLS"
+      : eventTypes.find((t) => {
+          const tValue = typeof t === "string" ? t : t.name;
+          return tValue?.toLowerCase() === selectedEventTypeFilter;
+        }) || selectedEventTypeFilter;
+
+  const finalDisplayName =
+    typeof selectedDisplayName === "string"
+      ? selectedDisplayName
+      : selectedDisplayName?.name || "CELLS";
+
+  return (
+    <div style={eventTypeStyles.container}>
+      <div style={eventTypeStyles.header}>Filter by Event Type</div>
+
+      <div style={eventTypeStyles.selectedTypeDisplay}>
+        <div style={eventTypeStyles.checkIcon}>✓</div>
+        <span>{finalDisplayName}</span>
+      </div>
+
+      {isAdmin && (
+        <div style={eventTypeStyles.typesGrid}>
+          {allTypes.map((type) => {
+            const displayName = getDisplayName(type);
+            const typeValue = getTypeValue(type);
+            const isActive = selectedEventTypeFilter === typeValue;
+            const isHovered = hoveredType === typeValue;
+
+            return (
+              <div
+                key={typeValue}
+                style={{
+                  ...eventTypeStyles.typeCard,
+                  ...(isActive ? eventTypeStyles.typeCardActive : {}),
+                  ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+                }}
+                onClick={() => {
+                  console.log('🟢 Switched to Event Type:', displayName);
+                  
+                  // Find the full event type object
+                  const selectedTypeObj =
+                    typeValue === "all"
+                      ? null
+                      : customEventTypes.find(
+                          (t) => t.name.toLowerCase() === typeValue
+                        ) || null;
+
+                  console.log('🧩 Config:', {
+                    isTicketed: selectedTypeObj?.isTicketed,
+                    isGlobal: selectedTypeObj?.isGlobal,
+                    hasPersonSteps: selectedTypeObj?.hasPersonSteps,
+                  });
+
+                  // Update the selected event type filter
+                  setSelectedEventTypeFilter(typeValue);
+                  setSelectedEventTypeObj(selectedTypeObj);
+
+                  // Store in localStorage
+                  if (selectedTypeObj) {
+                    localStorage.setItem(
+                      "selectedEventTypeObj",
+                      JSON.stringify(selectedTypeObj)
+                    );
+                  } else {
+                    localStorage.removeItem("selectedEventTypeObj");
+                  }
+
+                  // ✅ FIX: Call handleEventTypeClick instead of applyAllFilters
+                  handleEventTypeClick(typeValue);
+                }}
+                onMouseEnter={() => setHoveredType(typeValue)}
+                onMouseLeave={() => setHoveredType(null)}
+              >
+                {isActive && <div style={eventTypeStyles.activeIndicator}>✓</div>}
+                <span
+                  style={{
+                    ...eventTypeStyles.typeName,
+                    ...(isActive ? eventTypeStyles.typeNameActive : {}),
+                  }}
+                >
+                  {displayName}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
   // StatusBadges Component
   const StatusBadges = () => {
