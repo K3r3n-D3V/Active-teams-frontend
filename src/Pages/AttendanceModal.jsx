@@ -820,14 +820,25 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  // NEW: Function to load existing attendance data from event
-  const loadExistingAttendance = () => {
-    if (!event || !event.attendees || event.attendees.length === 0) {
-      return;
-    }
+const loadExistingAttendance = async () => {
+  if (!event) return;
 
-    console.log("📥 Loading existing attendance data:", event.attendees);
+  const eventId = event._id || event.id;
+  
+  console.log("📥 Loading attendance data for event:", eventId);
+  console.log("   Event status:", event.status);
+  console.log("   Event attendees count:", event.attendees?.length || 0);
 
+  // ✅ CHECK 1: Does this event have CURRENT WEEK's attendance captured?
+  const hasCurrentWeekData = 
+    event.status === 'complete' || 
+    event.status === 'did_not_meet' ||
+    (event.attendees && event.attendees.length > 0);
+
+  if (hasCurrentWeekData) {
+    // ✅ CURRENT WEEK HAS DATA: Load it normally (CHECKED)
+    console.log("✅ Current week HAS data - loading checked state");
+    
     const newCheckedIn = {};
     const newDecisions = {};
     const newDecisionTypes = {};
@@ -835,34 +846,35 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     const newPaymentMethods = {};
     const newPaidAmounts = {};
 
-    event.attendees.forEach(attendee => {
-      if (attendee.id) {
-        newCheckedIn[attendee.id] = true;
+    if (event.attendees && Array.isArray(event.attendees)) {
+      event.attendees.forEach(attendee => {
+        if (attendee.id) {
+          newCheckedIn[attendee.id] = true; // ✅ CHECKED
 
-        if (attendee.decision) {
-          newDecisions[attendee.id] = true;
-          newDecisionTypes[attendee.id] = attendee.decision;
-        }
+          if (attendee.decision) {
+            newDecisions[attendee.id] = true;
+            newDecisionTypes[attendee.id] = attendee.decision;
+          }
 
-        // Load ticketed event data if available
-        if (isTicketedEvent) {
-          if (attendee.priceTier) {
-            newPriceTiers[attendee.id] = {
-              name: attendee.priceTier,
-              price: attendee.price || 0,
-              ageGroup: attendee.ageGroup || "",
-              memberType: attendee.memberType || ""
-            };
-          }
-          if (attendee.paymentMethod) {
-            newPaymentMethods[attendee.id] = attendee.paymentMethod;
-          }
-          if (attendee.paid !== undefined) {
-            newPaidAmounts[attendee.id] = attendee.paid;
+          if (isTicketedEvent) {
+            if (attendee.priceTier) {
+              newPriceTiers[attendee.id] = {
+                name: attendee.priceTier,
+                price: attendee.price || 0,
+                ageGroup: attendee.ageGroup || "",
+                memberType: attendee.memberType || ""
+              };
+            }
+            if (attendee.paymentMethod) {
+              newPaymentMethods[attendee.id] = attendee.paymentMethod;
+            }
+            if (attendee.paid !== undefined) {
+              newPaidAmounts[attendee.id] = attendee.paid;
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     setCheckedIn(newCheckedIn);
     setDecisions(newDecisions);
@@ -871,20 +883,111 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     setPaymentMethods(newPaymentMethods);
     setPaidAmounts(newPaidAmounts);
 
-    // Set manual headcount from event data if available
     if (event.totalHeadcount) {
       setManualHeadcount(event.totalHeadcount.toString());
     }
 
-    console.log("✅ Loaded attendance state:", {
-      checkedIn: newCheckedIn,
-      decisions: newDecisions,
-      decisionTypes: newDecisionTypes,
-      priceTiers: newPriceTiers,
-      paymentMethods: newPaymentMethods,
-      paidAmounts: newPaidAmounts
+    if (event.did_not_meet) {
+      setDidNotMeet(true);
+    }
+
+    console.log("✅ Loaded current week state (checked):", {
+      checkedCount: Object.keys(newCheckedIn).length
     });
-  };
+
+  } else {
+    // ✅ NEW WEEK: Fetch last week's attendees (UNCHECKED)
+    console.log("🆕 New week detected - fetching last week's attendees (unchecked)");
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${BACKEND_URL}/events/${eventId}/last-attendance`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.has_previous_attendance && data.attendees) {
+          console.log("📋 Found previous week's attendees:", data.attendees.length);
+          console.log("   Last week:", data.last_week);
+          
+          // ✅ Add to persistent common attendees (but UNCHECKED)
+          const previousAttendees = data.attendees.map(attendee => ({
+            id: attendee.id,
+            fullName: attendee.name || attendee.fullName || "",
+            email: attendee.email || "",
+            leader12: attendee.leader12 || "",
+            leader144: attendee.leader144 || "",
+            phone: attendee.phone || ""
+          }));
+
+          // Merge with existing persistent attendees (avoid duplicates)
+          const merged = [...persistentCommonAttendees];
+          previousAttendees.forEach(prevAttendee => {
+            if (!merged.some(p => p.id === prevAttendee.id)) {
+              merged.push(prevAttendee);
+            }
+          });
+
+          setPersistentCommonAttendees(merged);
+          savePersistentCommonAttendees(merged);
+
+          console.log("✅ Pre-populated names from last week (UNCHECKED)");
+          
+          // ✅ CRITICAL: Do NOT check them in automatically
+          // User must tick them again for this new week
+          
+        } else {
+          console.log("ℹ️ No previous attendance found - starting fresh");
+        }
+      } else {
+        console.log("⚠️ Could not fetch last attendance:", response.status);
+      }
+    } catch (error) {
+      console.error("❌ Error fetching last attendance:", error);
+    }
+
+    // ✅ Reset all states for new week
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
+    setManualHeadcount("");
+    setDidNotMeet(false);
+
+    console.log("✅ Ready for new week - all states cleared");
+  }
+};  
+
+const testLastAttendanceEndpoint = async (eventId) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch(
+      `${BACKEND_URL}/events/${eventId}/last-attendance`,
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+    
+    console.log("🔍 Last attendance endpoint test:", {
+      status: response.status,
+      ok: response.ok
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("📊 Last attendance data:", data);
+    }
+  } catch (error) {
+    console.error("❌ Last attendance endpoint error:", error);
+  }
+};
 
   useEffect(() => {
     if (isOpen && event) {
