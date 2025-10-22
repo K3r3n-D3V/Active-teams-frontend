@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Phone, UserPlus } from "lucide-react";
+import { Phone, UserPlus, Plus } from "lucide-react";
 
 function Modal({ isOpen, onClose, children, theme }) {
   if (!isOpen) return null;
@@ -61,9 +61,11 @@ function Modal({ isOpen, onClose, children, theme }) {
 
 export default function DailyTasks() {
   const [tasks, setTasks] = useState([]);
+  const [taskTypes, setTaskTypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedTask, setSelectedTask] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddTypeModalOpen, setIsAddTypeModalOpen] = useState(false);
   const [formType, setFormType] = useState("");
   const [dateRange, setDateRange] = useState("today");
   const [filterType, setFilterType] = useState("all");
@@ -71,8 +73,12 @@ export default function DailyTasks() {
   const [storedUser, setStoredUser] = useState(() =>
     JSON.parse(localStorage.getItem("userProfile") || "{}")
   );
+  const [newTaskTypeName, setNewTaskTypeName] = useState("");
+  const [addingTaskType, setAddingTaskType] = useState(false);
+  
 
-  const API_URL = `${import.meta.env.VITE_BACKEND_URL}`
+  // const API_URL = `${import.meta.env.VITE_BACKEND_URL}` || "http://127.0.0.1:8000";
+  const API_URL = "http://127.0.0.1:8000"
 
   const getCurrentDateTime = () => {
     const now = new Date();
@@ -81,19 +87,10 @@ export default function DailyTasks() {
     return localDate.toISOString().slice(0, 16);
   };
 
-  const [taskOptions] = useState([
-    "Cell request",
-    "Visit",
-    "Service Invitation",
-    "Follow Up",
-    "Wrong Number",
-    "Awaiting Call",
-    "No Answer",
-  ]);
-
   const getInitialTaskData = () => ({
     taskType: "",
-    recipient: "",
+    recipient: null,
+    recipientDisplay: "",
     assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
     dueDate: getCurrentDateTime(),
     status: "Open",
@@ -177,6 +174,60 @@ export default function DailyTasks() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
+  const fetchTaskTypes = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_URL}/tasktypes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch task types");
+      const data = await res.json();
+      setTaskTypes(Array.isArray(data) ? data : data.taskTypes || []);
+    } catch (err) {
+      console.error("Error fetching task types:", err.message);
+    }
+  };
+
+  const createTaskType = async () => {
+    if (!newTaskTypeName.trim()) {
+      alert("Please enter a task type name");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    setAddingTaskType(true);
+    try {
+      const res = await fetch(`${API_URL}/tasktypes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newTaskTypeName.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to create task type');
+      }
+
+      setTaskTypes([...taskTypes, data.taskType || data]);
+      setNewTaskTypeName("");
+      setIsAddTypeModalOpen(false);
+    } catch (err) {
+      console.error("Error creating task type:", err.message);
+      alert("Failed to create task type: " + err.message);
+    } finally {
+      setAddingTaskType(false);
+    }
+  };
+
   const fetchUserTasks = async (userId) => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -186,28 +237,22 @@ export default function DailyTasks() {
 
     try {
       setLoading(true);
-      console.log("Fetching tasks for userEmail:", storedUser.email);
-      
       const res = await fetch(`${API_URL}/tasks?user_email=${storedUser.email}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
-      console.log("Fetched tasks raw:", data);
 
-    const normalizedTasks = (Array.isArray(data) ? data : data.tasks || []).map((task) => ({
-      ...task,
-      assignedTo: task.assignedfor || task.assignedTo,
-      date: task.date || task.followup_date,
-      status: (task.status || "Open").toLowerCase(),
-      taskName: task.name || task.taskName,
-      type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
-    }));
+      const normalizedTasks = (Array.isArray(data) ? data : data.tasks || []).map((task) => ({
+        ...task,
+        assignedTo: task.assignedfor || task.assignedTo,
+        date: task.date || task.followup_date,
+        status: (task.status || "Open").toLowerCase(),
+        taskName: task.name || task.taskName,
+        type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
+      }));
 
-
-      console.log("Normalized tasks:", normalizedTasks);
       setTasks(normalizedTasks);
     } catch (err) {
       console.error("Error fetching user tasks:", err.message);
@@ -216,25 +261,55 @@ export default function DailyTasks() {
     }
   };
 
-  const fetchPeople = async (q) => {
-    if (!q.trim()) return setSearchResults([]);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/people?name=${encodeURIComponent(q)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setSearchResults(data.results || []);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-    }
-  };
+ const fetchPeople = async (q) => {
+  if (!q.trim()) return setSearchResults([]);
+
+  const parts = q.trim().split(/\s+/);
+  const name = parts[0];
+  const surname = parts.slice(1).join(" ");
+
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_URL}/people?name=${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) throw new Error("Failed to fetch people");
+
+    const data = await res.json();
+
+    // Filter results
+    let filtered = (data?.results || []).filter(p =>
+      p.Name.toLowerCase().includes(name.toLowerCase()) &&
+      (!surname || p.Surname.toLowerCase().includes(surname.toLowerCase()))
+    );
+
+    // Sort alphabetically by Name, then Surname
+    filtered.sort((a, b) => {
+      const nameA = a.Name.toLowerCase();
+      const nameB = b.Name.toLowerCase();
+      const surnameA = (a.Surname || "").toLowerCase();
+      const surnameB = (b.Surname || "").toLowerCase();
+
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      if (surnameA < surnameB) return -1;
+      if (surnameA > surnameB) return 1;
+      return 0;
+    });
+
+    setSearchResults(filtered);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    setSearchResults([]);
+  }
+};
 
   const fetchAssigned = async (q) => {
     if (!q.trim()) return setAssignedResults([]);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/people?name=${encodeURIComponent(q)}`, {
+      const res = await fetch(`${API_URL}/assigned?name=${encodeURIComponent(q.trim())}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -259,12 +334,10 @@ export default function DailyTasks() {
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.message || 'Failed to create task');
       }
-
-      console.log("Task created:", data);
 
       if (data.task) {
         setTasks((prev) => [
@@ -279,7 +352,7 @@ export default function DailyTasks() {
           ...prev,
         ]);
       }
-      
+
       return data;
     } catch (err) {
       console.error("Error creating task:", err.message);
@@ -291,7 +364,6 @@ export default function DailyTasks() {
     const handleStorageChange = () => {
       const freshUser = JSON.parse(localStorage.getItem("userProfile") || "{}");
       const userId = freshUser?.userId || freshUser?.id;
-      console.log("Storage changed, fetching tasks for userId:", userId);
       if (userId) {
         setStoredUser(freshUser);
         fetchUserTasks(userId);
@@ -299,13 +371,11 @@ export default function DailyTasks() {
     };
 
     window.addEventListener('storage', handleStorageChange);
-    
+
     const userId = storedUser?.userId || storedUser?.id;
-    console.log("Initial fetch for userId:", userId, "storedUser:", storedUser);
     if (userId) {
       fetchUserTasks(userId);
-    } else {
-      console.log("No userId found in storedUser:", storedUser);
+      fetchTaskTypes();
     }
 
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -334,25 +404,82 @@ export default function DailyTasks() {
     setTaskData({ ...taskData, [name]: value });
   };
 
-  const handleSubmit = async (e) => {
+  const updateTask = async (taskId, updatedData) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_URL}/tasks/${taskId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedData),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update task");
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t._id === taskId ? { ...t, ...data.updatedTask, date: data.updatedTask.followup_date } : t
+        )
+      );
+      
+      handleClose();
+    } catch (err) {
+      console.error("Error updating task:", err.message);
+      alert("Failed to update task: " + err.message);
+    }
+  };
+
+  const handleEdit = (task) => {
+  // If task is completed, prevent editing
+  if (task.status?.toLowerCase() === "completed") {
+    alert("This task has been marked as completed and cannot be edited.");
+    return;
+  }
+
+  setSelectedTask(task);
+  setFormType(task.type);
+  setIsModalOpen(true);
+  setTaskData({
+    taskType: task.taskType || "",
+    recipient: {
+      Name: task.contacted_person?.name?.split(" ")[0] || "",
+      Surname: task.contacted_person?.name?.split(" ")[1] || "",
+      Phone: task.contacted_person?.phone || "",
+      Email: task.contacted_person?.email || "",
+    },
+    recipientDisplay: task.contacted_person?.name || "",
+    assignedTo: task.name || storedUser.name,
+    dueDate: formatDateTime(task.date),
+    status: task.status,
+    taskStage: task.status,
+  });
+};
+
+const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
       if (!storedUser?.id) throw new Error("Logged-in user ID not found");
 
-      const sanitizedEmail = taskData.recipient
-        ? taskData.recipient.toLowerCase().replace(/\s+/g, "") + "@gmail.com"
-        : "unknown@gmail.com";
+      const person = taskData.recipient;
+
+      if (!person || !person.Name) {
+        throw new Error("Person details not found. Please select a valid recipient.");
+      }
 
       const taskPayload = {
         memberID: storedUser.id,
         name: taskData.assignedTo || storedUser.name,
         taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
-          name: taskData.recipient || "Unknown",
-          phone: "0786655753",
-          email: sanitizedEmail,
+          name: `${person.Name} ${person.Surname}` || "Unknown",
+          phone: person.Phone || "",
+          email: person.Email || "",
         },
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
@@ -360,9 +487,14 @@ export default function DailyTasks() {
         assignedfor: storedUser.email,
       };
 
-      console.log("Submitting task payload:", taskPayload);
-      const result = await createTask(taskPayload);
-      console.log("Task creation result:", result);
+       if (selectedTask && selectedTask._id) {
+        await updateTask(selectedTask._id, taskPayload);
+        alert(`Task for ${person.Name} ${person.Surname} has been successfully updated!`);
+      } else {
+        await createTask(taskPayload);
+        alert(`You have successfully captured ${person.Name} ${person.Surname}`);
+        console.log("Task created successfully");
+      }
 
       handleClose();
     } catch (err) {
@@ -377,7 +509,10 @@ export default function DailyTasks() {
     const taskDate = parseDate(task.date);
     if (!taskDate) return false;
 
-    let matchesType = filterType === "all" || task.type === filterType;
+    let matchesType =
+      filterType === "all" ||
+      task.type === filterType ||
+      (filterType === "consolidation" && task.taskType === "consolidation");
     let matchesDate = true;
 
     const today = new Date();
@@ -415,51 +550,46 @@ export default function DailyTasks() {
 
   const totalCount = filteredTasks.length;
 
-  // Default to light mode
-
-const theme = {
-  bg: '#f9fafb',
-  cardBg: '#fff',
-  text: '#000',
-  textSecondary: '#666',
-  inputBg: '#f5f5f5',
-  shadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-  border: '#eee',
-};
-
+  const theme = {
+    bg: '#ffffff',
+    cardBg: '#ffffff',
+    text: '#1a1a24',
+    textSecondary: '#6b7280',
+    inputBg: '#f3f4f6',
+    shadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
+    border: '#e5e7eb',
+  };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px', backgroundColor: theme.bg, minHeight: '100vh' }}>
-      {/* Counter Card */}
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px', backgroundColor: theme.bg, minHeight: '100vh' }}>
       <div style={{
         backgroundColor: theme.cardBg,
         color: theme.text,
-        borderRadius: '16px',
-        padding: '32px',
+        borderRadius: '20px',
+        padding: '48px 32px',
         textAlign: 'center',
         boxShadow: theme.shadow,
-        marginTop: '40px',
+        border: `1px solid ${theme.border}`,
       }}>
-        <h1 style={{ fontSize: '60px', fontWeight: '800', margin: 0 }}>
+        <h1 style={{ fontSize: '72px', fontWeight: '700', margin: 0, letterSpacing: '-2px' }}>
           {totalCount}
         </h1>
-        <p style={{ marginTop: '12px', fontSize: '18px', letterSpacing: '0.5px' }}>Tasks Complete</p>
+        <p style={{ marginTop: '12px', fontSize: '16px', letterSpacing: '1px', textTransform: 'uppercase', color: theme.textSecondary, fontWeight: '600' }}>Tasks Complete</p>
 
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '40px', flexWrap: 'wrap' }}>
           <button
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '10px',
               backgroundColor: theme.cardBg,
               color: theme.text,
               fontWeight: '600',
-              padding: '12px 24px',
+              padding: '14px 28px',
               borderRadius: '12px',
-              border: 'none',
+              border: `2px solid ${theme.border}`,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: '15px',
               boxShadow: theme.shadow,
             }}
             onClick={() => handleOpen("call")}
@@ -470,35 +600,57 @@ const theme = {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '10px',
               backgroundColor: theme.cardBg,
               color: theme.text,
               fontWeight: '600',
-              padding: '12px 24px',
+              padding: '14px 28px',
               borderRadius: '12px',
-              border: 'none',
+              border: `2px solid ${theme.border}`,
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: '15px',
               boxShadow: theme.shadow,
             }}
             onClick={() => handleOpen("visit")}
           >
             <UserPlus size={20} /> Visit Task
           </button>
+          
+          {storedUser?.role === 'admin' && (
+            <button
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                backgroundColor: '#0f0e13ff',
+                color: '#fff',
+                fontWeight: '600',
+                padding: '14px 28px',
+                borderRadius: '12px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '15px',
+                boxShadow: theme.shadow,
+              }}
+              onClick={() => setIsAddTypeModalOpen(true)}
+            >
+              <Plus size={20} /> New Task Type
+            </button>
+          )}
         </div>
 
-        {/* Date filter */}
-        <div style={{ marginTop: '24px' }}>
+        <div style={{ marginTop: '32px' }}>
           <select
             style={{
-              padding: '8px 16px',
+              padding: '12px 20px',
               borderRadius: '12px',
-              border: 'none',
-              backgroundColor: theme.cardBg,
+              border: `2px solid ${theme.border}`,
+              backgroundColor: theme.inputBg,
               color: theme.text,
               fontSize: '14px',
               cursor: 'pointer',
-              boxShadow: theme.shadow,
+              fontWeight: '500',
+              outline: 'none',
             }}
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
@@ -511,33 +663,31 @@ const theme = {
         </div>
       </div>
 
-      {/* Type filter */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '32px' }}>
-        {["all", "call", "visit"].map((type) => (
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '32px', flexWrap: 'wrap' }}>
+        {["all", "call", "visit", "consolidation"].map((type) => (
           <button
             key={type}
             style={{
-              padding: '8px 24px',
+              padding: '10px 24px',
               borderRadius: '24px',
-              border: 'none',
-              fontWeight: '500',
+              border: filterType === type ? 'none' : `2px solid ${theme.border}`,
+              fontWeight: '600',
               cursor: 'pointer',
               backgroundColor: filterType === type ? theme.text : theme.cardBg,
               color: filterType === type ? theme.cardBg : theme.text,
               fontSize: '14px',
-              boxShadow: theme.shadow,
+              boxShadow: filterType === type ? theme.shadow : 'none',
             }}
             onClick={() => setFilterType(type)}
           >
-            {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1) + "s"}
+            {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
           </button>
         ))}
       </div>
 
-      {/* Task List */}
       <div style={{ marginTop: '32px' }}>
         {loading ? (
-          <p style={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic' }}>Loading tasks...</p>
+          <p style={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic', padding: '40px' }}>Loading tasks...</p>
         ) : filteredTasks.length === 0 ? (
           <p style={{ textAlign: 'center', color: theme.textSecondary }}>No tasks yet.</p>
         ) : (
@@ -549,28 +699,36 @@ const theme = {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 backgroundColor: theme.cardBg,
-                padding: '20px',
+                padding: '24px',
                 borderRadius: '16px',
-                border: 'none',
-                marginBottom: '16px',
+                border: `1px solid ${theme.border}`,
+                marginBottom: '12px',
                 cursor: 'pointer',
                 boxShadow: theme.shadow,
               }}
             >
-              <div>
-                <p style={{ fontWeight: '600', color: theme.text, margin: 0 }}>
+              <div
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  alert(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
+                }}
+              >
+                <p style={{ fontWeight: '700', color: theme.text, margin: 0, fontSize: '16px' }}>
                   {task.contacted_person?.name}
                 </p>
-                <p style={{ fontSize: '14px', color: theme.textSecondary, margin: '4px 0 0 0' }}>{task.name}</p>
+                <p style={{ fontSize: '14px', color: theme.textSecondary, margin: '6px 0 0 0' }}>{task.name}</p>
                 {task.isRecurring && (
                   <span style={{
-                    fontSize: '12px',
-                    fontWeight: '600',
+                    fontSize: '11px',
+                    fontWeight: '700',
                     backgroundColor: '#fde047',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
+                    color: '#854d0e',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
                     display: 'inline-block',
-                    marginTop: '4px',
+                    marginTop: '8px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
                   }}>
                     Recurring
                   </span>
@@ -580,10 +738,10 @@ const theme = {
                 <span
                   style={{
                     display: 'inline-block',
-                    padding: '4px 12px',
-                    borderRadius: '16px',
-                    fontSize: '12px',
-                    fontWeight: '500',
+                    padding: '6px 16px',
+                    borderRadius: '20px',
+                    fontSize: '13px',
+                    fontWeight: '600',
                     textTransform: 'capitalize',
                     border: '2px solid',
                     cursor: 'pointer',
@@ -591,32 +749,100 @@ const theme = {
                     color: task.status === "open" ? theme.text : task.status === "completed" ? theme.cardBg : theme.text,
                     borderColor: task.status === "open" ? theme.text : task.status === "completed" ? theme.text : theme.textSecondary,
                   }}
-                  onClick={() => {
-                    if (task.status === "awaiting task") {
-                      setSelectedTask(task);
-                      setTaskData({
-                        taskType: task.taskType || "",
-                        recipient: task.contacted_person?.name || "",
-                        assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
-                        dueDate: task.date ? formatDateTime(task.date) : getCurrentDateTime(),
-                        status: task.status || "Open",
-                        taskStage: task.status || "Open",
-                      });
-                      setFormType(task.type || "call");
-                      setIsModalOpen(true);
-                    }
-                  }}
+                  onClick={() => handleEdit(task)}
                 >
                   {task.status}
                 </span>
-                <div style={{ fontSize: '12px', color: theme.textSecondary, marginTop: '4px' }}>{formatDate(task.date)}</div>
+                <div style={{ fontSize: '12px', color: theme.textSecondary, marginTop: '8px', fontWeight: '500' }}>{formatDate(task.date)}</div>
               </div>
             </div>
           ))
         )}
       </div>
 
-      {/* Modal Form */}
+      {/* Modal */}
+      {isAddTypeModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              padding: "32px",
+              borderRadius: "16px",
+              width: "440px",
+              maxWidth: "90%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "20px",
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700" }}>
+              Add New Task Type
+            </h2>
+            <input
+              type="text"
+              value={newTaskTypeName}
+              onChange={(e) => setNewTaskTypeName(e.target.value)}
+              placeholder="Enter task type name"
+              autoFocus
+              style={{
+                padding: "14px 16px",
+                fontSize: "15px",
+                borderRadius: "12px",
+                border: "2px solid #e5e5e5",
+                width: "100%",
+                boxSizing: "border-box",
+                outline: 'none',
+              }}
+            />
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button
+                onClick={createTaskType}
+                disabled={addingTaskType}
+                style={{
+                  padding: "12px 24px",
+                  backgroundColor: "#0f0e13ff",
+                  color: "#fff",
+                  fontWeight: "600",
+                  borderRadius: "12px",
+                  border: "none",
+                  cursor: addingTaskType ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: addingTaskType ? 0.7 : 1,
+                }}
+              >
+                {addingTaskType ? "Adding..." : "Add"}
+              </button>
+              <button
+                onClick={() => setIsAddTypeModalOpen(false)}
+                style={{
+                  padding: "12px 24px",
+                  backgroundColor: "#e5e5e5",
+                  color: "#0f0e13ff",
+                  fontWeight: "600",
+                  borderRadius: "12px",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Modal isOpen={isModalOpen} onClose={handleClose} theme={theme}>
         <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} onSubmit={handleSubmit}>
           <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: theme.text, margin: 0 }}>
@@ -627,24 +853,25 @@ const theme = {
             <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
               Task Type
             </label>
-            <select 
+            <select
               name="taskType"
               value={taskData.taskType}
               onChange={handleChange}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 fontSize: '14px',
                 backgroundColor: theme.inputBg,
                 color: theme.text,
+                outline: 'none',
               }}
             >
               <option value="">Select a task type</option>
-              {taskOptions.map((opt, idx) => (
-                <option key={idx} value={opt}>
-                  {opt}
+              {taskTypes.map((opt, idx) => (
+                <option key={idx} value={opt.name || opt}>
+                  {opt.name || opt}
                 </option>
               ))}
             </select>
@@ -656,23 +883,28 @@ const theme = {
             </label>
             <input
               type="text"
-              name="recipient"
-              value={taskData.recipient}
+              name="recipientDisplay"
+              value={
+                typeof taskData.recipient === "object" && taskData.recipient?.Name
+                  ? `${taskData.recipient.Name} ${taskData.recipient.Surname || ""}`.trim()
+                  : taskData.recipientDisplay || ""
+              }
               onChange={(e) => {
                 const value = e.target.value;
-                setTaskData({ ...taskData, recipient: value });
+                setTaskData({ ...taskData, recipientDisplay: value, recipient: null });
                 fetchPeople(value);
               }}
               autoComplete="off"
               required
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 fontSize: '14px',
                 backgroundColor: theme.inputBg,
                 color: theme.text,
+                outline: 'none',
               }}
               placeholder="Enter recipient name"
             />
@@ -682,8 +914,8 @@ const theme = {
                 zIndex: 10,
                 width: '100%',
                 backgroundColor: theme.cardBg,
-                border: 'none',
-                borderRadius: '8px',
+                border: `2px solid ${theme.border}`,
+                borderRadius: '10px',
                 marginTop: '4px',
                 maxHeight: '200px',
                 overflowY: 'auto',
@@ -696,7 +928,7 @@ const theme = {
                   <li
                     key={person._id}
                     style={{
-                      padding: '8px 12px',
+                      padding: '10px 12px',
                       cursor: 'pointer',
                       borderBottom: `1px solid ${theme.border}`,
                       color: theme.text,
@@ -704,9 +936,10 @@ const theme = {
                     onClick={() => {
                       setTaskData({
                         ...taskData,
-                        recipient: `${person.Name} ${person.Surname}`,
+                        recipient: person,
+                        recipientDisplay: `${person.Name} ${person.Surname}`,
                         contacted_person: {
-                          name: person.Name,
+                          name: `${person.Name} ${person.Surname}`,
                           phone: person.Phone || "",
                           email: person.Email || "",
                         },
@@ -724,7 +957,15 @@ const theme = {
           </div>
 
           <div style={{ position: 'relative' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: theme.text,
+                marginBottom: '8px',
+              }}
+            >
               Assigned To
             </label>
             <input
@@ -732,41 +973,47 @@ const theme = {
               name="assignedTo"
               value={taskData.assignedTo}
               onChange={(e) => {
-                handleChange(e);
-                fetchAssigned(e.target.value);
+                const value = e.target.value;
+                setTaskData({ ...taskData, assignedTo: value });
+                fetchAssigned(value);
               }}
+              autoComplete="off"
               required
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 fontSize: '14px',
                 backgroundColor: theme.inputBg,
                 color: theme.text,
+                outline: 'none',
               }}
+              placeholder="Enter name to assign task"
             />
             {assignedResults.length > 0 && (
-              <ul style={{
-                position: 'absolute',
-                zIndex: 10,
-                width: '100%',
-                backgroundColor: theme.cardBg,
-                border: 'none',
-                borderRadius: '8px',
-                marginTop: '4px',
-                maxHeight: '200px',
-                overflowY: 'auto',
-                listStyle: 'none',
-                padding: 0,
-                margin: '4px 0 0 0',
-                boxShadow: theme.shadow,
-              }}>
+              <ul
+                style={{
+                  position: 'absolute',
+                  zIndex: 10,
+                  width: '100%',
+                  backgroundColor: theme.cardBg,
+                  border: `2px solid ${theme.border}`,
+                  borderRadius: '10px',
+                  marginTop: '4px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  listStyle: 'none',
+                  padding: 0,
+                  margin: '4px 0 0 0',
+                  boxShadow: theme.shadow,
+                }}
+              >
                 {assignedResults.map((person) => (
                   <li
                     key={person._id}
                     style={{
-                      padding: '8px 12px',
+                      padding: '10px 12px',
                       cursor: 'pointer',
                       borderBottom: `1px solid ${theme.border}`,
                       color: theme.text,
@@ -775,13 +1022,17 @@ const theme = {
                       setTaskData({
                         ...taskData,
                         assignedTo: `${person.Name} ${person.Surname}`,
+                        assignedEmail: person.Email || "",
                       });
                       setAssignedResults([]);
                     }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = theme.inputBg}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    onMouseEnter={(e) =>
+                      (e.target.style.backgroundColor = theme.inputBg)
+                    }
+                    onMouseLeave={(e) => (e.target.style.backgroundColor = 'transparent')}
                   >
-                    {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
+                    {person.Name} {person.Surname}{' '}
+                    {person.Location ? `(${person.Location})` : ''}
                   </li>
                 ))}
               </ul>
@@ -800,12 +1051,13 @@ const theme = {
               disabled
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 backgroundColor: theme.inputBg,
                 fontSize: '14px',
                 color: theme.text,
+                outline: 'none',
               }}
             />
           </div>
@@ -820,12 +1072,13 @@ const theme = {
               onChange={handleChange}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: 'none',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: `2px solid ${theme.border}`,
                 fontSize: '14px',
                 backgroundColor: theme.inputBg,
                 color: theme.text,
+                outline: 'none',
               }}
             >
               <option value="Open">Open</option>
@@ -838,8 +1091,8 @@ const theme = {
             <button
               type="button"
               style={{
-                padding: '8px 20px',
-                borderRadius: '8px',
+                padding: '10px 24px',
+                borderRadius: '10px',
                 backgroundColor: '#e5e5e5',
                 color: '#000',
                 fontWeight: '600',
@@ -855,8 +1108,8 @@ const theme = {
             <button
               type="submit"
               style={{
-                padding: '8px 20px',
-                borderRadius: '8px',
+                padding: '10px 24px',
+                borderRadius: '10px',
                 backgroundColor: submitting ? '#666' : '#000',
                 color: '#fff',
                 fontWeight: '600',
