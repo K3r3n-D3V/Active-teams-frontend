@@ -426,8 +426,7 @@ export default function DailyTasks() {
           t._id === taskId ? { ...t, ...data.updatedTask, date: data.updatedTask.followup_date } : t
         )
       );
-
-      alert("Task updated successfully!");
+      
       handleClose();
     } catch (err) {
       console.error("Error updating task:", err.message);
@@ -488,10 +487,13 @@ const handleSubmit = async (e) => {
         assignedfor: storedUser.email,
       };
 
-      if (selectedTask && selectedTask._id) {
+       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
+        alert(`Task for ${person.Name} ${person.Surname} has been successfully updated!`);
       } else {
         await createTask(taskPayload);
+        alert(`You have successfully captured ${person.Name} ${person.Surname}`);
+        console.log("Task created successfully");
       }
 
       handleClose();
