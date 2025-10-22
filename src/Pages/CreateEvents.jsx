@@ -748,7 +748,7 @@ const CreateEvents = ({
                     />
 
                     <TextField
-                      label="Age Group (e.g., 18-25, Students)"
+                      label="Age Group "
                       value={tier.ageGroup}
                       onChange={(e) =>
                         handlePriceTierChange(index, "ageGroup", e.target.value)
@@ -761,7 +761,7 @@ const CreateEvents = ({
                     />
 
                     <TextField
-                      label="Member Type (e.g., Member, Guest)"
+                      label="Member Type "
                       value={tier.memberType}
                       onChange={(e) =>
                         handlePriceTierChange(
