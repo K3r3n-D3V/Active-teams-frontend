@@ -340,7 +340,7 @@ export default function Profile() {
   const updateFormWithProfile = (profile) => {
     const formData = {
       leader: profile?.invited_by || profile?.leader || "",
-      title: profile?.title || "",
+      title: profile?.title || profile?.Title || "",
       name: profile?.name || "",
       surname: profile?.surname || "",
       email: profile?.email || "",
@@ -967,8 +967,11 @@ export default function Profile() {
                     value={form.leader || ""}
                     onChange={handleChange("leader")}
                     fullWidth
-                    disabled={!editMode}
+                    disable
                     sx={commonFieldSx}
+                    InputProps={{
+                      readOnly: true,
+                    }}
                   />
                 </Grid>
 
@@ -987,9 +990,25 @@ export default function Profile() {
                   <FormControl fullWidth sx={commonFieldSx}>
                     <Select
                       value={form.title || ""}
-                      onChange={handleChange("title")}
+                      onChange={(e) => {
+                        // normalize selected title (remove trailing dots/spaces)
+                        const val = String(e.target.value || "")
+                          .replace(/\.+$/, "")
+                          .trim();
+                        setForm((prev) => ({ ...prev, title: val }));
+                        setErrors((prev) => ({ ...prev, title: undefined }));
+                      }}
                       disabled={!editMode}
                       displayEmpty
+                      renderValue={(selected) =>
+                        selected ? (
+                          selected
+                        ) : (
+                          <em style={{ color: isDark ? "#aaa" : "#777" }}>
+                            Select Title
+                          </em>
+                        )
+                      }
                       sx={{
                         height: "56px",
                         "& .MuiSelect-select": {
