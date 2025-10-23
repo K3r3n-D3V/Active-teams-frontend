@@ -183,7 +183,6 @@ export default function Profile() {
     address: "",
     phone: "",
     invitedBy: "",
-    leader: "",
     gender: "",
     currentPassword: "",
     newPassword: "",
@@ -334,7 +333,6 @@ export default function Profile() {
       address: profile?.home_address || "",
       phone: profile?.phone_number || "",
       invitedBy: profile?.invited_by || "",
-      leader: profile?.leader_name || "",
       gender: profile?.gender || "",
       currentPassword: "",
       newPassword: "",
@@ -1062,34 +1060,6 @@ export default function Profile() {
                   </Box>
                 </Grid>
 
-                {/* Leader */}
-                <Grid item xs={12} sm={6}>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      mb: 1,
-                      fontWeight: 600,
-                      color: isDark ? "#cccccc" : "#666666",
-                    }}
-                  >
-                    Leader
-                  </Typography>
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      border: "1px solid",
-                      borderColor: isDark ? "#333333" : "#dddddd",
-                      borderRadius: "8px",
-                      backgroundColor: isDark ? "#1e1e1e" : "#fafafa",
-                      color: isDark ? "#cccccc" : "#333333",
-                      minHeight: "56px",
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                  >
-                    {form.leader_name || "—"}
-                  </Box>
-                </Grid>
 
                 {/* Gender */}
                 <Grid item xs={12} sm={6}>
