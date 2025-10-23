@@ -377,97 +377,105 @@ const CreateEvents = ({
   // ---------------------------
   // Submit (create or update)
   // ---------------------------
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!validateForm()) return;
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    try {
-      // const isCell = (formData.eventType || "").toLowerCase().includes("cell");
+  try {
+    const eventTypeToSend = selectedEventTypeObj?.name || formData.eventType;
 
-      // eventTypeToSend should be the name (string) - server expects name or object?
-      // Use the canonical selectedEventTypeObj.name if available so flags and name are consistent.
-      const eventTypeToSend = selectedEventTypeObj?.name || formData.eventType;
+    const payload = {
+      eventType: eventTypeToSend,
+      eventName: formData.eventName,
+      isTicketed: !!isTicketedEvent,
+      isGlobal: !!isGlobalEvent,
+      hasPersonSteps: !!hasPersonSteps,
+      location: formData.location,
+      eventLeader: formData.eventLeader,
+      description: formData.description,
+      userEmail: user?.email || "",
+      recurring_day: formData.recurringDays,
+      status: "open",
+    };
 
-      const payload = {
-        eventType: eventTypeToSend,
-        eventName: formData.eventName,
-        isTicketed: !!isTicketedEvent,
-        isGlobal: !!isGlobalEvent,
-        hasPersonSteps: !!hasPersonSteps,
-        location: formData.location,
-        eventLeader: formData.eventLeader,
-        description: formData.description,
-        userEmail: user?.email || "",
-        recurring_day: formData.recurringDays,
-        status: "open",
-      };
-
-      // price tiers
-      if (isTicketedEvent) payload.priceTiers = priceTiers;
-
-      // person steps leaders
-      if (hasPersonSteps && !isGlobalEvent) {
-        if (formData.leader1) payload.leader1 = formData.leader1;
-        if (formData.leader12) payload.leader12 = formData.leader12;
-      }
-
-      // date/time assembly
-      if ((!hasPersonSteps || isGlobalEvent) && formData.date && formData.time) {
-        const [hoursStr, minutesStr] = formData.time.split(":");
-        let hours = Number(hoursStr);
-        const minutes = Number(minutesStr);
-        if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
-        if (formData.timePeriod === "AM" && hours === 12) hours = 0;
-
-        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
-          .toString()
-          .padStart(2, "0")}:00`;
-      }
-
-      console.log("Payload being sent:", JSON.stringify(payload, null, 2));
-
-      const response = eventId
-        ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
-        : await axios.post(`${BACKEND_URL}/events`, payload);
-
-      console.log("Server response:", response.data);
-
-      setSuccessMessage(
-        hasPersonSteps && !isGlobalEvent
-          ? `The ${formData.eventName} event with leadership hierarchy has been ${
-              eventId ? "updated" : "created"
-            } successfully!`
-          : eventId
-          ? "Event updated successfully!"
-          : "Event created successfully!"
-      );
-      setSuccessAlert(true);
-
-      if (!eventId) resetForm();
-
-      // close or navigate after small delay (keeps behavior you had)
-      setTimeout(() => {
-        if (isModal && typeof onClose === "function") {
-          onClose();
-        } else {
-          navigate("/events", { state: { refresh: true } });
-        }
-      }, 1200);
-    } catch (err) {
-      console.error("Error submitting event:", err);
-      setErrorMessage(
-        err.response?.data?.message ||
-          err.response?.data?.detail ||
-          err.message ||
-          "Failed to submit event"
-      );
-      setErrorAlert(true);
-    } finally {
-      setIsSubmitting(false);
+    // ✅ FIX: Properly format and include price tiers
+    if (isTicketedEvent && priceTiers.length > 0) {
+      payload.priceTiers = priceTiers.map(tier => ({
+        name: tier.name || "",
+        price: parseFloat(tier.price) || 0,
+        ageGroup: tier.ageGroup || "",
+        memberType: tier.memberType || "",
+        paymentMethod: tier.paymentMethod || ""
+      }));
+      
+      console.log("📋 Including price tiers:", payload.priceTiers);
+    } else {
+      payload.priceTiers = [];
     }
-  };
+
+    // person steps leaders
+    if (hasPersonSteps && !isGlobalEvent) {
+      if (formData.leader1) payload.leader1 = formData.leader1;
+      if (formData.leader12) payload.leader12 = formData.leader12;
+    }
+
+    // date/time assembly
+    if ((!hasPersonSteps || isGlobalEvent) && formData.date && formData.time) {
+      const [hoursStr, minutesStr] = formData.time.split(":");
+      let hours = Number(hoursStr);
+      const minutes = Number(minutesStr);
+      if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
+      if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+
+      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
+        .toString()
+        .padStart(2, "0")}:00`;
+    }
+
+    console.log("📤 Submitting payload:", JSON.stringify(payload, null, 2));
+
+    const response = eventId
+      ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
+      : await axios.post(`${BACKEND_URL}/events`, payload);
+
+    console.log("✅ Server response:", response.data);
+
+    setSuccessMessage(
+      hasPersonSteps && !isGlobalEvent
+        ? `The ${formData.eventName} event with leadership hierarchy has been ${
+            eventId ? "updated" : "created"
+          } successfully!`
+        : eventId
+        ? "Event updated successfully!"
+        : "Event created successfully!"
+    );
+    setSuccessAlert(true);
+
+    if (!eventId) resetForm();
+
+    setTimeout(() => {
+      if (isModal && typeof onClose === "function") {
+        onClose();
+      } else {
+        navigate("/events", { state: { refresh: true } });
+      }
+    }, 1200);
+  } catch (err) {
+    console.error("❌ Error submitting event:", err);
+    console.error("❌ Error response:", err.response?.data);
+    setErrorMessage(
+      err.response?.data?.message ||
+        err.response?.data?.detail ||
+        err.message ||
+        "Failed to submit event"
+    );
+    setErrorAlert(true);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   // ---------------------------
   // Derived helpers used in render

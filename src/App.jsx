@@ -14,7 +14,6 @@ import Events from "./Pages/Events";
 import Stats from "./Pages/Stats";
 import ServiceCheckIn from "./Pages/ServiceCheckIn";
 import DailyTasks from "./Pages/DailyTasks";
-import EventsHistory from "./Pages/EventHistory";
 import CreateEvents from "./Pages/CreateEvents";
 import AttendanceModal from "./Pages/AttendanceModal";
 import EventDetails from "./Pages/EventDetails";
@@ -40,7 +39,6 @@ const ProtectedAdmin = withAuthCheck(Admin, ['admin']);
 const ProtectedCreateEvents = withAuthCheck(CreateEvents, ['admin', 'leader']);
 const ProtectedAttendance = withAuthCheck(AttendanceModal, ['admin', 'leader']);
 const ProtectedEventDetails = withAuthCheck(EventDetails, ['admin', 'leader', 'user', 'registrant']);
-const ProtectedEventsHistory = withAuthCheck(EventsHistory, ['admin', 'leader', 'user', 'registrant']);
 
 function App() {
   const { user, loading } = useContext(AuthContext);
@@ -135,7 +133,6 @@ function App() {
             <Route path="/edit-event/:id" element={<ProtectedCreateEvents title="Create Events Edit" />} />
             <Route path="/attendance" element={<ProtectedAttendance title="Attendance Modal" />} />
             <Route path="/event-details" element={<ProtectedEventDetails title="event-details-screen" />} />
-            <Route path="/events-history" element={<ProtectedEventsHistory title="Events History" />} />
             <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
             <Route path="/daily-tasks" element={<ProtectedDailyTasks title="Daily Tasks" />} />
             <Route path="/event-payment/:eventId" element={<EventRegistrationForm title="Event register" />} />

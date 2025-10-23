@@ -86,100 +86,100 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     }
   };
 
-const handleSubmit = async (leaderInfo) => {
-  try {
-    const token = localStorage.getItem("token");
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
+  const handleSubmit = async (leaderInfo) => {
+    try {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
 
-    // Transform data to match backend expectations - using CAPITAL field names
-    const personData = {
-      Name: formData.name.trim(),
-      Surname: formData.surname.trim(),
-      Email: formData.email.toLowerCase().trim(),
-      Phone: formData.mobile || "",
-      Address: formData.address || "",
-      Gender: formData.gender || "",
-      DateOfBirth: formData.dob || "",
-      InvitedBy: formData.invitedBy || "",
-      "Leader @1": leaderInfo.leader1 || "",
-      "Leader @12": leaderInfo.leader12 || "", 
-      "Leader @144": leaderInfo.leader144 || "",
-      "Leader @1728": "", // Empty for now
-      Stage: "Win", // Default stage as per backend
-    };
+      // Transform data to match backend expectations - using CAPITAL field names
+      const personData = {
+        Name: formData.name.trim(),
+        Surname: formData.surname.trim(),
+        Email: formData.email.toLowerCase().trim(),
+        Phone: formData.mobile || "",
+        Address: formData.address || "",
+        Gender: formData.gender || "",
+        DateOfBirth: formData.dob || "",
+        InvitedBy: formData.invitedBy || "",
+        "Leader @1": leaderInfo.leader1 || "",
+        "Leader @12": leaderInfo.leader12 || "",
+        "Leader @144": leaderInfo.leader144 || "",
+        "Leader @1728": "", // Empty for now
+        Stage: "Win", // Default stage as per backend
+      };
 
-    console.log("📤 Sending person data to backend:", personData);
-    
-    const response = await fetch(`${BACKEND_URL}/people`, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(personData),
-    });
+      console.log("📤 Sending person data to backend:", personData);
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log("✅ Person created successfully:", data);
-      
-      setAlert({
-        open: true,
-        type: "success",
-        message: "Person added successfully!",
+      const response = await fetch(`${BACKEND_URL}/people`, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(personData),
       });
 
-      if (typeof onPersonAdded === "function") {
-        onPersonAdded(data.person || data); // Pass the created person data
-      }
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Person created successfully:", data);
 
-      setTimeout(() => {
-        onClose();
-        setFormData({
-          invitedBy: "",
-          name: "",
-          surname: "",
-          gender: "",
-          email: "",
-          mobile: "",
-          dob: "",
-          address: "",
+        setAlert({
+          open: true,
+          type: "success",
+          message: "Person added successfully!",
         });
-        setInviterSearch("");
-        setInviterResults([]);
-        setShowLeaderModal(false);
-      }, 1500);
-    } else {
-      const error = await response.json();
-      console.error("❌ Add person error:", error);
-      
-      // Handle validation errors properly
-      let errorMessage = "Failed to add person";
-      if (error.detail) {
-        if (typeof error.detail === 'string') {
-          errorMessage = error.detail;
-        } else if (Array.isArray(error.detail)) {
-          errorMessage = error.detail.map(err => err.msg || err).join(', ');
+
+        if (typeof onPersonAdded === "function") {
+          onPersonAdded(data.person || data); // Pass the created person data
         }
+
+        setTimeout(() => {
+          onClose();
+          setFormData({
+            invitedBy: "",
+            name: "",
+            surname: "",
+            gender: "",
+            email: "",
+            mobile: "",
+            dob: "",
+            address: "",
+          });
+          setInviterSearch("");
+          setInviterResults([]);
+          setShowLeaderModal(false);
+        }, 1500);
+      } else {
+        const error = await response.json();
+        console.error("❌ Add person error:", error);
+
+        // Handle validation errors properly
+        let errorMessage = "Failed to add person";
+        if (error.detail) {
+          if (typeof error.detail === 'string') {
+            errorMessage = error.detail;
+          } else if (Array.isArray(error.detail)) {
+            errorMessage = error.detail.map(err => err.msg || err).join(', ');
+          }
+        }
+
+        setAlert({
+          open: true,
+          type: "error",
+          message: errorMessage,
+        });
+        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
       }
-      
+    } catch (error) {
+      console.error("❌ Network error adding person:", error);
       setAlert({
         open: true,
         type: "error",
-        message: errorMessage,
+        message: "Network error: Could not connect to server",
       });
       setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
-  } catch (error) {
-    console.error("❌ Network error adding person:", error);
-    setAlert({
-      open: true,
-      type: "error",
-      message: "Network error: Could not connect to server",
-    });
-    setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-  }
-};
+  };
   const handleClose = () => {
     setFormData({
       invitedBy: "",
@@ -519,7 +519,7 @@ const handleSubmit = async (leaderInfo) => {
 const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData }) => {
   const [leaderData, setLeaderData] = useState({
     leader1: "",
-    leader12: "", 
+    leader12: "",
     leader144: ""
   });
 
@@ -550,7 +550,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData }) => {
       setLeaderResults(prev => ({ ...prev, [leaderField]: [] }));
       return;
     }
-    
+
     try {
       setLoadingLeaders(true);
       const token = localStorage.getItem("token");
@@ -924,78 +924,78 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   }, [event]);
 
   const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
-  // Create a cache key based on all search parameters
-  const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
-  
-  // Check if we have cached results for this exact search
-  if (peopleCache[cacheKey]) {
-    console.log("📦 Using cached results for:", cacheKey);
-    setPeople(peopleCache[cacheKey]);
-    return;
-  }
+    // Create a cache key based on all search parameters
+    const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
 
-  try {
-    setLoading(true);
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
-
-    const params = new URLSearchParams();
-    
-    if (filter && filter.trim().length > 0) {
-      params.append("name", filter.trim());
+    // Check if we have cached results for this exact search
+    if (peopleCache[cacheKey]) {
+      console.log("📦 Using cached results for:", cacheKey);
+      setPeople(peopleCache[cacheKey]);
+      return;
     }
-    
-    const leaderFilters = [];
-    if (leader1 && leader1.trim().length > 0) leaderFilters.push(leader1.trim());
-    if (leader12 && leader12.trim().length > 0) leaderFilters.push(leader12.trim());
-    if (leader144 && leader144.trim().length > 0) leaderFilters.push(leader144.trim());
-    if (leader1728 && leader1728.trim().length > 0) leaderFilters.push(leader1728.trim());
-    
-    if (leaderFilters.length > 0) {
-      params.append("leaders", leaderFilters.join(","));
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const params = new URLSearchParams();
+
+      if (filter && filter.trim().length > 0) {
+        params.append("name", filter.trim());
+      }
+
+      const leaderFilters = [];
+      if (leader1 && leader1.trim().length > 0) leaderFilters.push(leader1.trim());
+      if (leader12 && leader12.trim().length > 0) leaderFilters.push(leader12.trim());
+      if (leader144 && leader144.trim().length > 0) leaderFilters.push(leader144.trim());
+      if (leader1728 && leader1728.trim().length > 0) leaderFilters.push(leader1728.trim());
+
+      if (leaderFilters.length > 0) {
+        params.append("leaders", leaderFilters.join(","));
+      }
+
+      params.append("perPage", "50");
+      params.append("page", "1");
+
+      console.log("🔍 Fetching people with params:", params.toString());
+
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      const peopleArray = data.people || data.results || [];
+
+      console.log(`✅ Found ${peopleArray.length} people`);
+
+      const formatted = peopleArray.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p.leader1 || "",
+        leader12: p["Leader @12"] || p.leader12 || "",
+        leader144: p["Leader @144"] || p.leader144 || "",
+        leader1728: p["Leader @1728"] || p.leader1728 || "",
+        phone: p.Phone || p.phone || "",
+      }));
+
+      // Cache the results
+      setPeopleCache(prev => ({
+        ...prev,
+        [cacheKey]: formatted
+      }));
+
+      setPeople(formatted);
+    } catch (err) {
+      console.error("Error fetching people:", err);
+      setPeople([]);
+    } finally {
+      setLoading(false);
     }
-    
-    params.append("perPage", "50");
-    params.append("page", "1");
-
-    console.log("🔍 Fetching people with params:", params.toString());
-    
-    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-    
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
-    
-    const data = await res.json();
-    const peopleArray = data.people || data.results || [];
-
-    console.log(`✅ Found ${peopleArray.length} people`);
-
-    const formatted = peopleArray.map((p) => ({
-      id: p._id,
-      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-      email: p.Email || p.email || "",
-      leader1: p["Leader @1"] || p.leader1 || "",
-      leader12: p["Leader @12"] || p.leader12 || "",
-      leader144: p["Leader @144"] || p.leader144 || "",
-      leader1728: p["Leader @1728"] || p.leader1728 || "",
-      phone: p.Phone || p.phone || "",
-    }));
-
-    // Cache the results
-    setPeopleCache(prev => ({
-      ...prev,
-      [cacheKey]: formatted
-    }));
-    
-    setPeople(formatted);
-  } catch (err) {
-    console.error("Error fetching people:", err);
-    setPeople([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const fetchCommonAttendees = async (cellId) => {
     try {
@@ -1032,19 +1032,19 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     if (!event) return;
 
     const eventId = event._id || event.id;
-    
+
     console.log("📥 Loading attendance data for event:", eventId);
     console.log("   Event status:", event.status);
     console.log("   Event attendees count:", event.attendees?.length || 0);
 
-    const hasCurrentWeekData = 
-      event.status === 'complete' || 
+    const hasCurrentWeekData =
+      event.status === 'complete' ||
       event.status === 'did_not_meet' ||
       (event.attendees && event.attendees.length > 0);
 
     if (hasCurrentWeekData) {
       console.log("✅ Current week HAS data - loading checked state");
-      
+
       const newCheckedIn = {};
       const newDecisions = {};
       const newDecisionTypes = {};
@@ -1115,11 +1115,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
         if (response.ok) {
           const data = await response.json();
-          
+
           if (data.has_previous_attendance && data.attendees) {
             console.log("📋 Found previous week's attendees:", data.attendees.length);
             console.log("   Last week:", data.last_week);
-            
+
             const previousAttendees = data.attendees.map(attendee => ({
               id: attendee.id,
               fullName: attendee.name || attendee.fullName || "",
@@ -1161,7 +1161,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       console.log("✅ Ready for new week - all states cleared");
     }
-  };  
+  };
 
   useEffect(() => {
     if (isOpen && event) {
@@ -1186,17 +1186,17 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       }
     }
   }, [isOpen, event]);
-useEffect(() => {
-  const delay = setTimeout(() => {
-    if (isOpen && activeTab === 1) {
-      // Only search if we have at least 2 characters or no search term
-      if (associateSearch.length >= 2 || associateSearch.length === 0) {
-        fetchPeople(associateSearch, leader1Filter, leader12Filter, leader144Filter, leader1728Filter);
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      if (isOpen && activeTab === 1) {
+        // Only search if we have at least 2 characters or no search term
+        if (associateSearch.length >= 2 || associateSearch.length === 0) {
+          fetchPeople(associateSearch, leader1Filter, leader12Filter, leader144Filter, leader1728Filter);
+        }
       }
-    }
-  }, 200); // Reduced from 300ms to 200ms for faster response
-  return () => clearTimeout(delay);
-}, [associateSearch, isOpen, activeTab, leader1Filter, leader12Filter, leader144Filter, leader1728Filter]);
+    }, 200); // Reduced from 300ms to 200ms for faster response
+    return () => clearTimeout(delay);
+  }, [associateSearch, isOpen, activeTab, leader1Filter, leader12Filter, leader144Filter, leader1728Filter]);
 
   const handleCheckIn = (id, name) => {
     setCheckedIn((prev) => {
@@ -1584,28 +1584,28 @@ useEffect(() => {
     setShowDidNotMeetConfirm(false);
   };
 
-const handlePersonAdded = (newPerson) => {
-  console.log("✅ New person added:", newPerson);
-  
-  // Refresh the people list
-  fetchPeople();
-  
-  // If this is a cell event, refresh common attendees
-  if (event && event.eventType === "cell") {
-    fetchCommonAttendees(event._id || event.id);
-  }
-  
-  // Close the add person modal
-  setShowAddPersonModal(false);
-  
-  // Show success message
-  setAlert({
-    open: true,
-    type: "success",
-    message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
-  });
-  setTimeout(() => setAlert({ open: false, type: "success", message: "" }), 3000);
-};
+  const handlePersonAdded = (newPerson) => {
+    console.log("✅ New person added:", newPerson);
+
+    // Refresh the people list
+    fetchPeople();
+
+    // If this is a cell event, refresh common attendees
+    if (event && event.eventType === "cell") {
+      fetchCommonAttendees(event._id || event.id);
+    }
+
+    // Close the add person modal
+    setShowAddPersonModal(false);
+
+    // Show success message
+    setAlert({
+      open: true,
+      type: "success",
+      message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
+    });
+    setTimeout(() => setAlert({ open: false, type: "success", message: "" }), 3000);
+  };
 
   if (!isOpen) return null;
 
@@ -1807,6 +1807,7 @@ const handlePersonAdded = (newPerson) => {
       minWidth: isMobile ? "140px" : "180px",
       justifyContent: "space-between",
     },
+    // In AttendanceModal.jsx, find the decisionMenu style and update it:
     decisionMenu: {
       position: "absolute",
       top: "100%",
@@ -1816,8 +1817,10 @@ const handlePersonAdded = (newPerson) => {
       border: "1px solid #ddd",
       borderRadius: "6px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-      zIndex: 1000,
-      minWidth: isMobile ? "140px" : "180px",
+      zIndex: 10000,
+      minWidth: isMobile ? "140px" : "200px",
+      maxHeight: "300px",
+      overflowY: "auto",
     },
     decisionMenuItem: {
       padding: "10px 12px",
@@ -2190,7 +2193,7 @@ const handlePersonAdded = (newPerson) => {
       person.fullName &&
       person.fullName.toLowerCase().includes(associateSearch.toLowerCase())
   );
- 
+
   const attendeesCount = Object.values(checkedIn).filter(Boolean).length;
   const totalHeadcount = manualHeadcount || Object.keys(checkedIn).length;
   const decisionsCount = Object.values(decisions).filter(Boolean).length;
@@ -2428,7 +2431,7 @@ const handlePersonAdded = (newPerson) => {
                 </button>
               )}
             </div>
- 
+
             <button
               style={styles.addPersonBtn}
               onClick={() => setShowAddPersonModal(true)}
@@ -2439,7 +2442,7 @@ const handlePersonAdded = (newPerson) => {
           </div>
 
           <div style={styles.tabsContainer}>
-            <button 
+            <button
               style={{
                 ...styles.tab,
                 ...(activeTab === 0 ? styles.tabActive : {})
@@ -2448,7 +2451,7 @@ const handlePersonAdded = (newPerson) => {
             >
               CAPTURE ATTENDEES
             </button>
-            <button 
+            <button
               style={{
                 ...styles.tab,
                 ...(activeTab === 1 ? styles.tabActive : {})
@@ -2565,14 +2568,15 @@ const handlePersonAdded = (newPerson) => {
                                 <>
                                   <td style={{ ...styles.td, ...styles.radioCell }}>
                                     {checkedIn[person.id] ? (
-                                      <div style={styles.decisionDropdown}>
+                                      <div style={{ ...styles.decisionDropdown, position: 'relative', zIndex: openPriceTierDropdown === person.id ? 10001 : 1 }}>
                                         <button
                                           style={styles.priceTierButton}
-                                          onClick={() =>
+                                          onClick={(e) => {
+                                            e.stopPropagation(); // ✅ Prevent event bubbling
                                             setOpenPriceTierDropdown(
                                               openPriceTierDropdown === person.id ? null : person.id
-                                            )
-                                          }
+                                            );
+                                          }}
                                         >
                                           <span>
                                             {priceTiers[person.id]
@@ -2583,26 +2587,33 @@ const handlePersonAdded = (newPerson) => {
                                         </button>
                                         {openPriceTierDropdown === person.id && (
                                           <div style={styles.decisionMenu}>
-                                            {eventPriceTiers.map((tier, index) => (
-                                              <div
-                                                key={index}
-                                                style={styles.decisionMenuItem}
-                                                onClick={() =>
-                                                  handlePriceTierSelect(person.id, index)
-                                                }
-                                                onMouseEnter={(e) =>
-                                                  (e.target.style.background = "#f0f0f0")
-                                                }
-                                                onMouseLeave={(e) =>
-                                                  (e.target.style.background = "transparent")
-                                                }
-                                              >
-                                                {tier.name} - R{parseFloat(tier.price).toFixed(2)}
-                                                <div style={{ fontSize: "12px", color: "#666" }}>
-                                                  {tier.ageGroup} • {tier.memberType}
+                                            {eventPriceTiers && eventPriceTiers.length > 0 ? (
+                                              eventPriceTiers.map((tier, index) => (
+                                                <div
+                                                  key={index}
+                                                  style={styles.decisionMenuItem}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation(); // ✅ Prevent event bubbling
+                                                    handlePriceTierSelect(person.id, index);
+                                                  }}
+                                                  onMouseEnter={(e) =>
+                                                    (e.target.style.background = "#f0f0f0")
+                                                  }
+                                                  onMouseLeave={(e) =>
+                                                    (e.target.style.background = "transparent")
+                                                  }
+                                                >
+                                                  {tier.name} - R{parseFloat(tier.price).toFixed(2)}
+                                                  <div style={{ fontSize: "12px", color: "#666" }}>
+                                                    {tier.ageGroup} • {tier.memberType}
+                                                  </div>
                                                 </div>
+                                              ))
+                                            ) : (
+                                              <div style={{ padding: "12px", textAlign: "center", color: "#999" }}>
+                                                No price tiers available
                                               </div>
-                                            ))}
+                                            )}
                                           </div>
                                         )}
                                       </div>

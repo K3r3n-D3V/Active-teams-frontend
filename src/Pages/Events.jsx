@@ -535,7 +535,6 @@ const Events = () => {
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredRow, setHoveredRow] = useState(null);
-  const [hoveredType, setHoveredType] = useState(null);
   const [viewFilter, setViewFilter] = useState('all');
   const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
   const [totalEvents, setTotalEvents] = useState(0);
@@ -546,6 +545,26 @@ const Events = () => {
 
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
 
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem("token");
+      const userProfile = localStorage.getItem("userProfile");
+      
+      if (!token || !userProfile) {
+        console.error("❌ Missing authentication. Redirecting to login...");
+        setSnackbar({
+          open: true,
+          message: "Please log in to continue",
+          severity: "warning",
+        });
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+      }
+    };
+    
+    checkAuth();
+  }, []);
 
 
   useEffect(() => {
@@ -587,9 +606,30 @@ const Events = () => {
 
   try {
     const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
+    
+    // ✅ CRITICAL: Check if token exists BEFORE making request
+    if (!token) {
+      console.error("❌ No authentication token found");
+      setSnackbar({
+        open: true,
+        message: "Session expired. Please log in again.",
+        severity: "error",
+      });
+      setEvents([]);
+      setFilteredEvents([]);
+      setLoading(false);
+      setIsLoading(false);
+      // Optionally redirect to login
+      // window.location.href = '/login';
+      return;
+    }
 
-    // Determine if we should apply personal filter
+    const headers = { 
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    // ... rest of your existing code
     const shouldApplyPersonalFilter = 
       viewFilter === 'personal' && 
       (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
@@ -604,12 +644,10 @@ const Events = () => {
       ...filters
     };
 
-    // Clean up undefined params
     Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
     console.log('🔍 Fetching events with params:', params);
-    console.log('📄 Current page in fetch:', currentPage);
-    console.log('🎯 Requested page:', filters.page);
+    console.log('🔑 Token present:', !!token);
 
     let endpoint = `${BACKEND_URL}/admin/events/cells-debug`;
     const userRole = currentUser?.role?.toLowerCase();
@@ -620,42 +658,42 @@ const Events = () => {
     const responseData = response.data;
     const newEvents = responseData.events || responseData.results || [];
 
-    console.log("✅ API Response - Total events:", responseData.total_events);
-    console.log("✅ API Response - Current page events:", newEvents.length);
-    console.log("✅ API Response - Page info:", {
-      current_page: responseData.current_page,
-      total_pages: responseData.total_pages,
-      total_events: responseData.total_events
-    });
-
-    // Always replace events when searching or filtering
     setEvents(newEvents);
     setFilteredEvents(newEvents);
-
-    // Update pagination info from API response
     setTotalEvents(responseData.total_events || responseData.total || 0);
     const calculatedTotalPages = responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1;
     setTotalPages(calculatedTotalPages);
 
-    // Update current page if explicitly provided in filters
     if (filters.page !== undefined) {
-      console.log('🔄 Updating current page to:', filters.page);
       setCurrentPage(filters.page);
     }
 
-    console.log('📊 Final state:', {
-      currentPage,
-      totalPages: calculatedTotalPages,
-      totalEvents: responseData.total_events || responseData.total || 0
-    });
-
   } catch (err) {
     console.error("❌ Error fetching events:", err);
-    setSnackbar({
-      open: true,
-      message: "Failed to load events",
-      severity: "error",
-    });
+    
+    // ✅ HANDLE 401 SPECIFICALLY
+    if (err.response?.status === 401) {
+      console.error("🔒 Authentication failed - token invalid or expired");
+      setSnackbar({
+        open: true,
+        message: "Your session has expired. Please log in again.",
+        severity: "error",
+      });
+      // Clear invalid token
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      // Redirect to login after 2 seconds
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 2000);
+    } else {
+      setSnackbar({
+        open: true,
+        message: "Failed to load events",
+        severity: "error",
+      });
+    }
+    
     setEvents([]);
     setFilteredEvents([]);
   } finally {
@@ -664,7 +702,8 @@ const Events = () => {
   }
 };
 
-  const isOverdue = (event) => {
+
+const isOverdue = (event) => {
     if (event?._is_overdue !== undefined) {
       return event._is_overdue;
     }
@@ -673,8 +712,12 @@ const Events = () => {
 
     const status = (event.status || event.Status || '').toLowerCase().trim();
     const didNotMeet = event.did_not_meet || false;
-    const hasBeenCaptured = status === 'complete' || status === 'closed' || status === 'did_not_meet' || didNotMeet;
+    const hasAttendees = event.attendees && event.attendees.length > 0;
+    
+    // Check if event has been captured - either has attendees, marked as did_not_meet, or status is complete/closed
+    const hasBeenCaptured = hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || didNotMeet;
 
+    // If captured, never show as overdue
     if (hasBeenCaptured) return false;
 
     const eventDate = new Date(event.date);
@@ -684,6 +727,7 @@ const Events = () => {
 
     return eventDate < today;
   };
+
   const startIndex = totalEvents > 0 ? ((currentPage - 1) * rowsPerPage) + 1 : 0;
   const endIndex = Math.min(currentPage * rowsPerPage, totalEvents);
   const paginatedEvents = events;
@@ -1202,125 +1246,115 @@ const applyFilters = (filters) => {
     }
   };
 
-  // EventTypeSelector Component
-  const EventTypeSelector = () => {
-    const [hoveredType, setHoveredType] = useState(null);
-    const allTypes = ["CELLS", ...eventTypes];
-    const isAdmin = currentUser?.role === "admin"; // ✅ your admin check
+const EventTypeSelector = () => {
+  const [hoveredType, setHoveredType] = useState(null);
+  const allTypes = ["CELLS", ...eventTypes];
+  const isAdmin = currentUser?.role === "admin";
 
-    const getDisplayName = (type) => {
-      if (type === "CELLS") return type;
-      if (typeof type === "string") return type;
-      return type.name || type;
-    };
-
-    const getTypeValue = (type) => {
-      if (type === "CELLS") return "all";
-      if (typeof type === "string") return type.toLowerCase();
-      return (type.name || type).toLowerCase();
-    };
-
-    const selectedDisplayName =
-      selectedEventTypeFilter === "all"
-        ? "CELLS"
-        : eventTypes.find((t) => {
-            const tValue = typeof t === "string" ? t : t.name;
-            return tValue?.toLowerCase() === selectedEventTypeFilter;
-          }) || selectedEventTypeFilter;
-
-    const finalDisplayName =
-      typeof selectedDisplayName === "string"
-        ? selectedDisplayName
-        : selectedDisplayName?.name || "CELLS";
-
-    return (
-      <div style={eventTypeStyles.container}>
-        <div style={eventTypeStyles.header}>Filter by Event Type</div>
-
-        <div style={eventTypeStyles.selectedTypeDisplay}>
-          <div style={eventTypeStyles.checkIcon}>✓</div>
-          <span>{finalDisplayName}</span>
-        </div>
-
-        {isAdmin && (
-          <div style={eventTypeStyles.typesGrid}>
-            {allTypes.map((type) => {
-              const displayName = getDisplayName(type);
-              const typeValue = getTypeValue(type);
-              const isActive = selectedEventTypeFilter === typeValue;
-              const isHovered = hoveredType === typeValue;
-
-              return (
-                <div
-                  key={typeValue}
-                  style={{
-                    ...eventTypeStyles.typeCard,
-                    ...(isActive ? eventTypeStyles.typeCardActive : {}),
-                    ...(isHovered && !isActive
-                      ? eventTypeStyles.typeCardHover
-                      : {}),
-                  }}
-                  onClick={() => {
-                    const selectedTypeObj =
-                      typeValue === "all"
-                        ? null
-                        : customEventTypes.find(
-                            (t) => t.name.toLowerCase() === typeValue
-                          ) || null;
-
-                    setSelectedEventTypeFilter(typeValue);
-                    setSelectedEventTypeObj(selectedTypeObj);
-
-                    // 🧠 Track which event type you're currently on
-                    console.log(
-                      "🟢 Switched to Event Type:",
-                      selectedTypeObj?.name || typeValue
-                    );
-                    console.log("🧩 Config:", {
-                      isTicketed: selectedTypeObj?.isTicketed,
-                      isGlobal: selectedTypeObj?.isGlobal,
-                      hasPersonSteps: selectedTypeObj?.hasPersonSteps,
-                    });
-
-                    // Store locally so CreateEvents can read it instantly
-                    if (selectedTypeObj) {
-                      localStorage.setItem(
-                        "selectedEventTypeObj",
-                        JSON.stringify(selectedTypeObj)
-                      );
-                    } else {
-                      localStorage.removeItem("selectedEventTypeObj");
-                    }
-
-                    // Apply filter
-                    applyAllFilters(
-                      typeValue === "all"
-                        ? { ...activeFilters, eventType: undefined }
-                        : { ...activeFilters, eventType: typeValue },
-                      selectedStatus,
-                      searchQuery
-                    );
-                  }}
-                  onMouseEnter={() => setHoveredType(typeValue)}
-                  onMouseLeave={() => setHoveredType(null)}
-                >
-                  {isActive && <div style={eventTypeStyles.activeIndicator}>✓</div>}
-                  <span
-                    style={{
-                      ...eventTypeStyles.typeName,
-                      ...(isActive ? eventTypeStyles.typeNameActive : {}),
-                    }}
-                  >
-                    {displayName}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
+  const getDisplayName = (type) => {
+    if (type === "CELLS") return type;
+    if (typeof type === "string") return type;
+    return type.name || type;
   };
+
+  const getTypeValue = (type) => {
+    if (type === "CELLS") return "all";
+    if (typeof type === "string") return type.toLowerCase();
+    return (type.name || type).toLowerCase();
+  };
+
+  const selectedDisplayName =
+    selectedEventTypeFilter === "all"
+      ? "CELLS"
+      : eventTypes.find((t) => {
+          const tValue = typeof t === "string" ? t : t.name;
+          return tValue?.toLowerCase() === selectedEventTypeFilter;
+        }) || selectedEventTypeFilter;
+
+  const finalDisplayName =
+    typeof selectedDisplayName === "string"
+      ? selectedDisplayName
+      : selectedDisplayName?.name || "CELLS";
+
+  return (
+    <div style={eventTypeStyles.container}>
+      <div style={eventTypeStyles.header}>Filter by Event Type</div>
+
+      <div style={eventTypeStyles.selectedTypeDisplay}>
+        <div style={eventTypeStyles.checkIcon}>✓</div>
+        <span>{finalDisplayName}</span>
+      </div>
+
+      {isAdmin && (
+        <div style={eventTypeStyles.typesGrid}>
+          {allTypes.map((type) => {
+            const displayName = getDisplayName(type);
+            const typeValue = getTypeValue(type);
+            const isActive = selectedEventTypeFilter === typeValue;
+            const isHovered = hoveredType === typeValue;
+
+            return (
+              <div
+                key={typeValue}
+                style={{
+                  ...eventTypeStyles.typeCard,
+                  ...(isActive ? eventTypeStyles.typeCardActive : {}),
+                  ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+                }}
+                onClick={() => {
+                  console.log('🟢 Switched to Event Type:', displayName);
+                  
+                  // Find the full event type object
+                  const selectedTypeObj =
+                    typeValue === "all"
+                      ? null
+                      : customEventTypes.find(
+                          (t) => t.name.toLowerCase() === typeValue
+                        ) || null;
+
+                  console.log('🧩 Config:', {
+                    isTicketed: selectedTypeObj?.isTicketed,
+                    isGlobal: selectedTypeObj?.isGlobal,
+                    hasPersonSteps: selectedTypeObj?.hasPersonSteps,
+                  });
+
+                  // Update the selected event type filter
+                  setSelectedEventTypeFilter(typeValue);
+                  setSelectedEventTypeObj(selectedTypeObj);
+
+                  // Store in localStorage
+                  if (selectedTypeObj) {
+                    localStorage.setItem(
+                      "selectedEventTypeObj",
+                      JSON.stringify(selectedTypeObj)
+                    );
+                  } else {
+                    localStorage.removeItem("selectedEventTypeObj");
+                  }
+
+                  // ✅ FIX: Call handleEventTypeClick instead of applyAllFilters
+                  handleEventTypeClick(typeValue);
+                }}
+                onMouseEnter={() => setHoveredType(typeValue)}
+                onMouseLeave={() => setHoveredType(null)}
+              >
+                {isActive && <div style={eventTypeStyles.activeIndicator}>✓</div>}
+                <span
+                  style={{
+                    ...eventTypeStyles.typeName,
+                    ...(isActive ? eventTypeStyles.typeNameActive : {}),
+                  }}
+                >
+                  {displayName}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
   // StatusBadges Component
   const StatusBadges = () => {
@@ -1334,6 +1368,10 @@ const applyFilters = (filters) => {
       const fetchStatusCounts = async () => {
         try {
           const token = localStorage.getItem("token");
+             if (!token) {
+          console.error("❌ No token for status counts");
+          return;
+        }
           const headers = { Authorization: `Bearer ${token}` };
 
           const params = new URLSearchParams();
