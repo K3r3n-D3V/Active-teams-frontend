@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useContext, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -12,7 +12,7 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
-  Autocomplete, // Add this import
+  Autocomplete,
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
@@ -21,11 +21,11 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
-import axios from "axios"; // Add this import
+import axios from "axios";
+import debounce from "lodash.debounce";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-// WelcomeOverlay component remains the same...
 const WelcomeOverlay = ({ name, mode }) => {
   const pieces = Array.from({ length: 90 }).map((_, index) => {
     const left = Math.random() * 100;
@@ -132,44 +132,50 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
-  // Add state for people list
+
+  // Debounced invited_by search states
   const [peopleList, setPeopleList] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
-  // Fetch people when component mounts
-  useEffect(() => {
-    const fetchAllPeople = async () => {
-      setLoadingPeople(true);
-      const allPeople = [];
-      let page = 1;
-      const perPage = 1000;
-      let moreData = true;
+  // ✅ Debounced search function
+  const debouncedSearchPeople = useCallback(
+    debounce(async (query) => {
+      if (!query || query.trim().length < 2) {
+        setPeopleList([]);
+        return;
+      }
 
       try {
-        while (moreData) {
-          const response = await axios.get(`${BACKEND_URL}/people?page=${page}&perPage=${perPage}`);
-          const results = response.data?.results || [];
-          allPeople.push(...results);
-          
-          if (results.length < perPage) {
-            moreData = false;
-          } else {
-            page += 1;
-          }
-        }
-        setPeopleList(allPeople);
-        console.log("Total people fetched for signup:", allPeople.length);
+        setLoadingPeople(true);
+        setSearchError("");
+
+        const res = await axios.get(`${BACKEND_URL}/people/search`, {
+          params: {
+            query: query.trim(),
+            limit: 25,
+            fields: "Name,Surname,Email,Phone",
+          },
+        });
+
+        const results =
+          res.data?.results && Array.isArray(res.data.results)
+            ? res.data.results
+            : Array.isArray(res.data)
+            ? res.data
+            : [];
+
+        setPeopleList(results);
       } catch (err) {
-        console.error("Failed to fetch people for signup:", err);
+        console.error("Error fetching invited_by options:", err);
+        setSearchError("Failed to search people. Try again.");
         setPeopleList([]);
       } finally {
         setLoadingPeople(false);
       }
-    };
-
-    fetchAllPeople();
-  }, []);
+    }, 350),
+    []
+  );
 
   const validate = () => {
     const newErrors = {};
@@ -199,14 +205,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // Handle autocomplete change for invited_by
   const handleInvitedByChange = (value) => {
     const invitedByValue = typeof value === "string" ? value : (value?.label || "");
-    setForm(prev => ({ ...prev, invited_by: invitedByValue }));
-    
-    // Clear error when user selects/types something
+    setForm((prev) => ({ ...prev, invited_by: invitedByValue }));
+
     if (errors.invited_by) {
-      setErrors(prev => ({ ...prev, invited_by: "" }));
+      setErrors((prev) => ({ ...prev, invited_by: "" }));
     }
   };
 
@@ -215,10 +219,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
     if (!validate()) return;
 
     setLoading(true);
-
     const submitData = { ...form };
     delete submitData.confirm_password;
-    
+
     try {
       const res = await fetch(`${BACKEND_URL}/signup`, {
         method: "POST",
@@ -242,7 +245,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           gender: submitData.gender,
         };
         setUserProfile(userData);
-        
+
         if (onSignup) onSignup(submitData);
 
         try {
@@ -252,7 +255,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           navigate("/login");
           return;
         }
-        
+
         setWelcomeName(submitData.name || submitData.email);
         setShowWelcome(true);
         setTimeout(() => {
@@ -269,11 +272,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
-  // Create people options for autocomplete
-  const peopleOptions = peopleList.map(person => {
-    const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
-    return { label: fullName, person };
-  });
+  const peopleOptions = peopleList.map((person) => ({
+    label: `${person.Name || ""} ${person.Surname || ""}`.trim(),
+    person,
+  }));
 
   return (
     <Box
@@ -289,7 +291,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
       }}
     >
       {showWelcome && <WelcomeOverlay name={welcomeName} mode={mode} />}
-      
+
       <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
           onClick={() => {
@@ -308,7 +310,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
         </IconButton>
       </Box>
-      
+
       <Box
         sx={{
           maxWidth: 800,
@@ -340,18 +342,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
           FILL IN YOUR DETAILS
         </Typography>
 
-        <Box
-          component="form"
-          onSubmit={handleSubmit}
-          display="flex"
-          flexDirection="column"
-          gap={3}
-        >
-          <Box
-            display="grid"
-            gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }}
-            gap={2.5}
-          >
+        <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={3}>
+          <Box display="grid" gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }} gap={2.5}>
             {[
               ["name", "Name"],
               ["surname", "Surname"],
@@ -378,19 +370,22 @@ const Signup = ({ onSignup, mode, setMode }) => {
               />
             ))}
 
-            {/* Replace the invited_by TextField with Autocomplete */}
+            {/* 👇 Debounced Invited By field */}
             <Autocomplete
               freeSolo
               disabled={loading || loadingPeople}
               options={peopleOptions}
-              getOptionLabel={(option) => typeof option === "string" ? option : option.label}
+              getOptionLabel={(option) =>
+                typeof option === "string" ? option : option.label
+              }
               value={
-                peopleOptions.find(option => option.label === form.invited_by) || null
+                peopleOptions.find((option) => option.label === form.invited_by) || null
               }
               onChange={(e, newValue) => handleInvitedByChange(newValue)}
               onInputChange={(e, newInputValue, reason) => {
                 if (reason === "input") {
-                  setForm(prev => ({ ...prev, invited_by: newInputValue }));
+                  setForm((prev) => ({ ...prev, invited_by: newInputValue }));
+                  debouncedSearchPeople(newInputValue); // 👈 live search
                 }
               }}
               renderInput={(params) => (
@@ -399,12 +394,19 @@ const Signup = ({ onSignup, mode, setMode }) => {
                   label="Invited By"
                   name="invited_by"
                   error={!!errors.invited_by}
-                  helperText={errors.invited_by || (loadingPeople ? "Loading people..." : "")}
+                  helperText={
+                    errors.invited_by ||
+                    (loadingPeople
+                      ? "Searching people..."
+                      : searchError || "")
+                  }
                   fullWidth
                   sx={{
                     "& .MuiOutlinedInput-root": { borderRadius: 3 },
-                    "& .MuiFormHelperText-root": { 
-                      color: errors.invited_by ? theme.palette.error.main : theme.palette.text.secondary 
+                    "& .MuiFormHelperText-root": {
+                      color: errors.invited_by
+                        ? theme.palette.error.main
+                        : theme.palette.text.secondary,
                     },
                   }}
                 />
@@ -466,7 +468,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
               fullWidth
               InputProps={{
                 endAdornment: (
-                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
+                  <IconButton
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    edge="end"
+                  >
                     {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
                   </IconButton>
                 ),
@@ -497,12 +502,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 px: 4,
                 py: 1.5,
                 fontWeight: "bold",
-                "&:hover": {
-                  backgroundColor: "#222",
-                },
-                "&:active": {
-                  backgroundColor: "#444",
-                },
+                "&:hover": { backgroundColor: "#222" },
+                "&:active": { backgroundColor: "#444" },
               }}
             >
               {loading ? "Signing Up..." : "Sign Up"}
@@ -514,7 +515,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
               Already have an account?{" "}
               <Typography
                 component="span"
-                sx={{ color: "#42a5f5", cursor: "pointer", textDecoration: "underline" }}
+                sx={{
+                  color: "#42a5f5",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
                 onClick={() => navigate("/login")}
               >
                 Log In
