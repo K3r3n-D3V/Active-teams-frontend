@@ -334,7 +334,7 @@ export default function Profile() {
       address: profile?.home_address || "",
       phone: profile?.phone_number || "",
       invitedBy: profile?.invited_by || "",
-      leader: profile?.leader || "",
+      leader: profile?.leader_name || "",
       gender: profile?.gender || "",
       currentPassword: "",
       newPassword: "",
@@ -1087,7 +1087,7 @@ export default function Profile() {
                       alignItems: "center",
                     }}
                   >
-                    {form.leader || "—"}
+                    {form.leader_name || "—"}
                   </Box>
                 </Grid>
 
