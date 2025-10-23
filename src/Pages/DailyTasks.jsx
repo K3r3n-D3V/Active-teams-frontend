@@ -76,7 +76,6 @@ export default function DailyTasks() {
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [addingTaskType, setAddingTaskType] = useState(false);
   
-
   const API_URL = "https://activeteamsbackend-3.onrender.com" || "http://127.0.0.1:8000";
   // const API_URL = "http://127.0.0.1:8000"
 
