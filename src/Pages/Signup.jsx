@@ -224,7 +224,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
     try {
       let allPeople = [...currentPeople];
       let page = startPage;
-      const perPage = 1000;
+      const perPage = 3000;
       
       while (allPeople.length < targetLoadCount) {
         try {
