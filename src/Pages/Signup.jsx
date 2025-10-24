@@ -40,7 +40,7 @@ const initialForm = {
   surname: "",
   date_of_birth: "",
   home_address: "",
-  title: "",
+  // title: "",
   invited_by: "",
   phone_number: "",
   email: "",
@@ -80,6 +80,32 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [targetLoadCount] = useState(5000);
   const [maxLoadCount] = useState(8000);
+
+  // Helper text logic - SIMPLIFIED, no loading messages
+  const getHelperText = () => {
+    if (errors.invited_by) {
+      return errors.invited_by;
+    }
+    
+    // if (allPeopleCache.length >= 4000) {
+    //   return `Search from ${allPeopleCache.length.toLocaleString()}+ people`;
+    // }
+    
+    // return "Type to search people...";
+  };
+
+  // Helper text color logic
+  const getHelperTextColor = () => {
+    if (errors.invited_by) {
+      return theme.palette.error.main;
+    }
+    
+    // if (allPeopleCache.length >= 4000) {
+    //   return theme.palette.success.main;
+    // }
+    
+    return theme.palette.text.secondary;
+  };
 
   // FAST LOCAL SEARCH - PRIMARY METHOD
   const searchLocalPeople = useCallback((query) => {
@@ -138,14 +164,14 @@ const Signup = ({ onSignup, mode, setMode }) => {
       
       let allPeople = [];
       let page = 1;
-      const perPage = 1000;
+      const perPage = 10000;
       
       // Load initial 4000 people quickly
-      while (allPeople.length < 4000) {
+      while (allPeople.length < 10000) {
         try {
           const res = await axios.get(`${BACKEND_URL}/people`, {
             params: { perPage, page },
-            timeout: 10000
+            timeout: 20000
           });
           
           if (!res.data || !Array.isArray(res.data.results) || res.data.results.length === 0) {
@@ -169,7 +195,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           page++;
           
           // Continue loading in background without blocking
-          if (allPeople.length < 4000) {
+          if (allPeople.length < 10000) {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
         } catch (err) {
@@ -252,7 +278,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
         try {
           const res = await axios.get(`${BACKEND_URL}/people`, {
             params: { 
-              perPage: 1000,
+              perPage: 3000,
               page: page
             },
             timeout: 15000
@@ -419,7 +445,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
     else if (new Date(form.date_of_birth) > new Date())
       newErrors.date_of_birth = "Date cannot be in the future";
     if (!form.home_address.trim()) newErrors.home_address = "Home Address is required";
-    if (!form.title.trim()) newErrors.title = "Title is required";
+    // if (!form.title.trim()) newErrors.title = "Title is required";
     if (!form.invited_by.trim()) newErrors.invited_by = "Invited By is required";
     if (!form.phone_number.trim()) newErrors.phone_number = "Phone Number is required";
     if (!form.email.trim()) newErrors.email = "Email is required";
@@ -592,7 +618,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               />
             ))}
 
-            <FormControl fullWidth error={!!errors.title}>
+            {/* <FormControl fullWidth error={!!errors.title}>
               <InputLabel>Title</InputLabel>
               <Select 
                 name="title" 
@@ -613,7 +639,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 <MenuItem value="Apostle">Apostle</MenuItem>
               </Select>
               {errors.title && <Typography variant="caption" color="error">{errors.title}</Typography>}
-            </FormControl>
+            </FormControl> */}
 
             {/* SILENT AUTocomplete - No loading indicators */}
             <Autocomplete
@@ -663,7 +689,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 value={form.gender} 
                 onChange={handleChange} 
                 label="Gender" 
-                sx={roundedInput}
+                sx={{
+                  ...roundedInput["& .MuiOutlinedInput-root"], // apply the rounded style
+                }}
               >
                 <MenuItem value=""><em>Select Gender</em></MenuItem>
                 <MenuItem value="male">Male</MenuItem>
