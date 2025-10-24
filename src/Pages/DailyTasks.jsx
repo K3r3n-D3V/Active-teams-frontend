@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
+import { useTheme } from "@mui/material/styles";
 
-function Modal({ isOpen, onClose, children, theme }) {
+function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
 
   return (
@@ -9,7 +10,7 @@ function Modal({ isOpen, onClose, children, theme }) {
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        backgroundColor: "rgba(0, 0, 0, 0.75)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -19,8 +20,8 @@ function Modal({ isOpen, onClose, children, theme }) {
     >
       <div
         style={{
-          backgroundColor: theme.cardBg,
-          color: theme.text,
+          backgroundColor: isDarkMode ? '#1e1e1e' : "white",
+          color: isDarkMode ? '#fff' : '#1a1a24',
           padding: "28px",
           borderRadius: "16px",
           maxWidth: "500px",
@@ -28,8 +29,8 @@ function Modal({ isOpen, onClose, children, theme }) {
           maxHeight: "90vh",
           overflowY: "auto",
           position: "relative",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-          border: `1px solid ${theme.border}`,
+          boxShadow: isDarkMode ? "0 8px 24px rgba(255,255,255,0.1)" : "0 8px 24px rgba(0,0,0,0.4)",
+          border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -42,7 +43,7 @@ function Modal({ isOpen, onClose, children, theme }) {
             border: "none",
             fontSize: "22px",
             cursor: "pointer",
-            color: theme.textSecondary,
+            color: isDarkMode ? '#aaa' : '#6b7280',
             fontWeight: "bold",
           }}
           onClick={onClose}
@@ -60,6 +61,9 @@ function Modal({ isOpen, onClose, children, theme }) {
 }
 
 export default function DailyTasks() {
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
+  
   const [tasks, setTasks] = useState([]);
   const [taskTypes, setTaskTypes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -69,7 +73,6 @@ export default function DailyTasks() {
   const [formType, setFormType] = useState("");
   const [dateRange, setDateRange] = useState("today");
   const [filterType, setFilterType] = useState("all");
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [storedUser, setStoredUser] = useState(() =>
     JSON.parse(localStorage.getItem("userProfile") || "{}")
   );
@@ -77,8 +80,7 @@ export default function DailyTasks() {
   const [addingTaskType, setAddingTaskType] = useState(false);
   
 
-  // const API_URL = `${import.meta.env.VITE_BACKEND_URL}` || "http://127.0.0.1:8000";
-  const API_URL = "http://127.0.0.1:8000"
+  const API_URL = "https://activeteamsbackend-3.onrender.com" || "http://127.0.0.1:8000";
 
   const getCurrentDateTime = () => {
     const now = new Date();
@@ -101,21 +103,6 @@ export default function DailyTasks() {
   const [searchResults, setSearchResults] = useState([]);
   const [assignedResults, setAssignedResults] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    const checkDarkMode = () => {
-      const darkModeMedia = window.matchMedia('(prefers-color-scheme: dark)');
-      setIsDarkMode(darkModeMedia.matches);
-    };
-
-    checkDarkMode();
-
-    const darkModeMedia = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e) => setIsDarkMode(e.matches);
-    darkModeMedia.addListener(handler);
-
-    return () => darkModeMedia.removeListener(handler);
-  }, []);
 
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
@@ -261,49 +248,47 @@ export default function DailyTasks() {
     }
   };
 
- const fetchPeople = async (q) => {
-  if (!q.trim()) return setSearchResults([]);
+  const fetchPeople = async (q) => {
+    if (!q.trim()) return setSearchResults([]);
 
-  const parts = q.trim().split(/\s+/);
-  const name = parts[0];
-  const surname = parts.slice(1).join(" ");
+    const parts = q.trim().split(/\s+/);
+    const name = parts[0];
+    const surname = parts.slice(1).join(" ");
 
-  try {
-    const token = localStorage.getItem("token");
-    const res = await fetch(`${API_URL}/people?name=${encodeURIComponent(name)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_URL}/people?name=${encodeURIComponent(name)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    if (!res.ok) throw new Error("Failed to fetch people");
+      if (!res.ok) throw new Error("Failed to fetch people");
 
-    const data = await res.json();
+      const data = await res.json();
 
-    // Filter results
-    let filtered = (data?.results || []).filter(p =>
-      p.Name.toLowerCase().includes(name.toLowerCase()) &&
-      (!surname || p.Surname.toLowerCase().includes(surname.toLowerCase()))
-    );
+      let filtered = (data?.results || []).filter(p =>
+        p.Name.toLowerCase().includes(name.toLowerCase()) &&
+        (!surname || p.Surname.toLowerCase().includes(surname.toLowerCase()))
+      );
 
-    // Sort alphabetically by Name, then Surname
-    filtered.sort((a, b) => {
-      const nameA = a.Name.toLowerCase();
-      const nameB = b.Name.toLowerCase();
-      const surnameA = (a.Surname || "").toLowerCase();
-      const surnameB = (b.Surname || "").toLowerCase();
+      filtered.sort((a, b) => {
+        const nameA = a.Name.toLowerCase();
+        const nameB = b.Name.toLowerCase();
+        const surnameA = (a.Surname || "").toLowerCase();
+        const surnameB = (b.Surname || "").toLowerCase();
 
-      if (nameA < nameB) return -1;
-      if (nameA > nameB) return 1;
-      if (surnameA < surnameB) return -1;
-      if (surnameA > surnameB) return 1;
-      return 0;
-    });
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        if (surnameA < surnameB) return -1;
+        if (surnameA > surnameB) return 1;
+        return 0;
+      });
 
-    setSearchResults(filtered);
-  } catch (err) {
-    console.error("Error fetching people:", err);
-    setSearchResults([]);
-  }
-};
+      setSearchResults(filtered);
+    } catch (err) {
+      console.error("Error fetching people:", err);
+      setSearchResults([]);
+    }
+  };
 
   const fetchAssigned = async (q) => {
     if (!q.trim()) return setAssignedResults([]);
@@ -435,32 +420,31 @@ export default function DailyTasks() {
   };
 
   const handleEdit = (task) => {
-  // If task is completed, prevent editing
-  if (task.status?.toLowerCase() === "completed") {
-    alert("This task has been marked as completed and cannot be edited.");
-    return;
-  }
+    if (task.status?.toLowerCase() === "completed") {
+      alert("This task has been marked as completed and cannot be edited.");
+      return;
+    }
 
-  setSelectedTask(task);
-  setFormType(task.type);
-  setIsModalOpen(true);
-  setTaskData({
-    taskType: task.taskType || "",
-    recipient: {
-      Name: task.contacted_person?.name?.split(" ")[0] || "",
-      Surname: task.contacted_person?.name?.split(" ")[1] || "",
-      Phone: task.contacted_person?.phone || "",
-      Email: task.contacted_person?.email || "",
-    },
-    recipientDisplay: task.contacted_person?.name || "",
-    assignedTo: task.name || storedUser.name,
-    dueDate: formatDateTime(task.date),
-    status: task.status,
-    taskStage: task.status,
-  });
-};
+    setSelectedTask(task);
+    setFormType(task.type);
+    setIsModalOpen(true);
+    setTaskData({
+      taskType: task.taskType || "",
+      recipient: {
+        Name: task.contacted_person?.name?.split(" ")[0] || "",
+        Surname: task.contacted_person?.name?.split(" ")[1] || "",
+        Phone: task.contacted_person?.phone || "",
+        Email: task.contacted_person?.email || "",
+      },
+      recipientDisplay: task.contacted_person?.name || "",
+      assignedTo: task.name || storedUser.name,
+      dueDate: formatDateTime(task.date),
+      status: task.status,
+      taskStage: task.status,
+    });
+  };
 
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
@@ -487,13 +471,12 @@ const handleSubmit = async (e) => {
         assignedfor: storedUser.email,
       };
 
-       if (selectedTask && selectedTask._id) {
+      if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
         alert(`Task for ${person.Name} ${person.Surname} has been successfully updated!`);
       } else {
         await createTask(taskPayload);
         alert(`You have successfully captured ${person.Name} ${person.Surname}`);
-        console.log("Task created successfully");
       }
 
       handleClose();
@@ -550,31 +533,37 @@ const handleSubmit = async (e) => {
 
   const totalCount = filteredTasks.length;
 
-  const theme = {
-    bg: '#ffffff',
-    cardBg: '#ffffff',
-    text: '#1a1a24',
-    textSecondary: '#6b7280',
-    inputBg: '#f3f4f6',
-    shadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
-    border: '#e5e7eb',
-  };
-
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px', backgroundColor: theme.bg, minHeight: '100vh' }}>
+    <div style={{ 
+      maxWidth: '1200px', 
+      margin: '0 auto', 
+      padding: '32px 24px', 
+      backgroundColor: isDarkMode ? '#1e1e1e' : '#f8f9fa', 
+      minHeight: '100vh',
+      paddingTop: '5rem'
+    }}>
       <div style={{
-        backgroundColor: theme.cardBg,
-        color: theme.text,
+        backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+        color: isDarkMode ? '#fff' : '#1a1a24',
         borderRadius: '20px',
         padding: '48px 32px',
         textAlign: 'center',
-        boxShadow: theme.shadow,
-        border: `1px solid ${theme.border}`,
+        boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+        border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
       }}>
         <h1 style={{ fontSize: '72px', fontWeight: '700', margin: 0, letterSpacing: '-2px' }}>
           {totalCount}
         </h1>
-        <p style={{ marginTop: '12px', fontSize: '16px', letterSpacing: '1px', textTransform: 'uppercase', color: theme.textSecondary, fontWeight: '600' }}>Tasks Complete</p>
+        <p style={{ 
+          marginTop: '12px', 
+          fontSize: '16px', 
+          letterSpacing: '1px', 
+          textTransform: 'uppercase', 
+          color: isDarkMode ? '#aaa' : '#6b7280', 
+          fontWeight: '600' 
+        }}>
+          Tasks Complete
+        </p>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '40px', flexWrap: 'wrap' }}>
           <button
@@ -582,15 +571,15 @@ const handleSubmit = async (e) => {
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              backgroundColor: theme.cardBg,
-              color: theme.text,
+              backgroundColor: isDarkMode ? '#fff' : '#000',
+              color: isDarkMode ? '#000' : '#fff',
               fontWeight: '600',
               padding: '14px 28px',
               borderRadius: '12px',
-              border: `2px solid ${theme.border}`,
+              border: 'none',
               cursor: 'pointer',
               fontSize: '15px',
-              boxShadow: theme.shadow,
+              boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
             }}
             onClick={() => handleOpen("call")}
           >
@@ -601,15 +590,15 @@ const handleSubmit = async (e) => {
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              backgroundColor: theme.cardBg,
-              color: theme.text,
+              backgroundColor: isDarkMode ? '#fff' : '#000',
+              color: isDarkMode ? '#000' : '#fff',
               fontWeight: '600',
               padding: '14px 28px',
               borderRadius: '12px',
-              border: `2px solid ${theme.border}`,
+              border: 'none',
               cursor: 'pointer',
               fontSize: '15px',
-              boxShadow: theme.shadow,
+              boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
             }}
             onClick={() => handleOpen("visit")}
           >
@@ -622,15 +611,15 @@ const handleSubmit = async (e) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '10px',
-                backgroundColor: '#0f0e13ff',
-                color: '#fff',
+                backgroundColor: isDarkMode ? '#fff' : '#000',
+                color: isDarkMode ? '#000' : '#fff',
                 fontWeight: '600',
                 padding: '14px 28px',
                 borderRadius: '12px',
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '15px',
-                boxShadow: theme.shadow,
+                boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
               }}
               onClick={() => setIsAddTypeModalOpen(true)}
             >
@@ -644,9 +633,9 @@ const handleSubmit = async (e) => {
             style={{
               padding: '12px 20px',
               borderRadius: '12px',
-              border: `2px solid ${theme.border}`,
-              backgroundColor: theme.inputBg,
-              color: theme.text,
+              border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+              backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+              color: isDarkMode ? '#fff' : '#1a1a24',
               fontSize: '14px',
               cursor: 'pointer',
               fontWeight: '500',
@@ -670,13 +659,13 @@ const handleSubmit = async (e) => {
             style={{
               padding: '10px 24px',
               borderRadius: '24px',
-              border: filterType === type ? 'none' : `2px solid ${theme.border}`,
+              border: filterType === type ? 'none' : `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
               fontWeight: '600',
               cursor: 'pointer',
-              backgroundColor: filterType === type ? theme.text : theme.cardBg,
-              color: filterType === type ? theme.cardBg : theme.text,
+              backgroundColor: filterType === type ? (isDarkMode ? '#fff' : '#000') : (isDarkMode ? '#2d2d2d' : '#ffffff'),
+              color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
               fontSize: '14px',
-              boxShadow: filterType === type ? theme.shadow : 'none',
+              boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
             }}
             onClick={() => setFilterType(type)}
           >
@@ -687,9 +676,18 @@ const handleSubmit = async (e) => {
 
       <div style={{ marginTop: '32px' }}>
         {loading ? (
-          <p style={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic', padding: '40px' }}>Loading tasks...</p>
+          <p style={{ 
+            textAlign: 'center', 
+            color: isDarkMode ? '#aaa' : '#6b7280', 
+            fontStyle: 'italic', 
+            padding: '40px' 
+          }}>
+            Loading tasks...
+          </p>
         ) : filteredTasks.length === 0 ? (
-          <p style={{ textAlign: 'center', color: theme.textSecondary }}>No tasks yet.</p>
+          <p style={{ textAlign: 'center', color: isDarkMode ? '#aaa' : '#6b7280' }}>
+            No tasks yet.
+          </p>
         ) : (
           filteredTasks.map((task) => (
             <div
@@ -698,13 +696,13 @@ const handleSubmit = async (e) => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                backgroundColor: theme.cardBg,
+                backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
                 padding: '24px',
                 borderRadius: '16px',
-                border: `1px solid ${theme.border}`,
+                border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 marginBottom: '12px',
                 cursor: 'pointer',
-                boxShadow: theme.shadow,
+                boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
               }}
             >
               <div
@@ -713,10 +711,21 @@ const handleSubmit = async (e) => {
                   alert(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
                 }}
               >
-                <p style={{ fontWeight: '700', color: theme.text, margin: 0, fontSize: '16px' }}>
+                <p style={{ 
+                  fontWeight: '700', 
+                  color: isDarkMode ? '#fff' : '#1a1a24', 
+                  margin: 0, 
+                  fontSize: '16px' 
+                }}>
                   {task.contacted_person?.name}
                 </p>
-                <p style={{ fontSize: '14px', color: theme.textSecondary, margin: '6px 0 0 0' }}>{task.name}</p>
+                <p style={{ 
+                  fontSize: '14px', 
+                  color: isDarkMode ? '#aaa' : '#6b7280', 
+                  margin: '6px 0 0 0' 
+                }}>
+                  {task.name}
+                </p>
                 {task.isRecurring && (
                   <span style={{
                     fontSize: '11px',
@@ -745,28 +754,46 @@ const handleSubmit = async (e) => {
                     textTransform: 'capitalize',
                     border: '2px solid',
                     cursor: 'pointer',
-                    backgroundColor: task.status === "open" ? theme.cardBg : task.status === "completed" ? theme.text : isDarkMode ? '#3a3a3a' : '#e5e5e5',
-                    color: task.status === "open" ? theme.text : task.status === "completed" ? theme.cardBg : theme.text,
-                    borderColor: task.status === "open" ? theme.text : task.status === "completed" ? theme.text : theme.textSecondary,
+                    backgroundColor: task.status === "open" 
+                      ? (isDarkMode ? '#2d2d2d' : '#ffffff') 
+                      : task.status === "completed" 
+                        ? (isDarkMode ? '#fff' : '#000')
+                        : (isDarkMode ? '#3a3a3a' : '#e5e5e5'),
+                    color: task.status === "open" 
+                      ? (isDarkMode ? '#fff' : '#000')
+                      : task.status === "completed" 
+                        ? (isDarkMode ? '#000' : '#fff')
+                        : (isDarkMode ? '#fff' : '#1a1a24'),
+                    borderColor: task.status === "open" 
+                      ? (isDarkMode ? '#fff' : '#000')
+                      : task.status === "completed" 
+                        ? (isDarkMode ? '#fff' : '#000')
+                        : (isDarkMode ? '#444' : '#6b7280'),
                   }}
                   onClick={() => handleEdit(task)}
                 >
                   {task.status}
                 </span>
-                <div style={{ fontSize: '12px', color: theme.textSecondary, marginTop: '8px', fontWeight: '500' }}>{formatDate(task.date)}</div>
+                <div style={{ 
+                  fontSize: '12px', 
+                  color: isDarkMode ? '#aaa' : '#6b7280', 
+                  marginTop: '8px', 
+                  fontWeight: '500' 
+                }}>
+                  {formatDate(task.date)}
+                </div>
               </div>
             </div>
           ))
         )}
       </div>
 
-      {/* Modal */}
       {isAddTypeModalOpen && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(0,0,0,0.6)",
+            backgroundColor: "rgba(0,0,0,0.75)",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
@@ -775,15 +802,17 @@ const handleSubmit = async (e) => {
         >
           <div
             style={{
-              backgroundColor: "#fff",
+              backgroundColor: isDarkMode ? '#1e1e1e' : "#fff",
+              color: isDarkMode ? '#fff' : '#1a1a24',
               padding: "32px",
               borderRadius: "16px",
               width: "440px",
               maxWidth: "90%",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              boxShadow: isDarkMode ? "0 20px 60px rgba(255,255,255,0.1)" : "0 20px 60px rgba(0,0,0,0.3)",
               display: "flex",
               flexDirection: "column",
               gap: "20px",
+              border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
             }}
           >
             <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700" }}>
@@ -799,7 +828,9 @@ const handleSubmit = async (e) => {
                 padding: "14px 16px",
                 fontSize: "15px",
                 borderRadius: "12px",
-                border: "2px solid #e5e5e5",
+                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                color: isDarkMode ? '#fff' : '#1a1a24',
                 width: "100%",
                 boxSizing: "border-box",
                 outline: 'none',
@@ -811,8 +842,8 @@ const handleSubmit = async (e) => {
                 disabled={addingTaskType}
                 style={{
                   padding: "12px 24px",
-                  backgroundColor: "#0f0e13ff",
-                  color: "#fff",
+                  backgroundColor: isDarkMode ? '#fff' : '#000',
+                  color: isDarkMode ? '#000' : '#fff',
                   fontWeight: "600",
                   borderRadius: "12px",
                   border: "none",
@@ -827,11 +858,11 @@ const handleSubmit = async (e) => {
                 onClick={() => setIsAddTypeModalOpen(false)}
                 style={{
                   padding: "12px 24px",
-                  backgroundColor: "#e5e5e5",
-                  color: "#0f0e13ff",
+                  backgroundColor: isDarkMode ? '#2d2d2d' : "#e5e5e5",
+                  color: isDarkMode ? '#fff' : "#1a1a24",
                   fontWeight: "600",
                   borderRadius: "12px",
-                  border: "none",
+                  border: `1px solid ${isDarkMode ? '#444' : 'transparent'}`,
                   cursor: "pointer",
                   fontSize: "14px",
                 }}
@@ -843,14 +874,25 @@ const handleSubmit = async (e) => {
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={handleClose} theme={theme}>
+      <Modal isOpen={isModalOpen} onClose={handleClose} isDarkMode={isDarkMode}>
         <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} onSubmit={handleSubmit}>
-          <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: theme.text, margin: 0 }}>
+          <h3 style={{ 
+            fontSize: '24px', 
+            fontWeight: 'bold', 
+            color: isDarkMode ? '#fff' : '#1a1a24', 
+            margin: 0 
+          }}>
             {formType === "call" ? "Call" : "Visit"} Task
           </h3>
 
           <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '14px', 
+              fontWeight: '600', 
+              color: isDarkMode ? '#fff' : '#1a1a24', 
+              marginBottom: '8px' 
+            }}>
               Task Type
             </label>
             <select
@@ -861,10 +903,10 @@ const handleSubmit = async (e) => {
                 width: '100%',
                 padding: '10px 12px',
                 borderRadius: '10px',
-                border: `2px solid ${theme.border}`,
+                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 fontSize: '14px',
-                backgroundColor: theme.inputBg,
-                color: theme.text,
+                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                color: isDarkMode ? '#fff' : '#1a1a24',
                 outline: 'none',
               }}
             >
@@ -878,7 +920,13 @@ const handleSubmit = async (e) => {
           </div>
 
           <div style={{ position: 'relative' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '14px', 
+              fontWeight: '600', 
+              color: isDarkMode ? '#fff' : '#1a1a24', 
+              marginBottom: '8px' 
+            }}>
               Recipient
             </label>
             <input
@@ -900,10 +948,10 @@ const handleSubmit = async (e) => {
                 width: '100%',
                 padding: '10px 12px',
                 borderRadius: '10px',
-                border: `2px solid ${theme.border}`,
+                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 fontSize: '14px',
-                backgroundColor: theme.inputBg,
-                color: theme.text,
+                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                color: isDarkMode ? '#fff' : '#1a1a24',
                 outline: 'none',
               }}
               placeholder="Enter recipient name"
@@ -913,8 +961,8 @@ const handleSubmit = async (e) => {
                 position: 'absolute',
                 zIndex: 10,
                 width: '100%',
-                backgroundColor: theme.cardBg,
-                border: `2px solid ${theme.border}`,
+                backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 borderRadius: '10px',
                 marginTop: '4px',
                 maxHeight: '200px',
@@ -922,7 +970,7 @@ const handleSubmit = async (e) => {
                 listStyle: 'none',
                 padding: 0,
                 margin: '4px 0 0 0',
-                boxShadow: theme.shadow,
+                boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
               }}>
                 {searchResults.map((person) => (
                   <li
@@ -930,8 +978,8 @@ const handleSubmit = async (e) => {
                     style={{
                       padding: '10px 12px',
                       cursor: 'pointer',
-                      borderBottom: `1px solid ${theme.border}`,
-                      color: theme.text,
+                      borderBottom: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                      color: isDarkMode ? '#fff' : '#1a1a24',
                     }}
                     onClick={() => {
                       setTaskData({
@@ -946,7 +994,7 @@ const handleSubmit = async (e) => {
                       });
                       setSearchResults([]);
                     }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = theme.inputBg}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                   >
                     {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
@@ -962,7 +1010,7 @@ const handleSubmit = async (e) => {
                 display: 'block',
                 fontSize: '14px',
                 fontWeight: '600',
-                color: theme.text,
+                color: isDarkMode ? '#fff' : '#1a1a24',
                 marginBottom: '8px',
               }}
             >
@@ -983,10 +1031,10 @@ const handleSubmit = async (e) => {
                 width: '100%',
                 padding: '10px 12px',
                 borderRadius: '10px',
-                border: `2px solid ${theme.border}`,
+                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 fontSize: '14px',
-                backgroundColor: theme.inputBg,
-                color: theme.text,
+                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                color: isDarkMode ? '#fff' : '#1a1a24',
                 outline: 'none',
               }}
               placeholder="Enter name to assign task"
@@ -997,8 +1045,8 @@ const handleSubmit = async (e) => {
                   position: 'absolute',
                   zIndex: 10,
                   width: '100%',
-                  backgroundColor: theme.cardBg,
-                  border: `2px solid ${theme.border}`,
+                  backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                   borderRadius: '10px',
                   marginTop: '4px',
                   maxHeight: '200px',
@@ -1006,7 +1054,7 @@ const handleSubmit = async (e) => {
                   listStyle: 'none',
                   padding: 0,
                   margin: '4px 0 0 0',
-                  boxShadow: theme.shadow,
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
                 }}
               >
                 {assignedResults.map((person) => (
@@ -1015,8 +1063,8 @@ const handleSubmit = async (e) => {
                     style={{
                       padding: '10px 12px',
                       cursor: 'pointer',
-                      borderBottom: `1px solid ${theme.border}`,
-                      color: theme.text,
+                      borderBottom: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                      color: isDarkMode ? '#fff' : '#1a1a24',
                     }}
                     onClick={() => {
                       setTaskData({
@@ -1027,7 +1075,7 @@ const handleSubmit = async (e) => {
                       setAssignedResults([]);
                     }}
                     onMouseEnter={(e) =>
-                      (e.target.style.backgroundColor = theme.inputBg)
+                      (e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6')
                     }
                     onMouseLeave={(e) => (e.target.style.backgroundColor = 'transparent')}
                   >
@@ -1040,7 +1088,13 @@ const handleSubmit = async (e) => {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '14px', 
+              fontWeight: '600', 
+              color: isDarkMode ? '#fff' : '#1a1a24', 
+              marginBottom: '8px' 
+            }}>
               Due Date & Time
             </label>
             <input
@@ -1053,17 +1107,23 @@ const handleSubmit = async (e) => {
                 width: '100%',
                 padding: '10px 12px',
                 borderRadius: '10px',
-                border: `2px solid ${theme.border}`,
-                backgroundColor: theme.inputBg,
+                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
                 fontSize: '14px',
-                color: theme.text,
+                color: isDarkMode ? '#aaa' : '#6b7280',
                 outline: 'none',
               }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: theme.text, marginBottom: '8px' }}>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '14px', 
+              fontWeight: '600', 
+              color: isDarkMode ? '#fff' : '#1a1a24', 
+              marginBottom: '8px' 
+            }}>
               Task Stage
             </label>
             <select
@@ -1074,10 +1134,10 @@ const handleSubmit = async (e) => {
                 width: '100%',
                 padding: '10px 12px',
                 borderRadius: '10px',
-                border: `2px solid ${theme.border}`,
+                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 fontSize: '14px',
-                backgroundColor: theme.inputBg,
-                color: theme.text,
+                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                color: isDarkMode ? '#fff' : '#1a1a24',
                 outline: 'none',
               }}
             >
@@ -1093,10 +1153,10 @@ const handleSubmit = async (e) => {
               style={{
                 padding: '10px 24px',
                 borderRadius: '10px',
-                backgroundColor: '#e5e5e5',
-                color: '#000',
+                backgroundColor: isDarkMode ? '#2d2d2d' : '#e5e5e5',
+                color: isDarkMode ? '#fff' : '#1a1a24',
                 fontWeight: '600',
-                border: 'none',
+                border: `1px solid ${isDarkMode ? '#444' : 'transparent'}`,
                 cursor: 'pointer',
                 fontSize: '14px',
               }}
@@ -1110,8 +1170,8 @@ const handleSubmit = async (e) => {
               style={{
                 padding: '10px 24px',
                 borderRadius: '10px',
-                backgroundColor: submitting ? '#666' : '#000',
-                color: '#fff',
+                backgroundColor: submitting ? '#666' : (isDarkMode ? '#fff' : '#000'),
+                color: submitting ? '#fff' : (isDarkMode ? '#000' : '#fff'),
                 fontWeight: '600',
                 border: 'none',
                 cursor: submitting ? 'not-allowed' : 'pointer',

@@ -1,146 +1,17 @@
-// import React from "react";
-// import { Box, Paper, IconButton, useTheme } from "@mui/material";
-// import { DataGrid, GridToolbar } from "@mui/x-data-grid";
-// import GroupIcon from "@mui/icons-material/Group";
-// import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
-// import MergeIcon from "@mui/icons-material/Merge";
-
-// function EventHistory({ 
-//   events = [], 
-//   eventCheckIns = {}, 
-//   eventNewPeople = {}, 
-//   eventConsolidations = {},
-//   onViewDetails,
-//   onViewNewPeople,
-//   onViewConverts
-// }) {
-//   const theme = useTheme();
-
-//   const rows = events.map((e) => ({
-//     id: e.id,
-//     date: e.eventName,
-//     attendanceCount: (eventCheckIns[e.id] || []).length,
-//     newPeopleCount: (eventNewPeople[e.id] || []).length,
-//     consolidatedCount: eventConsolidations[e.id] || 0,
-//     eventId: e.id,
-//   }));
-
-//   const columns = [
-//     { 
-//       field: 'date', 
-//       headerName: 'Date', 
-//       flex: 2, 
-//       minWidth: 200 
-//     },
-//     { 
-//       field: 'attendanceCount', 
-//       headerName: 'Attendance Count', 
-//       flex: 1, 
-//       minWidth: 150,
-//       align: 'center',
-//       headerAlign: 'center',
-//     },
-//     { 
-//       field: 'newPeopleCount', 
-//       headerName: 'New People', 
-//       flex: 1, 
-//       minWidth: 120,
-//       align: 'center',
-//       headerAlign: 'center',
-//     },
-//     { 
-//       field: 'consolidatedCount', 
-//       headerName: 'Converts Count', 
-//       flex: 1, 
-//       minWidth: 130,
-//       align: 'center',
-//       headerAlign: 'center',
-//     },
-//     {
-//       field: 'viewDetails',
-//       headerName: 'View Details',
-//       width: 120,
-//       sortable: false,
-//       filterable: false,
-//       renderCell: (params) => (
-//         <IconButton 
-//           size="small" 
-//           color="primary"
-//           onClick={() => onViewDetails(params.row.eventId)}
-//         >
-//           <GroupIcon />
-//         </IconButton>
-//       )
-//     },
-//     {
-//       field: 'viewNewPeople',
-//       headerName: 'View New People',
-//       width: 140,
-//       sortable: false,
-//       filterable: false,
-//       renderCell: (params) => (
-//         <IconButton 
-//           size="small" 
-//           color="success"
-//           onClick={() => onViewNewPeople(params.row.eventId)}
-//         >
-//           <PersonAddAltIcon />
-//         </IconButton>
-//       )
-//     },
-//     {
-//       field: 'viewConverts',
-//       headerName: 'View Converts/...',
-//       width: 150,
-//       sortable: false,
-//       filterable: false,
-//       renderCell: (params) => (
-//         <IconButton 
-//           size="small" 
-//           color="secondary"
-//           onClick={() => onViewConverts(params.row.eventId)}
-//         >
-//           <MergeIcon />
-//         </IconButton>
-//       )
-//     },
-//   ];
-
-//   return (
-//     <Box>
-//       <Paper variant="outlined" sx={{ height: 600, boxShadow: 3 }}>
-//         <DataGrid
-//           rows={rows}
-//           columns={columns}
-//           pageSizeOptions={[25, 50, 100]}
-//           slots={{ toolbar: GridToolbar }}
-//           slotProps={{
-//             toolbar: {
-//               showQuickFilter: true,
-//               quickFilterProps: { debounceMs: 500 },
-//             },
-//           }}
-//           disableRowSelectionOnClick
-//           initialState={{
-//             pagination: { paginationModel: { pageSize: 25 } },
-//             sorting: {
-//               sortModel: [{ field: 'date', sort: 'desc' }],
-//             },
-//           }}
-//           sx={{
-//             '& .MuiDataGrid-row:hover': {
-//               backgroundColor: theme.palette.action.hover,
-//             },
-//           }}
-//         />
-//       </Paper>
-//     </Box>
-//   );
-// }
-
-// export default EventHistory;
 import React, { useState, useEffect } from "react";
-import { Box, Paper, IconButton, useTheme, Typography, Alert, Button } from "@mui/material";
+import { 
+  Box, 
+  Paper, 
+  IconButton, 
+  useTheme, 
+  Typography, 
+  Alert, 
+  Button,
+  Card,
+  CardContent,
+  Stack,
+  Grid
+} from "@mui/material";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import GroupIcon from "@mui/icons-material/Group";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
@@ -148,7 +19,6 @@ import MergeIcon from "@mui/icons-material/Merge";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
 const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
-
 
 // Helper function to format date - moved to top
 const formatDate = (dateString) => {
@@ -169,95 +39,107 @@ const formatDate = (dateString) => {
 function EventHistory({ 
   onViewDetails,
   onViewNewPeople,
-  onViewConverts
+  onViewConverts,
+  events = [] // Accept events as prop from parent
 }) {
   const theme = useTheme();
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [localEvents, setLocalEvents] = useState([]);
 
-  // Fetch events data
-  const fetchEvents = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found. Please log in.');
+  // Use provided events or fetch locally if not provided
+  const displayEvents = events.length > 0 ? events : localEvents;
+
+  // Fetch events data if not provided via props
+// In EventHistory component, update the fetchEvents function
+const fetchEvents = async () => {
+  if (events.length > 0) return; // Skip if events provided via props
+
+  try {
+    setLoading(true);
+    setError(null);
+    
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/events`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
+    });
 
-      const response = await fetch(`${API_URL}/events`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      // Check if response is HTML (error page)
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
-          throw new Error('Server returned HTML instead of JSON. Check if the backend is running correctly.');
-        }
-        throw new Error(`Unexpected response format: ${contentType}`);
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      console.log('Fetched events data:', data); // Debug log
-      
-      if (data.events && Array.isArray(data.events)) {
-        // Transform the data to match our component structure
-        const transformedEvents = data.events.map(event => ({
-          id: event._id || event.id,
-          eventName: event.eventName || event["Event Name"] || "Unnamed Event",
-          date: event.date || event.createdAt || event["Date Of Event"],
-          total_attendance: event.total_attendance || event.attendees?.length || 0,
-          summary: event.summary || {
-            total_attendees: event.total_attendance || event.attendees?.length || 0,
-            first_time_decisions: 0,
-            recommitments: 0,
-            total_decisions: 0,
-            new_people: 0
-          }
-        }));
-        
-        setEvents(transformedEvents);
-      } else {
-        console.warn('No events array found in response:', data);
-        setEvents([]);
-      }
-    } catch (err) {
-      console.error('Error fetching events:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+
+    const data = await response.json();
+    
+    // Filter for closed global events only
+    const closedGlobalEvents = (data.events || []).filter(event => {
+      const isClosed = event.status?.toLowerCase() === 'closed';
+      const isGlobal = event.isGlobal === true;
+      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      
+      return isClosed && isGlobal && isNotCell;
+    });
+
+    // Transform the data
+    const transformedEvents = closedGlobalEvents.map(event => ({
+      id: event._id || event.id,
+      eventName: event.eventName || event["Event Name"] || "Unnamed Event",
+      date: event.date || event.createdAt || event["Date Of Event"],
+      total_attendance: event.total_attendance || event.attendees?.length || 0,
+      // ... rest of your transformation
+    }));
+    
+    setLocalEvents(transformedEvents);
+  } catch (err) {
+    console.error('Error fetching events:', err);
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
-    fetchEvents();
-  }, []);
+    if (events.length === 0) {
+      fetchEvents();
+    }
+  }, [events]);
+
+  // Calculate stats for each event
+  const getEventStats = (event) => {
+    // Try to get from event data first, then calculate from available data
+    const attendance = event.total_attendance || event.checkIns?.length || 0;
+    const newPeople = event.newPeople?.length || event.summary?.new_people || 0;
+    const consolidated = event.consolidations?.length || event.summary?.total_decisions || 0;
+    const firstTime = event.summary?.first_time_decisions || 0;
+    const recommitments = event.summary?.recommitments || 0;
+
+    return {
+      attendance,
+      newPeople,
+      consolidated,
+      firstTime,
+      recommitments
+    };
+  };
 
   // Prepare rows for DataGrid
-  const rows = events.map((event) => ({
-    id: event.id,
-    date: formatDate(event.date), // Now formatDate is defined above
-    eventName: event.eventName,
-    attendanceCount: event.total_attendance,
-    newPeopleCount: event.summary?.new_people || 0,
-    consolidatedCount: event.summary?.total_decisions || 0,
-    firstTimeDecisions: event.summary?.first_time_decisions || 0,
-    recommitments: event.summary?.recommitments || 0,
-    eventId: event.id,
-  }));
+  const rows = displayEvents.map((event) => {
+    const stats = getEventStats(event);
+    return {
+      id: event.id,
+      date: formatDate(event.date),
+      eventName: event.eventName,
+      attendanceCount: stats.attendance,
+      newPeopleCount: stats.newPeople,
+      consolidatedCount: stats.consolidated,
+      firstTimeDecisions: stats.firstTime,
+      recommitments: stats.recommitments,
+      eventId: event.id,
+      rawEvent: event // Include raw event data for callbacks
+    };
+  });
 
   const columns = [
     { 
@@ -281,8 +163,17 @@ function EventHistory({
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-          <GroupIcon fontSize="small" color="primary" />
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          gap: 0.5,
+          backgroundColor: params.value > 0 ? theme.palette.primary.light + '20' : 'transparent',
+          borderRadius: 1,
+          px: 1,
+          py: 0.5
+        }}>
+          <GroupIcon fontSize="small" color={params.value > 0 ? "primary" : "disabled"} />
           <Typography variant="body2" fontWeight="bold">
             {params.value}
           </Typography>
@@ -302,7 +193,7 @@ function EventHistory({
           alignItems: 'center', 
           justifyContent: 'center', 
           gap: 0.5,
-          backgroundColor: params.value > 0 ? theme.palette.success.light : 'transparent',
+          backgroundColor: params.value > 0 ? theme.palette.success.light + '20' : 'transparent',
           borderRadius: 1,
           px: 1,
           py: 0.5
@@ -327,7 +218,7 @@ function EventHistory({
           alignItems: 'center', 
           justifyContent: 'center', 
           gap: 0.5,
-          backgroundColor: params.value > 0 ? theme.palette.secondary.light : 'transparent',
+          backgroundColor: params.value > 0 ? theme.palette.secondary.light + '20' : 'transparent',
           borderRadius: 1,
           px: 1,
           py: 0.5
@@ -369,8 +260,15 @@ function EventHistory({
         <IconButton 
           size="small" 
           color="primary"
-          onClick={() => onViewDetails(params.row.eventId)}
+          onClick={() => onViewDetails && onViewDetails(params.row.eventId)}
           title="View Event Details"
+          sx={{ 
+            boxShadow: 1,
+            '&:hover': { 
+              boxShadow: 3,
+              backgroundColor: theme.palette.primary.light + '20'
+            }
+          }}
         >
           <GroupIcon />
         </IconButton>
@@ -388,9 +286,19 @@ function EventHistory({
         <IconButton 
           size="small" 
           color="success"
-          onClick={() => onViewNewPeople(params.row.eventId)}
+          onClick={() => onViewNewPeople && onViewNewPeople(params.row.eventId)}
           disabled={params.row.newPeopleCount === 0}
           title="View New People"
+          sx={{ 
+            boxShadow: 1,
+            '&:hover': { 
+              boxShadow: 3,
+              backgroundColor: theme.palette.success.light + '20'
+            },
+            '&.Mui-disabled': {
+              boxShadow: 0
+            }
+          }}
         >
           <PersonAddAltIcon />
         </IconButton>
@@ -408,15 +316,123 @@ function EventHistory({
         <IconButton 
           size="small" 
           color="secondary"
-          onClick={() => onViewConverts(params.row.eventId)}
+          onClick={() => onViewConverts && onViewConverts(params.row.eventId)}
           disabled={params.row.consolidatedCount === 0}
           title="View Decisions"
+          sx={{ 
+            boxShadow: 1,
+            '&:hover': { 
+              boxShadow: 3,
+              backgroundColor: theme.palette.secondary.light + '20'
+            },
+            '&.Mui-disabled': {
+              boxShadow: 0
+            }
+          }}
         >
           <MergeIcon />
         </IconButton>
       )
     },
   ];
+
+  // Stats Cards for Event History
+  const StatsCards = () => {
+    const totalStats = rows.reduce((acc, row) => ({
+      attendance: acc.attendance + row.attendanceCount,
+      newPeople: acc.newPeople + row.newPeopleCount,
+      consolidated: acc.consolidated + row.consolidatedCount,
+      events: acc.events + 1
+    }), { attendance: 0, newPeople: 0, consolidated: 0, events: 0 });
+
+    return (
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={6} md={3}>
+          <Card 
+            sx={{ 
+              textAlign: 'center', 
+              p: 2, 
+              boxShadow: 3,
+              backgroundColor: theme.palette.background.paper,
+              '&:hover': { boxShadow: 6 }
+            }}
+          >
+            <CardContent>
+              <GroupIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" fontWeight="bold" color="primary">
+                {totalStats.attendance}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total Attendance
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6} md={3}>
+          <Card 
+            sx={{ 
+              textAlign: 'center', 
+              p: 2, 
+              boxShadow: 3,
+              backgroundColor: theme.palette.background.paper,
+              '&:hover': { boxShadow: 6 }
+            }}
+          >
+            <CardContent>
+              <PersonAddAltIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" fontWeight="bold" color="success.main">
+                {totalStats.newPeople}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total New People
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6} md={3}>
+          <Card 
+            sx={{ 
+              textAlign: 'center', 
+              p: 2, 
+              boxShadow: 3,
+              backgroundColor: theme.palette.background.paper,
+              '&:hover': { boxShadow: 6 }
+            }}
+          >
+            <CardContent>
+              <MergeIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="h4" fontWeight="bold" color="secondary.main">
+                {totalStats.consolidated}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total Decisions
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={6} md={3}>
+          <Card 
+            sx={{ 
+              textAlign: 'center', 
+              p: 2, 
+              boxShadow: 3,
+              backgroundColor: theme.palette.background.paper,
+              '&:hover': { boxShadow: 6 }
+            }}
+          >
+            <CardContent>
+              <Typography variant="h4" fontWeight="bold" color="text.primary">
+                {totalStats.events}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total Events
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    );
+  };
 
   if (loading) {
     return (
@@ -431,7 +447,7 @@ function EventHistory({
       <Box>
         <Alert 
           severity="error" 
-          sx={{ m: 2 }}
+          sx={{ m: 2, boxShadow: 2 }}
           action={
             <Button color="inherit" size="small" onClick={fetchEvents} startIcon={<RefreshIcon />}>
               Retry
@@ -454,7 +470,7 @@ function EventHistory({
           size="small" 
           onClick={fetchEvents}
           startIcon={<RefreshIcon />}
-          sx={{ ml: 2 }}
+          sx={{ ml: 2, boxShadow: 1 }}
         >
           Try Again
         </Button>
@@ -470,38 +486,60 @@ function EventHistory({
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            Total Events: {events.length}
+            Total Events: {displayEvents.length}
           </Typography>
-          <Button 
-            size="small" 
-            startIcon={<RefreshIcon />} 
-            onClick={fetchEvents}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
+          {events.length === 0 && (
+            <Button 
+              size="small" 
+              startIcon={<RefreshIcon />} 
+              onClick={fetchEvents}
+              disabled={loading}
+              sx={{ boxShadow: 1 }}
+            >
+              Refresh
+            </Button>
+          )}
         </Box>
       </Box>
 
-      {events.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
+      {/* Stats Cards */}
+      <StatsCards />
+
+      {displayEvents.length === 0 ? (
+        <Paper 
+          sx={{ 
+            p: 4, 
+            textAlign: 'center', 
+            boxShadow: 3,
+            backgroundColor: theme.palette.background.paper
+          }}
+        >
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            No Events Found
+            No Closed Events Found
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            There are no events to display. Events will appear here once they are created.
+            Closed events will appear here once they are saved and closed from the service check-in.
           </Typography>
-          <Button 
-            variant="outlined" 
-            onClick={fetchEvents}
-            startIcon={<RefreshIcon />}
-            sx={{ mt: 2 }}
-          >
-            Check Again
-          </Button>
+          {events.length === 0 && (
+            <Button 
+              variant="outlined" 
+              onClick={fetchEvents}
+              startIcon={<RefreshIcon />}
+              sx={{ mt: 2, boxShadow: 1 }}
+            >
+              Check Again
+            </Button>
+          )}
         </Paper>
       ) : (
-        <Paper variant="outlined" sx={{ height: 600, boxShadow: 3 }}>
+        <Paper 
+          variant="outlined" 
+          sx={{ 
+            height: 600, 
+            boxShadow: 3,
+            backgroundColor: theme.palette.background.paper
+          }}
+        >
           <DataGrid
             rows={rows}
             columns={columns}
@@ -527,6 +565,9 @@ function EventHistory({
               },
               '& .MuiDataGrid-cell': {
                 borderBottom: `1px solid ${theme.palette.divider}`,
+              },
+              '& .MuiDataGrid-toolbarContainer': {
+                p: 1,
               },
             }}
           />
