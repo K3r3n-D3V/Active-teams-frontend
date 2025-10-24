@@ -81,22 +81,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [targetLoadCount] = useState(5000);
   const [maxLoadCount] = useState(8000);
 
-  // Helper text logic - SIMPLIFIED, no loading messages
-  const getHelperText = () => {
-    if (errors.invited_by) {
-      return errors.invited_by;
-    }
-    return "Type to search people...";
-  };
-
-  // Helper text color logic
-  const getHelperTextColor = () => {
-    if (errors.invited_by) {
-      return theme.palette.error.main;
-    }
-    return theme.palette.text.secondary;
-  };
-
   // FAST LOCAL SEARCH - PRIMARY METHOD
   const searchLocalPeople = useCallback((query) => {
     if (!query || query.length < 2) {
