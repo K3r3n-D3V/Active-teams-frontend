@@ -979,7 +979,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         leader12: p["Leader @12"] || p.leader12 || "",
         leader144: p["Leader @144"] || p.leader144 || "",
         leader1728: p["Leader @1728"] || p.leader1728 || "",
-        phone: p.Phone || p.phone || "",
+          phone: p.Number || p.Phone || p.phone || "",
       }));
 
       // Cache the results
@@ -1012,7 +1012,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         email: p.Email || p.email || "",
         leader12: p["Leader @12"] || p.leader12 || "",
         leader144: p["Leader @144"] || p.leader144 || "",
-        phone: p.Phone || p.phone || "",
+         phone: p.Number || p.Phone || p.phone || "", 
       }));
 
       setCommonAttendees(formatted);
@@ -1126,7 +1126,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
               email: attendee.email || "",
               leader12: attendee.leader12 || "",
               leader144: attendee.leader144 || "",
-              phone: attendee.phone || ""
+               phone: attendee.phone || attendee.Number || "" 
             }));
 
             const merged = [...persistentCommonAttendees];
