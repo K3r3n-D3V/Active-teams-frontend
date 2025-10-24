@@ -86,11 +86,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
     if (errors.invited_by) {
       return errors.invited_by;
     }
-    
-    if (allPeopleCache.length >= 4000) {
-      return `Search from ${allPeopleCache.length.toLocaleString()}+ people`;
-    }
-    
     return "Type to search people...";
   };
 
@@ -99,11 +94,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
     if (errors.invited_by) {
       return theme.palette.error.main;
     }
-    
-    if (allPeopleCache.length >= 4000) {
-      return theme.palette.success.main;
-    }
-    
     return theme.palette.text.secondary;
   };
 
