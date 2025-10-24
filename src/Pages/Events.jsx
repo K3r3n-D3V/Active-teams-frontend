@@ -1,4 +1,4 @@
-import  { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
@@ -18,7 +18,11 @@ import {
   Popover,
   Typography,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Dialog,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
@@ -1464,224 +1468,228 @@ const Events = () => {
   };
 
   // EventTypeSelector Component
- const EventTypeSelector = () => {
-  const [hoveredType, setHoveredType] = useState(null);
-  const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
-  const [typeMenuFor, setTypeMenuFor] = useState(null);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [deleteAnchorEl, setDeleteAnchorEl] = useState(null);
-  const [toDeleteType, setToDeleteType] = useState(null);
+  const EventTypeSelector = () => {
+    const [hoveredType, setHoveredType] = useState(null);
+    const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
+    const [typeMenuFor, setTypeMenuFor] = useState(null);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [deleteAnchorEl, setDeleteAnchorEl] = useState(null);
+    const [toDeleteType, setToDeleteType] = useState(null);
 
-  const allTypes = ["CELLS", ...eventTypes];
-  const isAdmin = currentUser?.role === "admin";
+    const allTypes = ["CELLS", ...eventTypes];
+    const isAdmin = currentUser?.role === "admin";
 
-  const getDisplayName = (type) => {
-    if (type === "CELLS") return type;
-    if (typeof type === "string") return type;
-    return type.name || type;
-  };
+    const getDisplayName = (type) => {
+      if (type === "CELLS") return type;
+      if (typeof type === "string") return type;
+      return type.name || type;
+    };
 
-  const getTypeValue = (type) => {
-    if (type === "CELLS") return "all";
-    if (typeof type === "string") return type.toLowerCase();
-    return (type.name || type).toLowerCase();
-  };
+    const getTypeValue = (type) => {
+      if (type === "CELLS") return "all";
+      if (typeof type === "string") return type.toLowerCase();
+      return (type.name || type).toLowerCase();
+    };
 
-  const selectedDisplayName =
-    selectedEventTypeFilter === "all"
-      ? "CELLS"
-      : eventTypes.find((t) => {
-          const tValue = typeof t === "string" ? t : t.name;
-          return tValue?.toLowerCase() === selectedEventTypeFilter;
-        }) || selectedEventTypeFilter;
+    const selectedDisplayName =
+      selectedEventTypeFilter === "all"
+        ? "CELLS"
+        : eventTypes.find((t) => {
+            const tValue = typeof t === "string" ? t : t.name;
+            return tValue?.toLowerCase() === selectedEventTypeFilter;
+          }) || selectedEventTypeFilter;
 
-  const finalDisplayName =
-    typeof selectedDisplayName === "string"
-      ? selectedDisplayName
-      : selectedDisplayName?.name || "CELLS";
+    const finalDisplayName =
+      typeof selectedDisplayName === "string"
+        ? selectedDisplayName
+        : selectedDisplayName?.name || "CELLS";
 
-  const openTypeMenu = (event, type) => {
-    setTypeMenuAnchor(event.currentTarget);
-    setTypeMenuFor(type);
-  };
+    const openTypeMenu = (event, type) => {
+      setTypeMenuAnchor(event.currentTarget);
+      setTypeMenuFor(type);
+    };
 
-  const closeTypeMenu = () => {
-    setTypeMenuAnchor(null);
-    setTypeMenuFor(null);
-  };
+    const closeTypeMenu = () => {
+      setTypeMenuAnchor(null);
+      setTypeMenuFor(null);
+    };
 
-  return (
-    <div style={eventTypeStyles.container}>
-      <div style={eventTypeStyles.header}>Filter by Event Type</div>
+    return (
+      <div style={eventTypeStyles.container}>
+        <div style={eventTypeStyles.header}>Filter by Event Type</div>
 
-      <div style={eventTypeStyles.selectedTypeDisplay}>
-        <div style={eventTypeStyles.checkIcon}>✓</div>
-        <span>{finalDisplayName}</span>
-      </div>
+        <div style={eventTypeStyles.selectedTypeDisplay}>
+          <div style={eventTypeStyles.checkIcon}>✓</div>
+          <span>{finalDisplayName}</span>
+        </div>
 
-      {isAdmin && (
-        <div style={eventTypeStyles.typesGrid}>
-          {allTypes.map((type) => {
-            const displayName = getDisplayName(type);
-            const typeValue = getTypeValue(type);
-            const isActive = selectedEventTypeFilter === typeValue;
-            const isHovered = hoveredType === typeValue;
+        {isAdmin && (
+          <div
+            style={{
+              ...eventTypeStyles.typesGrid,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "12px",
+              justifyContent: "flex-start",
+            }}
+          >
+            {allTypes.map((type) => {
+              const displayName = getDisplayName(type);
+              const typeValue = getTypeValue(type);
+              const isActive = selectedEventTypeFilter === typeValue;
+              const isHovered = hoveredType === typeValue;
 
-            return (
-              <div
-                key={typeValue}
-                style={{
-                  ...eventTypeStyles.typeCard,
-                  ...(isActive ? eventTypeStyles.typeCardActive : {}),
-                  ...(isHovered && !isActive
-                    ? eventTypeStyles.typeCardHover
-                    : {}),
-                  position: "relative",
-                }}
+              return (
+                <div
+  key={typeValue}
+  style={{
+    ...eventTypeStyles.typeCard,
+    ...(isActive ? eventTypeStyles.typeCardActive : {}),
+    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+    position: "relative",
+    width: 200,
+    minHeight: 70,
+    padding: "8px 12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center", // center the text
+  }}
+  onClick={() => {
+    const selectedTypeObj =
+      typeValue === "all"
+        ? null
+        : customEventTypes.find(
+            (t) => t.name.toLowerCase() === typeValue
+          ) || null;
+
+    setSelectedEventTypeFilter(typeValue);
+    setSelectedTypeObj(selectedTypeObj);
+
+    if (selectedTypeObj) {
+      localStorage.setItem(
+        "selectedEventTypeObj",
+        JSON.stringify(selectedTypeObj)
+      );
+    } else {
+      localStorage.removeItem("selectedEventTypeObj");
+    }
+
+    applyFilters(
+      typeValue === "all"
+        ? { ...activeFilters, eventType: undefined }
+        : { ...activeFilters, eventType: typeValue },
+      selectedStatus,
+      searchQuery
+    );
+  }}
+  onMouseEnter={() => setHoveredType(typeValue)}
+  onMouseLeave={() => setHoveredType(null)}
+>
+  {/* Text in a flex container so it doesn't cover the icon */}
+  <span
+    style={{
+      ...eventTypeStyles.typeName,
+      ...(isActive ? eventTypeStyles.typeNameActive : {}),
+      zIndex: 1, // keep above background but below icon
+    }}
+  >
+    {displayName}
+  </span>
+
+  {/* Icon always visible, positioned absolutely */}
+  {isAdmin && (
+    <IconButton
+      size="small"
+      onClick={(e) => {
+        e.stopPropagation();
+        openTypeMenu(e, type);
+      }}
+      aria-label="type actions"
+      sx={{
+        position: "absolute",
+        top: 8,
+        right: 8,
+        zIndex: 10,
+        color:"grey" // make sure icon is on top
+      }}
+    >
+      <MoreVertIcon fontSize="small" />
+    </IconButton>
+  )}
+</div>
+
+              );
+            })}
+
+            {/* Edit/Delete menu popover */}
+            <Popover
+              open={Boolean(typeMenuAnchor)}
+              anchorEl={typeMenuAnchor}
+              onClose={closeTypeMenu}
+              anchorOrigin={{
+                vertical: "top",
+                horizontal: "right",
+              }}
+              transformOrigin={{
+                vertical: "bottom",
+                horizontal: "right",
+              }}
+            >
+              <MenuItem
                 onClick={() => {
-                  const selectedTypeObj =
-                    typeValue === "all"
-                      ? null
-                      : customEventTypes.find(
-                          (t) => t.name.toLowerCase() === typeValue
-                        ) || null;
-
-                  setSelectedEventTypeFilter(typeValue);
-                  setSelectedEventTypeObj(selectedTypeObj);
-
-                  if (selectedTypeObj) {
-                    localStorage.setItem(
-                      "selectedEventTypeObj",
-                      JSON.stringify(selectedTypeObj)
-                    );
-                  } else {
-                    localStorage.removeItem("selectedEventTypeObj");
-                  }
-
-                  applyAllFilters(
-                    typeValue === "all"
-                      ? { ...activeFilters, eventType: undefined }
-                      : { ...activeFilters, eventType: typeValue },
-                    selectedStatus,
-                    searchQuery
-                  );
+                  handleEditType(typeMenuFor);
+                  closeTypeMenu();
                 }}
-                onMouseEnter={() => setHoveredType(typeValue)}
-                onMouseLeave={() => setHoveredType(null)}
               >
-                {isActive && (
-                  <div style={eventTypeStyles.activeIndicator}>✓</div>
-                )}
+                <ListItemIcon>
+                  <EditIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Edit</ListItemText>
+              </MenuItem>
 
-                <span
-                  style={{
-                    ...eventTypeStyles.typeName,
-                    ...(isActive ? eventTypeStyles.typeNameActive : {}),
-                  }}
-                >
-                  {displayName}
-                </span>
-
-                {/* three-dot menu button */}
-                {isAdmin && (
-                  <IconButton
-                    size="small"
-                    onClick={(e) => openTypeMenu(e, type)}
-                    aria-label="type actions"
-                    sx={{ position: "absolute", top: 6, right: 6 }}
-                  >
-                    <MoreVertIcon fontSize="small" />
-                  </IconButton>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Popover menu near the 3-dot icon */}
-          <Popover
-            open={Boolean(typeMenuAnchor)}
-            anchorEl={typeMenuAnchor}
-            onClose={closeTypeMenu}
-            anchorOrigin={{
-              vertical: "bottom",
-              horizontal: "right",
-            }}
-            transformOrigin={{
-              vertical: "top",
-              horizontal: "right",
-            }}
-          >
-            <MenuItem
-              onClick={() => {
-                handleEditType(typeMenuFor);
-                closeTypeMenu();
-              }}
-            >
-              <ListItemIcon>
-                <EditIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>Edit</ListItemText>
-            </MenuItem>
-
-            <MenuItem
-              onClick={(e) => {
-                setToDeleteType(typeMenuFor);
-                setDeleteAnchorEl(e.currentTarget);
-                setConfirmDeleteOpen(true);
-                closeTypeMenu();
-              }}
-              sx={{ color: "error.main" }}
-            >
-              <ListItemIcon>
-                <DeleteIcon fontSize="small" color="error" />
-              </ListItemIcon>
-              <ListItemText>Delete</ListItemText>
-            </MenuItem>
-          </Popover>
-
-          {/* Delete confirmation popover */}
-          <Popover
-            open={confirmDeleteOpen}
-            anchorEl={deleteAnchorEl}
-            onClose={() => setConfirmDeleteOpen(false)}
-            anchorOrigin={{
-              vertical: "bottom",
-              horizontal: "right",
-            }}
-            transformOrigin={{
-              vertical: "top",
-              horizontal: "right",
-            }}
-          >
-            <Box sx={{ p: 2, maxWidth: 250 }}>
-              <Typography variant="subtitle1" gutterBottom>
-                Delete Event Type
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 2 }}>
-                Are you sure you want to delete "{toDeleteType?.name}"? This
-                cannot be undone.
-              </Typography>
-              <Box
-                sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}
+              <MenuItem
+                onClick={() => {
+                  setToDeleteType(typeMenuFor);
+                  setConfirmDeleteOpen(true);
+                  closeTypeMenu();
+                }}
+                sx={{ color: "error.main" }}
               >
-                <Button
-                  size="small"
-                  onClick={() => setConfirmDeleteOpen(false)}
-                >
+                <ListItemIcon>
+                  <DeleteIcon fontSize="small" color="error" />
+                </ListItemIcon>
+                <ListItemText>Delete</ListItemText>
+              </MenuItem>
+            </Popover>
+
+            {/* Centered delete confirmation modal */}
+            <Dialog
+              open={confirmDeleteOpen}
+              onClose={() => setConfirmDeleteOpen(false)}
+              maxWidth="xs"
+              fullWidth
+            >
+              <DialogTitle>Delete Event Type</DialogTitle>
+              <DialogContent>
+                <Typography>
+                  Are you sure you want to delete this event type ? This
+                  cannot be undone.
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setConfirmDeleteOpen(false)}>
                   Cancel
                 </Button>
-                <Button size="small" color="error" onClick={handleDeleteType}>
+                <Button color="error" onClick={handleDeleteType}>
                   Delete
                 </Button>
-              </Box>
-            </Box>
-          </Popover>
-        </div>
-      )}
-    </div>
-  );
-};
-
+              </DialogActions>
+            </Dialog>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // StatusBadges Component
   const StatusBadges = () => {
