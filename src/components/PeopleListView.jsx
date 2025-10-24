@@ -258,7 +258,7 @@ const PeopleListView = ({ people, onEdit, onDelete, loading }) => {
             ))
           )}
         </Box>
-        
+
         <TablePagination
           rowsPerPageOptions={[10, 25, 50, 100]}
           component="div"
@@ -298,13 +298,13 @@ const PeopleListView = ({ people, onEdit, onDelete, loading }) => {
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              <TableCell sx={{ bgcolor: 'grey.100', fontWeight: 'bold', width: '20%' }}>Name</TableCell>
-              <TableCell sx={{ bgcolor: 'grey.100', fontWeight: 'bold', width: '20%' }}>Contact</TableCell>
-              <TableCell sx={{ bgcolor: 'grey.100', fontWeight: 'bold', width: '18%' }}>Location</TableCell>
-              <TableCell sx={{ bgcolor: 'grey.100', fontWeight: 'bold', width: '18%' }}>Leaders</TableCell>
-              <TableCell sx={{ bgcolor: 'grey.100', fontWeight: 'bold', width: '10%' }}>Stage</TableCell>
-              <TableCell sx={{ bgcolor: 'grey.100', fontWeight: 'bold', width: '8%' }}>Gender</TableCell>
-              <TableCell sx={{ bgcolor: 'grey.100', fontWeight: 'bold', width: '6%' }} align="center">Actions</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', width: '20%' }}>Name</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', width: '20%' }}>Contact</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', width: '18%' }}>Location</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', width: '18%' }}>Leaders</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', width: '10%' }}>Stage</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', width: '8%' }}>Gender</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', width: '6%' }} align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -417,7 +417,7 @@ const PeopleListView = ({ people, onEdit, onDelete, loading }) => {
           </TableBody>
         </Table>
       </TableContainer>
-      
+
       <TablePagination
         rowsPerPageOptions={[10, 25, 50, 100]}
         component="div"

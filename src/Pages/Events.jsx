@@ -17,497 +17,509 @@ import CreateEvents from "./CreateEvents";
 import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
 
-const styles = {
-  container: {
-    minHeight: "100vh",
-    fontFamily: "system-ui, sans-serif",
-    padding: "1rem",
-    paddingTop: "5rem",
-    boxSizing: "border-box",
-    overflow: "hidden",
-  },
-  topSection: {
-    padding: "1.5rem",
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    marginBottom: "1rem",
-    marginTop: "1rem",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-  },
-  searchFilterRow: {
-    display: "flex",
-    gap: "1rem",
-    alignItems: "center",
-    marginBottom: "1.5rem",
-    flexWrap: "wrap",
-  },
-  searchInput: {
-    flex: 1,
-    minWidth: "200px",
-    padding: "0.75rem 1rem",
-    border: "1px solid #dee2e6",
-    borderRadius: "6px",
-    fontSize: "0.95rem",
-    boxSizing: "border-box",
-  },
-  filterButton: {
-    padding: "0.75rem 1.5rem",
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "0.95rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    transition: "all 0.2s ease",
-  },
-  statusBadgeContainer: {
-    display: "flex",
-    gap: "0.75rem",
-    flexWrap: "wrap",
-  },
-  statusBadge: {
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
-    fontSize: '0.95rem',
-    fontWeight: '600',
-    cursor: 'pointer',
-    border: '2px solid',
-    transition: 'all 0.2s ease',
-    textTransform: 'uppercase',
-    whiteSpace: 'nowrap',
-  },
-  statusBadgeIncomplete: {
-    backgroundColor: "#FFA500",
-    color: "#fff",
-    borderColor: "#FFA500",
-  },
-  statusBadgeComplete: {
-    backgroundColor: "#fff",
-    color: "#28a745",
-    borderColor: "#28a745",
-  },
-  statusBadgeDidNotMeet: {
-    backgroundColor: "#fff",
-    color: "#dc3545",
-    borderColor: "#dc3545",
-  },
-  statusBadgeActive: {
-    transform: "scale(1.05)",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
-  },
-  tableContainer: {
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    overflow: "hidden",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-    maxWidth: "100%",
-    maxHeight: "calc(100vh - 300px)",
-    display: "flex",
-    flexDirection: "column",
-  },
-  tableWrapper: {
-    overflow: "auto",
-    flex: 1,
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    minWidth: "1300px",
-  },
-  tableHeader: {
-    backgroundColor: "#000",
-    color: "#fff",
-  },
-  th: {
-    padding: "1rem",
-    textAlign: "left",
-    fontWeight: 600,
-    fontSize: "0.95rem",
-    borderBottom: "2px solid #000",
-    whiteSpace: "nowrap",
-  },
-  tr: {
-    borderBottom: "1px solid #e9ecef",
-    transition: "background-color 0.2s ease",
-  },
-  trHover: {
-    backgroundColor: "#f8f9fa",
-  },
-  td: {
-    padding: "1rem",
-    fontSize: "0.9rem",
-    color: "#212529",
-    verticalAlign: "top",
-  },
-  actionIcons: {
-    display: 'flex',
-    gap: '0.5rem',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  openEventIcon: {
-    width: '36px',
-    height: '36px',
-    borderRadius: '6px',
-    backgroundColor: '#007bff',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    border: 'none',
-    fontSize: '18px',
-  },
-  truncatedText: {
-    maxWidth: '150px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  emailText: {
-    maxWidth: '180px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 2000,
-    padding: "20px",
-  },
-  modalContent: {
-    position: "relative",
-    width: "90%",
-    maxWidth: "700px",
-    maxHeight: "95vh",
-    backgroundColor: "white",
-    borderRadius: "12px",
-    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-  },
-  modalHeader: {
-    backgroundColor: "#333",
-    color: "white",
-    padding: "20px 24px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderTopLeftRadius: "12px",
-    borderTopRightRadius: "12px",
-  },
-  modalTitle: {
-    fontSize: "1.5rem",
-    fontWeight: "bold",
-    margin: 0,
-  },
-  modalCloseButton: {
-    background: "rgba(255, 255, 255, 0.2)",
-    border: "none",
-    borderRadius: "50%",
-    width: "32px",
-    height: "32px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    fontSize: "20px",
-    color: "white",
-    fontWeight: "bold",
-    transition: "all 0.2s ease",
-  },
-  modalBody: {
-    flex: 1,
-    overflow: "auto",
-    padding: "0",
-  },
-  loadingSkeleton: {
-    padding: "1rem",
-    backgroundColor: "#d3d3d3" ,
-    borderRadius: "4px",
-    height: "60px",
-    marginBottom: "0.5rem",
-    animation: "pulse 1.5s ease-in-out infinite",
-  },
-  overdueLabel: {
-    color: "red",
-    fontSize: "0.8rem",
-    marginTop: "0.2rem",
-    fontWeight: "bold",
-  },
-  mobileCard: {
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    padding: "1rem",
-    marginBottom: "1rem",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-  },
-  mobileCardRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    marginBottom: "0.5rem",
-    fontSize: "0.9rem",
-  },
-  mobileCardLabel: {
-    fontWeight: 600,
-    color: "#666",
-  },
-  mobileCardValue: {
-    color: "#212529",
-    textAlign: "right",
-  },
-  mobileActions: {
-    display: "flex",
-    gap: "0.5rem",
-    marginTop: "1rem",
-    justifyContent: "flex-end",
-  },
-  viewFilterRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '1.5rem',
-    flexWrap: 'wrap',
-    gap: '1rem',
-  },
-  viewFilterContainer: {
-    display: 'flex',
-    gap: '1rem',
-    alignItems: 'center',
-  },
-  viewFilterLabel: {
-    fontSize: '1rem',
-    fontWeight: '600',
-    color: '#495057',
-  },
-  viewFilterRadio: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    cursor: 'pointer',
-  },
-  viewFilterText: {
-    fontSize: '1.1rem',
-    transition: 'all 0.2s ease',
-  },
-  paginationButton: {
-    padding: '0.5rem 1rem',
-    border: '1px solid #dee2e6',
-    backgroundColor: '#fff',
-    cursor: 'pointer',
-    borderRadius: '4px',
-  },
-  paginationButtonDisabled: {
-    backgroundColor: '#f8f9fa',
-    color: '#6c757d',
-    cursor: 'not-allowed',
-  },
-  rowsSelect: {
-    padding: '0.25rem 0.5rem',
-    border: '1px solid #dee2e6',
-    borderRadius: '4px',
-    backgroundColor: '#fff',
-    fontSize: '0.875rem',
-  },
-  paginationContainer: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    padding: '1rem',
-    borderTop: '1px solid #e9ecef',
-    backgroundColor: '#f8f9fa',
-    gap: '1.5rem',
-  },
-  rowsPerPage: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.875rem',
-    color: '#6c757d',
-  },
-  paginationInfo: {
-    fontSize: '0.875rem',
-    color: '#6c757d',
-  },
-  paginationControls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-  },
-};
-
-const fabStyles = {
-  fabContainer: {
-    position: "fixed",
-    bottom: "20px",
-    right: "20px",
-    zIndex: 1000,
-  },
-  fabMenu: {
-    position: "absolute",
-    bottom: "70px",
-    right: "0",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-    transition: "all 0.3s ease",
-  },
-  fabMenuItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    background: "#fff",
-    padding: "12px 16px",
-    borderRadius: "50px",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    transition: "all 0.2s ease",
-  },
-  fabMenuLabel: {
-    fontSize: "14px",
-    fontWeight: "600",
-    color: "#333",
-  },
-  fabMenuIcon: {
-    width: "24px",
-    height: "24px",
-    borderRadius: "50%",
-    backgroundColor: "#007bff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#fff",
-    fontSize: "16px",
-  },
-  mainFab: {
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "50%",
-    width: "56px",
-    height: "56px",
-    fontSize: "1.5rem",
-    cursor: "pointer",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "all 0.3s ease",
-  },
-};
-
-const eventTypeStyles = {
-  container: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: "12px",
-    padding: "1.5rem",
-    marginBottom: "1.5rem",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-  },
-  header: {
-    fontSize: "0.875rem",
-    fontWeight: "600",
-    color: "#6c757d",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
-    marginBottom: "1rem",
-  },
-  selectedTypeDisplay: {
-    fontSize: "1.25rem",
-    fontWeight: "700",
-    color: "#007bff",
-    marginBottom: "1rem",
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-  },
-  checkIcon: {
-    width: "24px",
-    height: "24px",
-    borderRadius: "50%",
-    backgroundColor: "#28a745",
-    color: "white",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "14px",
-    fontWeight: "bold",
-  },
-  typesGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-    gap: "0.75rem",
-  },
-  typeCard: {
-    padding: "1rem",
-    borderRadius: "8px",
-    border: "2px solid transparent",
-    backgroundColor: "white",
-    cursor: "pointer",
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-    position: "relative",
-    overflow: "hidden",
-  },
-  typeCardActive: {
-    borderColor: "#007bff",
-    backgroundColor: "#e7f3ff",
-    transform: "translateX(8px) scale(1.02)",
-    boxShadow: "0 4px 12px rgba(0, 123, 255, 0.2)",
-  },
-  typeCardHover: {
-    borderColor: "#ddd",
-    transform: "translateY(-2px)",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-  },
-  typeName: {
-    fontSize: "0.9rem",
-    fontWeight: "600",
-    color: "#495057",
-    textAlign: "center",
-    display: "block",
-  },
-  typeNameActive: {
-    color: "#007bff",
-  },
-  activeIndicator: {
-    position: "absolute",
-    top: "8px",
-    right: "8px",
-    width: "20px",
-    height: "20px",
-    borderRadius: "50%",
-    backgroundColor: "#007bff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "white",
-    fontSize: "12px",
-    fontWeight: "bold",
-    animation: "slideIn 0.3s ease-out",
-  },
-};
-
 const Events = () => {
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-
+  const isDarkMode = theme.palette.mode === 'dark'; // ✅ Define isDarkMode FIRST
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const isAdmin = currentUser?.role === "admin";
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+// Add more robust fallback
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
+                    'https://activeteamsbackend-3.onrender.com';
+
+console.log('✅ Final BACKEND_URL being used:', BACKEND_URL)
+  const styles = {
+    container: {
+      minHeight: "100vh",
+      fontFamily: "system-ui, sans-serif",
+      padding: "1rem",
+      paddingTop: "5rem",
+      boxSizing: "border-box",
+      overflow: "hidden",
+      backgroundColor: isDarkMode ? '#1e1e1e' : "#f8f9fa",
+      boxShadow: isDarkMode ? "0 2px 8px rgba(255,255,255,0.1)" : "0 2px 8px rgba(0,0,0,0.08)",
+    },
+    topSection: {
+      padding: "1.5rem",
+      backgroundColor: isDarkMode ? '#1e1e1e' : "#fff",
+      borderRadius: "8px",
+      marginBottom: "1rem",
+      marginTop: "1rem",
+      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+      color: isDarkMode ? '#fff' : '#000',
+    },
+    searchFilterRow: {
+      display: "flex",
+      gap: "1rem",
+      alignItems: "center",
+      marginBottom: "1.5rem",
+      flexWrap: "wrap",
+    },
+    searchInput: {
+      flex: 1,
+      minWidth: "200px",
+      padding: "0.75rem 1rem",
+      border: `1px solid ${isDarkMode ? '#444' : '#dee2e6'}`,
+      borderRadius: "6px",
+      fontSize: "0.95rem",
+      boxSizing: "border-box",
+      backgroundColor: isDarkMode ? '#2d2d2d' : '#fff',
+      color: isDarkMode ? '#fff' : '#000',
+    },
+    filterButton: {
+      padding: "0.75rem 1.5rem",
+      backgroundColor: "#007bff",
+      color: "white",
+      border: "none",
+      borderRadius: "6px",
+      fontSize: "0.95rem",
+      fontWeight: 600,
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+      transition: "all 0.2s ease",
+    },
+    statusBadgeContainer: {
+      display: "flex",
+      gap: "0.75rem",
+      flexWrap: "wrap",
+    },
+    statusBadge: {
+      padding: '0.5rem 1rem',
+      borderRadius: '6px',
+      fontSize: '0.95rem',
+      fontWeight: '600',
+      cursor: 'pointer',
+      border: '2px solid',
+      transition: 'all 0.2s ease',
+      textTransform: 'uppercase',
+      whiteSpace: 'nowrap',
+    },
+    statusBadgeIncomplete: {
+      backgroundColor: "#FFA500",
+      color: "#fff",
+      borderColor: "#FFA500",
+    },
+    statusBadgeComplete: {
+      backgroundColor: isDarkMode ? '#2d2d2d' : "#fff",
+      color: "#28a745",
+      borderColor: "#28a745",
+    },
+    statusBadgeDidNotMeet: {
+      backgroundColor: isDarkMode ? '#2d2d2d' : "#fff",
+      color: "#dc3545",
+      borderColor: "#dc3545",
+    },
+    statusBadgeActive: {
+      transform: "scale(1.05)",
+      boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
+    },
+    tableContainer: {
+      backgroundColor: isDarkMode ? '#1e1e1e' : "#fff",
+      borderRadius: "8px",
+      overflow: "hidden",
+      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+      maxWidth: "100%",
+      maxHeight: "calc(100vh - 300px)",
+      display: "flex",
+      flexDirection: "column",
+    },
+    tableWrapper: {
+      overflow: "auto",
+      flex: 1,
+    },
+    table: {
+      width: "100%",
+      borderCollapse: "collapse",
+      minWidth: "1300px",
+    },
+    tableHeader: {
+      backgroundColor: isDarkMode ? '#2d2d2d' : "#000",
+      color: "#fff",
+    },
+    th: {
+      padding: "1rem",
+      textAlign: "left",
+      fontWeight: 600,
+      fontSize: "0.95rem",
+      borderBottom: `2px solid ${isDarkMode ? '#444' : '#000'}`,
+      whiteSpace: "nowrap",
+    },
+    tr: {
+      borderBottom: `1px solid ${isDarkMode ? '#444' : '#e9ecef'}`,
+      transition: "background-color 0.2s ease",
+    },
+    trHover: {
+      backgroundColor: isDarkMode ? '#2d2d2d' : "#f8f9fa",
+    },
+    td: {
+      padding: "1rem",
+      fontSize: "0.9rem",
+      color: isDarkMode ? '#e0e0e0' : "#212529",
+      verticalAlign: "top",
+    },
+    actionIcons: {
+      display: 'flex',
+      gap: '0.5rem',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    openEventIcon: {
+      width: '36px',
+      height: '36px',
+      borderRadius: '6px',
+      backgroundColor: '#007bff',
+      color: '#fff',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      border: 'none',
+      fontSize: '18px',
+    },
+    truncatedText: {
+      maxWidth: '150px',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    emailText: {
+      maxWidth: '180px',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    modalOverlay: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.75)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 2000,
+      padding: "20px",
+    },
+    modalContent: {
+      position: "relative",
+      width: "90%",
+      maxWidth: "700px",
+      maxHeight: "95vh",
+      backgroundColor: isDarkMode ? '#1e1e1e' : "white",
+      borderRadius: "12px",
+      boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+    },
+    modalHeader: {
+      backgroundColor: isDarkMode ? '#2d2d2d' : "#333",
+      color: "white",
+      padding: "20px 24px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      borderTopLeftRadius: "12px",
+      borderTopRightRadius: "12px",
+    },
+    modalTitle: {
+      fontSize: "1.5rem",
+      fontWeight: "bold",
+      margin: 0,
+    },
+    modalCloseButton: {
+      background: "rgba(255, 255, 255, 0.2)",
+      border: "none",
+      borderRadius: "50%",
+      width: "32px",
+      height: "32px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      cursor: "pointer",
+      fontSize: "20px",
+      color: "white",
+      fontWeight: "bold",
+      transition: "all 0.2s ease",
+    },
+    modalBody: {
+      flex: 1,
+      overflow: "auto",
+      padding: "0",
+    },
+    loadingSkeleton: {
+      padding: "1rem",
+      backgroundColor: isDarkMode ? '#444' : "#d3d3d3",
+      borderRadius: "4px",
+      height: "60px",
+      marginBottom: "0.5rem",
+      animation: "pulse 1.5s ease-in-out infinite",
+    },
+    overdueLabel: {
+      color: "red",
+      fontSize: "0.8rem",
+      marginTop: "0.2rem",
+      fontWeight: "bold",
+    },
+    mobileCard: {
+      backgroundColor: isDarkMode ? '#1e1e1e' : "#fff",
+      borderRadius: "8px",
+      padding: "1rem",
+      marginBottom: "1rem",
+      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+      color: isDarkMode ? '#fff' : '#000',
+    },
+    mobileCardRow: {
+      display: "flex",
+      justifyContent: "space-between",
+      marginBottom: "0.5rem",
+      fontSize: "0.9rem",
+    },
+    mobileCardLabel: {
+      fontWeight: 600,
+      color: isDarkMode ? '#aaa' : '#666',
+    },
+    mobileCardValue: {
+      color: isDarkMode ? '#fff' : '#212529',
+      textAlign: "right",
+    },
+    mobileActions: {
+      display: "flex",
+      gap: "0.5rem",
+      marginTop: "1rem",
+      justifyContent: "flex-end",
+    },
+    viewFilterRow: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '1.5rem',
+      flexWrap: 'wrap',
+      gap: '1rem',
+    },
+    viewFilterContainer: {
+      display: 'flex',
+      gap: '1rem',
+      alignItems: 'center',
+    },
+    viewFilterLabel: {
+      fontSize: '1rem',
+      fontWeight: '600',
+      color: isDarkMode ? '#aaa' : '#495057',
+    },
+    viewFilterRadio: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      cursor: 'pointer',
+    },
+    viewFilterText: {
+      fontSize: '1.1rem',
+      transition: 'all 0.2s ease',
+    },
+    paginationButton: {
+      padding: '0.5rem 1rem',
+      border: `1px solid ${isDarkMode ? '#444' : '#dee2e6'}`,
+      backgroundColor: isDarkMode ? '#2d2d2d' : '#fff',
+      cursor: 'pointer',
+      borderRadius: '4px',
+      color: isDarkMode ? '#fff' : '#000',
+    },
+    paginationButtonDisabled: {
+      backgroundColor: isDarkMode ? '#1e1e1e' : '#f8f9fa',
+      color: '#6c757d',
+      cursor: 'not-allowed',
+    },
+    rowsSelect: {
+      padding: '0.25rem 0.5rem',
+      border: `1px solid ${isDarkMode ? '#444' : '#dee2e6'}`,
+      borderRadius: '4px',
+      backgroundColor: isDarkMode ? '#2d2d2d' : '#fff',
+      fontSize: '0.875rem',
+      color: isDarkMode ? '#fff' : '#000',
+    },
+    paginationContainer: {
+      display: 'flex',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      padding: '1rem',
+      borderTop: `1px solid ${isDarkMode ? '#444' : '#e9ecef'}`,
+      backgroundColor: isDarkMode ? '#2d2d2d' : '#f8f9fa',
+      gap: '1.5rem',
+    },
+    rowsPerPage: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      fontSize: '0.875rem',
+      color: isDarkMode ? '#aaa' : '#6c757d',
+    },
+    paginationInfo: {
+      fontSize: '0.875rem',
+      color: isDarkMode ? '#aaa' : '#6c757d',
+    },
+    paginationControls: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.25rem',
+    },
+  };
+
+  const fabStyles = {
+    fabContainer: {
+      position: "fixed",
+      bottom: "20px",
+      right: "20px",
+      zIndex: 1000,
+    },
+    fabMenu: {
+      position: "absolute",
+      bottom: "70px",
+      right: "0",
+      display: "flex",
+      flexDirection: "column",
+      gap: "12px",
+      transition: "all 0.3s ease",
+    },
+    fabMenuItem: {
+      display: "flex",
+      alignItems: "center",
+      gap: "12px",
+      background: isDarkMode ? '#2d2d2d' : "#fff",
+      padding: "12px 16px",
+      borderRadius: "50px",
+      boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+      transition: "all 0.2s ease",
+    },
+    fabMenuLabel: {
+      fontSize: "14px",
+      fontWeight: "600",
+      color: isDarkMode ? '#fff' : "#333",
+    },
+    fabMenuIcon: {
+      width: "24px",
+      height: "24px",
+      borderRadius: "50%",
+      backgroundColor: "#007bff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#fff",
+      fontSize: "16px",
+    },
+    mainFab: {
+      backgroundColor: "#007bff",
+      color: "white",
+      border: "none",
+      borderRadius: "50%",
+      width: "56px",
+      height: "56px",
+      fontSize: "1.5rem",
+      cursor: "pointer",
+      boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      transition: "all 0.3s ease",
+    },
+  };
+
+  const eventTypeStyles = {
+    container: {
+      backgroundColor: isDarkMode ? '#1e1e1e' : "#f8f9fa",
+      borderRadius: "12px",
+      padding: "1.5rem",
+      marginBottom: "1.5rem",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    },
+    header: {
+      fontSize: "0.875rem",
+      fontWeight: "600",
+      color: isDarkMode ? "#aaa" : "#6c757d",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px",
+      marginBottom: "1rem",
+    },
+    selectedTypeDisplay: {
+      fontSize: "1.25rem",
+      fontWeight: "700",
+      color: "#007bff",
+      marginBottom: "1rem",
+      display: "flex",
+      alignItems: "center",
+      gap: "0.5rem",
+    },
+    checkIcon: {
+      width: "24px",
+      height: "24px",
+      borderRadius: "50%",
+      backgroundColor: "#28a745",
+      color: "white",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "14px",
+      fontWeight: "bold",
+    },
+    typesGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+      gap: "0.75rem",
+    },
+    typeCard: {
+      padding: "1rem",
+      borderRadius: "8px",
+      border: "2px solid transparent",
+      backgroundColor: isDarkMode ? "#2d2d2d" : "white",
+      color: isDarkMode ? "#fff" : "#495057",
+      cursor: "pointer",
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      position: "relative",
+      overflow: "hidden",
+    },
+    typeCardActive: {
+      borderColor: "#007bff",
+      backgroundColor: isDarkMode ? "#1a3d5c" : "#e7f3ff",
+      transform: "translateX(8px) scale(1.02)",
+      boxShadow: "0 4px 12px rgba(0, 123, 255, 0.2)",
+    },
+    typeCardHover: {
+      borderColor: isDarkMode ? '#555' : "#ddd",
+      transform: "translateY(-2px)",
+      boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+    },
+    typeName: {
+      fontSize: "0.9rem",
+      fontWeight: "600",
+      color: isDarkMode ? "#fff" : "#495057",
+      textAlign: "center",
+      display: "block",
+    },
+    typeNameActive: {
+      color: "#007bff",
+    },
+    activeIndicator: {
+      position: "absolute",
+      top: "8px",
+      right: "8px",
+      width: "20px",
+      height: "20px",
+      borderRadius: "50%",
+      backgroundColor: "#007bff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "white",
+      fontSize: "12px",
+      fontWeight: "bold",
+      animation: "slideIn 0.3s ease-out",
+    },
+  };
 
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
@@ -540,16 +552,14 @@ const Events = () => {
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  // const [eventsCache, setEventsCache] = useState({});
-  // const [lastFetchTime, setLastFetchTime] = useState(0);
-
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
 
+  
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem("token");
       const userProfile = localStorage.getItem("userProfile");
-      
+
       if (!token || !userProfile) {
         console.error("❌ Missing authentication. Redirecting to login...");
         setSnackbar({
@@ -575,7 +585,7 @@ const Events = () => {
 
     fetchCurrentUserLeaderAt1();
   }, []);
-
+  
   useEffect(() => {
     const savedEventTypes = localStorage.getItem("customEventTypes");
     if (savedEventTypes) {
@@ -598,16 +608,22 @@ const Events = () => {
       );
     }
   }, [customEventTypes]);
+ 
 
+ 
 
   const fetchEvents = async (filters = {}, forceRefresh = false) => {
+  if (isLoading && !forceRefresh) {
+    console.log('⏸️ Fetch already in progress, skipping...');
+    return;
+  }
+
   setLoading(true);
   setIsLoading(true);
-
+  
   try {
     const token = localStorage.getItem("token");
-    
-    // ✅ CRITICAL: Check if token exists BEFORE making request
+
     if (!token) {
       console.error("❌ No authentication token found");
       setSnackbar({
@@ -619,59 +635,123 @@ const Events = () => {
       setFilteredEvents([]);
       setLoading(false);
       setIsLoading(false);
-      // Optionally redirect to login
-      // window.location.href = '/login';
       return;
     }
 
-    const headers = { 
+    const headers = {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
 
-    // ... rest of your existing code
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
       (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
+    // ✅ FIXED: Better parameter handling
     const params = {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery.trim() || undefined,
+      status: filters.status !== undefined ? filters.status : 
+             (selectedStatus !== 'all' ? selectedStatus : undefined),
+      event_type: filters.event_type !== undefined ? filters.event_type : 
+                 (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
+      search: filters.search !== undefined ? filters.search : 
+             (searchQuery.trim() || undefined),
       personal: shouldApplyPersonalFilter ? true : undefined,
       ...filters
     };
 
-    Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+    // Clean up undefined params
+    Object.keys(params).forEach(key => {
+      if (params[key] === undefined || params[key] === '' || params[key] === 'all') {
+        delete params[key];
+      }
+    });
 
     console.log('🔍 Fetching events with params:', params);
-    console.log('🔑 Token present:', !!token);
-
+    console.log('🎯 Selected Event Type Filter:', selectedEventTypeFilter);
+    console.log('📝 Custom Event Types:', customEventTypes);
+    
     let endpoint = `${BACKEND_URL}/admin/events/cells-debug`;
     const userRole = currentUser?.role?.toLowerCase();
     if (userRole === "registrant") endpoint = `${BACKEND_URL}/registrant/events`;
     if (userRole === "user") endpoint = `${BACKEND_URL}/events/cells-user`;
+    
+    console.log('🚀 Making request to:', endpoint);
+    
+    const response = await axios.get(endpoint, { 
+      headers, 
+      params, 
 
-    const response = await axios.get(endpoint, { headers, params, timeout: 30000 });
+    });
+    
     const responseData = response.data;
     const newEvents = responseData.events || responseData.results || [];
 
-    setEvents(newEvents);
-    setFilteredEvents(newEvents);
-    setTotalEvents(responseData.total_events || responseData.total || 0);
-    const calculatedTotalPages = responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1;
+    console.log('📊 Received from backend:', {
+      total: newEvents.length,
+      unique_ids: new Set(newEvents.map(e => e._id)).size,
+      event_types: [...new Set(newEvents.map(e => e.eventType || e.event_type))],
+      sample_events: newEvents.slice(0, 3).map(e => ({
+        id: e._id,
+        name: e.eventName,
+        type: e.eventType || e.event_type
+      }))
+    });
+    
+    // ✅ FIXED: Only filter by date for CELLS, not for other event types
+    let filteredEvents;
+    if (!params.event_type || params.event_type === 'all') {
+      // For CELLS (no specific event type), apply date filter
+      filteredEvents = newEvents.filter(event => {
+        if (!event.date) return false;
+        const eventDate = new Date(event.date);
+        const cutoffDate = new Date('2025-10-13');
+        return eventDate >= cutoffDate;
+      });
+      console.log('📅 Applied date filter for CELLS events:', filteredEvents.length);
+    } else {
+      // For specific event types, don't filter by date
+      filteredEvents = newEvents;
+      console.log('🎯 Showing all events for event type:', params.event_type, 'count:', filteredEvents.length);
+    }
+
+    console.log('✅ Setting events:', filteredEvents.length);
+
+    setEvents(filteredEvents);
+    setFilteredEvents(filteredEvents);
+    setTotalEvents(responseData.total_events || responseData.total || filteredEvents.length);
+    
+    const calculatedTotalPages = responseData.total_pages || 
+                               Math.ceil((responseData.total_events || filteredEvents.length) / rowsPerPage) || 1;
     setTotalPages(calculatedTotalPages);
 
     if (filters.page !== undefined) {
       setCurrentPage(filters.page);
     }
 
+    // Log successful fetch details
+    console.log('✅ Fetch successful:', {
+      eventsCount: filteredEvents.length,
+      totalEvents: responseData.total_events || responseData.total,
+      totalPages: calculatedTotalPages,
+      currentPage: filters.page !== undefined ? filters.page : currentPage,
+      eventTypeFilter: params.event_type || 'all'
+    });
+    
   } catch (err) {
     console.error("❌ Error fetching events:", err);
-    
-    // ✅ HANDLE 401 SPECIFICALLY
+    console.error("🔧 Error details:", {
+      code: err.code,
+      message: err.message,
+      response: err.response?.data,
+      status: err.response?.status,
+      config: {
+        url: err.config?.url,
+        params: err.config?.params
+      }
+    });
+
     if (err.response?.status === 401) {
       console.error("🔒 Authentication failed - token invalid or expired");
       setSnackbar({
@@ -679,21 +759,34 @@ const Events = () => {
         message: "Your session has expired. Please log in again.",
         severity: "error",
       });
-      // Clear invalid token
       localStorage.removeItem("token");
       localStorage.removeItem("userProfile");
-      // Redirect to login after 2 seconds
       setTimeout(() => {
         window.location.href = '/login';
       }, 2000);
-    } else {
+    } else if (err.code === 'ECONNABORTED') {
+      console.error("⏰ Request timeout - backend might be struggling with the query");
       setSnackbar({
         open: true,
-        message: "Failed to load events",
+        message: "Request timeout. The query might be taking too long. Please try again.",
+        severity: "error",
+      });
+    } else if (err.response?.status === 500) {
+      console.error("🚨 Server error - backend might have issues with event_type filter");
+      setSnackbar({
+        open: true,
+        message: "Server error. The event type filter might not be working properly.",
+        severity: "error",
+      });
+    } else {
+      console.error("🚨 Other error:", err.message);
+      setSnackbar({
+        open: true,
+        message: "Failed to load events. Please try again.",
         severity: "error",
       });
     }
-    
+
     setEvents([]);
     setFilteredEvents([]);
   } finally {
@@ -703,17 +796,45 @@ const Events = () => {
 };
 
 
-const isOverdue = (event) => {
+
+// Add this function to debug event types
+const debugEventTypes = () => {
+  console.log('🔍 DEBUGGING EVENT TYPES:');
+  console.log('All events count:', events.length);
+  
+  const eventTypesFound = events.reduce((acc, event) => {
+    const eventType = event.eventType || event.event_type || 'CELLS (default)';
+    acc[eventType] = (acc[eventType] || 0) + 1;
+    return acc;
+  }, {});
+  
+  console.log('Event types distribution:', eventTypesFound);
+  console.log('Sample events with their types:', events.slice(0, 3).map(event => ({
+    id: event._id,
+    name: event.eventName,
+    type: event.eventType || event.event_type || 'CELLS (default)',
+    hasEventType: !!event.eventType || !!event.event_type
+  })));
+};
+
+// Call this in your useEffect or add a button to trigger it
+useEffect(() => {
+  if (events.length > 0) {
+    debugEventTypes();
+  }
+}, [events]);
+
+  const isOverdue = (event) => {
     if (event?._is_overdue !== undefined) {
       return event._is_overdue;
     }
 
     if (!event?.date) return false;
-
+    
     const status = (event.status || event.Status || '').toLowerCase().trim();
     const didNotMeet = event.did_not_meet || false;
     const hasAttendees = event.attendees && event.attendees.length > 0;
-    
+
     // Check if event has been captured - either has attendees, marked as did_not_meet, or status is complete/closed
     const hasBeenCaptured = hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || didNotMeet;
 
@@ -733,28 +854,29 @@ const isOverdue = (event) => {
   const paginatedEvents = events;
 
   const handleRowsPerPageChange = (e) => {
-  const newRowsPerPage = Number(e.target.value);
-  console.log('📊 Changing rows per page to:', newRowsPerPage);
-  
-  setRowsPerPage(newRowsPerPage);
-  setCurrentPage(1); // Reset to first page
-  
-  // Determine if we should apply personal filter
-  const shouldApplyPersonalFilter = 
-    viewFilter === 'personal' && 
+    const newRowsPerPage = Number(e.target.value);
+    console.log('📊 Changing rows per page to:', newRowsPerPage);
+
+    setRowsPerPage(newRowsPerPage);
+    setCurrentPage(1); // Reset to first page
+    
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
     (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
-
-  // Trigger fetch with new rows per page
-  fetchEvents({
-    status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    search: searchQuery.trim() || undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-    page: 1,
-    limit: newRowsPerPage,
-    personal: shouldApplyPersonalFilter ? true : undefined
-  }, true);
-};
-
+    
+    // Trigger fetch with new rows per page
+    fetchEvents({
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      search: searchQuery.trim() || undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      page: 1,
+      limit: newRowsPerPage,
+      personal: shouldApplyPersonalFilter ? true : undefined
+    }, true);
+  };
+  
+  
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
@@ -766,106 +888,106 @@ const isOverdue = (event) => {
   };
 
 
-const handleSearchSubmit = () => {
-  const trimmedSearch = searchQuery.trim();
-  console.log('🔍 Search submitted:', trimmedSearch);
-  
-  // Determine if we should apply personal filter
-  const shouldApplyPersonalFilter = 
-    viewFilter === 'personal' && 
-    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+  const handleSearchSubmit = () => {
+    const trimmedSearch = searchQuery.trim();
+    console.log('🔍 Search submitted:', trimmedSearch);
 
-  setCurrentPage(1);
-  
-  fetchEvents({
-    page: 1,
-    limit: rowsPerPage,
-    status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-    search: trimmedSearch || undefined,
-    personal: shouldApplyPersonalFilter ? true : undefined
-  }, true);
-};
-
-
-const handleStatusClick = (status) => {
-  setSelectedStatus(status);
-  
-  // Determine if we should apply personal filter
-  const shouldApplyPersonalFilter = 
-    viewFilter === 'personal' && 
-    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
-
-  setCurrentPage(1);
-  
-  fetchEvents({
-    status: status !== 'all' ? status : undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-    search: searchQuery || undefined,
-    page: 1,
-    personal: shouldApplyPersonalFilter ? true : undefined
-  });
-};
-
-const handleEventTypeClick = (typeValue) => {
-  setSelectedEventTypeFilter(typeValue);
-  
-  // Determine if we should apply personal filter
-  const shouldApplyPersonalFilter = 
-    viewFilter === 'personal' && 
-    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
-
-  setCurrentPage(1);
-  
-  fetchEvents({
-    event_type: typeValue !== 'all' ? typeValue : undefined,
-    status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    search: searchQuery || undefined,
-    page: 1,
-    personal: shouldApplyPersonalFilter ? true : undefined
-  });
-};
-const handlePreviousPage = () => {
-  if (currentPage > 1 && !isLoading) {
-    const newPage = currentPage - 1;
-    console.log('⬅️ Going to previous page:', newPage);
-    
     // Determine if we should apply personal filter
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
       (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
+    setCurrentPage(1);
+
     fetchEvents({
-      page: newPage,
+      page: 1,
       limit: rowsPerPage,
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery.trim() || undefined,
+      search: trimmedSearch || undefined,
       personal: shouldApplyPersonalFilter ? true : undefined
-    });
-  }
-};
+    }, true);
+  };
 
-const handleNextPage = () => {
-  if (currentPage < totalPages && !isLoading) {
-    const newPage = currentPage + 1;
-    console.log('➡️ Going to next page:', newPage);
-    
+
+  const handleStatusClick = (status) => {
+    setSelectedStatus(status);
+
     // Determine if we should apply personal filter
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
       (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
+    setCurrentPage(1);
+
     fetchEvents({
-      page: newPage,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      status: status !== 'all' ? status : undefined,
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery.trim() || undefined,
+      search: searchQuery || undefined,
+      page: 1,
       personal: shouldApplyPersonalFilter ? true : undefined
     });
-  }
-};
+  };
+
+  const handleEventTypeClick = (typeValue) => {
+    setSelectedEventTypeFilter(typeValue);
+
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    setCurrentPage(1);
+
+    fetchEvents({
+      event_type: typeValue !== 'all' ? typeValue : undefined,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      search: searchQuery || undefined,
+      page: 1,
+      personal: shouldApplyPersonalFilter ? true : undefined
+    });
+  };
+  const handlePreviousPage = () => {
+    if (currentPage > 1 && !isLoading) {
+      const newPage = currentPage - 1;
+      console.log('⬅️ Going to previous page:', newPage);
+
+      // Determine if we should apply personal filter
+      const shouldApplyPersonalFilter =
+        viewFilter === 'personal' &&
+        (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+      fetchEvents({
+        page: newPage,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: searchQuery.trim() || undefined,
+        personal: shouldApplyPersonalFilter ? true : undefined
+      });
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages && !isLoading) {
+      const newPage = currentPage + 1;
+      console.log('➡️ Going to next page:', newPage);
+
+      // Determine if we should apply personal filter
+      const shouldApplyPersonalFilter =
+        viewFilter === 'personal' &&
+        (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+      fetchEvents({
+        page: newPage,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: searchQuery.trim() || undefined,
+        personal: shouldApplyPersonalFilter ? true : undefined
+      });
+    }
+  };
 
   // Add this function to fix leaders using your existing backend endpoints
   const handleFixLeaders = async () => {
@@ -906,7 +1028,7 @@ const handleNextPage = () => {
     }
   };
 
- 
+
   const handleCreateEventTypeSubmit = async (eventTypeData) => {
     try {
       const token = localStorage.getItem("token");
@@ -962,42 +1084,36 @@ const handleNextPage = () => {
     console.log('Active Filters:', activeFilters);
   }, [events, filteredEvents, currentPage, totalPages, paginatedEvents]);
 
- useEffect(() => {
-  console.log('🔄 Main fetch triggered');
-  console.log('👤 Current user:', currentUser?.name, 'Role:', currentUser?.role);
-  console.log('👀 Current view filter:', viewFilter);
+  useEffect(() => {
+    console.log('🔄 Main fetch triggered');
+    console.log('👤 Current user:', currentUser?.name, 'Role:', currentUser?.role);
+    console.log('👀 Current view filter:', viewFilter);
 
-  // Determine if we should apply personal filter
-  const shouldApplyPersonalFilter = 
-    viewFilter === 'personal' && 
-    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
-  const fetchParams = {
-    page: 1, // Always start from page 1 when filters change
-    limit: rowsPerPage,
-    status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-    search: searchQuery.trim() || undefined,
-    personal: shouldApplyPersonalFilter ? true : undefined
-  };
+    const fetchParams = {
+      page: 1, // Always start from page 1 when filters change
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined
+    };
 
-  // Clean up undefined params
-  Object.keys(fetchParams).forEach(key => {
-    if (fetchParams[key] === undefined || fetchParams[key] === '' || fetchParams[key] === 'all') {
-      delete fetchParams[key];
-    }
-  });
+    // Clean up undefined params
+    Object.keys(fetchParams).forEach(key => {
+      if (fetchParams[key] === undefined || fetchParams[key] === '' || fetchParams[key] === 'all') {
+        delete fetchParams[key];
+      }
+    });
 
-  console.log('📤 Main fetch params:', fetchParams);
-  
-  // Reset to page 1 when filters change
-  setCurrentPage(1);
-  fetchEvents(fetchParams, true);
-}, [selectedStatus, selectedEventTypeFilter, viewFilter, location.pathname, location.state?.refresh, currentUser?.role]);
-
-  // Debounced search
-  // Remove or modify this useEffect - it's causing the issue
-  // Instead, rely on the search submit button or implement proper debouncing:
+    console.log('📤 Main fetch params:', fetchParams);
+    setCurrentPage(1);
+    fetchEvents(fetchParams, true);
+  }, [selectedStatus, selectedEventTypeFilter, viewFilter, location.pathname, location.state?.refresh, currentUser?.role, rowsPerPage]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -1045,27 +1161,33 @@ const handleNextPage = () => {
     setCreateEventTypeModalOpen(false);
   };
 
-const applyFilters = (filters) => {
-  console.log("🔍 APPLYING FILTERS:", filters);
-  
-  setActiveFilters(filters);
-  setCurrentPage(1);
-  
-  // Build search query from filters
-  let searchQuery = '';
-  if (filters.leader) {
-    searchQuery = filters.leader;
-  }
-  
-  fetchEvents({
-    page: 1,
-    limit: rowsPerPage,
-    status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-    search: searchQuery || undefined,
-    day: filters.day !== 'all' ? filters.day : undefined
-  }, true);
-};
+  const applyFilters = (filters) => {
+    console.log("🔍 APPLYING FILTERS:", filters);
+
+    setActiveFilters(filters);
+    setCurrentPage(1);
+
+    // Build search query from filters
+    let searchQuery = '';
+    if (filters.leader) {
+      searchQuery = filters.leader;
+    }
+
+    // Determine if we should apply personal filter
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    fetchEvents({
+      page: 1,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery || undefined,
+      day: filters.day !== 'all' ? filters.day : undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined
+    }, true);
+  };
 
   const handleAttendanceSubmit = async (data) => {
     try {
@@ -1216,16 +1338,16 @@ const applyFilters = (filters) => {
         message: `"${event.eventName}" deleted successfully!`,
         severity: "success",
       });
-    // } catch (err) {
-    //   console.error("Delete error:", err.response?.data);
-    //   setSnackbar({
-    //     open: true,
-    //     message: `Failed to delete: ${
-    //       err.response?.data?.detail || err.message
-    //     }`,
-    //     severity: "error",
-    //   });
-    //   setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      // } catch (err) {
+      //   console.error("Delete error:", err.response?.data);
+      //   setSnackbar({
+      //     open: true,
+      //     message: `Failed to delete: ${
+      //       err.response?.data?.detail || err.message
+      //     }`,
+      //     severity: "error",
+      //   });
+      //   setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
   };
 
@@ -1246,9 +1368,31 @@ const applyFilters = (filters) => {
     }
   };
 
-const EventTypeSelector = () => {
+ const EventTypeSelector = () => {
   const [hoveredType, setHoveredType] = useState(null);
-  const allTypes = ["CELLS", ...eventTypes];
+  
+  // Get unique event types from actual events + custom types
+  const getAvailableEventTypes = () => {
+    const typesFromEvents = [...new Set(events
+      .map(event => event.eventType || event.event_type)
+      .filter(Boolean)
+    )];
+    
+    const customTypeNames = customEventTypes.map(t => t.name);
+    
+    // Combine and remove duplicates
+    const allTypes = ["CELLS", ...new Set([...typesFromEvents, ...customTypeNames])];
+    
+    console.log('📊 Available event types:', {
+      fromEvents: typesFromEvents,
+      customTypes: customTypeNames,
+      combined: allTypes
+    });
+    
+    return allTypes;
+  };
+
+  const allTypes = getAvailableEventTypes();
   const isAdmin = currentUser?.role === "admin";
 
   const getDisplayName = (type) => {
@@ -1259,22 +1403,47 @@ const EventTypeSelector = () => {
 
   const getTypeValue = (type) => {
     if (type === "CELLS") return "all";
-    if (typeof type === "string") return type.toLowerCase();
-    return (type.name || type).toLowerCase();
+    if (typeof type === "string") return type;
+    return type.name || type;
   };
 
-  const selectedDisplayName =
-    selectedEventTypeFilter === "all"
-      ? "CELLS"
-      : eventTypes.find((t) => {
-          const tValue = typeof t === "string" ? t : t.name;
-          return tValue?.toLowerCase() === selectedEventTypeFilter;
-        }) || selectedEventTypeFilter;
+  const handleTypeClick = (typeValue) => {
+    console.log('🟢 Switching to Event Type:', typeValue);
 
-  const finalDisplayName =
-    typeof selectedDisplayName === "string"
-      ? selectedDisplayName
-      : selectedDisplayName?.name || "CELLS";
+    const selectedTypeObj = typeValue === "all" 
+      ? null 
+      : customEventTypes.find(t => t.name?.toLowerCase() === typeValue?.toLowerCase()) || null;
+
+    setSelectedEventTypeFilter(typeValue);
+    setSelectedEventTypeObj(selectedTypeObj);
+
+    // Store in localStorage
+    if (selectedTypeObj) {
+      localStorage.setItem("selectedEventTypeObj", JSON.stringify(selectedTypeObj));
+    } else {
+      localStorage.removeItem("selectedEventTypeObj");
+    }
+
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    setCurrentPage(1);
+
+    // For CELLS, we want events with no eventType or eventType = "CELLS"
+    // For custom types, we want events with matching eventType
+    const backendEventType = typeValue === 'all' 
+      ? undefined  // CELLS - no filter, will show default events
+      : typeValue; // Custom type - filter by exact name
+
+    fetchEvents({
+      event_type: backendEventType,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      search: searchQuery || undefined,
+      page: 1,
+      personal: shouldApplyPersonalFilter ? true : undefined
+    }, true);
+  };
 
   return (
     <div style={eventTypeStyles.container}>
@@ -1282,7 +1451,12 @@ const EventTypeSelector = () => {
 
       <div style={eventTypeStyles.selectedTypeDisplay}>
         <div style={eventTypeStyles.checkIcon}>✓</div>
-        <span>{finalDisplayName}</span>
+        <span>
+          {selectedEventTypeFilter === 'all' 
+            ? 'CELLS' 
+            : selectedEventTypeFilter
+          }
+        </span>
       </div>
 
       {isAdmin && (
@@ -1301,40 +1475,7 @@ const EventTypeSelector = () => {
                   ...(isActive ? eventTypeStyles.typeCardActive : {}),
                   ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
                 }}
-                onClick={() => {
-                  console.log('🟢 Switched to Event Type:', displayName);
-                  
-                  // Find the full event type object
-                  const selectedTypeObj =
-                    typeValue === "all"
-                      ? null
-                      : customEventTypes.find(
-                          (t) => t.name.toLowerCase() === typeValue
-                        ) || null;
-
-                  console.log('🧩 Config:', {
-                    isTicketed: selectedTypeObj?.isTicketed,
-                    isGlobal: selectedTypeObj?.isGlobal,
-                    hasPersonSteps: selectedTypeObj?.hasPersonSteps,
-                  });
-
-                  // Update the selected event type filter
-                  setSelectedEventTypeFilter(typeValue);
-                  setSelectedEventTypeObj(selectedTypeObj);
-
-                  // Store in localStorage
-                  if (selectedTypeObj) {
-                    localStorage.setItem(
-                      "selectedEventTypeObj",
-                      JSON.stringify(selectedTypeObj)
-                    );
-                  } else {
-                    localStorage.removeItem("selectedEventTypeObj");
-                  }
-
-                  // ✅ FIX: Call handleEventTypeClick instead of applyAllFilters
-                  handleEventTypeClick(typeValue);
-                }}
+                onClick={() => handleTypeClick(typeValue)}
                 onMouseEnter={() => setHoveredType(typeValue)}
                 onMouseLeave={() => setHoveredType(null)}
               >
@@ -1355,7 +1496,6 @@ const EventTypeSelector = () => {
     </div>
   );
 };
-
   // StatusBadges Component
   const StatusBadges = () => {
     const [statusCounts, setStatusCounts] = useState({
@@ -1368,10 +1508,10 @@ const EventTypeSelector = () => {
       const fetchStatusCounts = async () => {
         try {
           const token = localStorage.getItem("token");
-             if (!token) {
-          console.error("❌ No token for status counts");
-          return;
-        }
+          if (!token) {
+            console.error("❌ No token for status counts");
+            return;
+          }
           const headers = { Authorization: `Bearer ${token}` };
 
           const params = new URLSearchParams();
@@ -1412,6 +1552,8 @@ const EventTypeSelector = () => {
       fetchStatusCounts();
     }, [selectedEventTypeFilter, searchQuery, selectedStatus, events.length]);
 
+  
+
     // Add this function to debug leader assignment
     const debugLeaderAssignment = async (leaderAt12Name) => {
       try {
@@ -1441,7 +1583,7 @@ const EventTypeSelector = () => {
       }
     };
 
-  
+
 
     const calculateClientSideCounts = () => {
       const counts = {
@@ -1504,73 +1646,73 @@ const EventTypeSelector = () => {
     );
   };
 
-// ViewFilterButtons Component - FIXED
-// ViewFilterButtons Component - FIXED
-const ViewFilterButtons = () => {
-  return (
-    <div style={styles.viewFilterContainer}>
-      <span style={styles.viewFilterLabel}>View:</span>
+  // ViewFilterButtons Component - FIXED
+  // ViewFilterButtons Component - FIXED
+  const ViewFilterButtons = () => {
+    return (
+      <div style={styles.viewFilterContainer}>
+        <span style={styles.viewFilterLabel}>View:</span>
 
-      <label style={styles.viewFilterRadio}>
-        <input
-          type="radio"
-          name="viewFilter"
-          value="all"
-          checked={viewFilter === 'all'}
-          onChange={(e) => {
-            const newViewFilter = e.target.value;
-            setViewFilter(newViewFilter);
-            setCurrentPage(1);
-            fetchEvents({
-              status: selectedStatus !== 'all' ? selectedStatus : undefined,
-              event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-              search: searchQuery || undefined,
-              page: 1,
-              personal: false // Explicitly set personal to false for "View All"
-            });
-          }}
-          style={{ cursor: 'pointer' }}
-        />
-        <span style={{
-          ...styles.viewFilterText,
-          color: viewFilter === 'all' ? '#007bff' : '#6c757d',
-          fontWeight: viewFilter === 'all' ? '600' : '400',
-        }}>
-          View All
-        </span>
-      </label>
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="all"
+            checked={viewFilter === 'all'}
+            onChange={(e) => {
+              const newViewFilter = e.target.value;
+              setViewFilter(newViewFilter);
+              setCurrentPage(1);
+              fetchEvents({
+                status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+                search: searchQuery || undefined,
+                page: 1,
+                personal: false // Explicitly set personal to false for "View All"
+              });
+            }}
+            style={{ cursor: 'pointer' }}
+          />
+          <span style={{
+            ...styles.viewFilterText,
+            color: viewFilter === 'all' ? '#007bff' : '#6c757d',
+            fontWeight: viewFilter === 'all' ? '600' : '400',
+          }}>
+            View All
+          </span>
+        </label>
 
-      <label style={styles.viewFilterRadio}>
-        <input
-          type="radio"
-          name="viewFilter"
-          value="personal"
-          checked={viewFilter === 'personal'}
-          onChange={(e) => {
-            const newViewFilter = e.target.value;
-            setViewFilter(newViewFilter);
-            setCurrentPage(1);
-            fetchEvents({
-              status: selectedStatus !== 'all' ? selectedStatus : undefined,
-              event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-              search: searchQuery || undefined,
-              page: 1,
-              personal: true // Add personal filter for "Personal" view
-            });
-          }}
-          style={{ cursor: 'pointer' }}
-        />
-        <span style={{
-          ...styles.viewFilterText,
-          color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
-          fontWeight: viewFilter === 'personal' ? '600' : '400',
-        }}>
-          Personal
-        </span>
-      </label>
-    </div>
-  );
-};
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="personal"
+            checked={viewFilter === 'personal'}
+            onChange={(e) => {
+              const newViewFilter = e.target.value;
+              setViewFilter(newViewFilter);
+              setCurrentPage(1);
+              fetchEvents({
+                status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+                search: searchQuery || undefined,
+                page: 1,
+                personal: true // Add personal filter for "Personal" view
+              });
+            }}
+            style={{ cursor: 'pointer' }}
+          />
+          <span style={{
+            ...styles.viewFilterText,
+            color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
+            fontWeight: viewFilter === 'personal' ? '600' : '400',
+          }}>
+            Personal
+          </span>
+        </label>
+      </div>
+    );
+  };
 
   // MobileEventCard Component - FIXED
   const MobileEventCard = ({ event }) => {
@@ -1677,46 +1819,46 @@ const ViewFilterButtons = () => {
     >
       <div style={styles.topSection}>
         <EventTypeSelector />
-<div style={styles.searchFilterRow}>
-  <input
-    type="text"
-    placeholder="Search by Event Name, Leader, or Email..."
-    value={searchQuery}
-    onChange={handleSearchChange}
-    onKeyPress={(e) => {
-      if (e.key === 'Enter') {
-        handleSearchSubmit();
-      }
-    }}
-    style={styles.searchInput}
-  />
-  <button
-    style={styles.filterButton}
-    onClick={handleSearchSubmit}
-    disabled={isLoading}
-  >
-    {isLoading ? '⏳' : 'SEARCH'}
-  </button>
+        <div style={styles.searchFilterRow}>
+          <input
+            type="text"
+            placeholder="Search by Event Name, Leader, or Email..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSearchSubmit();
+              }
+            }}
+            style={styles.searchInput}
+          />
+          <button
+            style={styles.filterButton}
+            onClick={handleSearchSubmit}
+            disabled={isLoading}
+          >
+            {isLoading ? '⏳' : 'SEARCH'}
+          </button>
 
-  <button
-    style={{ ...styles.filterButton, backgroundColor: '#dc3545' }}
-    onClick={() => {
-      console.log('🧹 Clearing search');
-      setSearchQuery('');
-      setCurrentPage(1);
-      fetchEvents({ 
-        page: 1,
-        limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: undefined
-      }, true);
-    }}
-    disabled={isLoading}
-  >
-    {isLoading ? '⏳' : 'CLEAR'}
-  </button>
-</div>
+          <button
+            style={{ ...styles.filterButton, backgroundColor: '#dc3545' }}
+            onClick={() => {
+              console.log('🧹 Clearing search');
+              setSearchQuery('');
+              setCurrentPage(1);
+              fetchEvents({
+                page: 1,
+                limit: rowsPerPage,
+                status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+                search: undefined
+              }, true);
+            }}
+            disabled={isLoading}
+          >
+            {isLoading ? '⏳' : 'CLEAR'}
+          </button>
+        </div>
         <div style={styles.viewFilterRow}>
           <StatusBadges />
           <ViewFilterButtons />
