@@ -23,7 +23,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const [recipient, setRecipient] = useState(null); 
   const [assignedTo, setAssignedTo] = useState("");
   const [dateTime, setDateTime] = useState("");
-  const [taskStage, setTaskStage] = useState(""); // ✅ Start empty to force selection
+  const [taskStage, setTaskStage] = useState(""); // Start empty to force selection
   const [loading, setLoading] = useState(false);
 
   const [recipients, setRecipients] = useState([]);
@@ -31,6 +31,12 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState("");
   const [alreadyConsolidated, setAlreadyConsolidated] = useState(false);
+
+  // Only two decision types
+  const decisionTypes = [
+    "Commitment",
+    "Recommitment"
+  ];
 
   // Enhanced debounced search with better error handling
   const debouncedSearch = useCallback(
@@ -104,7 +110,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       setDateTime(dayjs().format("YYYY/MM/DD, HH:mm"));
       setRecipient(null);
       setAssignedTo("");
-      setTaskStage(""); // ✅ Force user to select decision type
+      setTaskStage(""); // Force user to select decision type
       setRecipients([]);
       setSearchQuery("");
       setError("");
@@ -143,52 +149,53 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     return isInConsolidatedList || hasConsolidationStage || hasDecisionHistory;
   }, [consolidatedPeople]);
 
-  // Get the appropriate leader for the recipient
-  const getLeaderHierarchy = (person) => {
+  // Get the HIGHEST available leader in the hierarchy (priority from 1728 down to 1)
+  const getHighestAvailableLeader = (person) => {
     const leader1 = person["Leader @1"] || person.leader1;
     const leader12 = person["Leader @12"] || person.leader12;
     const leader144 = person["Leader @144"] || person.leader144;
     const leader1728 = person["Leader @1728"] || person.leader1728;
 
-    console.log("👥 Leader hierarchy for person:", {
-      name: person.Name || person.name,
+    console.log("👥 Person's leader relationships:", {
       leader1,
-      leader12,
+      leader12, 
       leader144,
       leader1728
     });
 
-    // Return the most immediate leader (lowest level)
-    if (leader1 && leader1.trim()) {
-      console.log("✅ Assigning to Leader @1:", leader1);
-      return { 
-        leader: leader1, 
-        level: 1,
-        hasLeader: true 
-      };
-    } else if (leader12 && leader12.trim()) {
-      console.log("✅ Assigning to Leader @12:", leader12);
-      return { 
-        leader: leader12, 
-        level: 12,
-        hasLeader: true 
-      };
-    } else if (leader144 && leader144.trim()) {
-      console.log("✅ Assigning to Leader @144:", leader144);
-      return { 
-        leader: leader144, 
-        level: 144,
-        hasLeader: true 
-      };
-    } else if (leader1728 && leader1728.trim()) {
-      console.log("✅ Assigning to Leader @1728:", leader1728);
+    // Choose the HIGHEST available leader in the hierarchy
+    // Priority: Leader @1728 → Leader @144 → Leader @12 → Leader @1
+    if (leader1728 && leader1728.trim()) {
+      console.log("✅ Assigning to highest leader: Leader @1728:", leader1728);
       return { 
         leader: leader1728, 
         level: 1728,
-        hasLeader: true 
+        hasLeader: true
+      };
+    } else if (leader144 && leader144.trim()) {
+      console.log("✅ Assigning to highest leader: Leader @144:", leader144);
+      return { 
+        leader: leader144, 
+        level: 144,
+        hasLeader: true
+      };
+    } else if (leader12 && leader12.trim()) {
+      console.log("✅ Assigning to highest leader: Leader @12:", leader12);
+      return { 
+        leader: leader12, 
+        level: 12,
+        hasLeader: true
+      };
+    } else if (leader1 && leader1.trim()) {
+      console.log("✅ Assigning to highest leader: Leader @1:", leader1);
+      return { 
+        leader: leader1, 
+        level: 1,
+        hasLeader: true
       };
     } else {
-      console.log("❌ No leader found for person");
+      // No leaders assigned at all
+      console.log("❌ No leaders found for person");
       return { 
         leader: "No Leader Assigned", 
         level: 0,
@@ -200,7 +207,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   // Update assignedTo whenever recipient changes
   useEffect(() => {
     if (recipient) {
-      const leaderInfo = getLeaderHierarchy(recipient);
+      const leaderInfo = getHighestAvailableLeader(recipient);
       setAssignedTo(leaderInfo.leader);
       
       // Check if person is already consolidated
@@ -213,7 +220,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         setError("");
       }
       
-      console.log("🎯 Auto-assigned to leader:", leaderInfo);
+      console.log("🎯 Auto-assigned to highest leader:", leaderInfo);
     } else {
       setAssignedTo("");
       setAlreadyConsolidated(false);
@@ -224,7 +231,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   // Handle task stage change
   const handleTaskStageChange = (event) => {
     setTaskStage(event.target.value);
-    console.log("📝 Task stage changed to:", event.target.value);
+    console.log("📝 Decision type changed to:", event.target.value);
   };
 
   // Submit consolidation task
@@ -244,10 +251,10 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       return;
     }
 
-    const leaderInfo = getLeaderHierarchy(recipient);
+    const leaderInfo = getHighestAvailableLeader(recipient);
     
     if (!leaderInfo.hasLeader) {
-      setError("Cannot create consolidation task: This person has no leader assigned for follow-up");
+      setError("Cannot create consolidation task: No leader available for assignment");
       return;
     }
 
@@ -262,7 +269,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     const memberID = recipient._id || recipient.id || `consolidation-${Date.now()}`;
     
     // Map task stage to backend decision type
-    const decisionType = taskStage === "First-time Commitment" ? "first_time" : "recommitment";
+    const decisionType = taskStage.toLowerCase();
     
     // Prepare task data according to your EXACT backend TaskModel schema
     const taskData = {
@@ -271,7 +278,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       description: `Follow up with ${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname} who made a ${taskStage.toLowerCase()}`,
       followup_date: new Date().toISOString(),
       status: "Open",
-      assignedfor: leaderInfo.leader, // ✅ Using the consolidatee's leader
+      assignedfor: leaderInfo.leader, // Using the highest available leader
       type: "followup",
       priority: "high",
       memberID: memberID,
@@ -282,21 +289,22 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       },
       // Add consolidation-specific fields
       consolidation_type: taskStage,
-      decision_type: decisionType, // ✅ Proper decision type mapping
+      decision_type: decisionType,
       recipient_name: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
       recipient_email: recipient.Email || recipient.email || "",
       recipient_phone: recipient.Phone || recipient.phone || "",
       decision_date: new Date().toISOString().split('T')[0],
       // Add any other required fields
       taskName: `Consolidation - ${taskStage}`,
-      assignedTo: leaderInfo.leader, // ✅ Also set assignedTo field
+      assignedTo: leaderInfo.leader,
       email: recipient.Email || recipient.email || "",
-      leader_level: leaderInfo.level // For tracking which level leader was assigned
+      leader_level: leaderInfo.level
     };
 
     console.log("📤 Sending task data to backend:", taskData);
     console.log("🎯 Decision Type:", decisionType);
-    console.log("👥 Assigned To:", leaderInfo.leader);
+    console.log("👥 Assigned To Highest Leader:", leaderInfo.leader);
+    console.log("📊 Level Info:", { level: leaderInfo.level });
 
     setLoading(true);
 
@@ -333,7 +341,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       // Reset form
       setRecipient(null);
       setAssignedTo("");
-      setTaskStage(""); // ✅ Reset to empty
+      setTaskStage("");
       setAlreadyConsolidated(false);
       
     } catch (err) {
@@ -350,7 +358,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         if (err.response.data && err.response.data.detail) {
           if (Array.isArray(err.response.data.detail)) {
             // Pydantic validation errors
-            const errorMessages = err.response.data.detail.map(error => 
+            const errorMessages = err_response.data.detail.map(error => 
               `${error.loc && error.loc[1] ? error.loc[1] : 'Field'}: ${error.msg}`
             ).join(', ');
             setError(`Validation errors: ${errorMessages}`);
@@ -494,7 +502,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           )}
         />
 
-        {/* Assigned To (Leader) - AUTO-SET */}
+        {/* Assigned To (Highest Leader) - AUTO-SET */}
         <TextField
           label="Assigned To Leader"
           value={assignedTo}
@@ -502,9 +510,9 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           margin="normal"
           disabled
           helperText={
-            assignedTo === "No Leader Assigned" 
-              ? "Warning: This person has no leader assigned for follow-up"
-              : "Automatically assigned to person's immediate leader"
+            assignedTo === "No Leader Assigned"
+              ? "Warning: No leader available for assignment"
+              : "Automatically assigned to person's highest level leader"
           }
           color={assignedTo === "No Leader Assigned" ? "warning" : "primary"}
           sx={roundedInput}
@@ -521,7 +529,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           sx={roundedInput}
         />
 
-        {/* Task Stage - FIXED: Now properly changeable and required */}
+        {/* Decision Type - Only two options */}
         <TextField
           select
           label="Decision Type *"
@@ -531,13 +539,14 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           margin="normal"
           required
           error={!taskStage}
-          helperText={!taskStage ? "Please select a decision type" : ""}
+          helperText={!taskStage ? "Please select the decision made" : "Select the type of decision the person made"}
           sx={roundedInput}
         >
-          <MenuItem value="First-time Commitment">
-            First-time Commitment
-          </MenuItem>
-          <MenuItem value="Re-commitment">Re-commitment</MenuItem>
+          {decisionTypes.map((type) => (
+            <MenuItem key={type} value={type}>
+              {type}
+            </MenuItem>
+          ))}
         </TextField>
 
         {/* Status */}
@@ -549,39 +558,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           disabled
           sx={roundedInput}
         />
-
-        {/* Selected Person Info */}
-        {recipient && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              Selected Person:
-            </Typography>
-            <Typography variant="body2">
-              <strong>Name:</strong> {recipient.Name || recipient.name} {recipient.Surname || recipient.surname}
-            </Typography>
-            {(recipient.Phone || recipient.phone) && (
-              <Typography variant="body2">
-                <strong>Phone:</strong> {recipient.Phone || recipient.phone}
-              </Typography>
-            )}
-            {(recipient.Email || recipient.email) && (
-              <Typography variant="body2">
-                <strong>Email:</strong> {recipient.Email || recipient.email}
-              </Typography>
-            )}
-            <Typography variant="body2">
-              <strong>Assigned Leader:</strong> {assignedTo}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Decision Type:</strong> {taskStage || "Not selected"}
-            </Typography>
-            {alreadyConsolidated && (
-              <Typography variant="body2" color="error" sx={{ mt: 1 }}>
-                <strong>⚠️ Already Consolidated:</strong> This person has already been assigned for follow-up
-              </Typography>
-            )}
-          </Box>
-        )}
       </DialogContent>
 
       <DialogActions sx={{ p: 2 }}>
@@ -593,10 +569,10 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           variant="contained"
           color="primary"
           loading={loading}
-          disabled={!recipient || !taskStage || assignedTo === "No Leader Assigned" || alreadyConsolidated}
+          disabled={!recipient || !taskStage || !assignedTo || assignedTo === "No Leader Assigned" || alreadyConsolidated}
           sx={{ minWidth: 100 }}
         >
-          Assign Task
+          Save
         </LoadingButton>
       </DialogActions>
     </Dialog>

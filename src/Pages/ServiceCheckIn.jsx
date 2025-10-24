@@ -113,6 +113,14 @@ function ServiceCheckIn() {
   
   const [activeTab, setActiveTab] = useState(0);
 
+  // State for event history details modals
+  const [eventHistoryDetails, setEventHistoryDetails] = useState({
+    open: false,
+    event: null,
+    type: null, // 'attendance', 'newPeople', 'consolidated'
+    data: []
+  });
+
   const [formData, setFormData] = useState({
     name: "",
     surname: "",
@@ -149,12 +157,45 @@ function ServiceCheckIn() {
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
   // Filter events to only show global and open events
-  const getFilteredEvents = () => {
-    return events.filter(event => 
-      event.isGlobal !== false && 
-      event.status?.toLowerCase() !== "closed"
-    );
-  };
+
+  
+  // const getFilteredEvents = () => {
+  //   return events.filter(event => 
+  //     event.isGlobal !== false && 
+  //     event.status?.toLowerCase() !== "closed"
+  //   );
+  // };
+
+  // // Get closed events for event history
+  // const getClosedEvents = () => {
+  //   return events.filter(event => 
+  //     event.status?.toLowerCase() === "closed" && 
+  //     (event.isGlobal === true || event.isTicketed === true)
+  //   );
+  // };
+
+  // Filter events to only show global and open events (for dropdown)
+const getFilteredEvents = () => {
+  console.log('🎯 Available events for dropdown:', events);
+  return events.filter(event => {
+    const isGlobal = event.isGlobal === true;
+    const isOpen = event.status?.toLowerCase() !== 'closed';
+    const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+    
+    return isGlobal && isOpen && isNotCell;
+  });
+};
+
+// Get closed events for event history (global events only)
+const getClosedEvents = () => {
+  return events.filter(event => {
+    const isClosed = event.status?.toLowerCase() === 'closed';
+    const isGlobal = event.isGlobal === true;
+    const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+    
+    return isClosed && isGlobal && isNotCell;
+  });
+};
 
   // Close event function
   const handleCloseEvent = async () => {
@@ -191,6 +232,98 @@ function ServiceCheckIn() {
     } catch (error) {
       console.error("Error closing event:", error);
       toast.error("Failed to close event");
+    }
+  };
+
+  // Event History Handlers
+  const handleViewEventDetails = async (eventId) => {
+    try {
+      const event = events.find(e => e.id === eventId);
+      if (!event) return;
+
+      // Fetch attendance data for this event
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${BASE_URL}/events/${eventId}/checkins`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+
+      const attendanceData = toArray(response.data);
+      
+      setEventHistoryDetails({
+        open: true,
+        event: event,
+        type: 'attendance',
+        data: attendanceData
+      });
+
+    } catch (error) {
+      console.error("Error fetching event details:", error);
+      toast.error("Failed to load event details");
+    }
+  };
+
+  const handleViewNewPeople = async (eventId) => {
+    try {
+      const event = events.find(e => e.id === eventId);
+      if (!event) return;
+
+      // Get new people for this event from localStorage
+      const newPeopleIds = eventNewPeople[eventId] || [];
+      const newPeopleData = attendees.filter(attendee => 
+        newPeopleIds.includes(attendee._id)
+      );
+      
+      setEventHistoryDetails({
+        open: true,
+        event: event,
+        type: 'newPeople',
+        data: newPeopleData
+      });
+
+    } catch (error) {
+      console.error("Error fetching new people:", error);
+      toast.error("Failed to load new people data");
+    }
+  };
+
+  const handleViewConsolidated = async (eventId) => {
+    try {
+      const event = events.find(e => e.id === eventId);
+      if (!event) return;
+
+      // Fetch consolidated people for this event
+      const token = localStorage.getItem("token");
+      let consolidatedData = [];
+
+      try {
+        const response = await axios.get(`${BASE_URL}/consolidations`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          params: {
+            event_id: eventId
+          }
+        });
+
+        if (response.data && response.data.consolidations) {
+          consolidatedData = response.data.consolidations;
+        }
+      } catch (error) {
+        console.log("Consolidations endpoint failed:", error.message);
+      }
+
+      setEventHistoryDetails({
+        open: true,
+        event: event,
+        type: 'consolidated',
+        data: consolidatedData
+      });
+
+    } catch (error) {
+      console.error("Error fetching consolidated people:", error);
+      toast.error("Failed to load consolidated data");
     }
   };
 
@@ -411,32 +544,94 @@ function ServiceCheckIn() {
   useEffect(() => {
     if (hasDataLoaded) return;
 
-    const fetchEvents = async () => {
-      setIsLoadingEvents(true);
-      try {
-        const res = await axios.get(`${BASE_URL}/events`);
-        const normalized = toArray(res.data)
-          .filter(
-            (e) =>
-              e.eventType?.toLowerCase() !== "cell" &&
-              e.status?.toLowerCase() !== "closed" &&
-              e.isGlobal !== false
-          )
-          .map((e) => ({
-            id: e._id || e.id || e.eventId,
-            eventName: e.eventName || e.name || e.title || "Untitled Event",
-            status: e.status || "open",
-            isGlobal: e.isGlobal !== false, // Default to true if not specified
-          }));
+    // const fetchEvents = async () => {
+    //   setIsLoadingEvents(true);
+    //   try {
+    //     const res = await axios.get(`${BASE_URL}/events`);
+    //     const normalized = toArray(res.data)
+    //       .filter(
+    //         (e) =>
+    //           e.eventType?.toLowerCase() !== "cell" &&
+    //           e.status?.toLowerCase() !== "closed" &&
+    //           e.isGlobal !== false
+    //       )
+    //       .map((e) => ({
+    //         id: e._id || e.id || e.eventId,
+    //         eventName: e.eventName || e.name || e.title || "Untitled Event",
+    //         status: e.status || "open",
+    //         isGlobal: e.isGlobal !== false, // Default to true if not specified
+    //         isTicketed: e.isTicketed || false,
+    //         date: e.date || e.createdAt,
+    //       }));
 
-        setEvents(normalized);
-      } catch (err) {
-        console.error(err);
-        toast.error(err.response?.data?.detail || "Failed to fetch events");
-      } finally {
-        setIsLoadingEvents(false);
+    //     setEvents(normalized);
+    //   } catch (err) {
+    //     console.error(err);
+    //     toast.error(err.response?.data?.detail || "Failed to fetch events");
+    //   } finally {
+    //     setIsLoadingEvents(false);
+    //   }
+    // };
+  // In your ServiceCheckIn component, update the fetchEvents function
+const fetchEvents = async () => {
+  setIsLoadingEvents(true);
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${BASE_URL}/events`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-    };
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    console.log('📋 Raw events data:', data); // Debug log
+    
+    // Filter for global, open, non-cell events
+    const filteredEvents = (data.events || []).filter(event => {
+      const isGlobal = event.isGlobal === true;
+      const isOpen = event.status?.toLowerCase() !== 'closed';
+      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      
+      console.log(`🔍 Event: ${event.eventName}`, {
+        isGlobal,
+        isOpen, 
+        isNotCell,
+        eventType: event.eventType,
+        status: event.status,
+        isGlobalFlag: event.isGlobal
+      });
+      
+      return isGlobal && isOpen && isNotCell;
+    });
+
+    console.log('✅ Filtered events:', filteredEvents);
+
+    // Transform the events for dropdown
+    const transformedEvents = filteredEvents.map(event => ({
+      id: event._id || event.id,
+      eventName: event.eventName || event.name || "Unnamed Event",
+      status: event.status || "open",
+      isGlobal: event.isGlobal,
+      isTicketed: event.isTicketed || false,
+      date: event.date || event.createdAt,
+      eventType: event.eventType
+    }));
+
+    setEvents(transformedEvents);
+    
+  } catch (err) {
+    console.error('❌ Error fetching events:', err);
+    toast.error(err.response?.data?.detail || "Failed to fetch events");
+  } finally {
+    setIsLoadingEvents(false);
+  }
+};
 
     fetchEvents();
   }, [hasDataLoaded]);
@@ -930,6 +1125,194 @@ function ServiceCheckIn() {
     }
   ];
 
+  // Event History Details Modal
+  const EventHistoryDetailsModal = () => {
+    const [searchTerm, setSearchTerm] = useState("");
+    const [currentPage, setCurrentPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(25);
+
+    const filteredData = eventHistoryDetails.data.filter(item => {
+      const searchString = `${item.name || ''} ${item.surname || ''} ${item.email || ''} ${item.phone || ''}`.toLowerCase();
+      return searchString.includes(searchTerm.toLowerCase());
+    });
+
+    const paginatedData = filteredData.slice(
+      currentPage * rowsPerPage,
+      currentPage * rowsPerPage + rowsPerPage
+    );
+
+    const getModalTitle = () => {
+      const eventName = eventHistoryDetails.event?.eventName || "Event";
+      switch (eventHistoryDetails.type) {
+        case 'attendance':
+          return `Attendance for ${eventName}`;
+        case 'newPeople':
+          return `New People for ${eventName}`;
+        case 'consolidated':
+          return `Consolidated People for ${eventName}`;
+        default:
+          return `Event Details for ${eventName}`;
+      }
+    };
+
+    const getColumnHeaders = () => {
+      switch (eventHistoryDetails.type) {
+        case 'attendance':
+          return ['Name', 'Email', 'Phone', 'Leader @1', 'Leader @12', 'Leader @144'];
+        case 'newPeople':
+          return ['Name', 'Email', 'Phone', 'Leader @1', 'Leader @12', 'Leader @144'];
+        case 'consolidated':
+          return ['Name', 'Email', 'Phone', 'Decision Type', 'Assigned To', 'Status'];
+        default:
+          return ['Name', 'Email', 'Phone'];
+      }
+    };
+
+    return (
+      <Dialog 
+        open={eventHistoryDetails.open} 
+        onClose={() => setEventHistoryDetails(prev => ({ ...prev, open: false }))}
+        fullWidth 
+        maxWidth="lg"
+        PaperProps={{
+          sx: {
+            boxShadow: 6,
+            ...(isSmDown && {
+              margin: 2,
+              maxHeight: '80vh',
+              width: 'calc(100% - 32px)',
+            })
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+          {getModalTitle()}
+          <Typography variant="body2" color="text.secondary">
+            Total: {eventHistoryDetails.data.length}
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
+          <TextField
+            size="small"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(0); }}
+            fullWidth
+            sx={{ mb: 2, boxShadow: 1 }}
+          />
+
+          {isSmDown ? (
+            <Box>
+              {paginatedData.map((item, idx) => (
+                <Card key={item._id || item.id || idx} variant="outlined" sx={{ mb: 1, boxShadow: 2 }}>
+                  <CardContent sx={{ p: 1.5 }}>
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      {item.name} {item.surname}
+                    </Typography>
+                    {item.email && <Typography variant="body2" color="text.secondary">{item.email}</Typography>}
+                    {item.phone && <Typography variant="body2" color="text.secondary">{item.phone}</Typography>}
+                    {eventHistoryDetails.type === 'consolidated' && (
+                      <>
+                        <Chip 
+                          label={item.decision_type === 'first_time' ? 'First Time' : 'Recommitment'} 
+                          size="small" 
+                          sx={{ mt: 0.5 }}
+                          color="secondary"
+                        />
+                        <Typography variant="body2" sx={{ mt: 0.5 }}>
+                          Assigned to: {item.assigned_to || 'Not assigned'}
+                        </Typography>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+              {paginatedData.length === 0 && (
+                <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+                  No matching data
+                </Typography>
+              )}
+            </Box>
+          ) : (
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                  {getColumnHeaders().map(header => (
+                    <TableCell key={header} sx={{ fontWeight: 600 }}>{header}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {paginatedData.map((item, idx) => (
+                  <TableRow key={item._id || item.id || idx} hover>
+                    <TableCell>{currentPage * rowsPerPage + idx + 1}</TableCell>
+                    <TableCell>{item.name} {item.surname}</TableCell>
+                    <TableCell>{item.email || "—"}</TableCell>
+                    <TableCell>{item.phone || "—"}</TableCell>
+                    {eventHistoryDetails.type !== 'consolidated' ? (
+                      <>
+                        <TableCell>{item.leader1 || "—"}</TableCell>
+                        <TableCell>{item.leader12 || "—"}</TableCell>
+                        <TableCell>{item.leader144 || "—"}</TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell>
+                          <Chip 
+                            label={item.decision_type === 'first_time' ? 'First Time' : 'Recommitment'} 
+                            size="small" 
+                            color="secondary"
+                          />
+                        </TableCell>
+                        <TableCell>{item.assigned_to || "Not assigned"}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={item.status || 'Active'} 
+                            size="small" 
+                            color={item.status === 'completed' ? 'success' : 'default'}
+                          />
+                        </TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                ))}
+                {paginatedData.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={getColumnHeaders().length + 1} align="center">
+                      No matching data
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+
+          <Box mt={1}>
+            <TablePagination
+              component="div"
+              count={filteredData.length}
+              page={currentPage}
+              onPageChange={(e, newPage) => setCurrentPage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setCurrentPage(0); }}
+              rowsPerPageOptions={[25, 50, 100]}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+          <Button 
+            onClick={() => setEventHistoryDetails(prev => ({ ...prev, open: false }))} 
+            variant="outlined" 
+            size={isSmDown ? "small" : "medium"}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
+  };
+
   if (!hasDataLoaded && (isLoadingPeople || isLoadingEvents)) {
     return (
       <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
@@ -1026,7 +1409,7 @@ function ServiceCheckIn() {
       {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={6} md={4}>
-          <Select 
+          {/* <Select 
             size={getResponsiveValue("small", "small", "medium", "medium", "medium")} 
             value={currentEventId} 
             onChange={(e) => setCurrentEventId(e.target.value)} 
@@ -1038,7 +1421,42 @@ function ServiceCheckIn() {
             {getFilteredEvents().map((ev) => (
               <MenuItem key={ev.id} value={ev.id}>{ev.eventName}</MenuItem>
             ))}
-          </Select>
+          </Select> */}
+
+          {/* Event Selection Dropdown */}
+<Select 
+  size={getResponsiveValue("small", "small", "medium", "medium", "medium")} 
+  value={currentEventId} 
+  onChange={(e) => setCurrentEventId(e.target.value)} 
+  displayEmpty 
+  fullWidth
+  sx={{ boxShadow: 2 }}
+>
+  <MenuItem value="">
+    <Typography color="text.secondary">
+      Select Global Event {getFilteredEvents().length > 0 ? `(${getFilteredEvents().length} available)` : ''}
+    </Typography>
+  </MenuItem>
+  {getFilteredEvents().map((ev) => (
+    <MenuItem key={ev.id} value={ev.id}>
+      <Box>
+        <Typography variant="body2" fontWeight="medium">
+          {ev.eventName}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {ev.eventType} • {new Date(ev.date).toLocaleDateString()}
+        </Typography>
+      </Box>
+    </MenuItem>
+  ))}
+  {getFilteredEvents().length === 0 && (
+    <MenuItem disabled>
+      <Typography variant="body2" color="text.secondary" fontStyle="italic">
+        No global events available
+      </Typography>
+    </MenuItem>
+  )}
+</Select>
         </Grid>
         <Grid item xs={12} sm={6} md={5}>
           <TextField 
@@ -1074,7 +1492,6 @@ function ServiceCheckIn() {
             sx={{ borderBottom: 1, borderColor: 'divider' }}
           >
             <Tab label="All Attendees" />
-            {/* <Tab label="Consolidated" /> */}
             <Tab label="Event History" />
           </Tabs>
         </Paper>
@@ -1139,137 +1556,13 @@ function ServiceCheckIn() {
 
         {activeTab === 1 && (
           <Box>
-            {!currentEventId ? (
-              <Paper sx={{ p: 4, textAlign: 'center' }}>
-                <Typography variant="h6" color="text.secondary">
-                  Please select an event to view consolidated people
-                </Typography>
-              </Paper>
-            ) : isLoadingConsolidated ? (
-              <Paper sx={{ p: 4, textAlign: 'center' }}>
-                <Typography variant="h6" color="text.secondary">
-                  Loading consolidated people...
-                </Typography>
-              </Paper>
-            ) : consolidatedPeople.length === 0 ? (
-              <Paper sx={{ p: 4, textAlign: 'center' }}>
-                <Typography variant="h6" color="text.secondary">
-                  No consolidated people for this event
-                </Typography>
-              </Paper>
-            ) : isMdDown ? (
-              <Box>
-                <Box 
-                  sx={{ 
-                    maxHeight: 500, 
-                    overflowY: "auto",
-                    border: `1px solid ${theme.palette.divider}`,
-                    borderRadius: 1,
-                    p: 1,
-                    boxShadow: 2
-                  }}
-                >
-                  {consolidatedPaginatedList.map((person, idx) => (
-                    <ConsolidatedPersonCard 
-                      key={person._id || person.id || idx} 
-                      person={person} 
-                      showNumber={true} 
-                      index={consolidatedPage * consolidatedRowsPerPage + idx + 1} 
-                    />
-                  ))}
-                </Box>
-
-                <TablePagination 
-                  component="div" 
-                  count={filteredConsolidatedPeople.length} 
-                  page={consolidatedPage} 
-                  onPageChange={(e, newPage) => setConsolidatedPage(newPage)} 
-                  rowsPerPage={consolidatedRowsPerPage} 
-                  onRowsPerPageChange={(e) => { setConsolidatedRowsPerPage(parseInt(e.target.value, 10)); setConsolidatedPage(0); }} 
-                  rowsPerPageOptions={[25, 50, 100]} 
-                  sx={{ boxShadow: 2, borderRadius: 1, mt: 1 }}
-                />
-              </Box>
-            ) : (
-              <Box>
-                <Paper variant="outlined" sx={{ height: 600, boxShadow: 3 }}>
-                  <DataGrid
-                    rows={filteredConsolidatedPeople}
-                    columns={[
-                      { 
-                        field: 'name', 
-                        headerName: 'Name', 
-                        flex: 1, 
-                        minWidth: 150,
-                        renderCell: (params) => (
-                          <Typography variant="body2">
-                            {params.row.name || params.row.person_name} {params.row.surname || params.row.person_surname}
-                          </Typography>
-                        )
-                      },
-                      { field: 'email', headerName: 'Email', flex: 1, minWidth: 150 },
-                      { field: 'phone', headerName: 'Phone', flex: 1, minWidth: 120 },
-                      { 
-                        field: 'decision_type', 
-                        headerName: 'Decision Type', 
-                        flex: 0.8, 
-                        minWidth: 120,
-                        renderCell: (params) => (
-                          <Chip 
-                            label={params.value === 'first_time' ? 'First Time' : 'Recommitment'} 
-                            size="small" 
-                            color="secondary"
-                          />
-                        )
-                      },
-                      { 
-                        field: 'assigned_to', 
-                        headerName: 'Assigned To', 
-                        flex: 0.8, 
-                        minWidth: 120,
-                        valueGetter: (params) => params.row.assigned_to || params.row.assignedTo || 'Not assigned'
-                      },
-                      { 
-                        field: 'status', 
-                        headerName: 'Status', 
-                        flex: 0.6, 
-                        minWidth: 100,
-                        renderCell: (params) => (
-                          <Chip 
-                            label={params.value || 'Active'} 
-                            size="small" 
-                            color={params.value === 'completed' ? 'success' : 'default'}
-                            variant="outlined"
-                          />
-                        )
-                      },
-                    ]}
-                    pageSizeOptions={[25, 50, 100]}
-                    slots={{ toolbar: GridToolbar }}
-                    slotProps={{
-                      toolbar: {
-                        showQuickFilter: true,
-                        quickFilterProps: { debounceMs: 500 },
-                      },
-                    }}
-                    disableRowSelectionOnClick
-                    initialState={{
-                      pagination: { paginationModel: { pageSize: 100 } },
-                    }}
-                    sx={{
-                      '& .MuiDataGrid-row:hover': {
-                        backgroundColor: theme.palette.action.hover,
-                      },
-                    }}
-                  />
-                </Paper>
-              </Box>
-            )}
+            <EventHistory
+              onViewDetails={handleViewEventDetails}
+              onViewNewPeople={handleViewNewPeople}
+              onViewConverts={handleViewConsolidated}
+              events={getClosedEvents()}
+            />
           </Box>
-        )}
-
-        {activeTab === 2 && (
-          <EventHistory/>
         )}
       </Box>
 
@@ -1283,6 +1576,9 @@ function ServiceCheckIn() {
         isEdit={Boolean(editingPerson)} 
         personId={editingPerson?._id || null} 
       />
+
+      {/* Event History Details Modal */}
+      <EventHistoryDetailsModal />
 
       {/* PRESENT Attendees Modal */}
       <Dialog 
@@ -1709,6 +2005,17 @@ function ServiceCheckIn() {
         consolidatedPeople={consolidatedPeople}
         currentEventId={currentEventId}
       />
+      {/* Debug Info - Remove in production */}
+<Box sx={{ mb: 2, p: 1, backgroundColor: 'grey.100', borderRadius: 1 }}>
+  <Typography variant="caption" color="text.secondary">
+    Debug: {events.length} total events, {getFilteredEvents().length} global events, {getClosedEvents().length} closed events
+  </Typography>
+  {getFilteredEvents().length > 0 && (
+    <Typography variant="caption" display="block">
+      Available: {getFilteredEvents().map(e => e.eventName).join(', ')}
+    </Typography>
+  )}
+</Box>
     </Box>
   );
 }
