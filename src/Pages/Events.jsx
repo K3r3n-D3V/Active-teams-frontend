@@ -602,12 +602,8 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     const token = localStorage.getItem("token");
     
     if (!token) {
-      console.error("❌ No authentication token found");
-      setSnackbar({
-        open: true,
-        message: "Session expired. Please log in again.",
-        severity: "error",
-      });
+      setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+      setTimeout(() => window.location.href = '/login', 2000);
       setEvents([]);
       setFilteredEvents([]);
       setLoading(false);
@@ -624,9 +620,6 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
       viewFilter === 'personal' && 
       (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
-    // ✅ ADD DATE FILTER - Only events from October 20th, 2025
-    const startDate = '2025-10-20';
-    
     const params = {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
@@ -634,53 +627,63 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
       search: searchQuery.trim() || undefined,
       personal: shouldApplyPersonalFilter ? true : undefined,
-      start_date: startDate,
+      // start_date: '2025-10-20',  // ✅ Commented out for testing
       ...filters
     };
 
-    // Clean up undefined params
     Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-    // Cache logic
     const cacheKey = getCacheKey(params);
     
     if (!forceRefresh) {
       const cachedData = getCachedData(cacheKey);
       if (cachedData) {
-        console.log('🚀 Serving from cache for:', cacheKey);
+        console.log('🚀 Serving from cache');
         setEvents(cachedData.events);
         setFilteredEvents(cachedData.events);
         setTotalEvents(cachedData.total_events);
         setTotalPages(cachedData.total_pages);
-        
-        if (filters.page !== undefined) {
-          setCurrentPage(filters.page);
-        }
-        
+        if (filters.page !== undefined) setCurrentPage(filters.page);
         setLoading(false);
         setIsLoading(false);
         return;
       }
     }
 
-    console.log('🔍 Fetching events from API with params:', params);
+    // ✅ Determine correct endpoint based on role
+    const role = currentUser?.role?.toLowerCase();
+    let endpoint = `${BACKEND_URL}/events`;
+    
+    if (role === "admin") {
+      endpoint = `${BACKEND_URL}/admin/events/cells-debug`;
+    } else if (role === "user") {
+      endpoint = `${BACKEND_URL}/events/cells-user`;
+    }
 
-    // ✅ REDUCED TIMEOUT for faster feedback
-    const endpoint = `${BACKEND_URL}/events`;
-    console.log('📡 Using universal events endpoint for all users:', endpoint);
+    console.log('📡 Fetching from:', endpoint);
+
+    // ✅ Show cold start warning after 15 seconds
+    const timer = setTimeout(() => {
+      setSnackbar({
+        open: true,
+        message: "⏳ Backend waking up (30-60s on free tier)...",
+        severity: "info",
+      });
+    }, 15000);
 
     const response = await axios.get(endpoint, { 
       headers, 
       params, 
-    timeout: 60000  // ✅ Reduced from 30s to 15s
+      timeout: 120000  // ✅ 2 minutes for cold start
     });
+
+    clearTimeout(timer);
     
     const responseData = response.data;
     const newEvents = responseData.events || responseData.results || [];
 
     console.log('📥 Received events:', newEvents.length);
 
-    // Cache the response
     setCachedData(cacheKey, {
       events: newEvents,
       total_events: responseData.total_events || responseData.total || 0,
@@ -690,56 +693,40 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     setEvents(newEvents);
     setFilteredEvents(newEvents);
     setTotalEvents(responseData.total_events || responseData.total || 0);
-    const calculatedTotalPages = responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1;
-    setTotalPages(calculatedTotalPages);
+    setTotalPages(responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1);
 
-    if (filters.page !== undefined) {
-      setCurrentPage(filters.page);
-    }
+    if (filters.page !== undefined) setCurrentPage(filters.page);
 
   } catch (err) {
-    console.error("❌ Error fetching events:", err);
+    console.error("❌ Error:", err);
     
-  if (err.code === 'ECONNABORTED') {
-  console.error("⏰ Request timeout - backend is processing");
-  setSnackbar({
-    open: true,
-    message: "Loading is taking longer than expected. Please wait...",
-    severity: "info",  // ✅ Changed from "warning" to "info"
-  });
-      
-      // Show empty state but don't clear existing data
-      if (events.length === 0) {
-        setEvents([]);
-        setFilteredEvents([]);
-      }
-    } else if (err.response?.status === 401) {
-      console.error("🔒 Authentication failed");
+    if (err.code === 'ECONNABORTED') {
       setSnackbar({
         open: true,
-        message: "Your session has expired. Please log in again.",
-        severity: "error",
+        message: "⏰ Still waking up. Wait 30s and click SEARCH again.",
+        severity: "warning",
       });
+    } else if (err.response?.status === 401) {
+      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
       localStorage.removeItem("token");
       localStorage.removeItem("userProfile");
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 2000);
+      setTimeout(() => window.location.href = '/login', 2000);
     } else {
       setSnackbar({
         open: true,
-        message: "Failed to load events. Please try again.",
+        message: `Error: ${err.message}`,
         severity: "error",
       });
-      setEvents([]);
-      setFilteredEvents([]);
     }
+    
+    setEvents([]);
+    setFilteredEvents([]);
   } finally {
     setLoading(false);
     setIsLoading(false);
   }
 };
-    // Authentication check
+
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem("token");
@@ -1439,12 +1426,12 @@ const StatusBadges = () => {
           event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
           search: searchQuery.trim() || undefined,
           personal: shouldApplyPersonalFilter ? true : undefined,
-          start_date: startDate // ✅ Add date filter
+          // start_date: startDate // ✅ Add date filter
         };
 
         Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-        
+        // ✅ CORRECTED: Use the universal status-counts endpoint for ALL users
         const endpoint = `${BACKEND_URL}/events/status-counts`;
         console.log('📊 Fetching status counts from universal endpoint:', endpoint);
 
