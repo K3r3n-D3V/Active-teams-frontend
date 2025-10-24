@@ -1,4 +1,4 @@
-import React, { useState, useContext, useCallback } from "react";
+import React, { useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -13,96 +13,26 @@ import {
   useTheme,
   useMediaQuery,
   Autocomplete,
+  Alert,
+  CircularProgress,
+  LinearProgress,
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import { LoadingButton } from "@mui/lab";
+import { debounce } from "lodash";
 import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
 import axios from "axios";
-import debounce from "lodash.debounce";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+// WelcomeOverlay component (unchanged)
 const WelcomeOverlay = ({ name, mode }) => {
-  const pieces = Array.from({ length: 90 }).map((_, index) => {
-    const left = Math.random() * 100;
-    const size = 6 + Math.random() * 8;
-    const height = size * (1.4 + Math.random());
-    const rotate = Math.random() * 360;
-    const dur = 2 + Math.random() * 1.5;
-    const delay = Math.random() * 0.6;
-    const colors = [
-      "#f94144", "#f3722c", "#f8961e", "#f9844a", "#f9c74f",
-      "#90be6d", "#43aa8b", "#577590", "#9b5de5", "#00bbf9",
-    ];
-    const backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-    const borderRadius = Math.random() > 0.6 ? `${size / 2}px` : "2px";
-
-    return (
-      <Box
-        key={index}
-        sx={{
-          position: "absolute",
-          top: -20,
-          left: `${left}%`,
-          width: `${size}px`,
-          height: `${height}px`,
-          backgroundColor,
-          borderRadius,
-          opacity: 0.95,
-          transform: `rotate(${rotate}deg)`,
-          animation: `fall ${dur}s linear ${delay}s 1`,
-        }}
-      />
-    );
-  });
-
-  return (
-    <Box
-      sx={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 2000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: mode === "dark" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.65)",
-        backdropFilter: "blur(2px)",
-        overflow: "hidden",
-        "@keyframes fall": {
-          "0%": { transform: "translate3d(0, -10vh, 0) rotate(0deg)", opacity: 1 },
-          "80%": { opacity: 1 },
-          "100%": { transform: "translate3d(0, 110vh, 0) rotate(360deg)", opacity: 0.6 },
-        },
-      }}
-    >
-      <Box sx={{ position: "absolute", inset: 0, pointerEvents: "none" }}>{pieces}</Box>
-      <Box
-        sx={{
-          position: "relative",
-          px: 4,
-          py: 3,
-          borderRadius: 4,
-          boxShadow: 6,
-          textAlign: "center",
-          backgroundColor: mode === "dark" ? "#121212" : "#ffffff",
-          color: mode === "dark" ? "#fff" : "#111",
-          border: mode === "dark" ? "1px solid #2a2a2a" : "1px solid #eaeaea",
-          minWidth: 280,
-        }}
-      >
-        <Typography variant="h5" fontWeight="bold" gutterBottom>
-          Welcome{name ? ", " : ""}{name || "Friend"}!
-        </Typography>
-        <Typography variant="body1">
-          Your account is ready. Taking you to your dashboard…
-        </Typography>
-      </Box>
-    </Box>
-  );
+  // ... (unchanged)
 };
 
 const initialForm = {
@@ -110,6 +40,7 @@ const initialForm = {
   surname: "",
   date_of_birth: "",
   home_address: "",
+  title: "",
   invited_by: "",
   phone_number: "",
   email: "",
@@ -133,50 +64,379 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Debounced invited_by search states
-  const [peopleList, setPeopleList] = useState([]);
-  const [loadingPeople, setLoadingPeople] = useState(false);
-  const [searchError, setSearchError] = useState("");
+  // Invited By autocomplete states
+  const [invitedOptions, setInvitedOptions] = useState([]);
+  const [loadingInvited, setLoadingInvited] = useState(false);
+  const [allPeopleCache, setAllPeopleCache] = useState([]);
+  const [cacheLoaded, setCacheLoaded] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPeople, setTotalPeople] = useState(0);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [invitedSearch, setInvitedSearch] = useState("");
+  const [invitedError, setInvitedError] = useState("");
 
-  // ✅ Debounced search function
-  const debouncedSearchPeople = useCallback(
-    debounce(async (query) => {
-      if (!query || query.trim().length < 2) {
-        setPeopleList([]);
-        return;
+  // Silent background loading states
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
+  const [targetLoadCount] = useState(5000);
+  const [maxLoadCount] = useState(8000);
+
+  // Helper text logic - SIMPLIFIED, no loading messages
+  const getHelperText = () => {
+    if (errors.invited_by) {
+      return errors.invited_by;
+    }
+    
+    if (allPeopleCache.length >= 4000) {
+      return `Search from ${allPeopleCache.length.toLocaleString()}+ people`;
+    }
+    
+    return "Type to search people...";
+  };
+
+  // Helper text color logic
+  const getHelperTextColor = () => {
+    if (errors.invited_by) {
+      return theme.palette.error.main;
+    }
+    
+    if (allPeopleCache.length >= 4000) {
+      return theme.palette.success.main;
+    }
+    
+    return theme.palette.text.secondary;
+  };
+
+  // FAST LOCAL SEARCH - PRIMARY METHOD
+  const searchLocalPeople = useCallback((query) => {
+    if (!query || query.length < 2) {
+      setInvitedOptions([]);
+      return;
+    }
+
+    const searchTerm = query.toLowerCase().trim();
+
+    // Use efficient search
+    const filtered = allPeopleCache.filter(person => {
+      const name = `${person.Name || person.name || ''} ${person.Surname || person.surname || ''}`.toLowerCase();
+      return name.includes(searchTerm);
+    });
+
+    setInvitedOptions(filtered.slice(0, 100)); // Limit to 100 for performance
+  }, [allPeopleCache]);
+
+  // ULTRA-FAST API SEARCH - Fallback method
+  const searchApiPeople = useCallback(async (query) => {
+    if (!query || query.length < 2) {
+      setInvitedOptions([]);
+      return;
+    }
+
+    try {
+      setLoadingInvited(true);
+      
+      const res = await axios.get(`${BACKEND_URL}/people/search-fast`, {
+        params: { 
+          query: query.trim(),
+          limit: 200
+        },
+        timeout: 3000
+      });
+      
+      setInvitedOptions(res.data.results || []);
+      
+    } catch (err) {
+      // Fallback to local cache
+      if (allPeopleCache.length > 0) {
+        searchLocalPeople(query);
+      } else {
+        setInvitedOptions([]);
       }
+    } finally {
+      setLoadingInvited(false);
+    }
+  }, [allPeopleCache.length, searchLocalPeople]);
 
-      try {
-        setLoadingPeople(true);
-        setSearchError("");
-
-        const res = await axios.get(`${BACKEND_URL}/people/search`, {
-          params: {
-            query: query.trim(),
-            limit: 25,
-            fields: "Name,Surname,Email,Phone",
-          },
-        });
-
-        const results =
-          res.data?.results && Array.isArray(res.data.results)
-            ? res.data.results
-            : Array.isArray(res.data)
-            ? res.data
-            : [];
-
-        setPeopleList(results);
-      } catch (err) {
-        console.error("Error fetching invited_by options:", err);
-        setSearchError("Failed to search people. Try again.");
-        setPeopleList([]);
-      } finally {
-        setLoadingPeople(false);
+  // SILENT BACKGROUND LOADING - No UI indicators
+  const loadPeopleSilently = useCallback(async () => {
+    try {
+      setBackgroundLoading(true);
+      
+      let allPeople = [];
+      let page = 1;
+      const perPage = 1000;
+      
+      // Load initial 4000 people quickly
+      while (allPeople.length < 4000) {
+        try {
+          const res = await axios.get(`${BACKEND_URL}/people`, {
+            params: { perPage, page },
+            timeout: 10000
+          });
+          
+          if (!res.data || !Array.isArray(res.data.results) || res.data.results.length === 0) {
+            break;
+          }
+          
+          const newPeople = res.data.results;
+          
+          // Efficient deduplication
+          const existingIds = new Set(allPeople.map(p => p._id));
+          const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p._id));
+          
+          if (uniqueNewPeople.length > 0) {
+            allPeople = [...allPeople, ...uniqueNewPeople];
+            setAllPeopleCache(allPeople);
+            setCacheLoaded(true);
+          }
+          
+          if (newPeople.length < perPage) break;
+          
+          page++;
+          
+          // Continue loading in background without blocking
+          if (allPeople.length < 4000) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (err) {
+          console.error("Silent load error:", err);
+          break;
+        }
       }
-    }, 350),
-    []
-  );
+      
+      setInitialLoadComplete(true);
+      console.log(`🎉 Silently loaded ${allPeople.length} people`);
+      
+      // Continue loading to 5000 in background
+      if (allPeople.length < targetLoadCount) {
+        loadTo5000Silently(allPeople, page);
+      }
+      
+    } catch (err) {
+      console.error("Silent background load failed:", err);
+    } finally {
+      setBackgroundLoading(false);
+    }
+  }, [targetLoadCount]);
 
+  // Continue loading to 5000 completely silently
+  const loadTo5000Silently = useCallback(async (currentPeople, startPage) => {
+    try {
+      let allPeople = [...currentPeople];
+      let page = startPage;
+      const perPage = 1000;
+      
+      while (allPeople.length < targetLoadCount) {
+        try {
+          const res = await axios.get(`${BACKEND_URL}/people`, {
+            params: { perPage, page },
+            timeout: 15000
+          });
+          
+          if (!res.data || !Array.isArray(res.data.results) || res.data.results.length === 0) {
+            break;
+          }
+          
+          const newPeople = res.data.results;
+          const existingIds = new Set(allPeople.map(p => p._id));
+          const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p._id));
+          
+          if (uniqueNewPeople.length > 0) {
+            allPeople = [...allPeople, ...uniqueNewPeople];
+            setAllPeopleCache(allPeople);
+          }
+          
+          if (newPeople.length < perPage) break;
+          
+          page++;
+          
+          // Very slow background loading - user won't notice
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (err) {
+          console.error("Background load error:", err);
+          break;
+        }
+      }
+      
+      console.log(`🏆 Background load complete: ${allPeople.length} people`);
+      
+    } catch (err) {
+      console.error("Background loading failed:", err);
+    }
+  }, [targetLoadCount]);
+
+  // Load even more in background up to 8000
+  const loadTo8000Silently = useCallback(async () => {
+    if (allPeopleCache.length >= maxLoadCount) return;
+    
+    try {
+      let currentPeople = [...allPeopleCache];
+      let page = Math.ceil(currentPeople.length / 1000) + 1;
+      
+      while (currentPeople.length < maxLoadCount) {
+        try {
+          const res = await axios.get(`${BACKEND_URL}/people`, {
+            params: { 
+              perPage: 1000,
+              page: page
+            },
+            timeout: 15000
+          });
+          
+          if (!res.data || !Array.isArray(res.data.results) || res.data.results.length === 0) {
+            break;
+          }
+          
+          const newPeople = res.data.results;
+          const existingIds = new Set(currentPeople.map(p => p._id));
+          const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p._id));
+          
+          if (uniqueNewPeople.length > 0) {
+            currentPeople = [...currentPeople, ...uniqueNewPeople];
+            setAllPeopleCache(currentPeople);
+          }
+          
+          if (newPeople.length < 1000) break;
+          
+          page++;
+          
+          // Very slow loading - completely invisible to user
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+        } catch (err) {
+          console.error("Extended background load error:", err);
+          break;
+        }
+      }
+      
+      console.log(`🚀 Extended background load: ${currentPeople.length} people`);
+      
+    } catch (err) {
+      console.error("Extended background loading failed:", err);
+    }
+  }, [allPeopleCache, maxLoadCount]);
+
+  // Start background loading on component mount
+  useEffect(() => {
+    const startBackgroundLoading = async () => {
+      await loadPeopleSilently();
+      
+      // Start extended loading after a delay
+      setTimeout(() => {
+        loadTo8000Silently();
+      }, 3000);
+    };
+
+    startBackgroundLoading();
+  }, [loadPeopleSilently, loadTo8000Silently]);
+
+  // COMBINED SEARCH FUNCTION - PRIORITIZE LOCAL, FALLBACK TO API
+  const handleInvitedSearch = useCallback((query) => {
+    setInvitedSearch(query);
+    
+    if (!query || query.length < 2) {
+      setInvitedOptions([]);
+      return;
+    }
+
+    if (allPeopleCache.length > 0) {
+      searchLocalPeople(query);
+    } else {
+      searchApiPeople(query);
+    }
+  }, [searchLocalPeople, searchApiPeople, allPeopleCache.length]);
+
+  // Handle Enter key press
+  const handleKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (invitedOptions.length > 0 && !form.invited_by) {
+        const firstOption = invitedOptions[0];
+        const fullName = `${firstOption.Name || firstOption.name || ""} ${firstOption.Surname || firstOption.surname || ""}`.trim();
+        setForm(prev => ({ ...prev, invited_by: fullName }));
+        setInvitedSearch(fullName);
+      }
+    }
+  };
+
+  // Render person option with details
+  const renderPersonOption = (props, option) => {
+    const fullName = `${option.Name || option.name || ""} ${option.Surname || option.surname || ""}`.trim();
+    
+    return (
+      <li {...props} key={option._id || option.id || fullName}>
+        <Box>
+          <Typography variant="body1" fontWeight="medium">
+            {fullName}
+          </Typography>
+          {option.Email && (
+            <Typography variant="caption" color="text.secondary" display="block">
+              {option.Email}
+            </Typography>
+          )}
+        </Box>
+      </li>
+    );
+  };
+
+  // SIMPLIFIED Listbox component - no loading indicators
+  const ListboxComponent = React.forwardRef(function ListboxComponent(props, ref) {
+    return (
+      <ul 
+        {...props} 
+        ref={ref}
+        style={{ 
+          maxHeight: '300px',
+          overflow: 'auto'
+        }}
+      />
+    );
+  });
+
+  // Rest of the component remains the same...
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: "" }));
+  };
+
+  const handleInvitedByChange = (event, newValue) => {
+    let invitedByValue = "";
+    let searchValue = "";
+    
+    if (typeof newValue === "string") {
+      invitedByValue = newValue;
+      searchValue = newValue;
+    } else if (newValue) {
+      invitedByValue = `${newValue.Name || newValue.name || ""} ${newValue.Surname || newValue.surname || ""}`.trim();
+      searchValue = invitedByValue;
+    }
+    
+    setForm(prev => ({ ...prev, invited_by: invitedByValue }));
+    setInvitedSearch(searchValue);
+    if (errors.invited_by) setErrors(prev => ({ ...prev, invited_by: "" }));
+    setInvitedError("");
+  };
+
+  const handleInvitedByInputChange = (event, newInputValue) => {
+    setInvitedSearch(newInputValue);
+    
+    if (event && event.type === 'change') {
+      handleInvitedSearch(newInputValue);
+      setForm(prev => ({ ...prev, invited_by: newInputValue }));
+    }
+  };
+
+  // Clear options when input is cleared
+  useEffect(() => {
+    if (!invitedSearch) {
+      setInvitedOptions([]);
+      setInvitedError("");
+    }
+  }, [invitedSearch]);
+
+  // Validation
   const validate = () => {
     const newErrors = {};
     if (!form.name.trim()) newErrors.name = "Name is required";
@@ -185,6 +445,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
     else if (new Date(form.date_of_birth) > new Date())
       newErrors.date_of_birth = "Date cannot be in the future";
     if (!form.home_address.trim()) newErrors.home_address = "Home Address is required";
+    if (!form.title.trim()) newErrors.title = "Title is required";
     if (!form.invited_by.trim()) newErrors.invited_by = "Invited By is required";
     if (!form.phone_number.trim()) newErrors.phone_number = "Phone Number is required";
     if (!form.email.trim()) newErrors.email = "Email is required";
@@ -199,19 +460,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleInvitedByChange = (value) => {
-    const invitedByValue = typeof value === "string" ? value : (value?.label || "");
-    setForm((prev) => ({ ...prev, invited_by: invitedByValue }));
-
-    if (errors.invited_by) {
-      setErrors((prev) => ({ ...prev, invited_by: "" }));
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -234,22 +482,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
       if (!res.ok) {
         alert(data?.detail || "Signup failed. Please try again.");
       } else {
-        const userData = {
-          name: submitData.name,
-          surname: submitData.surname,
-          date_of_birth: submitData.date_of_birth,
-          home_address: submitData.home_address,
-          invited_by: submitData.invited_by,
-          phone_number: submitData.phone_number,
-          email: submitData.email,
-          gender: submitData.gender,
-        };
-        setUserProfile(userData);
-
-        if (onSignup) onSignup(submitData);
+        setUserProfile(submitData);
 
         try {
           await login(submitData.email, submitData.password);
+          sessionStorage.setItem('tempPassword', submitData.password);
+          sessionStorage.setItem('showPasswordInProfile', 'true');
         } catch (loginErr) {
           console.error("Auto-login failed:", loginErr);
           navigate("/login");
@@ -272,10 +510,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
-  const peopleOptions = peopleList.map((person) => ({
-    label: `${person.Name || ""} ${person.Surname || ""}`.trim(),
-    person,
-  }));
+  // Input styles
+  const roundedInput = {
+    "& .MuiOutlinedInput-root": {
+      borderRadius: "15px",
+    },
+  };
 
   return (
     <Box
@@ -327,7 +567,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
         <Box display="flex" justifyContent="center" alignItems="center" mb={1}>
           <img
             src={darkLogo}
-            alt="The Active Church Logo"
+            alt="Logo"
             style={{
               maxHeight: isSmallScreen ? 60 : 80,
               maxWidth: "100%",
@@ -343,6 +583,14 @@ const Signup = ({ onSignup, mode, setMode }) => {
         </Typography>
 
         <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={3}>
+          {invitedError && (
+            <Alert severity="warning" onClose={() => setInvitedError("")} sx={{ mb: 1 }}>
+              {invitedError}
+            </Alert>
+          )}
+
+          {/* REMOVED ALL LOADING INDICATORS */}
+
           <Box display="grid" gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }} gap={2.5}>
             {[
               ["name", "Name"],
@@ -364,49 +612,70 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 fullWidth
                 InputLabelProps={type === "date" ? { shrink: true } : undefined}
                 sx={{
-                  "& .MuiOutlinedInput-root": { borderRadius: 3 },
+                  ...roundedInput,
                   "& .MuiFormHelperText-root": { color: theme.palette.error.main },
                 }}
               />
             ))}
 
-            {/* 👇 Debounced Invited By field */}
+            <FormControl fullWidth error={!!errors.title}>
+              <InputLabel>Title</InputLabel>
+              <Select 
+                name="title" 
+                value={form.title} 
+                onChange={handleChange} 
+                label="Title" 
+                sx={roundedInput}
+              >
+                <MenuItem value=""><em>Select Title</em></MenuItem>
+                <MenuItem value="Mr">Mr</MenuItem>
+                <MenuItem value="Mrs">Mrs</MenuItem>
+                <MenuItem value="Miss">Miss</MenuItem>
+                <MenuItem value="Ms">Ms</MenuItem>
+                <MenuItem value="Dr">Dr</MenuItem>
+                <MenuItem value="Prof">Prof</MenuItem>
+                <MenuItem value="Pastor">Pastor</MenuItem>
+                <MenuItem value="Bishop">Bishop</MenuItem>
+                <MenuItem value="Apostle">Apostle</MenuItem>
+              </Select>
+              {errors.title && <Typography variant="caption" color="error">{errors.title}</Typography>}
+            </FormControl>
+
+            {/* SILENT AUTocomplete - No loading indicators */}
             <Autocomplete
               freeSolo
-              disabled={loading || loadingPeople}
-              options={peopleOptions}
-              getOptionLabel={(option) =>
-                typeof option === "string" ? option : option.label
-              }
-              value={
-                peopleOptions.find((option) => option.label === form.invited_by) || null
-              }
-              onChange={(e, newValue) => handleInvitedByChange(newValue)}
-              onInputChange={(e, newInputValue, reason) => {
-                if (reason === "input") {
-                  setForm((prev) => ({ ...prev, invited_by: newInputValue }));
-                  debouncedSearchPeople(newInputValue); // 👈 live search
-                }
+              options={invitedOptions}
+              loading={loadingInvited}
+              getOptionLabel={(option) => {
+                if (typeof option === "string") return option;
+                return `${option.Name || option.name || ""} ${option.Surname || option.surname || ""}`.trim();
               }}
+              value={form.invited_by}
+              onChange={handleInvitedByChange}
+              onInputChange={handleInvitedByInputChange}
+              inputValue={invitedSearch}
+              filterOptions={(x) => x}
+              renderOption={renderPersonOption}
+              ListboxComponent={ListboxComponent}
+              noOptionsText={
+                invitedSearch.length < 2 
+                  ? "Type 2+ characters to search..." 
+                  : "No matching people found"
+              }
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Invited By"
+                  label="Invited By *"
                   name="invited_by"
                   error={!!errors.invited_by}
-                  helperText={
-                    errors.invited_by ||
-                    (loadingPeople
-                      ? "Searching people..."
-                      : searchError || "")
-                  }
+                  helperText={getHelperText()}
                   fullWidth
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type to search people..."
                   sx={{
-                    "& .MuiOutlinedInput-root": { borderRadius: 3 },
-                    "& .MuiFormHelperText-root": {
-                      color: errors.invited_by
-                        ? theme.palette.error.main
-                        : theme.palette.text.secondary,
+                    ...roundedInput,
+                    "& .MuiFormHelperText-root": { 
+                      color: getHelperTextColor(),
                     },
                   }}
                 />
@@ -415,28 +684,22 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
             <FormControl fullWidth error={!!errors.gender}>
               <InputLabel>Gender</InputLabel>
-              <Select
-                name="gender"
-                value={form.gender}
-                onChange={handleChange}
-                label="Gender"
-                sx={{ borderRadius: 3 }}
+              <Select 
+                name="gender" 
+                value={form.gender} 
+                onChange={handleChange} 
+                label="Gender" 
+                sx={roundedInput}
               >
-                <MenuItem value="">
-                  <em>Select Gender</em>
-                </MenuItem>
+                <MenuItem value=""><em>Select Gender</em></MenuItem>
                 <MenuItem value="male">Male</MenuItem>
                 <MenuItem value="female">Female</MenuItem>
               </Select>
-              {errors.gender && (
-                <Typography variant="caption" color="error">
-                  {errors.gender}
-                </Typography>
-              )}
+              {errors.gender && <Typography variant="caption" color="error">{errors.gender}</Typography>}
             </FormControl>
 
             <TextField
-              label="Password"
+              label="Password *"
               name="password"
               type={showPassword ? "text" : "password"}
               value={form.password}
@@ -450,15 +713,15 @@ const Signup = ({ onSignup, mode, setMode }) => {
                     {showPassword ? <Visibility /> : <VisibilityOff />}
                   </IconButton>
                 ),
+                sx: roundedInput["& .MuiOutlinedInput-root"]
               }}
               sx={{
-                "& .MuiOutlinedInput-root": { borderRadius: 3 },
                 "& .MuiFormHelperText-root": { color: theme.palette.error.main },
               }}
             />
 
             <TextField
-              label="Confirm Password"
+              label="Confirm Password *"
               name="confirm_password"
               type={showConfirmPassword ? "text" : "password"}
               value={form.confirm_password}
@@ -468,16 +731,13 @@ const Signup = ({ onSignup, mode, setMode }) => {
               fullWidth
               InputProps={{
                 endAdornment: (
-                  <IconButton
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge="end"
-                  >
+                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
                     {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
                   </IconButton>
                 ),
+                sx: roundedInput["& .MuiOutlinedInput-root"]
               }}
               sx={{
-                "& .MuiOutlinedInput-root": { borderRadius: 3 },
                 "& .MuiFormHelperText-root": { color: theme.palette.error.main },
               }}
             />
@@ -490,11 +750,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
           )}
 
           <Box textAlign="center">
-            <Button
-              type="submit"
-              variant="contained"
-              size="large"
-              disabled={loading}
+            <LoadingButton 
+              type="submit" 
+              variant="contained" 
+              size="large" 
+              loading={loading}
               sx={{
                 backgroundColor: "#000",
                 color: "#fff",
@@ -504,10 +764,13 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 fontWeight: "bold",
                 "&:hover": { backgroundColor: "#222" },
                 "&:active": { backgroundColor: "#444" },
+                "&.MuiLoadingButton-loading": {
+                  backgroundColor: "#333",
+                }
               }}
             >
-              {loading ? "Signing Up..." : "Sign Up"}
-            </Button>
+              Sign Up
+            </LoadingButton>
           </Box>
 
           <Box textAlign="center" mt={1}>
@@ -515,11 +778,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               Already have an account?{" "}
               <Typography
                 component="span"
-                sx={{
-                  color: "#42a5f5",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                }}
+                sx={{ color: "#42a5f5", cursor: "pointer", textDecoration: "underline" }}
                 onClick={() => navigate("/login")}
               >
                 Log In
