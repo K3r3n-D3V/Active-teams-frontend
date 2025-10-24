@@ -672,7 +672,7 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     const response = await axios.get(endpoint, { 
       headers, 
       params, 
-      timeout: 15000 // ✅ Reduced from 30s to 15s
+    timeout: 60000  // ✅ Reduced from 30s to 15s
     });
     
     const responseData = response.data;
@@ -700,13 +700,13 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
   } catch (err) {
     console.error("❌ Error fetching events:", err);
     
-    if (err.code === 'ECONNABORTED') {
-      console.error("⏰ Request timeout - backend is slow");
-      setSnackbar({
-        open: true,
-        message: "Server is taking too long to respond. Please try again.",
-        severity: "warning",
-      });
+  if (err.code === 'ECONNABORTED') {
+  console.error("⏰ Request timeout - backend is processing");
+  setSnackbar({
+    open: true,
+    message: "Loading is taking longer than expected. Please wait...",
+    severity: "info",  // ✅ Changed from "warning" to "info"
+  });
       
       // Show empty state but don't clear existing data
       if (events.length === 0) {
