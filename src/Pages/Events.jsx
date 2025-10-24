@@ -1,505 +1,3 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios";
-import { useLocation } from "react-router-dom";
-import { useTheme } from "@mui/material/styles";
-import AttendanceModal from "./AttendanceModal";
-import IconButton from "@mui/material/IconButton";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import Snackbar from "@mui/material/Snackbar";
-import Alert from "@mui/material/Alert";
-import Tooltip from "@mui/material/Tooltip";
-import { Box, useMediaQuery } from "@mui/material";
-
-import Eventsfilter from "./AddPersonToEvents";
-import CreateEvents from "./CreateEvents";
-import EventTypesModal from "./EventTypesModal";
-import EditEventModal from "./EditEventModal";
-
-const styles = {
-  container: {
-    minHeight: "100vh",
-    fontFamily: "system-ui, sans-serif",
-    padding: "1rem",
-    paddingTop: "5rem",
-    boxSizing: "border-box",
-    overflow: "hidden",
-  },
-  topSection: {
-    padding: "1.5rem",
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    marginBottom: "1rem",
-    marginTop: "1rem",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-  },
-  searchFilterRow: {
-    display: "flex",
-    gap: "1rem",
-    alignItems: "center",
-    marginBottom: "1.5rem",
-    flexWrap: "wrap",
-  },
-  searchInput: {
-    flex: 1,
-    minWidth: "200px",
-    padding: "0.75rem 1rem",
-    border: "1px solid #dee2e6",
-    borderRadius: "6px",
-    fontSize: "0.95rem",
-    boxSizing: "border-box",
-  },
-  filterButton: {
-    padding: "0.75rem 1.5rem",
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "0.95rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    transition: "all 0.2s ease",
-  },
-  statusBadgeContainer: {
-    display: "flex",
-    gap: "0.75rem",
-    flexWrap: "wrap",
-  },
-  statusBadge: {
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
-    fontSize: '0.95rem',
-    fontWeight: '600',
-    cursor: 'pointer',
-    border: '2px solid',
-    transition: 'all 0.2s ease',
-    textTransform: 'uppercase',
-    whiteSpace: 'nowrap',
-  },
-  statusBadgeIncomplete: {
-    backgroundColor: "#FFA500",
-    color: "#fff",
-    borderColor: "#FFA500",
-  },
-  statusBadgeComplete: {
-    backgroundColor: "#fff",
-    color: "#28a745",
-    borderColor: "#28a745",
-  },
-  statusBadgeDidNotMeet: {
-    backgroundColor: "#fff",
-    color: "#dc3545",
-    borderColor: "#dc3545",
-  },
-  statusBadgeActive: {
-    transform: "scale(1.05)",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
-  },
-  tableContainer: {
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    overflow: "hidden",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-    maxWidth: "100%",
-    maxHeight: "calc(100vh - 300px)",
-    display: "flex",
-    flexDirection: "column",
-  },
-  tableWrapper: {
-    overflow: "auto",
-    flex: 1,
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    minWidth: "1300px",
-  },
-  tableHeader: {
-    backgroundColor: "#000",
-    color: "#fff",
-  },
-  th: {
-    padding: "1rem",
-    textAlign: "left",
-    fontWeight: 600,
-    fontSize: "0.95rem",
-    borderBottom: "2px solid #000",
-    whiteSpace: "nowrap",
-  },
-  tr: {
-    borderBottom: "1px solid #e9ecef",
-    transition: "background-color 0.2s ease",
-  },
-  trHover: {
-    backgroundColor: "#f8f9fa",
-  },
-  td: {
-    padding: "1rem",
-    fontSize: "0.9rem",
-    color: "#212529",
-    verticalAlign: "top",
-  },
-  actionIcons: {
-    display: 'flex',
-    gap: '0.5rem',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  openEventIcon: {
-    width: '36px',
-    height: '36px',
-    borderRadius: '6px',
-    backgroundColor: '#007bff',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    border: 'none',
-    fontSize: '18px',
-  },
-  truncatedText: {
-    maxWidth: '150px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  emailText: {
-    maxWidth: '180px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 2000,
-    padding: "20px",
-  },
-  modalContent: {
-    position: "relative",
-    width: "90%",
-    maxWidth: "700px",
-    maxHeight: "95vh",
-    backgroundColor: "white",
-    borderRadius: "12px",
-    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-  },
-  modalHeader: {
-    backgroundColor: "#333",
-    color: "white",
-    padding: "20px 24px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderTopLeftRadius: "12px",
-    borderTopRightRadius: "12px",
-  },
-  modalTitle: {
-    fontSize: "1.5rem",
-    fontWeight: "bold",
-    margin: 0,
-  },
-  modalCloseButton: {
-    background: "rgba(255, 255, 255, 0.2)",
-    border: "none",
-    borderRadius: "50%",
-    width: "32px",
-    height: "32px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    fontSize: "20px",
-    color: "white",
-    fontWeight: "bold",
-    transition: "all 0.2s ease",
-  },
-  modalBody: {
-    flex: 1,
-    overflow: "auto",
-    padding: "0",
-  },
-  loadingSkeleton: {
-    padding: "1rem",
-    backgroundColor: "#d3d3d3" ,
-    borderRadius: "4px",
-    height: "60px",
-    marginBottom: "0.5rem",
-    animation: "pulse 1.5s ease-in-out infinite",
-  },
-  overdueLabel: {
-    color: "red",
-    fontSize: "0.8rem",
-    marginTop: "0.2rem",
-    fontWeight: "bold",
-  },
-  mobileCard: {
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    padding: "1rem",
-    marginBottom: "1rem",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-  },
-  mobileCardRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    marginBottom: "0.5rem",
-    fontSize: "0.9rem",
-  },
-  mobileCardLabel: {
-    fontWeight: 600,
-    color: "#666",
-  },
-  mobileCardValue: {
-    color: "#212529",
-    textAlign: "right",
-  },
-  mobileActions: {
-    display: "flex",
-    gap: "0.5rem",
-    marginTop: "1rem",
-    justifyContent: "flex-end",
-  },
-  viewFilterRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '1.5rem',
-    flexWrap: 'wrap',
-    gap: '1rem',
-  },
-  viewFilterContainer: {
-    display: 'flex',
-    gap: '1rem',
-    alignItems: 'center',
-  },
-  viewFilterLabel: {
-    fontSize: '1rem',
-    fontWeight: '600',
-    color: '#495057',
-  },
-  viewFilterRadio: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    cursor: 'pointer',
-  },
-  viewFilterText: {
-    fontSize: '1.1rem',
-    transition: 'all 0.2s ease',
-  },
-  paginationButton: {
-    padding: '0.5rem 1rem',
-    border: '1px solid #dee2e6',
-    backgroundColor: '#fff',
-    cursor: 'pointer',
-    borderRadius: '4px',
-  },
-  paginationButtonDisabled: {
-    backgroundColor: '#f8f9fa',
-    color: '#6c757d',
-    cursor: 'not-allowed',
-  },
-  rowsSelect: {
-    padding: '0.25rem 0.5rem',
-    border: '1px solid #dee2e6',
-    borderRadius: '4px',
-    backgroundColor: '#fff',
-    fontSize: '0.875rem',
-  },
-  paginationContainer: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    padding: '1rem',
-    borderTop: '1px solid #e9ecef',
-    backgroundColor: '#f8f9fa',
-    gap: '1.5rem',
-  },
-  rowsPerPage: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.875rem',
-    color: '#6c757d',
-  },
-  paginationInfo: {
-    fontSize: '0.875rem',
-    color: '#6c757d',
-  },
-  paginationControls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-  },
-};
-
-const fabStyles = {
-  fabContainer: {
-    position: "fixed",
-    bottom: "20px",
-    right: "20px",
-    zIndex: 1000,
-  },
-  fabMenu: {
-    position: "absolute",
-    bottom: "70px",
-    right: "0",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-    transition: "all 0.3s ease",
-  },
-  fabMenuItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    background: "#fff",
-    padding: "12px 16px",
-    borderRadius: "50px",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    transition: "all 0.2s ease",
-  },
-  fabMenuLabel: {
-    fontSize: "14px",
-    fontWeight: "600",
-    color: "#333",
-  },
-  fabMenuIcon: {
-    width: "24px",
-    height: "24px",
-    borderRadius: "50%",
-    backgroundColor: "#007bff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#fff",
-    fontSize: "16px",
-  },
-  mainFab: {
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "50%",
-    width: "56px",
-    height: "56px",
-    fontSize: "1.5rem",
-    cursor: "pointer",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "all 0.3s ease",
-  },
-};
-
-const eventTypeStyles = {
-  container: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: "12px",
-    padding: "1.5rem",
-    marginBottom: "1.5rem",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-  },
-  header: {
-    fontSize: "0.875rem",
-    fontWeight: "600",
-    color: "#6c757d",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
-    marginBottom: "1rem",
-  },
-  selectedTypeDisplay: {
-    fontSize: "1.25rem",
-    fontWeight: "700",
-    color: "#007bff",
-    marginBottom: "1rem",
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-  },
-  checkIcon: {
-    width: "24px",
-    height: "24px",
-    borderRadius: "50%",
-    backgroundColor: "#28a745",
-    color: "white",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "14px",
-    fontWeight: "bold",
-  },
-  typesGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-    gap: "0.75rem",
-  },
-  typeCard: {
-    padding: "1rem",
-    borderRadius: "8px",
-    border: "2px solid transparent",
-    backgroundColor: "white",
-    cursor: "pointer",
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-    position: "relative",
-    overflow: "hidden",
-  },
-  typeCardActive: {
-    borderColor: "#007bff",
-    backgroundColor: "#e7f3ff",
-    transform: "translateX(8px) scale(1.02)",
-    boxShadow: "0 4px 12px rgba(0, 123, 255, 0.2)",
-  },
-  typeCardHover: {
-    borderColor: "#ddd",
-    transform: "translateY(-2px)",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-  },
-  typeName: {
-    fontSize: "0.9rem",
-    fontWeight: "600",
-    color: "#495057",
-    textAlign: "center",
-    display: "block",
-  },
-  typeNameActive: {
-    color: "#007bff",
-  },
-  activeIndicator: {
-    position: "absolute",
-    top: "8px",
-    right: "8px",
-    width: "20px",
-    height: "20px",
-    borderRadius: "50%",
-    backgroundColor: "#007bff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "white",
-    fontSize: "12px",
-    fontWeight: "bold",
-    animation: "slideIn 0.3s ease-out",
-  },
-};
-
 const Events = () => {
   const location = useLocation();
   const theme = useTheme();
@@ -520,25 +18,81 @@ const Events = () => {
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
-  const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [createEventTypeModalOpen, setCreateEventTypeModalOpen] =
+    useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
-  const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState('all');
+  const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState("all");
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
-    return localStorage.getItem("selectedEventType") || '';
-  });
+  const [currentSelectedEventType, setCurrentSelectedEventType] = useState(
+    () => {
+      return localStorage.getItem("selectedEventType") || "";
+    }
+  );
+
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredRow, setHoveredRow] = useState(null);
-  const [viewFilter, setViewFilter] = useState('all');
-  const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+  const [hoveredType, setHoveredType] = useState(null);
+  const [viewFilter, setViewFilter] = useState("all");
+  const [alert, setAlert] = useState({
+    open: false,
+    type: "success",
+    message: "",
+  });
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  // const [eventsCache, setEventsCache] = useState({});
+  // const [lastFetchTime, setLastFetchTime] = useState(0);
+
+  const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState("");
+
+  const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
+  const [typeMenuFor, setTypeMenuFor] = useState(null);
+  const [editingEventType, setEditingEventType] = useState(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [toDeleteType, setToDeleteType] = useState(null);
+  const openTypeMenu = (e, type) => {
+    e.stopPropagation();
+    setTypeMenuAnchor(e.currentTarget);
+    setTypeMenuFor(type);
+  };
+
+  const closeTypeMenu = () => {
+    setTypeMenuAnchor(null);
+    setTypeMenuFor(null);
+  };
+
+  const handleEditType = (type) => {
+    closeTypeMenu();
+    setEditingEventType(type);
+    setCreateEventTypeModalOpen(true);
+  };
+
+  const confirmDeleteType = (type) => {
+    closeTypeMenu();
+    setToDeleteType(type);
+    setConfirmDeleteOpen(true);
+  };
+  const handleDeleteType = async () => {
+  if (!toDeleteType) return;
+
+  try {
+    const token = localStorage.getItem("token");
+
+    // Delete events with this type from backend
+    const response = await axios.delete(
+      `${BACKEND_URL}/event-types/${encodeURIComponent(toDeleteType.name)}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
 
 
@@ -743,12 +297,45 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
           window.location.href = '/login';
         }, 1500);
       }
-    };
-    
-    checkAuth();
-  }, []);
+    );
 
-  // Fetch current user leader at 1
+    console.log(response.data.message); // Optional: log deletion count
+
+    // Remove from local lists
+    setCustomEventTypes((prev) =>
+      prev.filter((t) => String(t.name) !== String(toDeleteType.name))
+    );
+    setUserCreatedEventTypes((prev) =>
+      prev.filter((t) => String(t.name) !== String(toDeleteType.name))
+    );
+    setEventTypes((prev) => prev.filter((n) => n !== toDeleteType.name));
+
+    // If currently selected type was deleted, reset filter
+    if (selectedEventTypeFilter === (toDeleteType.name || "").toLowerCase()) {
+      setSelectedEventTypeFilter("all");
+      setSelectedEventTypeObj(null);
+      setCurrentSelectedEventType("");
+      localStorage.removeItem("selectedEventTypeObj");
+    }
+
+    setSnackbar({
+      open: true,
+      message: `Deleted events with type "${toDeleteType.name}"`,
+      severity: "success",
+    });
+  } catch (err) {
+    console.error("Failed to delete event type", err);
+    setSnackbar({
+      open: true,
+      message: "Failed to delete event type",
+      severity: "error",
+    });
+  } finally {
+    setConfirmDeleteOpen(false);
+    setToDeleteType(null);
+  }
+};
+
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
       const leaderAt1 = await getCurrentUserLeaderAt1();
@@ -783,6 +370,10 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     }
   }, [customEventTypes]);
 
+  const fetchEvents = async (filters = {}, forceRefresh = false) => {
+    if (isLoading && !forceRefresh) {
+      console.log("⏸️ Fetch already in progress, skipping...");
+      return;
   // Save selected event type to localStorage
   useEffect(() => {
     if (currentSelectedEventType) {
@@ -850,7 +441,7 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
 
     if (!event?.date) return false;
 
-    const status = (event.status || event.Status || '').toLowerCase().trim();
+    const status = (event.status || event.Status || "").toLowerCase().trim();
     const didNotMeet = event.did_not_meet || false;
     const hasAttendees = event.attendees && event.attendees.length > 0;
     
@@ -871,11 +462,13 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     if (!date) return "Not set";
     const dateObj = new Date(date);
     if (isNaN(dateObj.getTime())) return "Not set";
-    return dateObj.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    }).replace(/\//g, ' - ');
+    return dateObj
+      .toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+      .replace(/\//g, " - ");
   };
 
     // Pagination and filter handlers
@@ -1053,10 +646,15 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
       const eventId = selectedEvent._id;
-      const eventName = selectedEvent.eventName || 'Event';
+      const eventName = selectedEvent.eventName || "Event";
 
-      const leaderEmail = currentUser?.email || '';
-      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
+      const leaderEmail = currentUser?.email || "";
+      const leaderName =
+        `${(currentUser?.name || "").trim()} ${(
+          currentUser?.surname || ""
+        ).trim()}`.trim() ||
+        currentUser?.name ||
+        "";
 
       let payload;
 
@@ -1105,9 +703,12 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
 
       if (errData) {
         if (Array.isArray(errData?.errors)) {
-          errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+          errorMessage = errData.errors
+            .map((e) => `${e.field}: ${e.message}`)
+            .join("; ");
         } else {
-          errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+          errorMessage =
+            errData.detail || errData.message || JSON.stringify(errData);
         }
       }
 
@@ -1127,12 +728,17 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
   };
 
   const handleDeleteEvent = async (event) => {
-    if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
+    if (
+      window.confirm(`Are you sure you want to delete "${event.eventName}"?`)
+    ) {
       try {
         const token = localStorage.getItem("token");
-        const response = await axios.delete(`${BACKEND_URL}/events/${event._id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await axios.delete(
+          `${BACKEND_URL}/events/${event._id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
         if (response.status === 200) {
           fetchEvents();
@@ -1152,6 +758,14 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
       }
     }
   };
+
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchEvents({
+      status: selectedStatus !== "all" ? selectedStatus : undefined,
+      search: searchQuery.trim() || undefined,
+    });
+  }, [selectedStatus]);
 
   const handleSaveEvent = async (updatedData) => {
     try {
@@ -1178,7 +792,10 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
 
         fetchEvents();
 
-        setTimeout(() => setAlert({ open: false, type: "success", message: "" }), 3000);
+        setTimeout(
+          () => setAlert({ open: false, type: "success", message: "" }),
+          3000
+        );
       } else {
         throw new Error("Failed to update event");
       }
@@ -1198,17 +815,71 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
       const response = await axios.get(
         `${BACKEND_URL}/current-user/leader-at-1`,
         {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      return response.data.leader_at_1 || '';
+      return response.data.leader_at_1 || "";
     } catch (error) {
-      console.error('Error getting current user leader at 1:', error);
-      return '';
+      console.error("Error getting current user leader at 1:", error);
+      return "";
     }
   };
 
+  // EventTypeSelector Component
+  const EventTypeSelector = () => {
+    const [hoveredType, setHoveredType] = useState(null);
+    const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
+    const [typeMenuFor, setTypeMenuFor] = useState(null);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [deleteAnchorEl, setDeleteAnchorEl] = useState(null);
+    const [toDeleteType, setToDeleteType] = useState(null);
+
+    const allTypes = ["CELLS", ...eventTypes];
+    const isAdmin = currentUser?.role === "admin";
+
+    const getDisplayName = (type) => {
+      if (type === "CELLS") return type;
+      if (typeof type === "string") return type;
+      return type.name || type;
+    };
+
+    const getTypeValue = (type) => {
+      if (type === "CELLS") return "all";
+      if (typeof type === "string") return type.toLowerCase();
+      return (type.name || type).toLowerCase();
+    };
+
+    const selectedDisplayName =
+      selectedEventTypeFilter === "all"
+        ? "CELLS"
+        : eventTypes.find((t) => {
+            const tValue = typeof t === "string" ? t : t.name;
+            return tValue?.toLowerCase() === selectedEventTypeFilter;
+          }) || selectedEventTypeFilter;
+
+    const finalDisplayName =
+      typeof selectedDisplayName === "string"
+        ? selectedDisplayName
+        : selectedDisplayName?.name || "CELLS";
+
+    const openTypeMenu = (event, type) => {
+      setTypeMenuAnchor(event.currentTarget);
+      setTypeMenuFor(type);
+    };
+
+    const closeTypeMenu = () => {
+      setTypeMenuAnchor(null);
+      setTypeMenuFor(null);
+    };
+
+    return (
+      <div style={eventTypeStyles.container}>
+        <div style={eventTypeStyles.header}>Filter by Event Type</div>
+
+        <div style={eventTypeStyles.selectedTypeDisplay}>
+          <div style={eventTypeStyles.checkIcon}>✓</div>
+          <span>{finalDisplayName}</span>
   const handleFixLeaders = async () => {
     if (!window.confirm("This will fix missing Leader at 1 assignments for all events. Continue?")) {
       return;
@@ -1391,10 +1062,174 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
             );
           })}
         </div>
-      )}
-    </div>
-  );
-};
+
+        {isAdmin && (
+          <div
+            style={{
+              ...eventTypeStyles.typesGrid,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "12px",
+              justifyContent: "flex-start",
+            }}
+          >
+            {allTypes.map((type) => {
+              const displayName = getDisplayName(type);
+              const typeValue = getTypeValue(type);
+              const isActive = selectedEventTypeFilter === typeValue;
+              const isHovered = hoveredType === typeValue;
+
+              return (
+                <div
+  key={typeValue}
+  style={{
+    ...eventTypeStyles.typeCard,
+    ...(isActive ? eventTypeStyles.typeCardActive : {}),
+    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+    position: "relative",
+    width: 200,
+    minHeight: 70,
+    padding: "8px 12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center", // center the text
+  }}
+  onClick={() => {
+    const selectedTypeObj =
+      typeValue === "all"
+        ? null
+        : customEventTypes.find(
+            (t) => t.name.toLowerCase() === typeValue
+          ) || null;
+
+    setSelectedEventTypeFilter(typeValue);
+    setSelectedTypeObj(selectedTypeObj);
+
+    if (selectedTypeObj) {
+      localStorage.setItem(
+        "selectedEventTypeObj",
+        JSON.stringify(selectedTypeObj)
+      );
+    } else {
+      localStorage.removeItem("selectedEventTypeObj");
+    }
+
+    applyFilters(
+      typeValue === "all"
+        ? { ...activeFilters, eventType: undefined }
+        : { ...activeFilters, eventType: typeValue },
+      selectedStatus,
+      searchQuery
+    );
+  }}
+  onMouseEnter={() => setHoveredType(typeValue)}
+  onMouseLeave={() => setHoveredType(null)}
+>
+  {/* Text in a flex container so it doesn't cover the icon */}
+  <span
+    style={{
+      ...eventTypeStyles.typeName,
+      ...(isActive ? eventTypeStyles.typeNameActive : {}),
+      zIndex: 1, // keep above background but below icon
+    }}
+  >
+    {displayName}
+  </span>
+
+  {/* Icon always visible, positioned absolutely */}
+  {isAdmin && (
+    <IconButton
+      size="small"
+      onClick={(e) => {
+        e.stopPropagation();
+        openTypeMenu(e, type);
+      }}
+      aria-label="type actions"
+      sx={{
+        position: "absolute",
+        top: 8,
+        right: 8,
+        zIndex: 10,
+        color:"grey" // make sure icon is on top
+      }}
+    >
+      <MoreVertIcon fontSize="small" />
+    </IconButton>
+  )}
+</div>
+
+              );
+            })}
+
+            {/* Edit/Delete menu popover */}
+            <Popover
+              open={Boolean(typeMenuAnchor)}
+              anchorEl={typeMenuAnchor}
+              onClose={closeTypeMenu}
+              anchorOrigin={{
+                vertical: "top",
+                horizontal: "right",
+              }}
+              transformOrigin={{
+                vertical: "bottom",
+                horizontal: "right",
+              }}
+            >
+              <MenuItem
+                onClick={() => {
+                  handleEditType(typeMenuFor);
+                  closeTypeMenu();
+                }}
+              >
+                <ListItemIcon>
+                  <EditIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Edit</ListItemText>
+              </MenuItem>
+
+              <MenuItem
+                onClick={() => {
+                  setToDeleteType(typeMenuFor);
+                  setConfirmDeleteOpen(true);
+                  closeTypeMenu();
+                }}
+                sx={{ color: "error.main" }}
+              >
+                <ListItemIcon>
+                  <DeleteIcon fontSize="small" color="error" />
+                </ListItemIcon>
+                <ListItemText>Delete</ListItemText>
+              </MenuItem>
+            </Popover>
+
+            {/* Centered delete confirmation modal */}
+            <Dialog
+              open={confirmDeleteOpen}
+              onClose={() => setConfirmDeleteOpen(false)}
+              maxWidth="xs"
+              fullWidth
+            >
+              <DialogTitle>Delete Event Type</DialogTitle>
+              <DialogContent>
+                <Typography>
+                  Are you sure you want to delete this event type ? This
+                  cannot be undone.
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setConfirmDeleteOpen(false)}>
+                  Cancel
+                </Button>
+                <Button color="error" onClick={handleDeleteType}>
+                  Delete
+                </Button>
+              </DialogActions>
+            </Dialog>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // StatusBadges Component
 const StatusBadges = () => {
@@ -1610,14 +1445,12 @@ const ViewFilterButtons = () => {
           <>
             <div style={styles.mobileCardRow}>
               <span style={styles.mobileCardLabel}>Leader at 1:</span>
-              <span style={styles.mobileCardValue}>
-                {event.leader1 || '-'}
-              </span>
+              <span style={styles.mobileCardValue}>{event.leader1 || "-"}</span>
             </div>
             <div style={styles.mobileCardRow}>
               <span style={styles.mobileCardLabel}>Leader at 12:</span>
               <span style={styles.mobileCardValue}>
-                {event.leader12 || '-'}
+                {event.leader12 || "-"}
               </span>
             </div>
           </>
@@ -1763,12 +1596,14 @@ const ViewFilterButtons = () => {
               ))}
 
               {/* Mobile Pagination */}
-              <div style={{
-                ...styles.paginationContainer,
-                flexDirection: 'column',
-                gap: '1rem',
-                alignItems: 'center'
-              }}>
+              <div
+                style={{
+                  ...styles.paginationContainer,
+                  flexDirection: "column",
+                  gap: "1rem",
+                  alignItems: "center",
+                }}
+              >
                 <div style={styles.paginationInfo}>
                   {totalEvents > 0 ?
                     `${startIndex}-${endIndex} of ${totalEvents}` :
@@ -1779,27 +1614,33 @@ const ViewFilterButtons = () => {
                   <button
                     style={{
                       ...styles.paginationButton,
-                      ...(currentPage === 1 || isLoading ? styles.paginationButtonDisabled : {}),
+                      ...(currentPage === 1 || isLoading
+                        ? styles.paginationButtonDisabled
+                        : {}),
                     }}
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1 || isLoading}
                   >
-                    {isLoading ? '⏳' : '< Previous'}
+                    {isLoading ? "⏳" : "< Previous"}
                   </button>
 
-                  <span style={{ padding: '0 1rem', color: '#6c757d' }}>
+                  <span style={{ padding: "0 1rem", color: "#6c757d" }}>
                     Page {currentPage} of {totalPages}
                   </span>
 
                   <button
                     style={{
                       ...styles.paginationButton,
-                      ...(currentPage >= totalPages || isLoading ? styles.paginationButtonDisabled : {}),
+                      ...(currentPage >= totalPages || isLoading
+                        ? styles.paginationButtonDisabled
+                        : {}),
                     }}
                     onClick={handleNextPage}
-                    disabled={currentPage >= totalPages || isLoading || totalPages === 0}
+                    disabled={
+                      currentPage >= totalPages || isLoading || totalPages === 0
+                    }
                   >
-                    {isLoading ? '⏳' : 'Next >'}
+                    {isLoading ? "⏳" : "Next >"}
                   </button>
                 </div>
               </div>
@@ -1808,7 +1649,7 @@ const ViewFilterButtons = () => {
         </Box>
       ) : (
         /* DESKTOP VIEW: Table with Pagination */
-        <div style={{ ...styles.tableContainer, position: 'relative' }}>
+        <div style={{ ...styles.tableContainer, position: "relative" }}>
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <thead style={styles.tableHeader}>
@@ -1834,7 +1675,14 @@ const ViewFilterButtons = () => {
                   ))
                 ) : paginatedEvents.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ ...styles.td, textAlign: 'center', padding: '2rem' }}>
+                    <td
+                      colSpan={8}
+                      style={{
+                        ...styles.td,
+                        textAlign: "center",
+                        padding: "2rem",
+                      }}
+                    >
                       No events found matching your criteria.
                     </td>
                   </tr>
@@ -1855,36 +1703,43 @@ const ViewFilterButtons = () => {
                         onMouseLeave={() => setHoveredRow(null)}
                       >
                         <td style={styles.td}>
-                          <div style={styles.truncatedText} title={event.eventName}>
+                          <div
+                            style={styles.truncatedText}
+                            title={event.eventName}
+                          >
                             {event.eventName}
                           </div>
                         </td>
                         <td style={styles.td}>
-                          <div style={styles.truncatedText} title={event.eventLeaderName}>
-                            {event.eventLeaderName || '-'}
+                          <div
+                            style={styles.truncatedText}
+                            title={event.eventLeaderName}
+                          >
+                            {event.eventLeaderName || "-"}
                           </div>
                         </td>
                         <td style={styles.td}>
                           <div style={styles.truncatedText}>
-                            {shouldShowLeaderAt1 ? (event.leader1 || '-') : '-'}
+                            {shouldShowLeaderAt1 ? event.leader1 || "-" : "-"}
                           </div>
                         </td>
                         <td style={styles.td}>
                           <div style={styles.truncatedText}>
-                            {shouldShowLeaderAt12 ? (event.leader12 || '-') : '-'}
+                            {shouldShowLeaderAt12 ? event.leader12 || "-" : "-"}
                           </div>
                         </td>
                         <td style={styles.td}>
                           <div>{dayOfWeek}</div>
                           {isOverdue(event) && (
-                            <div style={styles.overdueLabel}>
-                              Overdue
-                            </div>
+                            <div style={styles.overdueLabel}>Overdue</div>
                           )}
                         </td>
                         <td style={styles.td}>
-                          <div style={styles.emailText} title={event.eventLeaderEmail}>
-                            {event.eventLeaderEmail || '-'}
+                          <div
+                            style={styles.emailText}
+                            title={event.eventLeaderEmail}
+                          >
+                            {event.eventLeaderEmail || "-"}
                           </div>
                         </td>
                         <td style={styles.td}>{formatDate(event.date)}</td>
@@ -1954,27 +1809,33 @@ const ViewFilterButtons = () => {
               <button
                 style={{
                   ...styles.paginationButton,
-                  ...(currentPage === 1 || isLoading ? styles.paginationButtonDisabled : {}),
+                  ...(currentPage === 1 || isLoading
+                    ? styles.paginationButtonDisabled
+                    : {}),
                 }}
                 onClick={handlePreviousPage}
                 disabled={currentPage === 1 || isLoading}
               >
-                {isLoading ? '⏳' : '< Previous'}
+                {isLoading ? "⏳" : "< Previous"}
               </button>
 
-              <span style={{ padding: '0 1rem', color: '#6c757d' }}>
+              <span style={{ padding: "0 1rem", color: "#6c757d" }}>
                 Page {currentPage} of {totalPages}
               </span>
 
               <button
                 style={{
                   ...styles.paginationButton,
-                  ...(currentPage >= totalPages || isLoading ? styles.paginationButtonDisabled : {}),
+                  ...(currentPage >= totalPages || isLoading
+                    ? styles.paginationButtonDisabled
+                    : {}),
                 }}
                 onClick={handleNextPage}
-                disabled={currentPage >= totalPages || isLoading || totalPages === 0}
+                disabled={
+                  currentPage >= totalPages || isLoading || totalPages === 0
+                }
               >
-                {isLoading ? '⏳' : 'Next >'}
+                {isLoading ? "⏳" : "Next >"}
               </button>
             </div>
           </div>
@@ -2029,7 +1890,7 @@ const ViewFilterButtons = () => {
         <button
           style={{
             ...fabStyles.mainFab,
-            transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+            transform: fabMenuOpen ? "rotate(45deg)" : "rotate(0deg)",
           }}
           onClick={() => setFabMenuOpen(!fabMenuOpen)}
           title="Menu"
@@ -2072,6 +1933,7 @@ const ViewFilterButtons = () => {
           onClose={handleCloseCreateEventTypeModal}
           onSubmit={handleCreateEventTypeSubmit}
           setSelectedEventTypeObj={setSelectedEventTypeObj}
+          selectedEventType={editingEventType}
           customEventTypes={customEventTypes}
           userRole={currentUser?.role}
         />
@@ -2149,6 +2011,8 @@ const ViewFilterButtons = () => {
       `}</style>
     </div>
   );
+
 };
+
 
 export default Events;
