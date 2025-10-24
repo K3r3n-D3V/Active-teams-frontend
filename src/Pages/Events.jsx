@@ -24,9 +24,11 @@ const Events = () => {
   const isDarkMode = theme.palette.mode === 'dark'; // ✅ Define isDarkMode FIRST
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const isAdmin = currentUser?.role === "admin";
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+// Add more robust fallback
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
+                    'https://activeteamsbackend-3.onrender.com';
 
-  // ✅ NOW define ALL styles INSIDE the component after isDarkMode is defined
+console.log('✅ Final BACKEND_URL being used:', BACKEND_URL)
   const styles = {
     container: {
       minHeight: "100vh",
@@ -680,7 +682,7 @@ const Events = () => {
     const response = await axios.get(endpoint, { 
       headers, 
       params, 
-      timeout: 15000 // Reduce timeout to 15 seconds for faster feedback
+
     });
     
     const responseData = response.data;
