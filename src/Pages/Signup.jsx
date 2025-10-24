@@ -67,37 +67,31 @@ const Signup = ({ onSignup, mode, setMode }) => {
   // Invited By autocomplete states
   const [invitedOptions, setInvitedOptions] = useState([]);
   const [loadingInvited, setLoadingInvited] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [invitedSearch, setInvitedSearch] = useState("");
-  const [invitedError, setInvitedError] = useState("");
   const [allPeopleCache, setAllPeopleCache] = useState([]);
   const [cacheLoaded, setCacheLoaded] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPeople, setTotalPeople] = useState(0);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [parallelRequests, setParallelRequests] = useState(0);
+  const [invitedSearch, setInvitedSearch] = useState("");
+  const [invitedError, setInvitedError] = useState("");
 
-  // Helper text logic
+  // Silent background loading states
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
+  const [targetLoadCount] = useState(5000);
+  const [maxLoadCount] = useState(8000);
+
+  // Helper text logic - SIMPLIFIED, no loading messages
   const getHelperText = () => {
     if (errors.invited_by) {
       return errors.invited_by;
     }
     
-    if (!cacheLoaded) {
-      return "Loading people database...";
+    if (allPeopleCache.length >= 4000) {
+      return `Search from ${allPeopleCache.length.toLocaleString()}+ people`;
     }
     
-    if (initialLoadComplete && allPeopleCache.length >= 4000) {
-      return `🚀 ${allPeopleCache.length.toLocaleString()}+ people ready for instant search!`;
-    }
-    
-    if (loadingProgress > 0) {
-      return `Loading... ${loadingProgress}% (${allPeopleCache.length.toLocaleString()}/${totalPeople.toLocaleString()} people)`;
-    }
-    
-    return `Loading... (${allPeopleCache.length.toLocaleString()}/${totalPeople.toLocaleString()} people)`;
+    return "Type to search people...";
   };
 
   // Helper text color logic
@@ -106,7 +100,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
       return theme.palette.error.main;
     }
     
-    if (initialLoadComplete && allPeopleCache.length >= 4000) {
+    if (allPeopleCache.length >= 4000) {
       return theme.palette.success.main;
     }
     
@@ -121,19 +115,17 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
 
     const searchTerm = query.toLowerCase().trim();
-    console.log("🔍 Local search for:", searchTerm, "in", allPeopleCache.length, "people");
 
-    // Use more efficient search with caching
+    // Use efficient search
     const filtered = allPeopleCache.filter(person => {
       const name = `${person.Name || person.name || ''} ${person.Surname || person.surname || ''}`.toLowerCase();
       return name.includes(searchTerm);
     });
 
-    console.log("✅ Local results:", filtered.length);
     setInvitedOptions(filtered.slice(0, 100)); // Limit to 100 for performance
   }, [allPeopleCache]);
 
-  // ULTRA-FAST API SEARCH - Uses new optimized endpoint
+  // ULTRA-FAST API SEARCH - Fallback method
   const searchApiPeople = useCallback(async (query) => {
     if (!query || query.length < 2) {
       setInvitedOptions([]);
@@ -142,24 +134,18 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
     try {
       setLoadingInvited(true);
-      setInvitedError("");
       
-      console.log("⚡ FAST API search for:", query);
-      
-      // Use the new FAST endpoint with larger limit
       const res = await axios.get(`${BACKEND_URL}/people/search-fast`, {
         params: { 
           query: query.trim(),
-          limit: 200 // Larger limit for better coverage
+          limit: 200
         },
         timeout: 3000
       });
       
-      console.log("✅ FAST API results:", res.data.results?.length || 0);
       setInvitedOptions(res.data.results || []);
       
     } catch (err) {
-      console.error("❌ FAST API search failed:", err);
       // Fallback to local cache
       if (allPeopleCache.length > 0) {
         searchLocalPeople(query);
@@ -171,249 +157,179 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   }, [allPeopleCache.length, searchLocalPeople]);
 
-  // Load people in parallel for maximum speed
-  const loadPeopleParallel = useCallback(async (totalNeeded = 4000) => {
+  // SILENT BACKGROUND LOADING - No UI indicators
+  const loadPeopleSilently = useCallback(async () => {
     try {
-      console.log(`🚀 Loading ${totalNeeded} people in parallel...`);
-      setLoadingInvited(true);
-      setLoadingProgress(0);
-      
-      // First, get total count and initial batch
-      const initialRes = await axios.get(`${BACKEND_URL}/people`, {
-        params: { 
-          perPage: 1000, // Large initial batch
-          page: 1
-        },
-        timeout: 10000
-      });
-      
-      if (!initialRes.data || !Array.isArray(initialRes.data.results)) {
-        throw new Error("Invalid response format");
-      }
-      
-      const total = initialRes.data.total || initialRes.data.results.length;
-      const totalToLoad = Math.min(total, totalNeeded);
-      setTotalPeople(total);
-      
-      let allPeople = [...initialRes.data.results];
-      setAllPeopleCache(allPeople);
-      setCacheLoaded(true);
-      
-      const initialProgress = Math.min(100, Math.round((allPeople.length / totalToLoad) * 100));
-      setLoadingProgress(initialProgress);
-      
-      console.log(`✅ Initial load: ${allPeople.length} people`);
-      
-      // Calculate how many more pages we need
-      const perPage = 1000;
-      const totalPages = Math.ceil(totalToLoad / perPage);
-      const pagesToLoad = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
-      
-      // Load remaining pages in parallel (up to 4 concurrent requests)
-      const concurrentLimit = 4;
-      const batches = [];
-      
-      for (let i = 0; i < pagesToLoad.length; i += concurrentLimit) {
-        batches.push(pagesToLoad.slice(i, i + concurrentLimit));
-      }
-      
-      for (const batch of batches) {
-        setParallelRequests(batch.length);
-        
-        const batchPromises = batch.map(page => 
-          axios.get(`${BACKEND_URL}/people`, {
-            params: { perPage, page },
-            timeout: 15000
-          }).catch(err => {
-            console.error(`❌ Failed to load page ${page}:`, err);
-            return { data: { results: [] } }; // Return empty on error
-          })
-        );
-        
-        const batchResults = await Promise.all(batchPromises);
-        
-        for (const result of batchResults) {
-          if (result.data && Array.isArray(result.data.results)) {
-            const newPeople = result.data.results;
-            
-            // Efficient deduplication
-            const existingIds = new Set(allPeople.map(p => p._id));
-            const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p._id));
-            
-            if (uniqueNewPeople.length > 0) {
-              allPeople = [...allPeople, ...uniqueNewPeople];
-              setAllPeopleCache(allPeople);
-              
-              const progress = Math.min(100, Math.round((allPeople.length / totalToLoad) * 100));
-              setLoadingProgress(progress);
-              
-              console.log(`✅ Added ${uniqueNewPeople.length} people, total: ${allPeople.length}`);
-            }
-          }
-        }
-        
-        // Small delay between batches to avoid overwhelming the server
-        if (batches.indexOf(batch) < batches.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-      
-      setInitialLoadComplete(true);
-      setHasMore(allPeople.length < total);
-      setLoadingProgress(100);
-      setParallelRequests(0);
-      
-      console.log(`🎉 Successfully loaded ${allPeople.length} people!`);
-      
-    } catch (err) {
-      console.error("❌ Parallel load failed:", err);
-      // Fallback to sequential loading
-      await loadPeopleSequential(4000);
-    } finally {
-      setLoadingInvited(false);
-    }
-  }, []);
-
-  // Fallback sequential loading
-  const loadPeopleSequential = useCallback(async (totalNeeded = 4000) => {
-    try {
-      console.log(`🔄 Loading ${totalNeeded} people sequentially...`);
-      setLoadingInvited(true);
-      setLoadingProgress(0);
+      setBackgroundLoading(true);
       
       let allPeople = [];
       let page = 1;
       const perPage = 1000;
-      let total = 0;
       
-      while (allPeople.length < totalNeeded) {
-        const res = await axios.get(`${BACKEND_URL}/people`, {
-          params: { perPage, page },
-          timeout: 15000
-        });
-        
-        if (!res.data || !Array.isArray(res.data.results)) {
+      // Load initial 4000 people quickly
+      while (allPeople.length < 4000) {
+        try {
+          const res = await axios.get(`${BACKEND_URL}/people`, {
+            params: { perPage, page },
+            timeout: 10000
+          });
+          
+          if (!res.data || !Array.isArray(res.data.results) || res.data.results.length === 0) {
+            break;
+          }
+          
+          const newPeople = res.data.results;
+          
+          // Efficient deduplication
+          const existingIds = new Set(allPeople.map(p => p._id));
+          const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p._id));
+          
+          if (uniqueNewPeople.length > 0) {
+            allPeople = [...allPeople, ...uniqueNewPeople];
+            setAllPeopleCache(allPeople);
+            setCacheLoaded(true);
+          }
+          
+          if (newPeople.length < perPage) break;
+          
+          page++;
+          
+          // Continue loading in background without blocking
+          if (allPeople.length < 4000) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (err) {
+          console.error("Silent load error:", err);
           break;
         }
-        
-        if (page === 1) {
-          total = res.data.total || res.data.results.length;
-          setTotalPeople(total);
-          setCacheLoaded(true);
-        }
-        
-        const newPeople = res.data.results;
-        if (newPeople.length === 0) break;
-        
-        // Efficient deduplication
-        const existingIds = new Set(allPeople.map(p => p._id));
-        const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p._id));
-        
-        if (uniqueNewPeople.length > 0) {
-          allPeople = [...allPeople, ...uniqueNewPeople];
-          setAllPeopleCache(allPeople);
-          
-          const progress = Math.min(100, Math.round((allPeople.length / Math.min(total, totalNeeded)) * 100));
-          setLoadingProgress(progress);
-          
-          console.log(`✅ Page ${page}: ${uniqueNewPeople.length} people, total: ${allPeople.length}`);
-        }
-        
-        if (newPeople.length < perPage) break; // No more pages
-        
-        page++;
-        
-        // Small delay between requests
-        if (allPeople.length < totalNeeded) {
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
       }
       
       setInitialLoadComplete(true);
-      setHasMore(allPeople.length < total);
-      setLoadingProgress(100);
+      console.log(`🎉 Silently loaded ${allPeople.length} people`);
       
-      console.log(`🎉 Successfully loaded ${allPeople.length} people sequentially!`);
+      // Continue loading to 5000 in background
+      if (allPeople.length < targetLoadCount) {
+        loadTo5000Silently(allPeople, page);
+      }
       
     } catch (err) {
-      console.error("❌ Sequential load failed:", err);
-      setAllPeopleCache([]);
-      setCacheLoaded(true);
-      setInitialLoadComplete(true);
+      console.error("Silent background load failed:", err);
     } finally {
-      setLoadingInvited(false);
+      setBackgroundLoading(false);
     }
-  }, []);
+  }, [targetLoadCount]);
 
-  // Load more people progressively (for infinite scroll)
-  const loadMorePeople = useCallback(async (page = null) => {
-    const targetPage = page || currentPage + 1;
-    
-    if (loadingMore || !hasMore || allPeopleCache.length >= 10000) return;
+  // Continue loading to 5000 completely silently
+  const loadTo5000Silently = useCallback(async (currentPeople, startPage) => {
+    try {
+      let allPeople = [...currentPeople];
+      let page = startPage;
+      const perPage = 1000;
+      
+      while (allPeople.length < targetLoadCount) {
+        try {
+          const res = await axios.get(`${BACKEND_URL}/people`, {
+            params: { perPage, page },
+            timeout: 15000
+          });
+          
+          if (!res.data || !Array.isArray(res.data.results) || res.data.results.length === 0) {
+            break;
+          }
+          
+          const newPeople = res.data.results;
+          const existingIds = new Set(allPeople.map(p => p._id));
+          const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p._id));
+          
+          if (uniqueNewPeople.length > 0) {
+            allPeople = [...allPeople, ...uniqueNewPeople];
+            setAllPeopleCache(allPeople);
+          }
+          
+          if (newPeople.length < perPage) break;
+          
+          page++;
+          
+          // Very slow background loading - user won't notice
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (err) {
+          console.error("Background load error:", err);
+          break;
+        }
+      }
+      
+      console.log(`🏆 Background load complete: ${allPeople.length} people`);
+      
+    } catch (err) {
+      console.error("Background loading failed:", err);
+    }
+  }, [targetLoadCount]);
+
+  // Load even more in background up to 8000
+  const loadTo8000Silently = useCallback(async () => {
+    if (allPeopleCache.length >= maxLoadCount) return;
     
     try {
-      setLoadingMore(true);
-      console.log(`📥 Loading more people, page ${targetPage}...`);
+      let currentPeople = [...allPeopleCache];
+      let page = Math.ceil(currentPeople.length / 1000) + 1;
       
-      const res = await axios.get(`${BACKEND_URL}/people`, {
-        params: { 
-          perPage: 1000,
-          page: targetPage
-        },
-        timeout: 15000
-      });
-      
-      if (res.data && Array.isArray(res.data.results)) {
-        const newPeople = res.data.results;
-        
-        const existingIds = new Set(allPeopleCache.map(p => p._id));
-        const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p._id));
-        
-        if (uniqueNewPeople.length > 0) {
-          setAllPeopleCache(prev => [...prev, ...uniqueNewPeople]);
-          console.log(`✅ Added ${uniqueNewPeople.length} more people to cache`);
+      while (currentPeople.length < maxLoadCount) {
+        try {
+          const res = await axios.get(`${BACKEND_URL}/people`, {
+            params: { 
+              perPage: 1000,
+              page: page
+            },
+            timeout: 15000
+          });
           
-          const totalLoaded = allPeopleCache.length + uniqueNewPeople.length;
-          if (totalLoaded >= 4000 && !initialLoadComplete) {
-            setInitialLoadComplete(true);
-            console.log("🎉 Reached 4000+ people in cache!");
+          if (!res.data || !Array.isArray(res.data.results) || res.data.results.length === 0) {
+            break;
           }
+          
+          const newPeople = res.data.results;
+          const existingIds = new Set(currentPeople.map(p => p._id));
+          const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p._id));
+          
+          if (uniqueNewPeople.length > 0) {
+            currentPeople = [...currentPeople, ...uniqueNewPeople];
+            setAllPeopleCache(currentPeople);
+          }
+          
+          if (newPeople.length < 1000) break;
+          
+          page++;
+          
+          // Very slow loading - completely invisible to user
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+        } catch (err) {
+          console.error("Extended background load error:", err);
+          break;
         }
-        
-        const totalPages = Math.ceil((res.data.total || 0) / 1000);
-        setHasMore(targetPage < totalPages);
-        setCurrentPage(targetPage);
-        
-        console.log(`📊 Cache now has ${allPeopleCache.length + uniqueNewPeople.length} people`);
       }
+      
+      console.log(`🚀 Extended background load: ${currentPeople.length} people`);
       
     } catch (err) {
-      console.error("❌ Failed to load more people:", err);
-    } finally {
-      setLoadingMore(false);
+      console.error("Extended background loading failed:", err);
     }
-  }, [currentPage, hasMore, loadingMore, allPeopleCache.length, initialLoadComplete]);
+  }, [allPeopleCache, maxLoadCount]);
 
-  // Load cache on component mount - 4000 people target
+  // Start background loading on component mount
   useEffect(() => {
-    const loadMassiveCache = async () => {
-      try {
-        // Try parallel loading first (fastest)
-        await loadPeopleParallel(4000);
-      } catch (err) {
-        console.error("❌ Massive cache load failed:", err);
-      }
+    const startBackgroundLoading = async () => {
+      await loadPeopleSilently();
+      
+      // Start extended loading after a delay
+      setTimeout(() => {
+        loadTo8000Silently();
+      }, 3000);
     };
 
-    loadMassiveCache();
-  }, [loadPeopleParallel]);
-
-  // Load more when user scrolls to bottom (infinite scroll)
-  const handleListboxOpen = useCallback(() => {
-    if (allPeopleCache.length < 4000 && hasMore && !loadingMore) {
-      loadMorePeople();
-    }
-  }, [allPeopleCache.length, hasMore, loadingMore, loadMorePeople]);
+    startBackgroundLoading();
+  }, [loadPeopleSilently, loadTo8000Silently]);
 
   // COMBINED SEARCH FUNCTION - PRIORITIZE LOCAL, FALLBACK TO API
   const handleInvitedSearch = useCallback((query) => {
@@ -426,20 +342,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
     if (allPeopleCache.length > 0) {
       searchLocalPeople(query);
-      
-      // Load more if we have few results and more available
-      const localResults = allPeopleCache.filter(person => {
-        const name = `${person.Name || ''} ${person.Surname || ''}`.toLowerCase();
-        return name.includes(query.toLowerCase());
-      });
-      
-      if (localResults.length < 50 && hasMore && !loadingMore && allPeopleCache.length < 10000) {
-        loadMorePeople();
-      }
     } else {
       searchApiPeople(query);
     }
-  }, [searchLocalPeople, searchApiPeople, allPeopleCache.length, hasMore, loadingMore, loadMorePeople]);
+  }, [searchLocalPeople, searchApiPeople, allPeopleCache.length]);
 
   // Handle Enter key press
   const handleKeyPress = (event) => {
@@ -474,54 +380,17 @@ const Signup = ({ onSignup, mode, setMode }) => {
     );
   };
 
-  // Custom listbox component for infinite scroll
+  // SIMPLIFIED Listbox component - no loading indicators
   const ListboxComponent = React.forwardRef(function ListboxComponent(props, ref) {
-    const { children, ...other } = props;
-
-    const handleScroll = (event) => {
-      const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
-      const atBottom = scrollHeight - scrollTop <= clientHeight + 100;
-      
-      if (atBottom && hasMore && !loadingMore && allPeopleCache.length < 10000) {
-        loadMorePeople();
-      }
-    };
-
     return (
       <ul 
-        {...other} 
+        {...props} 
         ref={ref}
-        onScroll={handleScroll}
         style={{ 
           maxHeight: '300px',
-          overflow: 'auto',
-          position: 'relative'
+          overflow: 'auto'
         }}
-      >
-        {children}
-        {loadingMore && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 1, flexDirection: 'column', alignItems: 'center' }}>
-            <CircularProgress size={20} />
-            <Typography variant="caption" sx={{ mt: 1 }}>
-              Loading more... ({allPeopleCache.length.toLocaleString()}+ loaded)
-            </Typography>
-          </Box>
-        )}
-        {!hasMore && allPeopleCache.length > 0 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              All {totalPeople.toLocaleString()} people loaded ✅
-            </Typography>
-          </Box>
-        )}
-        {initialLoadComplete && allPeopleCache.length >= 4000 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.5 }}>
-            <Typography variant="caption" color="success.main" fontWeight="bold">
-              🚀 {allPeopleCache.length.toLocaleString()}+ people ready for search!
-            </Typography>
-          </Box>
-        )}
-      </ul>
+      />
     );
   });
 
@@ -720,19 +589,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
             </Alert>
           )}
 
-          {/* Loading Progress Bar */}
-          {!initialLoadComplete && cacheLoaded && (
-            <Box sx={{ width: '100%', mb: 1 }}>
-              <LinearProgress 
-                variant="determinate" 
-                value={loadingProgress} 
-                sx={{ height: 8, borderRadius: 4 }}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', textAlign: 'center' }}>
-                {parallelRequests > 0 ? `Loading ${parallelRequests} batches in parallel...` : 'Loading people...'} {loadingProgress}%
-              </Typography>
-            </Box>
-          )}
+          {/* REMOVED ALL LOADING INDICATORS */}
 
           <Box display="grid" gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }} gap={2.5}>
             {[
@@ -784,7 +641,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               {errors.title && <Typography variant="caption" color="error">{errors.title}</Typography>}
             </FormControl>
 
-            {/* MASSIVE CACHE Autocomplete */}
+            {/* SILENT AUTocomplete - No loading indicators */}
             <Autocomplete
               freeSolo
               options={invitedOptions}
@@ -796,7 +653,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               value={form.invited_by}
               onChange={handleInvitedByChange}
               onInputChange={handleInvitedByInputChange}
-              onOpen={handleListboxOpen}
               inputValue={invitedSearch}
               filterOptions={(x) => x}
               renderOption={renderPersonOption}
@@ -815,13 +671,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
                   helperText={getHelperText()}
                   fullWidth
                   onKeyPress={handleKeyPress}
-                  placeholder="Type to search from thousands of people..."
+                  placeholder="Type to search people..."
                   sx={{
                     ...roundedInput,
                     "& .MuiFormHelperText-root": { 
                       color: getHelperTextColor(),
-                      fontSize: '0.75rem',
-                      fontWeight: initialLoadComplete && allPeopleCache.length >= 4000 ? 'bold' : 'normal'
                     },
                   }}
                 />
