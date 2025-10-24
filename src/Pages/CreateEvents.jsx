@@ -521,56 +521,68 @@ const CreateEvents = ({
       };
 
   const darkModeStyles = {
+    // Theme-aware, more polished dark/light styles
     textField: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#2d2d2d" : "white",
-        color: isDarkMode ? "#ffffff" : "inherit",
+        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+        color: isDarkMode ? theme.palette.text.primary : "inherit",
         "& fieldset": {
-          borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
+          borderColor: isDarkMode ? theme.palette.divider : "rgba(0,0,0,0.23)",
         },
         "&:hover fieldset": {
-          borderColor: isDarkMode ? "#777" : "rgba(0, 0, 0, 0.87)",
+          borderColor: theme.palette.mode === "dark" ? theme.palette.primary.light : "rgba(0,0,0,0.87)",
         },
         "&.Mui-focused fieldset": {
           borderColor: theme.palette.primary.main,
+          boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
         },
       },
       "& .MuiInputLabel-root": {
-        color: isDarkMode ? "#bbb" : "rgba(0, 0, 0, 0.6)",
+        color: isDarkMode ? theme.palette.text.secondary : "rgba(0, 0, 0, 0.6)",
         "&.Mui-focused": {
           color: theme.palette.primary.main,
         },
       },
       "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-        color: isDarkMode ? "#bbb" : "rgba(0, 0, 0, 0.54)",
+        color: isDarkMode ? theme.palette.text.secondary : "rgba(0, 0, 0, 0.54)",
+      },
+      "& .MuiFormHelperText-root": {
+        color: isDarkMode ? theme.palette.text.secondary : "rgba(0,0,0,0.6)",
       },
     },
     select: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#2d2d2d" : "white",
-        color: isDarkMode ? "#ffffff" : "inherit",
+        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+        color: isDarkMode ? theme.palette.text.primary : "inherit",
       },
       "& .MuiInputLabel-root": {
-        color: isDarkMode ? "#bbb" : "rgba(0, 0, 0, 0.6)",
+        color: isDarkMode ? theme.palette.text.secondary : "rgba(0, 0, 0, 0.6)",
       },
     },
     formControlLabel: {
       "& .MuiFormControlLabel-label": {
-        color: isDarkMode ? "#ffffff" : "inherit",
+        color: isDarkMode ? theme.palette.text.primary : "inherit",
       },
     },
     button: {
       outlined: {
-        borderColor: isDarkMode ? "#555" : "primary.main",
-        color: isDarkMode ? "#ffffff" : "primary.main",
+        borderColor: isDarkMode ? theme.palette.divider : theme.palette.primary.main,
+        color: isDarkMode ? theme.palette.text.primary : theme.palette.primary.main,
         "&:hover": {
-          borderColor: isDarkMode ? "#777" : "primary.dark",
-          bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(25,118,210,0.04)",
+          borderColor: theme.palette.primary.dark,
+          bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(25,118,210,0.04)",
+        },
+      },
+      contained: {
+        bgcolor: theme.palette.primary.main,
+        color: theme.palette.primary.contrastText,
+        "&:hover": {
+          bgcolor: theme.palette.primary.dark,
         },
       },
     },
     errorText: {
-      color: isDarkMode ? "#ff6b6b" : "red",
+      color: theme.palette.mode === "dark" ? "#ff8888" : "#d32f2f",
     },
   };
 
@@ -582,6 +594,10 @@ const CreateEvents = ({
       </Typography>
     );
   }
+
+  // Ensure card background matches theme (applies to modal and page)
+  const cardBg = isDarkMode ? theme.palette.background.paper : "#ffffff";
+  const cardBorder = isDarkMode ? `1px solid ${theme.palette.divider}` : "none";
 
   // ---------------------------
   // END: logic portion — the next thing is `return` (render). 
@@ -596,13 +612,9 @@ const CreateEvents = ({
       <Card
         sx={{
           ...cardStyle,
-          ...(isDarkMode && !isModal
-            ? {
-                bgcolor: "#1e1e1e",
-                color: "#ffffff",
-                border: "1px solid #333",
-              }
-            : {}),
+          bgcolor: cardBg,
+          color: isDarkMode ? theme.palette.text.primary : "inherit",
+          border: cardBorder,
         }}
       >
         <CardContent
