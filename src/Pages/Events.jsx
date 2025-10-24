@@ -1444,7 +1444,7 @@ const StatusBadges = () => {
 
         Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-        // ✅ CORRECTED: Use the universal status-counts endpoint for ALL users
+        
         const endpoint = `${BACKEND_URL}/events/status-counts`;
         console.log('📊 Fetching status counts from universal endpoint:', endpoint);
 
