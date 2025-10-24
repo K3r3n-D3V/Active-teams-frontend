@@ -599,48 +599,56 @@ const Events = () => {
     setConfirmDeleteOpen(true);
   };
   const handleDeleteType = async () => {
-    if (!toDeleteType) return;
-    try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`${BACKEND_URL}/event-types/${toDeleteType._id}`, {
+  if (!toDeleteType) return;
+
+  try {
+    const token = localStorage.getItem("token");
+
+    // Delete events with this type from backend
+    const response = await axios.delete(
+      `${BACKEND_URL}/event-types/${encodeURIComponent(toDeleteType.name)}`,
+      {
         headers: { Authorization: `Bearer ${token}` },
-      });
-
-      // remove from local lists
-      setCustomEventTypes((prev) =>
-        prev.filter((t) => String(t._id) !== String(toDeleteType._id))
-      );
-      setUserCreatedEventTypes((prev) =>
-        prev.filter((t) => String(t._id) !== String(toDeleteType._id))
-      );
-      setEventTypes((prev) => prev.filter((n) => n !== toDeleteType.name));
-
-      // if currently selected type was deleted, reset filter
-      const deletedValue = (toDeleteType.name || "").toLowerCase();
-      if (selectedEventTypeFilter === deletedValue) {
-        setSelectedEventTypeFilter("all");
-        setSelectedEventTypeObj(null);
-        setCurrentSelectedEventType("");
-        localStorage.removeItem("selectedEventTypeObj");
       }
+    );
 
-      setSnackbar({
-        open: true,
-        message: "Event type deleted",
-        severity: "success",
-      });
-    } catch (err) {
-      console.error("Failed to delete event type", err);
-      setSnackbar({
-        open: true,
-        message: "Failed to delete event type",
-        severity: "error",
-      });
-    } finally {
-      setConfirmDeleteOpen(false);
-      setToDeleteType(null);
+    console.log(response.data.message); // Optional: log deletion count
+
+    // Remove from local lists
+    setCustomEventTypes((prev) =>
+      prev.filter((t) => String(t.name) !== String(toDeleteType.name))
+    );
+    setUserCreatedEventTypes((prev) =>
+      prev.filter((t) => String(t.name) !== String(toDeleteType.name))
+    );
+    setEventTypes((prev) => prev.filter((n) => n !== toDeleteType.name));
+
+    // If currently selected type was deleted, reset filter
+    if (selectedEventTypeFilter === (toDeleteType.name || "").toLowerCase()) {
+      setSelectedEventTypeFilter("all");
+      setSelectedEventTypeObj(null);
+      setCurrentSelectedEventType("");
+      localStorage.removeItem("selectedEventTypeObj");
     }
-  };
+
+    setSnackbar({
+      open: true,
+      message: `Deleted events with type "${toDeleteType.name}"`,
+      severity: "success",
+    });
+  } catch (err) {
+    console.error("Failed to delete event type", err);
+    setSnackbar({
+      open: true,
+      message: "Failed to delete event type",
+      severity: "error",
+    });
+  } finally {
+    setConfirmDeleteOpen(false);
+    setToDeleteType(null);
+  }
+};
+
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
       const leaderAt1 = await getCurrentUserLeaderAt1();
