@@ -1,4 +1,4 @@
-// People.jsx (Updated with edit functionality)
+// People.jsx (Updated with persistent caching and optimized loading)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import axios from 'axios';
@@ -6,7 +6,7 @@ import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
   TextField, InputAdornment, Button, Snackbar, Alert, Skeleton, ToggleButton, 
-  ToggleButtonGroup, Tooltip, Pagination
+  ToggleButtonGroup, Tooltip, Pagination, CircularProgress, LinearProgress
 } from '@mui/material';
 import {
   Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
@@ -16,6 +16,11 @@ import {
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
 import PeopleListView from '../components/PeopleListView';
+
+// Global cache outside component to persist across remounts
+let globalPeopleCache = null;
+let globalCacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Custom hook for debounced search
 const useDebounce = (value, delay) => {
@@ -251,15 +256,18 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
     }
   };
 
-  if (loading) return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-      {stages.map(Stage => (
-        <Paper key={Stage.id} sx={{ flex: '1 0 250px', minWidth: 220, borderRadius: 2, p: 2 }}>
-          {[...Array(3)].map((_, i) => <Skeleton key={i} variant="rectangular" height={80} sx={{ mb: 1 }} />)}
-        </Paper>
-      ))}
-    </Box>
-  );
+  // Only show skeleton if loading AND no data at all (first ever load)
+  if (loading && people.length === 0 && !globalPeopleCache) {
+    return (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+        {stages.map(Stage => (
+          <Paper key={Stage.id} sx={{ flex: '1 0 250px', minWidth: 220, borderRadius: 2, p: 2 }}>
+            {[...Array(3)].map((_, i) => <Skeleton key={i} variant="rectangular" height={80} sx={{ mb: 1 }} />)}
+          </Paper>
+        ))}
+      </Box>
+    );
+  }
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
@@ -304,8 +312,8 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
 // ---------------- PeopleSection ----------------
 export const PeopleSection = () => {
   const theme = useTheme();
-  const [allPeople, setAllPeople] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('name');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -319,12 +327,34 @@ export const PeopleSection = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [gridPage, setGridPage] = useState(1);
   const ITEMS_PER_PAGE = 100;
+  const isFetchingRef = useRef(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  const fetchAllPeople = useCallback(async () => {
+  const fetchAllPeople = useCallback(async (forceRefresh = false) => {
+    // Check if cache is valid and not forcing refresh
+    const now = Date.now();
+    if (!forceRefresh && globalPeopleCache && globalCacheTimestamp && (now - globalCacheTimestamp < CACHE_DURATION)) {
+      console.log('Using cached data');
+      setAllPeople(globalPeopleCache);
+      return;
+    }
+
+    // Prevent duplicate fetches
+    if (isFetchingRef.current) {
+      console.log('Fetch already in progress');
+      return;
+    }
+
+    isFetchingRef.current = true;
     setLoading(true);
+    
+    // Show UI immediately if we have cached data
+    if (globalPeopleCache && !forceRefresh) {
+      setAllPeople(globalPeopleCache);
+    }
+    
     try {
       const res = await axios.get(`${BACKEND_URL}/people`, { 
         params: { perPage: 0 },
@@ -352,12 +382,21 @@ export const PeopleSection = () => {
         }
       }));
 
+      // Update global cache
+      globalPeopleCache = mapped;
+      globalCacheTimestamp = Date.now();
       setAllPeople(mapped);
+      
+      console.log(`Data fetched and cached successfully: ${mapped.length} people`);
     } catch (err) {
+      console.error('Fetch error:', err);
       setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
-      setAllPeople([]);
+      if (!globalPeopleCache) {
+        setAllPeople([]);
+      }
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, [BACKEND_URL]);
 
@@ -409,7 +448,8 @@ export const PeopleSection = () => {
   }, [filteredPeople.length, viewMode, debouncedSearchTerm]);
 
   useEffect(() => {
-    fetchAllPeople();
+    // Fetch data on mount - this runs in background
+    fetchAllPeople(false);
   }, [fetchAllPeople]);
 
   useEffect(() => {
@@ -417,23 +457,38 @@ export const PeopleSection = () => {
   }, [debouncedSearchTerm, searchField]);
 
   const handleRefresh = () => {
-    fetchAllPeople();
+    fetchAllPeople(true);
   };
 
   const updatePersonInCache = useCallback((personId, updates) => {
-    setAllPeople(prev => prev.map(person => 
-      String(person._id) === String(personId) 
-        ? { ...person, ...updates } 
-        : person
-    ));
+    setAllPeople(prev => {
+      const updated = prev.map(person => 
+        String(person._id) === String(personId) 
+          ? { ...person, ...updates } 
+          : person
+      );
+      // Update global cache
+      globalPeopleCache = updated;
+      return updated;
+    });
   }, []);
 
   const addPersonToCache = useCallback((newPerson) => {
-    setAllPeople(prev => [...prev, newPerson]);
+    setAllPeople(prev => {
+      const updated = [...prev, newPerson];
+      // Update global cache
+      globalPeopleCache = updated;
+      return updated;
+    });
   }, []);
 
   const removePersonFromCache = useCallback((personId) => {
-    setAllPeople(prev => prev.filter(person => String(person._id) !== String(personId)));
+    setAllPeople(prev => {
+      const updated = prev.filter(person => String(person._id) !== String(personId));
+      // Update global cache
+      globalPeopleCache = updated;
+      return updated;
+    });
   }, []);
 
   const handleViewChange = (event, newView) => {
@@ -442,11 +497,9 @@ export const PeopleSection = () => {
     }
   };
 
-// Handle edit - populate form with person data
   const handleEditPerson = (person) => {
     setEditingPerson(person);
     
-    // Format DOB for input field (expects YYYY-MM-DD)
     let formattedDob = '';
     if (person.dob) {
       try {
@@ -476,9 +529,7 @@ export const PeopleSection = () => {
     setIsModalOpen(true);
   };
 
-  // Handle save from dialog
   const handleSaveFromDialog = (savedPerson) => {
-    // Map the saved person to internal format
     const mappedPerson = {
       _id: savedPerson._id || editingPerson?._id,
       name: savedPerson.name || '',
@@ -500,17 +551,14 @@ export const PeopleSection = () => {
     };
 
     if (editingPerson) {
-      // Update existing person
       updatePersonInCache(editingPerson._id, mappedPerson);
       setSnackbar({ open: true, message: 'Person updated successfully', severity: 'success' });
     } else {
-      // Add new person
       addPersonToCache(mappedPerson);
       setSnackbar({ open: true, message: 'Person added successfully', severity: 'success' });
     }
   };
 
-  // Handle close dialog
   const handleCloseDialog = () => {
     setIsModalOpen(false);
     setEditingPerson(null);
@@ -525,9 +573,13 @@ export const PeopleSection = () => {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
+      {/* Loading indicator at the top */}
+      {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999 }} />}
+      
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, mb: 1 }}>
         <Typography variant="h6">
           My People {isSearching && `(${filteredPeople.length} results)`}
+          {loading && <CircularProgress size={16} sx={{ ml: 2 }} />}
         </Typography>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           <ToggleButtonGroup
@@ -604,6 +656,8 @@ export const PeopleSection = () => {
                         newAll[idx] = updatedPerson;
                       }
                     });
+                    // Update global cache
+                    globalPeopleCache = newAll;
                     return newAll;
                   });
                 }
