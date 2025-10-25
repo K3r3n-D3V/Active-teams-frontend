@@ -1,3 +1,519 @@
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import axios from "axios";
+import { useLocation } from "react-router-dom";
+import { useTheme } from "@mui/material/styles";
+import AttendanceModal from "./AttendanceModal";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
+import Tooltip from "@mui/material/Tooltip";
+import {
+  Box,
+  useMediaQuery,
+  Button,
+  IconButton,
+  MenuItem,
+  Popover,
+  Typography,
+  ListItemIcon,
+  ListItemText,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Dialog,
+} from "@mui/material";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+
+import Eventsfilter from "./AddPersonToEvents";
+import CreateEvents from "./CreateEvents";
+import EventTypesModal from "./EventTypesModal";
+import EditEventModal from "./EditEventModal";
+
+const styles = {
+  container: {
+    minHeight: "100vh",
+    fontFamily: "system-ui, sans-serif",
+    padding: "1rem",
+    paddingTop: "5rem",
+    boxSizing: "border-box",
+    overflow: "hidden",
+  },
+  topSection: {
+    padding: "1.5rem",
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    marginBottom: "1rem",
+    marginTop: "1rem",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+  },
+  searchFilterRow: {
+    display: "flex",
+    gap: "1rem",
+    alignItems: "center",
+    marginBottom: "1.5rem",
+    flexWrap: "wrap",
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: "200px",
+    padding: "0.75rem 1rem",
+    border: "1px solid #dee2e6",
+    borderRadius: "6px",
+    fontSize: "0.95rem",
+    boxSizing: "border-box",
+  },
+  filterButton: {
+    padding: "0.75rem 1.5rem",
+    backgroundColor: "#007bff",
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    fontSize: "0.95rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    transition: "all 0.2s ease",
+  },
+  statusBadgeContainer: {
+    display: "flex",
+    gap: "0.75rem",
+    flexWrap: "wrap",
+  },
+  statusBadge: {
+    padding: "0.5rem 1rem",
+    borderRadius: "6px",
+    fontSize: "0.95rem",
+    fontWeight: "600",
+    cursor: "pointer",
+    border: "2px solid",
+    transition: "all 0.2s ease",
+    textTransform: "uppercase",
+    whiteSpace: "nowrap",
+  },
+  statusBadgeIncomplete: {
+    backgroundColor: "#FFA500",
+    color: "#fff",
+    borderColor: "#FFA500",
+  },
+  statusBadgeComplete: {
+    backgroundColor: "#fff",
+    color: "#28a745",
+    borderColor: "#28a745",
+  },
+  statusBadgeDidNotMeet: {
+    backgroundColor: "#fff",
+    color: "#dc3545",
+    borderColor: "#dc3545",
+  },
+  statusBadgeActive: {
+    transform: "scale(1.05)",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
+  },
+  tableContainer: {
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    overflow: "hidden",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+    maxWidth: "100%",
+    maxHeight: "calc(100vh - 300px)",
+    display: "flex",
+    flexDirection: "column",
+  },
+  tableWrapper: {
+    overflow: "auto",
+    flex: 1,
+  },
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    minWidth: "1300px",
+  },
+  tableHeader: {
+    backgroundColor: "#000",
+    color: "#fff",
+  },
+  th: {
+    padding: "1rem",
+    textAlign: "left",
+    fontWeight: 600,
+    fontSize: "0.95rem",
+    borderBottom: "2px solid #000",
+    whiteSpace: "nowrap",
+  },
+  tr: {
+    borderBottom: "1px solid #e9ecef",
+    transition: "background-color 0.2s ease",
+  },
+  trHover: {
+    backgroundColor: "#f8f9fa",
+  },
+  td: {
+    padding: "1rem",
+    fontSize: "0.9rem",
+    color: "#212529",
+    verticalAlign: "top",
+  },
+  actionIcons: {
+    display: "flex",
+    gap: "0.5rem",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  openEventIcon: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "6px",
+    backgroundColor: "#007bff",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    border: "none",
+    fontSize: "18px",
+  },
+  truncatedText: {
+    maxWidth: "150px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  emailText: {
+    maxWidth: "180px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2000,
+    padding: "20px",
+  },
+  modalContent: {
+    position: "relative",
+    width: "90%",
+    maxWidth: "700px",
+    maxHeight: "95vh",
+    backgroundColor: "white",
+    borderRadius: "12px",
+    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+  modalHeader: {
+    backgroundColor: "#333",
+    color: "white",
+    padding: "20px 24px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopLeftRadius: "12px",
+    borderTopRightRadius: "12px",
+  },
+  modalTitle: {
+    fontSize: "1.5rem",
+    fontWeight: "bold",
+    margin: 0,
+  },
+  modalCloseButton: {
+    background: "rgba(255, 255, 255, 0.2)",
+    border: "none",
+    borderRadius: "50%",
+    width: "32px",
+    height: "32px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontSize: "20px",
+    color: "white",
+    fontWeight: "bold",
+    transition: "all 0.2s ease",
+  },
+  modalBody: {
+    flex: 1,
+    overflow: "auto",
+    padding: "0",
+  },
+  loadingSkeleton: {
+    padding: "1rem",
+    backgroundColor: "#d3d3d3",
+    borderRadius: "4px",
+    height: "60px",
+    marginBottom: "0.5rem",
+    animation: "pulse 1.5s ease-in-out infinite",
+  },
+  overdueLabel: {
+    color: "red",
+    fontSize: "0.8rem",
+    marginTop: "0.2rem",
+    fontWeight: "bold",
+  },
+  mobileCard: {
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    padding: "1rem",
+    marginBottom: "1rem",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+  },
+  mobileCardRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "0.5rem",
+    fontSize: "0.9rem",
+  },
+  mobileCardLabel: {
+    fontWeight: 600,
+    color: "#666",
+  },
+  mobileCardValue: {
+    color: "#212529",
+    textAlign: "right",
+  },
+  mobileActions: {
+    display: "flex",
+    gap: "0.5rem",
+    marginTop: "1rem",
+    justifyContent: "flex-end",
+  },
+  viewFilterRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "1.5rem",
+    flexWrap: "wrap",
+    gap: "1rem",
+  },
+  viewFilterContainer: {
+    display: "flex",
+    gap: "1rem",
+    alignItems: "center",
+  },
+  viewFilterLabel: {
+    fontSize: "1rem",
+    fontWeight: "600",
+    color: "#495057",
+  },
+  viewFilterRadio: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    cursor: "pointer",
+  },
+  viewFilterText: {
+    fontSize: "1.1rem",
+    transition: "all 0.2s ease",
+  },
+  paginationButton: {
+    padding: "0.5rem 1rem",
+    border: "1px solid #dee2e6",
+    backgroundColor: "#fff",
+    cursor: "pointer",
+    borderRadius: "4px",
+  },
+  paginationButtonDisabled: {
+    backgroundColor: "#f8f9fa",
+    color: "#6c757d",
+    cursor: "not-allowed",
+  },
+  rowsSelect: {
+    padding: "0.25rem 0.5rem",
+    border: "1px solid #dee2e6",
+    borderRadius: "4px",
+    backgroundColor: "#fff",
+    fontSize: "0.875rem",
+  },
+  paginationContainer: {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    padding: "1rem",
+    borderTop: "1px solid #e9ecef",
+    backgroundColor: "#f8f9fa",
+    gap: "1.5rem",
+  },
+  rowsPerPage: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    fontSize: "0.875rem",
+    color: "#6c757d",
+  },
+  paginationInfo: {
+    fontSize: "0.875rem",
+    color: "#6c757d",
+  },
+  paginationControls: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.25rem",
+  },
+};
+
+const fabStyles = {
+  fabContainer: {
+    position: "fixed",
+    bottom: "20px",
+    right: "20px",
+    zIndex: 1000,
+  },
+  fabMenu: {
+    position: "absolute",
+    bottom: "70px",
+    right: "0",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    transition: "all 0.3s ease",
+  },
+  fabMenuItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    background: "#fff",
+    padding: "12px 16px",
+    borderRadius: "50px",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    transition: "all 0.2s ease",
+  },
+  fabMenuLabel: {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#333",
+  },
+  fabMenuIcon: {
+    width: "24px",
+    height: "24px",
+    borderRadius: "50%",
+    backgroundColor: "#007bff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#fff",
+    fontSize: "16px",
+  },
+  mainFab: {
+    backgroundColor: "#007bff",
+    color: "white",
+    border: "none",
+    borderRadius: "50%",
+    width: "56px",
+    height: "56px",
+    fontSize: "1.5rem",
+    cursor: "pointer",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.3s ease",
+  },
+};
+
+const eventTypeStyles = {
+  container: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: "12px",
+    padding: "1.5rem",
+    marginBottom: "1.5rem",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  },
+  header: {
+    fontSize: "0.875rem",
+    fontWeight: "600",
+    color: "#6c757d",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginBottom: "1rem",
+  },
+  selectedTypeDisplay: {
+    fontSize: "1.25rem",
+    fontWeight: "700",
+    color: "#007bff",
+    marginBottom: "1rem",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  checkIcon: {
+    width: "24px",
+    height: "24px",
+    borderRadius: "50%",
+    backgroundColor: "#28a745",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "14px",
+    fontWeight: "bold",
+  },
+  typesGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+    gap: "0.75rem",
+  },
+  typeCard: {
+    padding: "1rem",
+    borderRadius: "8px",
+    border: "2px solid transparent",
+    backgroundColor: "white",
+    cursor: "pointer",
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    position: "relative",
+    overflow: "hidden",
+  },
+  typeCardActive: {
+    borderColor: "#007bff",
+    backgroundColor: "#e7f3ff",
+    transform: "translateX(8px) scale(1.02)",
+    boxShadow: "0 4px 12px rgba(0, 123, 255, 0.2)",
+  },
+  typeCardHover: {
+    borderColor: "#ddd",
+    transform: "translateY(-2px)",
+    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+  },
+  typeName: {
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    color: "#495057",
+    textAlign: "center",
+    display: "block",
+  },
+  typeNameActive: {
+    color: "#007bff",
+  },
+  activeIndicator: {
+    position: "absolute",
+    top: "8px",
+    right: "8px",
+    width: "20px",
+    height: "20px",
+    borderRadius: "50%",
+    backgroundColor: "#007bff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "white",
+    fontSize: "12px",
+    fontWeight: "bold",
+    animation: "slideIn 0.3s ease-out",
+  },
+};
+
 const Events = () => {
   const location = useLocation();
   const theme = useTheme();
@@ -6,6 +522,7 @@ const Events = () => {
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const isAdmin = currentUser?.role === "admin";
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  
   // State declarations
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
@@ -18,8 +535,7 @@ const Events = () => {
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
-  const [createEventTypeModalOpen, setCreateEventTypeModalOpen] =
-    useState(false);
+  const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -31,12 +547,9 @@ const Events = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [currentSelectedEventType, setCurrentSelectedEventType] = useState(
-    () => {
-      return localStorage.getItem("selectedEventType") || "";
-    }
-  );
-
+  const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
+    return localStorage.getItem("selectedEventType") || "";
+  });
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredRow, setHoveredRow] = useState(null);
@@ -50,58 +563,21 @@ const Events = () => {
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  // const [eventsCache, setEventsCache] = useState({});
-  // const [lastFetchTime, setLastFetchTime] = useState(0);
-
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState("");
-
   const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
   const [typeMenuFor, setTypeMenuFor] = useState(null);
   const [editingEventType, setEditingEventType] = useState(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [toDeleteType, setToDeleteType] = useState(null);
-  const openTypeMenu = (e, type) => {
-    e.stopPropagation();
-    setTypeMenuAnchor(e.currentTarget);
-    setTypeMenuFor(type);
-  };
 
-  const closeTypeMenu = () => {
-    setTypeMenuAnchor(null);
-    setTypeMenuFor(null);
-  };
-
-  const handleEditType = (type) => {
-    closeTypeMenu();
-    setEditingEventType(type);
-    setCreateEventTypeModalOpen(true);
-  };
-
-  const confirmDeleteType = (type) => {
-    closeTypeMenu();
-    setToDeleteType(type);
-    setConfirmDeleteOpen(true);
-  };
-  const handleDeleteType = async () => {
-  if (!toDeleteType) return;
-
-  try {
-    const token = localStorage.getItem("token");
-
-    // Delete events with this type from backend
-    const response = await axios.delete(
-      `${BACKEND_URL}/event-types/${encodeURIComponent(toDeleteType.name)}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-  const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
-
-
+  // Cache ref
   const cacheRef = useRef({
     data: new Map(),
     timestamp: new Map(),
-    CACHE_DURATION: 5 * 60 * 1000 // 5 minutes cache
+    CACHE_DURATION: 5 * 60 * 1000
   });
 
+  // Cache utility functions
   const getCacheKey = useCallback((params) => {
     return JSON.stringify({
       page: params.page,
@@ -131,7 +607,6 @@ const Events = () => {
     cacheRef.current.data.set(key, data);
     cacheRef.current.timestamp.set(key, Date.now());
     
-    // Limit cache size to prevent memory issues
     if (cacheRef.current.data.size > 50) {
       const firstKey = cacheRef.current.data.keys().next().value;
       cacheRef.current.data.delete(firstKey);
@@ -145,308 +620,225 @@ const Events = () => {
     cacheRef.current.timestamp.clear();
   }, []);
 
+  // Type menu handlers
+  const openTypeMenu = (e, type) => {
+    e.stopPropagation();
+    setTypeMenuAnchor(e.currentTarget);
+    setTypeMenuFor(type);
+  };
 
+  const closeTypeMenu = () => {
+    setTypeMenuAnchor(null);
+    setTypeMenuFor(null);
+  };
 
-  // ✅ ADD THIS: Proper fetchEvents function definition
-const fetchEvents = async (filters = {}, forceRefresh = false) => {
-  setLoading(true);
-  setIsLoading(true);
+  const handleEditType = (type) => {
+    closeTypeMenu();
+    setEditingEventType(type);
+    setCreateEventTypeModalOpen(true);
+  };
 
-  try {
-    const token = localStorage.getItem("token");
-    
-    if (!token) {
-      console.error("❌ No authentication token found");
-      setSnackbar({
-        open: true,
-        message: "Session expired. Please log in again.",
-        severity: "error",
-      });
-      setEvents([]);
-      setFilteredEvents([]);
-      setLoading(false);
-      setIsLoading(false);
-      return;
-    }
+  const confirmDeleteType = (type) => {
+    closeTypeMenu();
+    setToDeleteType(type);
+    setConfirmDeleteOpen(true);
+  };
 
-    const headers = { 
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
+  const handleDeleteType = async () => {
+    if (!toDeleteType) return;
 
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
-      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
-
-    // ✅ ADD DATE FILTER - Only events from October 20th, 2025
-    const startDate = '2025-10-20';
-    
-    const params = {
-      page: filters.page !== undefined ? filters.page : currentPage,
-      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery.trim() || undefined,
-      personal: shouldApplyPersonalFilter ? true : undefined,
-      start_date: startDate,
-      ...filters
-    };
-
-    // Clean up undefined params
-    Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
-
-    // Cache logic
-    const cacheKey = getCacheKey(params);
-    
-    if (!forceRefresh) {
-      const cachedData = getCachedData(cacheKey);
-      if (cachedData) {
-        console.log('🚀 Serving from cache for:', cacheKey);
-        setEvents(cachedData.events);
-        setFilteredEvents(cachedData.events);
-        setTotalEvents(cachedData.total_events);
-        setTotalPages(cachedData.total_pages);
-        
-        if (filters.page !== undefined) {
-          setCurrentPage(filters.page);
-        }
-        
-        setLoading(false);
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    console.log('🔍 Fetching events from API with params:', params);
-
-    // ✅ REDUCED TIMEOUT for faster feedback
-    const endpoint = `${BACKEND_URL}/events`;
-    console.log('📡 Using universal events endpoint for all users:', endpoint);
-
-    const response = await axios.get(endpoint, { 
-      headers, 
-      params, 
-      timeout: 15000 // ✅ Reduced from 30s to 15s
-    });
-    
-    const responseData = response.data;
-    const newEvents = responseData.events || responseData.results || [];
-
-    console.log('📥 Received events:', newEvents.length);
-
-    // Cache the response
-    setCachedData(cacheKey, {
-      events: newEvents,
-      total_events: responseData.total_events || responseData.total || 0,
-      total_pages: responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1
-    });
-
-    setEvents(newEvents);
-    setFilteredEvents(newEvents);
-    setTotalEvents(responseData.total_events || responseData.total || 0);
-    const calculatedTotalPages = responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1;
-    setTotalPages(calculatedTotalPages);
-
-    if (filters.page !== undefined) {
-      setCurrentPage(filters.page);
-    }
-
-  } catch (err) {
-    console.error("❌ Error fetching events:", err);
-    
-    if (err.code === 'ECONNABORTED') {
-      console.error("⏰ Request timeout - backend is slow");
-      setSnackbar({
-        open: true,
-        message: "Server is taking too long to respond. Please try again.",
-        severity: "warning",
-      });
-      
-      // Show empty state but don't clear existing data
-      if (events.length === 0) {
-        setEvents([]);
-        setFilteredEvents([]);
-      }
-    } else if (err.response?.status === 401) {
-      console.error("🔒 Authentication failed");
-      setSnackbar({
-        open: true,
-        message: "Your session has expired. Please log in again.",
-        severity: "error",
-      });
-      localStorage.removeItem("token");
-      localStorage.removeItem("userProfile");
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 2000);
-    } else {
-      setSnackbar({
-        open: true,
-        message: "Failed to load events. Please try again.",
-        severity: "error",
-      });
-      setEvents([]);
-      setFilteredEvents([]);
-    }
-  } finally {
-    setLoading(false);
-    setIsLoading(false);
-  }
-};
-    // Authentication check
-  useEffect(() => {
-    const checkAuth = () => {
+    try {
       const token = localStorage.getItem("token");
-      const userProfile = localStorage.getItem("userProfile");
-      
-      if (!token || !userProfile) {
-        console.error("❌ Missing authentication. Redirecting to login...");
-        setSnackbar({
-          open: true,
-          message: "Please log in to continue",
-          severity: "warning",
-        });
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 1500);
-      }
-    );
 
-    console.log(response.data.message); // Optional: log deletion count
-
-    // Remove from local lists
-    setCustomEventTypes((prev) =>
-      prev.filter((t) => String(t.name) !== String(toDeleteType.name))
-    );
-    setUserCreatedEventTypes((prev) =>
-      prev.filter((t) => String(t.name) !== String(toDeleteType.name))
-    );
-    setEventTypes((prev) => prev.filter((n) => n !== toDeleteType.name));
-
-    // If currently selected type was deleted, reset filter
-    if (selectedEventTypeFilter === (toDeleteType.name || "").toLowerCase()) {
-      setSelectedEventTypeFilter("all");
-      setSelectedEventTypeObj(null);
-      setCurrentSelectedEventType("");
-      localStorage.removeItem("selectedEventTypeObj");
-    }
-
-    setSnackbar({
-      open: true,
-      message: `Deleted events with type "${toDeleteType.name}"`,
-      severity: "success",
-    });
-  } catch (err) {
-    console.error("Failed to delete event type", err);
-    setSnackbar({
-      open: true,
-      message: "Failed to delete event type",
-      severity: "error",
-    });
-  } finally {
-    setConfirmDeleteOpen(false);
-    setToDeleteType(null);
-  }
-};
-
-  useEffect(() => {
-    const fetchCurrentUserLeaderAt1 = async () => {
-      const leaderAt1 = await getCurrentUserLeaderAt1();
-      setCurrentUserLeaderAt1(leaderAt1);
-    };
-
-    fetchCurrentUserLeaderAt1();
-  }, []);
-
-  // Load event types from localStorage
-  useEffect(() => {
-    const savedEventTypes = localStorage.getItem("customEventTypes");
-    if (savedEventTypes) {
-      try {
-        const parsed = JSON.parse(savedEventTypes);
-        setCustomEventTypes(parsed);
-        setUserCreatedEventTypes(parsed);
-        setEventTypes(parsed.map((type) => type.name));
-      } catch (error) {
-        console.error("Error parsing saved event types:", error);
-      }
-    }
-  }, []);
-
-  // Save event types to localStorage
-  useEffect(() => {
-    if (customEventTypes.length > 0) {
-      localStorage.setItem(
-        "customEventTypes",
-        JSON.stringify(customEventTypes)
+      const response = await axios.delete(
+        `${BACKEND_URL}/event-types/${encodeURIComponent(toDeleteType.name)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
-    }
-  }, [customEventTypes]);
 
+      console.log(response.data.message);
+
+      setCustomEventTypes((prev) =>
+        prev.filter((t) => String(t.name) !== String(toDeleteType.name))
+      );
+      setUserCreatedEventTypes((prev) =>
+        prev.filter((t) => String(t.name) !== String(toDeleteType.name))
+      );
+      setEventTypes((prev) => prev.filter((n) => n !== toDeleteType.name));
+
+      if (selectedEventTypeFilter === (toDeleteType.name || "").toLowerCase()) {
+        setSelectedEventTypeFilter("all");
+        setSelectedEventTypeObj(null);
+        setCurrentSelectedEventType("");
+        localStorage.removeItem("selectedEventTypeObj");
+      }
+
+      setSnackbar({
+        open: true,
+        message: `Deleted events with type "${toDeleteType.name}"`,
+        severity: "success",
+      });
+    } catch (err) {
+      console.error("Failed to delete event type", err);
+      setSnackbar({
+        open: true,
+        message: "Failed to delete event type",
+        severity: "error",
+      });
+    } finally {
+      setConfirmDeleteOpen(false);
+      setToDeleteType(null);
+    }
+  };
+
+  // Main fetch function
   const fetchEvents = async (filters = {}, forceRefresh = false) => {
     if (isLoading && !forceRefresh) {
       console.log("⏸️ Fetch already in progress, skipping...");
       return;
-  // Save selected event type to localStorage
-  useEffect(() => {
-    if (currentSelectedEventType) {
-      localStorage.setItem("selectedEventType", currentSelectedEventType);
-    } else {
-      localStorage.removeItem("selectedEventType");
     }
-  }, [currentSelectedEventType]);
 
-  // Clear cache when filters change
-  useEffect(() => {
-    clearCache();
-  }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery]);
+    setLoading(true);
+    setIsLoading(true);
 
-  // Main fetch effect
-  useEffect(() => {
-    console.log('🔄 Main fetch triggered');
-    console.log('🎯 Current event type filter:', selectedEventTypeFilter);
-
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
-      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
-
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery.trim() || undefined,
-      personal: shouldApplyPersonalFilter ? true : undefined
-    };
-
-    // Clean up undefined params
-    Object.keys(fetchParams).forEach(key => {
-      if (fetchParams[key] === undefined || fetchParams[key] === '' || fetchParams[key] === 'all') {
-        delete fetchParams[key];
+    try {
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        console.error("❌ No authentication token found");
+        setSnackbar({
+          open: true,
+          message: "Session expired. Please log in again.",
+          severity: "error",
+        });
+        setEvents([]);
+        setFilteredEvents([]);
+        setLoading(false);
+        setIsLoading(false);
+        return;
       }
-    });
 
-    console.log('📤 Main fetch params:', fetchParams);
-    
-    setCurrentPage(1);
-    fetchEvents(fetchParams, false);
-  }, [selectedStatus, selectedEventTypeFilter, viewFilter, location.pathname, location.state?.refresh, currentUser?.role]);
+      const headers = { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
 
-  // Debounced search
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchQuery.trim() !== '') {
-        handleSearchSubmit();
-      } else if (searchQuery.trim() === '' && events.length > 0) {
-        handleSearchSubmit();
+      const shouldApplyPersonalFilter = 
+        viewFilter === 'personal' && 
+        (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+      const startDate = '2025-10-20';
+      
+      const params = {
+        page: filters.page !== undefined ? filters.page : currentPage,
+        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: searchQuery.trim() || undefined,
+        personal: shouldApplyPersonalFilter ? true : undefined,
+        start_date: startDate,
+        ...filters
+      };
+
+      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+      const cacheKey = getCacheKey(params);
+      
+      if (!forceRefresh) {
+        const cachedData = getCachedData(cacheKey);
+        if (cachedData) {
+          console.log('🚀 Serving from cache for:', cacheKey);
+          setEvents(cachedData.events);
+          setFilteredEvents(cachedData.events);
+          setTotalEvents(cachedData.total_events);
+          setTotalPages(cachedData.total_pages);
+          
+          if (filters.page !== undefined) {
+            setCurrentPage(filters.page);
+          }
+          
+          setLoading(false);
+          setIsLoading(false);
+          return;
+        }
       }
-    }, 800);
 
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+      console.log('🔍 Fetching events from API with params:', params);
 
+      const endpoint = `${BACKEND_URL}/events`;
+      console.log('📡 Using universal events endpoint for all users:', endpoint);
 
-  // Overdue check function
+      const response = await axios.get(endpoint, { 
+        headers, 
+        params, 
+        timeout: 15000
+      });
+      
+      const responseData = response.data;
+      const newEvents = responseData.events || responseData.results || [];
+
+      console.log('📥 Received events:', newEvents.length);
+
+      setCachedData(cacheKey, {
+        events: newEvents,
+        total_events: responseData.total_events || responseData.total || 0,
+        total_pages: responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1
+      });
+
+      setEvents(newEvents);
+      setFilteredEvents(newEvents);
+      setTotalEvents(responseData.total_events || responseData.total || 0);
+      const calculatedTotalPages = responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1;
+      setTotalPages(calculatedTotalPages);
+
+      if (filters.page !== undefined) {
+        setCurrentPage(filters.page);
+      }
+
+    } catch (err) {
+      console.error("❌ Error fetching events:", err);
+      
+      if (err.code === 'ECONNABORTED') {
+        console.error("⏰ Request timeout - backend is slow");
+        setSnackbar({
+          open: true,
+          message: "Server is taking too long to respond. Please try again.",
+          severity: "warning",
+        });
+        
+        if (events.length === 0) {
+          setEvents([]);
+          setFilteredEvents([]);
+        }
+      } else if (err.response?.status === 401) {
+        console.error("🔒 Authentication failed");
+        setSnackbar({
+          open: true,
+          message: "Your session has expired. Please log in again.",
+          severity: "error",
+        });
+        localStorage.removeItem("token");
+        localStorage.removeItem("userProfile");
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else {
+        setSnackbar({
+          open: true,
+          message: "Failed to load events. Please try again.",
+          severity: "error",
+        });
+        setEvents([]);
+        setFilteredEvents([]);
+      }
+    } finally {
+      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  // Utility functions
   const isOverdue = (event) => {
     if (event?._is_overdue !== undefined) {
       return event._is_overdue;
@@ -470,7 +862,6 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     return eventDate < today;
   };
 
-  // Format date function
   const formatDate = (date) => {
     if (!date) return "Not set";
     const dateObj = new Date(date);
@@ -484,7 +875,24 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
       .replace(/\//g, " - ");
   };
 
-    // Pagination and filter handlers
+  const getCurrentUserLeaderAt1 = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(
+        `${BACKEND_URL}/current-user/leader-at-1`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      return response.data.leader_at_1 || "";
+    } catch (error) {
+      console.error("Error getting current user leader at 1:", error);
+      return "";
+    }
+  };
+
+  // Event handlers
   const handleRowsPerPageChange = (e) => {
     const newRowsPerPage = Number(e.target.value);
     console.log('📊 Changing rows per page to:', newRowsPerPage);
@@ -610,7 +1018,6 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     }
   };
 
-    // Event action handlers
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
     setAttendanceModalOpen(true);
@@ -772,14 +1179,6 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     }
   };
 
-  useEffect(() => {
-    setCurrentPage(1);
-    fetchEvents({
-      status: selectedStatus !== "all" ? selectedStatus : undefined,
-      search: searchQuery.trim() || undefined,
-    });
-  }, [selectedStatus]);
-
   const handleSaveEvent = async (updatedData) => {
     try {
       const token = localStorage.getItem("token");
@@ -822,77 +1221,6 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     }
   };
 
-  const getCurrentUserLeaderAt1 = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(
-        `${BACKEND_URL}/current-user/leader-at-1`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      return response.data.leader_at_1 || "";
-    } catch (error) {
-      console.error("Error getting current user leader at 1:", error);
-      return "";
-    }
-  };
-
-  // EventTypeSelector Component
-  const EventTypeSelector = () => {
-    const [hoveredType, setHoveredType] = useState(null);
-    const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
-    const [typeMenuFor, setTypeMenuFor] = useState(null);
-    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-    const [deleteAnchorEl, setDeleteAnchorEl] = useState(null);
-    const [toDeleteType, setToDeleteType] = useState(null);
-
-    const allTypes = ["CELLS", ...eventTypes];
-    const isAdmin = currentUser?.role === "admin";
-
-    const getDisplayName = (type) => {
-      if (type === "CELLS") return type;
-      if (typeof type === "string") return type;
-      return type.name || type;
-    };
-
-    const getTypeValue = (type) => {
-      if (type === "CELLS") return "all";
-      if (typeof type === "string") return type.toLowerCase();
-      return (type.name || type).toLowerCase();
-    };
-
-    const selectedDisplayName =
-      selectedEventTypeFilter === "all"
-        ? "CELLS"
-        : eventTypes.find((t) => {
-            const tValue = typeof t === "string" ? t : t.name;
-            return tValue?.toLowerCase() === selectedEventTypeFilter;
-          }) || selectedEventTypeFilter;
-
-    const finalDisplayName =
-      typeof selectedDisplayName === "string"
-        ? selectedDisplayName
-        : selectedDisplayName?.name || "CELLS";
-
-    const openTypeMenu = (event, type) => {
-      setTypeMenuAnchor(event.currentTarget);
-      setTypeMenuFor(type);
-    };
-
-    const closeTypeMenu = () => {
-      setTypeMenuAnchor(null);
-      setTypeMenuFor(null);
-    };
-
-    return (
-      <div style={eventTypeStyles.container}>
-        <div style={eventTypeStyles.header}>Filter by Event Type</div>
-
-        <div style={eventTypeStyles.selectedTypeDisplay}>
-          <div style={eventTypeStyles.checkIcon}>✓</div>
-          <span>{finalDisplayName}</span>
   const handleFixLeaders = async () => {
     if (!window.confirm("This will fix missing Leader at 1 assignments for all events. Continue?")) {
       return;
@@ -962,11 +1290,104 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     }
   };
 
-    // EventTypeSelector Component
+  // Effects
+  useEffect(() => {
+    const fetchCurrentUserLeaderAt1 = async () => {
+      const leaderAt1 = await getCurrentUserLeaderAt1();
+      setCurrentUserLeaderAt1(leaderAt1);
+    };
+
+    fetchCurrentUserLeaderAt1();
+  }, []);
+
+  useEffect(() => {
+    const savedEventTypes = localStorage.getItem("customEventTypes");
+    if (savedEventTypes) {
+      try {
+        const parsed = JSON.parse(savedEventTypes);
+        setCustomEventTypes(parsed);
+        setUserCreatedEventTypes(parsed);
+        setEventTypes(parsed.map((type) => type.name));
+      } catch (error) {
+        console.error("Error parsing saved event types:", error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (customEventTypes.length > 0) {
+      localStorage.setItem(
+        "customEventTypes",
+        JSON.stringify(customEventTypes)
+      );
+    }
+  }, [customEventTypes]);
+
+  useEffect(() => {
+    if (currentSelectedEventType) {
+      localStorage.setItem("selectedEventType", currentSelectedEventType);
+    } else {
+      localStorage.removeItem("selectedEventType");
+    }
+  }, [currentSelectedEventType]);
+
+  useEffect(() => {
+    clearCache();
+  }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
+
+  useEffect(() => {
+    console.log('🔄 Main fetch triggered');
+    console.log('🎯 Current event type filter:', selectedEventTypeFilter);
+
+    const shouldApplyPersonalFilter = 
+      viewFilter === 'personal' && 
+      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined
+    };
+
+    Object.keys(fetchParams).forEach(key => {
+      if (fetchParams[key] === undefined || fetchParams[key] === '' || fetchParams[key] === 'all') {
+        delete fetchParams[key];
+      }
+    });
+
+    console.log('📤 Main fetch params:', fetchParams);
+    
+    setCurrentPage(1);
+    fetchEvents(fetchParams, false);
+  }, [selectedStatus, selectedEventTypeFilter, viewFilter, location.pathname, location.state?.refresh, currentUser?.role]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim() !== '') {
+        handleSearchSubmit();
+      } else if (searchQuery.trim() === '' && events.length > 0) {
+        handleSearchSubmit();
+      }
+    }, 800);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchEvents({
+      status: selectedStatus !== "all" ? selectedStatus : undefined,
+      search: searchQuery.trim() || undefined,
+    });
+  }, [selectedStatus]);
+
+  // Components
   const EventTypeSelector = () => {
     const [hoveredType, setHoveredType] = useState(null);
     const allTypes = ["CELLS", ...eventTypes];
-    const isAdmin = currentUser?.role === "admin";
 
     const getDisplayName = (type) => {
       if (type === "CELLS") return type;
@@ -1001,80 +1422,6 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
           <div style={eventTypeStyles.checkIcon}>✓</div>
           <span>{finalDisplayName}</span>
         </div>
-      {isAdmin && (
-        <div style={eventTypeStyles.typesGrid}>
-          {allTypes.map((type) => {
-            const displayName = getDisplayName(type);
-            const typeValue = getTypeValue(type);
-            const isActive = selectedEventTypeFilter === typeValue;
-            const isHovered = hoveredType === typeValue;
-
-            return (
-              <div
-                key={typeValue}
-                style={{
-                  ...eventTypeStyles.typeCard,
-                  ...(isActive ? eventTypeStyles.typeCardActive : {}),
-                  ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
-                }}
-                onClick={() => {
-                  console.log('🟢 Event Type Clicked:', {
-                    displayName,
-                    typeValue,
-                    currentFilter: selectedEventTypeFilter
-                  });
-                  
-                  const selectedTypeObj =
-                    typeValue === "all"
-                      ? null
-                      : customEventTypes.find(
-                          (t) => t.name.toLowerCase() === typeValue
-                        ) || null;
-
-                  setSelectedEventTypeFilter(typeValue);
-                  setSelectedEventTypeObj(selectedTypeObj);
-
-                  if (selectedTypeObj) {
-                    localStorage.setItem(
-                      "selectedEventTypeObj",
-                      JSON.stringify(selectedTypeObj)
-                    );
-                  } else {
-                    localStorage.removeItem("selectedEventTypeObj");
-                  }
-
-                  const shouldApplyPersonalFilter = 
-                    viewFilter === 'personal' && 
-                    (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
-
-                  setCurrentPage(1);
-                  
-                  // ✅ CORRECTED: Use universal endpoint
-                  fetchEvents({
-                    page: 1,
-                    limit: rowsPerPage,
-                    status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                    event_type: typeValue !== 'all' ? typeValue : undefined,
-                    search: searchQuery.trim() || undefined,
-                    personal: shouldApplyPersonalFilter ? true : undefined
-                  }, true);
-                }}
-                onMouseEnter={() => setHoveredType(typeValue)}
-                onMouseLeave={() => setHoveredType(null)}
-              >
-                {isActive && <div style={eventTypeStyles.activeIndicator}>✓</div>}
-                <span
-                  style={{
-                    ...eventTypeStyles.typeName,
-                    ...(isActive ? eventTypeStyles.typeNameActive : {}),
-                  }}
-                >
-                  {displayName}
-                </span>
-              </div>
-            );
-          })}
-        </div>
 
         {isAdmin && (
           <div
@@ -1094,87 +1441,96 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
 
               return (
                 <div
-  key={typeValue}
-  style={{
-    ...eventTypeStyles.typeCard,
-    ...(isActive ? eventTypeStyles.typeCardActive : {}),
-    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
-    position: "relative",
-    width: 200,
-    minHeight: 70,
-    padding: "8px 12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center", // center the text
-  }}
-  onClick={() => {
-    const selectedTypeObj =
-      typeValue === "all"
-        ? null
-        : customEventTypes.find(
-            (t) => t.name.toLowerCase() === typeValue
-          ) || null;
+                  key={typeValue}
+                  style={{
+                    ...eventTypeStyles.typeCard,
+                    ...(isActive ? eventTypeStyles.typeCardActive : {}),
+                    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+                    position: "relative",
+                    width: 200,
+                    minHeight: 70,
+                    padding: "8px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  onClick={() => {
+                    console.log('🟢 Event Type Clicked:', {
+                      displayName,
+                      typeValue,
+                      currentFilter: selectedEventTypeFilter
+                    });
+                    
+                    const selectedTypeObj =
+                      typeValue === "all"
+                        ? null
+                        : customEventTypes.find(
+                            (t) => t.name.toLowerCase() === typeValue
+                          ) || null;
 
-    setSelectedEventTypeFilter(typeValue);
-    setSelectedTypeObj(selectedTypeObj);
+                    setSelectedEventTypeFilter(typeValue);
+                    setSelectedEventTypeObj(selectedTypeObj);
 
-    if (selectedTypeObj) {
-      localStorage.setItem(
-        "selectedEventTypeObj",
-        JSON.stringify(selectedTypeObj)
-      );
-    } else {
-      localStorage.removeItem("selectedEventTypeObj");
-    }
+                    if (selectedTypeObj) {
+                      localStorage.setItem(
+                        "selectedEventTypeObj",
+                        JSON.stringify(selectedTypeObj)
+                      );
+                    } else {
+                      localStorage.removeItem("selectedEventTypeObj");
+                    }
 
-    applyFilters(
-      typeValue === "all"
-        ? { ...activeFilters, eventType: undefined }
-        : { ...activeFilters, eventType: typeValue },
-      selectedStatus,
-      searchQuery
-    );
-  }}
-  onMouseEnter={() => setHoveredType(typeValue)}
-  onMouseLeave={() => setHoveredType(null)}
->
-  {/* Text in a flex container so it doesn't cover the icon */}
-  <span
-    style={{
-      ...eventTypeStyles.typeName,
-      ...(isActive ? eventTypeStyles.typeNameActive : {}),
-      zIndex: 1, // keep above background but below icon
-    }}
-  >
-    {displayName}
-  </span>
+                    const shouldApplyPersonalFilter = 
+                      viewFilter === 'personal' && 
+                      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
-  {/* Icon always visible, positioned absolutely */}
-  {isAdmin && (
-    <IconButton
-      size="small"
-      onClick={(e) => {
-        e.stopPropagation();
-        openTypeMenu(e, type);
-      }}
-      aria-label="type actions"
-      sx={{
-        position: "absolute",
-        top: 8,
-        right: 8,
-        zIndex: 10,
-        color:"grey" // make sure icon is on top
-      }}
-    >
-      <MoreVertIcon fontSize="small" />
-    </IconButton>
-  )}
-</div>
+                    setCurrentPage(1);
+                    
+                    fetchEvents({
+                      page: 1,
+                      limit: rowsPerPage,
+                      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                      event_type: typeValue !== 'all' ? typeValue : undefined,
+                      search: searchQuery.trim() || undefined,
+                      personal: shouldApplyPersonalFilter ? true : undefined
+                    }, true);
+                  }}
+                  onMouseEnter={() => setHoveredType(typeValue)}
+                  onMouseLeave={() => setHoveredType(null)}
+                >
+                  <span
+                    style={{
+                      ...eventTypeStyles.typeName,
+                      ...(isActive ? eventTypeStyles.typeNameActive : {}),
+                      zIndex: 1,
+                    }}
+                  >
+                    {displayName}
+                  </span>
 
+                  {isAdmin && type !== "CELLS" && (
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openTypeMenu(e, type);
+                      }}
+                      aria-label="type actions"
+                      sx={{
+                        position: "absolute",
+                        top: 8,
+                        right: 8,
+                        zIndex: 10,
+                        color: "grey"
+                      }}
+                    >
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </div>
               );
             })}
 
-            {/* Edit/Delete menu popover */}
             <Popover
               open={Boolean(typeMenuAnchor)}
               anchorEl={typeMenuAnchor}
@@ -1215,7 +1571,6 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
               </MenuItem>
             </Popover>
 
-            {/* Centered delete confirmation modal */}
             <Dialog
               open={confirmDeleteOpen}
               onClose={() => setConfirmDeleteOpen(false)}
@@ -1225,7 +1580,7 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
               <DialogTitle>Delete Event Type</DialogTitle>
               <DialogContent>
                 <Typography>
-                  Are you sure you want to delete this event type ? This
+                  Are you sure you want to delete this event type? This
                   cannot be undone.
                 </Typography>
               </DialogContent>
@@ -1244,199 +1599,190 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
     );
   };
 
-  // StatusBadges Component
-const StatusBadges = () => {
-  const [statusCounts, setStatusCounts] = useState({
-    incomplete: 0,
-    complete: 0,
-    did_not_meet: 0
-  });
-
-  useEffect(() => {
-    const fetchStatusCounts = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) return;
-
-        const headers = { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        };
-
-        const shouldApplyPersonalFilter = 
-          viewFilter === 'personal' && 
-          (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
-
-        // ✅ ADD DATE FILTER - Only events from October 20th, 2025
-        const startDate = '2025-10-20';
-        
-        const params = {
-          event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-          search: searchQuery.trim() || undefined,
-          personal: shouldApplyPersonalFilter ? true : undefined,
-          start_date: startDate // ✅ Add date filter
-        };
-
-        Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
-
-        // ✅ CORRECTED: Use the universal status-counts endpoint for ALL users
-        const endpoint = `${BACKEND_URL}/events/status-counts`;
-        console.log('📊 Fetching status counts from universal endpoint:', endpoint);
-
-        const response = await axios.get(endpoint, { headers, params });
-        setStatusCounts(response.data);
-
-      } catch (error) {
-        console.error("❌ Error fetching status counts:", error);
-        // Fallback to client-side calculation
-        calculateClientSideCounts();
-      }
-    };
-
-    fetchStatusCounts();
-  }, [selectedEventTypeFilter, searchQuery, viewFilter, currentUser?.role]);
-
-
-  // Client-side fallback calculation
-  const calculateClientSideCounts = () => {
-    const now = new Date();
-    const startDate = new Date('2025-10-20');
-    
-    const filteredEvents = events.filter(event => {
-      if (!event.date) return false;
-      const eventDate = new Date(event.date);
-      return eventDate >= startDate && eventDate <= now;
+  const StatusBadges = () => {
+    const [statusCounts, setStatusCounts] = useState({
+      incomplete: 0,
+      complete: 0,
+      did_not_meet: 0
     });
 
-    const counts = {
-      incomplete: filteredEvents.filter(e => {
-        if (e.did_not_meet === true) return false;
-        if ((e.attendees && e.attendees.length > 0) ||
-          ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
-          return false;
+    useEffect(() => {
+      const fetchStatusCounts = async () => {
+        try {
+          const token = localStorage.getItem("token");
+          if (!token) return;
+
+          const headers = { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          };
+
+          const shouldApplyPersonalFilter = 
+            viewFilter === 'personal' && 
+            (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+          const startDate = '2025-10-20';
+          
+          const params = {
+            event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+            search: searchQuery.trim() || undefined,
+            personal: shouldApplyPersonalFilter ? true : undefined,
+            start_date: startDate
+          };
+
+          Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+          const endpoint = `${BACKEND_URL}/events/status-counts`;
+          console.log('📊 Fetching status counts from universal endpoint:', endpoint);
+
+          const response = await axios.get(endpoint, { headers, params });
+          setStatusCounts(response.data);
+
+        } catch (error) {
+          console.error("❌ Error fetching status counts:", error);
+          calculateClientSideCounts();
         }
-        return true;
-      }).length,
+      };
 
-      complete: filteredEvents.filter(e => {
-        if (e.did_not_meet === true) return false;
-        return (e.attendees && e.attendees.length > 0) ||
-          ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
-      }).length,
+      fetchStatusCounts();
+    }, [selectedEventTypeFilter, searchQuery, viewFilter, currentUser?.role]);
 
-      did_not_meet: filteredEvents.filter(e => e.did_not_meet === true).length,
+    const calculateClientSideCounts = () => {
+      const now = new Date();
+      const startDate = new Date('2025-10-20');
+      
+      const filteredEvents = events.filter(event => {
+        if (!event.date) return false;
+        const eventDate = new Date(event.date);
+        return eventDate >= startDate && eventDate <= now;
+      });
+
+      const counts = {
+        incomplete: filteredEvents.filter(e => {
+          if (e.did_not_meet === true) return false;
+          if ((e.attendees && e.attendees.length > 0) ||
+            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
+            return false;
+          }
+          return true;
+        }).length,
+
+        complete: filteredEvents.filter(e => {
+          if (e.did_not_meet === true) return false;
+          return (e.attendees && e.attendees.length > 0) ||
+            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
+        }).length,
+
+        did_not_meet: filteredEvents.filter(e => e.did_not_meet === true).length,
+      };
+
+      setStatusCounts(counts);
     };
 
-    setStatusCounts(counts);
+    return (
+      <div style={styles.statusBadgeContainer}>
+        <button
+          style={{
+            ...styles.statusBadge,
+            ...styles.statusBadgeIncomplete,
+            ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => handleStatusClick('incomplete')}
+        >
+          INCOMPLETE ({statusCounts.incomplete})
+        </button>
+
+        <button
+          style={{
+            ...styles.statusBadge,
+            ...styles.statusBadgeComplete,
+            ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => handleStatusClick('complete')}
+        >
+          COMPLETE ({statusCounts.complete})
+        </button>
+
+        <button
+          style={{
+            ...styles.statusBadge,
+            ...styles.statusBadgeDidNotMeet,
+            ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => handleStatusClick('did_not_meet')}
+        >
+          DID NOT MEET ({statusCounts.did_not_meet})
+        </button>
+      </div>
+    );
   };
 
-  return (
-    <div style={styles.statusBadgeContainer}>
-      <button
-        style={{
-          ...styles.statusBadge,
-          ...styles.statusBadgeIncomplete,
-          ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
-        }}
-        onClick={() => handleStatusClick('incomplete')}
-      >
-        INCOMPLETE ({statusCounts.incomplete})
-      </button>
+  const ViewFilterButtons = () => {
+    return (
+      <div style={styles.viewFilterContainer}>
+        <span style={styles.viewFilterLabel}>View:</span>
 
-      <button
-        style={{
-          ...styles.statusBadge,
-          ...styles.statusBadgeComplete,
-          ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
-        }}
-        onClick={() => handleStatusClick('complete')}
-      >
-        COMPLETE ({statusCounts.complete})
-      </button>
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="all"
+            checked={viewFilter === 'all'}
+            onChange={(e) => {
+              const newViewFilter = e.target.value;
+              setViewFilter(newViewFilter);
+              setCurrentPage(1);
+              fetchEvents({
+                status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+                search: searchQuery || undefined,
+                page: 1,
+                personal: false
+              });
+            }}
+            style={{ cursor: 'pointer' }}
+          />
+          <span style={{
+            ...styles.viewFilterText,
+            color: viewFilter === 'all' ? '#007bff' : '#6c757d',
+            fontWeight: viewFilter === 'all' ? '600' : '400',
+          }}>
+            View All
+          </span>
+        </label>
 
-      <button
-        style={{
-          ...styles.statusBadge,
-          ...styles.statusBadgeDidNotMeet,
-          ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
-        }}
-        onClick={() => handleStatusClick('did_not_meet')}
-      >
-        DID NOT MEET ({statusCounts.did_not_meet})
-      </button>
-    </div>
-  );
-};
- // ViewFilterButtons Component - fix endpoint usage
-const ViewFilterButtons = () => {
-  return (
-    <div style={styles.viewFilterContainer}>
-      <span style={styles.viewFilterLabel}>View:</span>
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="personal"
+            checked={viewFilter === 'personal'}
+            onChange={(e) => {
+              const newViewFilter = e.target.value;
+              setViewFilter(newViewFilter);
+              setCurrentPage(1);
+              fetchEvents({
+                status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+                search: searchQuery || undefined,
+                page: 1,
+                personal: true
+              });
+            }}
+            style={{ cursor: 'pointer' }}
+          />
+          <span style={{
+            ...styles.viewFilterText,
+            color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
+            fontWeight: viewFilter === 'personal' ? '600' : '400',
+          }}>
+            Personal
+          </span>
+        </label>
+      </div>
+    );
+  };
 
-      <label style={styles.viewFilterRadio}>
-        <input
-          type="radio"
-          name="viewFilter"
-          value="all"
-          checked={viewFilter === 'all'}
-          onChange={(e) => {
-            const newViewFilter = e.target.value;
-            setViewFilter(newViewFilter);
-            setCurrentPage(1);
-            // ✅ CORRECTED: Use universal endpoint
-            fetchEvents({
-              status: selectedStatus !== 'all' ? selectedStatus : undefined,
-              event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-              search: searchQuery || undefined,
-              page: 1,
-              personal: false
-            });
-          }}
-          style={{ cursor: 'pointer' }}
-        />
-        <span style={{
-          ...styles.viewFilterText,
-          color: viewFilter === 'all' ? '#007bff' : '#6c757d',
-          fontWeight: viewFilter === 'all' ? '600' : '400',
-        }}>
-          View All
-        </span>
-      </label>
-
-      <label style={styles.viewFilterRadio}>
-        <input
-          type="radio"
-          name="viewFilter"
-          value="personal"
-          checked={viewFilter === 'personal'}
-          onChange={(e) => {
-            const newViewFilter = e.target.value;
-            setViewFilter(newViewFilter);
-            setCurrentPage(1);
-            // ✅ CORRECTED: Use universal endpoint
-            fetchEvents({
-              status: selectedStatus !== 'all' ? selectedStatus : undefined,
-              event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-              search: searchQuery || undefined,
-              page: 1,
-              personal: true
-            });
-          }}
-          style={{ cursor: 'pointer' }}
-        />
-        <span style={{
-          ...styles.viewFilterText,
-          color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
-          fontWeight: viewFilter === 'personal' ? '600' : '400',
-        }}>
-          Personal
-        </span>
-      </label>
-    </div>
-  );
-};
-
-  // MobileEventCard Component
   const MobileEventCard = ({ event }) => {
     const dayOfWeek = event.day || 'Not set';
     const shouldShowLeaders = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
@@ -1522,7 +1868,7 @@ const ViewFilterButtons = () => {
       </div>
     );
   };
-    // Calculate pagination values
+
   const startIndex = totalEvents > 0 ? ((currentPage - 1) * rowsPerPage) + 1 : 0;
   const endIndex = Math.min(currentPage * rowsPerPage, totalEvents);
   const paginatedEvents = events;
@@ -1585,7 +1931,6 @@ const ViewFilterButtons = () => {
         </div>
       </div>
 
-      {/* MOBILE VIEW: Card Layout */}
       {isMobile ? (
         <Box>
           {loading ? (
@@ -1608,7 +1953,6 @@ const ViewFilterButtons = () => {
                 <MobileEventCard key={event._id} event={event} />
               ))}
 
-              {/* Mobile Pagination */}
               <div
                 style={{
                   ...styles.paginationContainer,
@@ -1661,7 +2005,6 @@ const ViewFilterButtons = () => {
           )}
         </Box>
       ) : (
-        /* DESKTOP VIEW: Table with Pagination */
         <div style={{ ...styles.tableContainer, position: "relative" }}>
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
@@ -1855,7 +2198,6 @@ const ViewFilterButtons = () => {
         </div>
       )}
 
-      {/* FAB Button */}
       <div style={fabStyles.fabContainer}>
         {fabMenuOpen && (
           <div style={fabStyles.fabMenu}>
@@ -1912,7 +2254,6 @@ const ViewFilterButtons = () => {
         </button>
       </div>
 
-      {/* Modals */}
       <Eventsfilter
         open={showFilter}
         onClose={() => setShowFilter(false)}
@@ -2024,8 +2365,6 @@ const ViewFilterButtons = () => {
       `}</style>
     </div>
   );
-
 };
-
 
 export default Events;
