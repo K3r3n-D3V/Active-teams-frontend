@@ -1,4 +1,3 @@
-
 import React, {
   useState,
   useCallback,
@@ -57,7 +56,7 @@ const createAuthenticatedRequest = () => {
     baseURL: BACKEND_URL,
     headers: {
       "Content-Type": "application/json",
-      "Authorization": token ? `Bearer ${token}` : undefined,
+      Authorization: token ? `Bearer ${token}` : undefined,
     },
   });
 };
@@ -94,12 +93,14 @@ async function uploadAvatarFromDataUrl(dataUrl) {
     headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
-  
+
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: "Failed to upload avatar" }));
+    const error = await res
+      .json()
+      .catch(() => ({ message: "Failed to upload avatar" }));
     throw new Error(error.message || "Failed to upload avatar");
   }
-  
+
   return res.json();
 }
 
@@ -109,15 +110,19 @@ async function updatePassword(currentPassword, newPassword) {
   if (!token || !userId) throw new Error("Authentication required");
 
   try {
-    const res = await axios.put(`${BACKEND_URL}/users/${userId}/password`, {
-      currentPassword,
-      newPassword
-    }, {
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
+    const res = await axios.put(
+      `${BACKEND_URL}/users/${userId}/password`,
+      {
+        currentPassword,
+        newPassword,
       },
-    });
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
 
     return res.data;
   } catch (error) {
@@ -133,7 +138,7 @@ async function updatePassword(currentPassword, newPassword) {
 async function fetchUserProfile() {
   const userId = localStorage.getItem("userId");
   const token = localStorage.getItem("token");
-  
+
   if (!userId || !token) throw new Error("Authentication required");
 
   try {
@@ -162,7 +167,7 @@ export default function Profile() {
   const [croppingSrc, setCroppingSrc] = useState(null);
   const [croppingOpen, setCroppingOpen] = useState(false);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-  
+
   // NEW: Track if profile has been loaded at least once
   const [hasProfileLoaded, setHasProfileLoaded] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -211,21 +216,22 @@ export default function Profile() {
     // Check if we already have profile data loaded
     const storedProfile = localStorage.getItem("userProfile");
     const profileLoaded = localStorage.getItem("profileLoaded") === "true";
-    
+
     if (profileLoaded && storedProfile) {
       // Profile already loaded, use cached data
       const parsedProfile = JSON.parse(storedProfile);
       setUserProfile(parsedProfile);
       updateFormWithProfile(parsedProfile);
-      
-      const pic = parsedProfile?.profile_picture ||
-                 parsedProfile?.avatarUrl ||
-                 parsedProfile?.profilePicUrl ||
-                 null;
+
+      const pic =
+        parsedProfile?.profile_picture ||
+        parsedProfile?.avatarUrl ||
+        parsedProfile?.profilePicUrl ||
+        null;
       if (pic && setProfilePic) {
         setProfilePic(pic);
       }
-      
+
       setHasProfileLoaded(true);
       setLoadingProfile(false);
       return;
@@ -239,26 +245,27 @@ export default function Profile() {
         // Try to fetch from backend first
         try {
           const serverProfile = await fetchUserProfile();
-          
+
           if (serverProfile) {
             setUserProfile(serverProfile);
             updateFormWithProfile(serverProfile);
-            
+
             // Set profile picture from server response
-            const pic = serverProfile?.profile_picture || 
-                       serverProfile?.avatarUrl || 
-                       serverProfile?.profilePicUrl ||
-                       null;
-            
+            const pic =
+              serverProfile?.profile_picture ||
+              serverProfile?.avatarUrl ||
+              serverProfile?.profilePicUrl ||
+              null;
+
             if (pic && setProfilePic) {
               setProfilePic(pic);
             }
-            
+
             // Mark as loaded and cache data
             localStorage.setItem("userProfile", JSON.stringify(serverProfile));
             localStorage.setItem("profileLoaded", "true");
             setHasProfileLoaded(true);
-            
+
             setSnackbar({
               open: true,
               message: "Profile loaded successfully",
@@ -266,25 +273,29 @@ export default function Profile() {
             });
           }
         } catch (fetchError) {
-          console.warn("Failed to fetch from backend, using cached data:", fetchError);
-          
+          console.warn(
+            "Failed to fetch from backend, using cached data:",
+            fetchError
+          );
+
           // Fallback to localStorage if available
           if (storedProfile) {
             const parsedProfile = JSON.parse(storedProfile);
             setUserProfile(parsedProfile);
             updateFormWithProfile(parsedProfile);
-            
-            const pic = parsedProfile?.profile_picture ||
-                       parsedProfile?.avatarUrl ||
-                       parsedProfile?.profilePicUrl ||
-                       null;
+
+            const pic =
+              parsedProfile?.profile_picture ||
+              parsedProfile?.avatarUrl ||
+              parsedProfile?.profilePicUrl ||
+              null;
             if (pic && setProfilePic) {
               setProfilePic(pic);
             }
-            
+
             localStorage.setItem("profileLoaded", "true");
             setHasProfileLoaded(true);
-            
+
             setSnackbar({
               open: true,
               message: "Profile loaded from cache",
@@ -367,7 +378,7 @@ export default function Profile() {
         n.confirmPassword = "Please confirm your new password";
       }
     }
-    
+
     setErrors(n);
     return Object.keys(n).length === 0;
   };
@@ -401,23 +412,24 @@ export default function Profile() {
   const onCropSave = async () => {
     try {
       const croppedImage = await getCroppedImg(croppingSrc, croppedAreaPixels);
-      
+
       try {
         const res = await uploadAvatarFromDataUrl(croppedImage);
-        const url = res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
-        
+        const url =
+          res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
+
         if (url) {
           if (setProfilePic) setProfilePic(url);
-          
-          const updatedProfile = { 
-            ...userProfile, 
+
+          const updatedProfile = {
+            ...userProfile,
             profile_picture: url,
             avatarUrl: url,
-            profilePicUrl: url
+            profilePicUrl: url,
           };
           setUserProfile(updatedProfile);
           localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
-          
+
           setSnackbar({
             open: true,
             message: "Profile picture uploaded and saved successfully",
@@ -428,16 +440,17 @@ export default function Profile() {
         }
       } catch (uploadError) {
         console.error("Avatar upload failed, using local image:", uploadError);
-        
+
         if (setProfilePic) setProfilePic(croppedImage);
-        
+
         setSnackbar({
           open: true,
-          message: "Profile picture updated locally. Please check your internet connection for server sync.",
+          message:
+            "Profile picture updated locally. Please check your internet connection for server sync.",
           severity: "warning",
         });
       }
-      
+
       setCroppingOpen(false);
     } catch (e) {
       console.error("Could not crop image:", e);
@@ -473,29 +486,31 @@ export default function Profile() {
         _id: updated.id || updated._id,
       };
 
-      const hasPasswordChange = form.newPassword && form.confirmPassword && form.currentPassword;
-      
+      const hasPasswordChange =
+        form.newPassword && form.confirmPassword && form.currentPassword;
+
       if (hasPasswordChange) {
         try {
           await updatePassword(form.currentPassword, form.newPassword);
           setSnackbar({
             open: true,
-            message: "Profile and password updated successfully! Please use your new password for future logins.",
+            message:
+              "Profile and password updated successfully! Please use your new password for future logins.",
             severity: "success",
           });
-          
-          setForm(prev => ({
+
+          setForm((prev) => ({
             ...prev,
             currentPassword: "",
             newPassword: "",
-            confirmPassword: ""
+            confirmPassword: "",
           }));
-          
-          setOriginalForm(prev => ({
+
+          setOriginalForm((prev) => ({
             ...prev,
             currentPassword: "",
             newPassword: "",
-            confirmPassword: ""
+            confirmPassword: "",
           }));
         } catch (passwordError) {
           setSnackbar({
@@ -517,7 +532,6 @@ export default function Profile() {
 
       setEditMode(false);
       updateFormWithProfile(updatedUserProfile);
-
     } catch (err) {
       setSnackbar({
         open: true,
@@ -595,9 +609,9 @@ export default function Profile() {
           variant="text"
           width="60%"
           height={60}
-          sx={{ 
-            bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-            borderRadius: 2
+          sx={{
+            bgcolor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+            borderRadius: 2,
           }}
         />
       </Box>
@@ -618,8 +632,8 @@ export default function Profile() {
             variant="circular"
             width={150}
             height={150}
-            sx={{ 
-              bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+            sx={{
+              bgcolor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
               border: `6px solid ${isDark ? "#0a0a0a" : "#ffffff"}`,
             }}
           />
@@ -627,17 +641,20 @@ export default function Profile() {
             variant="text"
             width={200}
             height={40}
-            sx={{ 
+            sx={{
               mt: 2,
-              bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-              borderRadius: 1
+              bgcolor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+              borderRadius: 1,
             }}
           />
         </Box>
       </Box>
 
       {/* Form Skeleton */}
-      <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
+      <Container
+        maxWidth="md"
+        sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}
+      >
         <Card
           sx={{
             bgcolor: isDark ? "#111111" : "#ffffff",
@@ -656,33 +673,37 @@ export default function Profile() {
                     variant="text"
                     width="40%"
                     height={20}
-                    sx={{ 
+                    sx={{
                       mb: 1,
-                      bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                      borderRadius: 1
+                      bgcolor: isDark
+                        ? "rgba(255,255,255,0.1)"
+                        : "rgba(0,0,0,0.1)",
+                      borderRadius: 1,
                     }}
                   />
                   <Skeleton
                     variant="rectangular"
                     height={56}
-                    sx={{ 
-                      bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                      borderRadius: 1
+                    sx={{
+                      bgcolor: isDark
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,0,0,0.05)",
+                      borderRadius: 1,
                     }}
                   />
                 </Grid>
               ))}
             </Grid>
-            
+
             {/* Action Button Skeleton */}
             <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
               <Skeleton
                 variant="rectangular"
                 width={150}
                 height={48}
-                sx={{ 
-                  bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                  borderRadius: 2
+                sx={{
+                  bgcolor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+                  borderRadius: 2,
                 }}
               />
             </Box>
@@ -742,12 +763,14 @@ export default function Profile() {
         />
 
         {/* Carousel Text */}
-        <Box sx={{ 
-          position: "relative", 
-          zIndex: 2, 
-          textAlign: "center", 
-          px: 2,
-        }}>
+        <Box
+          sx={{
+            position: "relative",
+            zIndex: 2,
+            textAlign: "center",
+            px: 2,
+          }}
+        >
           <Fade in key={carouselIndex} timeout={1000}>
             <Typography
               variant="h3"
@@ -856,7 +879,10 @@ export default function Profile() {
       </Box>
 
       {/* Main Content */}
-      <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
+      <Container
+        maxWidth="md"
+        sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}
+      >
         <Card
           sx={{
             bgcolor: isDark ? "#111111" : "#ffffff",
@@ -1017,14 +1043,23 @@ export default function Profile() {
                   >
                     Invited By
                   </Typography>
-                  <TextField
-                    value={form.invitedBy || ""}
-                    onChange={handleChange("invitedBy")}
-                    fullWidth
-                    disabled={!editMode}
-                    sx={commonFieldSx}
-                  />
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      border: "1px solid",
+                      borderColor: isDark ? "#333333" : "#dddddd",
+                      borderRadius: "8px",
+                      backgroundColor: isDark ? "#1e1e1e" : "#fafafa",
+                      color: isDark ? "#cccccc" : "#333333",
+                      minHeight: "56px",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    {form.invitedBy || "—"}
+                  </Box>
                 </Grid>
+
 
                 {/* Gender */}
                 <Grid item xs={12} sm={6}>
@@ -1051,7 +1086,9 @@ export default function Profile() {
               {/* Password Section */}
               {editMode && (
                 <>
-                  <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
+                  <Divider
+                    sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }}
+                  />
                   <Typography
                     variant="h6"
                     sx={{
@@ -1088,11 +1125,17 @@ export default function Profile() {
                           endAdornment: (
                             <InputAdornment position="end">
                               <IconButton
-                                onClick={() => togglePasswordVisibility("current")}
+                                onClick={() =>
+                                  togglePasswordVisibility("current")
+                                }
                                 edge="end"
                                 sx={{ color: isDark ? "#cccccc" : "#666666" }}
                               >
-                                {showPassword.current ? <VisibilityOff /> : <Visibility />}
+                                {showPassword.current ? (
+                                  <VisibilityOff />
+                                ) : (
+                                  <Visibility />
+                                )}
                               </IconButton>
                             </InputAdornment>
                           ),
@@ -1129,7 +1172,11 @@ export default function Profile() {
                                 edge="end"
                                 sx={{ color: isDark ? "#cccccc" : "#666666" }}
                               >
-                                {showPassword.new ? <VisibilityOff /> : <Visibility />}
+                                {showPassword.new ? (
+                                  <VisibilityOff />
+                                ) : (
+                                  <Visibility />
+                                )}
                               </IconButton>
                             </InputAdornment>
                           ),
@@ -1162,11 +1209,17 @@ export default function Profile() {
                           endAdornment: (
                             <InputAdornment position="end">
                               <IconButton
-                                onClick={() => togglePasswordVisibility("confirm")}
+                                onClick={() =>
+                                  togglePasswordVisibility("confirm")
+                                }
                                 edge="end"
                                 sx={{ color: isDark ? "#cccccc" : "#666666" }}
                               >
-                                {showPassword.confirm ? <VisibilityOff /> : <Visibility />}
+                                {showPassword.confirm ? (
+                                  <VisibilityOff />
+                                ) : (
+                                  <Visibility />
+                                )}
                               </IconButton>
                             </InputAdornment>
                           ),
@@ -1345,7 +1398,9 @@ export default function Profile() {
                 }}
               />
             </Box>
-            <Box sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "center" }}>
+            <Box
+              sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "center" }}
+            >
               <Button
                 variant="outlined"
                 onClick={() => setCroppingOpen(false)}
