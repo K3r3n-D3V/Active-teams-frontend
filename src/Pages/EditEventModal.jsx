@@ -30,7 +30,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
@@ -50,7 +50,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0,0,0,0.5)",
+      background: "rgba(0,0,0,0.8)",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
@@ -58,19 +58,21 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       padding: "20px",
     },
     modal: {
-      background: "#fff",
+      background: "#1e1e1e",
       borderRadius: "12px",
       width: "100%",
-      maxWidth: "500px",
+      maxWidth: "700px",
       maxHeight: "90vh",
       overflowY: "auto",
       padding: "24px",
+      color: "#f1f1f1",
+      boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
     },
     title: {
-      fontSize: "20px",
+      fontSize: "22px",
       fontWeight: "600",
-      marginBottom: "20px",
-      color: "#333",
+      marginBottom: "24px",
+      color: "#fff",
       textAlign: "center",
     },
     formGroup: {
@@ -80,7 +82,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       display: "block",
       fontSize: "14px",
       fontWeight: "500",
-      color: "#555",
+      color: "#ccc",
       marginBottom: "6px",
     },
     input: {
@@ -88,9 +90,9 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       padding: "10px 12px",
       fontSize: "14px",
       borderRadius: "6px",
-      border: "1px solid #ddd",
-      backgroundColor: "#fff",
-      color: "#333",
+      border: "1px solid #555",
+      backgroundColor: "#2b2b2b",
+      color: "#fff",
       outline: "none",
       boxSizing: "border-box",
     },
@@ -99,20 +101,21 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       padding: "10px 12px",
       fontSize: "14px",
       borderRadius: "6px",
-      border: "1px solid #e0e0e0",
-      backgroundColor: "#f8f9fa",
-      color: "#666",
+      border: "1px solid #555",
+      backgroundColor: "#2b2b2b",
+      color: "#ccc",
       outline: "none",
       boxSizing: "border-box",
     },
     checkboxGroup: {
       display: "flex",
       alignItems: "center",
-      gap: "8px",
+      gap: "12px",
     },
     checkbox: {
       width: "16px",
       height: "16px",
+      accentColor: "#2563eb",
     },
     buttonGroup: {
       display: "flex",
@@ -123,12 +126,13 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     cancelBtn: {
       padding: "10px 20px",
       background: "transparent",
-      border: "1px solid #ddd",
+      border: "1px solid #555",
       borderRadius: "6px",
-      color: "#666",
+      color: "#ccc",
       cursor: "pointer",
       fontSize: "14px",
       fontWeight: "500",
+      transition: "all 0.2s ease",
     },
     saveBtn: {
       padding: "10px 20px",
@@ -146,7 +150,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     <div style={styles.overlay}>
       <div style={styles.modal}>
         <h2 style={styles.title}>Edit Event</h2>
-        
+
         <div style={styles.formGroup}>
           <label style={styles.label}>Event Name</label>
           <input
