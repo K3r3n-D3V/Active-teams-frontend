@@ -2005,17 +2005,6 @@ const fetchEvents = async () => {
         consolidatedPeople={consolidatedPeople}
         currentEventId={currentEventId}
       />
-      {/* Debug Info - Remove in production */}
-<Box sx={{ mb: 2, p: 1, backgroundColor: 'grey.100', borderRadius: 1 }}>
-  <Typography variant="caption" color="text.secondary">
-    Debug: {events.length} total events, {getFilteredEvents().length} global events, {getClosedEvents().length} closed events
-  </Typography>
-  {getFilteredEvents().length > 0 && (
-    <Typography variant="caption" display="block">
-      Available: {getFilteredEvents().map(e => e.eventName).join(', ')}
-    </Typography>
-  )}
-</Box>
     </Box>
   );
 }
