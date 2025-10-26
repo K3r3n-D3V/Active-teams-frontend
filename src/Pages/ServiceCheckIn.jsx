@@ -49,7 +49,7 @@ import EmojiPeopleIcon from "@mui/icons-material/EmojiPeople";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import MergeIcon from "@mui/icons-material/Merge";
 import EventHistory from "../components/EventHistory";
-import SaveIcon from "@mui/icons-material/Save";
+// import SaveIcon from "@mui/icons-material/Save";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -1476,9 +1476,9 @@ const fetchEvents = async () => {
             <Tooltip title="Consolidation">
               <EmojiPeopleIcon onClick={handleConsolidationClick} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "secondary.dark" }, filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" }} />
             </Tooltip>
-            <Tooltip title="Save & Close Event">
+            {/* <Tooltip title="Save & Close Event">
               <SaveIcon onClick={handleCloseEvent} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "success.dark" }, filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" }} />
-            </Tooltip>
+            </Tooltip> */}
           </Stack>
         </Grid>
       </Grid>

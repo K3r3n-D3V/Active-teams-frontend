@@ -7,29 +7,112 @@ import {
   Typography, 
   Alert, 
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
+  Chip,
+  Stack,
   Card,
   CardContent,
-  Stack,
-  Grid
+  TextField,
+  TablePagination,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  useMediaQuery
 } from "@mui/material";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import GroupIcon from "@mui/icons-material/Group";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import MergeIcon from "@mui/icons-material/Merge";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import CloseIcon from "@mui/icons-material/Close";
 
-const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
+const API_URL = import.meta.env.VITE_BACKEND_URL || '';
 
-// Helper function to format date - moved to top
+// Dummy data for testing
+const DUMMY_EVENTS = [
+  {
+    id: "dummy1",
+    _id: "dummy1",
+    eventName: "Sunday Service",
+    date: "2025-01-26T10:00:00Z",
+    status: "closed",
+    isGlobal: true,
+    eventType: "service",
+    total_attendance: 155,
+    attendees: [
+      { id: "1", name: "John Doe", phone: "555-0101" },
+      { id: "2", name: "Jane Smith", phone: "555-0102" },
+      { id: "3", name: "Mike Johnson", phone: "555-0103" }
+    ],
+    newPeople: [
+      { id: "1", name: "John Doe", phone: "555-0101", email: "john@example.com" },
+      { id: "2", name: "Jane Smith", phone: "555-0102", email: "jane@example.com" },
+      { id: "3", name: "Mike Johnson", phone: "555-0103", email: "mike@example.com" }
+    ],
+    consolidations: [
+      { id: "1", name: "Sarah Williams", type: "first_time", phone: "555-0201" },
+      { id: "2", name: "Tom Brown", type: "recommitment", phone: "555-0202" }
+    ],
+    summary: {
+      new_people: 3,
+      total_decisions: 2,
+      first_time_decisions: 1,
+      recommitments: 1
+    }
+  },
+  {
+    id: "dummy2",
+    _id: "dummy2",
+    eventName: "Active Service - Friday 18:30",
+    date: "2025-01-31T18:30:00Z",
+    status: "closed",
+    isGlobal: true,
+    eventType: "service",
+    total_attendance: 153,
+    attendees: [
+      { id: "1", name: "Alice Cooper", phone: "555-0301" },
+      { id: "2", name: "Bob Dylan", phone: "555-0302" }
+    ],
+    newPeople: [
+      { id: "1", name: "Alice Cooper", phone: "555-0301", email: "alice@example.com" },
+      { id: "2", name: "Bob Dylan", phone: "555-0302", email: "bob@example.com" },
+      { id: "3", name: "Charlie Parker", phone: "555-0303", email: "charlie@example.com" },
+      { id: "4", name: "Diana Ross", phone: "555-0304", email: "diana@example.com" },
+      { id: "5", name: "Elvis Presley", phone: "555-0305", email: "elvis@example.com" }
+    ],
+    consolidations: [
+      { id: "1", name: "Frank Sinatra", type: "first_time", phone: "555-0401" },
+      { id: "2", name: "Grace Jones", type: "first_time", phone: "555-0402" },
+      { id: "3", name: "Harry Styles", type: "recommitment", phone: "555-0403" }
+    ],
+    summary: {
+      new_people: 5,
+      total_decisions: 3,
+      first_time_decisions: 2,
+      recommitments: 1
+    }
+  }
+];
+
+// Helper function to format date
 const formatDate = (dateString) => {
   if (!dateString) return 'Unknown Date';
   
   try {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
     });
   } catch (error) {
     return 'Invalid Date';
@@ -40,233 +123,210 @@ function EventHistory({
   onViewDetails,
   onViewNewPeople,
   onViewConverts,
-  events = [] // Accept events as prop from parent
+  events = []
 }) {
   const theme = useTheme();
+  const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
+  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [localEvents, setLocalEvents] = useState([]);
+  const [useDummyData, setUseDummyData] = useState(false);
+  
+  // Dialog states
+  const [detailsDialog, setDetailsDialog] = useState({ open: false, event: null });
+  const [newPeopleDialog, setNewPeopleDialog] = useState({ open: false, event: null });
+  const [convertsDialog, setConvertsDialog] = useState({ open: false, event: null });
 
-  // Use provided events or fetch locally if not provided
-  const displayEvents = events.length > 0 ? events : localEvents;
+  // Pagination for mobile cards
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(100);
+  const [search, setSearch] = useState("");
 
-  // Fetch events data if not provided via props
-// In EventHistory component, update the fetchEvents function
-const fetchEvents = async () => {
-  if (events.length > 0) return; // Skip if events provided via props
+  const displayEvents = events.length > 0 ? events : (useDummyData ? DUMMY_EVENTS : localEvents);
 
-  try {
-    setLoading(true);
-    setError(null);
-    
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}/events`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+  const fetchEvents = async () => {
+    if (events.length > 0) return;
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    // Filter for closed global events only
-    const closedGlobalEvents = (data.events || []).filter(event => {
-      const isClosed = event.status?.toLowerCase() === 'closed';
-      const isGlobal = event.isGlobal === true;
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+    try {
+      setLoading(true);
+      setError(null);
       
-      return isClosed && isGlobal && isNotCell;
-    });
+      const token = localStorage.getItem('token');
+      
+      if (!API_URL) {
+        console.log('No API URL configured, using dummy data');
+        setUseDummyData(true);
+        setLoading(false);
+        return;
+      }
+      
+      const response = await fetch(`${API_URL}/events`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-    // Transform the data
-    const transformedEvents = closedGlobalEvents.map(event => ({
-      id: event._id || event.id,
-      eventName: event.eventName || event["Event Name"] || "Unnamed Event",
-      date: event.date || event.createdAt || event["Date Of Event"],
-      total_attendance: event.total_attendance || event.attendees?.length || 0,
-      // ... rest of your transformation
-    }));
-    
-    setLocalEvents(transformedEvents);
-  } catch (err) {
-    console.error('Error fetching events:', err);
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      const closedGlobalEvents = (data.events || []).filter(event => {
+        const isClosed = event.status?.toLowerCase() === 'closed';
+        const isGlobal = event.isGlobal === true;
+        const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+        
+        return isClosed && isGlobal && isNotCell;
+      });
+
+      const transformedEvents = closedGlobalEvents.map(event => ({
+        id: event._id || event.id,
+        eventName: event.eventName || event["Event Name"] || "Unnamed Event",
+        date: event.date || event.createdAt || event["Date Of Event"],
+        total_attendance: event.total_attendance || event.attendees?.length || 0,
+        attendees: event.attendees || [],
+        newPeople: event.newPeople || [],
+        consolidations: event.consolidations || [],
+        summary: event.summary || {}
+      }));
+      
+      setLocalEvents(transformedEvents);
+      
+      if (transformedEvents.length === 0) {
+        setUseDummyData(true);
+      }
+    } catch (err) {
+      console.error('Error fetching events:', err);
+      setError(err.message);
+      setUseDummyData(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (events.length === 0) {
       fetchEvents();
     }
-  }, [events]);
+  }, []);
 
-  // Calculate stats for each event
   const getEventStats = (event) => {
-    // Try to get from event data first, then calculate from available data
-    const attendance = event.total_attendance || event.checkIns?.length || 0;
+    const attendance = event.total_attendance || event.attendees?.length || 0;
     const newPeople = event.newPeople?.length || event.summary?.new_people || 0;
     const consolidated = event.consolidations?.length || event.summary?.total_decisions || 0;
-    const firstTime = event.summary?.first_time_decisions || 0;
-    const recommitments = event.summary?.recommitments || 0;
 
     return {
       attendance,
       newPeople,
-      consolidated,
-      firstTime,
-      recommitments
+      consolidated
     };
   };
 
-  // Prepare rows for DataGrid
+  const handleViewDetails = (eventId) => {
+    const event = displayEvents.find(e => e.id === eventId);
+    if (onViewDetails) {
+      onViewDetails(eventId);
+    } else {
+      setDetailsDialog({ open: true, event });
+    }
+  };
+
+  const handleViewNewPeople = (eventId) => {
+    const event = displayEvents.find(e => e.id === eventId);
+    if (onViewNewPeople) {
+      onViewNewPeople(eventId);
+    } else {
+      setNewPeopleDialog({ open: true, event });
+    }
+  };
+
+  const handleViewConverts = (eventId) => {
+    const event = displayEvents.find(e => e.id === eventId);
+    if (onViewConverts) {
+      onViewConverts(eventId);
+    } else {
+      setConvertsDialog({ open: true, event });
+    }
+  };
+
   const rows = displayEvents.map((event) => {
     const stats = getEventStats(event);
     return {
       id: event.id,
-      date: formatDate(event.date),
-      eventName: event.eventName,
+      date: `${formatDate(event.date)} - ${event.eventName}`,
       attendanceCount: stats.attendance,
       newPeopleCount: stats.newPeople,
       consolidatedCount: stats.consolidated,
-      firstTimeDecisions: stats.firstTime,
-      recommitments: stats.recommitments,
       eventId: event.id,
-      rawEvent: event // Include raw event data for callbacks
+      rawEvent: event
     };
   });
+
+  // Filter rows based on search
+  const filteredRows = rows.filter(row => {
+    const searchLower = search.toLowerCase();
+    return row.date.toLowerCase().includes(searchLower);
+  });
+
+  const paginatedRows = filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const columns = [
     { 
       field: 'date', 
       headerName: 'Date', 
-      flex: 1.5, 
-      minWidth: 150,
-      valueGetter: (params) => params.row.date
-    },
-    { 
-      field: 'eventName', 
-      headerName: 'Event Name', 
       flex: 2, 
-      minWidth: 200 
+      minWidth: 200
     },
     { 
       field: 'attendanceCount', 
-      headerName: 'Attendance', 
+      headerName: 'Attendance Count', 
       flex: 1, 
       minWidth: 120,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params) => (
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          gap: 0.5,
-          backgroundColor: params.value > 0 ? theme.palette.primary.light + '20' : 'transparent',
-          borderRadius: 1,
-          px: 1,
-          py: 0.5
-        }}>
-          <GroupIcon fontSize="small" color={params.value > 0 ? "primary" : "disabled"} />
-          <Typography variant="body2" fontWeight="bold">
-            {params.value}
-          </Typography>
-        </Box>
-      )
+      type: 'number'
     },
     { 
       field: 'newPeopleCount', 
-      headerName: 'New People', 
+      headerName: 'New People Count', 
       flex: 1, 
       minWidth: 120,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params) => (
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          gap: 0.5,
-          backgroundColor: params.value > 0 ? theme.palette.success.light + '20' : 'transparent',
-          borderRadius: 1,
-          px: 1,
-          py: 0.5
-        }}>
-          <PersonAddAltIcon fontSize="small" color={params.value > 0 ? "success" : "disabled"} />
-          <Typography variant="body2" fontWeight="bold">
-            {params.value}
-          </Typography>
-        </Box>
-      )
+      type: 'number'
     },
     { 
       field: 'consolidatedCount', 
-      headerName: 'Decisions', 
+      headerName: 'Coverts Count', 
       flex: 1, 
       minWidth: 120,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params) => (
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          gap: 0.5,
-          backgroundColor: params.value > 0 ? theme.palette.secondary.light + '20' : 'transparent',
-          borderRadius: 1,
-          px: 1,
-          py: 0.5
-        }}>
-          <MergeIcon fontSize="small" color={params.value > 0 ? "secondary" : "disabled"} />
-          <Typography variant="body2" fontWeight="bold">
-            {params.value}
-          </Typography>
-        </Box>
-      )
-    },
-    {
-      field: 'breakdown',
-      headerName: 'Breakdown',
-      flex: 1.5,
-      minWidth: 150,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params) => (
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="caption" display="block" color="primary">
-            First: {params.row.firstTimeDecisions}
-          </Typography>
-          <Typography variant="caption" display="block" color="secondary">
-            Recommit: {params.row.recommitments}
-          </Typography>
-        </Box>
-      )
+      type: 'number'
     },
     {
       field: 'viewDetails',
-      headerName: 'Details',
-      width: 100,
+      headerName: 'View Details',
+      width: 130,
       sortable: false,
       filterable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => (
         <IconButton 
-          size="small" 
+          size="medium" 
           color="primary"
-          onClick={() => onViewDetails && onViewDetails(params.row.eventId)}
-          title="View Event Details"
+          onClick={() => handleViewDetails(params.row.eventId)}
+          title="View Attendance Details"
           sx={{ 
-            boxShadow: 1,
+            backgroundColor: theme.palette.primary.main,
+            color: 'white',
             '&:hover': { 
-              boxShadow: 3,
-              backgroundColor: theme.palette.primary.light + '20'
+              backgroundColor: theme.palette.primary.dark
             }
           }}
         >
@@ -276,27 +336,28 @@ const fetchEvents = async () => {
     },
     {
       field: 'viewNewPeople',
-      headerName: 'New People',
-      width: 100,
+      headerName: 'View New People',
+      width: 150,
       sortable: false,
       filterable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => (
         <IconButton 
-          size="small" 
-          color="success"
-          onClick={() => onViewNewPeople && onViewNewPeople(params.row.eventId)}
+          size="medium" 
+          color="primary"
+          onClick={() => handleViewNewPeople(params.row.eventId)}
           disabled={params.row.newPeopleCount === 0}
           title="View New People"
           sx={{ 
-            boxShadow: 1,
+            backgroundColor: theme.palette.primary.main,
+            color: 'white',
             '&:hover': { 
-              boxShadow: 3,
-              backgroundColor: theme.palette.success.light + '20'
+              backgroundColor: theme.palette.primary.dark
             },
             '&.Mui-disabled': {
-              boxShadow: 0
+              backgroundColor: theme.palette.action.disabledBackground,
+              color: theme.palette.action.disabled
             }
           }}
         >
@@ -306,27 +367,28 @@ const fetchEvents = async () => {
     },
     {
       field: 'viewConverts',
-      headerName: 'Decisions',
-      width: 100,
+      headerName: 'View Converts/...',
+      width: 150,
       sortable: false,
       filterable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => (
         <IconButton 
-          size="small" 
-          color="secondary"
-          onClick={() => onViewConverts && onViewConverts(params.row.eventId)}
+          size="medium" 
+          color="primary"
+          onClick={() => handleViewConverts(params.row.eventId)}
           disabled={params.row.consolidatedCount === 0}
           title="View Decisions"
           sx={{ 
-            boxShadow: 1,
+            backgroundColor: theme.palette.primary.main,
+            color: 'white',
             '&:hover': { 
-              boxShadow: 3,
-              backgroundColor: theme.palette.secondary.light + '20'
+              backgroundColor: theme.palette.primary.dark
             },
             '&.Mui-disabled': {
-              boxShadow: 0
+              backgroundColor: theme.palette.action.disabledBackground,
+              color: theme.palette.action.disabled
             }
           }}
         >
@@ -336,101 +398,113 @@ const fetchEvents = async () => {
     },
   ];
 
-  // Stats Cards for Event History
-  const StatsCards = () => {
-    const totalStats = rows.reduce((acc, row) => ({
-      attendance: acc.attendance + row.attendanceCount,
-      newPeople: acc.newPeople + row.newPeopleCount,
-      consolidated: acc.consolidated + row.consolidatedCount,
-      events: acc.events + 1
-    }), { attendance: 0, newPeople: 0, consolidated: 0, events: 0 });
-
+  // Event Card Component for Mobile
+  const EventCard = ({ event, index }) => {
+    const stats = getEventStats(event.rawEvent);
+    
     return (
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} md={3}>
-          <Card 
-            sx={{ 
-              textAlign: 'center', 
-              p: 2, 
-              boxShadow: 3,
-              backgroundColor: theme.palette.background.paper,
-              '&:hover': { boxShadow: 6 }
-            }}
-          >
-            <CardContent>
-              <GroupIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" fontWeight="bold" color="primary">
-                {totalStats.attendance}
+      <Card
+        variant="outlined"
+        sx={{
+          mb: 1,
+          boxShadow: 2,
+          "&:last-child": { mb: 0 },
+        }}
+      >
+        <CardContent sx={{ p: 2 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+            <Box flex={1}>
+              <Typography variant="subtitle2" fontWeight={600}>
+                {index}. {event.rawEvent.eventName}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Total Attendance
+                {formatDate(event.rawEvent.date)}
               </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} md={3}>
-          <Card 
-            sx={{ 
-              textAlign: 'center', 
-              p: 2, 
-              boxShadow: 3,
-              backgroundColor: theme.palette.background.paper,
-              '&:hover': { boxShadow: 6 }
-            }}
-          >
-            <CardContent>
-              <PersonAddAltIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" fontWeight="bold" color="success.main">
-                {totalStats.newPeople}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total New People
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} md={3}>
-          <Card 
-            sx={{ 
-              textAlign: 'center', 
-              p: 2, 
-              boxShadow: 3,
-              backgroundColor: theme.palette.background.paper,
-              '&:hover': { boxShadow: 6 }
-            }}
-          >
-            <CardContent>
-              <MergeIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="h4" fontWeight="bold" color="secondary.main">
-                {totalStats.consolidated}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total Decisions
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} md={3}>
-          <Card 
-            sx={{ 
-              textAlign: 'center', 
-              p: 2, 
-              boxShadow: 3,
-              backgroundColor: theme.palette.background.paper,
-              '&:hover': { boxShadow: 6 }
-            }}
-          >
-            <CardContent>
-              <Typography variant="h4" fontWeight="bold" color="text.primary">
-                {totalStats.events}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total Events
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </Box>
+          </Box>
+
+          <Divider sx={{ my: 1 }} />
+
+          <Stack direction="row" spacing={2} mb={2} flexWrap="wrap" gap={1}>
+            <Chip 
+              icon={<GroupIcon />} 
+              label={`${stats.attendance} Present`} 
+              size="small" 
+              color="primary"
+              variant="outlined"
+            />
+            <Chip 
+              icon={<PersonAddAltIcon />} 
+              label={`${stats.newPeople} New`} 
+              size="small" 
+              color="success"
+              variant="outlined"
+            />
+            <Chip 
+              icon={<MergeIcon />} 
+              label={`${stats.consolidated} Decisions`} 
+              size="small" 
+              color="secondary"
+              variant="outlined"
+            />
+          </Stack>
+
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <IconButton 
+              size="small" 
+              color="primary"
+              onClick={() => handleViewDetails(event.eventId)}
+              sx={{ 
+                backgroundColor: theme.palette.primary.main,
+                color: 'white',
+                '&:hover': { 
+                  backgroundColor: theme.palette.primary.dark
+                }
+              }}
+            >
+              <GroupIcon fontSize="small" />
+            </IconButton>
+            <IconButton 
+              size="small" 
+              color="primary"
+              onClick={() => handleViewNewPeople(event.eventId)}
+              disabled={stats.newPeople === 0}
+              sx={{ 
+                backgroundColor: theme.palette.primary.main,
+                color: 'white',
+                '&:hover': { 
+                  backgroundColor: theme.palette.primary.dark
+                },
+                '&.Mui-disabled': {
+                  backgroundColor: theme.palette.action.disabledBackground,
+                  color: theme.palette.action.disabled
+                }
+              }}
+            >
+              <PersonAddAltIcon fontSize="small" />
+            </IconButton>
+            <IconButton 
+              size="small" 
+              color="primary"
+              onClick={() => handleViewConverts(event.eventId)}
+              disabled={stats.consolidated === 0}
+              sx={{ 
+                backgroundColor: theme.palette.primary.main,
+                color: 'white',
+                '&:hover': { 
+                  backgroundColor: theme.palette.primary.dark
+                },
+                '&.Mui-disabled': {
+                  backgroundColor: theme.palette.action.disabledBackground,
+                  color: theme.palette.action.disabled
+                }
+              }}
+            >
+              <MergeIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -442,7 +516,7 @@ const fetchEvents = async () => {
     );
   }
 
-  if (error) {
+  if (error && !useDummyData) {
     return (
       <Box>
         <Alert 
@@ -454,61 +528,36 @@ const fetchEvents = async () => {
             </Button>
           }
         >
-          <Typography variant="body1" fontWeight="bold">
-            Error loading events
-          </Typography>
-          <Typography variant="body2">
-            {error}
-          </Typography>
-          <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-            API URL: {API_URL}
-          </Typography>
+          Error loading events: {error}
         </Alert>
-        
-        <Button 
-          variant="outlined" 
-          size="small" 
-          onClick={fetchEvents}
-          startIcon={<RefreshIcon />}
-          sx={{ ml: 2, boxShadow: 1 }}
-        >
-          Try Again
-        </Button>
       </Box>
     );
   }
 
   return (
-    <Box>
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h6" component="h2">
-          Event History
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Total Events: {displayEvents.length}
-          </Typography>
-          {events.length === 0 && (
-            <Button 
-              size="small" 
-              startIcon={<RefreshIcon />} 
-              onClick={fetchEvents}
-              disabled={loading}
-              sx={{ boxShadow: 1 }}
-            >
-              Refresh
-            </Button>
-          )}
-        </Box>
-      </Box>
+    <Box sx={{ width: '100%', height: '100%' }}>
+      {useDummyData && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Showing dummy data for demonstration. Real data will load when API is available.
+        </Alert>
+      )}
 
-      {/* Stats Cards */}
-      <StatsCards />
-
+      {/* Search bar for mobile */}
+      {isMdDown && (
+        <TextField
+          size="small"
+          placeholder="Search events..."
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          fullWidth
+          sx={{ mb: 2, boxShadow: 1 }}
+        />
+      )}
+      
       {displayEvents.length === 0 ? (
         <Paper 
           sx={{ 
-            p: 4, 
+            p: { xs: 2, sm: 4 }, 
             textAlign: 'center', 
             boxShadow: 3,
             backgroundColor: theme.palette.background.paper
@@ -531,20 +580,51 @@ const fetchEvents = async () => {
             </Button>
           )}
         </Paper>
+      ) : isMdDown ? (
+        // Mobile/Tablet View - Cards
+        <Box>
+          <Box 
+            sx={{ 
+              maxHeight: 500, 
+              overflowY: "auto",
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 1,
+              p: 1,
+              boxShadow: 2
+            }}
+          >
+            {paginatedRows.map((row, idx) => (
+              <EventCard key={row.id} event={row} index={page * rowsPerPage + idx + 1} />
+            ))}
+          </Box>
+
+          <TablePagination 
+            component="div" 
+            count={filteredRows.length} 
+            page={page} 
+            onPageChange={(e, newPage) => setPage(newPage)} 
+            rowsPerPage={rowsPerPage} 
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} 
+            rowsPerPageOptions={[25, 50, 100]} 
+            sx={{ boxShadow: 2, borderRadius: 1, mt: 1 }}
+          />
+        </Box>
       ) : (
+        // Desktop View - DataGrid
         <Paper 
           variant="outlined" 
           sx={{ 
             height: 600, 
+            width: '100%',
             boxShadow: 3,
             backgroundColor: theme.palette.background.paper
           }}
         >
           <DataGrid
-            rows={rows}
+            rows={filteredRows}
             columns={columns}
             loading={loading}
-            pageSizeOptions={[10, 25, 50]}
+            pageSizeOptions={[10, 25, 50, 100]}
             slots={{ toolbar: GridToolbar }}
             slotProps={{
               toolbar: {
@@ -554,7 +634,7 @@ const fetchEvents = async () => {
             }}
             disableRowSelectionOnClick
             initialState={{
-              pagination: { paginationModel: { pageSize: 10 } },
+              pagination: { paginationModel: { pageSize: 100 } },
               sorting: {
                 sortModel: [{ field: 'date', sort: 'desc' }],
               },
@@ -568,11 +648,202 @@ const fetchEvents = async () => {
               },
               '& .MuiDataGrid-toolbarContainer': {
                 p: 1,
+                flexWrap: 'wrap'
               },
             }}
           />
         </Paper>
       )}
+
+      {/* Attendance Details Dialog */}
+      <Dialog 
+        open={detailsDialog.open} 
+        onClose={() => setDetailsDialog({ open: false, event: null })}
+        maxWidth="sm"
+        fullWidth
+        fullScreen={isSmDown}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h6">Attendance Details</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {detailsDialog.event?.eventName} - {formatDate(detailsDialog.event?.date)}
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setDetailsDialog({ open: false, event: null })}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <Divider />
+        <DialogContent>
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="h4" color="primary">
+                {detailsDialog.event?.total_attendance || detailsDialog.event?.attendees?.length || 0}
+              </Typography>
+              <Chip 
+                icon={<GroupIcon />} 
+                label="Total Attendance" 
+                color="primary" 
+                variant="outlined"
+              />
+            </Box>
+            <Divider />
+            <Typography variant="subtitle1" fontWeight="bold">Attendees List:</Typography>
+            <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+              {(detailsDialog.event?.attendees || []).map((attendee, index) => (
+                <React.Fragment key={attendee.id || index}>
+                  <ListItem>
+                    <ListItemText 
+                      primary={attendee.name || `Person ${index + 1}`}
+                      secondary={attendee.phone || attendee.email || 'No contact info'}
+                    />
+                  </ListItem>
+                  {index < (detailsDialog.event?.attendees?.length - 1) && <Divider />}
+                </React.Fragment>
+              ))}
+              {(!detailsDialog.event?.attendees || detailsDialog.event.attendees.length === 0) && (
+                <ListItem>
+                  <ListItemText primary="No attendee details available" />
+                </ListItem>
+              )}
+            </List>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsDialog({ open: false, event: null })}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* New People Dialog */}
+      <Dialog 
+        open={newPeopleDialog.open} 
+        onClose={() => setNewPeopleDialog({ open: false, event: null })}
+        maxWidth="sm"
+        fullWidth
+        fullScreen={isSmDown}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h6">New People</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {newPeopleDialog.event?.eventName} - {formatDate(newPeopleDialog.event?.date)}
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setNewPeopleDialog({ open: false, event: null })}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <Divider />
+        <DialogContent>
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="h4" color="success.main">
+                {newPeopleDialog.event?.newPeople?.length || 0}
+              </Typography>
+              <Chip 
+                icon={<PersonAddAltIcon />} 
+                label="New People" 
+                color="success" 
+                variant="outlined"
+              />
+            </Box>
+            <Divider />
+            <Typography variant="subtitle1" fontWeight="bold">New People List:</Typography>
+            <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+              {(newPeopleDialog.event?.newPeople || []).map((person, index) => (
+                <React.Fragment key={person.id || index}>
+                  <ListItem>
+                    <ListItemText 
+                      primary={person.name || `Person ${index + 1}`}
+                      secondary={
+                        <Stack spacing={0.5}>
+                          {person.phone && <Typography variant="caption">Phone: {person.phone}</Typography>}
+                          {person.email && <Typography variant="caption">Email: {person.email}</Typography>}
+                        </Stack>
+                      }
+                    />
+                  </ListItem>
+                  {index < (newPeopleDialog.event?.newPeople?.length - 1) && <Divider />}
+                </React.Fragment>
+              ))}
+            </List>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewPeopleDialog({ open: false, event: null })}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Converts/Decisions Dialog */}
+      <Dialog 
+        open={convertsDialog.open} 
+        onClose={() => setConvertsDialog({ open: false, event: null })}
+        maxWidth="sm"
+        fullWidth
+        fullScreen={isSmDown}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h6">Decisions Made</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {convertsDialog.event?.eventName} - {formatDate(convertsDialog.event?.date)}
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setConvertsDialog({ open: false, event: null })}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <Divider />
+        <DialogContent>
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="h4" color="secondary.main">
+                {convertsDialog.event?.consolidations?.length || 0}
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Chip 
+                  label={`First Time: ${convertsDialog.event?.summary?.first_time_decisions || 0}`}
+                  color="primary" 
+                  size="small"
+                />
+                <Chip 
+                  label={`Recommitments: ${convertsDialog.event?.summary?.recommitments || 0}`}
+                  color="secondary" 
+                  size="small"
+                />
+              </Stack>
+            </Box>
+            <Divider />
+            <Typography variant="subtitle1" fontWeight="bold">Decisions List:</Typography>
+            <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+              {(convertsDialog.event?.consolidations || []).map((person, index) => (
+                <React.Fragment key={person.id || index}>
+                  <ListItem>
+                    <ListItemText 
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          <Typography>{person.name || `Person ${index + 1}`}</Typography>
+                          <Chip 
+                            label={person.type === 'first_time' ? 'First Time' : 'Recommitment'}
+                            color={person.type === 'first_time' ? 'primary' : 'secondary'}
+                            size="small"
+                          />
+                        </Box>
+                      }
+                      secondary={person.phone || person.email || 'No contact info'}
+                    />
+                  </ListItem>
+                  {index < (convertsDialog.event?.consolidations?.length - 1) && <Divider />}
+                </React.Fragment>
+              ))}
+            </List>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConvertsDialog({ open: false, event: null })}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
