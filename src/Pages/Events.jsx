@@ -522,7 +522,7 @@ const Events = () => {
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const isAdmin = currentUser?.role === "admin";
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-  
+
   // State declarations
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
@@ -535,7 +535,8 @@ const Events = () => {
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
-  const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
+  const [createEventTypeModalOpen, setCreateEventTypeModalOpen] =
+    useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -547,9 +548,11 @@ const Events = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
-    return localStorage.getItem("selectedEventType") || "";
-  });
+  const [currentSelectedEventType, setCurrentSelectedEventType] = useState(
+    () => {
+      return localStorage.getItem("selectedEventType") || "";
+    }
+  );
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredRow, setHoveredRow] = useState(null);
@@ -574,7 +577,7 @@ const Events = () => {
   const cacheRef = useRef({
     data: new Map(),
     timestamp: new Map(),
-    CACHE_DURATION: 5 * 60 * 1000
+    CACHE_DURATION: 5 * 60 * 1000,
   });
 
   // Cache utility functions
@@ -585,18 +588,18 @@ const Events = () => {
       status: params.status,
       event_type: params.event_type,
       search: params.search,
-      personal: params.personal
+      personal: params.personal,
     });
   }, []);
 
   const getCachedData = useCallback((key) => {
     const cached = cacheRef.current.data.get(key);
     const timestamp = cacheRef.current.timestamp.get(key);
-    
+
     if (cached && timestamp) {
       const age = Date.now() - timestamp;
       if (age < cacheRef.current.CACHE_DURATION) {
-        console.log('✅ Using cached data for:', key);
+        console.log("✅ Using cached data for:", key);
         return cached;
       }
     }
@@ -606,7 +609,7 @@ const Events = () => {
   const setCachedData = useCallback((key, data) => {
     cacheRef.current.data.set(key, data);
     cacheRef.current.timestamp.set(key, Date.now());
-    
+
     if (cacheRef.current.data.size > 50) {
       const firstKey = cacheRef.current.data.keys().next().value;
       cacheRef.current.data.delete(firstKey);
@@ -615,7 +618,7 @@ const Events = () => {
   }, []);
 
   const clearCache = useCallback(() => {
-    console.log('🧹 Clearing all cache');
+    console.log("🧹 Clearing all cache");
     cacheRef.current.data.clear();
     cacheRef.current.timestamp.clear();
   }, []);
@@ -704,7 +707,7 @@ const Events = () => {
 
     try {
       const token = localStorage.getItem("token");
-      
+
       if (!token) {
         console.error("❌ No authentication token found");
         setSnackbar({
@@ -719,94 +722,108 @@ const Events = () => {
         return;
       }
 
-      const headers = { 
+      const headers = {
         Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json",
       };
 
-      const shouldApplyPersonalFilter = 
-        viewFilter === 'personal' && 
-        (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+      const shouldApplyPersonalFilter =
+        viewFilter === "personal" &&
+        (currentUser?.role?.toLowerCase() === "user" ||
+          currentUser?.role?.toLowerCase() === "registrant");
 
-      const startDate = '2025-10-20';
-      
+      const startDate = "2025-10-20";
+
       const params = {
         page: filters.page !== undefined ? filters.page : currentPage,
         limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
         search: searchQuery.trim() || undefined,
         personal: shouldApplyPersonalFilter ? true : undefined,
         start_date: startDate,
-        ...filters
+        ...filters,
       };
 
-      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+      Object.keys(params).forEach(
+        (key) => params[key] === undefined && delete params[key]
+      );
 
       const cacheKey = getCacheKey(params);
-      
+
       if (!forceRefresh) {
         const cachedData = getCachedData(cacheKey);
         if (cachedData) {
-          console.log('🚀 Serving from cache for:', cacheKey);
+          console.log("🚀 Serving from cache for:", cacheKey);
           setEvents(cachedData.events);
           setFilteredEvents(cachedData.events);
           setTotalEvents(cachedData.total_events);
           setTotalPages(cachedData.total_pages);
-          
+
           if (filters.page !== undefined) {
             setCurrentPage(filters.page);
           }
-          
+
           setLoading(false);
           setIsLoading(false);
           return;
         }
       }
 
-      console.log('🔍 Fetching events from API with params:', params);
+      console.log("🔍 Fetching events from API with params:", params);
 
       const endpoint = `${BACKEND_URL}/events`;
-      console.log('📡 Using universal events endpoint for all users:', endpoint);
+      console.log(
+        "📡 Using universal events endpoint for all users:",
+        endpoint
+      );
 
-      const response = await axios.get(endpoint, { 
-        headers, 
-        params, 
-        timeout: 15000
+      const response = await axios.get(endpoint, {
+        headers,
+        params,
+        timeout: 15000,
       });
-      
+
       const responseData = response.data;
       const newEvents = responseData.events || responseData.results || [];
 
-      console.log('📥 Received events:', newEvents.length);
+      console.log("📥 Received events:", newEvents.length);
 
       setCachedData(cacheKey, {
         events: newEvents,
         total_events: responseData.total_events || responseData.total || 0,
-        total_pages: responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1
+        total_pages:
+          responseData.total_pages ||
+          Math.ceil((responseData.total_events || 0) / rowsPerPage) ||
+          1,
       });
 
       setEvents(newEvents);
       setFilteredEvents(newEvents);
       setTotalEvents(responseData.total_events || responseData.total || 0);
-      const calculatedTotalPages = responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1;
+      const calculatedTotalPages =
+        responseData.total_pages ||
+        Math.ceil((responseData.total_events || 0) / rowsPerPage) ||
+        1;
       setTotalPages(calculatedTotalPages);
 
       if (filters.page !== undefined) {
         setCurrentPage(filters.page);
       }
-
     } catch (err) {
       console.error("❌ Error fetching events:", err);
-      
-      if (err.code === 'ECONNABORTED') {
+
+      if (err.code === "ECONNABORTED") {
         console.error("⏰ Request timeout - backend is slow");
         setSnackbar({
           open: true,
           message: "Server is taking too long to respond. Please try again.",
           severity: "warning",
         });
-        
+
         if (events.length === 0) {
           setEvents([]);
           setFilteredEvents([]);
@@ -821,7 +838,7 @@ const Events = () => {
         localStorage.removeItem("token");
         localStorage.removeItem("userProfile");
         setTimeout(() => {
-          window.location.href = '/login';
+          window.location.href = "/login";
         }, 2000);
       } else {
         setSnackbar({
@@ -849,8 +866,13 @@ const Events = () => {
     const status = (event.status || event.Status || "").toLowerCase().trim();
     const didNotMeet = event.did_not_meet || false;
     const hasAttendees = event.attendees && event.attendees.length > 0;
-    
-    const hasBeenCaptured = hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || didNotMeet;
+
+    const hasBeenCaptured =
+      hasAttendees ||
+      status === "complete" ||
+      status === "closed" ||
+      status === "did_not_meet" ||
+      didNotMeet;
 
     if (hasBeenCaptured) return false;
 
@@ -895,23 +917,30 @@ const Events = () => {
   // Event handlers
   const handleRowsPerPageChange = (e) => {
     const newRowsPerPage = Number(e.target.value);
-    console.log('📊 Changing rows per page to:', newRowsPerPage);
-    
+    console.log("📊 Changing rows per page to:", newRowsPerPage);
+
     setRowsPerPage(newRowsPerPage);
     setCurrentPage(1);
-    
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
-      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
 
-    fetchEvents({
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      search: searchQuery.trim() || undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      page: 1,
-      limit: newRowsPerPage,
-      personal: shouldApplyPersonalFilter ? true : undefined
-    }, true);
+    const shouldApplyPersonalFilter =
+      viewFilter === "personal" &&
+      (currentUser?.role?.toLowerCase() === "user" ||
+        currentUser?.role?.toLowerCase() === "registrant");
+
+    fetchEvents(
+      {
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        search: searchQuery.trim() || undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
+        page: 1,
+        limit: newRowsPerPage,
+        personal: shouldApplyPersonalFilter ? true : undefined,
+      },
+      true
+    );
   };
 
   const handleSearchChange = (e) => {
@@ -921,79 +950,96 @@ const Events = () => {
 
   const handleSearchSubmit = () => {
     const trimmedSearch = searchQuery.trim();
-    console.log('🔍 Search submitted:', trimmedSearch);
-    
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
-      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+    console.log("🔍 Search submitted:", trimmedSearch);
+
+    const shouldApplyPersonalFilter =
+      viewFilter === "personal" &&
+      (currentUser?.role?.toLowerCase() === "user" ||
+        currentUser?.role?.toLowerCase() === "registrant");
 
     setCurrentPage(1);
-    
-    fetchEvents({
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: trimmedSearch || undefined,
-      personal: shouldApplyPersonalFilter ? true : undefined
-    }, true);
+
+    fetchEvents(
+      {
+        page: 1,
+        limit: rowsPerPage,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
+        search: trimmedSearch || undefined,
+        personal: shouldApplyPersonalFilter ? true : undefined,
+      },
+      true
+    );
   };
 
   const handleStatusClick = (status) => {
     setSelectedStatus(status);
-    
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
-      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    const shouldApplyPersonalFilter =
+      viewFilter === "personal" &&
+      (currentUser?.role?.toLowerCase() === "user" ||
+        currentUser?.role?.toLowerCase() === "registrant");
 
     setCurrentPage(1);
-    
+
     fetchEvents({
-      status: status !== 'all' ? status : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      status: status !== "all" ? status : undefined,
+      event_type:
+        selectedEventTypeFilter !== "all" ? selectedEventTypeFilter : undefined,
       search: searchQuery || undefined,
       page: 1,
-      personal: shouldApplyPersonalFilter ? true : undefined
+      personal: shouldApplyPersonalFilter ? true : undefined,
     });
   };
 
   const handleEventTypeClick = (typeValue) => {
-    console.log('🎯 handleEventTypeClick called with:', typeValue);
-    
+    console.log("🎯 handleEventTypeClick called with:", typeValue);
+
     setSelectedEventTypeFilter(typeValue);
-    
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
-      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+
+    const shouldApplyPersonalFilter =
+      viewFilter === "personal" &&
+      (currentUser?.role?.toLowerCase() === "user" ||
+        currentUser?.role?.toLowerCase() === "registrant");
 
     setCurrentPage(1);
-    
-    fetchEvents({
-      event_type: typeValue !== 'all' ? typeValue : undefined,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      search: searchQuery || undefined,
-      page: 1,
-      limit: rowsPerPage,
-      personal: shouldApplyPersonalFilter ? true : undefined
-    }, true);
+
+    fetchEvents(
+      {
+        event_type: typeValue !== "all" ? typeValue : undefined,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        search: searchQuery || undefined,
+        page: 1,
+        limit: rowsPerPage,
+        personal: shouldApplyPersonalFilter ? true : undefined,
+      },
+      true
+    );
   };
 
   const handlePreviousPage = () => {
     if (currentPage > 1 && !isLoading) {
       const newPage = currentPage - 1;
-      console.log('⬅️ Going to previous page:', newPage);
-      
-      const shouldApplyPersonalFilter = 
-        viewFilter === 'personal' && 
-        (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+      console.log("⬅️ Going to previous page:", newPage);
+
+      const shouldApplyPersonalFilter =
+        viewFilter === "personal" &&
+        (currentUser?.role?.toLowerCase() === "user" ||
+          currentUser?.role?.toLowerCase() === "registrant");
 
       fetchEvents({
         page: newPage,
         limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
         search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined
+        personal: shouldApplyPersonalFilter ? true : undefined,
       });
     }
   };
@@ -1001,19 +1047,23 @@ const Events = () => {
   const handleNextPage = () => {
     if (currentPage < totalPages && !isLoading) {
       const newPage = currentPage + 1;
-      console.log('➡️ Going to next page:', newPage);
-      
-      const shouldApplyPersonalFilter = 
-        viewFilter === 'personal' && 
-        (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+      console.log("➡️ Going to next page:", newPage);
+
+      const shouldApplyPersonalFilter =
+        viewFilter === "personal" &&
+        (currentUser?.role?.toLowerCase() === "user" ||
+          currentUser?.role?.toLowerCase() === "registrant");
 
       fetchEvents({
         page: newPage,
         limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
         search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined
+        personal: shouldApplyPersonalFilter ? true : undefined,
       });
     }
   };
@@ -1042,23 +1092,29 @@ const Events = () => {
 
   const applyFilters = (filters) => {
     console.log("🔍 APPLYING FILTERS:", filters);
-    
+
     setActiveFilters(filters);
     setCurrentPage(1);
-    
-    let searchQuery = '';
+
+    let searchQuery = "";
     if (filters.leader) {
       searchQuery = filters.leader;
     }
-    
-    fetchEvents({
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery || undefined,
-      day: filters.day !== 'all' ? filters.day : undefined
-    }, true);
+
+    fetchEvents(
+      {
+        page: 1,
+        limit: rowsPerPage,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
+        search: searchQuery || undefined,
+        day: filters.day !== "all" ? filters.day : undefined,
+      },
+      true
+    );
   };
 
   const handleAttendanceSubmit = async (data) => {
@@ -1222,7 +1278,11 @@ const Events = () => {
   };
 
   const handleFixLeaders = async () => {
-    if (!window.confirm("This will fix missing Leader at 1 assignments for all events. Continue?")) {
+    if (
+      !window.confirm(
+        "This will fix missing Leader at 1 assignments for all events. Continue?"
+      )
+    ) {
       return;
     }
 
@@ -1279,7 +1339,10 @@ const Events = () => {
         setSelectedEventTypeObj(newEventType);
         setCurrentSelectedEventType(newEventType.name);
 
-        localStorage.setItem('selectedEventTypeObj', JSON.stringify(newEventType));
+        localStorage.setItem(
+          "selectedEventTypeObj",
+          JSON.stringify(newEventType)
+        );
 
         setCreateEventTypeModalOpen(false);
         setCreateEventModalOpen(true);
@@ -1333,42 +1396,61 @@ const Events = () => {
 
   useEffect(() => {
     clearCache();
-  }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
+  }, [
+    selectedEventTypeFilter,
+    selectedStatus,
+    viewFilter,
+    searchQuery,
+    clearCache,
+  ]);
 
   useEffect(() => {
-    console.log('🔄 Main fetch triggered');
-    console.log('🎯 Current event type filter:', selectedEventTypeFilter);
+    console.log("🔄 Main fetch triggered");
+    console.log("🎯 Current event type filter:", selectedEventTypeFilter);
 
-    const shouldApplyPersonalFilter = 
-      viewFilter === 'personal' && 
-      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+    const shouldApplyPersonalFilter =
+      viewFilter === "personal" &&
+      (currentUser?.role?.toLowerCase() === "user" ||
+        currentUser?.role?.toLowerCase() === "registrant");
 
     const fetchParams = {
       page: 1,
       limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      status: selectedStatus !== "all" ? selectedStatus : undefined,
+      event_type:
+        selectedEventTypeFilter !== "all" ? selectedEventTypeFilter : undefined,
       search: searchQuery.trim() || undefined,
-      personal: shouldApplyPersonalFilter ? true : undefined
+      personal: shouldApplyPersonalFilter ? true : undefined,
     };
 
-    Object.keys(fetchParams).forEach(key => {
-      if (fetchParams[key] === undefined || fetchParams[key] === '' || fetchParams[key] === 'all') {
+    Object.keys(fetchParams).forEach((key) => {
+      if (
+        fetchParams[key] === undefined ||
+        fetchParams[key] === "" ||
+        fetchParams[key] === "all"
+      ) {
         delete fetchParams[key];
       }
     });
 
-    console.log('📤 Main fetch params:', fetchParams);
-    
+    console.log("📤 Main fetch params:", fetchParams);
+
     setCurrentPage(1);
     fetchEvents(fetchParams, false);
-  }, [selectedStatus, selectedEventTypeFilter, viewFilter, location.pathname, location.state?.refresh, currentUser?.role]);
+  }, [
+    selectedStatus,
+    selectedEventTypeFilter,
+    viewFilter,
+    location.pathname,
+    location.state?.refresh,
+    currentUser?.role,
+  ]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (searchQuery.trim() !== '') {
+      if (searchQuery.trim() !== "") {
         handleSearchSubmit();
-      } else if (searchQuery.trim() === '' && events.length > 0) {
+      } else if (searchQuery.trim() === "" && events.length > 0) {
         handleSearchSubmit();
       }
     }, 800);
@@ -1387,6 +1469,10 @@ const Events = () => {
   // Components
   const EventTypeSelector = () => {
     const [hoveredType, setHoveredType] = useState(null);
+    const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
+  const [typeMenuFor, setTypeMenuFor] = useState(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [toDeleteType, setToDeleteType] = useState(null);
     const allTypes = ["CELLS", ...eventTypes];
 
     const getDisplayName = (type) => {
@@ -1394,6 +1480,17 @@ const Events = () => {
       if (typeof type === "string") return type;
       return type.name || type;
     };
+  // Open the menu for a specific type
+  const openTypeMenu = (event, type) => {
+    setTypeMenuAnchor(event.currentTarget);
+    setTypeMenuFor(type);
+  };
+
+  // Close menu
+  const closeTypeMenu = () => {
+    setTypeMenuAnchor(null);
+    setTypeMenuFor(null);
+  };
 
     const getTypeValue = (type) => {
       if (type === "CELLS") return "all";
@@ -1445,7 +1542,9 @@ const Events = () => {
                   style={{
                     ...eventTypeStyles.typeCard,
                     ...(isActive ? eventTypeStyles.typeCardActive : {}),
-                    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+                    ...(isHovered && !isActive
+                      ? eventTypeStyles.typeCardHover
+                      : {}),
                     position: "relative",
                     width: 200,
                     minHeight: 70,
@@ -1455,12 +1554,12 @@ const Events = () => {
                     justifyContent: "center",
                   }}
                   onClick={() => {
-                    console.log('🟢 Event Type Clicked:', {
+                    console.log("🟢 Event Type Clicked:", {
                       displayName,
                       typeValue,
-                      currentFilter: selectedEventTypeFilter
+                      currentFilter: selectedEventTypeFilter,
                     });
-                    
+
                     const selectedTypeObj =
                       typeValue === "all"
                         ? null
@@ -1480,20 +1579,25 @@ const Events = () => {
                       localStorage.removeItem("selectedEventTypeObj");
                     }
 
-                    const shouldApplyPersonalFilter = 
-                      viewFilter === 'personal' && 
-                      (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+                    const shouldApplyPersonalFilter =
+                      viewFilter === "personal" &&
+                      (currentUser?.role?.toLowerCase() === "user" ||
+                        currentUser?.role?.toLowerCase() === "registrant");
 
                     setCurrentPage(1);
-                    
-                    fetchEvents({
-                      page: 1,
-                      limit: rowsPerPage,
-                      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                      event_type: typeValue !== 'all' ? typeValue : undefined,
-                      search: searchQuery.trim() || undefined,
-                      personal: shouldApplyPersonalFilter ? true : undefined
-                    }, true);
+
+                    fetchEvents(
+                      {
+                        page: 1,
+                        limit: rowsPerPage,
+                        status:
+                          selectedStatus !== "all" ? selectedStatus : undefined,
+                        event_type: typeValue !== "all" ? typeValue : undefined,
+                        search: searchQuery.trim() || undefined,
+                        personal: shouldApplyPersonalFilter ? true : undefined,
+                      },
+                      true
+                    );
                   }}
                   onMouseEnter={() => setHoveredType(typeValue)}
                   onMouseLeave={() => setHoveredType(null)}
@@ -1521,7 +1625,7 @@ const Events = () => {
                         top: 8,
                         right: 8,
                         zIndex: 10,
-                        color: "grey"
+                        color: "grey",
                       }}
                     >
                       <MoreVertIcon fontSize="small" />
@@ -1531,19 +1635,25 @@ const Events = () => {
               );
             })}
 
-            <Popover
-              open={Boolean(typeMenuAnchor)}
-              anchorEl={typeMenuAnchor}
-              onClose={closeTypeMenu}
-              anchorOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
-              transformOrigin={{
-                vertical: "bottom",
-                horizontal: "right",
-              }}
-            >
+   <Popover
+            open={Boolean(typeMenuAnchor)}
+            anchorEl={typeMenuAnchor}
+            onClose={closeTypeMenu}
+            anchorOrigin={{
+              vertical: "top",
+              horizontal: "right",
+            }}
+            transformOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
+            }}
+            slotProps={{
+              paper: {
+                elevation: 4,
+                sx: { borderRadius: 2, mt: -1 },
+              },
+            }}
+          >
               <MenuItem
                 onClick={() => {
                   handleEditType(typeMenuFor);
@@ -1580,8 +1690,8 @@ const Events = () => {
               <DialogTitle>Delete Event Type</DialogTitle>
               <DialogContent>
                 <Typography>
-                  Are you sure you want to delete this event type? This
-                  cannot be undone.
+                  Are you sure you want to delete this event type? This cannot
+                  be undone.
                 </Typography>
               </DialogContent>
               <DialogActions>
@@ -1603,7 +1713,7 @@ const Events = () => {
     const [statusCounts, setStatusCounts] = useState({
       incomplete: 0,
       complete: 0,
-      did_not_meet: 0
+      did_not_meet: 0,
     });
 
     useEffect(() => {
@@ -1612,32 +1722,40 @@ const Events = () => {
           const token = localStorage.getItem("token");
           if (!token) return;
 
-          const headers = { 
+          const headers = {
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            "Content-Type": "application/json",
           };
 
-          const shouldApplyPersonalFilter = 
-            viewFilter === 'personal' && 
-            (currentUser?.role?.toLowerCase() === "user" || currentUser?.role?.toLowerCase() === "registrant");
+          const shouldApplyPersonalFilter =
+            viewFilter === "personal" &&
+            (currentUser?.role?.toLowerCase() === "user" ||
+              currentUser?.role?.toLowerCase() === "registrant");
 
-          const startDate = '2025-10-20';
-          
+          const startDate = "2025-10-20";
+
           const params = {
-            event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+            event_type:
+              selectedEventTypeFilter !== "all"
+                ? selectedEventTypeFilter
+                : undefined,
             search: searchQuery.trim() || undefined,
             personal: shouldApplyPersonalFilter ? true : undefined,
-            start_date: startDate
+            start_date: startDate,
           };
 
-          Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+          Object.keys(params).forEach(
+            (key) => params[key] === undefined && delete params[key]
+          );
 
           const endpoint = `${BACKEND_URL}/events/status-counts`;
-          console.log('📊 Fetching status counts from universal endpoint:', endpoint);
+          console.log(
+            "📊 Fetching status counts from universal endpoint:",
+            endpoint
+          );
 
           const response = await axios.get(endpoint, { headers, params });
           setStatusCounts(response.data);
-
         } catch (error) {
           console.error("❌ Error fetching status counts:", error);
           calculateClientSideCounts();
@@ -1649,31 +1767,40 @@ const Events = () => {
 
     const calculateClientSideCounts = () => {
       const now = new Date();
-      const startDate = new Date('2025-10-20');
-      
-      const filteredEvents = events.filter(event => {
+      const startDate = new Date("2025-10-20");
+
+      const filteredEvents = events.filter((event) => {
         if (!event.date) return false;
         const eventDate = new Date(event.date);
         return eventDate >= startDate && eventDate <= now;
       });
 
       const counts = {
-        incomplete: filteredEvents.filter(e => {
+        incomplete: filteredEvents.filter((e) => {
           if (e.did_not_meet === true) return false;
-          if ((e.attendees && e.attendees.length > 0) ||
-            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim())) {
+          if (
+            (e.attendees && e.attendees.length > 0) ||
+            ["complete", "closed"].includes(
+              (e.status || e.Status || "").toLowerCase().trim()
+            )
+          ) {
             return false;
           }
           return true;
         }).length,
 
-        complete: filteredEvents.filter(e => {
+        complete: filteredEvents.filter((e) => {
           if (e.did_not_meet === true) return false;
-          return (e.attendees && e.attendees.length > 0) ||
-            ['complete', 'closed'].includes((e.status || e.Status || '').toLowerCase().trim());
+          return (
+            (e.attendees && e.attendees.length > 0) ||
+            ["complete", "closed"].includes(
+              (e.status || e.Status || "").toLowerCase().trim()
+            )
+          );
         }).length,
 
-        did_not_meet: filteredEvents.filter(e => e.did_not_meet === true).length,
+        did_not_meet: filteredEvents.filter((e) => e.did_not_meet === true)
+          .length,
       };
 
       setStatusCounts(counts);
@@ -1685,9 +1812,11 @@ const Events = () => {
           style={{
             ...styles.statusBadge,
             ...styles.statusBadgeIncomplete,
-            ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
+            ...(selectedStatus === "incomplete"
+              ? styles.statusBadgeActive
+              : {}),
           }}
-          onClick={() => handleStatusClick('incomplete')}
+          onClick={() => handleStatusClick("incomplete")}
         >
           INCOMPLETE ({statusCounts.incomplete})
         </button>
@@ -1696,9 +1825,9 @@ const Events = () => {
           style={{
             ...styles.statusBadge,
             ...styles.statusBadgeComplete,
-            ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
+            ...(selectedStatus === "complete" ? styles.statusBadgeActive : {}),
           }}
-          onClick={() => handleStatusClick('complete')}
+          onClick={() => handleStatusClick("complete")}
         >
           COMPLETE ({statusCounts.complete})
         </button>
@@ -1707,9 +1836,11 @@ const Events = () => {
           style={{
             ...styles.statusBadge,
             ...styles.statusBadgeDidNotMeet,
-            ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
+            ...(selectedStatus === "did_not_meet"
+              ? styles.statusBadgeActive
+              : {}),
           }}
-          onClick={() => handleStatusClick('did_not_meet')}
+          onClick={() => handleStatusClick("did_not_meet")}
         >
           DID NOT MEET ({statusCounts.did_not_meet})
         </button>
@@ -1727,26 +1858,31 @@ const Events = () => {
             type="radio"
             name="viewFilter"
             value="all"
-            checked={viewFilter === 'all'}
+            checked={viewFilter === "all"}
             onChange={(e) => {
               const newViewFilter = e.target.value;
               setViewFilter(newViewFilter);
               setCurrentPage(1);
               fetchEvents({
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+                status: selectedStatus !== "all" ? selectedStatus : undefined,
+                event_type:
+                  selectedEventTypeFilter !== "all"
+                    ? selectedEventTypeFilter
+                    : undefined,
                 search: searchQuery || undefined,
                 page: 1,
-                personal: false
+                personal: false,
               });
             }}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: "pointer" }}
           />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'all' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'all' ? '600' : '400',
-          }}>
+          <span
+            style={{
+              ...styles.viewFilterText,
+              color: viewFilter === "all" ? "#007bff" : "#6c757d",
+              fontWeight: viewFilter === "all" ? "600" : "400",
+            }}
+          >
             View All
           </span>
         </label>
@@ -1756,26 +1892,31 @@ const Events = () => {
             type="radio"
             name="viewFilter"
             value="personal"
-            checked={viewFilter === 'personal'}
+            checked={viewFilter === "personal"}
             onChange={(e) => {
               const newViewFilter = e.target.value;
               setViewFilter(newViewFilter);
               setCurrentPage(1);
               fetchEvents({
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+                status: selectedStatus !== "all" ? selectedStatus : undefined,
+                event_type:
+                  selectedEventTypeFilter !== "all"
+                    ? selectedEventTypeFilter
+                    : undefined,
                 search: searchQuery || undefined,
                 page: 1,
-                personal: true
+                personal: true,
               });
             }}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: "pointer" }}
           />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'personal' ? '600' : '400',
-          }}>
+          <span
+            style={{
+              ...styles.viewFilterText,
+              color: viewFilter === "personal" ? "#007bff" : "#6c757d",
+              fontWeight: viewFilter === "personal" ? "600" : "400",
+            }}
+          >
             Personal
           </span>
         </label>
@@ -1784,8 +1925,10 @@ const Events = () => {
   };
 
   const MobileEventCard = ({ event }) => {
-    const dayOfWeek = event.day || 'Not set';
-    const shouldShowLeaders = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
+    const dayOfWeek = event.day || "Not set";
+    const shouldShowLeaders = !["Gavin Enslin", "Vicky Enslin"].includes(
+      event.eventLeaderName
+    );
 
     return (
       <div style={styles.mobileCard}>
@@ -1854,25 +1997,95 @@ const Events = () => {
           </Tooltip>
 
           {isAdmin && (
-            <Tooltip title="Delete Event" arrow>
-              <IconButton
-                onClick={() => handleDeleteEvent(event)}
-                size="small"
-                sx={{ color: "#dc3545", border: "1px solid #dc3545" }}
-              >
-                <DeleteIcon />
-              </IconButton>
-            </Tooltip>
+            <IconButton
+              size="small"
+              color="black"
+              onClick={(e) => {
+                e.stopPropagation();
+                openTypeMenu(e, type);
+              }}
+              aria-label="type actions"
+              sx={{
+                position: "absolute",
+                top: 6,
+                right: 6,
+              }}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+            
           )}
+          <div>
+            {/* Edit/Delete menu popover */}
+<Popover
+  open={Boolean(typeMenuAnchor)}
+  anchorEl={typeMenuAnchor}
+  onClose={closeTypeMenu}
+  anchorOrigin={{ vertical: "top", horizontal: "right" }}
+  transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+>
+  <MenuItem
+    onClick={() => {
+      handleEditType(typeMenuFor);
+      closeTypeMenu();
+    }}
+  >
+    <ListItemIcon>
+      <EditIcon fontSize="small" />
+    </ListItemIcon>
+    <ListItemText>Edit</ListItemText>
+  </MenuItem>
+
+  <MenuItem
+    onClick={() => {
+      setToDeleteType(typeMenuFor);
+      setConfirmDeleteOpen(true);
+      closeTypeMenu();
+    }}
+    sx={{ color: "error.main" }}
+  >
+    <ListItemIcon>
+      <DeleteIcon fontSize="small" color="error" />
+    </ListItemIcon>
+    <ListItemText>Delete</ListItemText>
+  </MenuItem>
+</Popover>
+
+{/* Centered delete confirmation modal */}
+<Dialog
+  open={confirmDeleteOpen}
+  onClose={() => setConfirmDeleteOpen(false)}
+  maxWidth="xs"
+  fullWidth
+>
+  <DialogTitle>Delete Event Type</DialogTitle>
+  <DialogContent>
+    <Typography>
+      Are you sure you want to delete this event type"? This cannot be
+      undone.
+    </Typography>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
+    <Button color="error" onClick={handleDeleteType}>
+      Delete
+    </Button>
+  </DialogActions>
+</Dialog>
+
+          </div>
         </div>
       </div>
     );
   };
 
-  const startIndex = totalEvents > 0 ? ((currentPage - 1) * rowsPerPage) + 1 : 0;
+  const startIndex = totalEvents > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
   const endIndex = Math.min(currentPage * rowsPerPage, totalEvents);
   const paginatedEvents = events;
-  const allEventTypes = [...(eventTypes || []), ...(userCreatedEventTypes || [])];
+  const allEventTypes = [
+    ...(eventTypes || []),
+    ...(userCreatedEventTypes || []),
+  ];
 
   return (
     <div
@@ -1883,7 +2096,7 @@ const Events = () => {
     >
       <div style={styles.topSection}>
         <EventTypeSelector />
-        
+
         <div style={styles.searchFilterRow}>
           <input
             type="text"
@@ -1891,7 +2104,7 @@ const Events = () => {
             value={searchQuery}
             onChange={handleSearchChange}
             onKeyPress={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === "Enter") {
                 handleSearchSubmit();
               }
             }}
@@ -1902,29 +2115,35 @@ const Events = () => {
             onClick={handleSearchSubmit}
             disabled={isLoading}
           >
-            {isLoading ? '⏳' : 'SEARCH'}
+            {isLoading ? "⏳" : "SEARCH"}
           </button>
 
           <button
-            style={{ ...styles.filterButton, backgroundColor: '#dc3545' }}
+            style={{ ...styles.filterButton, backgroundColor: "#dc3545" }}
             onClick={() => {
-              console.log('🧹 Clearing search');
-              setSearchQuery('');
+              console.log("🧹 Clearing search");
+              setSearchQuery("");
               setCurrentPage(1);
-              fetchEvents({ 
-                page: 1,
-                limit: rowsPerPage,
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: undefined
-              }, true);
+              fetchEvents(
+                {
+                  page: 1,
+                  limit: rowsPerPage,
+                  status: selectedStatus !== "all" ? selectedStatus : undefined,
+                  event_type:
+                    selectedEventTypeFilter !== "all"
+                      ? selectedEventTypeFilter
+                      : undefined,
+                  search: undefined,
+                },
+                true
+              );
             }}
             disabled={isLoading}
           >
-            {isLoading ? '⏳' : 'CLEAR'}
+            {isLoading ? "⏳" : "CLEAR"}
           </button>
         </div>
-        
+
         <div style={styles.viewFilterRow}>
           <StatusBadges />
           <ViewFilterButtons />
@@ -1962,10 +2181,9 @@ const Events = () => {
                 }}
               >
                 <div style={styles.paginationInfo}>
-                  {totalEvents > 0 ?
-                    `${startIndex}-${endIndex} of ${totalEvents}` :
-                    '0-0 of 0'
-                  }
+                  {totalEvents > 0
+                    ? `${startIndex}-${endIndex} of ${totalEvents}`
+                    : "0-0 of 0"}
                 </div>
                 <div style={styles.paginationControls}>
                   <button
@@ -2044,9 +2262,15 @@ const Events = () => {
                   </tr>
                 ) : (
                   paginatedEvents.map((event) => {
-                    const dayOfWeek = event.day || 'Not set';
-                    const shouldShowLeaderAt1 = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
-                    const shouldShowLeaderAt12 = !['Gavin Enslin', 'Vicky Enslin'].includes(event.eventLeaderName);
+                    const dayOfWeek = event.day || "Not set";
+                    const shouldShowLeaderAt1 = ![
+                      "Gavin Enslin",
+                      "Vicky Enslin",
+                    ].includes(event.eventLeaderName);
+                    const shouldShowLeaderAt12 = ![
+                      "Gavin Enslin",
+                      "Vicky Enslin",
+                    ].includes(event.eventLeaderName);
 
                     return (
                       <tr
@@ -2156,10 +2380,9 @@ const Events = () => {
             </div>
 
             <div style={styles.paginationInfo}>
-              {totalEvents > 0 ?
-                `${startIndex}-${endIndex} of ${totalEvents}` :
-                '0-0 of 0'
-              }
+              {totalEvents > 0
+                ? `${startIndex}-${endIndex} of ${totalEvents}`
+                : "0-0 of 0"}
             </div>
             <div style={styles.paginationControls}>
               <button
@@ -2355,7 +2578,8 @@ const Events = () => {
 
       <style jsx>{`
         @keyframes pulse {
-          0%, 100% {
+          0%,
+          100% {
             opacity: 1;
           }
           50% {
