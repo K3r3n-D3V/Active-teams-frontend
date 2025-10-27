@@ -172,7 +172,7 @@ const EventTypesModal = ({
     }}
   >
     <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
-      {selectedEventType ? "Edit Event Type" : "Create New Event Type"}
+      {selectedEventType ? "Create New Event Type":"Edit Event Type"}
     </Typography>
     <button
       onClick={handleClose}
