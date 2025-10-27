@@ -24,20 +24,19 @@ import {
   DialogActions,
   Dialog,
 } from "@mui/material";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
 
-// Material-UI imports for the event type menu
-import MoreVertIcon from "@mui/icons-material/MoreVert";
-import Popover from "@mui/material/Popover";
-import MenuItem from "@mui/material/MenuItem";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
+// // Material-UI imports for the event type menu
+// import MoreVertIcon from "@mui/icons-material/MoreVert";
+// import Popover from "@mui/material/Popover";
+// import MenuItem from "@mui/material/MenuItem";
+// import ListItemIcon from "@mui/material/ListItemIcon";
+// import ListItemText from "@mui/material/ListItemText";
+// import Dialog from "@mui/material/Dialog";
+// import DialogTitle from "@mui/material/DialogTitle";
+// import DialogContent from "@mui/material/DialogContent";
+// import DialogActions from "@mui/material/DialogActions";
+// import Button from "@mui/material/Button";
+// import Typography from "@mui/material/Typography";
 
 import Eventsfilter from "./AddPersonToEvents";
 import CreateEvents from "./CreateEvents";
@@ -825,37 +824,37 @@ const Events = () => {
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
 
-// ✅ CONSOLIDATED useEffect for all filters
-useEffect(() => {
-  const shouldApplyPersonalFilter =
-    viewFilter === 'personal' &&
-    (userRole === "admin" || userRole === "leader at 12");
+ // ✅ CONSOLIDATED useEffect for all filters
+  useEffect(() => {
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
 
-  const fetchParams = {
-    page: currentPage,
-    limit: rowsPerPage,
-    status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-    search: searchQuery.trim() || undefined,
-    personal: shouldApplyPersonalFilter ? true : undefined,
-    start_date: '2025-10-20'
-  };
+    const fetchParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      start_date: '2025-10-20'
+    };
 
-  // Clean undefined values
-  Object.keys(fetchParams).forEach(key => 
-    fetchParams[key] === undefined && delete fetchParams[key]
-  );
+    // Clean undefined values
+    Object.keys(fetchParams).forEach(key => 
+      fetchParams[key] === undefined && delete fetchParams[key]
+    );
 
-  console.log('🔄 Fetching with params:', fetchParams);
+    console.log('🔄 Fetching with params:', fetchParams);
 
-  fetchEvents(fetchParams, true); 
-}, [
-  selectedStatus, 
-  selectedEventTypeFilter, 
-  viewFilter, 
-  currentPage, 
-  rowsPerPage
-]);
+    fetchEvents(fetchParams, true); 
+  }, [
+    selectedStatus, 
+    selectedEventTypeFilter, 
+    viewFilter, 
+    currentPage, 
+    rowsPerPage
+  ]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -1359,38 +1358,38 @@ useEffect(() => {
       severity: "error",
     });
     throw error;
-  }
-};
-const fetchEventTypes = async () => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await fetch(`${BACKEND_URL}/event-types`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    }
+  };
+  const fetchEventTypes = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${BACKEND_URL}/event-types`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    if (!response.ok) throw new Error('Failed to fetch event types');
+      if (!response.ok) throw new Error('Failed to fetch event types');
 
-    const eventTypesData = await response.json();
-    
-    // ✅ FIX: Filter to only actual event type objects (not events)
-    const actualEventTypes = eventTypesData.filter(item => 
-      item.isEventType === true || item.hasOwnProperty('isEventType')
-    );
-    
-    console.log('✅ Fetched event types:', actualEventTypes);
-    
-    setEventTypes(actualEventTypes);
-    setCustomEventTypes(actualEventTypes);
-    setUserCreatedEventTypes(actualEventTypes);
+      const eventTypesData = await response.json();
+      
+      // ✅ FIX: Filter to only actual event type objects (not events)
+      const actualEventTypes = eventTypesData.filter(item => 
+        item.isEventType === true || item.hasOwnProperty('isEventType')
+      );
+      
+      console.log('✅ Fetched event types:', actualEventTypes);
+      
+      setEventTypes(actualEventTypes);
+      setCustomEventTypes(actualEventTypes);
+      setUserCreatedEventTypes(actualEventTypes);
 
-    return actualEventTypes;
-  } catch (error) {
-    console.error('Error fetching event types:', error);
-    return [];
-  }
-};
+      return actualEventTypes;
+    } catch (error) {
+      console.error('Error fetching event types:', error);
+      return [];
+    }
+  };
 
   const handleSaveEvent = async (updatedData) => {
     try {
@@ -2053,126 +2052,6 @@ const fetchEventTypes = async () => {
     );
   };
 
-  // const ViewFilterButtons = () => {
-  //   return (
-  //     <div style={styles.viewFilterContainer}>
-  //       <span style={styles.viewFilterLabel}>View:</span>
-
-  //       <label style={styles.viewFilterRadio}>
-  //         <input
-  //           type="radio"
-  //           name="viewFilter"
-  //           value="all"
-  //           checked={viewFilter === "all"}
-  //           onChange={(e) => {
-  //             const newViewFilter = e.target.value;
-  //             setViewFilter(newViewFilter);
-  //             setCurrentPage(1);
-  //             fetchEvents({
-  //               status: selectedStatus !== "all" ? selectedStatus : undefined,
-  //               event_type:
-  //                 selectedEventTypeFilter !== "all"
-  //                   ? selectedEventTypeFilter
-  //                   : undefined,
-  //               search: searchQuery || undefined,
-  //               page: 1,
-  //               personal: false,
-  //             });
-  //           }}
-  //           style={{ cursor: "pointer" }}
-  //         />
-  //         <span
-  //           style={{
-  //             ...styles.viewFilterText,
-  //             color: viewFilter === "all" ? "#007bff" : "#6c757d",
-  //             fontWeight: viewFilter === "all" ? "600" : "400",
-  //           }}
-  //         >
-  //           View All
-  //         </span>
-  //       </label>
-
-  //       <label style={styles.viewFilterRadio}>
-  //         <input
-  //           type="radio"
-  //           name="viewFilter"
-  //           value="personal"
-  //           checked={viewFilter === "personal"}
-  //           onChange={(e) => {
-  //             const newViewFilter = e.target.value;
-  //             setViewFilter(newViewFilter);
-  //             setCurrentPage(1);
-  //             fetchEvents({
-  //               status: selectedStatus !== "all" ? selectedStatus : undefined,
-  //               event_type:
-  //                 selectedEventTypeFilter !== "all"
-  //                   ? selectedEventTypeFilter
-  //                   : undefined,
-  //               search: searchQuery || undefined,
-  //               page: 1,
-  //               personal: true,
-  //             });
-  //           }}
-  //           style={{ cursor: "pointer" }}
-  //         />
-  //         <span
-  //           style={{
-  //             ...styles.viewFilterText,
-  //             color: viewFilter === "personal" ? "#007bff" : "#6c757d",
-  //             fontWeight: viewFilter === "personal" ? "600" : "400",
-  //           }}
-  //         >
-  //           Personal
-  //         </span>
-  //       </label>
-  //     </div>
-  //   );
-  // };
-
-  // const MobileEventCard = ({ event }) => {
-  //   const dayOfWeek = event.day || "Not set";
-  //   const shouldShowLeaders = !["Gavin Enslin", "Vicky Enslin"].includes(
-  //     event.eventLeaderName
-  //   );
-
-  //   return (
-  //     <div style={styles.statusBadgeContainer}>
-  //       <button
-  //         style={{
-  //           ...styles.statusBadge,
-  //           ...styles.statusBadgeIncomplete,
-  //           ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
-  //         }}
-  //         onClick={() => handleStatusClick('incomplete')}
-  //       >
-  //         INCOMPLETE ({statusCounts.incomplete})
-  //       </button>
-
-  //       <button
-  //         style={{
-  //           ...styles.statusBadge,
-  //           ...styles.statusBadgeComplete,
-  //           ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
-  //         }}
-  //         onClick={() => handleStatusClick('complete')}
-  //       >
-  //         COMPLETE ({statusCounts.complete})
-  //       </button>
-
-  //       <button
-  //         style={{
-  //           ...styles.statusBadge,
-  //           ...styles.statusBadgeDidNotMeet,
-  //           ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
-  //         }}
-  //         onClick={() => handleStatusClick('did_not_meet')}
-  //       >
-  //         DID NOT MEET ({statusCounts.did_not_meet})
-  //       </button>
-  //     </div>
-  //   );
-  // };
-
   const ViewFilterButtons = () => {
     if (!canUsePersonalFilter) {
       return null;
@@ -2343,13 +2222,13 @@ const fetchEventTypes = async () => {
           )}
           <div>
             {/* Edit/Delete menu popover */}
-<Popover
-  open={Boolean(typeMenuAnchor)}
-  anchorEl={typeMenuAnchor}
-  onClose={closeTypeMenu}
-  anchorOrigin={{ vertical: "top", horizontal: "right" }}
-  transformOrigin={{ vertical: "bottom", horizontal: "right" }}
->
+  <Popover
+    open={Boolean(typeMenuAnchor)}
+    anchorEl={typeMenuAnchor}
+    onClose={closeTypeMenu}
+    anchorOrigin={{ vertical: "top", horizontal: "right" }}
+    transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+  >
   <MenuItem
     onClick={() => {
       handleEditType(typeMenuFor);
@@ -2375,35 +2254,35 @@ const fetchEventTypes = async () => {
     </ListItemIcon>
     <ListItemText>Delete</ListItemText>
   </MenuItem>
-</Popover>
+  </Popover>
 
-{/* Centered delete confirmation modal */}
-<Dialog
-  open={confirmDeleteOpen}
-  onClose={() => setConfirmDeleteOpen(false)}
-  maxWidth="xs"
-  fullWidth
->
-  <DialogTitle>Delete Event Type</DialogTitle>
-  <DialogContent>
-    <Typography>
-      Are you sure you want to delete this event type"? This cannot be
-      undone.
-    </Typography>
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
-    <Button color="error" onClick={handleDeleteType}>
-      Delete
-    </Button>
-  </DialogActions>
-</Dialog>
+  {/* Centered delete confirmation modal */}
+  <Dialog
+    open={confirmDeleteOpen}
+    onClose={() => setConfirmDeleteOpen(false)}
+    maxWidth="xs"
+    fullWidth
+  >
+    <DialogTitle>Delete Event Type</DialogTitle>
+    <DialogContent>
+      <Typography>
+        Are you sure you want to delete this event type"? This cannot be
+        undone.
+      </Typography>
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
+      <Button color="error" onClick={handleDeleteType}>
+        Delete
+      </Button>
+    </DialogActions>
+  </Dialog>
 
+            </div>
           </div>
         </div>
-      </div>
-    );
-  };
+      );
+    };
 
   // ✅ ONLY ONE DECLARATION HERE - RIGHT BEFORE return
   const startIndex = totalEvents > 0 ? ((currentPage - 1) * rowsPerPage) + 1 : 0;
@@ -2894,7 +2773,6 @@ const fetchEventTypes = async () => {
         }
       `}</style>
     </div>
-  );
-;
+)
 
 export default Events;
