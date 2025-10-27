@@ -37,72 +37,6 @@ import CloseIcon from "@mui/icons-material/Close";
 
 const API_URL = import.meta.env.VITE_BACKEND_URL || '';
 
-// Dummy data for testing
-const DUMMY_EVENTS = [
-  {
-    id: "dummy1",
-    _id: "dummy1",
-    eventName: "Sunday Service",
-    date: "2025-01-26T10:00:00Z",
-    status: "closed",
-    isGlobal: true,
-    eventType: "service",
-    total_attendance: 155,
-    attendees: [
-      { id: "1", name: "John Doe", phone: "555-0101" },
-      { id: "2", name: "Jane Smith", phone: "555-0102" },
-      { id: "3", name: "Mike Johnson", phone: "555-0103" }
-    ],
-    newPeople: [
-      { id: "1", name: "John Doe", phone: "555-0101", email: "john@example.com" },
-      { id: "2", name: "Jane Smith", phone: "555-0102", email: "jane@example.com" },
-      { id: "3", name: "Mike Johnson", phone: "555-0103", email: "mike@example.com" }
-    ],
-    consolidations: [
-      { id: "1", name: "Sarah Williams", type: "first_time", phone: "555-0201" },
-      { id: "2", name: "Tom Brown", type: "recommitment", phone: "555-0202" }
-    ],
-    summary: {
-      new_people: 3,
-      total_decisions: 2,
-      first_time_decisions: 1,
-      recommitments: 1
-    }
-  },
-  {
-    id: "dummy2",
-    _id: "dummy2",
-    eventName: "Active Service - Friday 18:30",
-    date: "2025-01-31T18:30:00Z",
-    status: "closed",
-    isGlobal: true,
-    eventType: "service",
-    total_attendance: 153,
-    attendees: [
-      { id: "1", name: "Alice Cooper", phone: "555-0301" },
-      { id: "2", name: "Bob Dylan", phone: "555-0302" }
-    ],
-    newPeople: [
-      { id: "1", name: "Alice Cooper", phone: "555-0301", email: "alice@example.com" },
-      { id: "2", name: "Bob Dylan", phone: "555-0302", email: "bob@example.com" },
-      { id: "3", name: "Charlie Parker", phone: "555-0303", email: "charlie@example.com" },
-      { id: "4", name: "Diana Ross", phone: "555-0304", email: "diana@example.com" },
-      { id: "5", name: "Elvis Presley", phone: "555-0305", email: "elvis@example.com" }
-    ],
-    consolidations: [
-      { id: "1", name: "Frank Sinatra", type: "first_time", phone: "555-0401" },
-      { id: "2", name: "Grace Jones", type: "first_time", phone: "555-0402" },
-      { id: "3", name: "Harry Styles", type: "recommitment", phone: "555-0403" }
-    ],
-    summary: {
-      new_people: 5,
-      total_decisions: 3,
-      first_time_decisions: 2,
-      recommitments: 1
-    }
-  }
-];
-
 // Helper function to format date
 const formatDate = (dateString) => {
   if (!dateString) return 'Unknown Date';
@@ -132,7 +66,7 @@ function EventHistory({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [localEvents, setLocalEvents] = useState([]);
-  const [useDummyData, setUseDummyData] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
   
   // Dialog states
   const [detailsDialog, setDetailsDialog] = useState({ open: false, event: null });
@@ -144,7 +78,7 @@ function EventHistory({
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [search, setSearch] = useState("");
 
-  const displayEvents = events.length > 0 ? events : (useDummyData ? DUMMY_EVENTS : localEvents);
+  const displayEvents = events.length > 0 ? events : localEvents;
 
   const fetchEvents = async () => {
     if (events.length > 0) return;
@@ -152,14 +86,16 @@ function EventHistory({
     try {
       setLoading(true);
       setError(null);
+      setHasFetched(true);
       
       const token = localStorage.getItem('token');
       
       if (!API_URL) {
-        console.log('No API URL configured, using dummy data');
-        setUseDummyData(true);
-        setLoading(false);
-        return;
+        throw new Error('API URL is not configured');
+      }
+
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
       }
       
       const response = await fetch(`${API_URL}/events`, {
@@ -169,8 +105,16 @@ function EventHistory({
         }
       });
 
+      if (response.status === 401) {
+        throw new Error('Authentication failed. Your session may have expired. Please log in again.');
+      }
+
+      if (response.status === 403) {
+        throw new Error('Access denied. You do not have permission to view events.');
+      }
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`Failed to load events (Error ${response.status}). Please try again.`);
       }
 
       const data = await response.json();
@@ -195,23 +139,16 @@ function EventHistory({
       }));
       
       setLocalEvents(transformedEvents);
-      
-      if (transformedEvents.length === 0) {
-        setUseDummyData(true);
-      }
     } catch (err) {
       console.error('Error fetching events:', err);
       setError(err.message);
-      setUseDummyData(true);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (events.length === 0) {
-      fetchEvents();
-    }
+    // Don't automatically fetch - only fetch when explicitly requested
   }, []);
 
   const getEventStats = (event) => {
@@ -516,7 +453,7 @@ function EventHistory({
     );
   }
 
-  if (error && !useDummyData) {
+  if (error && !hasFetched) {
     return (
       <Box>
         <Alert 
@@ -536,9 +473,17 @@ function EventHistory({
 
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
-      {useDummyData && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Showing dummy data for demonstration. Real data will load when API is available.
+      {error && (
+        <Alert 
+          severity="error" 
+          sx={{ mb: 2 }}
+          action={
+            <Button color="inherit" size="small" onClick={fetchEvents} startIcon={<RefreshIcon />}>
+              Retry
+            </Button>
+          }
+        >
+          Error loading events: {error}
         </Alert>
       )}
 
@@ -564,19 +509,24 @@ function EventHistory({
           }}
         >
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            No Closed Events Found
+            {loading ? 'Loading events...' : hasFetched ? 'No Closed Events Found' : 'Event History'}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Closed events will appear here once they are saved and closed from the service check-in.
+            {loading 
+              ? 'Please wait while we fetch your events...'
+              : hasFetched 
+                ? 'Closed events will appear here once they are saved and closed from the service check-in.'
+                : 'Click the button below to load your event history.'
+            }
           </Typography>
-          {events.length === 0 && (
+          {!loading && (
             <Button 
-              variant="outlined" 
+              variant="contained" 
               onClick={fetchEvents}
               startIcon={<RefreshIcon />}
               sx={{ mt: 2, boxShadow: 1 }}
             >
-              Check Again
+              {hasFetched ? 'Refresh Events' : 'Load Events'}
             </Button>
           )}
         </Paper>
