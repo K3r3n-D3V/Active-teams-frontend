@@ -1,4 +1,4 @@
-// PeopleListView.jsx (Complete responsive version)
+// PeopleListView.jsx (Dark mode compatible)
 import React, { useState } from 'react';
 import {
   Box,
@@ -173,7 +173,12 @@ const PeopleListView = ({ people, onEdit, onDelete, loading }) => {
                 </Box>
 
                 <Collapse in={expandedRow === person._id} timeout="auto" unmountOnExit>
-                  <Box sx={{ px: 2, pb: 2, pt: 1, bgcolor: 'grey.50' }}>
+                  <Box sx={{ 
+                    px: 2, 
+                    pb: 2, 
+                    pt: 1, 
+                    bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50'
+                  }}>
                     {/* Contact Info */}
                     <Box sx={{ mb: 1.5 }}>
                       <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
@@ -242,7 +247,13 @@ const PeopleListView = ({ people, onEdit, onDelete, loading }) => {
                     )}
 
                     {/* Additional Info */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      pt: 1, 
+                      borderTop: '1px solid', 
+                      borderColor: 'divider' 
+                    }}>
                       <Box>
                         <Typography variant="caption" color="text.secondary">DOB</Typography>
                         <Typography variant="body2">{formatDate(person.dob)}</Typography>
