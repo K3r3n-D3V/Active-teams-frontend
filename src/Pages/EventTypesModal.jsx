@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   Box,
@@ -7,7 +7,10 @@ import {
   FormControlLabel,
   Checkbox,
   Typography,
+  IconButton,
+  useTheme,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 
 const EventTypesModal = ({
   open,
@@ -16,6 +19,7 @@ const EventTypesModal = ({
   setSelectedEventTypeObj,
   selectedEventType,
 }) => {
+  const theme = useTheme();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -26,6 +30,12 @@ const EventTypesModal = ({
   });
 
   const [errors, setErrors] = useState({});
+  const nameInputRef = useRef(null);
+
+  const nameCharCount = formData.name.length;
+  const descCharCount = formData.description.length;
+
+  const isDarkMode = theme.palette.mode === 'dark';
 
   const handleCheckboxChange = (name) => (event) => {
     const { checked } = event.target;
@@ -57,12 +67,16 @@ const EventTypesModal = ({
       newErrors.name = "Event Type Name is required";
     } else if (formData.name.trim().length < 2) {
       newErrors.name = "Event Type Name must be at least 2 characters";
+    } else if (formData.name.trim().length > 50) {
+      newErrors.name = "Event Type Name must be less than 50 characters";
     }
 
     if (!formData.description.trim()) {
       newErrors.description = "Event description is required";
     } else if (formData.description.trim().length < 10) {
       newErrors.description = "Description must be at least 10 characters";
+    } else if (formData.description.trim().length > 500) {
+      newErrors.description = "Description must be less than 500 characters";
     }
 
     setErrors(newErrors);
@@ -81,7 +95,7 @@ const EventTypesModal = ({
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (!validateForm() || loading) return;
 
     setLoading(true);
     try {
@@ -94,13 +108,13 @@ const EventTypesModal = ({
       };
 
       let result;
-      if (selectedEventType && selectedEventType._id) {
-        result = await onSubmit(eventTypeData, selectedEventType._id);
+      
+      if (selectedEventType && selectedEventType.name) {
+        result = await onSubmit(eventTypeData, selectedEventType.name);
       } else {
         result = await onSubmit(eventTypeData);
       }
 
-      // Pass checkbox values to parent
       if (setSelectedEventTypeObj) {
         setSelectedEventTypeObj({
           ...eventTypeData,
@@ -126,6 +140,12 @@ const EventTypesModal = ({
     }
   };
 
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !loading) {
+      handleSubmit();
+    }
+  };
+
   useEffect(() => {
     if (selectedEventType && open) {
       setFormData({
@@ -140,11 +160,24 @@ const EventTypesModal = ({
     }
   }, [selectedEventType, open]);
 
+  useEffect(() => {
+    if (open && nameInputRef.current) {
+      setTimeout(() => {
+        nameInputRef.current.focus();
+      }, 100);
+    }
+  }, [open]);
+
   return (
     <Modal
       open={open}
       onClose={handleClose}
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+      }}
     >
       <Box
   sx={{
@@ -172,7 +205,7 @@ const EventTypesModal = ({
     }}
   >
     <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
-      {selectedEventType ? "Edit Event Type" : "Create New Event Type"}
+      {selectedEventType ? "Create New Event Type":"Edit Event Type"}
     </Typography>
     <button
       onClick={handleClose}
