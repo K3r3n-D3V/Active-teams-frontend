@@ -829,17 +829,13 @@ useEffect(() => {
   rowsPerPage
 ]);
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchQuery.trim() !== '') {
-        handleSearchSubmit();
-      } else if (searchQuery.trim() === '' && events.length > 0) {
-        handleSearchSubmit();
-      }
-    }, 800);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, events.length]);
+ useEffect(() => {
+  if (searchQuery.trim() !== '') {
+    handleSearchSubmit();
+  } else if (searchQuery.trim() === '' && events.length > 0) {
+    handleSearchSubmit();
+  }
+}, [searchQuery, events.length]);
 
   const isOverdue = (event) => {
     const did_not_meet = event.did_not_meet || false;
@@ -1025,27 +1021,7 @@ useEffect(() => {
     }, true);
   };
 
- const handleStatusClick = (status) => {
-    setSelectedStatus(status);
-
-    const shouldApplyPersonalFilter =
-      viewFilter === 'personal' &&
-      (userRole === "admin" || userRole === "leader at 12");
-
-    setCurrentPage(1);
-
-    // 🔥 FIX: Include event_type in status filter
-    fetchEvents({
-      status: status !== 'all' ? status : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery || undefined,
-      page: 1,
-      personal: shouldApplyPersonalFilter ? true : undefined,
-      start_date: '2025-10-20'
-    });
-  };
-
- const handleEventTypeClick = (typeValue) => {
+const handleEventTypeClick = (typeValue) => {
   console.log('🎯 Event Type Click:', {
     typeValue,
     currentFilter: selectedEventTypeFilter,
@@ -1059,27 +1035,21 @@ useEffect(() => {
 
   setSelectedEventTypeFilter(typeValue);
   setCurrentPage(1);
-  };
+  
+  // ✅ FIX: Trigger immediate fetch with new event type
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
 
-  const handlePreviousPage = () => {
-    if (currentPage > 1 && !isLoading) {
-      const newPage = currentPage - 1;
-      console.log('⬅️ Going to previous page:', newPage);
-
-      const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      fetchEvents({
-        page: newPage,
-        limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20'
-      });
-    }
+  fetchEvents({
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: typeValue !== 'all' ? typeValue : undefined,
+    search: searchQuery.trim() || undefined,
+    personal: shouldApplyPersonalFilter ? true : undefined,
+    start_date: undefined  // ✅ REMOVE DATE FILTER to show all events
+  }, true);
   };
 
   const handleNextPage = () => {
@@ -1102,6 +1072,27 @@ useEffect(() => {
       });
     }
   };
+
+  const handlePreviousPage = () => {
+  if (currentPage > 1 && !isLoading) {
+    const newPage = currentPage - 1;
+    console.log('⬅️ Going to previous page:', newPage);
+
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    fetchEvents({
+      page: newPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      start_date: '2025-10-20'
+    });
+  }
+};
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
@@ -1713,101 +1704,96 @@ const fetchEventTypes = async () => {
       </div>
     );
   };
-  const StatusBadges = () => {
-    const [statusCounts, setStatusCounts] = useState({
-      incomplete: 0,
-      complete: 0,
-      did_not_meet: 0
-    });
+const StatusBadges = () => {
+  const [activeButton, setActiveButton] = useState(selectedStatus);
 
-    useEffect(() => {
-      const fetchStatusCounts = async () => {
-        try {
-          const token = localStorage.getItem("token");
-          if (!token) return;
+ const handleStatusClick = (status) => {
+  setSelectedStatus(status);
 
-          const headers = {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          };
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
 
-          const shouldApplyPersonalFilter =
-            viewFilter === 'personal' &&
-            (userRole === "admin" || userRole === "leader at 12");
+  setCurrentPage(1);
 
-          const startDate = '2025-10-20';
-
-          const params = {
-            event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-            search: searchQuery.trim() || undefined,
-            personal: shouldApplyPersonalFilter ? true : undefined,
-            start_date: startDate
-          };
-
-          Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
-
-          const endpoint = `${BACKEND_URL}/events/status-counts`;
-          console.log('📊 Fetching status counts:', endpoint, params);
-
-          const response = await axios.get(endpoint, { headers, params });
-          setStatusCounts(response.data);
-
-        } catch (error) {
-          console.error("❌ Error fetching status counts:", error);
-        }
-      };
-
-      fetchStatusCounts();
-    }, [selectedEventTypeFilter, searchQuery, viewFilter, userRole]);
-
-  useEffect(() => {
-  console.log("🔍 Debug - Event Types State:", {
-    eventTypes,
-    editingEventType,
-    eventTypesModalOpen,
-    typeMenuFor
+  fetchEvents({
+    status: status !== 'all' ? status : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: searchQuery || undefined,
+    page: 1,
+    personal: shouldApplyPersonalFilter ? true : undefined,
+    start_date: '2025-10-20'
   });
-}, [eventTypes, editingEventType, eventTypesModalOpen, typeMenuFor]);
+};
 
+// Update the search handler to remove debounce
+const handleSearchSubmit = () => {
+  const trimmedSearch = searchQuery.trim();
+  console.log('🔍 Search submitted:', trimmedSearch);
 
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
 
-    return (
-      <div style={styles.statusBadgeContainer}>
-        <button
-          style={{
-            ...styles.statusBadge,
-            ...styles.statusBadgeIncomplete,
-            ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
-          }}
-          onClick={() => handleStatusClick('incomplete')}
-        >
-          INCOMPLETE ({statusCounts.incomplete})
-        </button>
+  setCurrentPage(1);
 
-        <button
-          style={{
-            ...styles.statusBadge,
-            ...styles.statusBadgeComplete,
-            ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
-          }}
-          onClick={() => handleStatusClick('complete')}
-        >
-          COMPLETE ({statusCounts.complete})
-        </button>
+  fetchEvents({
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: trimmedSearch || undefined,
+    personal: shouldApplyPersonalFilter ? true : undefined,
+    start_date: '2025-10-20'
+  }, true);
+};
 
-        <button
-          style={{
-            ...styles.statusBadge,
-            ...styles.statusBadgeDidNotMeet,
-            ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
-          }}
-          onClick={() => handleStatusClick('did_not_meet')}
-        >
-          DID NOT MEET ({statusCounts.did_not_meet})
-        </button>
-      </div>
-    );
-  };
+  return (
+    <div style={styles.statusBadgeContainer}>
+      <button
+        style={{
+          ...styles.statusBadge,
+          ...styles.statusBadgeIncomplete,
+          ...(activeButton === 'incomplete' ? styles.statusBadgeActive : {}),
+          transform: activeButton === 'incomplete' ? 'scale(1.05)' : 'scale(1)',
+          boxShadow: activeButton === 'incomplete' ? '0 6px 16px rgba(255, 165, 0, 0.4)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+        onClick={() => handleStatusClick('incomplete')}
+      >
+        INCOMPLETE
+      </button>
+
+      <button
+        style={{
+          ...styles.statusBadge,
+          ...styles.statusBadgeComplete,
+          ...(activeButton === 'complete' ? styles.statusBadgeActive : {}),
+          transform: activeButton === 'complete' ? 'scale(1.05)' : 'scale(1)',
+          boxShadow: activeButton === 'complete' ? '0 6px 16px rgba(40, 167, 69, 0.4)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+        onClick={() => handleStatusClick('complete')}
+      >
+        COMPLETE
+      </button>
+
+      <button
+        style={{
+          ...styles.statusBadge,
+          ...styles.statusBadgeDidNotMeet,
+          ...(activeButton === 'did_not_meet' ? styles.statusBadgeActive : {}),
+          transform: activeButton === 'did_not_meet' ? 'scale(1.05)' : 'scale(1)',
+          boxShadow: activeButton === 'did_not_meet' ? '0 6px 16px rgba(220, 53, 69, 0.4)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+        onClick={() => handleStatusClick('did_not_meet')}
+      >
+        DID NOT MEET
+      </button>
+    </div>
+  );
+};
 
   const ViewFilterButtons = () => {
     if (!canUsePersonalFilter) {
@@ -1986,18 +1972,18 @@ const fetchEventTypes = async () => {
         <EventTypeSelector />
 
         <div style={styles.searchFilterRow}>
-          <input
-            type="text"
-            placeholder="Search by Event Name, Leader, or Email..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleSearchSubmit();
-              }
-            }}
-            style={themedStyles.searchInput}
-          />
+        <input
+  type="text"
+  placeholder="Search by Event Name, Leader, or Email..."
+  value={searchQuery}
+  onChange={handleSearchChange}
+  onKeyPress={(e) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit();
+    }
+  }}
+  style={themedStyles.searchInput}
+/>
           <button
             style={styles.filterButton}
             onClick={handleSearchSubmit}
