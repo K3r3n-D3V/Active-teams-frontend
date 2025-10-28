@@ -6,16 +6,36 @@ export const UserProvider = ({ children }) => {
   const [profilePic, setProfilePic] = useState("https://cdn-icons-png.flaticon.com/512/147/147144.png");
   const [userProfile, setUserProfile] = useState(null);
 
-  // Load user profile from localStorage on mount
+  // Load user profile and profile picture from localStorage on mount
   useEffect(() => {
-    const savedProfile = localStorage.getItem('userProfile');
-    if (savedProfile) {
+    const initializeUserData = () => {
       try {
-        setUserProfile(JSON.parse(savedProfile));
+        // Load user profile
+        const savedProfile = localStorage.getItem('userProfile');
+        if (savedProfile) {
+          const parsedProfile = JSON.parse(savedProfile);
+          setUserProfile(parsedProfile);
+          
+          // Set profile picture from user profile if available
+          const picFromProfile = parsedProfile?.profile_picture || 
+                               parsedProfile?.avatarUrl || 
+                               parsedProfile?.profilePicUrl;
+          if (picFromProfile) {
+            setProfilePic(picFromProfile);
+          }
+        }
+
+        // Load standalone profile picture (for backward compatibility)
+        const savedPic = localStorage.getItem('profilePic');
+        if (savedPic) {
+          setProfilePic(savedPic);
+        }
       } catch (error) {
-        console.error('Error parsing saved profile:', error);
+        console.error('Error initializing user data:', error);
       }
-    }
+    };
+
+    initializeUserData();
   }, []);
 
   // Save user profile to localStorage whenever it changes
@@ -27,20 +47,42 @@ export const UserProvider = ({ children }) => {
     }
   }, [userProfile]);
 
-  // Save profile picture to localStorage
-  useEffect(() => {
-    if (profilePic && profilePic !== "https://cdn-icons-png.flaticon.com/512/147/147144.png") {
-      localStorage.setItem('profilePic', profilePic);
+  // Enhanced setProfilePic that also updates userProfile
+  const setProfilePicEnhanced = (newProfilePic) => {
+    setProfilePic(newProfilePic);
+    
+    // Also update the profile picture in userProfile
+    if (userProfile) {
+      const updatedProfile = {
+        ...userProfile,
+        profile_picture: newProfilePic,
+        avatarUrl: newProfilePic,
+        profilePicUrl: newProfilePic
+      };
+      setUserProfile(updatedProfile);
     }
-  }, [profilePic]);
+    
+    // Save to localStorage for standalone access
+    if (newProfilePic && newProfilePic !== "https://cdn-icons-png.flaticon.com/512/147/147144.png") {
+      localStorage.setItem('profilePic', newProfilePic);
+    }
+  };
 
-  // Load profile picture from localStorage on mount
-  useEffect(() => {
-    const savedPic = localStorage.getItem('profilePic');
-    if (savedPic) {
-      setProfilePic(savedPic);
+  // Enhanced setUserProfile that also updates profilePic
+  const setUserProfileEnhanced = (newUserProfile) => {
+    setUserProfile(newUserProfile);
+    
+    // Update profile picture from the new user profile
+    if (newUserProfile) {
+      const picFromProfile = newUserProfile?.profile_picture || 
+                           newUserProfile?.avatarUrl || 
+                           newUserProfile?.profilePicUrl;
+      if (picFromProfile && picFromProfile !== profilePic) {
+        setProfilePic(picFromProfile);
+        localStorage.setItem('profilePic', picFromProfile);
+      }
     }
-  }, []);
+  };
 
   const clearUserData = () => {
     setUserProfile(null);
@@ -52,9 +94,9 @@ export const UserProvider = ({ children }) => {
   return (
     <UserContext.Provider value={{ 
       profilePic, 
-      setProfilePic, 
+      setProfilePic: setProfilePicEnhanced, 
       userProfile, 
-      setUserProfile,
+      setUserProfile: setUserProfileEnhanced,
       clearUserData
     }}>
       {children}
