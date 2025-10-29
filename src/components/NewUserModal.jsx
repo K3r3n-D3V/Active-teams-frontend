@@ -10,8 +10,8 @@ import {
   MenuItem,
   InputAdornment,
   IconButton,
-  Box,
-  Autocomplete
+  Autocomplete,
+  useTheme
 } from '@mui/material';
 import {
   Visibility,
@@ -25,6 +25,9 @@ const NewUserModal = ({
   onUserCreated,
   loading = false 
 }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  
   const [newUser, setNewUser] = useState({
     name: '',
     surname: '',
@@ -152,6 +155,16 @@ const NewUserModal = ({
     person
   }));
 
+  const inputStyles = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: '25px',
+      bgcolor: isDark ? 'rgba(255,255,255,0.05)' : '#fafafa',
+      '&:hover': { 
+        bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'white' 
+      }
+    }
+  };
+
   return (
     <Dialog 
       open={open} 
@@ -162,7 +175,7 @@ const NewUserModal = ({
         sx: { 
           borderRadius: 2,
           boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white'
+          bgcolor: theme.palette.background.paper
         } 
       }}
     >
@@ -174,7 +187,10 @@ const NewUserModal = ({
             position: 'absolute',
             right: 16,
             top: 16,
-            color: 'grey.400'
+            color: 'grey.400',
+            '&:hover': {
+              color: theme.palette.text.primary
+            }
           }}
         >
           <Close />
@@ -183,60 +199,45 @@ const NewUserModal = ({
         <Typography 
           variant="h6" 
           fontWeight="bold" 
-          sx={{ mb: { xs: 3, sm: 4 }, mt: 1, color: '#333' }}
+          sx={{ 
+            mb: { xs: 3, sm: 4 }, 
+            mt: 1, 
+            color: theme.palette.text.primary 
+          }}
         >
-          FILL IN YOUR DETAILS
+          CREATE NEW USER
         </Typography>
         
         <Stack spacing={{ xs: 2, sm: 2.5 }}>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Name"
-                value={newUser.name}
-                onChange={(e) => { 
-                  setNewUser({...newUser, name: e.target.value}); 
-                  setFormErrors({...formErrors, name: ''}); 
-                }}
-                fullWidth
-                size="small"
-                error={!!formErrors.name}
-                helperText={formErrors.name}
-                disabled={loading}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '25px',
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#fafafa',
-                    '&:hover': { 
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'white' 
-                    }
-                  }
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Surname"
-                value={newUser.surname}
-                onChange={(e) => { 
-                  setNewUser({...newUser, surname: e.target.value}); 
-                  setFormErrors({...formErrors, surname: ''}); 
-                }}
-                fullWidth
-                size="small"
-                error={!!formErrors.surname}
-                helperText={formErrors.surname}
-                disabled={loading}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '25px',
-                    bgcolor: '#fafafa',
-                    '&:hover': { bgcolor: 'white' }
-                  }
-                }}
-              />
-            </Grid>
-          </Grid>
+          <TextField
+            label="Name"
+            value={newUser.name}
+            onChange={(e) => { 
+              setNewUser({...newUser, name: e.target.value}); 
+              setFormErrors({...formErrors, name: ''}); 
+            }}
+            fullWidth
+            size="small"
+            error={!!formErrors.name}
+            helperText={formErrors.name}
+            disabled={loading}
+            sx={inputStyles}
+          />
+
+          <TextField
+            label="Surname"
+            value={newUser.surname}
+            onChange={(e) => { 
+              setNewUser({...newUser, surname: e.target.value}); 
+              setFormErrors({...formErrors, surname: ''}); 
+            }}
+            fullWidth
+            size="small"
+            error={!!formErrors.surname}
+            helperText={formErrors.surname}
+            disabled={loading}
+            sx={inputStyles}
+          />
 
           <TextField
             label="Date of Birth"
@@ -252,13 +253,7 @@ const NewUserModal = ({
             helperText={formErrors.date_of_birth}
             disabled={loading}
             InputLabelProps={{ shrink: true }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '25px',
-                bgcolor: '#fafafa',
-                '&:hover': { bgcolor: 'white' }
-              }
-            }}
+            sx={inputStyles}
           />
 
           <TextField
@@ -273,69 +268,42 @@ const NewUserModal = ({
             error={!!formErrors.address}
             helperText={formErrors.address}
             disabled={loading}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '25px',
-                bgcolor: '#fafafa',
-                '&:hover': { bgcolor: 'white' }
-              }
-            }}
+            sx={inputStyles}
           />
 
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={5}>
-              <TextField
-                label="Phone Number"
-                value={newUser.phone_number}
-                onChange={(e) => { 
-                  setNewUser({...newUser, phone_number: e.target.value}); 
-                  setFormErrors({...formErrors, phone_number: ''}); 
-                }}
-                fullWidth
-                size="small"
-                error={!!formErrors.phone_number}
-                helperText={formErrors.phone_number}
-                disabled={loading}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '25px',
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#fafafa',
-                    '&:hover': { 
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'white' 
-                    }
-                  }
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={7}>
-              <TextField
-                label="Gender"
-                select
-                value={newUser.gender}
-                onChange={(e) => { 
-                  setNewUser({...newUser, gender: e.target.value}); 
-                  setFormErrors({...formErrors, gender: ''}); 
-                }}
-                fullWidth
-                size="small"
-                error={!!formErrors.gender}
-                helperText={formErrors.gender}
-                disabled={loading}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '25px',
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#fafafa',
-                    '&:hover': { 
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'white' 
-                    }
-                  }
-                }}
-              >
-                <MenuItem value="Male">Male</MenuItem>
-                <MenuItem value="Female">Female</MenuItem>
-              </TextField>
-            </Grid>
-          </Grid>
+          <TextField
+            label="Phone Number"
+            value={newUser.phone_number}
+            onChange={(e) => { 
+              setNewUser({...newUser, phone_number: e.target.value}); 
+              setFormErrors({...formErrors, phone_number: ''}); 
+            }}
+            fullWidth
+            size="small"
+            error={!!formErrors.phone_number}
+            helperText={formErrors.phone_number}
+            disabled={loading}
+            sx={inputStyles}
+          />
+
+          <TextField
+            label="Gender"
+            select
+            value={newUser.gender}
+            onChange={(e) => { 
+              setNewUser({...newUser, gender: e.target.value}); 
+              setFormErrors({...formErrors, gender: ''}); 
+            }}
+            fullWidth
+            size="small"
+            error={!!formErrors.gender}
+            helperText={formErrors.gender}
+            disabled={loading}
+            sx={inputStyles}
+          >
+            <MenuItem value="Male">Male</MenuItem>
+            <MenuItem value="Female">Female</MenuItem>
+          </TextField>
 
           <Autocomplete
             freeSolo
@@ -357,13 +325,7 @@ const NewUserModal = ({
                 size="small"
                 error={!!formErrors.invitedBy}
                 helperText={formErrors.invitedBy}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '25px',
-                    bgcolor: '#fafafa',
-                    '&:hover': { bgcolor: 'white' }
-                  }
-                }}
+                sx={inputStyles}
               />
             )}
           />
@@ -382,13 +344,7 @@ const NewUserModal = ({
             error={!!formErrors.email}
             helperText={formErrors.email}
             disabled={loading}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '25px',
-                bgcolor: '#fafafa',
-                '&:hover': { bgcolor: 'white' }
-              }
-            }}
+            sx={inputStyles}
           />
 
           <TextField
@@ -417,13 +373,7 @@ const NewUserModal = ({
                 </InputAdornment>
               ),
             }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '25px',
-                bgcolor: '#fafafa',
-                '&:hover': { bgcolor: 'white' }
-              }
-            }}
+            sx={inputStyles}
           />
 
           <TextField
@@ -452,13 +402,7 @@ const NewUserModal = ({
                 </InputAdornment>
               ),
             }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '25px',
-                bgcolor: '#fafafa',
-                '&:hover': { bgcolor: 'white' }
-              }
-            }}
+            sx={inputStyles}
           />
 
           <TextField
@@ -474,13 +418,7 @@ const NewUserModal = ({
             error={!!formErrors.role}
             helperText={formErrors.role}
             disabled={loading}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '25px',
-                bgcolor: '#fafafa',
-                '&:hover': { bgcolor: 'white' }
-              }
-            }}
+            sx={inputStyles}
           >
             <MenuItem value="user">User</MenuItem>
             <MenuItem value="leader">Leader</MenuItem>
@@ -497,16 +435,17 @@ const NewUserModal = ({
               mt: { xs: 2, sm: 3 },
               py: { xs: 1.25, sm: 1.5 },
               bgcolor: '#000',
-              color: 'white',
+              color: '#fff',
               fontWeight: 'bold',
               fontSize: '0.9rem',
               textTransform: 'uppercase',
               borderRadius: '25px',
               '&:hover': {
-                bgcolor: '#333',
+                bgcolor: '#222',
               },
               '&:disabled': {
-                bgcolor: '#ccc'
+                bgcolor: isDark ? '#555' : '#ccc',
+                color: isDark ? '#888' : '#999'
               }
             }}
           >
