@@ -49,7 +49,6 @@ import EmojiPeopleIcon from "@mui/icons-material/EmojiPeople";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import MergeIcon from "@mui/icons-material/Merge";
 import EventHistory from "../components/EventHistory";
-// import SaveIcon from "@mui/icons-material/Save";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -156,46 +155,40 @@ function ServiceCheckIn() {
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
-  // Filter events to only show global and open events
-
-  
-  // const getFilteredEvents = () => {
-  //   return events.filter(event => 
-  //     event.isGlobal !== false && 
-  //     event.status?.toLowerCase() !== "closed"
-  //   );
-  // };
-
-  // // Get closed events for event history
-  // const getClosedEvents = () => {
-  //   return events.filter(event => 
-  //     event.status?.toLowerCase() === "closed" && 
-  //     (event.isGlobal === true || event.isTicketed === true)
-  //   );
-  // };
-
   // Filter events to only show global and open events (for dropdown)
-const getFilteredEvents = () => {
-  console.log('🎯 Available events for dropdown:', events);
-  return events.filter(event => {
-    const isGlobal = event.isGlobal === true;
-    const isOpen = event.status?.toLowerCase() !== 'closed';
-    const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-    
-    return isGlobal && isOpen && isNotCell;
-  });
-};
+  const getFilteredEvents = () => {
+    console.log('🎯 Available events for dropdown:', events);
+    return events.filter(event => {
+      const isGlobal = event.isGlobal === true;
+      const isOpen = event.status?.toLowerCase() !== 'closed';
+      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      
+      return isGlobal && isOpen && isNotCell;
+    });
+  };
 
-// Get closed events for event history (global events only)
-const getClosedEvents = () => {
-  return events.filter(event => {
-    const isClosed = event.status?.toLowerCase() === 'closed';
-    const isGlobal = event.isGlobal === true;
-    const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-    
-    return isClosed && isGlobal && isNotCell;
-  });
-};
+  // Get closed events for event history (global events only)
+  const getClosedEvents = () => {
+    return events.filter(event => {
+      const isClosed = event.status?.toLowerCase() === 'closed';
+      const isGlobal = event.isGlobal === true;
+      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      
+      return isClosed && isGlobal && isNotCell;
+    });
+  };
+
+  // Set default event when events are loaded
+  useEffect(() => {
+    if (events.length > 0 && !currentEventId) {
+      const filteredEvents = getFilteredEvents();
+      if (filteredEvents.length > 0) {
+        const firstEventId = filteredEvents[0].id;
+        setCurrentEventId(firstEventId);
+        console.log('✅ Auto-selected first event:', firstEventId);
+      }
+    }
+  }, [events]);
 
   // Close event function
   const handleCloseEvent = async () => {
@@ -544,94 +537,65 @@ const getClosedEvents = () => {
   useEffect(() => {
     if (hasDataLoaded) return;
 
-    // const fetchEvents = async () => {
-    //   setIsLoadingEvents(true);
-    //   try {
-    //     const res = await axios.get(`${BASE_URL}/events`);
-    //     const normalized = toArray(res.data)
-    //       .filter(
-    //         (e) =>
-    //           e.eventType?.toLowerCase() !== "cell" &&
-    //           e.status?.toLowerCase() !== "closed" &&
-    //           e.isGlobal !== false
-    //       )
-    //       .map((e) => ({
-    //         id: e._id || e.id || e.eventId,
-    //         eventName: e.eventName || e.name || e.title || "Untitled Event",
-    //         status: e.status || "open",
-    //         isGlobal: e.isGlobal !== false, // Default to true if not specified
-    //         isTicketed: e.isTicketed || false,
-    //         date: e.date || e.createdAt,
-    //       }));
+    const fetchEvents = async () => {
+      setIsLoadingEvents(true);
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${BASE_URL}/events`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-    //     setEvents(normalized);
-    //   } catch (err) {
-    //     console.error(err);
-    //     toast.error(err.response?.data?.detail || "Failed to fetch events");
-    //   } finally {
-    //     setIsLoadingEvents(false);
-    //   }
-    // };
-  // In your ServiceCheckIn component, update the fetchEvents function
-const fetchEvents = async () => {
-  setIsLoadingEvents(true);
-  try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${BASE_URL}/events`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        console.log('📋 Raw events data:', data); // Debug log
+        
+        // Filter for global, open, non-cell events
+        const filteredEvents = (data.events || []).filter(event => {
+          const isGlobal = event.isGlobal === true;
+          const isOpen = event.status?.toLowerCase() !== 'closed';
+          const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+          
+          console.log(`🔍 Event: ${event.eventName}`, {
+            isGlobal,
+            isOpen, 
+            isNotCell,
+            eventType: event.eventType,
+            status: event.status,
+            isGlobalFlag: event.isGlobal
+          });
+          
+          return isGlobal && isOpen && isNotCell;
+        });
+
+        console.log('✅ Filtered events:', filteredEvents);
+
+        // Transform the events for dropdown
+        const transformedEvents = filteredEvents.map(event => ({
+          id: event._id || event.id,
+          eventName: event.eventName || event.name || "Unnamed Event",
+          status: event.status || "open",
+          isGlobal: event.isGlobal,
+          isTicketed: event.isTicketed || false,
+          date: event.date || event.createdAt,
+          eventType: event.eventType
+        }));
+
+        setEvents(transformedEvents);
+        
+      } catch (err) {
+        console.error('❌ Error fetching events:', err);
+        toast.error(err.response?.data?.detail || "Failed to fetch events");
+      } finally {
+        setIsLoadingEvents(false);
       }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    console.log('📋 Raw events data:', data); // Debug log
-    
-    // Filter for global, open, non-cell events
-    const filteredEvents = (data.events || []).filter(event => {
-      const isGlobal = event.isGlobal === true;
-      const isOpen = event.status?.toLowerCase() !== 'closed';
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-      
-      console.log(`🔍 Event: ${event.eventName}`, {
-        isGlobal,
-        isOpen, 
-        isNotCell,
-        eventType: event.eventType,
-        status: event.status,
-        isGlobalFlag: event.isGlobal
-      });
-      
-      return isGlobal && isOpen && isNotCell;
-    });
-
-    console.log('✅ Filtered events:', filteredEvents);
-
-    // Transform the events for dropdown
-    const transformedEvents = filteredEvents.map(event => ({
-      id: event._id || event.id,
-      eventName: event.eventName || event.name || "Unnamed Event",
-      status: event.status || "open",
-      isGlobal: event.isGlobal,
-      isTicketed: event.isTicketed || false,
-      date: event.date || event.createdAt,
-      eventType: event.eventType
-    }));
-
-    setEvents(transformedEvents);
-    
-  } catch (err) {
-    console.error('❌ Error fetching events:', err);
-    toast.error(err.response?.data?.detail || "Failed to fetch events");
-  } finally {
-    setIsLoadingEvents(false);
-  }
-};
+    };
 
     fetchEvents();
   }, [hasDataLoaded]);
@@ -747,6 +711,12 @@ const fetchEvents = async () => {
   };
 
   const handlePersonSave = (responseData) => {
+    // Check if event is selected before allowing save
+    if (!currentEventId) {
+      toast.error("Please select an event first before adding people");
+      return;
+    }
+
     const newPersonData = responseData.person || responseData;
     const newPersonId = responseData.id || responseData._id || newPersonData._id;
 
@@ -948,6 +918,15 @@ const fetchEvents = async () => {
     console.log("🔍 DEBUG: Consolidated People Count:", consolidatedPeople.length);
     console.log("🔍 DEBUG: Consolidated People Data:", consolidatedPeople);
   }, [currentEventId, consolidatedPeople]);
+
+  // Handle Add Person button click
+  const handleAddPersonClick = () => {
+    if (!currentEventId) {
+      toast.error("Please select an event first before adding people");
+      return;
+    }
+    setOpenDialog(true);
+  };
 
   const AttendeeCard = ({ attendee, showNumber, index }) => (
     <Card
@@ -1409,7 +1388,8 @@ const fetchEvents = async () => {
       {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={6} md={4}>
-          {/* <Select 
+          {/* Event Selection Dropdown */}
+          <Select 
             size={getResponsiveValue("small", "small", "medium", "medium", "medium")} 
             value={currentEventId} 
             onChange={(e) => setCurrentEventId(e.target.value)} 
@@ -1417,46 +1397,31 @@ const fetchEvents = async () => {
             fullWidth
             sx={{ boxShadow: 2 }}
           >
-            <MenuItem value="">Select Event</MenuItem>
+            <MenuItem value="">
+              <Typography color="text.secondary">
+                Select Global Event {getFilteredEvents().length > 0 ? `(${getFilteredEvents().length} available)` : ''}
+              </Typography>
+            </MenuItem>
             {getFilteredEvents().map((ev) => (
-              <MenuItem key={ev.id} value={ev.id}>{ev.eventName}</MenuItem>
+              <MenuItem key={ev.id} value={ev.id}>
+                <Box>
+                  <Typography variant="body2" fontWeight="medium">
+                    {ev.eventName}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {ev.eventType} • {new Date(ev.date).toLocaleDateString()}
+                  </Typography>
+                </Box>
+              </MenuItem>
             ))}
-          </Select> */}
-
-          {/* Event Selection Dropdown */}
-<Select 
-  size={getResponsiveValue("small", "small", "medium", "medium", "medium")} 
-  value={currentEventId} 
-  onChange={(e) => setCurrentEventId(e.target.value)} 
-  displayEmpty 
-  fullWidth
-  sx={{ boxShadow: 2 }}
->
-  <MenuItem value="">
-    <Typography color="text.secondary">
-      Select Global Event {getFilteredEvents().length > 0 ? `(${getFilteredEvents().length} available)` : ''}
-    </Typography>
-  </MenuItem>
-  {getFilteredEvents().map((ev) => (
-    <MenuItem key={ev.id} value={ev.id}>
-      <Box>
-        <Typography variant="body2" fontWeight="medium">
-          {ev.eventName}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {ev.eventType} • {new Date(ev.date).toLocaleDateString()}
-        </Typography>
-      </Box>
-    </MenuItem>
-  ))}
-  {getFilteredEvents().length === 0 && (
-    <MenuItem disabled>
-      <Typography variant="body2" color="text.secondary" fontStyle="italic">
-        No global events available
-      </Typography>
-    </MenuItem>
-  )}
-</Select>
+            {getFilteredEvents().length === 0 && (
+              <MenuItem disabled>
+                <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                  No global events available
+                </Typography>
+              </MenuItem>
+            )}
+          </Select>
         </Grid>
         <Grid item xs={12} sm={6} md={5}>
           <TextField 
@@ -1470,15 +1435,36 @@ const fetchEvents = async () => {
         </Grid>
         <Grid item xs={12} md={3}>
           <Stack direction="row" spacing={2} justifyContent={isMdDown ? "center" : "flex-end"}>
-            <Tooltip title="Add Person">
-              <PersonAddIcon onClick={() => setOpenDialog(true)} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "primary.dark" }, filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" }} />
+            <Tooltip title={currentEventId ? "Add Person" : "Please select an event first"}>
+              <span>
+                <PersonAddIcon 
+                  onClick={handleAddPersonClick} 
+                  sx={{ 
+                    cursor: currentEventId ? "pointer" : "not-allowed", 
+                    fontSize: 36, 
+                    color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled", 
+                    "&:hover": { color: currentEventId ? "primary.dark" : "text.disabled" }, 
+                    filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none",
+                    opacity: currentEventId ? 1 : 0.5
+                  }} 
+                />
+              </span>
             </Tooltip>
-            <Tooltip title="Consolidation">
-              <EmojiPeopleIcon onClick={handleConsolidationClick} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "secondary.dark" }, filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" }} />
+            <Tooltip title={currentEventId ? "Consolidation" : "Please select an event first"}>
+              <span>
+                <EmojiPeopleIcon 
+                  onClick={handleConsolidationClick} 
+                  sx={{ 
+                    cursor: currentEventId ? "pointer" : "not-allowed", 
+                    fontSize: 36, 
+                    color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled", 
+                    "&:hover": { color: currentEventId ? "secondary.dark" : "text.disabled" }, 
+                    filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none",
+                    opacity: currentEventId ? 1 : 0.5
+                  }} 
+                />
+              </span>
             </Tooltip>
-            {/* <Tooltip title="Save & Close Event">
-              <SaveIcon onClick={handleCloseEvent} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "success.dark" }, filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" }} />
-            </Tooltip> */}
           </Stack>
         </Grid>
       </Grid>
@@ -1987,7 +1973,12 @@ const fetchEvents = async () => {
               setConsolidatedModalOpen(false);
               handleConsolidationClick();
             }}
+            disabled={!currentEventId}
             size={isSmDown ? "small" : "medium"}
+            sx={{ 
+              opacity: currentEventId ? 1 : 0.5,
+              cursor: currentEventId ? "pointer" : "not-allowed"
+            }}
           >
             Add Consolidation
           </Button>
