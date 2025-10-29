@@ -7,10 +7,8 @@ import {
   FormControlLabel,
   Checkbox,
   Typography,
-  IconButton,
   useTheme,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 
 const EventTypesModal = ({
   open,
@@ -31,35 +29,9 @@ const EventTypesModal = ({
 
   const [errors, setErrors] = useState({});
   const nameInputRef = useRef(null);
+  const isDarkMode = theme.palette.mode === "dark";
 
-  const nameCharCount = formData.name.length;
-  const descCharCount = formData.description.length;
-
-  const isDarkMode = theme.palette.mode === 'dark';
-
-  const handleCheckboxChange = (name) => (event) => {
-    const { checked } = event.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: checked,
-    }));
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }));
-    }
-  };
-
+  // ✅ Validation
   const validateForm = () => {
     const newErrors = {};
 
@@ -83,6 +55,22 @@ const EventTypesModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  // ✅ Input & checkbox handlers
+  const handleCheckboxChange = (name) => (event) => {
+    const { checked } = event.target;
+    setFormData((prev) => ({ ...prev, [name]: checked }));
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  // ✅ Reset form
   const resetForm = () => {
     setFormData({
       name: "",
@@ -94,6 +82,7 @@ const EventTypesModal = ({
     setErrors({});
   };
 
+  // ✅ Submit handler
   const handleSubmit = async () => {
     if (!validateForm() || loading) return;
 
@@ -108,13 +97,13 @@ const EventTypesModal = ({
       };
 
       let result;
-      
       if (selectedEventType && selectedEventType.name) {
         result = await onSubmit(eventTypeData, selectedEventType.name);
       } else {
         result = await onSubmit(eventTypeData);
       }
 
+      // ✅ Pass selected event type object to parent
       if (setSelectedEventTypeObj) {
         setSelectedEventTypeObj({
           ...eventTypeData,
@@ -133,19 +122,7 @@ const EventTypesModal = ({
     }
   };
 
-  const handleClose = () => {
-    if (!loading) {
-      resetForm();
-      onClose();
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !loading) {
-      handleSubmit();
-    }
-  };
-
+  // ✅ Prefill on edit or reset on close
   useEffect(() => {
     if (selectedEventType && open) {
       setFormData({
@@ -160,18 +137,17 @@ const EventTypesModal = ({
     }
   }, [selectedEventType, open]);
 
+  // ✅ Focus input when opening
   useEffect(() => {
     if (open && nameInputRef.current) {
-      setTimeout(() => {
-        nameInputRef.current.focus();
-      }, 100);
+      setTimeout(() => nameInputRef.current.focus(), 100);
     }
   }, [open]);
 
   return (
     <Modal
       open={open}
-      onClose={handleClose}
+      onClose={() => !loading && handleSubmit()}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -183,22 +159,21 @@ const EventTypesModal = ({
         sx={{
           width: { xs: "95%", sm: "80%", md: "700px" },
           maxWidth: "700px",
-          bgcolor: isDarkMode ? 'background.paper' : 'background.default',
-          color: 'text.primary',
+          bgcolor: isDarkMode ? "#1e1e1e" : "#fff",
+          color: isDarkMode ? "#f1f1f1" : "#111",
           borderRadius: "12px",
-          boxShadow: theme.shadows[10],
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
           overflow: "hidden",
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
-          border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
         }}
       >
         {/* Header */}
         <Box
           sx={{
-            backgroundColor: isDarkMode ? 'primary.dark' : 'primary.main',
-            color: 'primary.contrastText',
+            backgroundColor: isDarkMode ? "#111" : "#f5f5f5",
+            color: isDarkMode ? "white" : "black",
             padding: "20px 24px",
             display: "flex",
             justifyContent: "space-between",
@@ -208,45 +183,50 @@ const EventTypesModal = ({
           <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
             {selectedEventType ? "Edit Event Type" : "Create New Event Type"}
           </Typography>
-          <IconButton
-            onClick={handleClose}
+          <button
+            onClick={onClose}
             disabled={loading}
-            sx={{
-              color: 'primary.contrastText',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              },
+            style={{
+              background: "rgba(255, 255, 255, 0.15)",
+              border: "none",
+              borderRadius: "50%",
+              width: "32px",
+              height: "32px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontSize: "20px",
+              color: "white",
+              transition: "all 0.2s ease",
             }}
           >
-            <CloseIcon />
-          </IconButton>
+            ×
+          </button>
         </Box>
 
-        {/* Content */}
-        <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
+        {/* Body */}
+        <Box sx={{ flex: 1, overflowY: "auto", padding: "24px" }}>
           {/* Event Type Name */}
           <TextField
-            inputRef={nameInputRef}
             label="Event Type Name"
             name="name"
             fullWidth
+            margin="normal"
+            inputRef={nameInputRef}
             value={formData.name}
             onChange={handleInputChange}
-            onKeyPress={handleKeyPress}
             error={!!errors.name}
-            helperText={
-              errors.name || 
-              `${nameCharCount}/50 characters` +
-              (nameCharCount > 45 ? " (approaching limit)" : "")
-            }
-            placeholder="Enter event type name..."
+            helperText={errors.name}
+            placeholder="Enter event type name"
             disabled={loading}
             sx={{
               mb: 3,
-              '& .MuiOutlinedInput-root': {
-                '&:hover fieldset': {
-                  borderColor: 'primary.main',
-                },
+              input: { color: "#fff" },
+              label: { color: "#aaa" },
+              "& .MuiOutlinedInput-root": {
+                "& fieldset": { borderColor: "#555" },
+                "&:hover fieldset": { borderColor: "#888" },
               },
             }}
           />
@@ -255,20 +235,20 @@ const EventTypesModal = ({
           <Box
             sx={{
               display: "flex",
-              flexWrap: "wrap",
-              gap: { xs: 1, sm: 2 },
+              gap: 2,
               alignItems: "center",
               mb: 3,
+              flexWrap: "nowrap",
             }}
           >
             <FormControlLabel
               control={
                 <Checkbox
-                  name="isTicketed"
                   checked={formData.isTicketed}
                   onChange={handleCheckboxChange("isTicketed")}
                   color="primary"
                   disabled={loading}
+                  sx={{ color: "#bbb" }}
                 />
               }
               label="Ticketed Event"
@@ -276,11 +256,11 @@ const EventTypesModal = ({
             <FormControlLabel
               control={
                 <Checkbox
-                  name="isGlobal"
                   checked={formData.isGlobal}
                   onChange={handleCheckboxChange("isGlobal")}
                   color="primary"
                   disabled={loading}
+                  sx={{ color: "#bbb" }}
                 />
               }
               label="Global Event"
@@ -288,11 +268,11 @@ const EventTypesModal = ({
             <FormControlLabel
               control={
                 <Checkbox
-                  name="hasPersonSteps"
                   checked={formData.hasPersonSteps}
                   onChange={handleCheckboxChange("hasPersonSteps")}
                   color="primary"
                   disabled={loading}
+                  sx={{ color: "#bbb" }}
                 />
               }
               label="Personal Steps Event"
@@ -310,30 +290,36 @@ const EventTypesModal = ({
             onChange={handleInputChange}
             error={!!errors.description}
             helperText={
-              errors.description || 
-              `${descCharCount}/500 characters` +
-              (descCharCount > 450 ? " (approaching limit)" : "") +
-              " - Describe the purpose and details of this event type"
+              errors.description ||
+              "Describe the purpose and details of this event type"
             }
             placeholder="Enter a detailed description of this event type..."
             disabled={loading}
             sx={{
               mb: 3,
-              '& .MuiOutlinedInput-root': {
-                '&:hover fieldset': {
-                  borderColor: 'primary.main',
-                },
+              textarea: { color: "#fff" },
+              label: { color: "#aaa" },
+              "& .MuiOutlinedInput-root": {
+                "& fieldset": { borderColor: "#555" },
+                "&:hover fieldset": { borderColor: "#888" },
               },
             }}
           />
 
           {/* Buttons */}
-          <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mt: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 2,
+              mt: 3,
+            }}
+          >
             <Button
               variant="outlined"
-              onClick={handleClose}
+              onClick={onClose}
               disabled={loading}
-              sx={{ flex: 1 }}
+              sx={{ flex: 1, borderColor: "#888", color: "#ccc" }}
             >
               Cancel
             </Button>
@@ -343,7 +329,7 @@ const EventTypesModal = ({
               disabled={loading}
               sx={{ flex: 1 }}
             >
-              {loading ? "Saving..." : selectedEventType ? "Update" : "Create"}
+              {loading ? "Saving..." : "Submit"}
             </Button>
           </Box>
         </Box>

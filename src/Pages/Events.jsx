@@ -1059,7 +1059,27 @@ useEffect(() => {
 
   setSelectedEventTypeFilter(typeValue);
   setCurrentPage(1);
-  };
+
+  // ✅ Find full event type object from the list
+  const selectedTypeObj = customEventTypes.find(
+    (et) => et.name?.toLowerCase() === typeValue.toLowerCase()
+  );
+
+  if (selectedTypeObj) {
+    console.log('🧩 Selected Event Type Config:', {
+      name: selectedTypeObj.name,
+      isTicketed: selectedTypeObj.isTicketed || false,
+      hasPersonSteps: selectedTypeObj.hasPersonSteps || false,
+      isGlobal: selectedTypeObj.isGlobal || false,
+      raw: selectedTypeObj
+    });
+    setSelectedEventTypeObj(selectedTypeObj);
+  } else {
+    console.warn('⚠️ Event type config not found for:', typeValue);
+    setSelectedEventTypeObj(null);
+  }
+};
+
 
   const handlePreviousPage = () => {
     if (currentPage > 1 && !isLoading) {
@@ -1476,243 +1496,188 @@ const fetchEventTypes = async () => {
 
   const EventTypeSelector = () => {
   const [hoveredType, setHoveredType] = useState(null);
-  
-  // ✅ Add "All Events" option
-  const allTypes = ["All Events", ...eventTypes];
+  const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
+  const [typeMenuFor, setTypeMenuFor] = useState(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [toDeleteType, setToDeleteType] = useState(null);
+
+  const allTypes = ["CELLS", ...eventTypes];
+
+  // Open the menu for a specific type
+  const openTypeMenu = (event, type) => {
+    setTypeMenuAnchor(event.currentTarget);
+    setTypeMenuFor(type);
+  };
+
+  // Close menu
+  const closeTypeMenu = () => {
+    setTypeMenuAnchor(null);
+    setTypeMenuFor(null);
+  };
+
+  const handleDeleteType = async () => {
+    if (!toDeleteType) return;
+    await deleteEventType(toDeleteType); // your backend handler
+    setConfirmDeleteOpen(false);
+    setToDeleteType(null);
+  };
 
   const getDisplayName = (type) => {
-    if (type === "All Events") return type;
+    if (type === "CELLS") return type;
     if (typeof type === "string") return type;
     return type.name || type;
   };
 
   const getTypeValue = (type) => {
-    if (type === "All Events") return "all";
-    if (typeof type === "string") {
-      // ✅ Keep original casing for exact match
-      return type;
-    }
-    return type.name || type;
+    if (type === "CELLS") return "all";
+    if (typeof type === "string") return type.toLowerCase();
+    return (type.name || type).toLowerCase();
   };
-  
-    const selectedDisplayName =
-      selectedEventTypeFilter === "all"
-        ? "All Events"
-        : eventTypes.find((t) => {
-          const tValue = typeof t === "string" ? t : t.name;
-          return tValue?.toLowerCase() === selectedEventTypeFilter;
-        }) || selectedEventTypeFilter;
 
-    const finalDisplayName =
-      typeof selectedDisplayName === "string"
-        ? selectedDisplayName
-        : selectedDisplayName?.name || "All Events";
+  return (
+    <div style={eventTypeStyles.container}>
+      <div style={eventTypeStyles.header}>Filter by Event Type</div>
 
-    return (
-      <div style={eventTypeStyles.container}>
-        <div style={eventTypeStyles.header}>Filter by Event Type</div>
+      <div style={eventTypeStyles.selectedTypeDisplay}>
+        <div style={eventTypeStyles.checkIcon}>✓</div>
+        <span>{selectedEventTypeFilter || "CELLS"}</span>
+      </div>
 
-        <div style={eventTypeStyles.selectedTypeDisplay}>
-          <div style={eventTypeStyles.checkIcon}>✓</div>
-          <span>{finalDisplayName}</span>
-        </div>
+      {isAdmin && (
+        <div
+          style={{
+            ...eventTypeStyles.typesGrid,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "12px",
+            justifyContent: "flex-start",
+          }}
+        >
+          {allTypes.map((type) => {
+            const displayName = getDisplayName(type);
+            const typeValue = getTypeValue(type);
 
-        {isAdmin && (
-          <div
-            style={{
-              ...eventTypeStyles.typesGrid,
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "12px",
-              justifyContent: "flex-start",
-            }}
-          >
-            {allTypes.map((type) => {
-              const displayName = getDisplayName(type);
-              const typeValue = getTypeValue(type);
-              const isActive = selectedEventTypeFilter === typeValue;
-              const isHovered = hoveredType === typeValue;
+            return (
+              <div
+                key={typeValue}
+                style={{
+                  ...eventTypeStyles.typeCard,
+                  position: "relative",
+                  width: 200,
+                  minHeight: 70,
+                  padding: "8px 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                onClick={() => {
+                  handleEventTypeClick(typeValue);
+                }}
+                onMouseEnter={() => setHoveredType(typeValue)}
+                onMouseLeave={() => setHoveredType(null)}
+              >
+                <span style={eventTypeStyles.typeName}>{displayName}</span>
 
-              return (
-                <div
-                  key={typeValue}
-                  style={{
-                    ...eventTypeStyles.typeCard,
-                    ...(isActive ? eventTypeStyles.typeCardActive : {}),
-                    ...(isHovered && !isActive
-                      ? eventTypeStyles.typeCardHover
-                      : {}),
-                    position: "relative",
-                    width: 200,
-                    minHeight: 70,
-                    padding: "8px 12px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  onClick={() => {
-                    console.log("🟢 Event Type Clicked:", {
-                      displayName,
-                      typeValue,
-                      currentFilter: selectedEventTypeFilter,
-                    });
-
-                    const selectedTypeObj =
-                      typeValue === "all"
-                        ? null
-                        : customEventTypes.find(
-                          (t) => t.name.toLowerCase() === typeValue
-                        ) || null;
-
-                    setSelectedEventTypeFilter(typeValue);
-                    setSelectedEventTypeObj(selectedTypeObj);
-
-                    if (selectedTypeObj) {
-                      localStorage.setItem(
-                        "selectedEventTypeObj",
-                        JSON.stringify(selectedTypeObj)
-                      );
-                    } else {
-                      localStorage.removeItem("selectedEventTypeObj");
-                    }
-
-                    const shouldApplyPersonalFilter =
-                      viewFilter === "personal" &&
-                      (currentUser?.role?.toLowerCase() === "admin" ||
-                        currentUser?.role?.toLowerCase() === "leader at 12");
-
-                    setCurrentPage(1);
-
-                    // 🔥 FIX: Send correct event type to backend
-                    fetchEvents(
-                      {
-                        page: 1,
-                        limit: rowsPerPage,
-                        status:
-                          selectedStatus !== "all" ? selectedStatus : undefined,
-                        event_type: typeValue !== "all" ? typeValue : undefined,
-                        search: searchQuery.trim() || undefined,
-                        personal: shouldApplyPersonalFilter ? true : undefined,
-                      },
-                      true
-                    );
-                  }}
-                  onMouseEnter={() => setHoveredType(typeValue)}
-                  onMouseLeave={() => setHoveredType(null)}
-                >
-                  <span
-                    style={{
-                      ...eventTypeStyles.typeName,
-                      ...(isActive ? eventTypeStyles.typeNameActive : {}),
-                      zIndex: 1,
+                {isAdmin && type !== "CELLS" && (
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openTypeMenu(e, type);
+                    }}
+                    aria-label="type actions"
+                    sx={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      zIndex: 10,
+                      color: "grey",
                     }}
                   >
-                    {displayName}
-                  </span>
+                    <MoreVertIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </div>
+            );
+          })}
 
-                  {isAdmin && type !== "All Events" && (
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openTypeMenu(e, type);
-                      }}
-                      aria-label="type actions"
-                      sx={{
-                        position: "absolute",
-                        top: 8,
-                        right: 8,
-                        zIndex: 10,
-                        color: "grey",
-                      }}
-                    >
-                      <MoreVertIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* POPOVER - Menu for edit/delete */}
-        <Popover
-          open={Boolean(typeMenuAnchor)}
-          anchorEl={typeMenuAnchor}
-          onClose={closeTypeMenu}
-          anchorOrigin={{
-            vertical: "bottom",
-            horizontal: "right",
-          }}
-          transformOrigin={{
-            vertical: "top",
-            horizontal: "right",
-          }}
-          sx={{
-            "& .MuiPopover-paper": {
-              borderRadius: "8px",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-              minWidth: "120px",
-            }
-          }}
-        >
-          <MenuItem
-            onClick={() => {
-              handleEditType(typeMenuFor);
-              closeTypeMenu();
+          {/* Edit/Delete menu popover */}
+          <Popover
+            open={Boolean(typeMenuAnchor)}
+            anchorEl={typeMenuAnchor}
+            onClose={closeTypeMenu}
+            anchorOrigin={{
+              vertical: "top",
+              horizontal: "right",
             }}
-            sx={{ py: 1 }}
-          >
-            <ListItemIcon>
-              <EditIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Edit</ListItemText>
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              setToDeleteType(typeMenuFor);
-              setConfirmDeleteOpen(true);
-              closeTypeMenu();
+            transformOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
             }}
-            sx={{
-              color: "error.main",
-              py: 1
+            slotProps={{
+              paper: {
+                elevation: 4,
+                sx: { borderRadius: 2, mt: -1 },
+              },
             }}
           >
-            <ListItemIcon>
-              <DeleteIcon fontSize="small" color="error" />
-            </ListItemIcon>
-            <ListItemText>Delete</ListItemText>
-          </MenuItem>
-        </Popover>
+            <MenuItem
+              onClick={() => {
+                handleEditType(typeMenuFor);
+                closeTypeMenu();
+              }}
+            >
+              <ListItemIcon>
+                <EditIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Edit</ListItemText>
+            </MenuItem>
 
-        {/* DIALOG - Delete confirmation */}
-        <Dialog
-          open={confirmDeleteOpen}
-          onClose={() => setConfirmDeleteOpen(false)}
-          maxWidth="xs"
-          fullWidth
-        >
-          <DialogTitle>Delete Event Type</DialogTitle>
-          <DialogContent>
-            <Typography>
-              Are you sure you want to delete this event type? This cannot
-              be undone.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setConfirmDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button color="error" onClick={handleDeleteType}>
-              Delete
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </div>
-    );
-  };
+            <MenuItem
+              onClick={() => {
+                setToDeleteType(typeMenuFor);
+                setConfirmDeleteOpen(true);
+                closeTypeMenu();
+              }}
+              sx={{ color: "error.main" }}
+            >
+              <ListItemIcon>
+                <DeleteIcon fontSize="small" color="error" />
+              </ListItemIcon>
+              <ListItemText>Delete</ListItemText>
+            </MenuItem>
+          </Popover>
+
+          {/* Delete confirmation modal */}
+          <Dialog
+            open={confirmDeleteOpen}
+            onClose={() => setConfirmDeleteOpen(false)}
+            maxWidth="xs"
+            fullWidth
+          >
+            <DialogTitle>Delete Event Type</DialogTitle>
+            <DialogContent>
+              <Typography>
+                Are you sure you want to delete{" "}
+                <strong>{toDeleteType?.name || "this event type"}</strong>?
+                This cannot be undone.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setConfirmDeleteOpen(false)}>
+                Cancel
+              </Button>
+              <Button color="error" onClick={handleDeleteType}>
+                Delete
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </div>
+      )}
+    </div>
+  );
+};
+
   const StatusBadges = () => {
     const [statusCounts, setStatusCounts] = useState({
       incomplete: 0,

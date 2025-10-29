@@ -1,6 +1,5 @@
-// Edit Event Modal
-
 import React, { useState, useEffect } from "react";
+
 const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
   const [formData, setFormData] = useState({
     eventName: "",
@@ -10,7 +9,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     dateOfEvent: "",
     status: "",
     renocaming: false,
-    eventTimestamp: ""
+    eventTimestamp: "",
   });
 
   useEffect(() => {
@@ -23,7 +22,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         dateOfEvent: event.dateOfEvent || event.date || "",
         status: event.status || "Incomplete",
         renocaming: event.renocaming || false,
-        eventTimestamp: event.eventTimestamp || ""
+        eventTimestamp: event.eventTimestamp || "",
       });
     }
   }, [event]);
@@ -32,7 +31,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
@@ -50,7 +49,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0,0,0,0.8)",
+      background: "rgba(0,0,0,0.8)", // darker overlay
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
@@ -58,10 +57,10 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       padding: "20px",
     },
     modal: {
-      background: "#1e1e1e",
+      background: "#1e1e1e", // dark modal background
       borderRadius: "12px",
       width: "100%",
-      maxWidth: "700px",
+      maxWidth: "700px", // wider modal
       maxHeight: "90vh",
       overflowY: "auto",
       padding: "24px",
@@ -115,7 +114,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     checkbox: {
       width: "16px",
       height: "16px",
-      accentColor: "#2563eb",
+      accentColor: "#2563eb", // blue checkbox in dark mode
     },
     buttonGroup: {
       display: "flex",
@@ -143,6 +142,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       cursor: "pointer",
       fontSize: "14px",
       fontWeight: "500",
+      transition: "all 0.2s ease",
     },
   };
 
@@ -169,7 +169,6 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             type="text"
             name="leader"
             value={formData.leader}
-            onChange={handleInputChange}
             style={styles.readOnlyInput}
             readOnly
           />
@@ -250,7 +249,6 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             type="text"
             name="eventTimestamp"
             value={formData.eventTimestamp}
-            onChange={handleInputChange}
             style={styles.readOnlyInput}
             readOnly
           />
@@ -268,4 +266,5 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     </div>
   );
 };
+
 export default EditEventModal;
