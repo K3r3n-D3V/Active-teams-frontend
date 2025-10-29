@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Phone, UserPlus, Plus } from "lucide-react";
+import { Phone, UserPlus, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
@@ -71,6 +71,8 @@ export default function DailyTasks() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddTypeModalOpen, setIsAddTypeModalOpen] = useState(false);
   const [formType, setFormType] = useState("");
+  const [teamData, setTeamData] = useState([]);
+  const [expandedTeamMember, setExpandedTeamMember] = useState(null);
   const [dateRange, setDateRange] = useState("today");
   const [filterType, setFilterType] = useState("all");
   const [storedUser, setStoredUser] = useState(() =>
@@ -79,7 +81,13 @@ export default function DailyTasks() {
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [addingTaskType, setAddingTaskType] = useState(false);
   
-const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTasks, setTotalTasks] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  
+  const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
   const getCurrentDateTime = () => {
     const now = new Date();
@@ -214,39 +222,54 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
     }
   };
 
-  const fetchUserTasks = async (userId) => {
+  const fetchAllTasks = async (page = 1) => {
     const token = localStorage.getItem("token");
     if (!token) {
       console.log("No token found, skipping fetch");
       return;
     }
-
+    
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/tasks?user_email=${storedUser.email}`, {
+      
+      // Fetch current user's tasks (their own tasks)
+      const userTasksRes = await fetch(`${API_URL}/tasks?email=${storedUser.email}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (!res.ok) throw new Error("Failed to fetch tasks");
-      const data = await res.json();
-
-      const normalizedTasks = (Array.isArray(data) ? data : data.tasks || []).map((task) => ({
-        ...task,
-        assignedTo: task.assignedfor || task.assignedTo,
-        date: task.date || task.followup_date,
-        status: (task.status || "Open").toLowerCase(),
-        taskName: task.name || task.taskName,
-        type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
-      }));
-
-      setTasks(normalizedTasks);
+      
+      let userTasks = [];
+      if (userTasksRes.ok) {
+        const userTasksData = await userTasksRes.json();
+        if (userTasksData.status === "success") {
+          userTasks = (userTasksData.tasks || []).map((task) => ({
+            ...task,
+            assignedTo: task.assignedfor || task.assignedTo,
+            date: task.date || task.followup_date,
+            status: (task.status || "Open").toLowerCase(),
+            taskName: task.name || task.taskName,
+            type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
+            isCurrentUser: true,
+          }));
+        }
+      }
+          // Convert map to array and sort
+      const teamArray = Array.from(teamMap.values()).sort((a, b) => b.tasks - a.tasks);
+      setTeamData(teamArray);
+      
+      // Also keep flat tasks list for backwards compatibility
+      const allDiscipleTasks = teamArray.flatMap(team => 
+        team.disciples.flatMap(d => d.allTasks)
+      );
+      const allTasks = [...userTasks, ...allDiscipleTasks];
+      setTasks(allTasks);
+      
     } catch (err) {
-      console.error("Error fetching user tasks:", err.message);
+      console.error("Error fetching tasks:", err.message);
     } finally {
       setLoading(false);
     }
   };
-
+  
   const fetchPeople = async (q) => {
     if (!q.trim()) return setSearchResults([]);
 
@@ -345,25 +368,12 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
   };
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      const freshUser = JSON.parse(localStorage.getItem("userProfile") || "{}");
-      const userId = freshUser?.userId || freshUser?.id;
-      if (userId) {
-        setStoredUser(freshUser);
-        fetchUserTasks(userId);
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    const userId = storedUser?.userId || storedUser?.id;
-    if (userId) {
-      fetchUserTasks(userId);
+    const token = localStorage.getItem("token");
+    if (token) {
       fetchTaskTypes();
+      fetchAllTasks(currentPage);
     }
-
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [currentPage, pageSize]);
 
   const handleOpen = (type) => {
     setFormType(type);
@@ -491,10 +501,18 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
     const taskDate = parseDate(task.date);
     if (!taskDate) return false;
 
-    let matchesType =
-      filterType === "all" ||
-      task.type === filterType ||
-      (filterType === "consolidation" && task.taskType === "consolidation");
+    let matchesType = filterType === "all";
+    
+    if (!matchesType) {
+      if (filterType === "disciple") {
+        matchesType = task.isDisciple === true;
+      } else if (filterType === "consolidation") {
+        matchesType = task.taskType === "consolidation";
+      } else {
+        matchesType = task.type === filterType;
+      }
+    }
+    
     let matchesDate = true;
 
     const today = new Date();
@@ -532,6 +550,12 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
   const totalCount = filteredTasks.length;
 
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
+
   return (
     <div style={{ 
       maxWidth: '1200px', 
@@ -563,6 +587,16 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
         }}>
           Tasks Complete
         </p>
+        
+        {filterType === "disciple" && totalTasks > 0 && (
+          <p style={{
+            marginTop: '8px',
+            fontSize: '14px',
+            color: isDarkMode ? '#aaa' : '#6b7280',
+          }}>
+            Showing {totalTasks} disciples across {totalPages} pages
+          </p>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '40px', flexWrap: 'wrap' }}>
           <button
@@ -652,7 +686,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '32px', flexWrap: 'wrap' }}>
-        {["all", "call", "visit", "consolidation"].map((type) => (
+        {["all", "call", "visit", "consolidation", "disciple"].map((type) => (
           <button
             key={type}
             style={{
@@ -666,12 +700,78 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
               fontSize: '14px',
               boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
             }}
-            onClick={() => setFilterType(type)}
+            onClick={() => {
+              setFilterType(type);
+              if (type === "disciple" || type === "all") {
+                setCurrentPage(1);
+                fetchAllTasks(1);
+              }
+            }}
           >
             {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
           </button>
         ))}
       </div>
+
+              {totalPages > 1 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '16px',
+          marginTop: '24px',
+        }}>
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 20px',
+              borderRadius: '12px',
+              border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+              backgroundColor: currentPage === 1 ? (isDarkMode ? '#2d2d2d' : '#f3f4f6') : (isDarkMode ? '#fff' : '#000'),
+              color: currentPage === 1 ? (isDarkMode ? '#666' : '#aaa') : (isDarkMode ? '#000' : '#fff'),
+              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              opacity: currentPage === 1 ? 0.5 : 1,
+            }}
+          >
+            <ChevronLeft size={16} /> Previous
+          </button>
+          
+          <span style={{
+            fontSize: '14px',
+            fontWeight: '600',
+            color: isDarkMode ? '#fff' : '#1a1a24',
+          }}>
+            Page {currentPage} of {totalPages}
+          </span>
+          
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 20px',
+              borderRadius: '12px',
+              border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+              backgroundColor: currentPage === totalPages ? (isDarkMode ? '#2d2d2d' : '#f3f4f6') : (isDarkMode ? '#fff' : '#000'),
+              color: currentPage === totalPages ? (isDarkMode ? '#666' : '#aaa') : (isDarkMode ? '#000' : '#fff'),
+              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              opacity: currentPage === totalPages ? 0.5 : 1,
+            }}
+          >
+            Next <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
 
       <div style={{ marginTop: '32px' }}>
         {loading ? (
@@ -725,6 +825,16 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
                 }}>
                   {task.name}
                 </p>
+                {task.discipleName && (
+                  <p style={{
+                    fontSize: '12px',
+                    color: isDarkMode ? '#888' : '#9ca3af',
+                    margin: '4px 0 0 0',
+                    fontStyle: 'italic'
+                  }}>
+                    Disciple: {task.discipleName} (Level {task.discipleLevel})
+                  </p>
+                )}
                 {task.isRecurring && (
                   <span style={{
                     fontSize: '11px',
