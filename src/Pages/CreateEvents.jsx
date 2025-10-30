@@ -24,7 +24,6 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 
-
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
@@ -32,6 +31,7 @@ function generateUUID() {
     return v.toString(16);
   });
 }
+
 const CreateEvents = ({
   user,
   isModal = false,
@@ -45,18 +45,15 @@ const CreateEvents = ({
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
 
-  // eventTypeFlags will always reflect the authoritative checkbox values coming from selectedEventTypeObj
   const [eventTypeFlags, setEventTypeFlags] = useState({
     isGlobal: false,
     isTicketed: false,
     hasPersonSteps: false,
   });
 
-  // keep a small derived convenience set
   const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, hasPersonSteps } =
     eventTypeFlags;
 
-  // Basic UI / submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successAlert, setSuccessAlert] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -64,13 +61,10 @@ const CreateEvents = ({
   const [errorMessage, setErrorMessage] = useState("");
   const [peopleData, setPeopleData] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
-
-  // Price tiers state (for ticketed events)
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isAdmin = user?.role === "admin";
 
-  // Form state - eventType stores the display name (string). Leaders, etc.
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
     eventName: "",
@@ -85,7 +79,6 @@ const CreateEvents = ({
     leader12: "",
   });
 
-  // Errors
   const [errors, setErrors] = useState({});
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -100,11 +93,7 @@ const CreateEvents = ({
     "Sunday",
   ];
 
-  // ---------------------------
-  // Keep flags & formData in sync with the selectedEventTypeObj prop
-  // ---------------------------
   useEffect(() => {
-    // If a full object was passed, use its flags and name
     if (selectedEventTypeObj) {
       setEventTypeFlags({
         isGlobal: !!selectedEventTypeObj.isGlobal,
@@ -117,22 +106,13 @@ const CreateEvents = ({
         eventType: selectedEventTypeObj.name || prev.eventType,
       }));
     } else if (selectedEventType) {
-      // If only a string name was passed (fallback), show the string but keep flags default false
       setFormData((prev) => ({
         ...prev,
         eventType: selectedEventType,
       }));
-      setEventTypeFlags((prev) => ({
-        ...prev,
-        // keep previous flags if any — don't override with false unless you want that
-      }));
     }
-    // We intentionally only depend on the props so updates propagate
   }, [selectedEventTypeObj, selectedEventType]);
 
-  // ---------------------------
-  // Fetch people (used in autocomplete)
-  // ---------------------------
   const fetchPeople = async (filter = "") => {
     try {
       setLoadingPeople(true);
@@ -166,14 +146,9 @@ const CreateEvents = ({
   };
 
   useEffect(() => {
-    // initial load
     if (BACKEND_URL) fetchPeople();
-    // only run when BACKEND_URL changes
   }, [BACKEND_URL]);
 
-  // ---------------------------
-  // Price tiers initialization for new ticketed events
-  // ---------------------------
   useEffect(() => {
     if (!eventId && isTicketedEvent && priceTiers.length === 0) {
       setPriceTiers([
@@ -186,11 +161,8 @@ const CreateEvents = ({
         },
       ]);
     }
-  }, [eventId, isTicketedEvent]); // reacts to changes in selected event type flags
+  }, [eventId, isTicketedEvent]);
 
-  // ---------------------------
-  // Load existing event when editing
-  // ---------------------------
   useEffect(() => {
     if (!eventId) return;
 
@@ -199,7 +171,6 @@ const CreateEvents = ({
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
         const data = response.data;
 
-        // Normalize date/time for inputs
         if (data.date) {
           const dt = new Date(data.date);
           data.date = dt.toISOString().split("T")[0];
@@ -211,12 +182,10 @@ const CreateEvents = ({
           data.timePeriod = hours >= 12 ? "PM" : "AM";
         }
 
-        // normalize recurring days
         if (data.recurring_day) {
           data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
         }
 
-        // If the selected event type flags indicate ticketed, load priceTiers from the event
         if (isTicketedEvent) {
           if (data.priceTiers && Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
             setPriceTiers(data.priceTiers);
@@ -242,35 +211,13 @@ const CreateEvents = ({
     };
 
     fetchEventData();
-  }, [eventId, BACKEND_URL, isTicketedEvent]); // depends on isTicketedEvent so that switching type updates tiers
+  }, [eventId, BACKEND_URL, isTicketedEvent]);
 
-  // ---------------------------
-  // Handlers: form change and recurring days
-  // ---------------------------
   const handleChange = (field, value) => {
     setFormData((prev) => {
-      // clear field error if present
       if (errors[field]) {
         setErrors((prevErrors) => ({ ...prevErrors, [field]: "" }));
       }
-
-      // // special-case eventType cell detection
-      // if (field === "eventType" && typeof value === "string") {
-      //   const isCell = value.toLowerCase().includes("cell");
-      //   const wasCell = (prev.eventType || "").toLowerCase().includes("cell");
-
-      //   if (isCell !== wasCell) {
-      //     return {
-      //       ...prev,
-      //       [field]: value,
-      //       eventName: "",
-      //       leader1: "",
-      //       leader12: "",
-      //       eventLeader: "",
-      //       ...(isCell ? { date: "", time: "", timePeriod: "AM" } : {}),
-      //     };
-      //   }
-      // }
 
       return {
         ...prev,
@@ -288,9 +235,6 @@ const CreateEvents = ({
     }));
   };
 
-  // ---------------------------
-  // Price tier helpers
-  // ---------------------------
   const handleAddPriceTier = () => {
     setPriceTiers((prev) => [
       ...prev,
@@ -310,9 +254,6 @@ const CreateEvents = ({
     setPriceTiers((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // ---------------------------
-  // Reset / validate
-  // ---------------------------
   const resetForm = () => {
     setFormData({
       eventType: selectedEventTypeObj?.name || selectedEventType || "",
@@ -340,7 +281,6 @@ const CreateEvents = ({
     if (!formData.eventLeader) newErrors.eventLeader = "Event leader is required";
     if (!formData.description) newErrors.description = "Description is required";
 
-    // If event is NOT global, apply usual rules
     if (!isGlobalEvent) {
       if (hasPersonSteps && formData.recurringDays.length === 0) {
         newErrors.recurringDays = "Select at least one recurring day";
@@ -351,7 +291,6 @@ const CreateEvents = ({
         if (!formData.time) newErrors.time = "Time is required";
       }
 
-      // Ticketed event price tiers
       if (isTicketedEvent) {
         if (priceTiers.length === 0) {
           newErrors.priceTiers = "Add at least one price tier for ticketed events";
@@ -367,13 +306,11 @@ const CreateEvents = ({
         }
       }
 
-      // Personal steps leaders
       if (hasPersonSteps) {
         if (!formData.leader1) newErrors.leader1 = "Leader @1 is required";
         if (!formData.leader12) newErrors.leader12 = "Leader @12 is required";
       }
     } else {
-      // Global events still expect a date/time
       if (!formData.date) newErrors.date = "Date is required";
       if (!formData.time) newErrors.time = "Time is required";
     }
@@ -382,53 +319,47 @@ const CreateEvents = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // ---------------------------
-  // Submit (create or update)
-  // ---------------------------
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  setIsSubmitting(true);
+    setIsSubmitting(true);
 
-  try {
-    const eventTypeToSend = selectedEventTypeObj?.name || formData.eventType;
+    try {
+      const eventTypeToSend =
+        selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
 
-    const payload = {
-      UUID: generateUUID(), // ✅ ADD UUID HERE - automatically generated for every new event
-      eventType: eventTypeToSend,
-      eventName: formData.eventName,
-      isTicketed: !!isTicketedEvent,
-      isGlobal: !!isGlobalEvent,
-      hasPersonSteps: !!hasPersonSteps,
-      location: formData.location,
-      eventLeader: formData.eventLeader,
-      description: formData.description,
-      userEmail: user?.email || "",
-      recurring_day: formData.recurringDays,
-      status: "open",
-    };
+      const payload = {
+        UUID: generateUUID(),
+        eventType: eventTypeToSend,
+        eventName: formData.eventName,
+        isTicketed: !!isTicketedEvent,
+        isGlobal: !!isGlobalEvent,
+        hasPersonSteps: !!hasPersonSteps,
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        description: formData.description,
+        userEmail: user?.email || "",
+        recurring_day: formData.recurringDays,
+        status: "open",
+      };
 
-    // ✅ Price tiers for ticketed events
-    if (isTicketedEvent && priceTiers.length > 0) {
-      payload.priceTiers = priceTiers.map(tier => ({
-        name: tier.name || "",
-        price: parseFloat(tier.price) || 0,
-        ageGroup: tier.ageGroup || "",
-        memberType: tier.memberType || "",
-        paymentMethod: tier.paymentMethod || ""
-      }));
-      
-      console.log("📋 Including price tiers:", payload.priceTiers);
-    } else {
-      payload.priceTiers = [];
-    }
+      if (isTicketedEvent && priceTiers.length > 0) {
+        payload.priceTiers = priceTiers.map((tier) => ({
+          name: tier.name || "",
+          price: parseFloat(tier.price) || 0,
+          ageGroup: tier.ageGroup || "",
+          memberType: tier.memberType || "",
+          paymentMethod: tier.paymentMethod || "",
+        }));
+      } else {
+        payload.priceTiers = [];
+      }
 
-    // Person steps leaders
-    if (hasPersonSteps && !isGlobalEvent) {
-      if (formData.leader1) payload.leader1 = formData.leader1;
-      if (formData.leader12) payload.leader12 = formData.leader12;
-    }
+      if (hasPersonSteps && !isGlobalEvent) {
+        if (formData.leader1) payload.leader1 = formData.leader1;
+        if (formData.leader12) payload.leader12 = formData.leader12;
+      }
 
       if (((!hasPersonSteps) || isGlobalEvent) && formData.date && formData.time) {
         const [hoursStr, minutesStr] = formData.time.split(":");
@@ -442,56 +373,49 @@ const CreateEvents = ({
           .padStart(2, "0")}:00`;
       }
 
-    console.log("📤 Submitting payload with UUID:", JSON.stringify(payload, null, 2));
+      const token = localStorage.getItem("token");
+      const headers = {
+        Authorization: token ? `Bearer ${token}` : "",
+        "Content-Type": "application/json",
+      };
 
-    // ✅ Get token for authorization
-    const token = localStorage.getItem("token");
-    const headers = { 
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
+      const response = eventId
+        ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
+        : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
 
-    const response = eventId
-      ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload, { headers })
-      : await axios.post(`${BACKEND_URL}/events`, payload, { headers });
+      console.log("✅ Server response:", response.data);
 
-    console.log("✅ Server response:", response.data);
-    console.log("✅ Event UUID:", payload.UUID);
+      setSuccessMessage(
+        hasPersonSteps && !isGlobalEvent
+          ? `The ${formData.eventName} event with leadership hierarchy has been ${eventId ? "updated" : "created"} successfully!`
+          : eventId
+          ? "Event updated successfully!"
+          : "Event created successfully!"
+      );
+      setSuccessAlert(true);
 
-    setSuccessMessage(
-      hasPersonSteps && !isGlobalEvent
-        ? `The ${formData.eventName} event with leadership hierarchy has been ${
-            eventId ? "updated" : "created"
-          } successfully!`
-        : eventId
-        ? "Event updated successfully!"
-        : "Event created successfully!"
-    );
-    setSuccessAlert(true);
+      if (!eventId) resetForm();
 
-    if (!eventId) resetForm();
-
-    setTimeout(() => {
-      if (isModal && typeof onClose === "function") {
-        onClose();
-      } else {
-        navigate("/events", { state: { refresh: true } });
-      }
-    }, 1200);
-  } catch (err) {
-    console.error("❌ Error submitting event:", err);
-    console.error("❌ Error response:", err.response?.data);
-    setErrorMessage(
-      err.response?.data?.message ||
-        err.response?.data?.detail ||
-        err.message ||
-        "Failed to submit event"
-    );
-    setErrorAlert(true);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+      setTimeout(() => {
+        if (isModal && typeof onClose === "function") {
+          onClose();
+        } else {
+          navigate("/events", { state: { refresh: true } });
+        }
+      }, 1200);
+    } catch (err) {
+      console.error("Error submitting event:", err);
+      setErrorMessage(
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
+          err?.message ||
+          "Failed to submit event"
+      );
+      setErrorAlert(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const containerStyle = isModal
     ? {
@@ -530,61 +454,106 @@ const CreateEvents = ({
         boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
       };
 
+  // IMPROVED DARK MODE STYLES - FIXED FOR VISIBILITY
   const darkModeStyles = {
     textField: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#2d2d2d" : "white",
-        color: isDarkMode ? "#ffffff" : "inherit",
+        bgcolor: isDarkMode ? "#ffffff" : "white", // WHITE background in dark mode for visibility
+        color: isDarkMode ? "#000000" : "#000000", // BLACK text always
         "& fieldset": {
           borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
         },
         "&:hover fieldset": {
-          borderColor: isDarkMode ? "#777" : "rgba(0, 0, 0, 0.87)",
+          borderColor: isDarkMode ? "#888" : "rgba(0, 0, 0, 0.87)",
+        },
+        "&.Mui-focused fieldset": {
+          borderColor: theme.palette.primary.main,
+        },
+        "& input": {
+          color: "#000000", // BLACK text for inputs
+          WebkitTextFillColor: "#000000", // Force black for autofill
+        },
+        "& textarea": {
+          color: "#000000", // BLACK text for textarea
+        },
+      },
+      "& .MuiInputLabel-root": {
+        color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.6)",
+        "&.Mui-focused": {
+          color: theme.palette.primary.main,
+        },
+        "&.MuiInputLabel-shrink": {
+          color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.6)",
+        },
+      },
+      "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+        color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.54)",
+      },
+      "& .MuiFormHelperText-root": {
+        color: isDarkMode ? "#ccc" : "rgba(0, 0, 0, 0.6)",
+        bgcolor: isDarkMode ? "transparent" : "transparent",
+        "&.Mui-error": {
+          color: isDarkMode ? "#ff6b6b" : "#d32f2f",
+        },
+      },
+    },
+    autocomplete: {
+      "& .MuiOutlinedInput-root": {
+        bgcolor: isDarkMode ? "#ffffff" : "white", // WHITE background
+        color: "#000000", // BLACK text
+        "& fieldset": {
+          borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
+        },
+        "&:hover fieldset": {
+          borderColor: isDarkMode ? "#888" : "rgba(0, 0, 0, 0.87)",
         },
         "&.Mui-focused fieldset": {
           borderColor: theme.palette.primary.main,
         },
       },
-      "& .MuiInputLabel-root": {
-        color: isDarkMode ? "#bbb" : "rgba(0, 0, 0, 0.6)",
-        "&.Mui-focused": {
-          color: theme.palette.primary.main,
-        },
-      },
-      "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-        color: isDarkMode ? "#bbb" : "rgba(0, 0, 0, 0.54)",
-      },
-    },
-    select: {
-      "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#2d2d2d" : "white",
-        color: isDarkMode ? "#ffffff" : "inherit",
+      "& .MuiAutocomplete-input": {
+        color: "#000000", // BLACK text
       },
       "& .MuiInputLabel-root": {
-        color: isDarkMode ? "#bbb" : "rgba(0, 0, 0, 0.6)",
+        color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.6)",
       },
     },
     formControlLabel: {
       "& .MuiFormControlLabel-label": {
-        color: isDarkMode ? "#ffffff" : "inherit",
+        color: isDarkMode ? "#ffffff" : "#000000",
+      },
+      "& .MuiCheckbox-root": {
+        color: isDarkMode ? "#888" : "rgba(0, 0, 0, 0.6)",
+        "&.Mui-checked": {
+          color: theme.palette.primary.main,
+        },
       },
     },
     button: {
       outlined: {
-        borderColor: isDarkMode ? "#555" : "primary.main",
-        color: isDarkMode ? "#ffffff" : "primary.main",
+        borderColor: isDarkMode ? "#555" : theme.palette.primary.main,
+        color: isDarkMode ? "#ffffff" : theme.palette.primary.main,
         "&:hover": {
-          borderColor: isDarkMode ? "#777" : "primary.dark",
+          borderColor: isDarkMode ? "#777" : theme.palette.primary.dark,
           bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(25,118,210,0.04)",
         },
       },
     },
     errorText: {
-      color: isDarkMode ? "#ff6b6b" : "red",
+      color: isDarkMode ? "#ff6b6b" : "#d32f2f",
+    },
+    card: {
+      bgcolor: isDarkMode ? "#2d2d2d" : "#f9f9f9",
+      border: isDarkMode ? "1px solid #444" : "1px solid #e0e0e0",
+    },
+    sectionTitle: {
+      color: isDarkMode ? "#ffffff" : "#000000",
+    },
+    helperText: {
+      color: isDarkMode ? "#ccc" : "#666",
     },
   };
 
-  // permission guard
   if (isGlobalEvent && !["admin", "registrant"].includes(user?.role)) {
     return (
       <Typography variant="h6" color="error" textAlign="center" mt={5}>
@@ -592,14 +561,6 @@ const CreateEvents = ({
       </Typography>
     );
   }
-
-  // ---------------------------
-  // END: logic portion — the next thing is `return` (render). 
-  // Paste your existing return UI code after this point.
-  // ---------------------------
-
-
-
 
   return (
     <Box sx={containerStyle}>
@@ -627,23 +588,23 @@ const CreateEvents = ({
               fontWeight="bold"
               textAlign="center"
               mb={4}
-              color="primary"
+              sx={{ color: isDarkMode ? "#ffffff" : theme.palette.primary.main }}
             >
               {eventId ? "Edit Event" : "Create New Event"}
             </Typography>
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Event Type */}
+            {/* Event Type - Read Only */}
             <TextField
+              label="Event Type"
               value={
-    // Normalize the value to always show the actual event type
-    (() => {
-      const et = formData.eventType;
-      if (!et) return "";
-      return typeof et === "string" ? et : et.name || "";
-    })()
-  }
+                (() => {
+                  const et = formData.eventType;
+                  if (!et) return "";
+                  return typeof et === "string" ? et : et.name || "";
+                })()
+              }
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
@@ -683,7 +644,7 @@ const CreateEvents = ({
                 >
                   <Typography
                     variant="h6"
-                    sx={{ color: isDarkMode ? "#ffffff" : "inherit" }}
+                    sx={darkModeStyles.sectionTitle}
                   >
                     Price Tiers *
                   </Typography>
@@ -700,8 +661,7 @@ const CreateEvents = ({
                 {errors.priceTiers && (
                   <Typography
                     variant="caption"
-                    color="error"
-                    sx={{ mb: 1, display: "block" }}
+                    sx={{ ...darkModeStyles.errorText, mb: 1, display: "block" }}
                   >
                     {errors.priceTiers}
                   </Typography>
@@ -713,7 +673,7 @@ const CreateEvents = ({
                     sx={{
                       mb: 2,
                       p: 2,
-                      bgcolor: isDarkMode ? "#2d2d2d" : "#f9f9f9",
+                      ...darkModeStyles.card,
                     }}
                   >
                     <Box
@@ -723,7 +683,11 @@ const CreateEvents = ({
                         mb: 2,
                       }}
                     >
-                      <Typography variant="subtitle2" fontWeight="bold">
+                      <Typography 
+                        variant="subtitle2" 
+                        fontWeight="bold"
+                        sx={{ color: isDarkMode ? "#ffffff" : "#000000" }}
+                      >
                         Price Tier {index + 1}
                       </Typography>
                       {priceTiers.length > 1 && (
@@ -766,7 +730,7 @@ const CreateEvents = ({
                     />
 
                     <TextField
-                      label="Age Group "
+                      label="Age Group"
                       value={tier.ageGroup}
                       onChange={(e) =>
                         handlePriceTierChange(index, "ageGroup", e.target.value)
@@ -779,7 +743,7 @@ const CreateEvents = ({
                     />
 
                     <TextField
-                      label="Member Type "
+                      label="Member Type"
                       value={tier.memberType}
                       onChange={(e) =>
                         handlePriceTierChange(
@@ -817,7 +781,7 @@ const CreateEvents = ({
                 {priceTiers.length === 0 && (
                   <Typography
                     variant="body2"
-                    color="text.secondary"
+                    sx={darkModeStyles.helperText}
                     textAlign="center"
                     py={2}
                   >
@@ -865,22 +829,31 @@ const CreateEvents = ({
               <Typography
                 fontWeight="bold"
                 mb={1}
-                sx={{ color: isDarkMode ? "#ffffff" : "inherit" }}
+                sx={darkModeStyles.sectionTitle}
               >
                 Recurring Days{" "}
                 {hasPersonSteps && !isGlobalEvent && (
-                  <span style={{ color: "red" }}>*</span>
+                  <span style={{ color: isDarkMode ? "#ff6b6b" : "red" }}>*</span>
                 )}
               </Typography>
               <Typography
                 variant="body2"
-                sx={{ color: isDarkMode ? "#bbb" : "#666", mb: 2 }}
+                sx={{ ...darkModeStyles.helperText, mb: 2 }}
               >
                 {hasPersonSteps && !isGlobalEvent
                   ? "Select the days this cell meets regularly"
                   : "Optional: Select days if this event repeats weekly"}
               </Typography>
-              <Box display="flex" flexWrap="wrap" gap={2}>
+              <Box 
+                display="flex" 
+                flexWrap="wrap" 
+                gap={2}
+                sx={{
+                  '& .MuiFormControlLabel-root': {
+                    margin: 0,
+                  }
+                }}
+              >
                 {days.map((day) => (
                   <FormControlLabel
                     key={day}
@@ -888,10 +861,25 @@ const CreateEvents = ({
                       <Checkbox
                         checked={formData.recurringDays.includes(day)}
                         onChange={() => handleDayChange(day)}
+                        sx={{
+                          color: isDarkMode ? '#888' : 'rgba(0, 0, 0, 0.6)',
+                          '&.Mui-checked': {
+                            color: theme.palette.primary.main,
+                          },
+                          '& .MuiSvgIcon-root': {
+                            fontSize: 24,
+                          }
+                        }}
                       />
                     }
                     label={day}
-                    sx={darkModeStyles.formControlLabel}
+                    sx={{
+                      '& .MuiFormControlLabel-label': {
+                        color: isDarkMode ? '#000000' : '#000000',
+                        fontSize: '0.95rem',
+                        fontWeight: 500,
+                      }
+                    }}
                   />
                 ))}
               </Box>
@@ -921,6 +909,7 @@ const CreateEvents = ({
               }}
             />
 
+            {/* Event Leader with Autocomplete */}
             <Autocomplete
               freeSolo
               filterOptions={(options) => options}
@@ -939,6 +928,10 @@ const CreateEvents = ({
                 <li
                   {...props}
                   key={option.id || option.fullName || Math.random()}
+                  style={{
+                    backgroundColor: isDarkMode ? "#2d2d2d" : "white",
+                    color: isDarkMode ? "#ffffff" : "#000000",
+                  }}
                 >
                   {option.fullName}
                 </li>
@@ -950,7 +943,6 @@ const CreateEvents = ({
                       (p) => p.fullName === formData.eventLeader
                     ) || ""
               }
-              // FIXED: Improved auto-fill logic
               onChange={(event, newValue) => {
                 if (newValue) {
                   const name =
@@ -958,11 +950,7 @@ const CreateEvents = ({
                       ? newValue
                       : newValue?.fullName || "";
 
-                  // For Personal Steps events (hasPersonSteps), auto-fill leaders
-                  if (
-                    hasPersonSteps &&
-                    !isGlobalEvent
-                  ) {
+                  if (hasPersonSteps && !isGlobalEvent) {
                     console.log(
                       "🔄 Auto-filling leaders for Personal Steps event:",
                       {
@@ -980,22 +968,17 @@ const CreateEvents = ({
                       leader1: newValue.leader1 || "",
                       leader12: newValue.leader12 || "",
                     }));
-                  }
-                  // For regular Cell events, just set event name
-                  else if (hasPersonSteps && !isGlobalEvent) {
+                  } else if (hasPersonSteps && !isGlobalEvent) {
                     setFormData((prev) => ({
                       ...prev,
                       eventLeader: name,
                       eventName: name,
                     }));
-                  }
-                  // For other event types, just set the leader
-                  else {
+                  } else {
                     handleChange("eventLeader", name);
                   }
                 } else {
                   handleChange("eventLeader", "");
-                  // Clear auto-filled fields if leader is cleared
                   if (hasPersonSteps && !isGlobalEvent) {
                     setFormData((prev) => ({
                       ...prev,
@@ -1013,13 +996,34 @@ const CreateEvents = ({
                   fetchPeople("");
                 }
               }}
+              sx={{
+                ...darkModeStyles.autocomplete,
+                mb: 3,
+              }}
+              componentsProps={{
+                paper: {
+                  sx: {
+                    bgcolor: isDarkMode ? "#2d2d2d" : "white",
+                    color: isDarkMode ? "#ffffff" : "#000000",
+                    "& .MuiAutocomplete-option": {
+                      color: isDarkMode ? "#ffffff" : "#000000",
+                      "&:hover": {
+                        bgcolor: isDarkMode ? "#404040" : "#f5f5f5",
+                      },
+                      '&[aria-selected="true"]': {
+                        bgcolor: isDarkMode ? "#404040" : "#e3f2fd",
+                      },
+                    },
+                  },
+                },
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}
                   label="Event Leader"
                   size="small"
                   required
-                  sx={{ mb: 3, ...darkModeStyles.textField }}
+                  sx={darkModeStyles.textField}
                   error={!!errors.eventLeader}
                   helperText={
                     errors.eventLeader ||
@@ -1043,9 +1047,10 @@ const CreateEvents = ({
                 />
               )}
             />
-            {hasPersonSteps && !isGlobalEvent &&(
+
+            {/* Leader Hierarchy for Personal Steps Events */}
+            {hasPersonSteps && !isGlobalEvent && (
               <>
-                {/* Leader @1 - READ ONLY, AUTO-FILLED */}
                 <TextField
                   label="Leader @1"
                   value={formData.leader1 || ""}
@@ -1069,7 +1074,6 @@ const CreateEvents = ({
                   placeholder="Will be auto-filled when Event Leader is selected"
                 />
 
-                {/* Leader @12 - READ ONLY, AUTO-FILLED */}
                 <TextField
                   label="Leader @12"
                   value={formData.leader12 || ""}
@@ -1095,7 +1099,7 @@ const CreateEvents = ({
               </>
             )}
 
-            {/* ADD THIS: Event Type Badges for Visual Feedback */}
+            {/* Event Type Badges */}
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
               {isTicketedEvent && (
                 <Chip
@@ -1130,6 +1134,7 @@ const CreateEvents = ({
                 />
               )}
             </Box>
+
             {/* Description */}
             <TextField
               label="Description"
@@ -1151,7 +1156,7 @@ const CreateEvents = ({
               }}
             />
 
-            {/* Buttons */}
+            {/* Action Buttons */}
             <Box display="flex" gap={2} sx={{ mt: 3 }}>
               <Button
                 variant="outlined"
@@ -1175,7 +1180,12 @@ const CreateEvents = ({
                 disabled={isSubmitting}
                 sx={{
                   bgcolor: "primary.main",
+                  color: "#ffffff",
                   "&:hover": { bgcolor: "primary.dark" },
+                  "&:disabled": {
+                    bgcolor: isDarkMode ? "#333" : "#ccc",
+                    color: isDarkMode ? "#666" : "#999",
+                  },
                 }}
               >
                 {isSubmitting
@@ -1196,7 +1206,14 @@ const CreateEvents = ({
             onClose={() => setSuccessAlert(false)}
             anchorOrigin={{ vertical: "top", horizontal: "center" }}
           >
-            <Alert severity="success" variant="filled">
+            <Alert 
+              severity="success" 
+              variant="filled"
+              sx={{
+                bgcolor: "#4caf50",
+                color: "#ffffff",
+              }}
+            >
               {successMessage}
             </Alert>
           </Snackbar>
@@ -1208,7 +1225,14 @@ const CreateEvents = ({
             onClose={() => setErrorAlert(false)}
             anchorOrigin={{ vertical: "top", horizontal: "center" }}
           >
-            <Alert severity="error" variant="filled">
+            <Alert 
+              severity="error" 
+              variant="filled"
+              sx={{
+                bgcolor: "#f44336",
+                color: "#ffffff",
+              }}
+            >
               {errorMessage}
             </Alert>
           </Snackbar>
@@ -1216,7 +1240,6 @@ const CreateEvents = ({
       </Card>
     </Box>
   );
-  
 };
 
 export default CreateEvents;
