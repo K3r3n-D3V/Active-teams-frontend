@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -94,7 +95,7 @@ function ServiceCheckIn() {
   const [consolidatedModalOpen, setConsolidatedModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
   const [consolidationOpen, setConsolidationOpen] = useState(false);
-  
+
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
@@ -112,14 +113,14 @@ function ServiceCheckIn() {
   const [consolidatedSearch, setConsolidatedSearch] = useState("");
   const [consolidatedPage, setConsolidatedPage] = useState(0);
   const [consolidatedRowsPerPage, setConsolidatedRowsPerPage] = useState(100);
-  
+
   const [activeTab, setActiveTab] = useState(0);
 
   // State for event history details modals
   const [eventHistoryDetails, setEventHistoryDetails] = useState({
     open: false,
     event: null,
-    type: null, // 'attendance', 'newPeople', 'consolidated'
+    type: null,
     data: []
   });
 
@@ -158,30 +159,27 @@ function ServiceCheckIn() {
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
-  // Filter events to only show global and open events (for dropdown)
   const getFilteredEvents = () => {
     console.log('🎯 Available events for dropdown:', events);
     return events.filter(event => {
       const isGlobal = event.isGlobal === true;
       const isOpen = event.status?.toLowerCase() !== 'closed';
       const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-      
+
       return isGlobal && isOpen && isNotCell;
     });
   };
 
-  // Get closed events for event history (global events only)
   const getClosedEvents = () => {
     return events.filter(event => {
       const isClosed = event.status?.toLowerCase() === 'closed';
       const isGlobal = event.isGlobal === true;
       const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-      
+
       return isClosed && isGlobal && isNotCell;
     });
   };
 
-  // Set default event when events are loaded
   useEffect(() => {
     if (events.length > 0 && !currentEventId) {
       const filteredEvents = getFilteredEvents();
@@ -193,10 +191,9 @@ function ServiceCheckIn() {
     }
   }, [events]);
 
-  // FIXED: Improved function to load event check-ins
   const loadEventCheckIns = async () => {
     if (!currentEventId) return;
-    
+
     try {
       console.log('🔄 Loading check-ins for event:', currentEventId);
       const token = localStorage.getItem("token");
@@ -209,22 +206,18 @@ function ServiceCheckIn() {
       const checkedInPeople = toArray(response.data);
       console.log('✅ Raw checked-in people from API:', checkedInPeople);
 
-      // Create a map of all attendees by different identifiers for better matching
       const attendeeMap = new Map();
-      
+
       attendees.forEach(attendee => {
-        // Map by ID
         if (attendee._id) {
           attendeeMap.set(attendee._id, attendee._id);
         }
-        
-        // Map by name (case insensitive)
+
         if (attendee.name) {
           const nameKey = `${attendee.name.toLowerCase()} ${attendee.surname?.toLowerCase() || ''}`.trim();
           attendeeMap.set(nameKey, attendee._id);
         }
-        
-        // Map by email (if available)
+
         if (attendee.email) {
           attendeeMap.set(attendee.email.toLowerCase(), attendee._id);
         }
@@ -232,17 +225,13 @@ function ServiceCheckIn() {
 
       console.log('📋 Attendee map:', attendeeMap);
 
-      // Find matching attendee IDs
       const checkedInIds = checkedInPeople
         .map((person) => {
-          // Try to match by different identifiers
           let matchedId = null;
-          
-          // Try by ID first
+
           if (person._id && attendeeMap.has(person._id)) {
             matchedId = attendeeMap.get(person._id);
           }
-          // Try by name
           else if (person.name || person.Name) {
             const name = person.name || person.Name;
             const surname = person.surname || person.Surname || '';
@@ -251,7 +240,6 @@ function ServiceCheckIn() {
               matchedId = attendeeMap.get(nameKey);
             }
           }
-          // Try by email
           else if (person.email || person.Email) {
             const email = (person.email || person.Email).toLowerCase();
             if (attendeeMap.has(email)) {
@@ -267,9 +255,9 @@ function ServiceCheckIn() {
       console.log('✅ Final checked-in IDs:', checkedInIds);
 
       if (checkedInIds.length > 0) {
-        setEventCheckIns((prev) => ({ 
-          ...prev, 
-          [currentEventId]: [...new Set([...(prev[currentEventId] || []), ...checkedInIds])] 
+        setEventCheckIns((prev) => ({
+          ...prev,
+          [currentEventId]: [...new Set([...(prev[currentEventId] || []), ...checkedInIds])]
         }));
         toast.success(`Loaded ${checkedInIds.length} previously checked-in attendees`);
       } else {
@@ -277,7 +265,6 @@ function ServiceCheckIn() {
       }
     } catch (error) {
       console.error('❌ Error loading event check-ins:', error);
-      // Fallback to localStorage
       const storedCheckIns = eventCheckIns[currentEventId] || [];
       if (storedCheckIns.length > 0) {
         console.log('🔄 Using stored check-ins from localStorage');
@@ -285,7 +272,6 @@ function ServiceCheckIn() {
     }
   };
 
-  // Enhanced useEffect to load check-ins when event changes
   useEffect(() => {
     if (currentEventId && attendees.length > 0) {
       console.log('🎯 Event changed or attendees loaded, loading check-ins...');
@@ -293,14 +279,12 @@ function ServiceCheckIn() {
     }
   }, [currentEventId, attendees]);
 
-  // Save and Close Event function
   const handleSaveAndCloseEvent = async () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
       return;
     }
 
-    // Confirm before closing
     if (!window.confirm("Are you sure you want to close this event? This action cannot be undone.")) {
       return;
     }
@@ -308,8 +292,7 @@ function ServiceCheckIn() {
     setIsClosingEvent(true);
     try {
       const token = localStorage.getItem("token");
-      
-      // Update event status to closed
+
       await axios.patch(
         `${BASE_URL}/events/${currentEventId}`,
         { status: "closed" },
@@ -320,16 +303,14 @@ function ServiceCheckIn() {
         }
       );
 
-      // Update local events state
-      setEvents(prev => prev.map(event => 
-        event.id === currentEventId 
+      setEvents(prev => prev.map(event =>
+        event.id === currentEventId
           ? { ...event, status: "closed" }
           : event
       ));
 
       toast.success("Event closed successfully!");
-      
-      // Clear current event selection
+
       setCurrentEventId("");
       localStorage.removeItem("currentEventId");
 
@@ -341,13 +322,11 @@ function ServiceCheckIn() {
     }
   };
 
-  // Event History Handlers
   const handleViewEventDetails = async (eventId) => {
     try {
       const event = events.find(e => e.id === eventId);
       if (!event) return;
 
-      // Fetch attendance data for this event
       const token = localStorage.getItem("token");
       const response = await axios.get(`${BASE_URL}/events/${eventId}/checkins`, {
         headers: {
@@ -356,7 +335,7 @@ function ServiceCheckIn() {
       });
 
       const attendanceData = toArray(response.data);
-      
+
       setEventHistoryDetails({
         open: true,
         event: event,
@@ -375,12 +354,11 @@ function ServiceCheckIn() {
       const event = events.find(e => e.id === eventId);
       if (!event) return;
 
-      // Get new people for this event from localStorage
       const newPeopleIds = eventNewPeople[eventId] || [];
-      const newPeopleData = attendees.filter(attendee => 
+      const newPeopleData = attendees.filter(attendee =>
         newPeopleIds.includes(attendee._id)
       );
-      
+
       setEventHistoryDetails({
         open: true,
         event: event,
@@ -399,7 +377,6 @@ function ServiceCheckIn() {
       const event = events.find(e => e.id === eventId);
       if (!event) return;
 
-      // Fetch consolidated people for this event
       const token = localStorage.getItem("token");
       let consolidatedData = [];
 
@@ -433,12 +410,10 @@ function ServiceCheckIn() {
     }
   };
 
-  // Debug effect for consolidatedPeople
   useEffect(() => {
     console.log("🔄 Consolidated people updated:", consolidatedPeople.length, consolidatedPeople);
   }, [consolidatedPeople]);
 
-  // Debug effect for consolidation modal
   useEffect(() => {
     if (!consolidationOpen && currentEventId) {
       console.log("🔍 Consolidation modal closed, refreshing data...");
@@ -449,7 +424,7 @@ function ServiceCheckIn() {
   useEffect(() => {
     const dataLoaded = localStorage.getItem("serviceCheckInDataLoaded") === "true";
     const hasCachedData = localStorage.getItem("attendees") && localStorage.getItem("events");
-    
+
     if (dataLoaded && hasCachedData) {
       setHasDataLoaded(true);
       setIsLoadingPeople(false);
@@ -485,19 +460,19 @@ function ServiceCheckIn() {
     Array.isArray(resData)
       ? resData
       : Array.isArray(resData?.results)
-      ? resData.results
-      : Array.isArray(resData?.events)
-      ? resData.events
-      : [];
+        ? resData.results
+        : Array.isArray(resData?.events)
+          ? resData.events
+          : [];
 
   const getAttendeesWithPresentStatus = () => {
     const currentEventCheckIns = eventCheckIns[currentEventId] || [];
     console.log('📊 Current event check-ins:', currentEventCheckIns);
-    
+
     return attendees.map((attendee) => ({
       ...attendee,
       present: currentEventCheckIns.includes(attendee._id),
-      id: attendee._id, // DataGrid requires 'id' field
+      id: attendee._id,
     }));
   };
 
@@ -514,7 +489,6 @@ function ServiceCheckIn() {
 
       console.log("🔄 Fetching consolidated people for event:", currentEventId);
 
-      // FIRST: Try the consolidations endpoint with event_id parameter
       try {
         console.log("📊 Calling consolidations endpoint...");
         const response = await axios.get(`${BASE_URL}/consolidations`, {
@@ -538,7 +512,6 @@ function ServiceCheckIn() {
         console.log("❌ Consolidations endpoint failed:", error.message);
       }
 
-      // SECOND: If no consolidations found, try the event-specific consolidations endpoint
       if (consolidatedData.length === 0) {
         try {
           console.log("📊 Trying event-specific consolidations endpoint...");
@@ -559,7 +532,6 @@ function ServiceCheckIn() {
         }
       }
 
-      // THIRD: If still no data, check if there are any consolidation tasks
       if (consolidatedData.length === 0) {
         try {
           console.log("📊 Checking for consolidation tasks...");
@@ -596,20 +568,19 @@ function ServiceCheckIn() {
         }
       }
 
-      // FOURTH: Check event attendees for consolidation flags
       if (consolidatedData.length === 0) {
         try {
           console.log("📊 Checking event attendees for consolidation flags...");
           const eventResponse = await axios.get(`${BASE_URL}/events/${currentEventId}`);
           const event = eventResponse.data;
-          
-          const consolidatedAttendees = event.attendees?.filter(attendee => 
-            attendee.is_consolidation || 
-            attendee.consolidation_id || 
+
+          const consolidatedAttendees = event.attendees?.filter(attendee =>
+            attendee.is_consolidation ||
+            attendee.consolidation_id ||
             attendee.decision ||
             attendee.decision_type
           ) || [];
-          
+
           if (consolidatedAttendees.length > 0) {
             consolidatedData = consolidatedAttendees.map(attendee => ({
               _id: attendee.consolidation_id || attendee.id,
@@ -632,7 +603,7 @@ function ServiceCheckIn() {
 
       console.log("✅ Final consolidated data:", consolidatedData);
       setConsolidatedPeople(consolidatedData);
-      
+
     } catch (error) {
       console.error("💥 Error fetching consolidated people:", error);
       setConsolidatedPeople([]);
@@ -668,30 +639,28 @@ function ServiceCheckIn() {
         }
 
         const data = await response.json();
-        
-        console.log('📋 Raw events data:', data); // Debug log
-        
-        // Filter for global, open, non-cell events
+
+        console.log('📋 Raw events data:', data);
+
         const filteredEvents = (data.events || []).filter(event => {
           const isGlobal = event.isGlobal === true;
           const isOpen = event.status?.toLowerCase() !== 'closed';
           const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-          
+
           console.log(`🔍 Event: ${event.eventName}`, {
             isGlobal,
-            isOpen, 
+            isOpen,
             isNotCell,
             eventType: event.eventType,
             status: event.status,
             isGlobalFlag: event.isGlobal
           });
-          
+
           return isGlobal && isOpen && isNotCell;
         });
 
         console.log('✅ Filtered events:', filteredEvents);
 
-        // Transform the events for dropdown
         const transformedEvents = filteredEvents.map(event => ({
           id: event._id || event.id,
           eventName: event.eventName || event.name || "Unnamed Event",
@@ -703,7 +672,7 @@ function ServiceCheckIn() {
         }));
 
         setEvents(transformedEvents);
-        
+
       } catch (err) {
         console.error('❌ Error fetching events:', err);
         toast.error(err.response?.data?.detail || "Failed to fetch events");
@@ -723,10 +692,13 @@ function ServiceCheckIn() {
       try {
         let allPeople = [];
         let page = 1;
-        const perPage = 200;
+        const perPage = 50; // REDUCED from 200 to 50 for faster initial load
         let total = Infinity;
 
-        while (allPeople.length < total) {
+        // Only fetch first 2 pages initially (100 people)
+        const maxInitialPages = 2;
+
+        while (allPeople.length < total && page <= maxInitialPages) {
           const res = await axios.get(
             `${BASE_URL}/people?page=${page}&perPage=${perPage}`
           );
@@ -753,9 +725,16 @@ function ServiceCheckIn() {
         }
 
         setAttendees(allPeople);
-        
+
         localStorage.setItem("serviceCheckInDataLoaded", "true");
         setHasDataLoaded(true);
+
+        // Load remaining people in background if needed
+        if (allPeople.length < total) {
+          setTimeout(() => {
+            fetchRemainingPeople(page, perPage, total, allPeople);
+          }, 1000);
+        }
       } catch (err) {
         console.error(err);
         toast.error(err.response?.data?.detail || err.message);
@@ -767,6 +746,41 @@ function ServiceCheckIn() {
     fetchAllPeople();
   }, [hasDataLoaded]);
 
+  const fetchRemainingPeople = async (startPage, perPage, total, currentPeople) => {
+    try {
+      let allPeople = [...currentPeople];
+      let page = startPage;
+
+      while (allPeople.length < total) {
+        const res = await axios.get(
+          `${BASE_URL}/people?page=${page}&perPage=${perPage}`
+        );
+        const results = toArray(res.data);
+        const peoplePage = results.map((p) => ({
+          _id: p._id || p.id || `${p.Email || p.Name || ""}-${page}`,
+          name: p.Name || p.name || "",
+          surname: p.Surname || p.surname || "",
+          email: p.Email || p.email || "",
+          phone: p.Number || p.Phone || p.phone || "",
+          leader1: p["Leader @1"] || p.leader1 || "",
+          leader12: p["Leader @12"] || p.leader12 || "",
+          leader144: p["Leader @144"] || p.leader144 || "",
+        }));
+
+        allPeople = allPeople.concat(peoplePage);
+
+        setAttendees([...allPeople]);
+
+        if (results.length === 0) break;
+        page += 1;
+      }
+
+      console.log(`✅ Loaded all ${allPeople.length} people in background`);
+    } catch (err) {
+      console.error("Background fetch error:", err);
+    }
+  };
+
   const handleConsolidationClick = () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
@@ -774,32 +788,28 @@ function ServiceCheckIn() {
     }
     setConsolidationOpen(true);
   };
-  
+
   const handleFinishConsolidation = async (task) => {
     console.log("🎯 Consolidation task completed:", task);
-    
+
     if (currentEventId) {
       try {
-        // Close the consolidation modal first
         setConsolidationOpen(false);
-        
-        // Show immediate feedback
+
         toast.success(`Consolidation task created for ${task.recipientName}`);
-        
-        // Wait a bit for the backend to process, then refresh
+
         setTimeout(async () => {
           console.log("🔄 Refreshing consolidated people list...");
           await fetchConsolidatedPeople();
-          
-          // Also update the stats counter
+
           setEventConsolidations((prev) => ({
             ...prev,
             [currentEventId]: (prev[currentEventId] || 0) + 1,
           }));
-          
+
           console.log("✅ Consolidated people list refreshed");
-        }, 2000); // Increased timeout to ensure backend has processed
-        
+        }, 2000);
+
       } catch (error) {
         console.error("❌ Error in consolidation completion:", error);
         toast.error("Task created but failed to refresh list");
@@ -826,7 +836,6 @@ function ServiceCheckIn() {
   };
 
   const handlePersonSave = (responseData) => {
-    // Check if event is selected before allowing save
     if (!currentEventId) {
       toast.error("Please select an event first before adding people");
       return;
@@ -858,22 +867,21 @@ function ServiceCheckIn() {
 
     if (isNew) {
       setFirstTimeAddedIds((prev) => [...prev, newPersonId]);
-      
+
       if (currentEventId) {
         setEventNewPeople((prev) => ({
           ...prev,
           [currentEventId]: [...(prev[currentEventId] || []), newPersonId],
         }));
       }
-      
+
       setPage(0);
       toast.success(`${newPerson.name} ${newPerson.surname} added successfully!`);
-      
-      // Remove "First Time" tag at end of day (midnight)
+
       const now = new Date();
       const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
       const timeUntilMidnight = endOfDay.getTime() - now.getTime();
-      
+
       setTimeout(() => {
         setFirstTimeAddedIds((prev) => prev.filter((id) => id !== newPersonId));
       }, timeUntilMidnight);
@@ -935,11 +943,11 @@ function ServiceCheckIn() {
 
   const attendeesWithStatus = getAttendeesWithPresentStatus();
 
-  const newPeopleForEvent = currentEventId && eventNewPeople[currentEventId] 
+  const newPeopleForEvent = currentEventId && eventNewPeople[currentEventId]
     ? attendeesWithStatus.filter(a => eventNewPeople[currentEventId].includes(a._id))
     : [];
 
-  const consolidationsForEvent = currentEventId && eventConsolidations[currentEventId] 
+  const consolidationsForEvent = currentEventId && eventConsolidations[currentEventId]
     ? eventConsolidations[currentEventId]
     : 0;
 
@@ -991,7 +999,6 @@ function ServiceCheckIn() {
     newPeoplePage * newPeopleRowsPerPage + newPeopleRowsPerPage
   );
 
-  // Filter consolidated people
   const filteredConsolidatedPeople = consolidatedPeople.filter((person) => {
     const lc = consolidatedSearch.toLowerCase();
     const searchString = `${person.name || ''} ${person.surname || ''} ${person.email || ''} ${person.phone || ''} ${person.assigned_to || ''} ${person.decision_type || ''}`.toLowerCase();
@@ -1003,14 +1010,12 @@ function ServiceCheckIn() {
     consolidatedPage * consolidatedRowsPerPage + consolidatedRowsPerPage
   );
 
-  // Add this useEffect to debug the consolidation data flow
   useEffect(() => {
     console.log("🔍 DEBUG: Current Event ID:", currentEventId);
     console.log("🔍 DEBUG: Consolidated People Count:", consolidatedPeople.length);
     console.log("🔍 DEBUG: Consolidated People Data:", consolidatedPeople);
   }, [currentEventId, consolidatedPeople]);
 
-  // Handle Add Person button click
   const handleAddPersonClick = () => {
     if (!currentEventId) {
       toast.error("Please select an event first before adding people");
@@ -1078,7 +1083,6 @@ function ServiceCheckIn() {
     </Card>
   );
 
-  // Consolidated Person Card Component
   const ConsolidatedPersonCard = ({ person, showNumber, index }) => (
     <Card
       variant="outlined"
@@ -1095,11 +1099,11 @@ function ServiceCheckIn() {
           <Box flex={1}>
             <Typography variant="subtitle2" fontWeight={600}>
               {showNumber && `${index}. `}{person.name || person.person_name} {person.surname || person.person_surname}
-              <Chip 
-                label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'} 
-                size="small" 
-                sx={{ ml: 1, fontSize: "0.7rem", height: 20 }} 
-                color="secondary" 
+              <Chip
+                label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
+                size="small"
+                sx={{ ml: 1, fontSize: "0.7rem", height: 20 }}
+                color="secondary"
               />
             </Typography>
             {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
@@ -1108,9 +1112,9 @@ function ServiceCheckIn() {
         </Box>
 
         <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
-          <Chip 
-            label={`Assigned to: ${person.assigned_to || person.assignedTo || 'Not assigned'}`} 
-            size="small" 
+          <Chip
+            label={`Assigned to: ${person.assigned_to || person.assignedTo || 'Not assigned'}`}
+            size="small"
             variant="outlined"
             color="primary"
           />
@@ -1124,19 +1128,19 @@ function ServiceCheckIn() {
                 <Chip label={`Date: ${person.decision_date}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
               )}
               {person.decision_type && (
-                <Chip 
-                  label={`Type: ${person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}`} 
-                  size="small" 
-                  variant="outlined" 
-                  sx={{ fontSize: "0.7rem", height: 20 }} 
+                <Chip
+                  label={`Type: ${person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}`}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontSize: "0.7rem", height: 20 }}
                 />
               )}
               {person.status && (
-                <Chip 
-                  label={`Status: ${person.status}`} 
-                  size="small" 
+                <Chip
+                  label={`Status: ${person.status}`}
+                  size="small"
                   color={person.status === 'completed' ? 'success' : 'default'}
-                  sx={{ fontSize: "0.7rem", height: 20 }} 
+                  sx={{ fontSize: "0.7rem", height: 20 }}
                 />
               )}
             </Stack>
@@ -1146,12 +1150,11 @@ function ServiceCheckIn() {
     </Card>
   );
 
-  // DataGrid columns for main attendees table (desktop only)
   const mainColumns = [
-    { 
-      field: 'name', 
-      headerName: 'Name', 
-      flex: 1, 
+    {
+      field: 'name',
+      headerName: 'Name',
+      flex: 1,
       minWidth: 150,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
@@ -1182,9 +1185,9 @@ function ServiceCheckIn() {
           <IconButton size="small" color="primary" onClick={() => handleEditClick(params.row)}>
             <EditIcon fontSize="small" />
           </IconButton>
-          <IconButton 
-            size="small" 
-            color="success" 
+          <IconButton
+            size="small"
+            color="success"
             disabled={!currentEventId}
             onClick={() => handleToggleCheckIn(params.row)}
           >
@@ -1195,7 +1198,6 @@ function ServiceCheckIn() {
     }
   ];
 
-  // Event History Details Modal
   const EventHistoryDetailsModal = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(0);
@@ -1239,10 +1241,10 @@ function ServiceCheckIn() {
     };
 
     return (
-      <Dialog 
-        open={eventHistoryDetails.open} 
+      <Dialog
+        open={eventHistoryDetails.open}
         onClose={() => setEventHistoryDetails(prev => ({ ...prev, open: false }))}
-        fullWidth 
+        fullWidth
         maxWidth="lg"
         PaperProps={{
           sx: {
@@ -1283,9 +1285,9 @@ function ServiceCheckIn() {
                     {item.phone && <Typography variant="body2" color="text.secondary">{item.phone}</Typography>}
                     {eventHistoryDetails.type === 'consolidated' && (
                       <>
-                        <Chip 
-                          label={item.decision_type === 'first_time' ? 'First Time' : 'Recommitment'} 
-                          size="small" 
+                        <Chip
+                          label={item.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
+                          size="small"
                           sx={{ mt: 0.5 }}
                           color="secondary"
                         />
@@ -1329,17 +1331,17 @@ function ServiceCheckIn() {
                     ) : (
                       <>
                         <TableCell>
-                          <Chip 
-                            label={item.decision_type === 'first_time' ? 'First Time' : 'Recommitment'} 
-                            size="small" 
+                          <Chip
+                            label={item.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
+                            size="small"
                             color="secondary"
                           />
                         </TableCell>
                         <TableCell>{item.assigned_to || "Not assigned"}</TableCell>
                         <TableCell>
-                          <Chip 
-                            label={item.status || 'Active'} 
-                            size="small" 
+                          <Chip
+                            label={item.status || 'Active'}
+                            size="small"
                             color={item.status === 'completed' ? 'success' : 'default'}
                           />
                         </TableCell>
@@ -1371,9 +1373,9 @@ function ServiceCheckIn() {
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button 
-            onClick={() => setEventHistoryDetails(prev => ({ ...prev, open: false }))} 
-            variant="outlined" 
+          <Button
+            onClick={() => setEventHistoryDetails(prev => ({ ...prev, open: false }))}
+            variant="outlined"
             size={isSmDown ? "small" : "medium"}
           >
             Close
@@ -1383,20 +1385,17 @@ function ServiceCheckIn() {
     );
   };
 
-  // Enhanced Skeleton Loader
   const SkeletonLoader = () => (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
       <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
-      
-      {/* Skeleton for title */}
-      <Skeleton 
-        variant="text" 
-        width="60%" 
-        height={getResponsiveValue(32, 40, 48, 56, 56)} 
-        sx={{ mx: 'auto', mb: cardSpacing, borderRadius: 1 }} 
+
+      <Skeleton
+        variant="text"
+        width="60%"
+        height={getResponsiveValue(32, 40, 48, 56, 56)}
+        sx={{ mx: 'auto', mb: cardSpacing, borderRadius: 1 }}
       />
-      
-      {/* Skeleton for stats cards */}
+
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
         {[1, 2, 3].map((item) => (
           <Grid item xs={6} sm={6} md={3} key={item}>
@@ -1411,7 +1410,6 @@ function ServiceCheckIn() {
         ))}
       </Grid>
 
-      {/* Skeleton for controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={6} md={4}>
           <Skeleton variant="rounded" height={getResponsiveValue(36, 40, 44, 48, 52)} sx={{ borderRadius: 1, boxShadow: 2 }} />
@@ -1427,7 +1425,6 @@ function ServiceCheckIn() {
         </Grid>
       </Grid>
 
-      {/* Skeleton for tabs */}
       <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, p: 1 }}>
         <Stack direction="row" spacing={2}>
           <Skeleton variant="rounded" width={120} height={36} sx={{ borderRadius: 1 }} />
@@ -1435,12 +1432,10 @@ function ServiceCheckIn() {
         </Stack>
       </Paper>
 
-      {/* Skeleton for main content area */}
       {isMdDown ? (
-        // Mobile skeleton - card view
         <Box>
-          <Box sx={{ 
-            maxHeight: 500, 
+          <Box sx={{
+            maxHeight: 500,
             overflowY: "auto",
             border: `1px solid ${theme.palette.divider}`,
             borderRadius: 1,
@@ -1475,7 +1470,6 @@ function ServiceCheckIn() {
           </Box>
         </Box>
       ) : (
-        // Desktop skeleton - table view
         <Paper variant="outlined" sx={{ height: 600, boxShadow: 3, p: 2 }}>
           <Skeleton variant="rounded" width="100%" height={40} sx={{ mb: 2, borderRadius: 1 }} />
           <Skeleton variant="rounded" width="100%" height={400} sx={{ borderRadius: 1 }} />
@@ -1492,15 +1486,15 @@ function ServiceCheckIn() {
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
       <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
-      
+
       {/* Stats Cards */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
         <Grid item xs={6} sm={6} md={3}>
           <Paper
             variant="outlined"
-            sx={{ 
-              p: getResponsiveValue(1.5, 2, 2.5, 3, 3), 
-              textAlign: "center", 
+            sx={{
+              p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
+              textAlign: "center",
               cursor: "pointer",
               boxShadow: 3,
               "&:hover": { boxShadow: 6, transform: "translateY(-2px)" },
@@ -1518,10 +1512,10 @@ function ServiceCheckIn() {
           </Paper>
         </Grid>
         <Grid item xs={6} sm={6} md={3}>
-          <Paper 
-            variant="outlined" 
-            sx={{ 
-              p: getResponsiveValue(1.5, 2, 2.5, 3, 3), 
+          <Paper
+            variant="outlined"
+            sx={{
+              p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
               textAlign: "center",
               cursor: "pointer",
               boxShadow: 3,
@@ -1542,10 +1536,10 @@ function ServiceCheckIn() {
           </Paper>
         </Grid>
         <Grid item xs={6} sm={6} md={3}>
-          <Paper 
-            variant="outlined" 
-            sx={{ 
-              p: getResponsiveValue(1.5, 2, 2.5, 3, 3), 
+          <Paper
+            variant="outlined"
+            sx={{
+              p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
               textAlign: "center",
               cursor: "pointer",
               boxShadow: 3,
@@ -1565,52 +1559,17 @@ function ServiceCheckIn() {
             </Typography>
           </Paper>
         </Grid>
-        
-        {/* Save & Close Event Button Card */}
-        <Grid item xs={6} sm={6} md={3}>
-          <Paper 
-            variant="outlined" 
-            sx={{ 
-              p: getResponsiveValue(1.5, 2, 2.5, 3, 3), 
-              textAlign: "center",
-              cursor: currentEventId ? "pointer" : "not-allowed",
-              boxShadow: 3,
-              "&:hover": currentEventId ? { boxShadow: 6, transform: "translateY(-2px)" } : {},
-              transition: "all 0.2s",
-              opacity: currentEventId ? 1 : 0.5
-            }}
-            onClick={currentEventId ? handleSaveAndCloseEvent : undefined}
-          >
-            <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-              {isClosingEvent ? (
-                <Skeleton variant="circular" width={getResponsiveValue(20, 24, 28, 32, 32)} height={getResponsiveValue(20, 24, 28, 32, 32)} />
-              ) : (
-                <SaveIcon color={currentEventId ? "primary" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              )}
-              <Typography 
-                variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
-                fontWeight={600} 
-                color={currentEventId ? "primary" : "text.disabled"}
-              >
-                {isClosingEvent ? "..." : "Save & Close"}
-              </Typography>
-            </Stack>
-            <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
-              Close Event
-            </Typography>
-          </Paper>
-        </Grid>
       </Grid>
 
       {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={6} md={4}>
           {/* Event Selection Dropdown */}
-          <Select 
-            size={getResponsiveValue("small", "small", "medium", "medium", "medium")} 
-            value={currentEventId} 
-            onChange={(e) => setCurrentEventId(e.target.value)} 
-            displayEmpty 
+          <Select
+            size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+            value={currentEventId}
+            onChange={(e) => setCurrentEventId(e.target.value)}
+            displayEmpty
             fullWidth
             sx={{ boxShadow: 2 }}
           >
@@ -1641,12 +1600,12 @@ function ServiceCheckIn() {
           </Select>
         </Grid>
         <Grid item xs={12} sm={6} md={5}>
-          <TextField 
-            size={getResponsiveValue("small", "small", "medium", "medium", "medium")} 
-            placeholder="Search attendees..." 
-            value={search} 
+          <TextField
+            size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+            placeholder="Search attendees..."
+            value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            fullWidth 
+            fullWidth
             sx={{ boxShadow: 2 }}
           />
         </Grid>
@@ -1654,34 +1613,68 @@ function ServiceCheckIn() {
           <Stack direction="row" spacing={2} justifyContent={isMdDown ? "center" : "flex-end"}>
             <Tooltip title={currentEventId ? "Add Person" : "Please select an event first"}>
               <span>
-                <PersonAddIcon 
-                  onClick={handleAddPersonClick} 
-                  sx={{ 
-                    cursor: currentEventId ? "pointer" : "not-allowed", 
-                    fontSize: 36, 
-                    color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled", 
-                    "&:hover": { color: currentEventId ? "primary.dark" : "text.disabled" }, 
+                <PersonAddIcon
+                  onClick={handleAddPersonClick}
+                  sx={{
+                    cursor: currentEventId ? "pointer" : "not-allowed",
+                    fontSize: 36,
+                    color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled",
+                    "&:hover": { color: currentEventId ? "primary.dark" : "text.disabled" },
                     filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none",
                     opacity: currentEventId ? 1 : 0.5
-                  }} 
+                  }}
                 />
               </span>
             </Tooltip>
-            <Tooltip title={currentEventId ? "Consolidation" : "Please select an event first"}>
-              <span>
-                <EmojiPeopleIcon 
-                  onClick={handleConsolidationClick} 
-                  sx={{ 
-                    cursor: currentEventId ? "pointer" : "not-allowed", 
-                    fontSize: 36, 
-                    color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled", 
-                    "&:hover": { color: currentEventId ? "secondary.dark" : "text.disabled" }, 
-                    filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none",
-                    opacity: currentEventId ? 1 : 0.5
-                  }} 
-                />
-              </span>
-            </Tooltip>
+            <Stack direction="row" spacing={2} alignItems="center">
+              {/* Consolidation Icon */}
+              <Tooltip title={currentEventId ? "Consolidation" : "Please select an event first"}>
+                <span>
+                  <EmojiPeopleIcon
+                    onClick={handleConsolidationClick}
+                    sx={{
+                      cursor: currentEventId ? "pointer" : "not-allowed",
+                      fontSize: 36,
+                      color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled",
+                      "&:hover": { color: currentEventId ? "secondary.dark" : "text.disabled" },
+                      filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none",
+                      opacity: currentEventId ? 1 : 0.5
+                    }}
+                  />
+                </span>
+              </Tooltip>
+
+              {/* Save Button */}
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="center"
+                sx={{
+                  cursor: currentEventId ? "pointer" : "not-allowed",
+                  opacity: currentEventId ? 1 : 0.5,
+                  "&:hover": currentEventId ? { transform: "translateY(-2px)" } : {},
+                  transition: "all 0.2s"
+                }}
+                onClick={currentEventId ? handleSaveAndCloseEvent : undefined}
+              >
+                {isClosingEvent ? (
+                  <Skeleton
+                    variant="circular"
+                    width={36}
+                    height={36}
+                  />
+                ) : (
+                  <SaveIcon
+                    sx={{
+                      fontSize: 36,
+                      color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled",
+                      "&:hover": currentEventId ? { color: "secondary.dark" } : {},
+                      filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none",
+                    }}
+                  />
+                )}
+              </Stack>
+            </Stack>
           </Stack>
         </Grid>
       </Grid>
@@ -1689,8 +1682,8 @@ function ServiceCheckIn() {
       {/* Main Attendees List */}
       <Box sx={{ minHeight: 400 }}>
         <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3 }}>
-          <Tabs 
-            value={activeTab} 
+          <Tabs
+            value={activeTab}
             onChange={(e, newValue) => setActiveTab(newValue)}
             sx={{ borderBottom: 1, borderColor: 'divider' }}
           >
@@ -1702,9 +1695,9 @@ function ServiceCheckIn() {
         {activeTab === 0 && (
           isMdDown ? (
             <Box>
-              <Box 
-                sx={{ 
-                  maxHeight: 500, 
+              <Box
+                sx={{
+                  maxHeight: 500,
                   overflowY: "auto",
                   border: `1px solid ${theme.palette.divider}`,
                   borderRadius: 1,
@@ -1717,14 +1710,14 @@ function ServiceCheckIn() {
                 ))}
               </Box>
 
-              <TablePagination 
-                component="div" 
-                count={filteredAttendees.length} 
-                page={page} 
-                onPageChange={(e, newPage) => setPage(newPage)} 
-                rowsPerPage={rowsPerPage} 
-                onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} 
-                rowsPerPageOptions={[25, 50, 100]} 
+              <TablePagination
+                component="div"
+                count={filteredAttendees.length}
+                page={page}
+                onPageChange={(e, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                rowsPerPageOptions={[25, 50, 100]}
                 sx={{ boxShadow: 2, borderRadius: 1, mt: 1 }}
               />
             </Box>
@@ -1770,24 +1763,24 @@ function ServiceCheckIn() {
       </Box>
 
       {/* Add / Edit Dialog */}
-      <AddPersonDialog 
-        open={openDialog} 
-        onClose={() => { setOpenDialog(false); setEditingPerson(null); }} 
-        onSave={handlePersonSave} 
-        formData={formData} 
-        setFormData={setFormData} 
-        isEdit={Boolean(editingPerson)} 
-        personId={editingPerson?._id || null} 
+      <AddPersonDialog
+        open={openDialog}
+        onClose={() => { setOpenDialog(false); setEditingPerson(null); }}
+        onSave={handlePersonSave}
+        formData={formData}
+        setFormData={setFormData}
+        isEdit={Boolean(editingPerson)}
+        personId={editingPerson?._id || null}
       />
 
       {/* Event History Details Modal */}
       <EventHistoryDetailsModal />
 
       {/* PRESENT Attendees Modal */}
-      <Dialog 
-        open={modalOpen} 
-        onClose={() => setModalOpen(false)} 
-        fullWidth 
+      <Dialog
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        fullWidth
         maxWidth="md"
         PaperProps={{
           sx: {
@@ -1916,10 +1909,10 @@ function ServiceCheckIn() {
       </Dialog>
 
       {/* NEW PEOPLE Modal */}
-      <Dialog 
-        open={newPeopleModalOpen} 
-        onClose={() => setNewPeopleModalOpen(false)} 
-        fullWidth 
+      <Dialog
+        open={newPeopleModalOpen}
+        onClose={() => setNewPeopleModalOpen(false)}
+        fullWidth
         maxWidth="md"
         PaperProps={{
           sx: {
@@ -2042,10 +2035,10 @@ function ServiceCheckIn() {
       </Dialog>
 
       {/* CONSOLIDATED Modal */}
-      <Dialog 
-        open={consolidatedModalOpen} 
-        onClose={() => setConsolidatedModalOpen(false)} 
-        fullWidth 
+      <Dialog
+        open={consolidatedModalOpen}
+        onClose={() => setConsolidatedModalOpen(false)}
+        fullWidth
         maxWidth="md"
         PaperProps={{
           sx: {
@@ -2090,11 +2083,11 @@ function ServiceCheckIn() {
               {isSmDown ? (
                 <Box>
                   {consolidatedPaginatedList.map((person, idx) => (
-                    <ConsolidatedPersonCard 
-                      key={person._id || person.id || idx} 
-                      person={person} 
-                      showNumber={true} 
-                      index={consolidatedPage * consolidatedRowsPerPage + idx + 1} 
+                    <ConsolidatedPersonCard
+                      key={person._id || person.id || idx}
+                      person={person}
+                      showNumber={true}
+                      index={consolidatedPage * consolidatedRowsPerPage + idx + 1}
                     />
                   ))}
                   {consolidatedPaginatedList.length === 0 && (
@@ -2132,9 +2125,9 @@ function ServiceCheckIn() {
                           </Box>
                         </TableCell>
                         <TableCell>
-                          <Chip 
-                            label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'} 
-                            size="small" 
+                          <Chip
+                            label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
+                            size="small"
                             color="secondary"
                             variant="filled"
                           />
@@ -2150,9 +2143,9 @@ function ServiceCheckIn() {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Chip 
-                            label={person.status || 'Active'} 
-                            size="small" 
+                          <Chip
+                            label={person.status || 'Active'}
+                            size="small"
                             color={person.status === 'completed' ? 'success' : 'default'}
                             variant="outlined"
                           />
@@ -2183,8 +2176,8 @@ function ServiceCheckIn() {
           )}
         </DialogContent>
         <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             startIcon={<EmojiPeopleIcon />}
             onClick={() => {
               setConsolidatedModalOpen(false);
@@ -2192,7 +2185,7 @@ function ServiceCheckIn() {
             }}
             disabled={!currentEventId}
             size={isSmDown ? "small" : "medium"}
-            sx={{ 
+            sx={{
               opacity: currentEventId ? 1 : 0.5,
               cursor: currentEventId ? "pointer" : "not-allowed"
             }}
@@ -2205,11 +2198,11 @@ function ServiceCheckIn() {
         </DialogActions>
       </Dialog>
 
-      <ConsolidationModal 
-        open={consolidationOpen} 
-        onClose={() => setConsolidationOpen(false)} 
-        attendeesWithStatus={attendeesWithStatus} 
-        onFinish={handleFinishConsolidation} 
+      <ConsolidationModal
+        open={consolidationOpen}
+        onClose={() => setConsolidationOpen(false)}
+        attendeesWithStatus={attendeesWithStatus}
+        onFinish={handleFinishConsolidation}
         consolidatedPeople={consolidatedPeople}
         currentEventId={currentEventId}
       />
