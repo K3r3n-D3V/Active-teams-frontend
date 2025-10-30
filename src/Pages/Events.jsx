@@ -2396,46 +2396,69 @@ useEffect(() => {
 
       {isAdmin && (
   <div style={fabStyles.fabContainer}>
-  {fabMenuOpen && (
-    <div style={fabStyles.fabMenu}>
-      {/* Create Event Type Option - Only for Admins */}
-      <div
-        style={fabStyles.fabMenuItem}
-        onClick={() => {
-          setFabMenuOpen(false);
-          setEventTypesModalOpen(true);
-          setEditingEventType(null); // Ensure it's creating new
-        }}
-      >
-        <span style={fabStyles.fabMenuLabel}>Create Event Type</span>
-        <div style={fabStyles.fabMenuIcon}>📋</div>
-      </div>
+    {/* Menu Items */}
+    {fabMenuOpen && (
+      <div style={fabStyles.fabMenu}>
+        
+        {/* Create Event Type */}
+        <div
+          style={fabStyles.fabMenuItem}
+          onClick={() => {
+            // Close menu
+            setFabMenuOpen(false);
+            // Open Event Types modal
+            setEventTypesModalOpen(true);
+            setEditingEventType(null);
+          }}
+        >
+          <span style={fabStyles.fabMenuLabel}>Event Types</span>
+        </div>
 
-      {/* Create Event Option - Only for Admins */}
-      <div
-        style={fabStyles.fabMenuItem}
-        onClick={() => {
-          setFabMenuOpen(false);
-          setCreateEventModalOpen(true);
-        }}
-      >
-        <span style={fabStyles.fabMenuLabel}>Create Event</span>
-        <div style={fabStyles.fabMenuIcon}>📅</div>
+        {/* Create Event */}
+        <div
+          style={fabStyles.fabMenuItem}
+          onClick={() => {
+            // Close menu
+            setFabMenuOpen(false);
+            // Open Create Event modal
+            setCreateEventModalOpen(true);
+          }}
+        >
+          <span style={fabStyles.fabMenuLabel}>Create Event</span>
+        </div>
       </div>
-    </div>
-  )}
+    )}
 
-  <button
-    style={{
-      ...fabStyles.mainFab,
-      transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-    }}
-    onClick={() => setFabMenuOpen(!fabMenuOpen)}
-    title="Menu"
-  >
-    +
-  </button>
-</div>
+    {/* Floating Action Button (the "+") */}
+    <button
+      style={{
+        ...fabStyles.mainFab,
+        transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+      }}
+      onClick={() => {
+        // If menu is closed, open it; otherwise close it
+        setFabMenuOpen((prev) => !prev);
+      }}
+      title="Menu"
+    >
+      +
+    </button>
+
+    {/* Modals */}
+    {eventTypesModalOpen && (
+      <EventTypesModal
+        isOpen={eventTypesModalOpen}
+        onClose={() => setEventTypesModalOpen(false)}
+      />
+    )}
+
+    {createEventModalOpen && (
+      <CreateEvents
+        isOpen={createEventModalOpen}
+        onClose={() => setCreateEventModalOpen(false)}
+      />
+    )}
+  </div>
 )}
 
       <Eventsfilter
