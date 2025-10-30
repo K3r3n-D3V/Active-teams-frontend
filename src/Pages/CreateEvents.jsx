@@ -24,13 +24,21 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 
+
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 const CreateEvents = ({
   user,
   isModal = false,
   onClose,
   eventTypes = [],
-  selectedEventType, // may be a string (name) or unused
-  selectedEventTypeObj = null, // canonical object (name + flags). THIS IS THE KEY PROP.
+  selectedEventType, 
+  selectedEventTypeObj = null, 
 }) => {
   const navigate = useNavigate();
   const { id: eventId } = useParams();
@@ -386,6 +394,7 @@ const CreateEvents = ({
     try {
       // const isCell = (formData.eventType || "").toLowerCase().includes("cell");
 
+<<<<<<< HEAD
       // eventTypeToSend should be the name (string) - server expects name or object?
       // Use the canonical selectedEventTypeObj.name if available so flags and name are consistent.
       const eventTypeToSend = selectedEventTypeObj?.name || formData.eventType;
@@ -411,6 +420,91 @@ const CreateEvents = ({
       if (hasPersonSteps && !isGlobalEvent) {
         if (formData.leader1) payload.leader1 = formData.leader1;
         if (formData.leader12) payload.leader12 = formData.leader12;
+=======
+    const payload = {
+      UUID: generateUUID(), // ✅ ADD UUID HERE - automatically generated for every new event
+      eventType: eventTypeToSend,
+      eventName: formData.eventName,
+      isTicketed: !!isTicketedEvent,
+      isGlobal: !!isGlobalEvent,
+      hasPersonSteps: !!hasPersonSteps,
+      location: formData.location,
+      eventLeader: formData.eventLeader,
+      description: formData.description,
+      userEmail: user?.email || "",
+      recurring_day: formData.recurringDays,
+      status: "open",
+    };
+
+    // ✅ Price tiers for ticketed events
+    if (isTicketedEvent && priceTiers.length > 0) {
+      payload.priceTiers = priceTiers.map(tier => ({
+        name: tier.name || "",
+        price: parseFloat(tier.price) || 0,
+        ageGroup: tier.ageGroup || "",
+        memberType: tier.memberType || "",
+        paymentMethod: tier.paymentMethod || ""
+      }));
+      
+      console.log("📋 Including price tiers:", payload.priceTiers);
+    } else {
+      payload.priceTiers = [];
+    }
+
+    // Person steps leaders
+    if (hasPersonSteps && !isGlobalEvent) {
+      if (formData.leader1) payload.leader1 = formData.leader1;
+      if (formData.leader12) payload.leader12 = formData.leader12;
+    }
+
+    // Date/time assembly
+    if ((!hasPersonSteps || isGlobalEvent) && formData.date && formData.time) {
+      const [hoursStr, minutesStr] = formData.time.split(":");
+      let hours = Number(hoursStr);
+      const minutes = Number(minutesStr);
+      if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
+      if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+
+      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
+        .toString()
+        .padStart(2, "0")}:00`;
+    }
+
+    console.log("📤 Submitting payload with UUID:", JSON.stringify(payload, null, 2));
+
+    // ✅ Get token for authorization
+    const token = localStorage.getItem("token");
+    const headers = { 
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    const response = eventId
+      ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload, { headers })
+      : await axios.post(`${BACKEND_URL}/events`, payload, { headers });
+
+    console.log("✅ Server response:", response.data);
+    console.log("✅ Event UUID:", payload.UUID);
+
+    setSuccessMessage(
+      hasPersonSteps && !isGlobalEvent
+        ? `The ${formData.eventName} event with leadership hierarchy has been ${
+            eventId ? "updated" : "created"
+          } successfully!`
+        : eventId
+        ? "Event updated successfully!"
+        : "Event created successfully!"
+    );
+    setSuccessAlert(true);
+
+    if (!eventId) resetForm();
+
+    setTimeout(() => {
+      if (isModal && typeof onClose === "function") {
+        onClose();
+      } else {
+        navigate("/events", { state: { refresh: true } });
+>>>>>>> main
       }
 
       // date/time assembly
@@ -469,12 +563,6 @@ const CreateEvents = ({
     }
   };
 
-  // ---------------------------
-  // Derived helpers used in render
-  // ---------------------------
-  // const isCell = (formData.eventType || "").toLowerCase().includes("cell");
-
-  // styling objects (you had these — keep them)
   const containerStyle = isModal
     ? {
         padding: "0",

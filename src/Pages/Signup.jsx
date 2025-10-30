@@ -12,7 +12,7 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
-  Autocomplete, // Add this import
+  Autocomplete,
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
@@ -21,11 +21,10 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
-import axios from "axios"; // Add this import
+import axios from "axios";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-// WelcomeOverlay component remains the same...
 const WelcomeOverlay = ({ name, mode }) => {
   const pieces = Array.from({ length: 90 }).map((_, index) => {
     const left = Math.random() * 100;
@@ -133,11 +132,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  // Add state for people list
   const [peopleList, setPeopleList] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
 
-  // Fetch people when component mounts
+  // Fetch people when component mounts (for invited_by autocomplete only)
   useEffect(() => {
     const fetchAllPeople = async () => {
       setLoadingPeople(true);
@@ -199,12 +197,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // Handle autocomplete change for invited_by
   const handleInvitedByChange = (value) => {
     const invitedByValue = typeof value === "string" ? value : (value?.label || "");
     setForm(prev => ({ ...prev, invited_by: invitedByValue }));
     
-    // Clear error when user selects/types something
     if (errors.invited_by) {
       setErrors(prev => ({ ...prev, invited_by: "" }));
     }
@@ -269,7 +265,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
-  // Create people options for autocomplete
   const peopleOptions = peopleList.map(person => {
     const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
     return { label: fullName, person };
@@ -378,7 +373,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               />
             ))}
 
-            {/* Replace the invited_by TextField with Autocomplete */}
             <Autocomplete
               freeSolo
               disabled={loading || loadingPeople}
