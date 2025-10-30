@@ -39,6 +39,14 @@ const styles = {
     flexDirection: "column",
     overflow: "hidden",
     position: "relative",
+    '@media (max-width: 768px)': {
+      padding: "0.5rem",
+      paddingTop: "4rem",
+    },
+    '@media (max-width: 480px)': {
+      padding: "0.25rem",
+      paddingTop: "3.5rem",
+    },
   },
   topSection: {
     padding: "1.5rem",
@@ -533,29 +541,166 @@ const eventTypeStyles = {
     animation: "slideIn 0.3s ease-out",
   },
 };
+
+// Responsive breakpoint utilities
+const getResponsiveStyles = (isMobile, isTablet, isSmallMobile) => {
+  return {
+    container: {
+      ...styles.container,
+      padding: isSmallMobile ? "0.25rem" : isMobile ? "0.5rem" : "1rem",
+      paddingTop: isSmallMobile ? "3.5rem" : isMobile ? "4rem" : "5rem",
+    },
+    topSection: {
+      ...styles.topSection,
+      padding: isSmallMobile ? "0.75rem" : isMobile ? "1rem" : "1.5rem",
+      marginBottom: isMobile ? "0.75rem" : "1rem",
+      borderRadius: isMobile ? "12px" : "16px",
+    },
+    searchFilterRow: {
+      ...styles.searchFilterRow,
+      flexDirection: isMobile ? "column" : "row",
+      gap: isMobile ? "0.5rem" : "1rem",
+      marginBottom: isMobile ? "1rem" : "1.5rem",
+    },
+    searchInput: {
+      ...styles.searchInput,
+      width: isMobile ? "100%" : "auto",
+      minWidth: isMobile ? "100%" : "200px",
+      padding: isSmallMobile ? "0.6rem 0.8rem" : "0.75rem 1rem",
+      fontSize: isSmallMobile ? "0.85rem" : "0.95rem",
+    },
+    filterButton: {
+      ...styles.filterButton,
+      width: isMobile ? "100%" : "auto",
+      padding: isSmallMobile ? "0.6rem 1rem" : "0.75rem 1.5rem",
+      fontSize: isSmallMobile ? "0.85rem" : "0.95rem",
+    },
+    statusBadgeContainer: {
+      ...styles.statusBadgeContainer,
+      gap: isSmallMobile ? "0.5rem" : "0.75rem",
+      justifyContent: isMobile ? "center" : "flex-start",
+    },
+    statusBadge: {
+      ...styles.statusBadge,
+      padding: isSmallMobile ? "0.5rem 0.8rem" : "0.6rem 1.2rem",
+      fontSize: isSmallMobile ? "0.75rem" : "0.9rem",
+    },
+    viewFilterRow: {
+      ...styles.viewFilterRow,
+      flexDirection: isMobile ? "column" : "row",
+      gap: isMobile ? "0.75rem" : "1rem",
+      alignItems: isMobile ? "stretch" : "center",
+    },
+    viewFilterContainer: {
+      ...styles.viewFilterContainer,
+      justifyContent: isMobile ? "center" : "flex-start",
+      gap: isSmallMobile ? "0.5rem" : "1rem",
+    },
+    mobileCard: {
+      ...styles.mobileCard,
+      padding: isSmallMobile ? "1rem" : "1.25rem",
+      marginBottom: isSmallMobile ? "0.75rem" : "1rem",
+      borderRadius: isSmallMobile ? "12px" : "16px",
+    },
+    mobileCardRow: {
+      ...styles.mobileCardRow,
+      fontSize: isSmallMobile ? "0.8rem" : "0.9rem",
+      marginBottom: isSmallMobile ? "0.4rem" : "0.5rem",
+      flexDirection: isSmallMobile ? "column" : "row",
+      gap: isSmallMobile ? "0.25rem" : "0.5rem",
+    },
+    mobileCardLabel: {
+      ...styles.mobileCardLabel,
+      minWidth: isSmallMobile ? "auto" : "100px",
+    },
+    mobileCardValue: {
+      ...styles.mobileCardValue,
+      textAlign: isSmallMobile ? "left" : "right",
+    },
+    eventTypeContainer: {
+      ...eventTypeStyles.container,
+      padding: isSmallMobile ? "1rem" : isMobile ? "1.25rem" : "1.5rem",
+      marginBottom: isMobile ? "1rem" : "1.5rem",
+    },
+    eventTypeHeader: {
+      ...eventTypeStyles.header,
+      fontSize: isSmallMobile ? "0.75rem" : "0.875rem",
+    },
+    selectedTypeDisplay: {
+      ...eventTypeStyles.selectedTypeDisplay,
+      fontSize: isSmallMobile ? "1rem" : "1.25rem",
+      flexWrap: "wrap",
+    },
+    typesGrid: {
+      ...eventTypeStyles.typesGrid,
+      gridTemplateColumns: isSmallMobile 
+        ? "repeat(auto-fill, minmax(120px, 1fr))" 
+        : isMobile 
+        ? "repeat(auto-fill, minmax(140px, 1fr))"
+        : "repeat(auto-fill, minmax(150px, 1fr))",
+      gap: isSmallMobile ? "0.5rem" : "0.75rem",
+    },
+    typeCard: {
+      ...eventTypeStyles.typeCard,
+      padding: isSmallMobile ? "0.75rem" : "1rem",
+      minHeight: isSmallMobile ? "60px" : "70px",
+    },
+    fabContainer: {
+      ...fabStyles.fabContainer,
+      bottom: isSmallMobile ? "15px" : "20px",
+      right: isSmallMobile ? "15px" : "20px",
+    },
+    mainFab: {
+      ...fabStyles.mainFab,
+      width: isSmallMobile ? "50px" : "56px",
+      height: isSmallMobile ? "50px" : "56px",
+      fontSize: isSmallMobile ? "1.3rem" : "1.5rem",
+    },
+    fabMenuItem: {
+      ...fabStyles.fabMenuItem,
+      padding: isSmallMobile ? "10px 14px" : "12px 16px",
+      fontSize: isSmallMobile ? "0.8rem" : "0.9rem",
+    },
+    paginationContainer: {
+      ...styles.paginationContainer,
+      flexDirection: isMobile ? "column" : "row",
+      gap: isMobile ? "0.75rem" : "1.5rem",
+      padding: isSmallMobile ? "0.75rem" : "1rem",
+    },
+  };
+};
+
 const getDefaultViewFilter = (userRole) => {
   const role = userRole?.toLowerCase() || '';
   if (role === "user" || role === "leader at 1" || role === "registrant") {
     return 'personal';
-  } if (role === "admin" || role === "leader at 12") {
+  }
+  if (role === "admin" || role === "leader at 12") {
     return 'all';
   }
-
   return 'all';
 };
 
 const Events = () => {
   const location = useLocation();
   const theme = useTheme();
+  
+  // Enhanced responsive breakpoints
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isTablet = useMediaQuery(theme.breakpoints.between("sm", "md"));
+  const isSmallMobile = useMediaQuery("(max-width:430px)"); // iPhone 14 Pro Max and smaller
+  const isExtraSmallMobile = useMediaQuery("(max-width:390px)"); // iPhone 14 and smaller
 
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
   const isLeaderAt12 = userRole === "leader at 12";
   const isAdmin = userRole === "admin";
 
-
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+  // Get responsive styles
+  const responsiveStyles = getResponsiveStyles(isMobile, isTablet, isSmallMobile || isExtraSmallMobile);
+
 
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
@@ -1514,18 +1659,18 @@ useEffect(() => {
 
   const isDarkMode = theme.palette.mode === 'dark';
 
-  const themedStyles = {
+ const themedStyles = {
     container: {
-      ...styles.container,
+      ...responsiveStyles.container,
       backgroundColor: isDarkMode ? theme.palette.background.default : '#f5f7fa',
     },
     topSection: {
-      ...styles.topSection,
+      ...responsiveStyles.topSection,
       backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
       color: isDarkMode ? theme.palette.text.primary : '#212529',
     },
     searchInput: {
-      ...styles.searchInput,
+      ...responsiveStyles.searchInput,
       backgroundColor: isDarkMode ? theme.palette.background.default : '#fff',
       borderColor: isDarkMode ? theme.palette.divider : '#e9ecef',
       color: isDarkMode ? theme.palette.text.primary : '#212529',
@@ -1547,19 +1692,20 @@ useEffect(() => {
       color: isDarkMode ? theme.palette.text.primary : '#212529',
     },
     mobileCard: {
-      ...styles.mobileCard,
+      ...responsiveStyles.mobileCard,
       backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
       borderColor: isDarkMode ? theme.palette.divider : '#f0f0f0',
     },
     mobileCardLabel: {
-      ...styles.mobileCardLabel,
+      ...responsiveStyles.mobileCardLabel,
       color: isDarkMode ? theme.palette.text.secondary : '#666',
     },
     mobileCardValue: {
-      ...styles.mobileCardValue,
+      ...responsiveStyles.mobileCardValue,
       color: isDarkMode ? theme.palette.text.primary : '#212529',
     },
   };
+
 
   const EventTypeSelector = () => {
     const [hoveredType, setHoveredType] = useState(null);
@@ -1594,10 +1740,10 @@ useEffect(() => {
         : selectedDisplayName?.name || "All Events";
 
     return (
-      <div style={eventTypeStyles.container}>
-        <div style={eventTypeStyles.header}>Filter by Event Type</div>
+      <div style={responsiveStyles.eventTypeContainer}>
+        <div style={responsiveStyles.eventTypeHeader}>Filter by Event Type</div>
 
-        <div style={eventTypeStyles.selectedTypeDisplay}>
+        <div style={responsiveStyles.selectedTypeDisplay}>
           <div style={eventTypeStyles.checkIcon}>✓</div>
           <span>{finalDisplayName}</span>
         </div>
@@ -1605,7 +1751,9 @@ useEffect(() => {
         {isAdmin && (
           <div
             style={{
-              ...eventTypeStyles.typesGrid,
+              ...responsiveStyles.typeCard,
+                    ...(isActive ? eventTypeStyles.typeCardActive : {}),
+                    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
               display: "flex",
               flexWrap: "wrap",
               gap: "12px",
@@ -1622,7 +1770,7 @@ useEffect(() => {
                 <div
                   key={typeValue}
                   style={{
-                    ...eventTypeStyles.typeCard,
+                    ...responsiveStyles.typeCard,
                     ...(isActive ? eventTypeStyles.typeCardActive : {}),
                     ...(isHovered && !isActive
                       ? eventTypeStyles.typeCardHover
@@ -1682,6 +1830,7 @@ useEffect(() => {
                     style={{
                       ...eventTypeStyles.typeName,
                       ...(isActive ? eventTypeStyles.typeNameActive : {}),
+                      fontSize: isSmallMobile ? "0.8rem" : "0.9rem",
                       zIndex: 1,
                     }}
                   >
@@ -1701,6 +1850,7 @@ useEffect(() => {
                         top: 8,
                         right: 8,
                         zIndex: 10,
+                         padding: isSmallMobile ? '4px' : '8px',
                         color: "grey",
                       }}
                     >
@@ -1812,10 +1962,10 @@ useEffect(() => {
     };
 
     return (
-      <div style={styles.statusBadgeContainer}>
+      <div style={responsiveStyles.statusBadgeContainer}>
         <button
           style={{
-            ...styles.statusBadge,
+            ...responsiveStyles.statusBadge,
             ...styles.statusBadgeIncomplete,
             ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
             transform: selectedStatus === 'incomplete' ? 'scale(1.05)' : 'scale(1)',
@@ -1829,7 +1979,7 @@ useEffect(() => {
 
         <button
           style={{
-            ...styles.statusBadge,
+            ...responsiveStyles.statusBadge,
             ...styles.statusBadgeComplete,
             ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
             transform: selectedStatus === 'complete' ? 'scale(1.05)' : 'scale(1)',
@@ -1843,7 +1993,7 @@ useEffect(() => {
 
         <button
           style={{
-            ...styles.statusBadge,
+            ...responsiveStyles.statusBadge,
             ...styles.statusBadgeDidNotMeet,
             ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
             transform: selectedStatus === 'did_not_meet' ? 'scale(1.05)' : 'scale(1)',
@@ -1916,7 +2066,7 @@ useEffect(() => {
 
     if (leaderCheckLoading || !shouldShowViewFilter()) {
       return (
-        <div style={styles.viewFilterContainer}>
+        <div style={responsiveStyles.viewFilterContainer}>
           <span style={styles.viewFilterLabel}>View:</span>
           <span style={{
             ...styles.viewFilterText,
@@ -1930,7 +2080,7 @@ useEffect(() => {
     }
 
     return (
-      <div style={styles.viewFilterContainer}>
+      <div style={responsiveStyles.viewFilterContainer}>
         <span style={styles.viewFilterLabel}>View:</span>
 
         <label style={styles.viewFilterRadio}>
@@ -2009,89 +2159,81 @@ useEffect(() => {
     const shouldShowLeaders = event.leader12 && event.leader12.trim() !== '';
 
     return (
-      <div style={{
-        ...themedStyles.mobileCard,
-        marginBottom: '1rem',
-      }}>
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Event Name:</span>
-          <span style={themedStyles.mobileCardValue}>{event.eventName || 'N/A'}</span>
+     <div style={themedStyles.mobileCard}>
+      <div style={responsiveStyles.mobileCardRow}>
+        <span style={themedStyles.mobileCardLabel}>Event Name:</span>
+        <span style={themedStyles.mobileCardValue}>{event.eventName}</span>
+      </div>
+      <div style={responsiveStyles.mobileCardRow}>
+        <span style={themedStyles.mobileCardLabel}>Leader:</span>
+        <span style={themedStyles.mobileCardValue}>{event.eventLeaderName || '-'}</span>
+      </div>
+      {event.leader1 && (
+        <div style={responsiveStyles.mobileCardRow}>
+          <span style={themedStyles.mobileCardLabel}>Leader at 1:</span>
+          <span style={themedStyles.mobileCardValue}>{event.leader1}</span>
         </div>
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Leader:</span>
-          <span style={themedStyles.mobileCardValue}>
-            {event.eventLeaderName || "-"}
-          </span>
+      )}
+      {event.leader12 && (
+        <div style={responsiveStyles.mobileCardRow}>
+          <span style={themedStyles.mobileCardLabel}>Leader at 12:</span>
+          <span style={themedStyles.mobileCardValue}>{event.leader12}</span>
         </div>
-
-        {shouldShowLeaders && (
-          <>
-            <div style={styles.mobileCardRow}>
-              <span style={themedStyles.mobileCardLabel}>Leader at 1:</span>
-              <span style={themedStyles.mobileCardValue}>
-                {event.leader1 || '-'}
-              </span>
-            </div>
-            <div style={styles.mobileCardRow}>
-              <span style={themedStyles.mobileCardLabel}>Leader at 12:</span>
-              <span style={themedStyles.mobileCardValue}>
-                {event.leader12 || '-'}
-              </span>
-            </div>
-          </>
-        )}
-
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Day:</span>
-          <span style={themedStyles.mobileCardValue}>
-            <div>{dayOfWeek}</div>
-            {isOverdue(event) && <div style={styles.overdueLabel}>Overdue</div>}
-          </span>
-        </div>
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Email:</span>
-          <span style={themedStyles.mobileCardValue}>
-            {event.eventLeaderEmail || "-"}
-          </span>
-        </div>
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Date:</span>
-          <span style={themedStyles.mobileCardValue}>{formatDate(event.date)}</span>
-        </div>
-
-        <div style={styles.mobileActions}>
-          <Tooltip title="Capture Attendance" arrow>
-            <button
-              style={styles.openEventIcon}
-              onClick={() => handleCaptureClick(event)}
-            >
-              <CheckBoxIcon />
-            </button>
-          </Tooltip>
-
-          <Tooltip title="Edit Event" arrow>
+      )}
+      <div style={responsiveStyles.mobileCardRow}>
+        <span style={themedStyles.mobileCardLabel}>Day:</span>
+        <span style={themedStyles.mobileCardValue}>
+          {event.day || 'Not set'}
+          {isOverdue(event) && (
+            <span style={{ ...styles.overdueLabel, display: 'block', marginTop: '0.25rem' }}>
+              Overdue
+            </span>
+          )}
+        </span>
+      </div>
+      <div style={responsiveStyles.mobileCardRow}>
+        <span style={themedStyles.mobileCardLabel}>Email:</span>
+        <span style={themedStyles.mobileCardValue}>{event.eventLeaderEmail || '-'}</span>
+      </div>
+      <div style={responsiveStyles.mobileCardRow}>
+        <span style={themedStyles.mobileCardLabel}>Date:</span>
+        <span style={themedStyles.mobileCardValue}>{formatDate(event.date)}</span>
+      </div>
+      <div style={styles.mobileActions}>
+        <Tooltip title="Capture Attendance" arrow>
+          <IconButton
+            onClick={() => handleCaptureClick(event)}
+            sx={{ 
+              backgroundColor: '#007bff', 
+              color: 'white',
+              '&:hover': { backgroundColor: '#0056b3' },
+              padding: isSmallMobile ? '8px' : '10px',
+            }}
+          >
+            <CheckBoxIcon fontSize={isSmallMobile ? "small" : "medium"} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Edit Event" arrow>
+          <IconButton
+            onClick={() => handleEditEvent(event)}
+            sx={{ padding: isSmallMobile ? '8px' : '10px' }}
+          >
+            <EditIcon fontSize={isSmallMobile ? "small" : "medium"} />
+          </IconButton>
+        </Tooltip>
+        {isAdmin && (
+          <Tooltip title="Delete Event" arrow>
             <IconButton
-              onClick={() => handleEditEvent(event)}
-              size="small"
-              sx={{ color: "#007bff", border: "1px solid #007bff" }}
+              onClick={() => handleDeleteEvent(event)}
+              color="error"
+              sx={{ padding: isSmallMobile ? '8px' : '10px' }}
             >
-              <EditIcon />
+              <DeleteIcon fontSize={isSmallMobile ? "small" : "medium"} />
             </IconButton>
           </Tooltip>
-
-          {isAdmin && (
-            <Tooltip title="Delete Event" arrow>
-              <IconButton
-                onClick={() => handleDeleteEvent(event)}
-                size="small"
-                sx={{ color: "#dc3545", border: "1px solid #dc3545" }}
-              >
-                <DeleteIcon />
-              </IconButton>
-            </Tooltip>
-          )}
-        </div>
+        )}
       </div>
+    </div>
     );
   };
 
@@ -2105,10 +2247,10 @@ useEffect(() => {
       <div style={themedStyles.topSection}>
         <EventTypeSelector />
 
-        <div style={styles.searchFilterRow}>
+        <div style={responsiveStyles.searchFilterRow}>
   <input
     type="text"
-    placeholder="Search by Event Name, Leader, or Email..."
+    placeholder={isSmallMobile ? "Search events..." : "Search by Event Name, Leader, or Email..."}
     value={searchQuery}
     onChange={handleSearchChange}
     onKeyPress={(e) => {
@@ -2120,7 +2262,7 @@ useEffect(() => {
   />
 
   <button
-    style={styles.filterButton}
+    style={responsiveStyles.filterButton}
     onClick={handleSearchSubmit}
     disabled={isLoading}
   >
@@ -2136,7 +2278,7 @@ useEffect(() => {
   </button>
 </div>
 
-        <div style={styles.viewFilterRow}>
+        <div style={responsiveStyles.viewFilterRow}>
           <StatusBadges />
           <ViewFilterButtons />
         </div>
