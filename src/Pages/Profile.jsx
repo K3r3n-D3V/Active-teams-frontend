@@ -1,3 +1,4 @@
+
 import React, {
   useState,
   useCallback,
@@ -25,15 +26,10 @@ import {
   CardContent,
   Divider,
   Skeleton,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
 } from "@mui/material";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
 import { UserContext } from "../contexts/UserContext.jsx";
-import { AuthContext } from "../contexts/AuthContext";
 import {
   Edit,
   Save,
@@ -52,12 +48,6 @@ const carouselTexts = [
   { text: "Amen.", color: "#2e7d32" },
 ];
 
-/** Gender options */
-const genderOptions = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-];
-
 /** API helpers */
 const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -70,26 +60,6 @@ const createAuthenticatedRequest = () => {
       "Authorization": token ? `Bearer ${token}` : undefined,
     },
   });
-};
-
-// Helper function to save profile to localStorage consistently
-const saveProfileToLocalStorage = (profileData) => {
-  if (profileData) {
-    localStorage.setItem("userProfile", JSON.stringify(profileData));
-    localStorage.setItem("profileLoaded", "true");
-    console.log("✅ Profile saved to localStorage");
-  }
-};
-
-// Helper function to get profile from localStorage
-const getProfileFromLocalStorage = () => {
-  try {
-    const stored = localStorage.getItem("userProfile");
-    return stored ? JSON.parse(stored) : null;
-  } catch (error) {
-    console.error("Error parsing stored profile:", error);
-    return null;
-  }
 };
 
 async function updateUserProfile(data) {
@@ -185,9 +155,6 @@ export default function Profile() {
   const isDark = theme.palette.mode === "dark";
   const { userProfile, setUserProfile, setProfilePic, profilePic } =
     useContext(UserContext);
-  
-  // Add AuthContext for profile picture sync
-  const { updateProfilePicture, user } = useContext(AuthContext);
 
   const fileInputRef = useRef(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -196,6 +163,7 @@ export default function Profile() {
   const [croppingOpen, setCroppingOpen] = useState(false);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   
+  // NEW: Track if profile has been loaded at least once
   const [hasProfileLoaded, setHasProfileLoaded] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
@@ -238,101 +206,104 @@ export default function Profile() {
     return () => clearInterval(t);
   }, []);
 
-  // UPDATED: Improved profile loading with better localStorage handling
+  // UPDATED: Load profile data only once
   useEffect(() => {
+    // Check if we already have profile data loaded
+    const storedProfile = localStorage.getItem("userProfile");
+    const profileLoaded = localStorage.getItem("profileLoaded") === "true";
+    
+    if (profileLoaded && storedProfile) {
+      // Profile already loaded, use cached data
+      const parsedProfile = JSON.parse(storedProfile);
+      setUserProfile(parsedProfile);
+      updateFormWithProfile(parsedProfile);
+      
+      const pic = parsedProfile?.profile_picture ||
+                 parsedProfile?.avatarUrl ||
+                 parsedProfile?.profilePicUrl ||
+                 null;
+      if (pic && setProfilePic) {
+        setProfilePic(pic);
+      }
+      
+      setHasProfileLoaded(true);
+      setLoadingProfile(false);
+      return;
+    }
+
+    // Otherwise, load profile from backend
     const loadProfile = async () => {
       try {
         setLoadingProfile(true);
 
-        // Check localStorage first for quick load
-        const cachedProfile = getProfileFromLocalStorage();
-        const profileLoaded = localStorage.getItem("profileLoaded") === "true";
-        
-        if (profileLoaded && cachedProfile) {
-          console.log("📁 Loading profile from localStorage cache");
-          setUserProfile(cachedProfile);
-          updateFormWithProfile(cachedProfile);
+        // Try to fetch from backend first
+        try {
+          const serverProfile = await fetchUserProfile();
           
-          const pic = cachedProfile?.profile_picture ||
-                     cachedProfile?.avatarUrl ||
-                     cachedProfile?.profilePicUrl ||
-                     null;
-          if (pic && setProfilePic) {
-            setProfilePic(pic);
+          if (serverProfile) {
+            setUserProfile(serverProfile);
+            updateFormWithProfile(serverProfile);
+            
+            // Set profile picture from server response
+            const pic = serverProfile?.profile_picture || 
+                       serverProfile?.avatarUrl || 
+                       serverProfile?.profilePicUrl ||
+                       null;
+            
+            if (pic && setProfilePic) {
+              setProfilePic(pic);
+            }
+            
+            // Mark as loaded and cache data
+            localStorage.setItem("userProfile", JSON.stringify(serverProfile));
+            localStorage.setItem("profileLoaded", "true");
+            setHasProfileLoaded(true);
+            
+            setSnackbar({
+              open: true,
+              message: "Profile loaded successfully",
+              severity: "success",
+            });
           }
+        } catch (fetchError) {
+          console.warn("Failed to fetch from backend, using cached data:", fetchError);
           
-          setHasProfileLoaded(true);
-          setLoadingProfile(false);
-          
-          // Still try to refresh from server in background
-          refreshFromServer();
-          return;
+          // Fallback to localStorage if available
+          if (storedProfile) {
+            const parsedProfile = JSON.parse(storedProfile);
+            setUserProfile(parsedProfile);
+            updateFormWithProfile(parsedProfile);
+            
+            const pic = parsedProfile?.profile_picture ||
+                       parsedProfile?.avatarUrl ||
+                       parsedProfile?.profilePicUrl ||
+                       null;
+            if (pic && setProfilePic) {
+              setProfilePic(pic);
+            }
+            
+            localStorage.setItem("profileLoaded", "true");
+            setHasProfileLoaded(true);
+            
+            setSnackbar({
+              open: true,
+              message: "Profile loaded from cache",
+              severity: "warning",
+            });
+          } else {
+            setSnackbar({
+              open: true,
+              message: "Please log in to view your profile",
+              severity: "error",
+            });
+          }
         }
-
-        // No cache found, load from server
-        await refreshFromServer();
-        
       } catch (error) {
-        console.error("Profile loading error:", error);
         setSnackbar({
           open: true,
           message: `Failed to load profile: ${error.message}`,
           severity: "error",
         });
-        setLoadingProfile(false);
-      }
-    };
-
-    const refreshFromServer = async () => {
-      try {
-        console.log("🌐 Fetching profile from server");
-        const serverProfile = await fetchUserProfile();
-        
-        if (serverProfile) {
-          setUserProfile(serverProfile);
-          updateFormWithProfile(serverProfile);
-          
-          // Set profile picture from server response
-          const pic = serverProfile?.profile_picture || 
-                     serverProfile?.avatarUrl || 
-                     serverProfile?.profilePicUrl ||
-                     null;
-          
-          if (pic && setProfilePic) {
-            setProfilePic(pic);
-          }
-          
-          // Save to localStorage
-          saveProfileToLocalStorage(serverProfile);
-          setHasProfileLoaded(true);
-          
-          // setSnackbar({
-          //   open: true,
-          //   message: "Profile loaded successfully",
-          //   severity: "success",
-          // });
-        }
-      } catch (fetchError) {
-        console.warn("Failed to fetch from server:", fetchError);
-        
-        // If we have cached data, use it with warning
-        const cachedProfile = getProfileFromLocalStorage();
-        if (cachedProfile) {
-          setUserProfile(cachedProfile);
-          updateFormWithProfile(cachedProfile);
-          
-          setSnackbar({
-            open: true,
-            message: "Profile loaded from cache (offline mode)",
-            severity: "warning",
-          });
-        } else {
-          setSnackbar({
-            open: true,
-            message: "Please log in to view your profile",
-            severity: "error",
-          });
-        }
       } finally {
         setLoadingProfile(false);
       }
@@ -382,15 +353,6 @@ export default function Profile() {
     if (!form.email.trim()) n.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
 
-    // Date of Birth validation (optional)
-    if (form.dob) {
-      const dobDate = new Date(form.dob);
-      const today = new Date();
-      if (dobDate > today) {
-        n.dob = "Date of birth cannot be in the future";
-      }
-    }
-
     if (form.newPassword || form.confirmPassword || form.currentPassword) {
       if (!form.currentPassword.trim()) {
         n.currentPassword = "Current password is required to change password";
@@ -436,7 +398,6 @@ export default function Profile() {
     setCroppedAreaPixels(croppedPixels);
   }, []);
 
-  // UPDATED: onCropSave with improved localStorage saving
   const onCropSave = async () => {
     try {
       const croppedImage = await getCroppedImg(croppingSrc, croppedAreaPixels);
@@ -446,13 +407,7 @@ export default function Profile() {
         const url = res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
         
         if (url) {
-          // Update both UserContext and AuthContext for immediate sync
           if (setProfilePic) setProfilePic(url);
-          
-          // CRITICAL: Update AuthContext for Topbar sync
-          if (updateProfilePicture) {
-            updateProfilePicture(url);
-          }
           
           const updatedProfile = { 
             ...userProfile, 
@@ -460,10 +415,8 @@ export default function Profile() {
             avatarUrl: url,
             profilePicUrl: url
           };
-          
-          // Update state and localStorage
           setUserProfile(updatedProfile);
-          saveProfileToLocalStorage(updatedProfile);
+          localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
           
           setSnackbar({
             open: true,
@@ -476,20 +429,7 @@ export default function Profile() {
       } catch (uploadError) {
         console.error("Avatar upload failed, using local image:", uploadError);
         
-        // Update both contexts even if upload fails
         if (setProfilePic) setProfilePic(croppedImage);
-        if (updateProfilePicture) {
-          updateProfilePicture(croppedImage);
-        }
-        
-        // Still save to localStorage for offline use
-        const updatedProfile = { 
-          ...userProfile, 
-            profile_picture: croppedImage,
-            avatarUrl: croppedImage,
-            profilePicUrl: croppedImage
-        };
-        saveProfileToLocalStorage(updatedProfile);
         
         setSnackbar({
           open: true,
@@ -509,7 +449,6 @@ export default function Profile() {
     }
   };
 
-  // UPDATED: handleSubmit with improved localStorage saving
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -573,9 +512,8 @@ export default function Profile() {
         });
       }
 
-      // Update both state and localStorage
       setUserProfile(updatedUserProfile);
-      saveProfileToLocalStorage(updatedUserProfile);
+      localStorage.setItem("userProfile", JSON.stringify(updatedUserProfile));
 
       setEditMode(false);
       updateFormWithProfile(updatedUserProfile);
@@ -628,13 +566,7 @@ export default function Profile() {
     },
   };
 
-  // Format date for display (remove time part if present)
-  const formatDateForInput = (dateString) => {
-    if (!dateString) return "";
-    return dateString.split('T')[0];
-  };
-
-  // Skeleton loading component
+  // NEW: Skeleton loading component
   const ProfileSkeleton = () => (
     <Box
       sx={{
@@ -985,7 +917,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                {/* Date of Birth - NOW EDITABLE */}
+                {/* Date of Birth */}
                 <Grid item xs={12} sm={6}>
                   <Typography
                     variant="body2"
@@ -998,13 +930,11 @@ export default function Profile() {
                     Date Of Birth
                   </Typography>
                   <TextField
-                    value={formatDateForInput(form.dob) || ""}
+                    value={form.dob || ""}
                     onChange={handleChange("dob")}
                     fullWidth
                     type="date"
-                    disabled={!editMode}
-                    error={!!errors.dob}
-                    helperText={errors.dob}
+                    disabled
                     InputLabelProps={{ shrink: true }}
                     sx={commonFieldSx}
                   />
@@ -1096,7 +1026,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                {/* Gender - NOW EDITABLE WITH DROPDOWN */}
+                {/* Gender */}
                 <Grid item xs={12} sm={6}>
                   <Typography
                     variant="body2"
@@ -1109,19 +1039,12 @@ export default function Profile() {
                     Gender
                   </Typography>
                   <TextField
-                    select
                     value={form.gender || ""}
                     onChange={handleChange("gender")}
                     fullWidth
-                    disabled={!editMode}
+                    disabled
                     sx={commonFieldSx}
-                  >
-                    {genderOptions.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                  />
                 </Grid>
               </Grid>
 
