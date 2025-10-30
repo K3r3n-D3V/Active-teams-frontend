@@ -1,7 +1,9 @@
-// People.jsx (Updated with persistent caching and optimized loading)
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+// People.jsx (Exact match search + View filter)
+import React, { useState, useEffect, useMemo, useCallback, useRef, useContext } from 'react';
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import axios from 'axios';
+import { AuthContext } from '../contexts/AuthContext';
+import { UserContext } from '../contexts/UserContext';
 import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
@@ -12,7 +14,8 @@ import {
   Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
   Edit as EditIcon, Delete as DeleteIcon, Email as EmailIcon,
   Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon,
-  ViewModule as ViewModuleIcon, ViewList as ViewListIcon
+  ViewModule as ViewModuleIcon, ViewList as ViewListIcon, People as PeopleIcon,
+  PersonOutline as PersonOutlineIcon
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
 import PeopleListView from '../components/PeopleListView';
@@ -21,23 +24,6 @@ import PeopleListView from '../components/PeopleListView';
 let globalPeopleCache = null;
 let globalCacheTimestamp = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-// Custom hook for debounced search
-const useDebounce = (value, delay) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-};
 
 // ---------------- Stages ----------------
 const stages = [
@@ -312,6 +298,8 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
 // ---------------- PeopleSection ----------------
 export const PeopleSection = () => {
   const theme = useTheme();
+  const { user } = useContext(AuthContext);
+  const { userProfile } = useContext(UserContext);
   const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -325,23 +313,53 @@ export const PeopleSection = () => {
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [viewMode, setViewMode] = useState('grid');
+  const [viewFilter, setViewFilter] = useState('all'); // 'all' or 'myPeople'
   const [gridPage, setGridPage] = useState(1);
   const ITEMS_PER_PAGE = 100;
   const isFetchingRef = useRef(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  // Get current user's full name from context
+  const currentUserName = useMemo(() => {
+    if (userProfile?.name && userProfile?.surname) {
+      return `${userProfile.name} ${userProfile.surname}`.trim();
+    }
+    if (user?.email) {
+      return user.email; // Fallback to email if name not available
+    }
+    return '';
+  }, [userProfile, user]);
+
+  // Get current user info - Replace this with your actual user context/auth
+  useEffect(() => {
+    // TODO: Replace with actual user fetching logic
+    // For now, using placeholder - you need to get the logged-in user's name
+    const fetchCurrentUser = async () => {
+      try {
+        // Example: const userData = await axios.get(`${BACKEND_URL}/current-user`);
+        // setCurrentUser(userData.data);
+        
+        // PLACEHOLDER - Replace with actual user data
+        setCurrentUser({
+          name: 'John Doe', // Replace with actual user's full name
+          // You might store this in localStorage, context, or fetch from API
+        });
+      } catch (err) {
+        console.error('Failed to fetch current user:', err);
+      }
+    };
+    
+    fetchCurrentUser();
+  }, [BACKEND_URL]);
 
   const fetchAllPeople = useCallback(async (forceRefresh = false) => {
-    // Check if cache is valid and not forcing refresh
     const now = Date.now();
     if (!forceRefresh && globalPeopleCache && globalCacheTimestamp && (now - globalCacheTimestamp < CACHE_DURATION)) {
       console.log('Using cached data');
-      setAllPeople(globalPeopleCache);
       return;
     }
 
-    // Prevent duplicate fetches
     if (isFetchingRef.current) {
       console.log('Fetch already in progress');
       return;
@@ -349,11 +367,6 @@ export const PeopleSection = () => {
 
     isFetchingRef.current = true;
     setLoading(true);
-    
-    // Show UI immediately if we have cached data
-    if (globalPeopleCache && !forceRefresh) {
-      setAllPeople(globalPeopleCache);
-    }
     
     try {
       const res = await axios.get(`${BACKEND_URL}/people`, { 
@@ -382,7 +395,6 @@ export const PeopleSection = () => {
         }
       }));
 
-      // Update global cache
       globalPeopleCache = mapped;
       globalCacheTimestamp = Date.now();
       setAllPeople(mapped);
@@ -408,56 +420,94 @@ export const PeopleSection = () => {
     return peopleList.filter(person => {
       switch (field) {
         case 'name':
-          return person.name.toLowerCase().includes(searchLower) || 
-                 person.surname.toLowerCase().includes(searchLower) ||
-                 `${person.name} ${person.surname}`.toLowerCase().includes(searchLower);
+          // Exact match for name, surname, or full name
+          const fullName = `${person.name} ${person.surname}`.toLowerCase();
+          const nameLower = person.name.toLowerCase();
+          const surnameLower = person.surname.toLowerCase();
+          
+          return nameLower === searchLower || 
+                 surnameLower === searchLower || 
+                 fullName === searchLower;
         case 'email':
-          return person.email.toLowerCase().includes(searchLower);
+          return person.email.toLowerCase() === searchLower;
         case 'phone':
-          return person.phone.includes(searchValue);
+          return person.phone === searchValue.trim();
         case 'location':
-          return person.location.toLowerCase().includes(searchLower);
+          return person.location.toLowerCase() === searchLower;
         case 'leaders':
-          return person.leaders.leader1.toLowerCase().includes(searchLower) ||
-                 person.leaders.leader12.toLowerCase().includes(searchLower) ||
-                 person.leaders.leader144.toLowerCase().includes(searchLower) ||
-                 person.leaders.leader1728.toLowerCase().includes(searchLower);
+          return person.leaders.leader1.toLowerCase() === searchLower ||
+                 person.leaders.leader12.toLowerCase() === searchLower ||
+                 person.leaders.leader144.toLowerCase() === searchLower ||
+                 person.leaders.leader1728.toLowerCase() === searchLower;
         default:
-          return person.name.toLowerCase().includes(searchLower);
+          return person.name.toLowerCase() === searchLower;
       }
     });
   }, []);
 
+  const filterMyPeople = useCallback((peopleList) => {
+    if (!currentUserName) return peopleList;
+    
+    const userName = currentUserName.toLowerCase().trim();
+    
+    return peopleList.filter(person => {
+      // Check if current user is listed as any of their leaders
+      return person.leaders.leader1.toLowerCase() === userName ||
+             person.leaders.leader12.toLowerCase() === userName ||
+             person.leaders.leader144.toLowerCase() === userName ||
+             person.leaders.leader1728.toLowerCase() === userName;
+    });
+  }, [currentUserName]);
+
   const filteredPeople = useMemo(() => {
-    return searchPeople(allPeople, debouncedSearchTerm, searchField);
-  }, [allPeople, debouncedSearchTerm, searchField, searchPeople]);
+    let result = allPeople;
+    
+    // Apply view filter first
+    if (viewFilter === 'myPeople') {
+      result = filterMyPeople(result);
+    }
+    
+    // Then apply search
+    result = searchPeople(result, searchTerm, searchField);
+    
+    return result;
+  }, [allPeople, searchTerm, searchField, viewFilter, searchPeople, filterMyPeople]);
 
   const paginatedPeople = useMemo(() => {
-    if (viewMode === 'list' || debouncedSearchTerm.trim()) {
+    if (viewMode === 'list' || searchTerm.trim()) {
       return filteredPeople;
     }
     
     const startIndex = (gridPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     return filteredPeople.slice(startIndex, endIndex);
-  }, [filteredPeople, gridPage, viewMode, debouncedSearchTerm]);
+  }, [filteredPeople, gridPage, viewMode, searchTerm]);
 
   const totalPages = useMemo(() => {
-    if (viewMode === 'list' || debouncedSearchTerm.trim()) return 1;
+    if (viewMode === 'list' || searchTerm.trim()) return 1;
     return Math.ceil(filteredPeople.length / ITEMS_PER_PAGE);
-  }, [filteredPeople.length, viewMode, debouncedSearchTerm]);
+  }, [filteredPeople.length, viewMode, searchTerm]);
 
   useEffect(() => {
-    // Fetch data on mount - this runs in background
+    if (globalPeopleCache && allPeople.length === 0) {
+      setAllPeople(globalPeopleCache);
+    }
+    
     fetchAllPeople(false);
-  }, [fetchAllPeople]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setGridPage(1);
-  }, [debouncedSearchTerm, searchField]);
+  }, [searchTerm, searchField, viewFilter]);
 
   const handleRefresh = () => {
     fetchAllPeople(true);
+  };
+
+  const handleViewFilterChange = (event, newFilter) => {
+    if (newFilter !== null) {
+      setViewFilter(newFilter);
+    }
   };
 
   const updatePersonInCache = useCallback((personId, updates) => {
@@ -467,7 +517,6 @@ export const PeopleSection = () => {
           ? { ...person, ...updates } 
           : person
       );
-      // Update global cache
       globalPeopleCache = updated;
       return updated;
     });
@@ -476,7 +525,6 @@ export const PeopleSection = () => {
   const addPersonToCache = useCallback((newPerson) => {
     setAllPeople(prev => {
       const updated = [...prev, newPerson];
-      // Update global cache
       globalPeopleCache = updated;
       return updated;
     });
@@ -485,7 +533,6 @@ export const PeopleSection = () => {
   const removePersonFromCache = useCallback((personId) => {
     setAllPeople(prev => {
       const updated = prev.filter(person => String(person._id) !== String(personId));
-      // Update global cache
       globalPeopleCache = updated;
       return updated;
     });
@@ -569,19 +616,39 @@ export const PeopleSection = () => {
     });
   };
 
-  const isSearching = debouncedSearchTerm.trim().length > 0;
+  const isSearching = searchTerm.trim().length > 0;
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
-      {/* Loading indicator at the top */}
       {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999 }} />}
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, mb: 1 }}>
         <Typography variant="h6">
-          My People {isSearching && `(${filteredPeople.length} results)`}
+          {viewFilter === 'myPeople' ? 'My People' : 'All People'} 
+          {isSearching && ` (${filteredPeople.length} results)`}
           {loading && <CircularProgress size={16} sx={{ ml: 2 }} />}
         </Typography>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <ToggleButtonGroup
+            value={viewFilter}
+            exclusive
+            onChange={handleViewFilterChange}
+            size="small"
+          >
+            <Tooltip title="View All People" arrow>
+              <ToggleButton value="all" aria-label="all people">
+                <PeopleIcon fontSize="small" sx={{ mr: 0.5 }} />
+                All
+              </ToggleButton>
+            </Tooltip>
+            <Tooltip title="View My People Only" arrow>
+              <ToggleButton value="myPeople" aria-label="my people">
+                <PersonOutlineIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Mine
+              </ToggleButton>
+            </Tooltip>
+          </ToggleButtonGroup>
+          
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -599,6 +666,7 @@ export const PeopleSection = () => {
               </ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
+          
           <Button 
             variant="outlined" 
             size="small" 
@@ -613,7 +681,7 @@ export const PeopleSection = () => {
       <Box sx={{ display: 'flex', gap: 2, mb: 2, px: 1 }}>
         <TextField
           size="small"
-          placeholder="Search..."
+          placeholder="Search (exact match)..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
@@ -656,7 +724,6 @@ export const PeopleSection = () => {
                         newAll[idx] = updatedPerson;
                       }
                     });
-                    // Update global cache
                     globalPeopleCache = newAll;
                     return newAll;
                   });
