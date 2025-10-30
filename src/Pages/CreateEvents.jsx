@@ -71,7 +71,6 @@ const CreateEvents = ({
 
   const isAdmin = user?.role === "admin";
 
-  // Form state - eventType stores the display name (string). Leaders, etc.
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
     eventName: "",
@@ -84,6 +83,7 @@ const CreateEvents = ({
     description: "",
     leader1: "",
     leader12: "",
+    priceTiers: [{ name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" }],
   });
 
   // Errors
@@ -100,7 +100,25 @@ const CreateEvents = ({
     "Saturday",
     "Sunday",
   ];
+const standardPrice = 100;
 
+  const calculatePrice = (name) => {
+    switch (name) {
+      case "Standard":
+        return standardPrice;
+      case "Early Bird":
+        return standardPrice - 20;
+      case "Child":
+        return standardPrice / 2;
+      case "Group Package":
+        return 70;
+      case "Free":
+      case "Guest":
+        return 0;
+      default:
+        return 0;
+    }
+  };
   // ---------------------------
   // Keep flags & formData in sync with the selectedEventTypeObj prop
   // ---------------------------
@@ -300,23 +318,42 @@ const CreateEvents = ({
   // ---------------------------
   // Price tier helpers
   // ---------------------------
-  const handleAddPriceTier = () => {
-    setPriceTiers((prev) => [
+   const handleAddPriceTier = () => {
+    setEventData((prev) => ({
       ...prev,
-      { name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" },
-    ]);
-  };
-
-  const handlePriceTierChange = (index, field, value) => {
-    setPriceTiers((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
+      priceTiers: [
+        ...prev.priceTiers,
+        {
+          name: "",
+          price: "",
+          ageGroup: "",
+          memberType: "",
+          paymentMethod: "",
+        },
+      ],
+    }));
   };
 
   const handleRemovePriceTier = (index) => {
-    setPriceTiers((prev) => prev.filter((_, i) => i !== index));
+    setEventData((prev) => ({
+      ...prev,
+      priceTiers: prev.priceTiers.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handlePriceTierChange = (index, field, value) => {
+    setEventData((prev) => {
+      const updatedTiers = [...prev.priceTiers];
+      updatedTiers[index][field] = value;
+
+      // Auto-calculate price if name changes
+      if (field === "name") {
+        updatedTiers[index].price = calculatePrice(value);
+      }
+
+      // Ensure only one price name per tier (not multiple selections)
+      return { ...prev, priceTiers: updatedTiers };
+    });
   };
 
   // ---------------------------
@@ -717,196 +754,65 @@ const CreateEvents = ({
 
             {/* TICKETED EVENT PRICE TIERS */}
             {/* === Ticketed Fields Section === */}
-            {isTicketedEvent && (
-              <Box
-                sx={{ mt: 3, display: "flex", flexDirection: "column", gap: 2 }}
-              >
-                <Typography variant="h6" sx={{ fontWeight: "bold" }}>
-                  Ticketed Event Details
-                </Typography>
-
-                {/* Price Name Dropdown */}
-                {/* Price Name Dropdown */}
-                <Box>
-                  <Typography sx={{ fontWeight: "bold" }}>
-                    Price Name
-                  </Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={formData.priceName || ""}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          priceName: e.target.value,
-                        }))
-                      }
-                      displayEmpty
-                      MenuProps={{
-                        disablePortal: true, // ✅ keeps dropdown inside modal
-                        PaperProps: {
-                          sx: {
-                            maxHeight: 250,
-                            overflowY: "auto",
-                            borderRadius: 2,
-                            boxShadow: 3,
-                            bgcolor: isDarkMode ? "#1e1e1e" : "#fff",
-                          },
-                        },
-                      }}
-                    >
-                      <MenuItem value="">
-                        <em>Select Price Name</em>
-                      </MenuItem>
-                      {[
-                        { name: "Early Bird", value: "early_bird" },
-                        { name: "Standard", value: "standard" },
-                        { name: "VIP", value: "vip" },
-                        { name: "VVIP", value: "vvip" },
-                      ].map((option) => (
-                        <MenuItem key={option.value} value={option.value}>
-                          {option.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Box>
-                <Box>
-                  <Typography sx={{ fontWeight: "bold" }}>Price (R)</Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={formData.price || ""}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          price: e.target.value,
-                        }))
-                      }
-                      displayEmpty
-                      MenuProps={{
-                        disablePortal: true,
-                        PaperProps: {
-                          sx: {
-                            maxHeight: 250,
-                            overflowY: "auto",
-                            borderRadius: 2,
-                            boxShadow: 3,
-                            bgcolor: isDarkMode ? "#1e1e1e" : "#fff",
-                          },
-                        },
-                      }}
-                    >
-                      <MenuItem value="">
-                        <em>Select Price</em>
-                      </MenuItem>
-                      {[40, 50, 80, 100].map((price) => (
-                        <MenuItem key={price} value={price}>
-                          R{price}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Box>
-
-                {/* Age Group Dropdown */}
-                <Box>
-                  <Typography sx={{ fontWeight: "bold" }}>Age Group</Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={formData.ageGroup || ""}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          ageGroup: e.target.value,
-                        }))
-                      }
-                      displayEmpty
-                      MenuProps={{
-                        disablePortal: true,
-                        PaperProps: {
-                          sx: {
-                            maxHeight: 250,
-                            overflowY: "auto",
-                            borderRadius: 2,
-                            boxShadow: 3,
-                            bgcolor: isDarkMode ? "#1e1e1e" : "#fff",
-                          },
-                        },
-                      }}
-                    >
-                      <MenuItem value="">
-                        <em>Select Age Group</em>
-                      </MenuItem>
-                      {[
-                        { name: "All Ages", value: "all_ages" },
-                        { name: "18+", value: "18_plus" },
-                        { name: "Kids Only", value: "kids_only" },
-                      ].map((option) => (
-                        <MenuItem key={option.value} value={option.value}>
-                          {option.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Box>
-
-                {/* Payment Method Dropdown */}
-                <Box mb={4.5}>
-                  <Typography sx={{ fontWeight: "bold" }}>
-                    Payment Method
-                  </Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={formData.paymentMethod || ""}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          paymentMethod: e.target.value,
-                        }))
-                      }
-                      displayEmpty
-                      MenuProps={{
-                        disablePortal: true,
-                        PaperProps: {
-                          sx: {
-                            maxHeight: 250,
-                            overflowY: "auto",
-                            borderRadius: 2,
-                            boxShadow: 3,
-                            bgcolor: isDarkMode ? "#1e1e1e" : "#fff",
-                          },
-                        },
-                      }}
-                    >
-                      <MenuItem value="">
-                        <em>Select Payment Method</em>
-                      </MenuItem>
-                      {[
-                        { name: "Card", value: "card" },
-                        { name: "Cash", value: "cash" },
-                        { name: "Online", value: "online" },
-                        { name: "Yoco", value: "yoco" },
-                      ].map((option) => (
-                        <MenuItem key={option.value} value={option.value}>
-                          {option.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Box>
-
-                {priceTiers.length === 0 && (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    textAlign="center"
-                    py={2}
+            {/* === Ticketed Fields Section === */}
+ {isTicketedEvent && (
+          <Box mt={2}>
+            <Typography variant="h6">Price Tiers</Typography>
+            {formData.priceTiers.map((tier, i) => (
+              <Box key={i} display="flex" gap={1} alignItems="center" mb={1}>
+                <FormControl sx={{ minWidth: 120 }}>
+                  <InputLabel>Tier Name</InputLabel>
+                  <Select
+                    value={tier.name}
+                    label="Tier Name"
+                    onChange={(e) => handlePriceTierChange(i, "name", e.target.value)}
                   >
-                    Click "Add Price Tier" to create pricing options
-                  </Typography>
-                )}
-              </Box>
-            )}
+                    <MenuItem value="R40">R40</MenuItem>
+                    <MenuItem value="R50">R50</MenuItem>
+                    <MenuItem value="R80">R80</MenuItem>
+                    <MenuItem value="R100">R100</MenuItem>
+                  </Select>
+                </FormControl>
 
+                <TextField
+                  label="Price"
+                  type="number"
+                  value={tier.price}
+                  onChange={(e) => handlePriceTierChange(i, "price", e.target.value)}
+                  error={!!errors[`tier_${i}_price`]}
+                  helperText={errors[`tier_${i}_price`] || ""}
+                />
+                <TextField
+                  label="Age Group"
+                  value={tier.ageGroup}
+                  onChange={(e) => handlePriceTierChange(i, "ageGroup", e.target.value)}
+                  error={!!errors[`tier_${i}_ageGroup`]}
+                  helperText={errors[`tier_${i}_ageGroup`] || ""}
+                />
+                <TextField
+                  label="Member Type"
+                  value={tier.memberType}
+                  onChange={(e) => handlePriceTierChange(i, "memberType", e.target.value)}
+                  error={!!errors[`tier_${i}_memberType`]}
+                  helperText={errors[`tier_${i}_memberType`] || ""}
+                />
+                <TextField
+                  label="Payment Method"
+                  value={tier.paymentMethod}
+                  onChange={(e) => handlePriceTierChange(i, "paymentMethod", e.target.value)}
+                  error={!!errors[`tier_${i}_paymentMethod`]}
+                  helperText={errors[`tier_${i}_paymentMethod`] || ""}
+                />
+                <IconButton onClick={() => handleRemovePriceTier(i)}>
+                  <DeleteIcon />
+                </IconButton>
+              </Box>
+            ))}
+            <Button startIcon={<AddIcon />} onClick={handleAddPriceTier}>
+              Add Price Tier
+            </Button>
+          </Box>
+        )}
             {/* Date & Time */}
             <Box
               display="flex"
