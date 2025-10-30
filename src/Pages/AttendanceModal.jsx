@@ -2684,7 +2684,7 @@ const handleSave = async () => {
         <div style={styles.modal}>
           <div style={styles.header}>
             <h2 style={styles.title}>
-              Take Attendance
+              ATTENDANCE
               {isTicketedEvent && (
                 <span style={styles.ticketBadge}>Ticketed Event</span>
               )}
