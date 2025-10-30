@@ -542,6 +542,7 @@ const Events = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
+  const isDarkMode = theme.palette.mode === 'dark';
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
   const isLeaderAt12 = userRole === "leader at 12";
@@ -598,8 +599,6 @@ const Events = () => {
     CACHE_DURATION: 5 * 60 * 1000
   });
   const searchTimeoutRef = useRef(null);
-
-  const isDarkMode = theme.palette.mode === 'dark';
 
   // Calculate pagination values
   const paginatedEvents = useMemo(() => filteredEvents, [filteredEvents]);
@@ -1582,7 +1581,7 @@ const Events = () => {
               setCurrentPage(1);
             }}
           />
-          <span style={styles.viewFilterText}>My Events</span>
+          <span style={styles.viewFilterText}>Personal</span>
         </label>
       </div>
     );
