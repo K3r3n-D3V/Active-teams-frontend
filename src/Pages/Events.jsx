@@ -575,7 +575,7 @@ const Events = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [currentSelectedEventType, setCurrentSelectedEventType] = useState(() => {
+  const [currentSelectedEventType] = useState(() => {
     return localStorage.getItem("selectedEventType") || '';
   });
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
@@ -594,11 +594,19 @@ const Events = () => {
   const [editingEventType, setEditingEventType] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
   const [viewFilter, setViewFilter] = useState(() => getDefaultViewFilter());
+  const [filterOptions, setFilterOptions] = useState({
+  leader: '',
+  day: 'all',
+  eventType: 'all'
+});
+
   const cacheRef = useRef({
     data: new Map(),
     timestamp: new Map(),
     CACHE_DURATION: 5 * 60 * 1000
   });
+  const searchTimeoutRef = useRef(null);
+
 
   const getCacheKey = useCallback((params) => {
     return JSON.stringify({
@@ -639,25 +647,6 @@ const Events = () => {
     cacheRef.current.data.clear();
     cacheRef.current.timestamp.clear();
   }, []);
-
- const deduplicateEvents = (events) => {
-  const seen = new Map();
-  const uniqueEvents = [];
-
-  events.forEach(event => {
-    if (!event || !event._id) return;
-
-    // Create a unique key from multiple fields to catch duplicates
-    const uniqueKey = `${event._id}-${event.eventName}-${event.day}-${event.eventLeaderEmail}`.toLowerCase();
-
-    if (!seen.has(uniqueKey)) {
-      seen.set(uniqueKey, true);
-      uniqueEvents.push(event);
-    }
-  });
-
-  return uniqueEvents;
-};
 
 const fetchEvents = async (filters = {}, forceRefresh = false) => {
     setLoading(true);
@@ -786,6 +775,13 @@ const handleFetchError = (err) => {
     });
   }
 };
+useEffect(() => {
+  return () => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+  };
+}, []);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -887,6 +883,29 @@ const handleFetchError = (err) => {
     selectedStatus, selectedEventTypeFilter, viewFilter, currentPage, rowsPerPage, userRole
   ]);
 
+  const clearAllFilters = () => {
+  setSearchQuery('');
+  setFilterOptions({
+    leader: '',
+    day: 'all',
+    eventType: 'all'
+  });
+  setActiveFilters({});
+  setSelectedEventTypeFilter('all');
+  setSelectedStatus('incomplete');
+  setCurrentPage(1);
+
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
+
+  fetchEvents({
+    page: 1,
+    limit: rowsPerPage,
+    personal: shouldApplyPersonalFilter,
+    start_date: '2025-10-20'
+  }, true);
+};
 
   const isOverdue = (event) => {
     const did_not_meet = event.did_not_meet || false;
@@ -1032,9 +1051,36 @@ const handleFetchError = (err) => {
     }
   };
 
-  const handleSearchChange = (e) => {
+ const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
+    
+    // Debounce the search to avoid too many API calls
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      const trimmedSearch = value.trim();
+
+      // Determine if personal filter should be applied
+      let shouldApplyPersonalFilter = undefined;
+      if (userRole === "admin" || userRole === "leader at 12") {
+        shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
+      }
+
+      setCurrentPage(1);
+
+      fetchEvents({
+        page: 1,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: trimmedSearch || undefined,
+        personal: shouldApplyPersonalFilter,
+        start_date: '2025-10-20'
+      }, true);
+    }, 500); // Wait 500ms after user stops typing
   };
 
   const handleSearchSubmit = () => {
@@ -1147,24 +1193,45 @@ const handleFetchError = (err) => {
   };
 
   const applyFilters = (filters) => {
-    setActiveFilters(filters);
-    setCurrentPage(1);
+  setActiveFilters(filters);
+  setFilterOptions(filters);
+  setCurrentPage(1);
 
-    let searchQuery = '';
-    if (filters.leader) {
-      searchQuery = filters.leader;
-    }
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
 
-    fetchEvents({
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery || undefined,
-      day: filters.day !== 'all' ? filters.day : undefined,
-      start_date: '2025-10-20'
-    }, true);
+  // Build filter parameters for API call
+  const apiFilters = {
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: searchQuery.trim() || undefined,
+    personal: shouldApplyPersonalFilter ? true : undefined,
+    start_date: '2025-10-20'
   };
+
+  // Add additional filters if provided
+  if (filters.leader && filters.leader.trim()) {
+    apiFilters.search = filters.leader.trim();
+  }
+  
+  if (filters.day && filters.day !== 'all') {
+    apiFilters.day = filters.day;
+  }
+
+  if (filters.eventType && filters.eventType !== 'all') {
+    apiFilters.event_type = filters.eventType;
+  }
+
+  // Clean undefined values
+  Object.keys(apiFilters).forEach(key => 
+    apiFilters[key] === undefined && delete apiFilters[key]
+  );
+
+  fetchEvents(apiFilters, true);
+};
 
 
   const handleAttendanceSubmit = async (data) => {
@@ -2039,45 +2106,35 @@ const handleFetchError = (err) => {
         <EventTypeSelector />
 
         <div style={styles.searchFilterRow}>
-          <input
-            type="text"
-            placeholder="Search by Event Name, Leader, or Email..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleSearchSubmit();
-              }
-            }}
-            style={themedStyles.searchInput}
-          />
-          <button
-            style={styles.filterButton}
-            onClick={handleSearchSubmit}
-            disabled={isLoading}
-          >
-            {isLoading ? '⏳' : 'SEARCH'}
-          </button>
+  <input
+    type="text"
+    placeholder="Search by Event Name, Leader, or Email..."
+    value={searchQuery}
+    onChange={handleSearchChange}
+    onKeyPress={(e) => {
+      if (e.key === 'Enter') {
+        handleSearchSubmit();
+      }
+    }}
+    style={themedStyles.searchInput}
+  />
 
-          <button
-            style={{ ...styles.filterButton, backgroundColor: '#dc3545' }}
-            onClick={() => {
-              setSearchQuery('');
-              setCurrentPage(1);
-              fetchEvents({
-                page: 1,
-                limit: rowsPerPage,
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: undefined,
-                start_date: '2025-10-20'
-              }, true);
-            }}
-            disabled={isLoading}
-          >
-            {isLoading ? '⏳' : 'CLEAR'}
-          </button>
-        </div>
+  <button
+    style={styles.filterButton}
+    onClick={handleSearchSubmit}
+    disabled={isLoading}
+  >
+    {isLoading ? '⏳' : 'SEARCH'}
+  </button>
+
+  <button
+    style={{ ...styles.filterButton, backgroundColor: '#6c757d' }}
+    onClick={clearAllFilters}
+    disabled={isLoading}
+  >
+    {isLoading ? '⏳' : 'CLEAR ALL'}
+  </button>
+</div>
 
         <div style={styles.viewFilterRow}>
           <StatusBadges />
@@ -2377,7 +2434,7 @@ const handleFetchError = (err) => {
                 style={fabStyles.fabMenuItem}
                 onClick={() => {
                   setFabMenuOpen(false);
-                  handleFixAllLeadersAt1();
+                   handleFixLeaders();
                 }}
               >
                 <span style={fabStyles.fabMenuLabel}>Fix All Leaders @1</span>
@@ -2430,7 +2487,7 @@ const handleFetchError = (err) => {
         onClose={() => setShowFilter(false)}
         onApplyFilter={applyFilters}
         events={events}
-        currentFilters={activeFilters}
+        currentFilters={filterOptions}
         eventTypes={eventTypes}
       />
 
