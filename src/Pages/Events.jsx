@@ -2394,63 +2394,50 @@ useEffect(() => {
         </div>
       )}
 
-      {isAdmin && (
+    
+    {isAdmin && (
   <div style={fabStyles.fabContainer}>
-    {/* Menu Items */}
     {fabMenuOpen && (
       <div style={fabStyles.fabMenu}>
-        
-        {/* Create Event Type */}
+        {/* Create Event Type Option - Only for Admins */}
         <div
           style={fabStyles.fabMenuItem}
           onClick={() => {
-            // Close menu
             setFabMenuOpen(false);
-            // Open Event Types modal
             setEventTypesModalOpen(true);
-            setEditingEventType(null);
+            setEditingEventType(null); // Ensure it's creating new
           }}
         >
-          <span style={fabStyles.fabMenuLabel}>Event Types</span>
+          <span style={fabStyles.fabMenuLabel}>Create Event Type</span>
+          <div style={fabStyles.fabMenuIcon}>📋</div>
         </div>
 
-        {/* Create Event */}
+        {/* Create Event Option - Only for Admins */}
         <div
           style={fabStyles.fabMenuItem}
           onClick={() => {
-            // Close menu
             setFabMenuOpen(false);
-            // Open Create Event modal
             setCreateEventModalOpen(true);
           }}
         >
           <span style={fabStyles.fabMenuLabel}>Create Event</span>
+          <div style={fabStyles.fabMenuIcon}>📅</div>
         </div>
       </div>
     )}
 
-    {/* Floating Action Button (the "+") */}
     <button
       style={{
         ...fabStyles.mainFab,
         transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
       }}
-      onClick={() => {
-        // If menu is closed, open it; otherwise close it
-        setFabMenuOpen((prev) => !prev);
-      }}
+      onClick={() => setFabMenuOpen(!fabMenuOpen)}
       title="Menu"
     >
       +
     </button>
-
-    {/* Modals */}
-    {eventTypesModalOpen && (
-      <EventTypesModal
-        isOpen={eventTypesModalOpen}
-        onClose={() => setEventTypesModalOpen(false)}
-      />
-    )}
+  </div>
+)}
 
     {createEventModalOpen && (
       <CreateEvents
