@@ -442,18 +442,19 @@ const fabStyles = {
 
 const eventTypeStyles = {
   container: {
-    backgroundColor: "#f8f9fa",
+    backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
     borderRadius: "16px",
     padding: "1.5rem",
     marginBottom: "1.5rem",
     boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-    border: "1px solid #e9ecef",
+    border: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"}`,
     position: "relative",
+    color: isDarkMode ? theme.palette.text.primary : "inherit",
   },
   header: {
     fontSize: "0.875rem",
     fontWeight: "600",
-    color: "#6c757d",
+    color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
     marginBottom: "1rem",
@@ -461,7 +462,7 @@ const eventTypeStyles = {
   selectedTypeDisplay: {
     fontSize: "1.25rem",
     fontWeight: "700",
-    color: "#007bff",
+    color: isDarkMode ? theme.palette.primary.main : "#007bff",
     marginBottom: "1rem",
     display: "flex",
     alignItems: "center",
@@ -487,29 +488,30 @@ const eventTypeStyles = {
   typeCard: {
     padding: "1rem",
     borderRadius: "12px",
-    border: "2px solid transparent",
-    backgroundColor: "white",
+    border: `2px solid ${isDarkMode ? theme.palette.divider : "transparent"}`,
+    backgroundColor: isDarkMode ? theme.palette.background.default : "white",
     cursor: "pointer",
     transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     position: "relative",
     overflow: "hidden",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+    boxShadow: isDarkMode ? "0 2px 4px rgba(0,0,0,0.2)" : "0 2px 4px rgba(0,0,0,0.05)",
+    color: isDarkMode ? theme.palette.text.primary : "inherit",
   },
   typeCardActive: {
     borderColor: "#007bff",
-    backgroundColor: "#e7f3ff",
+    backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
     transform: "translateX(8px) scale(1.02)",
     boxShadow: "0 6px 16px rgba(0, 123, 255, 0.25)",
   },
   typeCardHover: {
-    borderColor: "#ddd",
+    borderColor: isDarkMode ? theme.palette.primary.main : "#ddd",
     transform: "translateY(-2px)",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+    boxShadow: isDarkMode ? "0 4px 8px rgba(0,0,0,0.3)" : "0 4px 8px rgba(0,0,0,0.1)",
   },
   typeName: {
     fontSize: "0.9rem",
     fontWeight: "600",
-    color: "#495057",
+    color: isDarkMode ? theme.palette.text.primary : "#495057",
     textAlign: "center",
     display: "block",
   },
@@ -1478,40 +1480,6 @@ useEffect(() => {
     }
   };
 
-  const handleFixLeaders = async () => {
-    if (!window.confirm("This will fix missing Leader at 1 assignments for all events. Continue?")) {
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-
-      const response = await axios.post(
-        `${BACKEND_URL}/admin/events/fix-missing-leader-at-1`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setSnackbar({
-        open: true,
-        message: response.data.message,
-        severity: "success",
-      });
-
-      fetchEvents({}, true);
-    } catch (error) {
-      console.error("Error fixing leaders:", error);
-      setSnackbar({
-        open: true,
-        message: "Failed to fix leaders. Please try again.",
-        severity: "error",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const isDarkMode = theme.palette.mode === 'dark';
 
   const themedStyles = {
@@ -2426,61 +2394,49 @@ useEffect(() => {
         </div>
       )}
 
-      <div style={fabStyles.fabContainer}>
-        {fabMenuOpen && (
-          <div style={fabStyles.fabMenu}>
-            {isAdmin && (
-              <div
-                style={fabStyles.fabMenuItem}
-                onClick={() => {
-                  setFabMenuOpen(false);
-                   handleFixLeaders();
-                }}
-              >
-                <span style={fabStyles.fabMenuLabel}>Fix All Leaders @1</span>
-                <div style={fabStyles.fabMenuIcon}>🔧</div>
-              </div>
-            )}
-
-            {(isAdmin || userRole === "registrant") && (
-              <div
-                style={fabStyles.fabMenuItem}
-                onClick={() => {
-                  setFabMenuOpen(false);
-                  handleCreateEvent();
-                }}
-              >
-                <span style={fabStyles.fabMenuLabel}>Create Event</span>
-                <div style={fabStyles.fabMenuIcon}>📅</div>
-              </div>
-            )}
-
-            {userRole === "user" && (
-              <div
-                style={fabStyles.fabMenuItem}
-                onClick={() => {
-                  setFabMenuOpen(false);
-                  handleCreateEvent();
-                }}
-              >
-                <span style={fabStyles.fabMenuLabel}>Create Cell</span>
-                <div style={fabStyles.fabMenuIcon}>🏠</div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <button
-          style={{
-            ...fabStyles.mainFab,
-            transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-          }}
-          onClick={() => setFabMenuOpen(!fabMenuOpen)}
-          title="Menu"
-        >
-          +
-        </button>
+      {isAdmin && (
+  <div style={fabStyles.fabContainer}>
+  {fabMenuOpen && (
+    <div style={fabStyles.fabMenu}>
+      {/* Create Event Type Option - Only for Admins */}
+      <div
+        style={fabStyles.fabMenuItem}
+        onClick={() => {
+          setFabMenuOpen(false);
+          setEventTypesModalOpen(true);
+          setEditingEventType(null); // Ensure it's creating new
+        }}
+      >
+        <span style={fabStyles.fabMenuLabel}>Create Event Type</span>
+        <div style={fabStyles.fabMenuIcon}>📋</div>
       </div>
+
+      {/* Create Event Option - Only for Admins */}
+      <div
+        style={fabStyles.fabMenuItem}
+        onClick={() => {
+          setFabMenuOpen(false);
+          setCreateEventModalOpen(true);
+        }}
+      >
+        <span style={fabStyles.fabMenuLabel}>Create Event</span>
+        <div style={fabStyles.fabMenuIcon}>📅</div>
+      </div>
+    </div>
+  )}
+
+  <button
+    style={{
+      ...fabStyles.mainFab,
+      transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+    }}
+    onClick={() => setFabMenuOpen(!fabMenuOpen)}
+    title="Menu"
+  >
+    +
+  </button>
+</div>
+)}
 
       <Eventsfilter
         open={showFilter}
