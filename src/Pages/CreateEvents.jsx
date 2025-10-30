@@ -385,51 +385,51 @@ const CreateEvents = ({
   // ---------------------------
   // Submit (create or update)
   // ---------------------------
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  setIsSubmitting(true);
+    setIsSubmitting(true);
 
-  try {
-    const eventTypeToSend = selectedEventTypeObj?.name || formData.eventType;
+    try {
+      const eventTypeToSend =
+        selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
 
-    const payload = {
-      UUID: generateUUID(), // ✅ ADD UUID HERE - automatically generated for every new event
-      eventType: eventTypeToSend,
-      eventName: formData.eventName,
-      isTicketed: !!isTicketedEvent,
-      isGlobal: !!isGlobalEvent,
-      hasPersonSteps: !!hasPersonSteps,
-      location: formData.location,
-      eventLeader: formData.eventLeader,
-      description: formData.description,
-      userEmail: user?.email || "",
-      recurring_day: formData.recurringDays,
-      status: "open",
-    };
+      const payload = {
+        UUID: generateUUID(),
+        eventType: eventTypeToSend,
+        eventName: formData.eventName,
+        isTicketed: !!isTicketedEvent,
+        isGlobal: !!isGlobalEvent,
+        hasPersonSteps: !!hasPersonSteps,
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        description: formData.description,
+        userEmail: user?.email || "",
+        recurring_day: formData.recurringDays,
+        status: "open",
+      };
 
-    // ✅ Price tiers for ticketed events
-    if (isTicketedEvent && priceTiers.length > 0) {
-      payload.priceTiers = priceTiers.map(tier => ({
-        name: tier.name || "",
-        price: parseFloat(tier.price) || 0,
-        ageGroup: tier.ageGroup || "",
-        memberType: tier.memberType || "",
-        paymentMethod: tier.paymentMethod || ""
-      }));
-      
-      console.log("📋 Including price tiers:", payload.priceTiers);
-    } else {
-      payload.priceTiers = [];
-    }
+      // Price tiers for ticketed events
+      if (isTicketedEvent && priceTiers.length > 0) {
+        payload.priceTiers = priceTiers.map((tier) => ({
+          name: tier.name || "",
+          price: parseFloat(tier.price) || 0,
+          ageGroup: tier.ageGroup || "",
+          memberType: tier.memberType || "",
+          paymentMethod: tier.paymentMethod || "",
+        }));
+      } else {
+        payload.priceTiers = [];
+      }
 
-    // Person steps leaders
-    if (hasPersonSteps && !isGlobalEvent) {
-      if (formData.leader1) payload.leader1 = formData.leader1;
-      if (formData.leader12) payload.leader12 = formData.leader12;
-    }
+      // Person steps leaders
+      if (hasPersonSteps && !isGlobalEvent) {
+        if (formData.leader1) payload.leader1 = formData.leader1;
+        if (formData.leader12) payload.leader12 = formData.leader12;
+      }
 
+      // Date/time assembly (only include for relevant event types)
       if (((!hasPersonSteps) || isGlobalEvent) && formData.date && formData.time) {
         const [hoursStr, minutesStr] = formData.time.split(":");
         let hours = Number(hoursStr);
@@ -442,56 +442,50 @@ const CreateEvents = ({
           .padStart(2, "0")}:00`;
       }
 
-    console.log("📤 Submitting payload with UUID:", JSON.stringify(payload, null, 2));
+      const token = localStorage.getItem("token");
+      const headers = {
+        Authorization: token ? `Bearer ${token}` : "",
+        "Content-Type": "application/json",
+      };
 
-    // ✅ Get token for authorization
-    const token = localStorage.getItem("token");
-    const headers = { 
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
+      const response = eventId
+        ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
+        : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
 
-    const response = eventId
-      ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload, { headers })
-      : await axios.post(`${BACKEND_URL}/events`, payload, { headers });
+      console.log("✅ Server response:", response.data);
 
-    console.log("✅ Server response:", response.data);
-    console.log("✅ Event UUID:", payload.UUID);
+      setSuccessMessage(
+        hasPersonSteps && !isGlobalEvent
+          ? `The ${formData.eventName} event with leadership hierarchy has been ${eventId ? "updated" : "created"} successfully!`
+          : eventId
+          ? "Event updated successfully!"
+          : "Event created successfully!"
+      );
+      setSuccessAlert(true);
 
-    setSuccessMessage(
-      hasPersonSteps && !isGlobalEvent
-        ? `The ${formData.eventName} event with leadership hierarchy has been ${
-            eventId ? "updated" : "created"
-          } successfully!`
-        : eventId
-        ? "Event updated successfully!"
-        : "Event created successfully!"
-    );
-    setSuccessAlert(true);
+      if (!eventId) resetForm();
 
-    if (!eventId) resetForm();
-
-    setTimeout(() => {
-      if (isModal && typeof onClose === "function") {
-        onClose();
-      } else {
-        navigate("/events", { state: { refresh: true } });
-      }
-    }, 1200);
-  } catch (err) {
-    console.error("❌ Error submitting event:", err);
-    console.error("❌ Error response:", err.response?.data);
-    setErrorMessage(
-      err.response?.data?.message ||
-        err.response?.data?.detail ||
-        err.message ||
-        "Failed to submit event"
-    );
-    setErrorAlert(true);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+      // close or navigate after small delay (keeps behavior you had)
+      setTimeout(() => {
+        if (isModal && typeof onClose === "function") {
+          onClose();
+        } else {
+          navigate("/events", { state: { refresh: true } });
+        }
+      }, 1200);
+    } catch (err) {
+      console.error("Error submitting event:", err);
+      setErrorMessage(
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
+          err?.message ||
+          "Failed to submit event"
+      );
+      setErrorAlert(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const containerStyle = isModal
     ? {
@@ -921,6 +915,7 @@ const CreateEvents = ({
               }}
             />
 
+            {/* Event Leader - WITH AUTO-FILL FOR PERSON STEPS */}
             <Autocomplete
               freeSolo
               filterOptions={(options) => options}

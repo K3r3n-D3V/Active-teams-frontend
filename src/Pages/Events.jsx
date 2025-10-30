@@ -535,14 +535,15 @@ const eventTypeStyles = {
     animation: "slideIn 0.3s ease-out",
   },
 };
+
 const getDefaultViewFilter = (userRole) => {
   const role = userRole?.toLowerCase() || '';
   if (role === "user" || role === "leader at 1" || role === "registrant") {
     return 'personal';
-  } if (role === "admin" || role === "leader at 12") {
+  }
+  if (role === "admin" || role === "leader at 12") {
     return 'all';
   }
-
   return 'all';
 };
 
@@ -555,7 +556,6 @@ const Events = () => {
   const userRole = currentUser?.role?.toLowerCase() || "";
   const isLeaderAt12 = userRole === "leader at 12";
   const isAdmin = userRole === "admin";
-
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -687,7 +687,6 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
         ...filters
       };
 
-      // 🔥 FIX: Clean undefined values
       Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
       const cacheKey = getCacheKey(params);
@@ -707,8 +706,6 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
       }
 
       const endpoint = `${BACKEND_URL}/events`;
-
-      console.log(`🚀 Fetching from: ${endpoint}`, params);
 
       const response = await axios.get(endpoint, {
         headers,
@@ -733,7 +730,7 @@ const fetchEvents = async (filters = {}, forceRefresh = false) => {
       if (filters.page !== undefined) setCurrentPage(filters.page);
 
     } catch (err) {
-      console.error("❌ Error:", err);
+      console.error("Error:", err);
 
       if (err.code === 'ECONNABORTED') {
         setSnackbar({
@@ -804,6 +801,7 @@ useEffect(() => {
 
     checkAuth();
   }, []);
+
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
       const leaderAt1 = await getCurrentUserLeaderAt1();
@@ -851,6 +849,7 @@ useEffect(() => {
   useEffect(() => {
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
+
   useEffect(() => {
     const shouldApplyPersonalByDefault =
       (userRole === "user" || userRole === "leader at 1" || userRole === "registrant");
@@ -873,7 +872,7 @@ useEffect(() => {
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
       search: searchQuery.trim() || undefined,
       personal: shouldApplyPersonalByDefault ? undefined : (viewFilter === 'personal' ? true : undefined),
-      start_date: '2025-10-20' // ✅ ALWAYS INCLUDE
+      start_date: '2025-10-20'
     };
 
     Object.keys(fetchParams).forEach(key =>
@@ -999,6 +998,7 @@ useEffect(() => {
       });
     }
   };
+
   const handleCloseEventTypesModal = () => {
     setEventTypesModalOpen(false);
     setEditingEventType(null);
@@ -1088,7 +1088,6 @@ useEffect(() => {
   const handleSearchSubmit = () => {
     const trimmedSearch = searchQuery.trim();
 
-    // Determine if personal filter should be applied
     let shouldApplyPersonalFilter = undefined;
     if (userRole === "admin" || userRole === "leader at 12") {
       shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
@@ -1115,26 +1114,20 @@ useEffect(() => {
     setSelectedEventTypeFilter(typeValue);
     setCurrentPage(1);
 
-    // Determine if personal filter should be applied
-    let shouldApplyPersonalFilter = undefined;
-    if (userRole === "admin" || userRole === "leader at 12") {
-      shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
-    }
+    const selectedTypeObj = customEventTypes.find(
+      (et) => et.name?.toLowerCase() === typeValue.toLowerCase()
+    );
 
-    fetchEvents({
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: typeValue !== 'all' ? typeValue : undefined,
-      search: searchQuery.trim() || undefined,
-      personal: shouldApplyPersonalFilter,
-      start_date: '2025-10-20' // ✅ ADD THIS
-    }, true);
+    if (selectedTypeObj) {
+      setSelectedEventTypeObj(selectedTypeObj);
+    } else {
+      setSelectedEventTypeObj(null);
+    }
   };
 
-  const handleNextPage = () => {
-    if (currentPage < totalPages && !isLoading) {
-      const newPage = currentPage + 1;
+  const handlePreviousPage = () => {
+    if (currentPage > 1 && !isLoading) {
+      const newPage = currentPage - 1;
 
       const shouldApplyPersonalFilter =
         viewFilter === 'personal' &&
@@ -1147,14 +1140,14 @@ useEffect(() => {
         event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
         search: searchQuery.trim() || undefined,
         personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20' // ✅ ADD THIS
+        start_date: '2025-10-20'
       });
     }
   };
 
-  const handlePreviousPage = () => {
-    if (currentPage > 1 && !isLoading) {
-      const newPage = currentPage - 1;
+  const handleNextPage = () => {
+    if (currentPage < totalPages && !isLoading) {
+      const newPage = currentPage + 1;
 
       const shouldApplyPersonalFilter =
         viewFilter === 'personal' &&
@@ -1532,34 +1525,18 @@ useEffect(() => {
   const EventTypeSelector = () => {
     const [hoveredType, setHoveredType] = useState(null);
 
-    const allTypes = ["All Events", ...eventTypes];
+    const allTypes = ["all", ...(eventTypes || []).map(t => t.name || t)];
 
     const getDisplayName = (type) => {
-      if (type === "All Events") return type;
-      if (typeof type === "string") return type;
-      return type.name || type;
+      if (!type) return "";
+      if (type === "all") return "All Events";
+      return typeof type === "string" ? type : type.name || String(type);
     };
 
     const getTypeValue = (type) => {
-      if (type === "All Events") return "all";
-      if (typeof type === "string") {
-        return type;
-      }
-      return type.name || type;
+      if (type === "all") return "all";
+      return typeof type === "string" ? type : type.name || String(type);
     };
-
-    const selectedDisplayName =
-      selectedEventTypeFilter === "all"
-        ? "All Events"
-        : eventTypes.find((t) => {
-          const tValue = typeof t === "string" ? t : t.name;
-          return tValue?.toLowerCase() === selectedEventTypeFilter;
-        }) || selectedEventTypeFilter;
-
-    const finalDisplayName =
-      typeof selectedDisplayName === "string"
-        ? selectedDisplayName
-        : selectedDisplayName?.name || "All Events";
 
     return (
       <div style={eventTypeStyles.container}>
@@ -1567,7 +1544,7 @@ useEffect(() => {
 
         <div style={eventTypeStyles.selectedTypeDisplay}>
           <div style={eventTypeStyles.checkIcon}>✓</div>
-          <span>{finalDisplayName}</span>
+          <span>{getDisplayName(selectedEventTypeFilter)}</span>
         </div>
 
         {isAdmin && (
@@ -1592,9 +1569,7 @@ useEffect(() => {
                   style={{
                     ...eventTypeStyles.typeCard,
                     ...(isActive ? eventTypeStyles.typeCardActive : {}),
-                    ...(isHovered && !isActive
-                      ? eventTypeStyles.typeCardHover
-                      : {}),
+                    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
                     position: "relative",
                     width: 200,
                     minHeight: 70,
@@ -1602,46 +1577,10 @@ useEffect(() => {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    cursor: "pointer",
                   }}
                   onClick={() => {
-                    const selectedTypeObj =
-                      typeValue === "all"
-                        ? null
-                        : customEventTypes.find(
-                          (t) => t.name.toLowerCase() === typeValue
-                        ) || null;
-
-                    setSelectedEventTypeFilter(typeValue);
-                    setSelectedEventTypeObj(selectedTypeObj);
-
-                    if (selectedTypeObj) {
-                      localStorage.setItem(
-                        "selectedEventTypeObj",
-                        JSON.stringify(selectedTypeObj)
-                      );
-                    } else {
-                      localStorage.removeItem("selectedEventTypeObj");
-                    }
-
-                    const shouldApplyPersonalFilter =
-                      viewFilter === "personal" &&
-                      (currentUser?.role?.toLowerCase() === "admin" ||
-                        currentUser?.role?.toLowerCase() === "leader at 12");
-
-                    setCurrentPage(1);
-
-                    fetchEvents(
-                      {
-                        page: 1,
-                        limit: rowsPerPage,
-                        status:
-                          selectedStatus !== "all" ? selectedStatus : undefined,
-                        event_type: typeValue !== "all" ? typeValue : undefined,
-                        search: searchQuery.trim() || undefined,
-                        personal: shouldApplyPersonalFilter ? true : undefined,
-                      },
-                      true
-                    );
+                    handleEventTypeClick(typeValue);
                   }}
                   onMouseEnter={() => setHoveredType(typeValue)}
                   onMouseLeave={() => setHoveredType(null)}
@@ -1656,7 +1595,7 @@ useEffect(() => {
                     {displayName}
                   </span>
 
-                  {isAdmin && type !== "All Events" && (
+                  {isAdmin && (
                     <IconButton
                       size="small"
                       onClick={(e) => {
@@ -1664,13 +1603,7 @@ useEffect(() => {
                         openTypeMenu(e, type);
                       }}
                       aria-label="type actions"
-                      sx={{
-                        position: "absolute",
-                        top: 8,
-                        right: 8,
-                        zIndex: 10,
-                        color: "grey",
-                      }}
+                      sx={{ position: "absolute", top: 6, right: 6, zIndex: 2 }}
                     >
                       <MoreVertIcon fontSize="small" />
                     </IconButton>
@@ -1678,395 +1611,73 @@ useEffect(() => {
                 </div>
               );
             })}
+
+            <Popover
+              open={Boolean(typeMenuAnchor)}
+              anchorEl={typeMenuAnchor}
+              onClose={closeTypeMenu}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+              slotProps={{
+                paper: {
+                  elevation: 4,
+                  sx: { borderRadius: 1 },
+                },
+              }}
+            >
+              <MenuItem
+                onClick={() => {
+                  if (typeMenuFor) handleEditType(typeMenuFor);
+                  closeTypeMenu();
+                }}
+              >
+                <ListItemIcon>
+                  <EditIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Edit</ListItemText>
+              </MenuItem>
+
+              <MenuItem
+                onClick={() => {
+                  setToDeleteType(typeMenuFor);
+                  setConfirmDeleteOpen(true);
+                  closeTypeMenu();
+                }}
+                sx={{ color: "error.main" }}
+              >
+                <ListItemIcon>
+                  <DeleteIcon fontSize="small" color="error" />
+                </ListItemIcon>
+                <ListItemText>Delete</ListItemText>
+              </MenuItem>
+            </Popover>
+
+            <Dialog
+              open={confirmDeleteOpen}
+              onClose={() => setConfirmDeleteOpen(false)}
+              maxWidth="xs"
+              fullWidth
+            >
+              <DialogTitle>Delete Event Type</DialogTitle>
+              <DialogContent>
+                <Typography>
+                  Are you sure you want to delete{" "}
+                  <strong>{toDeleteType?.name || toDeleteType || "this event type"}</strong>? This
+                  cannot be undone.
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
+                <Button color="error" onClick={handleDeleteType}>
+                  Delete
+                </Button>
+              </DialogActions>
+            </Dialog>
           </div>
         )}
-
-        <Popover
-          open={Boolean(typeMenuAnchor)}
-          anchorEl={typeMenuAnchor}
-          onClose={closeTypeMenu}
-          anchorOrigin={{
-            vertical: "bottom",
-            horizontal: "right",
-          }}
-          transformOrigin={{
-            vertical: "top",
-            horizontal: "right",
-          }}
-          sx={{
-            "& .MuiPopover-paper": {
-              borderRadius: "8px",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-              minWidth: "120px",
-            }
-          }}
-        >
-          <MenuItem
-            onClick={() => {
-              handleEditType(typeMenuFor);
-              closeTypeMenu();
-            }}
-            sx={{ py: 1 }}
-          >
-            <ListItemIcon>
-              <EditIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Edit</ListItemText>
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              setToDeleteType(typeMenuFor);
-              setConfirmDeleteOpen(true);
-              closeTypeMenu();
-            }}
-            sx={{
-              color: "error.main",
-              py: 1
-            }}
-          >
-            <ListItemIcon>
-              <DeleteIcon fontSize="small" color="error" />
-            </ListItemIcon>
-            <ListItemText>Delete</ListItemText>
-          </MenuItem>
-        </Popover>
-
-        <Dialog
-          open={confirmDeleteOpen}
-          onClose={() => setConfirmDeleteOpen(false)}
-          maxWidth="xs"
-          fullWidth
-        >
-          <DialogTitle>Delete Event Type</DialogTitle>
-          <DialogContent>
-            <Typography>
-              Are you sure you want to delete this event type? This cannot
-              be undone.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setConfirmDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button color="error" onClick={handleDeleteType}>
-              Delete
-            </Button>
-          </DialogActions>
-        </Dialog>
       </div>
     );
   };
-
-  const StatusBadges = () => {
-    const handleStatusClick = (status) => {
-      setSelectedStatus(status);
-
-      // Determine if personal filter should be applied
-      const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      setCurrentPage(1);
-
-      fetchEvents({
-        status: status !== 'all' ? status : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery || undefined,
-        page: 1,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20'
-      });
-    };
-
-    return (
-      <div style={styles.statusBadgeContainer}>
-        <button
-          style={{
-            ...styles.statusBadge,
-            ...styles.statusBadgeIncomplete,
-            ...(selectedStatus === 'incomplete' ? styles.statusBadgeActive : {}),
-            transform: selectedStatus === 'incomplete' ? 'scale(1.05)' : 'scale(1)',
-            boxShadow: selectedStatus === 'incomplete' ? '0 6px 16px rgba(255, 165, 0, 0.4)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-          onClick={() => handleStatusClick('incomplete')}
-        >
-          INCOMPLETE
-        </button>
-
-        <button
-          style={{
-            ...styles.statusBadge,
-            ...styles.statusBadgeComplete,
-            ...(selectedStatus === 'complete' ? styles.statusBadgeActive : {}),
-            transform: selectedStatus === 'complete' ? 'scale(1.05)' : 'scale(1)',
-            boxShadow: selectedStatus === 'complete' ? '0 6px 16px rgba(40, 167, 69, 0.4)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-          onClick={() => handleStatusClick('complete')}
-        >
-          COMPLETE
-        </button>
-
-        <button
-          style={{
-            ...styles.statusBadge,
-            ...styles.statusBadgeDidNotMeet,
-            ...(selectedStatus === 'did_not_meet' ? styles.statusBadgeActive : {}),
-            transform: selectedStatus === 'did_not_meet' ? 'scale(1.05)' : 'scale(1)',
-            boxShadow: selectedStatus === 'did_not_meet' ? '0 6px 16px rgba(220, 53, 69, 0.4)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-          onClick={() => handleStatusClick('did_not_meet')}
-        >
-          DID NOT MEET
-        </button>
-      </div>
-    );
-  };
-
-
-  const ViewFilterButtons = () => {
-    const [isLeaderAt12, setIsLeaderAt12] = useState(false);
-    const [leaderCheckLoading, setLeaderCheckLoading] = useState(true);
-
-    // Check if current user is a Leader at 12 by calling backend
-    useEffect(() => {
-      const checkIfLeaderAt12 = async () => {
-        try {
-          const token = localStorage.getItem("token");
-          const currentUserEmail = currentUser?.email;
-
-          if (!currentUserEmail) {
-            setLeaderCheckLoading(false);
-            return;
-          }
-
-          const response = await axios.get(`${BACKEND_URL}/check-leader-at-12/${currentUserEmail}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-
-          const { is_leader_at_12, leader_name, found_events_count } = response.data;
-
-          setIsLeaderAt12(is_leader_at_12);
-          console.log(`👤 User ${leader_name} is Leader at 12: ${is_leader_at_12} (found ${found_events_count} events)`);
-
-        } catch (error) {
-          console.error("Error checking Leader at 12 status:", error);
-          const isLeader = events.some(event =>
-            event.leader12 && currentUser.name &&
-            event.leader12.toLowerCase().includes(currentUser.name.toLowerCase())
-          );
-          setIsLeaderAt12(isLeader);
-        } finally {
-          setLeaderCheckLoading(false);
-        }
-      };
-
-      checkIfLeaderAt12();
-    }, [currentUser, events])
-
-    const shouldShowViewFilter = () => {
-      const role = userRole.toLowerCase();
-      if (role === "user" || role === "leader at 1" || role === "registrant") {
-        return false;
-      }
-      return isAdmin || isLeaderAt12;
-    };
-
-    useEffect(() => {
-      const role = userRole.toLowerCase();
-      if ((role === "user" || role === "leader at 1" || role === "registrant") && viewFilter !== 'personal') {
-        setViewFilter('personal');
-      }
-    }, [userRole, viewFilter]);
-
-    if (leaderCheckLoading || !shouldShowViewFilter()) {
-      return (
-        <div style={styles.viewFilterContainer}>
-          <span style={styles.viewFilterLabel}>View:</span>
-          <span style={{
-            ...styles.viewFilterText,
-            color: '#007bff',
-            fontWeight: '600',
-          }}>
-            Personal
-          </span>
-        </div>
-      );
-    }
-
-    return (
-      <div style={styles.viewFilterContainer}>
-        <span style={styles.viewFilterLabel}>View:</span>
-
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="all"
-            checked={viewFilter === 'all'}
-            onChange={(e) => {
-              const newViewFilter = e.target.value;
-              setViewFilter(newViewFilter);
-              setCurrentPage(1);
-
-              // Determine if personal filter should be applied
-              const shouldApplyPersonalFilter = newViewFilter === 'personal';
-
-              fetchEvents({
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: searchQuery || undefined,
-                page: 1,
-                personal: shouldApplyPersonalFilter,
-                start_date: '2025-10-20'
-              });
-            }}
-            style={{ cursor: 'pointer' }}
-          />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'all' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'all' ? '600' : '400',
-          }}>
-            {isLeaderAt12 ? "View All" : "View All"}
-          </span>
-        </label>
-
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="personal"
-            checked={viewFilter === 'personal'}
-            onChange={(e) => {
-              const newViewFilter = e.target.value;
-              setViewFilter(newViewFilter);
-              setCurrentPage(1);
-
-              // Determine if personal filter should be applied
-              const shouldApplyPersonalFilter = newViewFilter === 'personal';
-
-              fetchEvents({
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: searchQuery || undefined,
-                page: 1,
-                personal: shouldApplyPersonalFilter,
-                start_date: '2025-10-20'
-              });
-            }}
-            style={{ cursor: 'pointer' }}
-          />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'personal' ? '600' : '400',
-          }}>
-            Personal
-          </span>
-        </label>
-      </div>
-    );
-  };
-
-  const MobileEventCard = ({ event }) => {
-    const dayOfWeek = event.day || 'Not set';
-    const shouldShowLeaders = event.leader12 && event.leader12.trim() !== '';
-
-    return (
-      <div style={{
-        ...themedStyles.mobileCard,
-        marginBottom: '1rem',
-      }}>
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Event Name:</span>
-          <span style={themedStyles.mobileCardValue}>{event.eventName || 'N/A'}</span>
-        </div>
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Leader:</span>
-          <span style={themedStyles.mobileCardValue}>
-            {event.eventLeaderName || "-"}
-          </span>
-        </div>
-
-        {shouldShowLeaders && (
-          <>
-            <div style={styles.mobileCardRow}>
-              <span style={themedStyles.mobileCardLabel}>Leader at 1:</span>
-              <span style={themedStyles.mobileCardValue}>
-                {event.leader1 || '-'}
-              </span>
-            </div>
-            <div style={styles.mobileCardRow}>
-              <span style={themedStyles.mobileCardLabel}>Leader at 12:</span>
-              <span style={themedStyles.mobileCardValue}>
-                {event.leader12 || '-'}
-              </span>
-            </div>
-          </>
-        )}
-
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Day:</span>
-          <span style={themedStyles.mobileCardValue}>
-            <div>{dayOfWeek}</div>
-            {isOverdue(event) && <div style={styles.overdueLabel}>Overdue</div>}
-          </span>
-        </div>
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Email:</span>
-          <span style={themedStyles.mobileCardValue}>
-            {event.eventLeaderEmail || "-"}
-          </span>
-        </div>
-        <div style={styles.mobileCardRow}>
-          <span style={themedStyles.mobileCardLabel}>Date:</span>
-          <span style={themedStyles.mobileCardValue}>{formatDate(event.date)}</span>
-        </div>
-
-        <div style={styles.mobileActions}>
-          <Tooltip title="Capture Attendance" arrow>
-            <button
-              style={styles.openEventIcon}
-              onClick={() => handleCaptureClick(event)}
-            >
-              <CheckBoxIcon />
-            </button>
-          </Tooltip>
-
-          <Tooltip title="Edit Event" arrow>
-            <IconButton
-              onClick={() => handleEditEvent(event)}
-              size="small"
-              sx={{ color: "#007bff", border: "1px solid #007bff" }}
-            >
-              <EditIcon />
-            </IconButton>
-          </Tooltip>
-
-          {isAdmin && (
-            <Tooltip title="Delete Event" arrow>
-              <IconButton
-                onClick={() => handleDeleteEvent(event)}
-                size="small"
-                sx={{ color: "#dc3545", border: "1px solid #dc3545" }}
-              >
-                <DeleteIcon />
-              </IconButton>
-            </Tooltip>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const startIndex = totalEvents > 0 ? ((currentPage - 1) * rowsPerPage) + 1 : 0;
-  const endIndex = Math.min(currentPage * rowsPerPage, totalEvents);
-  const paginatedEvents = events;
-  const allEventTypes = [...(eventTypes || []), ...(userCreatedEventTypes || [])];
 
   return (
     <div style={themedStyles.container}>
@@ -2532,56 +2143,15 @@ useEffect(() => {
 
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={4000}
+        autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{ width: "100%" }}
-        >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
           {snackbar.message}
         </Alert>
       </Snackbar>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-        
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: scale(0.5);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        @media (max-width: 768px) {
-          .mobile-events-container {
-            height: auto !important;
-            min-height: 300px !important;
-            max-height: calc(100vh - 450px) !important;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .mobile-events-container {
-            max-height: calc(100vh - 500px) !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
 
-export default Events;
+export default Events
