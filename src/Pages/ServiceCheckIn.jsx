@@ -49,7 +49,8 @@ import EmojiPeopleIcon from "@mui/icons-material/EmojiPeople";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import MergeIcon from "@mui/icons-material/Merge";
 import EventHistory from "../components/EventHistory";
-// import SaveIcon from "@mui/icons-material/Save";
+import SaveIcon from "@mui/icons-material/Save";
+import CloseIcon from "@mui/icons-material/Close";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -98,6 +99,7 @@ function ServiceCheckIn() {
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isLoadingConsolidated, setIsLoadingConsolidated] = useState(false);
+  const [isClosingEvent, setIsClosingEvent] = useState(false);
 
   const [modalSearch, setModalSearch] = useState("");
   const [modalPage, setModalPage] = useState(0);
@@ -156,56 +158,158 @@ function ServiceCheckIn() {
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
-  // Filter events to only show global and open events
-
-  
-  // const getFilteredEvents = () => {
-  //   return events.filter(event => 
-  //     event.isGlobal !== false && 
-  //     event.status?.toLowerCase() !== "closed"
-  //   );
-  // };
-
-  // // Get closed events for event history
-  // const getClosedEvents = () => {
-  //   return events.filter(event => 
-  //     event.status?.toLowerCase() === "closed" && 
-  //     (event.isGlobal === true || event.isTicketed === true)
-  //   );
-  // };
-
   // Filter events to only show global and open events (for dropdown)
-const getFilteredEvents = () => {
-  console.log('🎯 Available events for dropdown:', events);
-  return events.filter(event => {
-    const isGlobal = event.isGlobal === true;
-    const isOpen = event.status?.toLowerCase() !== 'closed';
-    const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-    
-    return isGlobal && isOpen && isNotCell;
-  });
-};
+  const getFilteredEvents = () => {
+    console.log('🎯 Available events for dropdown:', events);
+    return events.filter(event => {
+      const isGlobal = event.isGlobal === true;
+      const isOpen = event.status?.toLowerCase() !== 'closed';
+      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      
+      return isGlobal && isOpen && isNotCell;
+    });
+  };
 
-// Get closed events for event history (global events only)
-const getClosedEvents = () => {
-  return events.filter(event => {
-    const isClosed = event.status?.toLowerCase() === 'closed';
-    const isGlobal = event.isGlobal === true;
-    const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-    
-    return isClosed && isGlobal && isNotCell;
-  });
-};
+  // Get closed events for event history (global events only)
+  const getClosedEvents = () => {
+    return events.filter(event => {
+      const isClosed = event.status?.toLowerCase() === 'closed';
+      const isGlobal = event.isGlobal === true;
+      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      
+      return isClosed && isGlobal && isNotCell;
+    });
+  };
 
-  // Close event function
-  const handleCloseEvent = async () => {
+  // Set default event when events are loaded
+  useEffect(() => {
+    if (events.length > 0 && !currentEventId) {
+      const filteredEvents = getFilteredEvents();
+      if (filteredEvents.length > 0) {
+        const firstEventId = filteredEvents[0].id;
+        setCurrentEventId(firstEventId);
+        console.log('✅ Auto-selected first event:', firstEventId);
+      }
+    }
+  }, [events]);
+
+  // FIXED: Improved function to load event check-ins
+  const loadEventCheckIns = async () => {
+    if (!currentEventId) return;
+    
+    try {
+      console.log('🔄 Loading check-ins for event:', currentEventId);
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${BASE_URL}/events/${currentEventId}/checkins`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+
+      const checkedInPeople = toArray(response.data);
+      console.log('✅ Raw checked-in people from API:', checkedInPeople);
+
+      // Create a map of all attendees by different identifiers for better matching
+      const attendeeMap = new Map();
+      
+      attendees.forEach(attendee => {
+        // Map by ID
+        if (attendee._id) {
+          attendeeMap.set(attendee._id, attendee._id);
+        }
+        
+        // Map by name (case insensitive)
+        if (attendee.name) {
+          const nameKey = `${attendee.name.toLowerCase()} ${attendee.surname?.toLowerCase() || ''}`.trim();
+          attendeeMap.set(nameKey, attendee._id);
+        }
+        
+        // Map by email (if available)
+        if (attendee.email) {
+          attendeeMap.set(attendee.email.toLowerCase(), attendee._id);
+        }
+      });
+
+      console.log('📋 Attendee map:', attendeeMap);
+
+      // Find matching attendee IDs
+      const checkedInIds = checkedInPeople
+        .map((person) => {
+          // Try to match by different identifiers
+          let matchedId = null;
+          
+          // Try by ID first
+          if (person._id && attendeeMap.has(person._id)) {
+            matchedId = attendeeMap.get(person._id);
+          }
+          // Try by name
+          else if (person.name || person.Name) {
+            const name = person.name || person.Name;
+            const surname = person.surname || person.Surname || '';
+            const nameKey = `${name.toLowerCase()} ${surname.toLowerCase()}`.trim();
+            if (attendeeMap.has(nameKey)) {
+              matchedId = attendeeMap.get(nameKey);
+            }
+          }
+          // Try by email
+          else if (person.email || person.Email) {
+            const email = (person.email || person.Email).toLowerCase();
+            if (attendeeMap.has(email)) {
+              matchedId = attendeeMap.get(email);
+            }
+          }
+
+          console.log(`🔍 Matching:`, person, '->', matchedId);
+          return matchedId;
+        })
+        .filter(Boolean);
+
+      console.log('✅ Final checked-in IDs:', checkedInIds);
+
+      if (checkedInIds.length > 0) {
+        setEventCheckIns((prev) => ({ 
+          ...prev, 
+          [currentEventId]: [...new Set([...(prev[currentEventId] || []), ...checkedInIds])] 
+        }));
+        toast.success(`Loaded ${checkedInIds.length} previously checked-in attendees`);
+      } else {
+        console.log('ℹ️ No previously checked-in attendees found');
+      }
+    } catch (error) {
+      console.error('❌ Error loading event check-ins:', error);
+      // Fallback to localStorage
+      const storedCheckIns = eventCheckIns[currentEventId] || [];
+      if (storedCheckIns.length > 0) {
+        console.log('🔄 Using stored check-ins from localStorage');
+      }
+    }
+  };
+
+  // Enhanced useEffect to load check-ins when event changes
+  useEffect(() => {
+    if (currentEventId && attendees.length > 0) {
+      console.log('🎯 Event changed or attendees loaded, loading check-ins...');
+      loadEventCheckIns();
+    }
+  }, [currentEventId, attendees]);
+
+  // Save and Close Event function
+  const handleSaveAndCloseEvent = async () => {
     if (!currentEventId) {
-      toast.error("Please select an event to close");
+      toast.error("Please select an event first");
       return;
     }
 
+    // Confirm before closing
+    if (!window.confirm("Are you sure you want to close this event? This action cannot be undone.")) {
+      return;
+    }
+
+    setIsClosingEvent(true);
     try {
       const token = localStorage.getItem("token");
+      
+      // Update event status to closed
       await axios.patch(
         `${BASE_URL}/events/${currentEventId}`,
         { status: "closed" },
@@ -223,7 +327,7 @@ const getClosedEvents = () => {
           : event
       ));
 
-      toast.success("Event marked as closed successfully");
+      toast.success("Event closed successfully!");
       
       // Clear current event selection
       setCurrentEventId("");
@@ -232,6 +336,8 @@ const getClosedEvents = () => {
     } catch (error) {
       console.error("Error closing event:", error);
       toast.error("Failed to close event");
+    } finally {
+      setIsClosingEvent(false);
     }
   };
 
@@ -386,6 +492,8 @@ const getClosedEvents = () => {
 
   const getAttendeesWithPresentStatus = () => {
     const currentEventCheckIns = eventCheckIns[currentEventId] || [];
+    console.log('📊 Current event check-ins:', currentEventCheckIns);
+    
     return attendees.map((attendee) => ({
       ...attendee,
       present: currentEventCheckIns.includes(attendee._id),
@@ -544,94 +652,65 @@ const getClosedEvents = () => {
   useEffect(() => {
     if (hasDataLoaded) return;
 
-    // const fetchEvents = async () => {
-    //   setIsLoadingEvents(true);
-    //   try {
-    //     const res = await axios.get(`${BASE_URL}/events`);
-    //     const normalized = toArray(res.data)
-    //       .filter(
-    //         (e) =>
-    //           e.eventType?.toLowerCase() !== "cell" &&
-    //           e.status?.toLowerCase() !== "closed" &&
-    //           e.isGlobal !== false
-    //       )
-    //       .map((e) => ({
-    //         id: e._id || e.id || e.eventId,
-    //         eventName: e.eventName || e.name || e.title || "Untitled Event",
-    //         status: e.status || "open",
-    //         isGlobal: e.isGlobal !== false, // Default to true if not specified
-    //         isTicketed: e.isTicketed || false,
-    //         date: e.date || e.createdAt,
-    //       }));
+    const fetchEvents = async () => {
+      setIsLoadingEvents(true);
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${BASE_URL}/events`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-    //     setEvents(normalized);
-    //   } catch (err) {
-    //     console.error(err);
-    //     toast.error(err.response?.data?.detail || "Failed to fetch events");
-    //   } finally {
-    //     setIsLoadingEvents(false);
-    //   }
-    // };
-  // In your ServiceCheckIn component, update the fetchEvents function
-const fetchEvents = async () => {
-  setIsLoadingEvents(true);
-  try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${BASE_URL}/events`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        console.log('📋 Raw events data:', data); // Debug log
+        
+        // Filter for global, open, non-cell events
+        const filteredEvents = (data.events || []).filter(event => {
+          const isGlobal = event.isGlobal === true;
+          const isOpen = event.status?.toLowerCase() !== 'closed';
+          const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+          
+          console.log(`🔍 Event: ${event.eventName}`, {
+            isGlobal,
+            isOpen, 
+            isNotCell,
+            eventType: event.eventType,
+            status: event.status,
+            isGlobalFlag: event.isGlobal
+          });
+          
+          return isGlobal && isOpen && isNotCell;
+        });
+
+        console.log('✅ Filtered events:', filteredEvents);
+
+        // Transform the events for dropdown
+        const transformedEvents = filteredEvents.map(event => ({
+          id: event._id || event.id,
+          eventName: event.eventName || event.name || "Unnamed Event",
+          status: event.status || "open",
+          isGlobal: event.isGlobal,
+          isTicketed: event.isTicketed || false,
+          date: event.date || event.createdAt,
+          eventType: event.eventType
+        }));
+
+        setEvents(transformedEvents);
+        
+      } catch (err) {
+        console.error('❌ Error fetching events:', err);
+        toast.error(err.response?.data?.detail || "Failed to fetch events");
+      } finally {
+        setIsLoadingEvents(false);
       }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    console.log('📋 Raw events data:', data); // Debug log
-    
-    // Filter for global, open, non-cell events
-    const filteredEvents = (data.events || []).filter(event => {
-      const isGlobal = event.isGlobal === true;
-      const isOpen = event.status?.toLowerCase() !== 'closed';
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-      
-      console.log(`🔍 Event: ${event.eventName}`, {
-        isGlobal,
-        isOpen, 
-        isNotCell,
-        eventType: event.eventType,
-        status: event.status,
-        isGlobalFlag: event.isGlobal
-      });
-      
-      return isGlobal && isOpen && isNotCell;
-    });
-
-    console.log('✅ Filtered events:', filteredEvents);
-
-    // Transform the events for dropdown
-    const transformedEvents = filteredEvents.map(event => ({
-      id: event._id || event.id,
-      eventName: event.eventName || event.name || "Unnamed Event",
-      status: event.status || "open",
-      isGlobal: event.isGlobal,
-      isTicketed: event.isTicketed || false,
-      date: event.date || event.createdAt,
-      eventType: event.eventType
-    }));
-
-    setEvents(transformedEvents);
-    
-  } catch (err) {
-    console.error('❌ Error fetching events:', err);
-    toast.error(err.response?.data?.detail || "Failed to fetch events");
-  } finally {
-    setIsLoadingEvents(false);
-  }
-};
+    };
 
     fetchEvents();
   }, [hasDataLoaded]);
@@ -747,6 +826,12 @@ const fetchEvents = async () => {
   };
 
   const handlePersonSave = (responseData) => {
+    // Check if event is selected before allowing save
+    if (!currentEventId) {
+      toast.error("Please select an event first before adding people");
+      return;
+    }
+
     const newPersonData = responseData.person || responseData;
     const newPersonId = responseData.id || responseData._id || newPersonData._id;
 
@@ -848,30 +933,6 @@ const fetchEvents = async () => {
     }
   };
 
-  useEffect(() => {
-    const loadEventCheckIns = async () => {
-      if (!currentEventId) return;
-      try {
-        const res = await axios.get(`${BASE_URL}/events/${currentEventId}/checkins`);
-        const checkedInPeople = toArray(res.data);
-        const checkedInIds = checkedInPeople
-          .map((person) => {
-            const match = attendees.find(
-              (a) => a.name === (person.name || person.Name) || a._id === (person._id || person.id)
-            );
-            return match?._id;
-          })
-          .filter(Boolean);
-        if (checkedInIds.length > 0) {
-          setEventCheckIns((prev) => ({ ...prev, [currentEventId]: checkedInIds }));
-        }
-      } catch {
-        // fallback to localStorage
-      }
-    };
-    if (currentEventId && attendees.length > 0) loadEventCheckIns();
-  }, [currentEventId, attendees]);
-
   const attendeesWithStatus = getAttendeesWithPresentStatus();
 
   const newPeopleForEvent = currentEventId && eventNewPeople[currentEventId] 
@@ -948,6 +1009,15 @@ const fetchEvents = async () => {
     console.log("🔍 DEBUG: Consolidated People Count:", consolidatedPeople.length);
     console.log("🔍 DEBUG: Consolidated People Data:", consolidatedPeople);
   }, [currentEventId, consolidatedPeople]);
+
+  // Handle Add Person button click
+  const handleAddPersonClick = () => {
+    if (!currentEventId) {
+      toast.error("Please select an event first before adding people");
+      return;
+    }
+    setOpenDialog(true);
+  };
 
   const AttendeeCard = ({ attendee, showNumber, index }) => (
     <Card
@@ -1313,19 +1383,110 @@ const fetchEvents = async () => {
     );
   };
 
-  if (!hasDataLoaded && (isLoadingPeople || isLoadingEvents)) {
-    return (
-      <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-        <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
-        <Skeleton variant="text" width="40%" height={getResponsiveValue(32, 40, 48, 56, 56)} sx={{ mx: 'auto', mb: cardSpacing }} />
-        <Grid container spacing={cardSpacing} mb={cardSpacing}>
-          <Grid item xs={6} sm={3}><Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} /></Grid>
-          <Grid item xs={6} sm={3}><Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} /></Grid>
-          <Grid item xs={6} sm={3}><Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} /></Grid>
-          <Grid item xs={6} sm={3}><Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} /></Grid>
+  // Enhanced Skeleton Loader
+  const SkeletonLoader = () => (
+    <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
+      <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
+      
+      {/* Skeleton for title */}
+      <Skeleton 
+        variant="text" 
+        width="60%" 
+        height={getResponsiveValue(32, 40, 48, 56, 56)} 
+        sx={{ mx: 'auto', mb: cardSpacing, borderRadius: 1 }} 
+      />
+      
+      {/* Skeleton for stats cards */}
+      <Grid container spacing={cardSpacing} mb={cardSpacing}>
+        {[1, 2, 3].map((item) => (
+          <Grid item xs={6} sm={6} md={3} key={item}>
+            <Paper variant="outlined" sx={{ p: getResponsiveValue(1.5, 2, 2.5, 3, 3), textAlign: "center" }}>
+              <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
+                <Skeleton variant="circular" width={getResponsiveValue(20, 24, 28, 32, 32)} height={getResponsiveValue(20, 24, 28, 32, 32)} />
+                <Skeleton variant="text" width="40%" height={getResponsiveValue(24, 28, 32, 36, 40)} sx={{ borderRadius: 1 }} />
+              </Stack>
+              <Skeleton variant="text" width="70%" height={getResponsiveValue(16, 18, 20, 22, 24)} sx={{ mx: 'auto', borderRadius: 1 }} />
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Skeleton for controls */}
+      <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
+        <Grid item xs={12} sm={6} md={4}>
+          <Skeleton variant="rounded" height={getResponsiveValue(36, 40, 44, 48, 52)} sx={{ borderRadius: 1, boxShadow: 2 }} />
         </Grid>
-      </Box>
-    );
+        <Grid item xs={12} sm={6} md={5}>
+          <Skeleton variant="rounded" height={getResponsiveValue(36, 40, 44, 48, 52)} sx={{ borderRadius: 1, boxShadow: 2 }} />
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <Stack direction="row" spacing={2} justifyContent={isMdDown ? "center" : "flex-end"}>
+            <Skeleton variant="circular" width={36} height={36} />
+            <Skeleton variant="circular" width={36} height={36} />
+          </Stack>
+        </Grid>
+      </Grid>
+
+      {/* Skeleton for tabs */}
+      <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, p: 1 }}>
+        <Stack direction="row" spacing={2}>
+          <Skeleton variant="rounded" width={120} height={36} sx={{ borderRadius: 1 }} />
+          <Skeleton variant="rounded" width={120} height={36} sx={{ borderRadius: 1 }} />
+        </Stack>
+      </Paper>
+
+      {/* Skeleton for main content area */}
+      {isMdDown ? (
+        // Mobile skeleton - card view
+        <Box>
+          <Box sx={{ 
+            maxHeight: 500, 
+            overflowY: "auto",
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 1,
+            p: 1,
+            boxShadow: 2
+          }}>
+            {[1, 2, 3, 4, 5].map((item) => (
+              <Card key={item} variant="outlined" sx={{ mb: 1, boxShadow: 2 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                    <Box flex={1}>
+                      <Skeleton variant="text" width="60%" height={24} sx={{ borderRadius: 1 }} />
+                      <Skeleton variant="text" width="80%" height={16} sx={{ borderRadius: 1, mt: 0.5 }} />
+                    </Box>
+                  </Box>
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Skeleton variant="circular" width={32} height={32} />
+                    <Skeleton variant="circular" width={32} height={32} />
+                    <Skeleton variant="circular" width={32} height={32} />
+                  </Stack>
+                  <Divider sx={{ my: 1 }} />
+                  <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+                    <Skeleton variant="rounded" width={80} height={20} sx={{ borderRadius: 10 }} />
+                    <Skeleton variant="rounded" width={80} height={20} sx={{ borderRadius: 10 }} />
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
+          </Box>
+          <Box sx={{ mt: 1 }}>
+            <Skeleton variant="rounded" height={52} sx={{ borderRadius: 1, boxShadow: 2 }} />
+          </Box>
+        </Box>
+      ) : (
+        // Desktop skeleton - table view
+        <Paper variant="outlined" sx={{ height: 600, boxShadow: 3, p: 2 }}>
+          <Skeleton variant="rounded" width="100%" height={40} sx={{ mb: 2, borderRadius: 1 }} />
+          <Skeleton variant="rounded" width="100%" height={400} sx={{ borderRadius: 1 }} />
+          <Skeleton variant="rounded" width="100%" height={40} sx={{ mt: 2, borderRadius: 1 }} />
+        </Paper>
+      )}
+    </Box>
+  );
+
+  if (!hasDataLoaded && (isLoadingPeople || isLoadingEvents)) {
+    return <SkeletonLoader />;
   }
 
   return (
@@ -1404,12 +1565,48 @@ const fetchEvents = async () => {
             </Typography>
           </Paper>
         </Grid>
+        
+        {/* Save & Close Event Button Card */}
+        <Grid item xs={6} sm={6} md={3}>
+          <Paper 
+            variant="outlined" 
+            sx={{ 
+              p: getResponsiveValue(1.5, 2, 2.5, 3, 3), 
+              textAlign: "center",
+              cursor: currentEventId ? "pointer" : "not-allowed",
+              boxShadow: 3,
+              "&:hover": currentEventId ? { boxShadow: 6, transform: "translateY(-2px)" } : {},
+              transition: "all 0.2s",
+              opacity: currentEventId ? 1 : 0.5
+            }}
+            onClick={currentEventId ? handleSaveAndCloseEvent : undefined}
+          >
+            <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
+              {isClosingEvent ? (
+                <Skeleton variant="circular" width={getResponsiveValue(20, 24, 28, 32, 32)} height={getResponsiveValue(20, 24, 28, 32, 32)} />
+              ) : (
+                <SaveIcon color={currentEventId ? "primary" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
+              )}
+              <Typography 
+                variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
+                fontWeight={600} 
+                color={currentEventId ? "primary" : "text.disabled"}
+              >
+                {isClosingEvent ? "..." : "Save & Close"}
+              </Typography>
+            </Stack>
+            <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
+              Close Event
+            </Typography>
+          </Paper>
+        </Grid>
       </Grid>
 
       {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={6} md={4}>
-          {/* <Select 
+          {/* Event Selection Dropdown */}
+          <Select 
             size={getResponsiveValue("small", "small", "medium", "medium", "medium")} 
             value={currentEventId} 
             onChange={(e) => setCurrentEventId(e.target.value)} 
@@ -1417,46 +1614,31 @@ const fetchEvents = async () => {
             fullWidth
             sx={{ boxShadow: 2 }}
           >
-            <MenuItem value="">Select Event</MenuItem>
+            <MenuItem value="">
+              <Typography color="text.secondary">
+                Select Global Event {getFilteredEvents().length > 0 ? `(${getFilteredEvents().length} available)` : ''}
+              </Typography>
+            </MenuItem>
             {getFilteredEvents().map((ev) => (
-              <MenuItem key={ev.id} value={ev.id}>{ev.eventName}</MenuItem>
+              <MenuItem key={ev.id} value={ev.id}>
+                <Box>
+                  <Typography variant="body2" fontWeight="medium">
+                    {ev.eventName}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {ev.eventType} • {new Date(ev.date).toLocaleDateString()}
+                  </Typography>
+                </Box>
+              </MenuItem>
             ))}
-          </Select> */}
-
-          {/* Event Selection Dropdown */}
-<Select 
-  size={getResponsiveValue("small", "small", "medium", "medium", "medium")} 
-  value={currentEventId} 
-  onChange={(e) => setCurrentEventId(e.target.value)} 
-  displayEmpty 
-  fullWidth
-  sx={{ boxShadow: 2 }}
->
-  <MenuItem value="">
-    <Typography color="text.secondary">
-      Select Global Event {getFilteredEvents().length > 0 ? `(${getFilteredEvents().length} available)` : ''}
-    </Typography>
-  </MenuItem>
-  {getFilteredEvents().map((ev) => (
-    <MenuItem key={ev.id} value={ev.id}>
-      <Box>
-        <Typography variant="body2" fontWeight="medium">
-          {ev.eventName}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {ev.eventType} • {new Date(ev.date).toLocaleDateString()}
-        </Typography>
-      </Box>
-    </MenuItem>
-  ))}
-  {getFilteredEvents().length === 0 && (
-    <MenuItem disabled>
-      <Typography variant="body2" color="text.secondary" fontStyle="italic">
-        No global events available
-      </Typography>
-    </MenuItem>
-  )}
-</Select>
+            {getFilteredEvents().length === 0 && (
+              <MenuItem disabled>
+                <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                  No global events available
+                </Typography>
+              </MenuItem>
+            )}
+          </Select>
         </Grid>
         <Grid item xs={12} sm={6} md={5}>
           <TextField 
@@ -1470,15 +1652,36 @@ const fetchEvents = async () => {
         </Grid>
         <Grid item xs={12} md={3}>
           <Stack direction="row" spacing={2} justifyContent={isMdDown ? "center" : "flex-end"}>
-            <Tooltip title="Add Person">
-              <PersonAddIcon onClick={() => setOpenDialog(true)} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "primary.dark" }, filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" }} />
+            <Tooltip title={currentEventId ? "Add Person" : "Please select an event first"}>
+              <span>
+                <PersonAddIcon 
+                  onClick={handleAddPersonClick} 
+                  sx={{ 
+                    cursor: currentEventId ? "pointer" : "not-allowed", 
+                    fontSize: 36, 
+                    color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled", 
+                    "&:hover": { color: currentEventId ? "primary.dark" : "text.disabled" }, 
+                    filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none",
+                    opacity: currentEventId ? 1 : 0.5
+                  }} 
+                />
+              </span>
             </Tooltip>
-            <Tooltip title="Consolidation">
-              <EmojiPeopleIcon onClick={handleConsolidationClick} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "secondary.dark" }, filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" }} />
+            <Tooltip title={currentEventId ? "Consolidation" : "Please select an event first"}>
+              <span>
+                <EmojiPeopleIcon 
+                  onClick={handleConsolidationClick} 
+                  sx={{ 
+                    cursor: currentEventId ? "pointer" : "not-allowed", 
+                    fontSize: 36, 
+                    color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled", 
+                    "&:hover": { color: currentEventId ? "secondary.dark" : "text.disabled" }, 
+                    filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none",
+                    opacity: currentEventId ? 1 : 0.5
+                  }} 
+                />
+              </span>
             </Tooltip>
-            {/* <Tooltip title="Save & Close Event">
-              <SaveIcon onClick={handleCloseEvent} sx={{ cursor: "pointer", fontSize: 36, color: isDarkMode ? "white" : "black", "&:hover": { color: "success.dark" }, filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" }} />
-            </Tooltip> */}
           </Stack>
         </Grid>
       </Grid>
@@ -1987,7 +2190,12 @@ const fetchEvents = async () => {
               setConsolidatedModalOpen(false);
               handleConsolidationClick();
             }}
+            disabled={!currentEventId}
             size={isSmDown ? "small" : "medium"}
+            sx={{ 
+              opacity: currentEventId ? 1 : 0.5,
+              cursor: currentEventId ? "pointer" : "not-allowed"
+            }}
           >
             Add Consolidation
           </Button>
