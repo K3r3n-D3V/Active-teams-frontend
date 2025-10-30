@@ -454,12 +454,12 @@ const CreateEvents = ({
         boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
       };
 
-  // IMPROVED DARK MODE STYLES - FIXED FOR VISIBILITY
+  // IMPROVED DARK MODE STYLES - FIXED DAY VISIBILITY
   const darkModeStyles = {
     textField: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#ffffff" : "white", // WHITE background in dark mode for visibility
-        color: isDarkMode ? "#000000" : "#000000", // BLACK text always
+        bgcolor: isDarkMode ? "#ffffff" : "white",
+        color: isDarkMode ? "#000000" : "#000000",
         "& fieldset": {
           borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
         },
@@ -470,11 +470,11 @@ const CreateEvents = ({
           borderColor: theme.palette.primary.main,
         },
         "& input": {
-          color: "#000000", // BLACK text for inputs
-          WebkitTextFillColor: "#000000", // Force black for autofill
+          color: "#000000",
+          WebkitTextFillColor: "#000000",
         },
         "& textarea": {
-          color: "#000000", // BLACK text for textarea
+          color: "#000000",
         },
       },
       "& .MuiInputLabel-root": {
@@ -499,8 +499,8 @@ const CreateEvents = ({
     },
     autocomplete: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#ffffff" : "white", // WHITE background
-        color: "#000000", // BLACK text
+        bgcolor: isDarkMode ? "#ffffff" : "white",
+        color: "#000000",
         "& fieldset": {
           borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
         },
@@ -512,7 +512,7 @@ const CreateEvents = ({
         },
       },
       "& .MuiAutocomplete-input": {
-        color: "#000000", // BLACK text
+        color: "#000000",
       },
       "& .MuiInputLabel-root": {
         color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.6)",
@@ -520,7 +520,9 @@ const CreateEvents = ({
     },
     formControlLabel: {
       "& .MuiFormControlLabel-label": {
-        color: isDarkMode ? "#ffffff" : "#000000",
+        color: isDarkMode ? "#ffffff" : "#000000", // Fixed: White text in dark mode
+        fontSize: "0.95rem",
+        fontWeight: 500,
       },
       "& .MuiCheckbox-root": {
         color: isDarkMode ? "#888" : "rgba(0, 0, 0, 0.6)",
@@ -552,6 +554,16 @@ const CreateEvents = ({
     helperText: {
       color: isDarkMode ? "#ccc" : "#666",
     },
+    daysContainer: {
+      '& .MuiFormControlLabel-root': {
+        margin: 0,
+        '& .MuiFormControlLabel-label': {
+          color: isDarkMode ? '#ffffff' : '#000000', // Fixed day label visibility
+          fontSize: '0.95rem',
+          fontWeight: 500,
+        }
+      }
+    }
   };
 
   if (isGlobalEvent && !["admin", "registrant"].includes(user?.role)) {
@@ -824,7 +836,7 @@ const CreateEvents = ({
               />
             </Box>
 
-            {/* Recurring Days */}
+            {/* Recurring Days - FIXED DARK MODE VISIBILITY */}
             <Box mb={3}>
               <Typography
                 fontWeight="bold"
@@ -848,11 +860,7 @@ const CreateEvents = ({
                 display="flex" 
                 flexWrap="wrap" 
                 gap={2}
-                sx={{
-                  '& .MuiFormControlLabel-root': {
-                    margin: 0,
-                  }
-                }}
+                sx={darkModeStyles.daysContainer}
               >
                 {days.map((day) => (
                   <FormControlLabel
@@ -873,13 +881,6 @@ const CreateEvents = ({
                       />
                     }
                     label={day}
-                    sx={{
-                      '& .MuiFormControlLabel-label': {
-                        color: isDarkMode ? '#000000' : '#000000',
-                        fontSize: '0.95rem',
-                        fontWeight: 500,
-                      }
-                    }}
                   />
                 ))}
               </Box>
