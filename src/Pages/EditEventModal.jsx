@@ -1,29 +1,40 @@
-// Edit Event Modal
-
 import React, { useState, useEffect } from "react";
+
 const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
   const [formData, setFormData] = useState({
     eventName: "",
-    leader: "",
+    eventLeader: "",
     day: "",
-    address: "",
-    dateOfEvent: "",
+    location: "",
+    date: "",
     status: "",
-    renocaming: false,
-    eventTimestamp: ""
+    recurring: false,
+    eventTimestamp: "",
+    UUID: "",
+    _id: ""
   });
 
   useEffect(() => {
     if (event) {
+      console.log('📝 Loading event for editing:', {
+        name: event.eventName,
+        UUID: event.UUID,
+        _id: event._id,
+        fullEvent: event
+      });
+
       setFormData({
+        UUID: event.UUID || "",
+        _id: event._id || event.id || "",
+        
         eventName: event.eventName || event.name || "",
-        leader: event.leader || "",
+        eventLeader: event.eventLeaderName || event.leader || "",
         day: event.day || "",
-        address: event.address || "",
-        dateOfEvent: event.dateOfEvent || event.date || "",
-        status: event.status || "Incomplete",
-        renocaming: event.renocaming || false,
-        eventTimestamp: event.eventTimestamp || ""
+        location: event.location || event.address || "",
+        date: event.date || event.dateOfEvent || "",
+        status: event.status || event.Status || "Incomplete",
+        recurring: event.renocaming || event.isVirtual || false,
+        eventTimestamp: event.eventTimestamp || event.created_at || ""
       });
     }
   }, [event]);
@@ -37,7 +48,23 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
   };
 
   const handleSave = () => {
-    onSave(formData);
+    const updatePayload = {
+      eventName: formData.eventName,
+      day: formData.day,
+      location: formData.location,
+      date: formData.date,
+      status: formData.status,
+      renocaming: formData.recurring,
+    };
+
+    console.log('💾 Saving event update:', {
+      UUID: formData.UUID,
+      _id: formData._id,
+      identifier: formData.UUID || formData._id,
+      payload: updatePayload
+    });
+
+    onSave(updatePayload);
     onClose();
   };
 
@@ -102,10 +129,11 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       fontSize: "14px",
       borderRadius: "6px",
       border: "1px solid #555",
-      backgroundColor: "#2b2b2b",
-      color: "#ccc",
+      backgroundColor: "#333",
+      color: "#999",
       outline: "none",
       boxSizing: "border-box",
+      cursor: "not-allowed",
     },
     checkboxGroup: {
       display: "flex",
@@ -143,6 +171,16 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       cursor: "pointer",
       fontSize: "14px",
       fontWeight: "500",
+      transition: "all 0.2s ease",
+    },
+    infoBox: {
+      background: "#2b2b2b",
+      border: "1px solid #555",
+      borderRadius: "6px",
+      padding: "12px",
+      marginBottom: "16px",
+      fontSize: "12px",
+      color: "#999",
     },
   };
 
@@ -150,6 +188,20 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     <div style={styles.overlay}>
       <div style={styles.modal}>
         <h2 style={styles.title}>Edit Event</h2>
+
+        {(formData.UUID || formData._id) && (
+          <div style={styles.infoBox}>
+            <strong>Event Identifier:</strong>
+            <br />
+            {formData.UUID && (
+              <>
+                UUID: {formData.UUID.substring(0, 20)}...
+                <br />
+              </>
+            )}
+            {formData._id && <>MongoDB ID: {formData._id}</>}
+          </div>
+        )}
 
         <div style={styles.formGroup}>
           <label style={styles.label}>Event Name</label>
@@ -167,11 +219,12 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           <label style={styles.label}>Leader</label>
           <input
             type="text"
-            name="leader"
-            value={formData.leader}
+            name="eventLeader"
+            value={formData.eventLeader}
             onChange={handleInputChange}
             style={styles.readOnlyInput}
             readOnly
+            title="Leader cannot be changed after event creation"
           />
         </div>
 
@@ -195,14 +248,14 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         </div>
 
         <div style={styles.formGroup}>
-          <label style={styles.label}>Address</label>
+          <label style={styles.label}>Location</label>
           <input
             type="text"
-            name="address"
-            value={formData.address}
+            name="location"
+            value={formData.location}
             onChange={handleInputChange}
             style={styles.input}
-            placeholder="Address"
+            placeholder="Event Location"
           />
         </div>
 
@@ -210,8 +263,8 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           <label style={styles.label}>Date of Event</label>
           <input
             type="date"
-            name="dateOfEvent"
-            value={formData.dateOfEvent}
+            name="date"
+            value={formData.date ? formData.date.split('T')[0] : ''}
             onChange={handleInputChange}
             style={styles.input}
           />
@@ -235,17 +288,17 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           <div style={styles.checkboxGroup}>
             <input
               type="checkbox"
-              name="renocaming"
-              checked={formData.renocaming}
+              name="recurring"
+              checked={formData.recurring}
               onChange={handleInputChange}
               style={styles.checkbox}
             />
-            <label style={styles.label}>Renocaming</label>
+            <label style={styles.label}>Recurring Event</label>
           </div>
         </div>
 
         <div style={styles.formGroup}>
-          <label style={styles.label}>Event Timestamp</label>
+          <label style={styles.label}>Created At</label>
           <input
             type="text"
             name="eventTimestamp"
@@ -253,14 +306,25 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             onChange={handleInputChange}
             style={styles.readOnlyInput}
             readOnly
+            title="Event creation timestamp cannot be changed"
           />
         </div>
 
         <div style={styles.buttonGroup}>
-          <button style={styles.cancelBtn} onClick={onClose}>
+          <button 
+            style={styles.cancelBtn} 
+            onClick={onClose}
+            onMouseEnter={(e) => e.target.style.background = "#333"}
+            onMouseLeave={(e) => e.target.style.background = "transparent"}
+          >
             CANCEL
           </button>
-          <button style={styles.saveBtn} onClick={handleSave}>
+          <button 
+            style={styles.saveBtn} 
+            onClick={handleSave}
+            onMouseEnter={(e) => e.target.style.background = "#1e40af"}
+            onMouseLeave={(e) => e.target.style.background = "#2563eb"}
+          >
             SAVE
           </button>
         </div>
@@ -268,4 +332,5 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     </div>
   );
 };
+
 export default EditEventModal;

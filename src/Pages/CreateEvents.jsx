@@ -24,13 +24,21 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 
+
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 const CreateEvents = ({
   user,
   isModal = false,
   onClose,
   eventTypes = [],
-  selectedEventType, // may be a string (name) or unused
-  selectedEventTypeObj = null, // canonical object (name + flags). THIS IS THE KEY PROP.
+  selectedEventType, 
+  selectedEventTypeObj = null, 
 }) => {
   const navigate = useNavigate();
   const { id: eventId } = useParams();
@@ -387,6 +395,7 @@ const CreateEvents = ({
     const eventTypeToSend = selectedEventTypeObj?.name || formData.eventType;
 
     const payload = {
+      UUID: generateUUID(), // ✅ ADD UUID HERE - automatically generated for every new event
       eventType: eventTypeToSend,
       eventName: formData.eventName,
       isTicketed: !!isTicketedEvent,
@@ -400,7 +409,7 @@ const CreateEvents = ({
       status: "open",
     };
 
-    // ✅ FIX: Properly format and include price tiers
+    // ✅ Price tiers for ticketed events
     if (isTicketedEvent && priceTiers.length > 0) {
       payload.priceTiers = priceTiers.map(tier => ({
         name: tier.name || "",
@@ -415,13 +424,13 @@ const CreateEvents = ({
       payload.priceTiers = [];
     }
 
-    // person steps leaders
+    // Person steps leaders
     if (hasPersonSteps && !isGlobalEvent) {
       if (formData.leader1) payload.leader1 = formData.leader1;
       if (formData.leader12) payload.leader12 = formData.leader12;
     }
 
-    // date/time assembly
+    // Date/time assembly
     if ((!hasPersonSteps || isGlobalEvent) && formData.date && formData.time) {
       const [hoursStr, minutesStr] = formData.time.split(":");
       let hours = Number(hoursStr);
@@ -434,13 +443,21 @@ const CreateEvents = ({
         .padStart(2, "0")}:00`;
     }
 
-    console.log("📤 Submitting payload:", JSON.stringify(payload, null, 2));
+    console.log("📤 Submitting payload with UUID:", JSON.stringify(payload, null, 2));
+
+    // ✅ Get token for authorization
+    const token = localStorage.getItem("token");
+    const headers = { 
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
 
     const response = eventId
-      ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
-      : await axios.post(`${BACKEND_URL}/events`, payload);
+      ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload, { headers })
+      : await axios.post(`${BACKEND_URL}/events`, payload, { headers });
 
     console.log("✅ Server response:", response.data);
+    console.log("✅ Event UUID:", payload.UUID);
 
     setSuccessMessage(
       hasPersonSteps && !isGlobalEvent
@@ -477,12 +494,6 @@ const CreateEvents = ({
   }
 };
 
-  // ---------------------------
-  // Derived helpers used in render
-  // ---------------------------
-  // const isCell = (formData.eventType || "").toLowerCase().includes("cell");
-
-  // styling objects (you had these — keep them)
   const containerStyle = isModal
     ? {
         padding: "0",

@@ -1,4 +1,4 @@
-// PeopleListView.jsx (Dark mode compatible)
+// PeopleListView.jsx (Dark mode compatible - exact match search)
 import React, { useState } from 'react';
 import {
   Box,
