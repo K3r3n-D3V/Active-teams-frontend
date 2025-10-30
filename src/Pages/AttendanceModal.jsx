@@ -962,7 +962,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
 
         <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Leader @1</label>
             <input
               type="text"
               value={leaderSearches.leader1}
@@ -984,7 +983,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Leader @12</label>
             <input
               type="text"
               value={leaderSearches.leader12}
@@ -1006,7 +1004,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Leader @144</label>
             <input
               type="text"
               value={leaderSearches.leader144}
