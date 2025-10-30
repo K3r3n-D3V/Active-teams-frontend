@@ -430,18 +430,17 @@ const CreateEvents = ({
       if (formData.leader12) payload.leader12 = formData.leader12;
     }
 
-    // Date/time assembly
-    if ((!hasPersonSteps || isGlobalEvent) && formData.date && formData.time) {
-      const [hoursStr, minutesStr] = formData.time.split(":");
-      let hours = Number(hoursStr);
-      const minutes = Number(minutesStr);
-      if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
-      if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+      if (((!hasPersonSteps) || isGlobalEvent) && formData.date && formData.time) {
+        const [hoursStr, minutesStr] = formData.time.split(":");
+        let hours = Number(hoursStr);
+        const minutes = Number(minutesStr);
+        if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
+        if (formData.timePeriod === "AM" && hours === 12) hours = 0;
 
-      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
-        .toString()
-        .padStart(2, "0")}:00`;
-    }
+        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
+          .toString()
+          .padStart(2, "0")}:00`;
+      }
 
     console.log("📤 Submitting payload with UUID:", JSON.stringify(payload, null, 2));
 
