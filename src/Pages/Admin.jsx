@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box, Container, Paper, Typography, TextField, Button, Select, MenuItem,
   FormControl, InputLabel, Table, TableBody, TableCell, TableContainer,
@@ -13,8 +13,13 @@ import {
   AdminPanelSettings, Circle, Close, History, Person as PersonIcon,
   CalendarToday as CalendarIcon, Home as HomeIcon, Email as EmailIcon,
   Phone as PhoneIcon, Wc as GenderIcon, HowToReg as RegistrantIcon,
-  Add as AddIcon
+  Add as AddIcon, Visibility, VisibilityOff, Lock
 } from '@mui/icons-material';
+import NewUserModal from '../components/NewUserModal';
+
+// Create a global variable to store the data outside the component
+let globalUsersData = null;
+let globalDataLoaded = false;
 
 export default function AdminDashboard() {
   const theme = useTheme();
@@ -38,11 +43,10 @@ export default function AdminDashboard() {
   const [selectedRole, setSelectedRole] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!globalDataLoaded);
   const [error, setError] = useState(null);
   
-  const [users, setUsers] = useState([]);
-  const [peopleList, setPeopleList] = useState([]);
+  const [users, setUsers] = useState(globalUsersData || []);
   const [activityLog, setActivityLog] = useState([]);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -51,28 +55,10 @@ export default function AdminDashboard() {
   const [updatingRole, setUpdatingRole] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
-  const [formErrors, setFormErrors] = useState({});
 
   // Pagination state
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-
-  const [newUser, setNewUser] = useState({
-    name: '',
-    surname: '',
-    email: '',
-    password: '',
-    phone_number: '',
-    date_of_birth: '',
-    address: '',
-    gender: '',
-    invitedBy: '',
-    leader12: '',
-    leader144: '',
-    leader1728: '',
-    stage: 'Win',
-    role: 'user'
-  });
 
   const [roles] = useState([
     { name: 'admin', description: 'Full system access' },
@@ -121,8 +107,15 @@ export default function AdminDashboard() {
     </Card>
   );
 
-  // Memoized data fetcher to prevent unnecessary re-renders
-  const fetchAllData = useCallback(async () => {
+  // Fetch function - only loads if no global data
+  const fetchAllData = useCallback(async (forceRefresh = false) => {
+    // If we already have global data and not forcing refresh, use it
+    if (globalDataLoaded && !forceRefresh) {
+      setUsers(globalUsersData);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     
@@ -170,6 +163,10 @@ export default function AdminDashboard() {
         createdAt: user.created_at
       }));
 
+      // Store in global variable
+      globalUsersData = transformedUsers;
+      globalDataLoaded = true;
+
       setUsers(transformedUsers);
       addActivityLog('DATA_REFRESH', 'User data refreshed successfully');
       
@@ -181,16 +178,21 @@ export default function AdminDashboard() {
     }
   }, [API_BASE_URL]);
 
-  // Load data only once on component mount
-  useEffect(() => {
-    fetchAllData();
+  // Manual refresh function - forces reload
+  const handleManualRefresh = useCallback(async () => {
+    await fetchAllData(true);
   }, [fetchAllData]);
 
+  // Load data only if no global data exists
   useEffect(() => {
-    if (showAddUserModal) {
-      fetchPeopleList();
+    if (!globalDataLoaded) {
+      fetchAllData();
+    } else {
+      // If we have global data, set it immediately
+      setUsers(globalUsersData);
+      setLoading(false);
     }
-  }, [showAddUserModal]);
+  }, [fetchAllData]);
 
   const addActivityLog = useCallback((action, details) => {
     const newLog = {
@@ -203,72 +205,28 @@ export default function AdminDashboard() {
     setActivityLog(prev => [newLog, ...prev].slice(0, 50));
   }, []);
 
-  const fetchPeopleList = async () => {
-    try {
-      const allPeople = [];
-      let page = 1;
-      const perPage = 1000;
-      let moreData = true;
-
-      while (moreData) {
-        const response = await fetch(`${API_BASE_URL}/people?page=${page}&perPage=${perPage}`);
-        const data = await response.json();
-        const results = data?.results || [];
-        allPeople.push(...results);
-        
-        if (results.length < perPage) {
-          moreData = false;
-        } else {
-          page += 1;
-        }
-      }
-      setPeopleList(allPeople);
-    } catch (err) {
-      console.error('Failed to fetch people:', err);
-      setPeopleList([]);
-    }
-  };
-
-  const validateForm = () => {
-    const errors = {};
-    if (!newUser.name?.trim()) errors.name = 'Name is required';
-    if (!newUser.surname?.trim()) errors.surname = 'Surname is required';
-    if (!newUser.email?.trim()) errors.email = 'Email is required';
-    if (!newUser.password?.trim()) errors.password = 'Password is required';
-    if (!newUser.date_of_birth?.trim()) errors.date_of_birth = 'Date of birth is required';
-    if (!newUser.address?.trim()) errors.address = 'Address is required';
-    if (!newUser.phone_number?.trim()) errors.phone_number = 'Phone number is required';
-    if (!newUser.gender?.trim()) errors.gender = 'Gender is required';
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleCreateUser = async () => {
-    if (!validateForm()) {
-      return;
-    }
-
+  // Updated handleCreateUser function to work with the modal component
+  const handleCreateUser = async (userData) => {
     setCreatingUser(true);
     
     try {
       const token = localStorage.getItem('authToken') || localStorage.getItem('token');
       
       const payload = {
-        name: newUser.name,
-        surname: newUser.surname,
-        email: newUser.email,
-        password: newUser.password,
-        phone_number: newUser.phone_number,
-        date_of_birth: newUser.date_of_birth,
-        address: newUser.address,
-        gender: newUser.gender,
-        invitedBy: newUser.invitedBy,
-        leader12: newUser.leader12,
-        leader144: newUser.leader144,
-        leader1728: newUser.leader1728,
-        stage: newUser.stage || 'Win',
-        role: newUser.role
+        name: userData.name,
+        surname: userData.surname,
+        email: userData.email,
+        password: userData.password,
+        phone_number: userData.phone_number,
+        date_of_birth: userData.date_of_birth,
+        address: userData.address,
+        gender: userData.gender,
+        invitedBy: userData.invitedBy,
+        leader12: userData.leader12,
+        leader144: userData.leader144,
+        leader1728: userData.leader1728,
+        stage: userData.stage || 'Win',
+        role: userData.role
       };
 
       console.log('Creating user with payload:', payload);
@@ -289,29 +247,13 @@ export default function AdminDashboard() {
         throw new Error(responseData.detail || 'Failed to create user');
       }
 
-      addActivityLog('USER_CREATED', `Created new user: ${newUser.name} ${newUser.surname} (${newUser.role})`);
-      
-      // Reset form
-      setNewUser({
-        name: '',
-        surname: '',
-        email: '',
-        password: '',
-        phone_number: '',
-        date_of_birth: '',
-        address: '',
-        gender: '',
-        invitedBy: '',
-        leader12: '',
-        leader144: '',
-        leader1728: '',
-        stage: 'Win',
-        role: 'user'
-      });
+      addActivityLog('USER_CREATED', `Created new user: ${userData.name} ${userData.surname} (${userData.role})`);
       
       setShowAddUserModal(false);
-      setFormErrors({});
-      fetchAllData();
+      
+      // Refresh data after creating user and update global data
+      globalDataLoaded = false;
+      fetchAllData(true);
       
     } catch (err) {
       console.error('Error creating user:', err);
@@ -344,9 +286,13 @@ export default function AdminDashboard() {
       const user = users.find(u => u.id === userId);
       addActivityLog('ROLE_UPDATED', `Updated ${user?.name}'s role to ${newRole}`);
 
-      setUsers(users.map(user => 
+      const updatedUsers = users.map(user => 
         user.id === userId ? { ...user, role: newRole } : user
-      ));
+      );
+      
+      // Update both local state and global data
+      setUsers(updatedUsers);
+      globalUsersData = updatedUsers;
       
       setShowRoleModal(false);
       setSelectedUser(null);
@@ -382,7 +328,12 @@ export default function AdminDashboard() {
 
       addActivityLog('USER_DELETED', `Deleted user: ${selectedUser.name}`);
       
-      setUsers(users.filter(user => user.id !== selectedUser.id));
+      const updatedUsers = users.filter(user => user.id !== selectedUser.id);
+      
+      // Update both local state and global data
+      setUsers(updatedUsers);
+      globalUsersData = updatedUsers;
+      
       setShowDeleteConfirm(false);
       setSelectedUser(null);
       
@@ -392,32 +343,6 @@ export default function AdminDashboard() {
     } finally {
       setDeletingUser(false);
     }
-  };
-
-  const handleInvitedByChange = (value) => {
-    if (!value) {
-      setNewUser(prev => ({
-        ...prev,
-        invitedBy: '',
-        leader12: '',
-        leader144: '',
-        leader1728: ''
-      }));
-      return;
-    }
-
-    const label = typeof value === "string" ? value : value.label;
-    const person = peopleList.find(
-      p => `${p.Name} ${p.Surname}`.trim() === label.trim()
-    );
-
-    setNewUser(prev => ({
-      ...prev,
-      invitedBy: label,
-      leader12: person?.["Leader @12"] || '',
-      leader144: person?.["Leader @144"] || '',
-      leader1728: person?.["Leader @ 1728"] || ''
-    }));
   };
 
   const getRoleColor = (role) => {
@@ -530,7 +455,7 @@ export default function AdminDashboard() {
     </Card>
   );
 
-  if (loading) {
+  if (loading && !globalDataLoaded) {
     return (
       <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
         {/* Skeleton Title */}
@@ -599,7 +524,7 @@ export default function AdminDashboard() {
             <AlertTitle>Error</AlertTitle>
             {error}
           </Alert>
-          <Button variant="contained" fullWidth onClick={fetchAllData} startIcon={<Refresh />}>
+          <Button variant="contained" fullWidth onClick={handleManualRefresh} startIcon={<Refresh />}>
             Retry
           </Button>
         </Paper>
@@ -607,16 +532,20 @@ export default function AdminDashboard() {
     );
   }
 
-  const peopleOptions = peopleList.map(person => ({
-    label: `${person.Name || ""} ${person.Surname || ""}`.trim(),
-    person
-  }));
-
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: cardSpacing }}>
+      {/* <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: cardSpacing }}>
         <Typography variant={titleVariant} fontWeight="bold" color="text.primary">User Management</Typography>
-      </Stack>
+        {globalDataLoaded && (
+          <Chip 
+            icon={<Circle sx={{ fontSize: 12 }} />} 
+            label="Data Cached" 
+            color="success" 
+            variant="outlined"
+            size="small"
+          />
+        )}
+      </Stack> */}
 
       {/* Statistics Cards */}
       <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
@@ -681,7 +610,7 @@ export default function AdminDashboard() {
           <Button 
             variant="outlined" 
             startIcon={<Refresh />} 
-            onClick={fetchAllData}
+            onClick={handleManualRefresh}
             sx={{ 
               boxShadow: 1, 
               borderRadius: 2, 
@@ -933,278 +862,13 @@ export default function AdminDashboard() {
         )}
       </Paper>
 
-      {/* Enhanced Add User Modal */}
-      <Dialog 
-        open={showAddUserModal} 
-        onClose={() => !creatingUser && setShowAddUserModal(false)} 
-        maxWidth="md" 
-        fullWidth
-        PaperProps={{ 
-          sx: { 
-            boxShadow: 6, 
-            borderRadius: 2,
-            background: 'linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%)',
-            m: getResponsiveValue(1, 2, 3, 4, 4)
-          } 
-        }}
-      >
-        <DialogTitle sx={{ 
-          background: 'linear-gradient(45deg, #2196f3 30%, #21cbf3 90%)',
-          color: 'white',
-          py: 2
-        }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6" fontWeight="bold">Add New User</Typography>
-            <IconButton 
-              onClick={() => setShowAddUserModal(false)} 
-              disabled={creatingUser}
-              sx={{ color: 'white' }}
-            >
-              <Close />
-            </IconButton>
-          </Stack>
-        </DialogTitle>
-        <DialogContent dividers sx={{ p: getResponsiveValue(1, 2, 3, 3, 3) }}>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Name"
-                name="name"
-                value={newUser.name}
-                onChange={(e) => { setNewUser({...newUser, name: e.target.value}); setFormErrors({...formErrors, name: ''}); }}
-                fullWidth
-                size="small"
-                error={!!formErrors.name}
-                helperText={formErrors.name}
-                disabled={creatingUser}
-                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Surname"
-                name="surname"
-                value={newUser.surname}
-                onChange={(e) => { setNewUser({...newUser, surname: e.target.value}); setFormErrors({...formErrors, surname: ''}); }}
-                fullWidth
-                size="small"
-                error={!!formErrors.surname}
-                helperText={formErrors.surname}
-                disabled={creatingUser}
-                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Date of Birth"
-                type="date"
-                name="date_of_birth"
-                value={newUser.date_of_birth}
-                onChange={(e) => { setNewUser({...newUser, date_of_birth: e.target.value}); setFormErrors({...formErrors, date_of_birth: ''}); }}
-                fullWidth
-                size="small"
-                error={!!formErrors.date_of_birth}
-                helperText={formErrors.date_of_birth}
-                disabled={creatingUser}
-                InputLabelProps={{ shrink: true }}
-                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Gender"
-                name="gender"
-                select
-                value={newUser.gender}
-                onChange={(e) => { setNewUser({...newUser, gender: e.target.value}); setFormErrors({...formErrors, gender: ''}); }}
-                fullWidth
-                size="small"
-                error={!!formErrors.gender}
-                helperText={formErrors.gender}
-                disabled={creatingUser}
-                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-              >
-                <MenuItem value="Male">Male</MenuItem>
-                <MenuItem value="Female">Female</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                label="Home Address"
-                name="address"
-                value={newUser.address}
-                onChange={(e) => { setNewUser({...newUser, address: e.target.value}); setFormErrors({...formErrors, address: ''}); }}
-                fullWidth
-                size="small"
-                error={!!formErrors.address}
-                helperText={formErrors.address}
-                disabled={creatingUser}
-                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Email Address"
-                type="email"
-                name="email"
-                value={newUser.email}
-                onChange={(e) => { setNewUser({...newUser, email: e.target.value}); setFormErrors({...formErrors, email: ''}); }}
-                fullWidth
-                size="small"
-                error={!!formErrors.email}
-                helperText={formErrors.email}
-                disabled={creatingUser}
-                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Phone Number"
-                name="phone_number"
-                value={newUser.phone_number}
-                onChange={(e) => { setNewUser({...newUser, phone_number: e.target.value}); setFormErrors({...formErrors, phone_number: ''}); }}
-                fullWidth
-                size="small"
-                error={!!formErrors.phone_number}
-                helperText={formErrors.phone_number}
-                disabled={creatingUser}
-                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Autocomplete
-                freeSolo
-                disabled={creatingUser}
-                options={peopleOptions}
-                getOptionLabel={(option) => typeof option === "string" ? option : option.label}
-                value={peopleOptions.find(option => option.label === newUser.invitedBy) || null}
-                onChange={(e, newValue) => handleInvitedByChange(newValue)}
-                onInputChange={(e, newInputValue, reason) => {
-                  if (reason === "input") {
-                    setNewUser(prev => ({ ...prev, invitedBy: newInputValue }));
-                  }
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Invited By"
-                    size="small"
-                    sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-                  />
-                )}
-              />
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Divider sx={{ my: 1 }} />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Password"
-                type="password"
-                name="password"
-                value={newUser.password}
-                onChange={(e) => { setNewUser({...newUser, password: e.target.value}); setFormErrors({...formErrors, password: ''}); }}
-                fullWidth
-                size="small"
-                error={!!formErrors.password}
-                helperText={formErrors.password}
-                disabled={creatingUser}
-                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Role"
-                name="role"
-                select
-                value={newUser.role}
-                onChange={(e) => setNewUser({...newUser, role: e.target.value})}
-                fullWidth
-                size="small"
-                disabled={creatingUser}
-                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-              >
-                <MenuItem value="user">User</MenuItem>
-                <MenuItem value="leader">Leader</MenuItem>
-                <MenuItem value="registrant">Registrant</MenuItem>
-                <MenuItem value="admin">Admin</MenuItem>
-              </TextField>
-            </Grid>
-
-            {(newUser.leader12 || newUser.leader144 || newUser.leader1728) && (
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary', mb: 2 }}>
-                  Leader Information (Auto-populated)
-                </Typography>
-                <Grid container spacing={2}>
-                  {newUser.leader12 && (
-                    <Grid item xs={12} sm={4}>
-                      <TextField
-                        label="Leader @12"
-                        value={newUser.leader12}
-                        fullWidth
-                        size="small"
-                        disabled
-                        InputProps={{ readOnly: true }}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-                      />
-                    </Grid>
-                  )}
-                  {newUser.leader144 && (
-                    <Grid item xs={12} sm={4}>
-                      <TextField
-                        label="Leader @144"
-                        value={newUser.leader144}
-                        fullWidth
-                        size="small"
-                        disabled
-                        InputProps={{ readOnly: true }}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-                      />
-                    </Grid>
-                  )}
-                  {newUser.leader1728 && (
-                    <Grid item xs={12} sm={4}>
-                      <TextField
-                        label="Leader @1728"
-                        value={newUser.leader1728}
-                        fullWidth
-                        size="small"
-                        disabled
-                        InputProps={{ readOnly: true }}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1 } }}
-                      />
-                    </Grid>
-                  )}
-                </Grid>
-              </Grid>
-            )}
-          </Grid>
-        </DialogContent>
-        <DialogActions sx={{ p: getResponsiveValue(1, 2, 3, 3, 3), gap: 1 }}>
-          <Button 
-            onClick={() => setShowAddUserModal(false)} 
-            disabled={creatingUser}
-            variant="outlined"
-            sx={{ borderRadius: 2, px: 3 }}
-            size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-          >
-            Cancel
-          </Button>
-          <Button 
-            variant="contained" 
-            onClick={handleCreateUser} 
-            disabled={creatingUser}
-            sx={{ borderRadius: 2, px: 4 }}
-            size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-          >
-            {creatingUser ? <CircularProgress size={20} /> : 'Create User'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Use the NewUserModal component */}
+      <NewUserModal
+        open={showAddUserModal}
+        onClose={() => setShowAddUserModal(false)}
+        onUserCreated={handleCreateUser}
+        loading={creatingUser}
+      />
 
       {/* Enhanced Role Change Modal */}
       <Dialog 

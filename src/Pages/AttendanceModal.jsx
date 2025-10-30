@@ -153,15 +153,38 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
   };
 
   const validateForm = () => {
-    if (!formData.name || !formData.surname || !formData.email) {
+    const requiredFields = {
+      name: formData.name?.trim(),
+      surname: formData.surname?.trim(), 
+      email: formData.email?.trim()
+    };
+
+    const missingFields = Object.entries(requiredFields)
+      .filter(([key, value]) => !value)
+      .map(([key]) => key);
+
+    if (missingFields.length > 0) {
       setAlert({
         open: true,
         type: "error",
-        message: "Please fill in required fields (Name, Surname, Email)",
+        message: `Missing required fields: ${missingFields.join(', ')}`,
       });
       setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
       return false;
     }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setAlert({
+        open: true,
+        type: "error",
+        message: "Please enter a valid email address",
+      });
+      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      return false;
+    }
+
     return true;
   };
 
@@ -172,104 +195,119 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
   };
 
   const handleSubmit = async (leaderInfo) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+  try {
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+
+    // ✅ FIXED: Use EXACT lowercase field names with leaders array
+    const personData = {
+      name: formData.name.trim(),
+      surname: formData.surname.trim(),
+      email: formData.email.toLowerCase().trim(),
+      number: formData.mobile || "",
+      address: formData.address || "",
+      gender: formData.gender || "",
+      dob: formData.dob || "",
+      invitedBy: formData.invitedBy || "",
+      leaders: [
+        leaderInfo.leader1 || "",
+        leaderInfo.leader12 || "",
+        leaderInfo.leader144 || "",
+        "" // leader1728 (empty string)
+      ],
+      stage: "Win",
+    };
+
+    console.log("📤 Sending person data to backend:", personData);
+
+    const response = await fetch(`${BACKEND_URL}/people`, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(personData),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("✅ Person created successfully:", data);
+
+      // Invalidate cache since we added a new person
+      globalPeopleCache = {
+        data: [],
+        timestamp: null,
+        expiry: 5 * 60 * 1000
       };
 
-      const personData = {
-        Name: formData.name.trim(),
-        Surname: formData.surname.trim(),
-        Email: formData.email.toLowerCase().trim(),
-        Phone: formData.mobile || "",
-        Address: formData.address || "",
-        Gender: formData.gender || "",
-        DateOfBirth: formData.dob || "",
-        InvitedBy: formData.invitedBy || "",
-        "Leader @1": leaderInfo.leader1 || "",
-        "Leader @12": leaderInfo.leader12 || "",
-        "Leader @144": leaderInfo.leader144 || "",
-        "Leader @1728": "",
-        Stage: "Win",
-      };
-
-      console.log("📤 Sending person data to backend:", personData);
-
-      const response = await fetch(`${BACKEND_URL}/people`, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(personData),
+      setAlert({
+        open: true,
+        type: "success",
+        message: "Person added successfully!",
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log("✅ Person created successfully:", data);
-
-        // Invalidate cache since we added a new person
-        globalPeopleCache = {
-          data: [],
-          timestamp: null,
-          expiry: 5 * 60 * 1000
-        };
-
-        setAlert({
-          open: true,
-          type: "success",
-          message: "Person added successfully!",
-        });
-
-        if (typeof onPersonAdded === "function") {
-          onPersonAdded(data.person || data);
-        }
-
-        setTimeout(() => {
-          onClose();
-          setFormData({
-            invitedBy: "",
-            name: "",
-            surname: "",
-            gender: "",
-            email: "",
-            mobile: "",
-            dob: "",
-            address: "",
-          });
-          setInviterSearch("");
-          setInviterResults([]);
-          setShowLeaderModal(false);
-        }, 1500);
-      } else {
-        const error = await response.json();
-        console.error("❌ Add person error:", error);
-
-        let errorMessage = "Failed to add person";
-        if (error.detail) {
-          if (typeof error.detail === 'string') {
-            errorMessage = error.detail;
-          } else if (Array.isArray(error.detail)) {
-            errorMessage = error.detail.map(err => err.msg || err).join(', ');
-          }
-        }
-
-        setAlert({
-          open: true,
-          type: "error",
-          message: errorMessage,
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      if (typeof onPersonAdded === "function") {
+        onPersonAdded(data.person || data);
       }
-    } catch (error) {
-      console.error("❌ Network error adding person:", error);
+
+      setTimeout(() => {
+        onClose();
+        setFormData({
+          invitedBy: "",
+          name: "",
+          surname: "",
+          gender: "",
+          email: "",
+          mobile: "",
+          dob: "",
+          address: "",
+        });
+        setInviterSearch("");
+        setInviterResults([]);
+        setShowLeaderModal(false);
+      }, 1500);
+    } else {
+      const error = await response.json();
+      console.error("❌ Add person error - FULL DETAILS:", {
+        status: response.status,
+        statusText: response.statusText,
+        error: error,
+        sentData: personData
+      });
+
+      let errorMessage = "Failed to add person";
+      if (error.detail) {
+        if (typeof error.detail === 'string') {
+          errorMessage = error.detail;
+        } else if (Array.isArray(error.detail)) {
+          errorMessage = error.detail.map(err => {
+            const field = err.loc?.[err.loc.length - 1] || 'field';
+            return `${field}: ${err.msg || err}`;
+          }).join(', ');
+        } else if (typeof error.detail === 'object') {
+          errorMessage = JSON.stringify(error.detail);
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       setAlert({
         open: true,
         type: "error",
-        message: "Network error: Could not connect to server",
+        message: errorMessage,
       });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
     }
-  };
+  } catch (error) {
+    console.error("❌ Network error adding person:", error);
+    setAlert({
+      open: true,
+      type: "error",
+      message: "Network error: Could not connect to server",
+    });
+    setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+  }
+};
 
   const handleClose = () => {
     setFormData({
@@ -617,7 +655,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
   );
 };
 
-
 const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedPeople = [] }) => {
   const [leaderData, setLeaderData] = useState({
     leader1: "",
@@ -925,7 +962,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
 
         <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Leader @1</label>
             <input
               type="text"
               value={leaderSearches.leader1}
@@ -947,7 +983,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Leader @12</label>
             <input
               type="text"
               value={leaderSearches.leader12}
@@ -969,7 +1004,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Leader @144</label>
             <input
               type="text"
               value={leaderSearches.leader144}
@@ -1012,6 +1046,9 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
     </div>
   );
 };
+
+
+
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
@@ -2684,7 +2721,7 @@ const handleSave = async () => {
         <div style={styles.modal}>
           <div style={styles.header}>
             <h2 style={styles.title}>
-              Take Attendance
+              ATTENDANCE
               {isTicketedEvent && (
                 <span style={styles.ticketBadge}>Ticketed Event</span>
               )}
