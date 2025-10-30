@@ -751,9 +751,6 @@ export default function Profile() {
             <Typography variant="h4" sx={{ fontWeight: 700, color: isDark ? "#ffffff" : "#000000", mb: 1, fontSize: { xs: "1.5rem", sm: "2rem", md: "2.25rem" }, }}>
               {form.name} {form.surname}
             </Typography>
-            <Button variant="outlined" size="small" onClick={testConnection} disabled={testingAPI} sx={{ mt: 1 }}>
-              {testingAPI ? "Testing..." : "Test Connection"}
-            </Button>
           </Box>
         </Box>
       </Box>
