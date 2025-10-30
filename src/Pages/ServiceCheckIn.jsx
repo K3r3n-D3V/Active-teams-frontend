@@ -49,6 +49,8 @@ import EmojiPeopleIcon from "@mui/icons-material/EmojiPeople";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import MergeIcon from "@mui/icons-material/Merge";
 import EventHistory from "../components/EventHistory";
+import SaveIcon from "@mui/icons-material/Save";
+import CloseIcon from "@mui/icons-material/Close";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -97,6 +99,7 @@ function ServiceCheckIn() {
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isLoadingConsolidated, setIsLoadingConsolidated] = useState(false);
+  const [isClosingEvent, setIsClosingEvent] = useState(false);
 
   const [modalSearch, setModalSearch] = useState("");
   const [modalPage, setModalPage] = useState(0);
@@ -190,15 +193,123 @@ function ServiceCheckIn() {
     }
   }, [events]);
 
-  // Close event function
-  const handleCloseEvent = async () => {
+  // FIXED: Improved function to load event check-ins
+  const loadEventCheckIns = async () => {
+    if (!currentEventId) return;
+    
+    try {
+      console.log('🔄 Loading check-ins for event:', currentEventId);
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${BASE_URL}/events/${currentEventId}/checkins`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+
+      const checkedInPeople = toArray(response.data);
+      console.log('✅ Raw checked-in people from API:', checkedInPeople);
+
+      // Create a map of all attendees by different identifiers for better matching
+      const attendeeMap = new Map();
+      
+      attendees.forEach(attendee => {
+        // Map by ID
+        if (attendee._id) {
+          attendeeMap.set(attendee._id, attendee._id);
+        }
+        
+        // Map by name (case insensitive)
+        if (attendee.name) {
+          const nameKey = `${attendee.name.toLowerCase()} ${attendee.surname?.toLowerCase() || ''}`.trim();
+          attendeeMap.set(nameKey, attendee._id);
+        }
+        
+        // Map by email (if available)
+        if (attendee.email) {
+          attendeeMap.set(attendee.email.toLowerCase(), attendee._id);
+        }
+      });
+
+      console.log('📋 Attendee map:', attendeeMap);
+
+      // Find matching attendee IDs
+      const checkedInIds = checkedInPeople
+        .map((person) => {
+          // Try to match by different identifiers
+          let matchedId = null;
+          
+          // Try by ID first
+          if (person._id && attendeeMap.has(person._id)) {
+            matchedId = attendeeMap.get(person._id);
+          }
+          // Try by name
+          else if (person.name || person.Name) {
+            const name = person.name || person.Name;
+            const surname = person.surname || person.Surname || '';
+            const nameKey = `${name.toLowerCase()} ${surname.toLowerCase()}`.trim();
+            if (attendeeMap.has(nameKey)) {
+              matchedId = attendeeMap.get(nameKey);
+            }
+          }
+          // Try by email
+          else if (person.email || person.Email) {
+            const email = (person.email || person.Email).toLowerCase();
+            if (attendeeMap.has(email)) {
+              matchedId = attendeeMap.get(email);
+            }
+          }
+
+          console.log(`🔍 Matching:`, person, '->', matchedId);
+          return matchedId;
+        })
+        .filter(Boolean);
+
+      console.log('✅ Final checked-in IDs:', checkedInIds);
+
+      if (checkedInIds.length > 0) {
+        setEventCheckIns((prev) => ({ 
+          ...prev, 
+          [currentEventId]: [...new Set([...(prev[currentEventId] || []), ...checkedInIds])] 
+        }));
+        toast.success(`Loaded ${checkedInIds.length} previously checked-in attendees`);
+      } else {
+        console.log('ℹ️ No previously checked-in attendees found');
+      }
+    } catch (error) {
+      console.error('❌ Error loading event check-ins:', error);
+      // Fallback to localStorage
+      const storedCheckIns = eventCheckIns[currentEventId] || [];
+      if (storedCheckIns.length > 0) {
+        console.log('🔄 Using stored check-ins from localStorage');
+      }
+    }
+  };
+
+  // Enhanced useEffect to load check-ins when event changes
+  useEffect(() => {
+    if (currentEventId && attendees.length > 0) {
+      console.log('🎯 Event changed or attendees loaded, loading check-ins...');
+      loadEventCheckIns();
+    }
+  }, [currentEventId, attendees]);
+
+  // Save and Close Event function
+  const handleSaveAndCloseEvent = async () => {
     if (!currentEventId) {
-      toast.error("Please select an event to close");
+      toast.error("Please select an event first");
       return;
     }
 
+    // Confirm before closing
+    if (!window.confirm("Are you sure you want to close this event? This action cannot be undone.")) {
+      return;
+    }
+
+    setIsClosingEvent(true);
     try {
       const token = localStorage.getItem("token");
+      
+      // Update event status to closed
       await axios.patch(
         `${BASE_URL}/events/${currentEventId}`,
         { status: "closed" },
@@ -216,7 +327,7 @@ function ServiceCheckIn() {
           : event
       ));
 
-      toast.success("Event marked as closed successfully");
+      toast.success("Event closed successfully!");
       
       // Clear current event selection
       setCurrentEventId("");
@@ -225,6 +336,8 @@ function ServiceCheckIn() {
     } catch (error) {
       console.error("Error closing event:", error);
       toast.error("Failed to close event");
+    } finally {
+      setIsClosingEvent(false);
     }
   };
 
@@ -379,6 +492,8 @@ function ServiceCheckIn() {
 
   const getAttendeesWithPresentStatus = () => {
     const currentEventCheckIns = eventCheckIns[currentEventId] || [];
+    console.log('📊 Current event check-ins:', currentEventCheckIns);
+    
     return attendees.map((attendee) => ({
       ...attendee,
       present: currentEventCheckIns.includes(attendee._id),
@@ -817,30 +932,6 @@ function ServiceCheckIn() {
       toast.error(err.response?.data?.detail || err.message);
     }
   };
-
-  useEffect(() => {
-    const loadEventCheckIns = async () => {
-      if (!currentEventId) return;
-      try {
-        const res = await axios.get(`${BASE_URL}/events/${currentEventId}/checkins`);
-        const checkedInPeople = toArray(res.data);
-        const checkedInIds = checkedInPeople
-          .map((person) => {
-            const match = attendees.find(
-              (a) => a.name === (person.name || person.Name) || a._id === (person._id || person.id)
-            );
-            return match?._id;
-          })
-          .filter(Boolean);
-        if (checkedInIds.length > 0) {
-          setEventCheckIns((prev) => ({ ...prev, [currentEventId]: checkedInIds }));
-        }
-      } catch {
-        // fallback to localStorage
-      }
-    };
-    if (currentEventId && attendees.length > 0) loadEventCheckIns();
-  }, [currentEventId, attendees]);
 
   const attendeesWithStatus = getAttendeesWithPresentStatus();
 
@@ -1292,19 +1383,110 @@ function ServiceCheckIn() {
     );
   };
 
-  if (!hasDataLoaded && (isLoadingPeople || isLoadingEvents)) {
-    return (
-      <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-        <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
-        <Skeleton variant="text" width="40%" height={getResponsiveValue(32, 40, 48, 56, 56)} sx={{ mx: 'auto', mb: cardSpacing }} />
-        <Grid container spacing={cardSpacing} mb={cardSpacing}>
-          <Grid item xs={6} sm={3}><Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} /></Grid>
-          <Grid item xs={6} sm={3}><Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} /></Grid>
-          <Grid item xs={6} sm={3}><Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} /></Grid>
-          <Grid item xs={6} sm={3}><Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1 }} /></Grid>
+  // Enhanced Skeleton Loader
+  const SkeletonLoader = () => (
+    <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
+      <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
+      
+      {/* Skeleton for title */}
+      <Skeleton 
+        variant="text" 
+        width="60%" 
+        height={getResponsiveValue(32, 40, 48, 56, 56)} 
+        sx={{ mx: 'auto', mb: cardSpacing, borderRadius: 1 }} 
+      />
+      
+      {/* Skeleton for stats cards */}
+      <Grid container spacing={cardSpacing} mb={cardSpacing}>
+        {[1, 2, 3].map((item) => (
+          <Grid item xs={6} sm={6} md={3} key={item}>
+            <Paper variant="outlined" sx={{ p: getResponsiveValue(1.5, 2, 2.5, 3, 3), textAlign: "center" }}>
+              <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
+                <Skeleton variant="circular" width={getResponsiveValue(20, 24, 28, 32, 32)} height={getResponsiveValue(20, 24, 28, 32, 32)} />
+                <Skeleton variant="text" width="40%" height={getResponsiveValue(24, 28, 32, 36, 40)} sx={{ borderRadius: 1 }} />
+              </Stack>
+              <Skeleton variant="text" width="70%" height={getResponsiveValue(16, 18, 20, 22, 24)} sx={{ mx: 'auto', borderRadius: 1 }} />
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Skeleton for controls */}
+      <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
+        <Grid item xs={12} sm={6} md={4}>
+          <Skeleton variant="rounded" height={getResponsiveValue(36, 40, 44, 48, 52)} sx={{ borderRadius: 1, boxShadow: 2 }} />
         </Grid>
-      </Box>
-    );
+        <Grid item xs={12} sm={6} md={5}>
+          <Skeleton variant="rounded" height={getResponsiveValue(36, 40, 44, 48, 52)} sx={{ borderRadius: 1, boxShadow: 2 }} />
+        </Grid>
+        <Grid item xs={12} md={3}>
+          <Stack direction="row" spacing={2} justifyContent={isMdDown ? "center" : "flex-end"}>
+            <Skeleton variant="circular" width={36} height={36} />
+            <Skeleton variant="circular" width={36} height={36} />
+          </Stack>
+        </Grid>
+      </Grid>
+
+      {/* Skeleton for tabs */}
+      <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, p: 1 }}>
+        <Stack direction="row" spacing={2}>
+          <Skeleton variant="rounded" width={120} height={36} sx={{ borderRadius: 1 }} />
+          <Skeleton variant="rounded" width={120} height={36} sx={{ borderRadius: 1 }} />
+        </Stack>
+      </Paper>
+
+      {/* Skeleton for main content area */}
+      {isMdDown ? (
+        // Mobile skeleton - card view
+        <Box>
+          <Box sx={{ 
+            maxHeight: 500, 
+            overflowY: "auto",
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 1,
+            p: 1,
+            boxShadow: 2
+          }}>
+            {[1, 2, 3, 4, 5].map((item) => (
+              <Card key={item} variant="outlined" sx={{ mb: 1, boxShadow: 2 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                    <Box flex={1}>
+                      <Skeleton variant="text" width="60%" height={24} sx={{ borderRadius: 1 }} />
+                      <Skeleton variant="text" width="80%" height={16} sx={{ borderRadius: 1, mt: 0.5 }} />
+                    </Box>
+                  </Box>
+                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Skeleton variant="circular" width={32} height={32} />
+                    <Skeleton variant="circular" width={32} height={32} />
+                    <Skeleton variant="circular" width={32} height={32} />
+                  </Stack>
+                  <Divider sx={{ my: 1 }} />
+                  <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+                    <Skeleton variant="rounded" width={80} height={20} sx={{ borderRadius: 10 }} />
+                    <Skeleton variant="rounded" width={80} height={20} sx={{ borderRadius: 10 }} />
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
+          </Box>
+          <Box sx={{ mt: 1 }}>
+            <Skeleton variant="rounded" height={52} sx={{ borderRadius: 1, boxShadow: 2 }} />
+          </Box>
+        </Box>
+      ) : (
+        // Desktop skeleton - table view
+        <Paper variant="outlined" sx={{ height: 600, boxShadow: 3, p: 2 }}>
+          <Skeleton variant="rounded" width="100%" height={40} sx={{ mb: 2, borderRadius: 1 }} />
+          <Skeleton variant="rounded" width="100%" height={400} sx={{ borderRadius: 1 }} />
+          <Skeleton variant="rounded" width="100%" height={40} sx={{ mt: 2, borderRadius: 1 }} />
+        </Paper>
+      )}
+    </Box>
+  );
+
+  if (!hasDataLoaded && (isLoadingPeople || isLoadingEvents)) {
+    return <SkeletonLoader />;
   }
 
   return (
@@ -1380,6 +1562,41 @@ function ServiceCheckIn() {
             </Stack>
             <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
               Consolidated
+            </Typography>
+          </Paper>
+        </Grid>
+        
+        {/* Save & Close Event Button Card */}
+        <Grid item xs={6} sm={6} md={3}>
+          <Paper 
+            variant="outlined" 
+            sx={{ 
+              p: getResponsiveValue(1.5, 2, 2.5, 3, 3), 
+              textAlign: "center",
+              cursor: currentEventId ? "pointer" : "not-allowed",
+              boxShadow: 3,
+              "&:hover": currentEventId ? { boxShadow: 6, transform: "translateY(-2px)" } : {},
+              transition: "all 0.2s",
+              opacity: currentEventId ? 1 : 0.5
+            }}
+            onClick={currentEventId ? handleSaveAndCloseEvent : undefined}
+          >
+            <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
+              {isClosingEvent ? (
+                <Skeleton variant="circular" width={getResponsiveValue(20, 24, 28, 32, 32)} height={getResponsiveValue(20, 24, 28, 32, 32)} />
+              ) : (
+                <SaveIcon color={currentEventId ? "primary" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
+              )}
+              <Typography 
+                variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
+                fontWeight={600} 
+                color={currentEventId ? "primary" : "text.disabled"}
+              >
+                {isClosingEvent ? "..." : "Save & Close"}
+              </Typography>
+            </Stack>
+            <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
+              Close Event
             </Typography>
           </Paper>
         </Grid>
