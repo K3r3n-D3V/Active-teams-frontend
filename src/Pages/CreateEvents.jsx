@@ -14,10 +14,6 @@ import {
   Typography,
   useTheme,
   Autocomplete,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   IconButton,
 } from "@mui/material";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
@@ -49,11 +45,8 @@ const CreateEvents = ({
   });
 
   // keep a small derived convenience set
-  const {
-    isGlobal: isGlobalEvent,
-    isTicketed: isTicketedEvent,
-    hasPersonSteps,
-  } = eventTypeFlags;
+  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, hasPersonSteps } =
+    eventTypeFlags;
 
   // Basic UI / submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,12 +58,11 @@ const CreateEvents = ({
   const [loadingPeople, setLoadingPeople] = useState(false);
 
   // Price tiers state (for ticketed events)
-  const [priceTiers, setPriceTiers] = useState([
-    { name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" },
-  ]);
+  const [priceTiers, setPriceTiers] = useState([]);
 
   const isAdmin = user?.role === "admin";
 
+  // Form state - eventType stores the display name (string). Leaders, etc.
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
     eventName: "",
@@ -83,7 +75,6 @@ const CreateEvents = ({
     description: "",
     leader1: "",
     leader12: "",
-    priceTiers: [{ name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" }],
   });
 
   // Errors
@@ -100,25 +91,7 @@ const CreateEvents = ({
     "Saturday",
     "Sunday",
   ];
-const standardPrice = 100;
 
-  const calculatePrice = (name) => {
-    switch (name) {
-      case "Standard":
-        return standardPrice;
-      case "Early Bird":
-        return standardPrice - 20;
-      case "Child":
-        return standardPrice / 2;
-      case "Group Package":
-        return 70;
-      case "Free":
-      case "Guest":
-        return 0;
-      default:
-        return 0;
-    }
-  };
   // ---------------------------
   // Keep flags & formData in sync with the selectedEventTypeObj prop
   // ---------------------------
@@ -166,9 +139,7 @@ const standardPrice = 100;
 
       const formatted = peopleArray.map((p) => ({
         id: p._id,
-        fullName: `${p.Name || p.name || ""} ${
-          p.Surname || p.surname || ""
-        }`.trim(),
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
         email: p.Email || p.email || "",
         leader1: p["Leader @1"] || p.leader1 || "",
         leader12: p["Leader @12"] || p.leader12 || "",
@@ -234,18 +205,12 @@ const standardPrice = 100;
 
         // normalize recurring days
         if (data.recurring_day) {
-          data.recurringDays = Array.isArray(data.recurring_day)
-            ? data.recurring_day
-            : [];
+          data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
         }
 
         // If the selected event type flags indicate ticketed, load priceTiers from the event
         if (isTicketedEvent) {
-          if (
-            data.priceTiers &&
-            Array.isArray(data.priceTiers) &&
-            data.priceTiers.length > 0
-          ) {
+          if (data.priceTiers && Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
             setPriceTiers(data.priceTiers);
           } else {
             setPriceTiers([
@@ -318,42 +283,23 @@ const standardPrice = 100;
   // ---------------------------
   // Price tier helpers
   // ---------------------------
-   const handleAddPriceTier = () => {
-    setEventData((prev) => ({
+  const handleAddPriceTier = () => {
+    setPriceTiers((prev) => [
       ...prev,
-      priceTiers: [
-        ...prev.priceTiers,
-        {
-          name: "",
-          price: "",
-          ageGroup: "",
-          memberType: "",
-          paymentMethod: "",
-        },
-      ],
-    }));
-  };
-
-  const handleRemovePriceTier = (index) => {
-    setEventData((prev) => ({
-      ...prev,
-      priceTiers: prev.priceTiers.filter((_, i) => i !== index),
-    }));
+      { name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" },
+    ]);
   };
 
   const handlePriceTierChange = (index, field, value) => {
-    setEventData((prev) => {
-      const updatedTiers = [...prev.priceTiers];
-      updatedTiers[index][field] = value;
-
-      // Auto-calculate price if name changes
-      if (field === "name") {
-        updatedTiers[index].price = calculatePrice(value);
-      }
-
-      // Ensure only one price name per tier (not multiple selections)
-      return { ...prev, priceTiers: updatedTiers };
+    setPriceTiers((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
     });
+  };
+
+  const handleRemovePriceTier = (index) => {
+    setPriceTiers((prev) => prev.filter((_, i) => i !== index));
   };
 
   // ---------------------------
@@ -383,10 +329,8 @@ const standardPrice = 100;
     if (!formData.eventType) newErrors.eventType = "Event type is required";
     if (!formData.eventName) newErrors.eventName = "Event name is required";
     if (!formData.location) newErrors.location = "Location is required";
-    if (!formData.eventLeader)
-      newErrors.eventLeader = "Event leader is required";
-    if (!formData.description)
-      newErrors.description = "Description is required";
+    if (!formData.eventLeader) newErrors.eventLeader = "Event leader is required";
+    if (!formData.description) newErrors.description = "Description is required";
 
     // If event is NOT global, apply usual rules
     if (!isGlobalEvent) {
@@ -402,25 +346,15 @@ const standardPrice = 100;
       // Ticketed event price tiers
       if (isTicketedEvent) {
         if (priceTiers.length === 0) {
-          newErrors.priceTiers =
-            "Add at least one price tier for ticketed events";
+          newErrors.priceTiers = "Add at least one price tier for ticketed events";
         } else {
           priceTiers.forEach((tier, index) => {
-            if (!tier.name)
-              newErrors[`tier_${index}_name`] = "Price name is required";
-            if (
-              tier.price === "" ||
-              isNaN(Number(tier.price)) ||
-              Number(tier.price) < 0
-            )
+            if (!tier.name) newErrors[`tier_${index}_name`] = "Price name is required";
+            if (tier.price === "" || isNaN(Number(tier.price)) || Number(tier.price) < 0)
               newErrors[`tier_${index}_price`] = "Valid price is required";
-            if (!tier.ageGroup)
-              newErrors[`tier_${index}_ageGroup`] = "Age group is required";
-            if (!tier.memberType)
-              newErrors[`tier_${index}_memberType`] = "Member type is required";
-            if (!tier.paymentMethod)
-              newErrors[`tier_${index}_paymentMethod`] =
-                "Payment method is required";
+            if (!tier.ageGroup) newErrors[`tier_${index}_ageGroup`] = "Age group is required";
+            if (!tier.memberType) newErrors[`tier_${index}_memberType`] = "Member type is required";
+            if (!tier.paymentMethod) newErrors[`tier_${index}_paymentMethod`] = "Payment method is required";
           });
         }
       }
@@ -450,6 +384,10 @@ const standardPrice = 100;
     setIsSubmitting(true);
 
     try {
+      // const isCell = (formData.eventType || "").toLowerCase().includes("cell");
+
+      // eventTypeToSend should be the name (string) - server expects name or object?
+      // Use the canonical selectedEventTypeObj.name if available so flags and name are consistent.
       const eventTypeToSend = selectedEventTypeObj?.name || formData.eventType;
 
       const payload = {
@@ -466,20 +404,8 @@ const standardPrice = 100;
         status: "open",
       };
 
-      // ✅ FIX: Properly format and include price tiers
-      if (isTicketedEvent && priceTiers.length > 0) {
-        payload.priceTiers = priceTiers.map((tier) => ({
-          name: tier.name || "",
-          price: parseFloat(tier.price) || 0,
-          ageGroup: tier.ageGroup || "",
-          memberType: tier.memberType || "",
-          paymentMethod: tier.paymentMethod || "",
-        }));
-
-        console.log("📋 Including price tiers:", payload.priceTiers);
-      } else {
-        payload.priceTiers = [];
-      }
+      // price tiers
+      if (isTicketedEvent) payload.priceTiers = priceTiers;
 
       // person steps leaders
       if (hasPersonSteps && !isGlobalEvent) {
@@ -488,35 +414,29 @@ const standardPrice = 100;
       }
 
       // date/time assembly
-      if (
-        (!hasPersonSteps || isGlobalEvent) &&
-        formData.date &&
-        formData.time
-      ) {
+      if ((!hasPersonSteps || isGlobalEvent) && formData.date && formData.time) {
         const [hoursStr, minutesStr] = formData.time.split(":");
         let hours = Number(hoursStr);
         const minutes = Number(minutesStr);
         if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
         if (formData.timePeriod === "AM" && hours === 12) hours = 0;
 
-        payload.date = `${formData.date}T${hours
+        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
           .toString()
-          .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00`;
+          .padStart(2, "0")}:00`;
       }
 
-      console.log("📤 Submitting payload:", JSON.stringify(payload, null, 2));
+      console.log("Payload being sent:", JSON.stringify(payload, null, 2));
 
       const response = eventId
         ? await axios.put(`${BACKEND_URL}/events/${eventId}`, payload)
         : await axios.post(`${BACKEND_URL}/events`, payload);
 
-      console.log("✅ Server response:", response.data);
+      console.log("Server response:", response.data);
 
       setSuccessMessage(
         hasPersonSteps && !isGlobalEvent
-          ? `The ${
-              formData.eventName
-            } event with leadership hierarchy has been ${
+          ? `The ${formData.eventName} event with leadership hierarchy has been ${
               eventId ? "updated" : "created"
             } successfully!`
           : eventId
@@ -527,6 +447,7 @@ const standardPrice = 100;
 
       if (!eventId) resetForm();
 
+      // close or navigate after small delay (keeps behavior you had)
       setTimeout(() => {
         if (isModal && typeof onClose === "function") {
           onClose();
@@ -535,8 +456,7 @@ const standardPrice = 100;
         }
       }, 1200);
     } catch (err) {
-      console.error("❌ Error submitting event:", err);
-      console.error("❌ Error response:", err.response?.data);
+      console.error("Error submitting event:", err);
       setErrorMessage(
         err.response?.data?.message ||
           err.response?.data?.detail ||
@@ -593,79 +513,56 @@ const standardPrice = 100;
       };
 
   const darkModeStyles = {
-    // Theme-aware, more polished dark/light styles
     textField: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-        color: isDarkMode ? theme.palette.text.primary : "inherit",
+        bgcolor: isDarkMode ? "#2d2d2d" : "white",
+        color: isDarkMode ? "#ffffff" : "inherit",
         "& fieldset": {
-          borderColor: isDarkMode ? theme.palette.divider : "rgba(0,0,0,0.23)",
+          borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
         },
         "&:hover fieldset": {
-          borderColor:
-            theme.palette.mode === "dark"
-              ? theme.palette.primary.light
-              : "rgba(0,0,0,0.87)",
+          borderColor: isDarkMode ? "#777" : "rgba(0, 0, 0, 0.87)",
         },
         "&.Mui-focused fieldset": {
           borderColor: theme.palette.primary.main,
-          boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
         },
       },
       "& .MuiInputLabel-root": {
-        color: isDarkMode ? theme.palette.text.secondary : "rgba(0, 0, 0, 0.6)",
+        color: isDarkMode ? "#bbb" : "rgba(0, 0, 0, 0.6)",
         "&.Mui-focused": {
           color: theme.palette.primary.main,
         },
       },
       "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-        color: isDarkMode
-          ? theme.palette.text.secondary
-          : "rgba(0, 0, 0, 0.54)",
-      },
-      "& .MuiFormHelperText-root": {
-        color: isDarkMode ? theme.palette.text.secondary : "rgba(0,0,0,0.6)",
+        color: isDarkMode ? "#bbb" : "rgba(0, 0, 0, 0.54)",
       },
     },
     select: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-        color: isDarkMode ? theme.palette.text.primary : "inherit",
+        bgcolor: isDarkMode ? "#2d2d2d" : "white",
+        color: isDarkMode ? "#ffffff" : "inherit",
       },
       "& .MuiInputLabel-root": {
-        color: isDarkMode ? theme.palette.text.secondary : "rgba(0, 0, 0, 0.6)",
+        color: isDarkMode ? "#bbb" : "rgba(0, 0, 0, 0.6)",
       },
     },
     formControlLabel: {
       "& .MuiFormControlLabel-label": {
-        color: isDarkMode ? theme.palette.text.primary : "inherit",
+        color: isDarkMode ? "#ffffff" : "inherit",
       },
     },
     button: {
       outlined: {
-        borderColor: isDarkMode
-          ? theme.palette.divider
-          : theme.palette.primary.main,
-        color: isDarkMode
-          ? theme.palette.text.primary
-          : theme.palette.primary.main,
+        borderColor: isDarkMode ? "#555" : "primary.main",
+        color: isDarkMode ? "#ffffff" : "primary.main",
         "&:hover": {
-          borderColor: theme.palette.primary.dark,
-          bgcolor: isDarkMode
-            ? "rgba(255,255,255,0.03)"
-            : "rgba(25,118,210,0.04)",
-        },
-      },
-      contained: {
-        bgcolor: theme.palette.primary.main,
-        color: theme.palette.primary.contrastText,
-        "&:hover": {
-          bgcolor: theme.palette.primary.dark,
+          borderColor: isDarkMode ? "#777" : "primary.dark",
+          bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(25,118,210,0.04)",
         },
       },
     },
     errorText: {
-      color: theme.palette.mode === "dark" ? "#ff8888" : "#d32f2f",
+      color: isDarkMode ? "#ff6b6b" : "red",
     },
   };
 
@@ -678,23 +575,26 @@ const standardPrice = 100;
     );
   }
 
-  // Ensure card background matches theme (applies to modal and page)
-  const cardBg = isDarkMode ? theme.palette.background.paper : "#ffffff";
-  const cardBorder = isDarkMode ? `1px solid ${theme.palette.divider}` : "none";
-
   // ---------------------------
-  // END: logic portion — the next thing is `return` (render).
+  // END: logic portion — the next thing is `return` (render). 
   // Paste your existing return UI code after this point.
   // ---------------------------
+
+
+
 
   return (
     <Box sx={containerStyle}>
       <Card
         sx={{
           ...cardStyle,
-          bgcolor: cardBg,
-          color: isDarkMode ? theme.palette.text.primary : "inherit",
-          border: cardBorder,
+          ...(isDarkMode && !isModal
+            ? {
+                bgcolor: "#1e1e1e",
+                color: "#ffffff",
+                border: "1px solid #333",
+              }
+            : {}),
         }}
       >
         <CardContent
@@ -719,13 +619,13 @@ const standardPrice = 100;
             {/* Event Type */}
             <TextField
               value={
-                // Normalize the value to always show the actual event type
-                (() => {
-                  const et = formData.eventType;
-                  if (!et) return "";
-                  return typeof et === "string" ? et : et.name || "";
-                })()
-              }
+    // Normalize the value to always show the actual event type
+    (() => {
+      const et = formData.eventType;
+      if (!et) return "";
+      return typeof et === "string" ? et : et.name || "";
+    })()
+  }
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
@@ -753,66 +653,162 @@ const standardPrice = 100;
             />
 
             {/* TICKETED EVENT PRICE TIERS */}
-            {/* === Ticketed Fields Section === */}
-            {/* === Ticketed Fields Section === */}
- {isTicketedEvent && (
-          <Box mt={2}>
-            <Typography variant="h6">Price Tiers</Typography>
-            {formData.priceTiers.map((tier, i) => (
-              <Box key={i} display="flex" gap={1} alignItems="center" mb={1}>
-                <FormControl sx={{ minWidth: 120 }}>
-                  <InputLabel>Tier Name</InputLabel>
-                  <Select
-                    value={tier.name}
-                    label="Tier Name"
-                    onChange={(e) => handlePriceTierChange(i, "name", e.target.value)}
+            {isTicketedEvent && (
+              <Box sx={{ mb: 3 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 2,
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={{ color: isDarkMode ? "#ffffff" : "inherit" }}
                   >
-                    <MenuItem value="R40">R40</MenuItem>
-                    <MenuItem value="R50">R50</MenuItem>
-                    <MenuItem value="R80">R80</MenuItem>
-                    <MenuItem value="R100">R100</MenuItem>
-                  </Select>
-                </FormControl>
+                    Price Tiers *
+                  </Typography>
+                  <Button
+                    startIcon={<AddIcon />}
+                    onClick={handleAddPriceTier}
+                    variant="contained"
+                    size="small"
+                  >
+                    Add Price Tier
+                  </Button>
+                </Box>
 
-                <TextField
-                  label="Price"
-                  type="number"
-                  value={tier.price}
-                  onChange={(e) => handlePriceTierChange(i, "price", e.target.value)}
-                  error={!!errors[`tier_${i}_price`]}
-                  helperText={errors[`tier_${i}_price`] || ""}
-                />
-                <TextField
-                  label="Age Group"
-                  value={tier.ageGroup}
-                  onChange={(e) => handlePriceTierChange(i, "ageGroup", e.target.value)}
-                  error={!!errors[`tier_${i}_ageGroup`]}
-                  helperText={errors[`tier_${i}_ageGroup`] || ""}
-                />
-                <TextField
-                  label="Member Type"
-                  value={tier.memberType}
-                  onChange={(e) => handlePriceTierChange(i, "memberType", e.target.value)}
-                  error={!!errors[`tier_${i}_memberType`]}
-                  helperText={errors[`tier_${i}_memberType`] || ""}
-                />
-                <TextField
-                  label="Payment Method"
-                  value={tier.paymentMethod}
-                  onChange={(e) => handlePriceTierChange(i, "paymentMethod", e.target.value)}
-                  error={!!errors[`tier_${i}_paymentMethod`]}
-                  helperText={errors[`tier_${i}_paymentMethod`] || ""}
-                />
-                <IconButton onClick={() => handleRemovePriceTier(i)}>
-                  <DeleteIcon />
-                </IconButton>
+                {errors.priceTiers && (
+                  <Typography
+                    variant="caption"
+                    color="error"
+                    sx={{ mb: 1, display: "block" }}
+                  >
+                    {errors.priceTiers}
+                  </Typography>
+                )}
+
+                {priceTiers.map((tier, index) => (
+                  <Card
+                    key={index}
+                    sx={{
+                      mb: 2,
+                      p: 2,
+                      bgcolor: isDarkMode ? "#2d2d2d" : "#f9f9f9",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        mb: 2,
+                      }}
+                    >
+                      <Typography variant="subtitle2" fontWeight="bold">
+                        Price Tier {index + 1}
+                      </Typography>
+                      {priceTiers.length > 1 && (
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemovePriceTier(index)}
+                          color="error"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Box>
+
+                    <TextField
+                      label="Price Name (e.g., Early Bird, VIP)"
+                      value={tier.name}
+                      onChange={(e) =>
+                        handlePriceTierChange(index, "name", e.target.value)
+                      }
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                      error={!!errors[`tier_${index}_name`]}
+                      helperText={errors[`tier_${index}_name`]}
+                    />
+
+                    <TextField
+                      label="Price (R)"
+                      type="number"
+                      value={tier.price}
+                      onChange={(e) =>
+                        handlePriceTierChange(index, "price", e.target.value)
+                      }
+                      fullWidth
+                      size="small"
+                      inputProps={{ min: 0, step: "0.01" }}
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                      error={!!errors[`tier_${index}_price`]}
+                      helperText={errors[`tier_${index}_price`]}
+                    />
+
+                    <TextField
+                      label="Age Group "
+                      value={tier.ageGroup}
+                      onChange={(e) =>
+                        handlePriceTierChange(index, "ageGroup", e.target.value)
+                      }
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                      error={!!errors[`tier_${index}_ageGroup`]}
+                      helperText={errors[`tier_${index}_ageGroup`]}
+                    />
+
+                    <TextField
+                      label="Member Type "
+                      value={tier.memberType}
+                      onChange={(e) =>
+                        handlePriceTierChange(
+                          index,
+                          "memberType",
+                          e.target.value
+                        )
+                      }
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
+                      error={!!errors[`tier_${index}_memberType`]}
+                      helperText={errors[`tier_${index}_memberType`]}
+                    />
+
+                    <TextField
+                      label="Payment Method (e.g., Cash, EFT)"
+                      value={tier.paymentMethod}
+                      onChange={(e) =>
+                        handlePriceTierChange(
+                          index,
+                          "paymentMethod",
+                          e.target.value
+                        )
+                      }
+                      fullWidth
+                      size="small"
+                      sx={{ ...darkModeStyles.textField }}
+                      error={!!errors[`tier_${index}_paymentMethod`]}
+                      helperText={errors[`tier_${index}_paymentMethod`]}
+                    />
+                  </Card>
+                ))}
+
+                {priceTiers.length === 0 && (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    textAlign="center"
+                    py={2}
+                  >
+                    Click "Add Price Tier" to create pricing options
+                  </Typography>
+                )}
               </Box>
-            ))}
-            <Button startIcon={<AddIcon />} onClick={handleAddPriceTier}>
-              Add Price Tier
-            </Button>
-          </Box>
-        )}
+            )}
+
             {/* Date & Time */}
             <Box
               display="flex"
@@ -907,6 +903,7 @@ const standardPrice = 100;
               }}
             />
 
+            {/* Event Leader - WITH AUTO-FILL FOR PERSON STEPS */}
             <Autocomplete
               freeSolo
               filterOptions={(options) => options}
@@ -945,7 +942,10 @@ const standardPrice = 100;
                       : newValue?.fullName || "";
 
                   // For Personal Steps events (hasPersonSteps), auto-fill leaders
-                  if (hasPersonSteps && !isGlobalEvent) {
+                  if (
+                    hasPersonSteps &&
+                    !isGlobalEvent
+                  ) {
                     console.log(
                       "🔄 Auto-filling leaders for Personal Steps event:",
                       {
@@ -1026,7 +1026,7 @@ const standardPrice = 100;
                 />
               )}
             />
-            {hasPersonSteps && !isGlobalEvent && (
+            {hasPersonSteps && !isGlobalEvent &&(
               <>
                 {/* Leader @1 - READ ONLY, AUTO-FILLED */}
                 <TextField
@@ -1199,6 +1199,7 @@ const standardPrice = 100;
       </Card>
     </Box>
   );
+  
 };
 
 export default CreateEvents;
