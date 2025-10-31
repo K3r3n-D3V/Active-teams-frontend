@@ -655,113 +655,151 @@ const Events = () => {
   }, []);
 
   const fetchEvents = async (filters = {}, forceRefresh = false) => {
-    setLoading(true);
-    setIsLoading(true);
+  setLoading(true);
+  setIsLoading(true);
 
-    try {
-      const token = localStorage.getItem("token");
+  try {
+    const token = localStorage.getItem("token");
 
-      if (!token) {
-        setSnackbar({ open: true, message: "Please log in again", severity: "error" });
-        setTimeout(() => window.location.href = '/login', 2000);
-        setEvents([]);
-        setFilteredEvents([]);
+    if (!token) {
+      setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+      setTimeout(() => window.location.href = '/login', 2000);
+      setEvents([]);
+      setFilteredEvents([]);
+      setLoading(false);
+      setIsLoading(false);
+      return;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    // Use the current state values as defaults, but allow filters to override
+    const params = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
+      event_type: filters.event_type !== undefined ? filters.event_type : (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
+      search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
+      personal: filters.personal !== undefined ? filters.personal : (shouldApplyPersonalFilter ? true : undefined),
+      start_date: '2025-10-20',
+      ...filters
+    };
+
+    // Clean up undefined parameters
+    Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+    const cacheKey = getCacheKey(params);
+
+    if (!forceRefresh) {
+      const cachedData = getCachedData(cacheKey);
+      if (cachedData) {
+        setEvents(cachedData.events);
+        setFilteredEvents(cachedData.events);
+        setTotalEvents(cachedData.total_events);
+        setTotalPages(cachedData.total_pages);
+        if (filters.page !== undefined) setCurrentPage(filters.page);
         setLoading(false);
         setIsLoading(false);
         return;
       }
-
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      const params = {
-        page: filters.page !== undefined ? filters.page : currentPage,
-        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20',
-        ...filters
-      };
-
-      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
-
-      const cacheKey = getCacheKey(params);
-
-      if (!forceRefresh) {
-        const cachedData = getCachedData(cacheKey);
-        if (cachedData) {
-          setEvents(cachedData.events);
-          setFilteredEvents(cachedData.events);
-          setTotalEvents(cachedData.total_events);
-          setTotalPages(cachedData.total_pages);
-          if (filters.page !== undefined) setCurrentPage(filters.page);
-          setLoading(false);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const endpoint = `${BACKEND_URL}/events`;
-
-      const response = await axios.get(endpoint, {
-        headers,
-        params,
-        timeout: 60000
-      });
-
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
-
-      setCachedData(cacheKey, {
-        events: newEvents,
-        total_events: responseData.total_events || responseData.total || 0,
-        total_pages: responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1
-      });
-
-      setEvents(newEvents);
-      setFilteredEvents(newEvents);
-      setTotalEvents(responseData.total_events || responseData.total || 0);
-      setTotalPages(responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1);
-
-      if (filters.page !== undefined) setCurrentPage(filters.page);
-
-    } catch (err) {
-      console.error("Error:", err);
-
-      if (err.code === 'ECONNABORTED') {
-        setSnackbar({
-          open: true,
-          message: "Request timeout. Please refresh and try again.",
-          severity: "warning",
-        });
-      } else if (err.response?.status === 401) {
-        setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
-        localStorage.removeItem("token");
-        localStorage.removeItem("userProfile");
-        setTimeout(() => window.location.href = '/login', 2000);
-      } else {
-        setSnackbar({
-          open: true,
-          message: `Error loading events. Please try again.`,
-          severity: "error",
-        });
-      }
-
-      setEvents([]);
-      setFilteredEvents([]);
-    } finally {
-      setLoading(false);
-      setIsLoading(false);
     }
-  };
+
+    const endpoint = `${BACKEND_URL}/events`;
+
+    console.log('Fetching events with params:', params); // Debug log
+
+    const response = await axios.get(endpoint, {
+      headers,
+      params,
+      timeout: 60000
+    });
+
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
+
+    console.log('Received events:', newEvents.length); // Debug log
+    console.log('Event types in response:', [...new Set(newEvents.map(e => e.eventType))]); // Debug log
+
+    // Validate that filtered events match the selected event type
+    if (selectedEventTypeFilter !== 'all' && newEvents.length > 0) {
+      const eventTypesInResponse = [...new Set(newEvents.map(e => e.eventType))];
+      console.log(`Filtered for event type "${selectedEventTypeFilter}", found events of types:`, eventTypesInResponse);
+    }
+
+    setCachedData(cacheKey, {
+      events: newEvents,
+      total_events: responseData.total_events || responseData.total || 0,
+      total_pages: responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1
+    });
+
+    setEvents(newEvents);
+    setFilteredEvents(newEvents);
+    setTotalEvents(responseData.total_events || responseData.total || 0);
+    setTotalPages(responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1);
+
+    if (filters.page !== undefined) setCurrentPage(filters.page);
+
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    
+    if (err.code === 'ECONNABORTED') {
+      setSnackbar({
+        open: true,
+        message: "Request timeout. Please refresh and try again.",
+        severity: "warning",
+      });
+    } else if (err.response?.status === 401) {
+      setSnackbar({ 
+        open: true, 
+        message: "Session expired. Logging out...", 
+        severity: "error" 
+      });
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else if (err.response?.status === 404) {
+      setSnackbar({
+        open: true,
+        message: "Events endpoint not found. Please check the backend URL.",
+        severity: "error",
+      });
+    } else if (err.response?.status === 500) {
+      setSnackbar({
+        open: true,
+        message: "Server error. Please try again later.",
+        severity: "error",
+      });
+    } else if (err.response?.data?.detail) {
+      setSnackbar({
+        open: true,
+        message: err.response.data.detail,
+        severity: "error",
+      });
+    } else {
+      setSnackbar({
+        open: true,
+        message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`,
+        severity: "error",
+      });
+    }
+
+    // Set empty arrays on error to clear any previous data
+    setEvents([]);
+    setFilteredEvents([]);
+    setTotalEvents(0);
+    setTotalPages(1);
+  } finally {
+    setLoading(false);
+    setIsLoading(false);
+  }
+};
 
   const handleFetchError = (err) => {
     if (err.response?.status === 401) {
@@ -785,6 +823,12 @@ const Events = () => {
       }
     };
   }, []);
+
+ 
+useEffect(() => {
+  console.log('Available event types:', eventTypes);
+  console.log('Selected event type filter:', selectedEventTypeFilter);
+}, [eventTypes, selectedEventTypeFilter]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -1109,43 +1153,43 @@ const Events = () => {
   };
 
   const handleEventTypeClick = (typeValue) => {
-    if (selectedEventTypeFilter === typeValue) {
-      return;
-    }
+  console.log('Event type clicked:', typeValue);
+  
+  if (selectedEventTypeFilter === typeValue) {
+    // If clicking the same type again, refresh the data
+    fetchEvents({}, true);
+    return;
+  }
 
-    setSelectedEventTypeFilter(typeValue);
-    setCurrentPage(1);
+  setSelectedEventTypeFilter(typeValue);
+  setCurrentPage(1);
 
-    const selectedTypeObj = customEventTypes.find(
-      (et) => et.name?.toLowerCase() === typeValue.toLowerCase()
-    );
+  // Find the selected event type object
+  const selectedTypeObj = customEventTypes.find(
+    (et) => et.name?.toLowerCase() === typeValue.toLowerCase()
+  );
 
-    if (selectedTypeObj) {
-      setSelectedEventTypeObj(selectedTypeObj);
-    } else {
-      setSelectedEventTypeObj(null);
-    }
-  };
+  if (selectedTypeObj) {
+    setSelectedEventTypeObj(selectedTypeObj);
+  } else {
+    setSelectedEventTypeObj(null);
+  }
 
-  const handlePreviousPage = () => {
-    if (currentPage > 1 && !isLoading) {
-      const newPage = currentPage - 1;
+  // ✅ CRITICAL: Pass event_type correctly
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
 
-      const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      fetchEvents({
-        page: newPage,
-        limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20'
-      });
-    }
-  };
+  fetchEvents({
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: typeValue, 
+    search: searchQuery.trim() || undefined,
+    personal: shouldApplyPersonalFilter ? true : undefined,
+    start_date: '2025-10-20'
+  }, true);
+};
 
   const handleNextPage = () => {
     if (currentPage < totalPages && !isLoading) {
@@ -1166,6 +1210,26 @@ const Events = () => {
       });
     }
   };
+
+  const handlePreviousPage = () => {
+  if (currentPage > 1 && !isLoading) {
+    const newPage = currentPage - 1;
+
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    fetchEvents({
+      page: newPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      start_date: '2025-10-20'
+    });
+  }
+};
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
@@ -1386,34 +1450,73 @@ const Events = () => {
       throw error;
     }
   };
+const fetchEventTypes = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    
+    console.log('🔍 Fetching event types from:', `${BACKEND_URL}/event-types`);
+    
+    const response = await fetch(`${BACKEND_URL}/event-types`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-  const fetchEventTypes = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BACKEND_URL}/event-types`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch event types');
-
-      const eventTypesData = await response.json();
-
-      const actualEventTypes = eventTypesData.filter(item =>
-        item.isEventType === true || item.hasOwnProperty('isEventType')
-      );
-
-      setEventTypes(actualEventTypes);
-      setCustomEventTypes(actualEventTypes);
-      setUserCreatedEventTypes(actualEventTypes);
-
-      return actualEventTypes;
-    } catch (error) {
-      console.error('Error fetching event types:', error);
-      return [];
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: Failed to fetch event types`);
     }
-  };
+
+    const eventTypesData = await response.json();
+
+    console.log('📦 Raw event types from API:', eventTypesData);
+    console.log('📦 Total documents received:', eventTypesData.length);
+
+    // ✅ DOUBLE SAFETY: Filter client-side to ensure we only have event types
+    const actualEventTypes = eventTypesData.filter(item => {
+      const isEventType = item.isEventType === true;
+      console.log(`   - ${item.name}: isEventType=${item.isEventType} (${isEventType ? '✅ KEEP' : '❌ FILTER OUT'})`);
+      return isEventType;
+    });
+
+    console.log('✅ Filtered event types:', actualEventTypes);
+    console.log('✅ Event type names:', actualEventTypes.map(et => et.name));
+    console.log('✅ Total event types:', actualEventTypes.length);
+
+    // Update all state variables
+    setEventTypes(actualEventTypes);
+    setCustomEventTypes(actualEventTypes);
+    setUserCreatedEventTypes(actualEventTypes);
+
+    // Optional: Save to localStorage for caching
+    localStorage.setItem('eventTypes', JSON.stringify(actualEventTypes));
+
+    return actualEventTypes;
+    
+  } catch (error) {
+    console.error('❌ Error fetching event types:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Try to load from cache if available
+    try {
+      const cachedTypes = localStorage.getItem('eventTypes');
+      if (cachedTypes) {
+        const parsed = JSON.parse(cachedTypes);
+        console.log('⚠️ Using cached event types:', parsed);
+        setEventTypes(parsed);
+        setCustomEventTypes(parsed);
+        setUserCreatedEventTypes(parsed);
+        return parsed;
+      }
+    } catch (cacheError) {
+      console.error(' Cache read failed:', cacheError);
+    }
+    
+    return [];
+  }
+};
 
   const handleSaveEvent = async (updatedData) => {
     try {
@@ -1656,163 +1759,167 @@ const Events = () => {
     );
   };
 
-  const EventTypeSelector = () => {
-    const [hoveredType, setHoveredType] = useState(null);
-    const eventTypeStyles = getEventTypeStyles(isDarkMode, theme);
+const EventTypeSelector = () => {
+  const [hoveredType, setHoveredType] = useState(null);
+  const eventTypeStyles = getEventTypeStyles(isDarkMode, theme);
 
-    const allTypes = ["all", ...(eventTypes || []).map(t => t.name || t)];
+  // Ensure we have proper event types array
+  const allTypes = useMemo(() => {
+    const baseTypes = ["all"];
+    const eventTypeNames = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
+    return [...baseTypes, ...eventTypeNames];
+  }, [eventTypes]);
 
-    const getDisplayName = (type) => {
-      if (!type) return "";
-      if (type === "all") return "All Events";
-      return typeof type === "string" ? type : type.name || String(type);
-    };
-
-    const getTypeValue = (type) => {
-      if (type === "all") return "all";
-      return typeof type === "string" ? type : type.name || String(type);
-    };
-
-    return (
-      <div style={eventTypeStyles.container}>
-        <div style={eventTypeStyles.header}>Filter by Event Type</div>
-
-        <div style={eventTypeStyles.selectedTypeDisplay}>
-          <div style={eventTypeStyles.checkIcon}>✓</div>
-          <span>{getDisplayName(selectedEventTypeFilter)}</span>
-        </div>
-
-        {isAdmin && (
-          <div
-            style={{
-              ...eventTypeStyles.typesGrid,
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "12px",
-              justifyContent: "flex-start",
-            }}
-          >
-            {allTypes.map((type) => {
-              const displayName = getDisplayName(type);
-              const typeValue = getTypeValue(type);
-              const isActive = selectedEventTypeFilter === typeValue;
-              const isHovered = hoveredType === typeValue;
-
-              return (
-                <div
-                  key={typeValue}
-                  style={{
-                    ...eventTypeStyles.typeCard,
-                    ...(isActive ? eventTypeStyles.typeCardActive : {}),
-                    ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
-                    position: "relative",
-                    width: 200,
-                    minHeight: 70,
-                    padding: "8px 12px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => {
-                    handleEventTypeClick(typeValue);
-                  }}
-                  onMouseEnter={() => setHoveredType(typeValue)}
-                  onMouseLeave={() => setHoveredType(null)}
-                >
-                  <span
-                    style={{
-                      ...eventTypeStyles.typeName,
-                      ...(isActive ? eventTypeStyles.typeNameActive : {}),
-                      zIndex: 1,
-                    }}
-                  >
-                    {displayName}
-                  </span>
-
-                  {isAdmin && typeValue !== 'all' && (
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openTypeMenu(e, type);
-                      }}
-                      aria-label="type actions"
-                      sx={{ position: "absolute", top: 6, right: 6, zIndex: 2 }}
-                    >
-                      <MoreVertIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </div>
-              );
-            })}
-
-            <Popover
-              open={Boolean(typeMenuAnchor)}
-              anchorEl={typeMenuAnchor}
-              onClose={closeTypeMenu}
-              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-              transformOrigin={{ vertical: "top", horizontal: "right" }}
-              slotProps={{
-                paper: {
-                  elevation: 4,
-                  sx: { borderRadius: 1 },
-                },
-              }}
-            >
-              <MenuItem
-                onClick={() => {
-                  if (typeMenuFor) handleEditType(typeMenuFor);
-                  closeTypeMenu();
-                }}
-              >
-                <ListItemIcon>
-                  <EditIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>Edit</ListItemText>
-              </MenuItem>
-
-              <MenuItem
-                onClick={() => {
-                  setToDeleteType(typeMenuFor);
-                  setConfirmDeleteOpen(true);
-                  closeTypeMenu();
-                }}
-                sx={{ color: "error.main" }}
-              >
-                <ListItemIcon>
-                  <DeleteIcon fontSize="small" color="error" />
-                </ListItemIcon>
-                <ListItemText>Delete</ListItemText>
-              </MenuItem>
-            </Popover>
-
-            <Dialog
-              open={confirmDeleteOpen}
-              onClose={() => setConfirmDeleteOpen(false)}
-              maxWidth="xs"
-              fullWidth
-            >
-              <DialogTitle>Delete Event Type</DialogTitle>
-              <DialogContent>
-                <Typography>
-                  Are you sure you want to delete{" "}
-                  <strong>{toDeleteType?.name || toDeleteType || "this event type"}</strong>? This
-                  cannot be undone.
-                </Typography>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
-                <Button color="error" onClick={handleDeleteType}>
-                  Delete
-                </Button>
-              </DialogActions>
-            </Dialog>
-          </div>
-        )}
-      </div>
-    );
+  const getDisplayName = (type) => {
+    if (!type) return "";
+    if (type === "all") return "All Events";
+    return typeof type === "string" ? type : type.name || String(type);
   };
+
+  const getTypeValue = (type) => {
+    if (type === "all") return "all";
+    return typeof type === "string" ? type : type.name || String(type);
+  };
+
+  return (
+    <div style={eventTypeStyles.container}>
+      <div style={eventTypeStyles.header}>Filter by Event Type</div>
+
+      <div style={eventTypeStyles.selectedTypeDisplay}>
+        <div style={eventTypeStyles.checkIcon}>✓</div>
+        <span>{getDisplayName(selectedEventTypeFilter)}</span>
+      </div>
+
+      <div
+        style={{
+          ...eventTypeStyles.typesGrid,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "12px",
+          justifyContent: "flex-start",
+        }}
+      >
+        {allTypes.map((type) => {
+          const displayName = getDisplayName(type);
+          const typeValue = getTypeValue(type);
+          const isActive = selectedEventTypeFilter === typeValue;
+          const isHovered = hoveredType === typeValue;
+
+          return (
+            <div
+              key={typeValue}
+              style={{
+                ...eventTypeStyles.typeCard,
+                ...(isActive ? eventTypeStyles.typeCardActive : {}),
+                ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+                position: "relative",
+                width: 200,
+                minHeight: 70,
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                handleEventTypeClick(typeValue);
+              }}
+              onMouseEnter={() => setHoveredType(typeValue)}
+              onMouseLeave={() => setHoveredType(null)}
+            >
+              <span
+                style={{
+                  ...eventTypeStyles.typeName,
+                  ...(isActive ? eventTypeStyles.typeNameActive : {}),
+                  zIndex: 1,
+                }}
+              >
+                {displayName}
+              </span>
+
+              {isAdmin && typeValue !== 'all' && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openTypeMenu(e, type);
+                  }}
+                  aria-label="type actions"
+                  sx={{ position: "absolute", top: 6, right: 6, zIndex: 2 }}
+                >
+                  <MoreVertIcon fontSize="small" />
+                </IconButton>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Popover and Dialog components remain the same */}
+      <Popover
+        open={Boolean(typeMenuAnchor)}
+        anchorEl={typeMenuAnchor}
+        onClose={closeTypeMenu}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        slotProps={{
+          paper: {
+            elevation: 4,
+            sx: { borderRadius: 1 },
+          },
+        }}
+      >
+        <MenuItem
+          onClick={() => {
+            if (typeMenuFor) handleEditType(typeMenuFor);
+            closeTypeMenu();
+          }}
+        >
+          <ListItemIcon>
+            <EditIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Edit</ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            setToDeleteType(typeMenuFor);
+            setConfirmDeleteOpen(true);
+            closeTypeMenu();
+          }}
+          sx={{ color: "error.main" }}
+        >
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText>Delete</ListItemText>
+        </MenuItem>
+      </Popover>
+
+      <Dialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete Event Type</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete{" "}
+            <strong>{toDeleteType?.name || toDeleteType || "this event type"}</strong>? This
+            cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
+          <Button color="error" onClick={handleDeleteType}>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </div>
+  );
+};
 
   return (
     <div style={themedStyles.container}>
