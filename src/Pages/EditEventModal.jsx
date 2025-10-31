@@ -1,5 +1,22 @@
 import React, { useState, useEffect } from "react";
 
+// small helper hook for responsiveness
+function useWindowSize() {
+  const isClient = typeof window === "object";
+  const getSize = () => ({
+    width: isClient ? window.innerWidth : undefined,
+    height: isClient ? window.innerHeight : undefined,
+  });
+  const [windowSize, setWindowSize] = useState(getSize);
+  useEffect(() => {
+    if (!isClient) return;
+    const handleResize = () => setWindowSize(getSize());
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isClient]);
+  return windowSize;
+}
+
 const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
   const [formData, setFormData] = useState({
     eventName: "",
@@ -39,6 +56,9 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     }
   }, [event]);
 
+  const { width } = useWindowSize();
+  const isSmall = (width || 0) <= 420; // targets small phones
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -77,26 +97,26 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0,0,0,0.8)",
+      background: "rgba(0,0,0,0.7)",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
       zIndex: 10000,
-      padding: "20px",
+      padding: isSmall ? "12px" : "20px",
     },
     modal: {
       background: "#1e1e1e",
       borderRadius: "12px",
       width: "100%",
-      maxWidth: "700px",
+      maxWidth: isSmall ? "96%" : "700px",
       maxHeight: "90vh",
       overflowY: "auto",
-      padding: "24px",
+      padding: isSmall ? "14px" : "24px",
       color: "#f1f1f1",
       boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
     },
     title: {
-      fontSize: "22px",
+      fontSize: isSmall ? "18px" : "22px",
       fontWeight: "600",
       marginBottom: "24px",
       color: "#fff",
@@ -114,8 +134,8 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     },
     input: {
       width: "100%",
-      padding: "10px 12px",
-      fontSize: "14px",
+      padding: isSmall ? "8px 10px" : "10px 12px",
+      fontSize: isSmall ? "13px" : "14px",
       borderRadius: "6px",
       border: "1px solid #555",
       backgroundColor: "#2b2b2b",
@@ -125,8 +145,8 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     },
     readOnlyInput: {
       width: "100%",
-      padding: "10px 12px",
-      fontSize: "14px",
+      padding: isSmall ? "8px 10px" : "10px 12px",
+      fontSize: isSmall ? "13px" : "14px",
       borderRadius: "6px",
       border: "1px solid #555",
       backgroundColor: "#333",
@@ -148,11 +168,12 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     buttonGroup: {
       display: "flex",
       gap: "12px",
-      marginTop: "24px",
+      marginTop: "18px",
       justifyContent: "flex-end",
+      flexDirection: isSmall ? "column-reverse" : "row",
     },
     cancelBtn: {
-      padding: "10px 20px",
+      padding: isSmall ? "10px" : "10px 20px",
       background: "transparent",
       border: "1px solid #555",
       borderRadius: "6px",
@@ -161,9 +182,10 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       fontSize: "14px",
       fontWeight: "500",
       transition: "all 0.2s ease",
+      width: isSmall ? "100%" : "auto",
     },
     saveBtn: {
-      padding: "10px 20px",
+      padding: isSmall ? "10px" : "10px 20px",
       background: "#2563eb",
       border: "none",
       borderRadius: "6px",
@@ -172,14 +194,15 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       fontSize: "14px",
       fontWeight: "500",
       transition: "all 0.2s ease",
+      width: isSmall ? "100%" : "auto",
     },
     infoBox: {
       background: "#2b2b2b",
       border: "1px solid #555",
       borderRadius: "6px",
-      padding: "12px",
-      marginBottom: "16px",
-      fontSize: "12px",
+      padding: isSmall ? "10px" : "12px",
+      marginBottom: isSmall ? "12px" : "16px",
+      fontSize: isSmall ? "12px" : "12px",
       color: "#999",
     },
   };

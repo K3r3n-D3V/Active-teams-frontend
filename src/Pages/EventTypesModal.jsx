@@ -168,188 +168,191 @@ const EventTypesModal = ({
     }
   }, [open]);
 
-  return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "20px",
-      }}
-    >
-      <Box
-        sx={{
-          width: { xs: "95%", sm: "80%", md: "700px" },
-          maxWidth: "700px",
-          bgcolor: isDarkMode ? 'background.paper' : 'background.default',
-          color: 'text.primary',
-          borderRadius: "12px",
-          boxShadow: theme.shadows[10],
-          overflow: "hidden",
-          maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-          border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
-        }}
-      >
-        {/* Header */}
-        <Box
-          sx={{
-            backgroundColor: isDarkMode ? 'primary.dark' : 'primary.main',
-            color: 'primary.contrastText',
-            padding: "20px 24px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
-            {selectedEventType ? "Edit Event Type" : "Create New Event Type"}
-          </Typography>
-          <IconButton
-            onClick={handleClose}
-            disabled={loading}
-            sx={{
-              color: 'primary.contrastText',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              },
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </Box>
+  // responsive helpers (smaller devices)
+  const { breakpoints } = theme;
 
-        {/* Content */}
-        <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
-          {/* Event Type Name */}
-          <TextField
-            inputRef={nameInputRef}
-            label="Event Type Name"
-            name="name"
-            fullWidth
-            value={formData.name}
-            onChange={handleInputChange}
-            onKeyPress={handleKeyPress}
-            error={!!errors.name}
-            helperText={
-              errors.name || 
-              `${nameCharCount}/50 characters` +
-              (nameCharCount > 45 ? " (approaching limit)" : "")
-            }
-            placeholder="Enter event type name..."
-            disabled={loading}
-            sx={{
-              mb: 3,
-              '& .MuiOutlinedInput-root': {
-                '&:hover fieldset': {
-                  borderColor: 'primary.main',
-                },
-              },
-            }}
-          />
+   return (
+     <Modal
+       open={open}
+       onClose={handleClose}
+       sx={{
+         display: "flex",
+         alignItems: "center",
+         justifyContent: "center",
+         padding: "20px",
+       }}
+     >
+       <Box
+         sx={{
+          width: { xs: "95%", sm: "85%", md: "700px" },
+           maxWidth: "700px",
+           bgcolor: isDarkMode ? 'background.paper' : 'background.default',
+           color: 'text.primary',
+           borderRadius: "12px",
+           boxShadow: theme.shadows[10],
+           overflow: "hidden",
+           maxHeight: "90vh",
+           display: "flex",
+           flexDirection: "column",
+           border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
+         }}
+       >
+         {/* Header */}
+         <Box
+           sx={{
+             backgroundColor: isDarkMode ? 'primary.dark' : 'primary.main',
+             color: 'primary.contrastText',
+             padding: { xs: "12px 16px", sm: "16px 20px", md: "20px 24px" },
+             display: "flex",
+             justifyContent: "space-between",
+             alignItems: "center",
+           }}
+         >
+           <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
+             {selectedEventType ? "Edit Event Type" : "Create New Event Type"}
+           </Typography>
+           <IconButton
+             onClick={handleClose}
+             disabled={loading}
+             sx={{
+               color: 'primary.contrastText',
+               '&:hover': {
+                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
+               },
+             }}
+           >
+             <CloseIcon />
+           </IconButton>
+         </Box>
+ 
+         {/* Content */}
+         <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
+           {/* Event Type Name */}
+           <TextField
+             inputRef={nameInputRef}
+             label="Event Type Name"
+             name="name"
+             fullWidth
+             value={formData.name}
+             onChange={handleInputChange}
+             onKeyPress={handleKeyPress}
+             error={!!errors.name}
+             helperText={
+               errors.name || 
+               `${nameCharCount}/50 characters` +
+               (nameCharCount > 45 ? " (approaching limit)" : "")
+             }
+             placeholder="Enter event type name..."
+             disabled={loading}
+             sx={{
+               mb: 3,
+               '& .MuiOutlinedInput-root': {
+                 '&:hover fieldset': {
+                   borderColor: 'primary.main',
+                 },
+               },
+             }}
+           />
 
-          {/* Checkboxes */}
-          <Box
-            sx={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: { xs: 1, sm: 2 },
-              alignItems: "center",
-              mb: 3,
-            }}
-          >
-            <FormControlLabel
-              control={
-                <Checkbox
-                  name="isTicketed"
-                  checked={formData.isTicketed}
-                  onChange={handleCheckboxChange("isTicketed")}
-                  color="primary"
-                  disabled={loading}
-                />
-              }
-              label="Ticketed Event"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  name="isGlobal"
-                  checked={formData.isGlobal}
-                  onChange={handleCheckboxChange("isGlobal")}
-                  color="primary"
-                  disabled={loading}
-                />
-              }
-              label="Global Event"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  name="hasPersonSteps"
-                  checked={formData.hasPersonSteps}
-                  onChange={handleCheckboxChange("hasPersonSteps")}
-                  color="primary"
-                  disabled={loading}
-                />
-              }
-              label="Personal Steps Event"
-            />
-          </Box>
+           {/* Checkboxes */}
+           <Box
+             sx={{
+               display: "flex",
+               flexWrap: "wrap",
+               gap: { xs: 1, sm: 2 },
+               alignItems: "center",
+               mb: 3,
+             }}
+           >
+             <FormControlLabel
+               control={
+                 <Checkbox
+                   name="isTicketed"
+                   checked={formData.isTicketed}
+                   onChange={handleCheckboxChange("isTicketed")}
+                   color="primary"
+                   disabled={loading}
+                 />
+               }
+               label="Ticketed Event"
+             />
+             <FormControlLabel
+               control={
+                 <Checkbox
+                   name="isGlobal"
+                   checked={formData.isGlobal}
+                   onChange={handleCheckboxChange("isGlobal")}
+                   color="primary"
+                   disabled={loading}
+                 />
+               }
+               label="Global Event"
+             />
+             <FormControlLabel
+               control={
+                 <Checkbox
+                   name="hasPersonSteps"
+                   checked={formData.hasPersonSteps}
+                   onChange={handleCheckboxChange("hasPersonSteps")}
+                   color="primary"
+                   disabled={loading}
+                 />
+               }
+               label="Personal Steps Event"
+             />
+           </Box>
 
-          {/* Description */}
-          <TextField
-            label="Event Description"
-            name="description"
-            fullWidth
-            multiline
-            rows={4}
-            value={formData.description}
-            onChange={handleInputChange}
-            error={!!errors.description}
-            helperText={
-              errors.description || 
-              `${descCharCount}/500 characters` +
-              (descCharCount > 450 ? " (approaching limit)" : "") +
-              " - Describe the purpose and details of this event type"
-            }
-            placeholder="Enter a detailed description of this event type..."
-            disabled={loading}
-            sx={{
-              mb: 3,
-              '& .MuiOutlinedInput-root': {
-                '&:hover fieldset': {
-                  borderColor: 'primary.main',
-                },
-              },
-            }}
-          />
+           {/* Description */}
+           <TextField
+             label="Event Description"
+             name="description"
+             fullWidth
+             multiline
+             rows={4}
+             value={formData.description}
+             onChange={handleInputChange}
+             error={!!errors.description}
+             helperText={
+               errors.description || 
+               `${descCharCount}/500 characters` +
+               (descCharCount > 450 ? " (approaching limit)" : "") +
+               " - Describe the purpose and details of this event type"
+             }
+             placeholder="Enter a detailed description of this event type..."
+             disabled={loading}
+             sx={{
+               mb: 3,
+               '& .MuiOutlinedInput-root': {
+                 '&:hover fieldset': {
+                   borderColor: 'primary.main',
+                 },
+               },
+             }}
+           />
 
-          {/* Buttons */}
-          <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mt: 3 }}>
-            <Button
-              variant="outlined"
-              onClick={handleClose}
-              disabled={loading}
-              sx={{ flex: 1 }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleSubmit}
-              disabled={loading}
-              sx={{ flex: 1 }}
-            >
-              {loading ? "Saving..." : selectedEventType ? "Update" : "Create"}
-            </Button>
-          </Box>
-        </Box>
-      </Box>
-    </Modal>
-  );
-};
-
-export default EventTypesModal;
+           {/* Buttons - responsive: stack on xs */}
+           <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mt: 3, flexDirection: { xs: "column-reverse", sm: "row" } }}>
+             <Button
+               variant="outlined"
+               onClick={handleClose}
+               disabled={loading}
+               sx={{ width: { xs: "100%", sm: "auto" }, flex: 1 }}
+             >
+               Cancel
+             </Button>
+             <Button
+               variant="contained"
+               onClick={handleSubmit}
+               disabled={loading}
+               sx={{ width: { xs: "100%", sm: "auto" }, flex: 1 }}
+             >
+               {loading ? "Saving..." : selectedEventType ? "Update" : "Create"}
+             </Button>
+           </Box>
+         </Box>
+       </Box>
+     </Modal>
+   );
+ };
+ 
+ export default EventTypesModal;
