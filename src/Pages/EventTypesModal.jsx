@@ -7,10 +7,8 @@ import {
   FormControlLabel,
   Checkbox,
   Typography,
-  IconButton,
   useTheme,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 
 const EventTypesModal = ({
   open,
@@ -31,35 +29,9 @@ const EventTypesModal = ({
 
   const [errors, setErrors] = useState({});
   const nameInputRef = useRef(null);
+  const isDarkMode = theme.palette.mode === "dark";
 
-  const nameCharCount = formData.name.length;
-  const descCharCount = formData.description.length;
-
-  const isDarkMode = theme.palette.mode === 'dark';
-
-  const handleCheckboxChange = (name) => (event) => {
-    const { checked } = event.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: checked,
-    }));
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }));
-    }
-  };
-
+  // ✅ Validation
   const validateForm = () => {
     const newErrors = {};
 
@@ -83,6 +55,22 @@ const EventTypesModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  // ✅ Input & checkbox handlers
+  const handleCheckboxChange = (name) => (event) => {
+    const { checked } = event.target;
+    setFormData((prev) => ({ ...prev, [name]: checked }));
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  // ✅ Reset form
   const resetForm = () => {
     setFormData({
       name: "",
@@ -94,6 +82,7 @@ const EventTypesModal = ({
     setErrors({});
   };
 
+  // ✅ Submit handler
   const handleSubmit = async () => {
     if (!validateForm() || loading) return;
 
@@ -108,13 +97,13 @@ const EventTypesModal = ({
       };
 
       let result;
-      
       if (selectedEventType && selectedEventType.name) {
         result = await onSubmit(eventTypeData, selectedEventType.name);
       } else {
         result = await onSubmit(eventTypeData);
       }
 
+      // ✅ Pass selected event type object to parent
       if (setSelectedEventTypeObj) {
         setSelectedEventTypeObj({
           ...eventTypeData,
@@ -133,19 +122,7 @@ const EventTypesModal = ({
     }
   };
 
-  const handleClose = () => {
-    if (!loading) {
-      resetForm();
-      onClose();
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !loading) {
-      handleSubmit();
-    }
-  };
-
+  // ✅ Prefill on edit or reset on close
   useEffect(() => {
     if (selectedEventType && open) {
       setFormData({
@@ -160,11 +137,10 @@ const EventTypesModal = ({
     }
   }, [selectedEventType, open]);
 
+  // ✅ Focus input when opening
   useEffect(() => {
     if (open && nameInputRef.current) {
-      setTimeout(() => {
-        nameInputRef.current.focus();
-      }, 100);
+      setTimeout(() => nameInputRef.current.focus(), 100);
     }
   }, [open]);
 

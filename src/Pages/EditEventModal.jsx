@@ -63,7 +63,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
@@ -105,7 +105,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       padding: isSmall ? "12px" : "20px",
     },
     modal: {
-      background: "#1e1e1e",
+      background: "#1e1e1e", // dark modal background
       borderRadius: "12px",
       width: "100%",
       maxWidth: isSmall ? "96%" : "700px",
@@ -163,7 +163,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     checkbox: {
       width: "16px",
       height: "16px",
-      accentColor: "#2563eb",
+      accentColor: "#2563eb", // blue checkbox in dark mode
     },
     buttonGroup: {
       display: "flex",
@@ -326,7 +326,6 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             type="text"
             name="eventTimestamp"
             value={formData.eventTimestamp}
-            onChange={handleInputChange}
             style={styles.readOnlyInput}
             readOnly
             title="Event creation timestamp cannot be changed"

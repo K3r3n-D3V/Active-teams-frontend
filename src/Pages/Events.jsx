@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import axios from "axios";
 import { useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
@@ -375,16 +375,6 @@ const styles = {
     alignItems: 'center',
     gap: '0.25rem',
   },
-  mobileCardsContainer: {
-    flex: 1,
-    overflowY: "auto",
-    overflowX: "hidden",
-    WebkitOverflowScrolling: "touch",
-    padding: "1rem",
-    minHeight: 0,
-    height: "100%",
-    maxHeight: "calc(100vh - 400px)",
-  },
 };
 
 const fabStyles = {
@@ -448,20 +438,21 @@ const fabStyles = {
   },
 };
 
-const eventTypeStyles = {
+const getEventTypeStyles = (isDarkMode, theme) => ({
   container: {
-    backgroundColor: "#f8f9fa",
+    backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
     borderRadius: "16px",
     padding: "1.5rem",
     marginBottom: "1.5rem",
     boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-    border: "1px solid #e9ecef",
+    border: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"}`,
     position: "relative",
+    color: isDarkMode ? theme.palette.text.primary : "inherit",
   },
   header: {
     fontSize: "0.875rem",
     fontWeight: "600",
-    color: "#6c757d",
+    color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
     marginBottom: "1rem",
@@ -469,7 +460,7 @@ const eventTypeStyles = {
   selectedTypeDisplay: {
     fontSize: "1.25rem",
     fontWeight: "700",
-    color: "#007bff",
+    color: isDarkMode ? theme.palette.primary.main : "#007bff",
     marginBottom: "1rem",
     display: "flex",
     alignItems: "center",
@@ -495,29 +486,30 @@ const eventTypeStyles = {
   typeCard: {
     padding: "1rem",
     borderRadius: "12px",
-    border: "2px solid transparent",
-    backgroundColor: "white",
+    border: `2px solid ${isDarkMode ? theme.palette.divider : "transparent"}`,
+    backgroundColor: isDarkMode ? theme.palette.background.default : "white",
     cursor: "pointer",
     transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     position: "relative",
     overflow: "hidden",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+    boxShadow: isDarkMode ? "0 2px 4px rgba(0,0,0,0.2)" : "0 2px 4px rgba(0,0,0,0.05)",
+    color: isDarkMode ? theme.palette.text.primary : "inherit",
   },
   typeCardActive: {
     borderColor: "#007bff",
-    backgroundColor: "#e7f3ff",
+    backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
     transform: "translateX(8px) scale(1.02)",
     boxShadow: "0 6px 16px rgba(0, 123, 255, 0.25)",
   },
   typeCardHover: {
-    borderColor: "#ddd",
+    borderColor: isDarkMode ? theme.palette.primary.main : "#ddd",
     transform: "translateY(-2px)",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+    boxShadow: isDarkMode ? "0 4px 8px rgba(0,0,0,0.3)" : "0 4px 8px rgba(0,0,0,0.1)",
   },
   typeName: {
     fontSize: "0.9rem",
     fontWeight: "600",
-    color: "#495057",
+    color: isDarkMode ? theme.palette.text.primary : "#495057",
     textAlign: "center",
     display: "block",
   },
@@ -540,7 +532,7 @@ const eventTypeStyles = {
     fontWeight: "bold",
     animation: "slideIn 0.3s ease-out",
   },
-};
+});
 
 // Responsive breakpoint utilities
 const getResponsiveStyles = (isMobile, isTablet, isSmallMobile) => {
@@ -691,6 +683,7 @@ const Events = () => {
   const isSmallMobile = useMediaQuery("(max-width:430px)"); // iPhone 14 Pro Max and smaller
   const isExtraSmallMobile = useMediaQuery("(max-width:390px)"); // iPhone 14 and smaller
 
+  const isDarkMode = theme.palette.mode === 'dark';
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
   const isLeaderAt12 = userRole === "leader at 12";
@@ -738,12 +731,12 @@ const Events = () => {
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
-  const [viewFilter, setViewFilter] = useState(() => getDefaultViewFilter());
+  const [viewFilter, setViewFilter] = useState(() => getDefaultViewFilter(userRole));
   const [filterOptions, setFilterOptions] = useState({
-  leader: '',
-  day: 'all',
-  eventType: 'all'
-});
+    leader: '',
+    day: 'all',
+    eventType: 'all'
+  });
 
   const cacheRef = useRef({
     data: new Map(),
@@ -752,6 +745,19 @@ const Events = () => {
   });
   const searchTimeoutRef = useRef(null);
 
+  // Calculate pagination values
+  const paginatedEvents = useMemo(() => filteredEvents, [filteredEvents]);
+  const startIndex = useMemo(() => {
+    return totalEvents > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
+  }, [currentPage, rowsPerPage, totalEvents]);
+  const endIndex = useMemo(() => {
+    return Math.min(currentPage * rowsPerPage, totalEvents);
+  }, [currentPage, rowsPerPage, totalEvents]);
+
+  // All event types including "all"
+  const allEventTypes = useMemo(() => {
+    return ['all', ...eventTypes.map(t => typeof t === 'string' ? t : t.name)];
+  }, [eventTypes]);
 
   const getCacheKey = useCallback((params) => {
     return JSON.stringify({
@@ -793,140 +799,181 @@ const Events = () => {
     cacheRef.current.timestamp.clear();
   }, []);
 
-const fetchEvents = async (filters = {}, forceRefresh = false) => {
-    setLoading(true);
-    setIsLoading(true);
+  const fetchEvents = async (filters = {}, forceRefresh = false) => {
+  setLoading(true);
+  setIsLoading(true);
 
-    try {
-      const token = localStorage.getItem("token");
+  try {
+    const token = localStorage.getItem("token");
 
-      if (!token) {
-        setSnackbar({ open: true, message: "Please log in again", severity: "error" });
-        setTimeout(() => window.location.href = '/login', 2000);
-        setEvents([]);
-        setFilteredEvents([]);
+    if (!token) {
+      setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+      setTimeout(() => window.location.href = '/login', 2000);
+      setEvents([]);
+      setFilteredEvents([]);
+      setLoading(false);
+      setIsLoading(false);
+      return;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    // Use the current state values as defaults, but allow filters to override
+    const params = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
+      event_type: filters.event_type !== undefined ? filters.event_type : (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
+      search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
+      personal: filters.personal !== undefined ? filters.personal : (shouldApplyPersonalFilter ? true : undefined),
+      start_date: '2025-10-20',
+      ...filters
+    };
+
+    // Clean up undefined parameters
+    Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+    const cacheKey = getCacheKey(params);
+
+    if (!forceRefresh) {
+      const cachedData = getCachedData(cacheKey);
+      if (cachedData) {
+        setEvents(cachedData.events);
+        setFilteredEvents(cachedData.events);
+        setTotalEvents(cachedData.total_events);
+        setTotalPages(cachedData.total_pages);
+        if (filters.page !== undefined) setCurrentPage(filters.page);
         setLoading(false);
         setIsLoading(false);
         return;
       }
-
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      const params = {
-        page: filters.page !== undefined ? filters.page : currentPage,
-        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20',
-        ...filters
-      };
-
-      // 🔥 FIX: Clean undefined values
-      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
-
-      const cacheKey = getCacheKey(params);
-
-      if (!forceRefresh) {
-        const cachedData = getCachedData(cacheKey);
-        if (cachedData) {
-          setEvents(cachedData.events);
-          setFilteredEvents(cachedData.events);
-          setTotalEvents(cachedData.total_events);
-          setTotalPages(cachedData.total_pages);
-          if (filters.page !== undefined) setCurrentPage(filters.page);
-          setLoading(false);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const endpoint = `${BACKEND_URL}/events`;
-
-      console.log(`🚀 Fetching from: ${endpoint}`, params);
-
-      const response = await axios.get(endpoint, {
-        headers,
-        params,
-        timeout: 60000
-      });
-
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
-
-      setCachedData(cacheKey, {
-        events: newEvents,
-        total_events: responseData.total_events || responseData.total || 0,
-        total_pages: responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1
-      });
-
-      setEvents(newEvents);
-      setFilteredEvents(newEvents);
-      setTotalEvents(responseData.total_events || responseData.total || 0);
-      setTotalPages(responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1);
-
-      if (filters.page !== undefined) setCurrentPage(filters.page);
-
-    } catch (err) {
-      console.error("❌ Error:", err);
-
-      if (err.code === 'ECONNABORTED') {
-        setSnackbar({
-          open: true,
-          message: "Request timeout. Please refresh and try again.",
-          severity: "warning",
-        });
-      } else if (err.response?.status === 401) {
-        setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
-        localStorage.removeItem("token");
-        localStorage.removeItem("userProfile");
-        setTimeout(() => window.location.href = '/login', 2000);
-      } else {
-        setSnackbar({
-          open: true,
-          message: `Error loading events. Please try again.`,
-          severity: "error",
-        });
-      }
-
-      setEvents([]);
-      setFilteredEvents([]);
-    } finally {
-      setLoading(false);
-      setIsLoading(false);
     }
-  };
 
+    const endpoint = `${BACKEND_URL}/events`;
 
-const handleFetchError = (err) => {
-  if (err.response?.status === 401) {
-    setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
-    localStorage.removeItem("token");
-    localStorage.removeItem("userProfile");
-    setTimeout(() => window.location.href = '/login', 2000);
-  } else {
-    setSnackbar({
-      open: true,
-      message: err.response?.data?.detail || "Error loading events. Please try again.",
-      severity: "error",
+    console.log('Fetching events with params:', params); // Debug log
+
+    const response = await axios.get(endpoint, {
+      headers,
+      params,
+      timeout: 60000
     });
+
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
+
+    console.log('Received events:', newEvents.length); // Debug log
+    console.log('Event types in response:', [...new Set(newEvents.map(e => e.eventType))]); // Debug log
+
+    // Validate that filtered events match the selected event type
+    if (selectedEventTypeFilter !== 'all' && newEvents.length > 0) {
+      const eventTypesInResponse = [...new Set(newEvents.map(e => e.eventType))];
+      console.log(`Filtered for event type "${selectedEventTypeFilter}", found events of types:`, eventTypesInResponse);
+    }
+
+    setCachedData(cacheKey, {
+      events: newEvents,
+      total_events: responseData.total_events || responseData.total || 0,
+      total_pages: responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1
+    });
+
+    setEvents(newEvents);
+    setFilteredEvents(newEvents);
+    setTotalEvents(responseData.total_events || responseData.total || 0);
+    setTotalPages(responseData.total_pages || Math.ceil((responseData.total_events || 0) / rowsPerPage) || 1);
+
+    if (filters.page !== undefined) setCurrentPage(filters.page);
+
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    
+    if (err.code === 'ECONNABORTED') {
+      setSnackbar({
+        open: true,
+        message: "Request timeout. Please refresh and try again.",
+        severity: "warning",
+      });
+    } else if (err.response?.status === 401) {
+      setSnackbar({ 
+        open: true, 
+        message: "Session expired. Logging out...", 
+        severity: "error" 
+      });
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else if (err.response?.status === 404) {
+      setSnackbar({
+        open: true,
+        message: "Events endpoint not found. Please check the backend URL.",
+        severity: "error",
+      });
+    } else if (err.response?.status === 500) {
+      setSnackbar({
+        open: true,
+        message: "Server error. Please try again later.",
+        severity: "error",
+      });
+    } else if (err.response?.data?.detail) {
+      setSnackbar({
+        open: true,
+        message: err.response.data.detail,
+        severity: "error",
+      });
+    } else {
+      setSnackbar({
+        open: true,
+        message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`,
+        severity: "error",
+      });
+    }
+
+    // Set empty arrays on error to clear any previous data
+    setEvents([]);
+    setFilteredEvents([]);
+    setTotalEvents(0);
+    setTotalPages(1);
+  } finally {
+    setLoading(false);
+    setIsLoading(false);
   }
 };
-useEffect(() => {
-  return () => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+
+  const handleFetchError = (err) => {
+    if (err.response?.status === 401) {
+      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.detail || "Error loading events. Please try again.",
+        severity: "error",
+      });
     }
   };
-}, []);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+ 
+useEffect(() => {
+  console.log('Available event types:', eventTypes);
+  console.log('Selected event type filter:', selectedEventTypeFilter);
+}, [eventTypes, selectedEventTypeFilter]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -947,6 +994,7 @@ useEffect(() => {
 
     checkAuth();
   }, []);
+
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
       const leaderAt1 = await getCurrentUserLeaderAt1();
@@ -994,6 +1042,7 @@ useEffect(() => {
   useEffect(() => {
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
+
   useEffect(() => {
     const shouldApplyPersonalByDefault =
       (userRole === "user" || userRole === "leader at 1" || userRole === "registrant");
@@ -1016,7 +1065,7 @@ useEffect(() => {
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
       search: searchQuery.trim() || undefined,
       personal: shouldApplyPersonalByDefault ? undefined : (viewFilter === 'personal' ? true : undefined),
-      start_date: '2025-10-20' // ✅ ALWAYS INCLUDE
+      start_date: '2025-10-20'
     };
 
     Object.keys(fetchParams).forEach(key =>
@@ -1029,28 +1078,28 @@ useEffect(() => {
   ]);
 
   const clearAllFilters = () => {
-  setSearchQuery('');
-  setFilterOptions({
-    leader: '',
-    day: 'all',
-    eventType: 'all'
-  });
-  setActiveFilters({});
-  setSelectedEventTypeFilter('all');
-  setSelectedStatus('incomplete');
-  setCurrentPage(1);
+    setSearchQuery('');
+    setFilterOptions({
+      leader: '',
+      day: 'all',
+      eventType: 'all'
+    });
+    setActiveFilters({});
+    setSelectedEventTypeFilter('all');
+    setSelectedStatus('incomplete');
+    setCurrentPage(1);
 
-  const shouldApplyPersonalFilter =
-    viewFilter === 'personal' &&
-    (userRole === "admin" || userRole === "leader at 12");
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
 
-  fetchEvents({
-    page: 1,
-    limit: rowsPerPage,
-    personal: shouldApplyPersonalFilter,
-    start_date: '2025-10-20'
-  }, true);
-};
+    fetchEvents({
+      page: 1,
+      limit: rowsPerPage,
+      personal: shouldApplyPersonalFilter,
+      start_date: '2025-10-20'
+    }, true);
+  };
 
   const isOverdue = (event) => {
     const did_not_meet = event.did_not_meet || false;
@@ -1142,6 +1191,7 @@ useEffect(() => {
       });
     }
   };
+
   const handleCloseEventTypesModal = () => {
     setEventTypesModalOpen(false);
     setEditingEventType(null);
@@ -1196,19 +1246,17 @@ useEffect(() => {
     }
   };
 
- const handleSearchChange = (e) => {
+  const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
-    
-    // Debounce the search to avoid too many API calls
+
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
-    
+
     searchTimeoutRef.current = setTimeout(() => {
       const trimmedSearch = value.trim();
 
-      // Determine if personal filter should be applied
       let shouldApplyPersonalFilter = undefined;
       if (userRole === "admin" || userRole === "leader at 12") {
         shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
@@ -1225,13 +1273,12 @@ useEffect(() => {
         personal: shouldApplyPersonalFilter,
         start_date: '2025-10-20'
       }, true);
-    }, 500); // Wait 500ms after user stops typing
+    }, 500);
   };
 
   const handleSearchSubmit = () => {
     const trimmedSearch = searchQuery.trim();
 
-    // Determine if personal filter should be applied
     let shouldApplyPersonalFilter = undefined;
     if (userRole === "admin" || userRole === "leader at 12") {
       shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
@@ -1251,29 +1298,43 @@ useEffect(() => {
   };
 
   const handleEventTypeClick = (typeValue) => {
-    if (selectedEventTypeFilter === typeValue) {
-      return;
-    }
+  console.log('Event type clicked:', typeValue);
+  
+  if (selectedEventTypeFilter === typeValue) {
+    // If clicking the same type again, refresh the data
+    fetchEvents({}, true);
+    return;
+  }
 
-    setSelectedEventTypeFilter(typeValue);
-    setCurrentPage(1);
+  setSelectedEventTypeFilter(typeValue);
+  setCurrentPage(1);
 
-    // Determine if personal filter should be applied
-    let shouldApplyPersonalFilter = undefined;
-    if (userRole === "admin" || userRole === "leader at 12") {
-      shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
-    }
+  // Find the selected event type object
+  const selectedTypeObj = customEventTypes.find(
+    (et) => et.name?.toLowerCase() === typeValue.toLowerCase()
+  );
 
-    fetchEvents({
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: typeValue !== 'all' ? typeValue : undefined,
-      search: searchQuery.trim() || undefined,
-      personal: shouldApplyPersonalFilter,
-      start_date: '2025-10-20' // ✅ ADD THIS
-    }, true);
-  };
+  if (selectedTypeObj) {
+    setSelectedEventTypeObj(selectedTypeObj);
+  } else {
+    setSelectedEventTypeObj(null);
+  }
+
+  // ✅ CRITICAL: Pass event_type correctly
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
+
+  fetchEvents({
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: typeValue, 
+    search: searchQuery.trim() || undefined,
+    personal: shouldApplyPersonalFilter ? true : undefined,
+    start_date: '2025-10-20'
+  }, true);
+};
 
   const handleNextPage = () => {
     if (currentPage < totalPages && !isLoading) {
@@ -1290,30 +1351,30 @@ useEffect(() => {
         event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
         search: searchQuery.trim() || undefined,
         personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20' // ✅ ADD THIS
+        start_date: '2025-10-20'
       });
     }
   };
 
   const handlePreviousPage = () => {
-    if (currentPage > 1 && !isLoading) {
-      const newPage = currentPage - 1;
+  if (currentPage > 1 && !isLoading) {
+    const newPage = currentPage - 1;
 
-      const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
-        (userRole === "admin" || userRole === "leader at 12");
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
 
-      fetchEvents({
-        page: newPage,
-        limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20'
-      });
-    }
-  };
+    fetchEvents({
+      page: newPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      start_date: '2025-10-20'
+    });
+  }
+};
 
   const handleCaptureClick = (event) => {
     setSelectedEvent(event);
@@ -1338,46 +1399,42 @@ useEffect(() => {
   };
 
   const applyFilters = (filters) => {
-  setActiveFilters(filters);
-  setFilterOptions(filters);
-  setCurrentPage(1);
+    setActiveFilters(filters);
+    setFilterOptions(filters);
+    setCurrentPage(1);
 
-  const shouldApplyPersonalFilter =
-    viewFilter === 'personal' &&
-    (userRole === "admin" || userRole === "leader at 12");
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
 
-  // Build filter parameters for API call
-  const apiFilters = {
-    page: 1,
-    limit: rowsPerPage,
-    status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-    search: searchQuery.trim() || undefined,
-    personal: shouldApplyPersonalFilter ? true : undefined,
-    start_date: '2025-10-20'
+    const apiFilters = {
+      page: 1,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      start_date: '2025-10-20'
+    };
+
+    if (filters.leader && filters.leader.trim()) {
+      apiFilters.search = filters.leader.trim();
+    }
+
+    if (filters.day && filters.day !== 'all') {
+      apiFilters.day = filters.day;
+    }
+
+    if (filters.eventType && filters.eventType !== 'all') {
+      apiFilters.event_type = filters.eventType;
+    }
+
+    Object.keys(apiFilters).forEach(key =>
+      apiFilters[key] === undefined && delete apiFilters[key]
+    );
+
+    fetchEvents(apiFilters, true);
   };
-
-  // Add additional filters if provided
-  if (filters.leader && filters.leader.trim()) {
-    apiFilters.search = filters.leader.trim();
-  }
-  
-  if (filters.day && filters.day !== 'all') {
-    apiFilters.day = filters.day;
-  }
-
-  if (filters.eventType && filters.eventType !== 'all') {
-    apiFilters.event_type = filters.eventType;
-  }
-
-  // Clean undefined values
-  Object.keys(apiFilters).forEach(key => 
-    apiFilters[key] === undefined && delete apiFilters[key]
-  );
-
-  fetchEvents(apiFilters, true);
-};
-
 
   const handleAttendanceSubmit = async (data) => {
     try {
@@ -1538,34 +1595,73 @@ useEffect(() => {
       throw error;
     }
   };
+const fetchEventTypes = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    
+    console.log('🔍 Fetching event types from:', `${BACKEND_URL}/event-types`);
+    
+    const response = await fetch(`${BACKEND_URL}/event-types`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-  const fetchEventTypes = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BACKEND_URL}/event-types`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch event types');
-
-      const eventTypesData = await response.json();
-
-      const actualEventTypes = eventTypesData.filter(item =>
-        item.isEventType === true || item.hasOwnProperty('isEventType')
-      );
-
-      setEventTypes(actualEventTypes);
-      setCustomEventTypes(actualEventTypes);
-      setUserCreatedEventTypes(actualEventTypes);
-
-      return actualEventTypes;
-    } catch (error) {
-      console.error('Error fetching event types:', error);
-      return [];
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: Failed to fetch event types`);
     }
-  };
+
+    const eventTypesData = await response.json();
+
+    console.log('📦 Raw event types from API:', eventTypesData);
+    console.log('📦 Total documents received:', eventTypesData.length);
+
+    // ✅ DOUBLE SAFETY: Filter client-side to ensure we only have event types
+    const actualEventTypes = eventTypesData.filter(item => {
+      const isEventType = item.isEventType === true;
+      console.log(`   - ${item.name}: isEventType=${item.isEventType} (${isEventType ? '✅ KEEP' : '❌ FILTER OUT'})`);
+      return isEventType;
+    });
+
+    console.log('✅ Filtered event types:', actualEventTypes);
+    console.log('✅ Event type names:', actualEventTypes.map(et => et.name));
+    console.log('✅ Total event types:', actualEventTypes.length);
+
+    // Update all state variables
+    setEventTypes(actualEventTypes);
+    setCustomEventTypes(actualEventTypes);
+    setUserCreatedEventTypes(actualEventTypes);
+
+    // Optional: Save to localStorage for caching
+    localStorage.setItem('eventTypes', JSON.stringify(actualEventTypes));
+
+    return actualEventTypes;
+    
+  } catch (error) {
+    console.error('❌ Error fetching event types:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Try to load from cache if available
+    try {
+      const cachedTypes = localStorage.getItem('eventTypes');
+      if (cachedTypes) {
+        const parsed = JSON.parse(cachedTypes);
+        console.log('⚠️ Using cached event types:', parsed);
+        setEventTypes(parsed);
+        setCustomEventTypes(parsed);
+        setUserCreatedEventTypes(parsed);
+        return parsed;
+      }
+    } catch (cacheError) {
+      console.error(' Cache read failed:', cacheError);
+    }
+    
+    return [];
+  }
+};
 
   const handleSaveEvent = async (updatedData) => {
     try {
@@ -1656,8 +1752,6 @@ useEffect(() => {
       setIsLoading(false);
     }
   };
-
-  const isDarkMode = theme.palette.mode === 'dark';
 
  const themedStyles = {
     container: {
@@ -1941,25 +2035,11 @@ useEffect(() => {
   };
 
   const StatusBadges = () => {
-    const handleStatusClick = (status) => {
-      setSelectedStatus(status);
-
-      // Determine if personal filter should be applied
-      const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      setCurrentPage(1);
-
-      fetchEvents({
-        status: status !== 'all' ? status : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: searchQuery || undefined,
-        page: 1,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20'
-      });
-    };
+    const statuses = [
+      { value: 'incomplete', label: 'Incomplete', style: styles.statusBadgeIncomplete },
+      { value: 'complete', label: 'Complete', style: styles.statusBadgeComplete },
+      { value: 'did_not_meet', label: 'Did Not Meet', style: styles.statusBadgeDidNotMeet }
+    ];
 
     return (
       <div style={responsiveStyles.statusBadgeContainer}>
@@ -2008,7 +2088,7 @@ useEffect(() => {
     );
   };
 
-
+  // ViewFilterButtons Component
   const ViewFilterButtons = () => {
     const [isLeaderAt12, setIsLeaderAt12] = useState(false);
     const [leaderCheckLoading, setLeaderCheckLoading] = useState(true);
@@ -2082,7 +2162,6 @@ useEffect(() => {
     return (
       <div style={responsiveStyles.viewFilterContainer}>
         <span style={styles.viewFilterLabel}>View:</span>
-
         <label style={styles.viewFilterRadio}>
           <input
             type="radio"
@@ -2090,33 +2169,12 @@ useEffect(() => {
             value="all"
             checked={viewFilter === 'all'}
             onChange={(e) => {
-              const newViewFilter = e.target.value;
-              setViewFilter(newViewFilter);
+              setViewFilter(e.target.value);
               setCurrentPage(1);
-
-              // Determine if personal filter should be applied
-              const shouldApplyPersonalFilter = newViewFilter === 'personal';
-
-              fetchEvents({
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: searchQuery || undefined,
-                page: 1,
-                personal: shouldApplyPersonalFilter,
-                start_date: '2025-10-20'
-              });
             }}
-            style={{ cursor: 'pointer' }}
           />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'all' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'all' ? '600' : '400',
-          }}>
-            {isLeaderAt12 ? "View All" : "View All"}
-          </span>
+          <span style={styles.viewFilterText}>All Events</span>
         </label>
-
         <label style={styles.viewFilterRadio}>
           <input
             type="radio"
@@ -2124,39 +2182,21 @@ useEffect(() => {
             value="personal"
             checked={viewFilter === 'personal'}
             onChange={(e) => {
-              const newViewFilter = e.target.value;
-              setViewFilter(newViewFilter);
+              setViewFilter(e.target.value);
               setCurrentPage(1);
-
-              // Determine if personal filter should be applied
-              const shouldApplyPersonalFilter = newViewFilter === 'personal';
-
-              fetchEvents({
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
-                event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-                search: searchQuery || undefined,
-                page: 1,
-                personal: shouldApplyPersonalFilter,
-                start_date: '2025-10-20'
-              });
             }}
-            style={{ cursor: 'pointer' }}
           />
-          <span style={{
-            ...styles.viewFilterText,
-            color: viewFilter === 'personal' ? '#007bff' : '#6c757d',
-            fontWeight: viewFilter === 'personal' ? '600' : '400',
-          }}>
-            Personal
-          </span>
+          <span style={styles.viewFilterText}>Personal</span>
         </label>
       </div>
     );
   };
 
+  // MobileEventCard Component
   const MobileEventCard = ({ event }) => {
     const dayOfWeek = event.day || 'Not set';
-    const shouldShowLeaders = event.leader12 && event.leader12.trim() !== '';
+    const shouldShowLeaderAt1 = event.leader1 && event.leader1.trim() !== '';
+    const shouldShowLeaderAt12 = event.leader12 && event.leader12.trim() !== '';
 
     return (
      <div style={themedStyles.mobileCard}>
@@ -2237,11 +2277,6 @@ useEffect(() => {
     );
   };
 
-  const startIndex = totalEvents > 0 ? ((currentPage - 1) * rowsPerPage) + 1 : 0;
-  const endIndex = Math.min(currentPage * rowsPerPage, totalEvents);
-  const paginatedEvents = events;
-  const allEventTypes = [...(eventTypes || []), ...(userCreatedEventTypes || [])];
-
   return (
     <div style={themedStyles.container}>
       <div style={themedStyles.topSection}>
@@ -2269,14 +2304,14 @@ useEffect(() => {
     {isLoading ? '⏳' : 'SEARCH'}
   </button>
 
-  <button
-    style={{ ...styles.filterButton, backgroundColor: '#6c757d' }}
-    onClick={clearAllFilters}
-    disabled={isLoading}
-  >
-    {isLoading ? '⏳' : 'CLEAR ALL'}
-  </button>
-</div>
+          <button
+            style={{ ...styles.filterButton, backgroundColor: '#6c757d' }}
+            onClick={clearAllFilters}
+            disabled={isLoading}
+          >
+            {isLoading ? '⏳' : 'CLEAR ALL'}
+          </button>
+        </div>
 
         <div style={responsiveStyles.viewFilterRow}>
           <StatusBadges />
@@ -2568,61 +2603,47 @@ useEffect(() => {
         </div>
       )}
 
-      <div style={fabStyles.fabContainer}>
-        {fabMenuOpen && (
-          <div style={fabStyles.fabMenu}>
-            {isAdmin && (
+      {isAdmin && (
+        <div style={fabStyles.fabContainer}>
+          {fabMenuOpen && (
+            <div style={fabStyles.fabMenu}>
               <div
                 style={fabStyles.fabMenuItem}
                 onClick={() => {
                   setFabMenuOpen(false);
-                   handleFixLeaders();
+                  setEventTypesModalOpen(true);
+                  setEditingEventType(null);
                 }}
               >
-                <span style={fabStyles.fabMenuLabel}>Fix All Leaders @1</span>
-                <div style={fabStyles.fabMenuIcon}>🔧</div>
+                <span style={fabStyles.fabMenuLabel}>Create Event Type</span>
+                <div style={fabStyles.fabMenuIcon}>📋</div>
               </div>
-            )}
 
-            {(isAdmin || userRole === "registrant") && (
               <div
                 style={fabStyles.fabMenuItem}
                 onClick={() => {
                   setFabMenuOpen(false);
-                  handleCreateEvent();
+                  setCreateEventModalOpen(true);
                 }}
               >
                 <span style={fabStyles.fabMenuLabel}>Create Event</span>
                 <div style={fabStyles.fabMenuIcon}>📅</div>
               </div>
-            )}
+            </div>
+          )}
 
-            {userRole === "user" && (
-              <div
-                style={fabStyles.fabMenuItem}
-                onClick={() => {
-                  setFabMenuOpen(false);
-                  handleCreateEvent();
-                }}
-              >
-                <span style={fabStyles.fabMenuLabel}>Create Cell</span>
-                <div style={fabStyles.fabMenuIcon}>🏠</div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <button
-          style={{
-            ...fabStyles.mainFab,
-            transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-          }}
-          onClick={() => setFabMenuOpen(!fabMenuOpen)}
-          title="Menu"
-        >
-          +
-        </button>
-      </div>
+          <button
+            style={{
+              ...fabStyles.mainFab,
+              transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+            }}
+            onClick={() => setFabMenuOpen(!fabMenuOpen)}
+            title="Menu"
+          >
+            +
+          </button>
+        </div>
+      )}
 
       <Eventsfilter
         open={showFilter}
@@ -2670,8 +2691,14 @@ useEffect(() => {
             }
           }}
         >
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
+          <div style={{
+            ...styles.modalContent,
+            backgroundColor: isDarkMode ? theme.palette.background.paper : "white",
+          }}>
+            <div style={{
+              ...styles.modalHeader,
+              backgroundColor: isDarkMode ? theme.palette.background.default : "#333",
+            }}>
               <h2 style={styles.modalTitle}>
                 {selectedEventTypeObj?.name === "CELLS"
                   ? "Create New Cell"
@@ -2685,7 +2712,10 @@ useEffect(() => {
                 ×
               </button>
             </div>
-            <div style={styles.modalBody}>
+            <div style={{
+              ...styles.modalBody,
+              backgroundColor: isDarkMode ? theme.palette.background.paper : "white",
+            }}>
               <CreateEvents
                 user={currentUser}
                 isModal={true}
@@ -2708,54 +2738,13 @@ useEffect(() => {
 
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={4000}
+        autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{ width: "100%" }}
-        >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
           {snackbar.message}
         </Alert>
       </Snackbar>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-        
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: scale(0.5);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        @media (max-width: 768px) {
-          .mobile-events-container {
-            height: auto !important;
-            min-height: 300px !important;
-            max-height: calc(100vh - 450px) !important;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .mobile-events-container {
-            max-height: calc(100vh - 500px) !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
