@@ -319,103 +319,120 @@ const CreateEvents = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!validateForm()) return;
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    try {
-      const eventTypeToSend =
-        selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
+  try {
+    // ✅ Get exact event type name
+    const eventTypeToSend =
+      selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
 
-      const payload = {
-        UUID: generateUUID(),
-        eventType: eventTypeToSend,
-        eventName: formData.eventName,
-        isTicketed: !!isTicketedEvent,
-        isGlobal: !!isGlobalEvent,
-        hasPersonSteps: !!hasPersonSteps,
-        location: formData.location,
-        eventLeader: formData.eventLeader,
-        description: formData.description,
-        userEmail: user?.email || "",
-        recurring_day: formData.recurringDays,
-        status: "open",
-      };
-
-      if (isTicketedEvent && priceTiers.length > 0) {
-        payload.priceTiers = priceTiers.map((tier) => ({
-          name: tier.name || "",
-          price: parseFloat(tier.price) || 0,
-          ageGroup: tier.ageGroup || "",
-          memberType: tier.memberType || "",
-          paymentMethod: tier.paymentMethod || "",
-        }));
-      } else {
-        payload.priceTiers = [];
-      }
-
-      if (hasPersonSteps && !isGlobalEvent) {
-        if (formData.leader1) payload.leader1 = formData.leader1;
-        if (formData.leader12) payload.leader12 = formData.leader12;
-      }
-
-      if (((!hasPersonSteps) || isGlobalEvent) && formData.date && formData.time) {
-        const [hoursStr, minutesStr] = formData.time.split(":");
-        let hours = Number(hoursStr);
-        const minutes = Number(minutesStr);
-        if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
-        if (formData.timePeriod === "AM" && hours === 12) hours = 0;
-
-        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
-          .toString()
-          .padStart(2, "0")}:00`;
-      }
-
-      const token = localStorage.getItem("token");
-      const headers = {
-        Authorization: token ? `Bearer ${token}` : "",
-        "Content-Type": "application/json",
-      };
-
-      const response = eventId
-        ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
-        : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
-
-      console.log("✅ Server response:", response.data);
-
-      setSuccessMessage(
-        hasPersonSteps && !isGlobalEvent
-          ? `The ${formData.eventName} event with leadership hierarchy has been ${eventId ? "updated" : "created"} successfully!`
-          : eventId
-          ? "Event updated successfully!"
-          : "Event created successfully!"
-      );
-      setSuccessAlert(true);
-
-      if (!eventId) resetForm();
-
-      setTimeout(() => {
-        if (isModal && typeof onClose === "function") {
-          onClose();
-        } else {
-          navigate("/events", { state: { refresh: true } });
-        }
-      }, 1200);
-    } catch (err) {
-      console.error("Error submitting event:", err);
-      setErrorMessage(
-        err?.response?.data?.message ||
-          err?.response?.data?.detail ||
-          err?.message ||
-          "Failed to submit event"
-      );
+    if (!eventTypeToSend) {
+      setErrorMessage("Event type is required");
       setErrorAlert(true);
-    } finally {
       setIsSubmitting(false);
+      return;
     }
-  };
+
+    console.log('🎯 Creating event with type:', eventTypeToSend);
+
+    const payload = {
+      UUID: generateUUID(),
+      eventType: eventTypeToSend, // ✅ This is the event type NAME
+      eventName: formData.eventName,
+      isTicketed: !!isTicketedEvent,
+      isGlobal: !!isGlobalEvent,
+      hasPersonSteps: !!hasPersonSteps,
+      isEventType: false, // ✅ CRITICAL: This is NOT an event type definition
+      location: formData.location,
+      eventLeader: formData.eventLeader,
+      description: formData.description,
+      userEmail: user?.email || "",
+      recurring_day: formData.recurringDays,
+      status: "open",
+    };
+
+    // Price tiers
+    if (isTicketedEvent && priceTiers.length > 0) {
+      payload.priceTiers = priceTiers.map((tier) => ({
+        name: tier.name || "",
+        price: parseFloat(tier.price) || 0,
+        ageGroup: tier.ageGroup || "",
+        memberType: tier.memberType || "",
+        paymentMethod: tier.paymentMethod || "",
+      }));
+    } else {
+      payload.priceTiers = [];
+    }
+
+    // Leaders for personal steps
+    if (hasPersonSteps && !isGlobalEvent) {
+      if (formData.leader1) payload.leader1 = formData.leader1;
+      if (formData.leader12) payload.leader12 = formData.leader12;
+    }
+
+    // Date/Time
+    if (((!hasPersonSteps) || isGlobalEvent) && formData.date && formData.time) {
+      const [hoursStr, minutesStr] = formData.time.split(":");
+      let hours = Number(hoursStr);
+      const minutes = Number(minutesStr);
+      if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
+      if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+
+      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
+        .toString()
+        .padStart(2, "0")}:00`;
+    }
+
+    console.log('📤 Payload:', {
+      eventType: payload.eventType,
+      isEventType: payload.isEventType,
+      eventName: payload.eventName
+    });
+
+    const token = localStorage.getItem("token");
+    const headers = {
+      Authorization: token ? `Bearer ${token}` : "",
+      "Content-Type": "application/json",
+    };
+
+    const response = eventId
+      ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
+      : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
+
+    console.log("✅ Response:", response.data);
+
+    setSuccessMessage(
+      eventId ? "Event updated successfully!" : "Event created successfully!"
+    );
+    setSuccessAlert(true);
+
+    if (!eventId) resetForm();
+
+    setTimeout(() => {
+      if (isModal && typeof onClose === "function") {
+        onClose();
+      } else {
+        navigate("/events", { state: { refresh: true } });
+      }
+    }, 1200);
+  } catch (err) {
+    console.error("❌ Error:", err);
+    console.error("❌ Response:", err?.response?.data);
+    setErrorMessage(
+      err?.response?.data?.message ||
+        err?.response?.data?.detail ||
+        err?.message ||
+        "Failed to submit event"
+    );
+    setErrorAlert(true);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const containerStyle = isModal
     ? {
@@ -454,12 +471,12 @@ const CreateEvents = ({
         boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
       };
 
-  // IMPROVED DARK MODE STYLES - FIXED FOR VISIBILITY
+  // IMPROVED DARK MODE STYLES - FIXED DAY VISIBILITY
   const darkModeStyles = {
     textField: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#ffffff" : "white", // WHITE background in dark mode for visibility
-        color: isDarkMode ? "#000000" : "#000000", // BLACK text always
+        bgcolor: isDarkMode ? "#ffffff" : "white",
+        color: isDarkMode ? "#000000" : "#000000",
         "& fieldset": {
           borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
         },
@@ -470,11 +487,11 @@ const CreateEvents = ({
           borderColor: theme.palette.primary.main,
         },
         "& input": {
-          color: "#000000", // BLACK text for inputs
-          WebkitTextFillColor: "#000000", // Force black for autofill
+          color: "#000000",
+          WebkitTextFillColor: "#000000",
         },
         "& textarea": {
-          color: "#000000", // BLACK text for textarea
+          color: "#000000",
         },
       },
       "& .MuiInputLabel-root": {
@@ -499,8 +516,8 @@ const CreateEvents = ({
     },
     autocomplete: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#ffffff" : "white", // WHITE background
-        color: "#000000", // BLACK text
+        bgcolor: isDarkMode ? "#ffffff" : "white",
+        color: "#000000",
         "& fieldset": {
           borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
         },
@@ -512,7 +529,7 @@ const CreateEvents = ({
         },
       },
       "& .MuiAutocomplete-input": {
-        color: "#000000", // BLACK text
+        color: "#000000",
       },
       "& .MuiInputLabel-root": {
         color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.6)",
@@ -520,7 +537,9 @@ const CreateEvents = ({
     },
     formControlLabel: {
       "& .MuiFormControlLabel-label": {
-        color: isDarkMode ? "#ffffff" : "#000000",
+        color: isDarkMode ? "#ffffff" : "#000000", // Fixed: White text in dark mode
+        fontSize: "0.95rem",
+        fontWeight: 500,
       },
       "& .MuiCheckbox-root": {
         color: isDarkMode ? "#888" : "rgba(0, 0, 0, 0.6)",
@@ -552,6 +571,16 @@ const CreateEvents = ({
     helperText: {
       color: isDarkMode ? "#ccc" : "#666",
     },
+    daysContainer: {
+      '& .MuiFormControlLabel-root': {
+        margin: 0,
+        '& .MuiFormControlLabel-label': {
+          color: isDarkMode ? '#ffffff' : '#000000', // Fixed day label visibility
+          fontSize: '0.95rem',
+          fontWeight: 500,
+        }
+      }
+    }
   };
 
   if (isGlobalEvent && !["admin", "registrant"].includes(user?.role)) {
@@ -824,7 +853,7 @@ const CreateEvents = ({
               />
             </Box>
 
-            {/* Recurring Days */}
+            {/* Recurring Days - FIXED DARK MODE VISIBILITY */}
             <Box mb={3}>
               <Typography
                 fontWeight="bold"
@@ -848,11 +877,7 @@ const CreateEvents = ({
                 display="flex" 
                 flexWrap="wrap" 
                 gap={2}
-                sx={{
-                  '& .MuiFormControlLabel-root': {
-                    margin: 0,
-                  }
-                }}
+                sx={darkModeStyles.daysContainer}
               >
                 {days.map((day) => (
                   <FormControlLabel
@@ -873,13 +898,6 @@ const CreateEvents = ({
                       />
                     }
                     label={day}
-                    sx={{
-                      '& .MuiFormControlLabel-label': {
-                        color: isDarkMode ? '#000000' : '#000000',
-                        fontSize: '0.95rem',
-                        fontWeight: 500,
-                      }
-                    }}
                   />
                 ))}
               </Box>
