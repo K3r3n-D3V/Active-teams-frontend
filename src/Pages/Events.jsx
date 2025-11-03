@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
@@ -11,9 +11,9 @@ import Skeleton from "@mui/material/Skeleton";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
-import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment, Paper, Select } from "@mui/material"; 
+import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment, Paper } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import SearchIcon from "@mui/icons-material/Search"; 
+import SearchIcon from "@mui/icons-material/Search";
 import Popover from "@mui/material/Popover";
 import MenuItem from "@mui/material/MenuItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
@@ -32,15 +32,16 @@ import EditEventModal from "./EditEventModal";
 
 const styles = {
   container: {
-   minHeight: "100vh",
+    minHeight: "100vh",
     fontFamily: "system-ui, sans-serif",
     padding: "1rem",
-    paddingTop: "5rem",
+    paddingTop: "1rem",
     paddingBottom: "1rem",
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
-    overflow: "auto",
+    overflow: "hidden",
+    height: '100vh',
     position: "relative",
     width: "100%",
     maxWidth: "100vw",
@@ -59,33 +60,16 @@ const styles = {
     marginBottom: "1.5rem",
     flexWrap: "wrap",
   },
-  searchInput: {
-    flex: 1,
-    minWidth: "200px",
-    padding: "0.75rem 1rem",
-    border: "2px solid",
-    borderRadius: "12px",
-    fontSize: "0.95rem",
-    boxSizing: "border-box",
-    transition: "all 0.2s ease",
-  },
-  filterButton: {
-    padding: "0.75rem 1.5rem",
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "12px",
-    fontSize: "0.95rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    transition: "all 0.2s ease",
-    boxShadow: "0 2px 8px rgba(0, 123, 255, 0.3)",
-  },
   statusBadgeContainer: {
     display: "flex",
     gap: "0.75rem",
     flexWrap: "wrap",
+  },
+  eventsContent: {
+    flexGrow: 1,
+    overflowY: 'auto',
+    padding: '0 1rem',
+    paddingBottom: '70px',
   },
   statusBadge: {
     padding: '0.6rem 1.2rem',
@@ -117,30 +101,6 @@ const styles = {
     transform: "scale(1.05)",
     boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
   },
-  tableContainer: {
-    borderRadius: "16px",
-    overflow: "hidden",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    minHeight: 0,
-  },
-  tableWrapper: {
-    overflow: "auto",
-    flex: 1,
-    minHeight: 0,
-    WebkitOverflowScrolling: "touch",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    minWidth: "1300px",
-  },
-  tableHeader: {
-    backgroundColor: "#000",
-    color: "#fff",
-  },
   th: {
     padding: "1rem",
     textAlign: "left",
@@ -149,35 +109,11 @@ const styles = {
     borderBottom: "2px solid #000",
     whiteSpace: "nowrap",
   },
-  tr: {
-    borderBottom: "1px solid",
-    transition: "background-color 0.2s ease",
-  },
-  trHover: {},
-  td: {
-    padding: "1rem",
-    fontSize: "0.9rem",
-    verticalAlign: "top",
-  },
   actionIcons: {
     display: 'flex',
     gap: '0.5rem',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  openEventIcon: {
-    width: '36px',
-    height: '36px',
-    borderRadius: '8px',
-    backgroundColor: '#007bff',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    border: 'none',
-    fontSize: '18px',
   },
   truncatedText: {
     maxWidth: '150px',
@@ -251,14 +187,6 @@ const styles = {
     overflow: "auto",
     padding: "0",
   },
-  loadingSkeleton: {
-    padding: "1rem",
-    backgroundColor: "#d3d3d3",
-    borderRadius: "8px",
-    height: "60px",
-    marginBottom: "0.5rem",
-    animation: "pulse 1.5s ease-in-out infinite",
-  },
   overdueLabel: {
     color: "red",
     fontSize: "0.8rem",
@@ -297,14 +225,6 @@ const styles = {
     marginTop: "1rem",
     justifyContent: "flex-end",
   },
-  viewFilterRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '1.5rem',
-    flexWrap: 'wrap',
-    gap: '1rem',
-  },
   viewFilterContainer: {
     display: 'flex',
     gap: '1rem',
@@ -324,18 +244,6 @@ const styles = {
   viewFilterText: {
     fontSize: '1.1rem',
     transition: 'all 0.2s ease',
-  },
-  paginationButton: {
-    padding: '0.5rem 1rem',
-    border: '1px solid #dee2e6',
-    backgroundColor: '#fff',
-    cursor: 'pointer',
-    borderRadius: '10px',
-  },
-  paginationButtonDisabled: {
-    backgroundColor: '#f8f9fa',
-    color: '#6c757d',
-    cursor: 'not-allowed',
   },
   rowsSelect: {
     padding: '0.25rem 0.5rem',
@@ -418,21 +326,6 @@ const fabStyles = {
     color: "#fff",
     fontSize: "16px",
   },
-  mainFab: {
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "50%",
-    width: "56px",
-    height: "56px",
-    fontSize: "1.5rem",
-    cursor: "pointer",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "all 0.3s ease",
-  },
 };
 
 const getEventTypeStyles = (isDarkMode, theme) => ({
@@ -476,8 +369,9 @@ const getEventTypeStyles = (isDarkMode, theme) => ({
     fontWeight: "bold",
   },
   typesGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+    display: "flex",
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: "0.75rem",
   },
   typeCard: {
@@ -513,22 +407,6 @@ const getEventTypeStyles = (isDarkMode, theme) => ({
   typeNameActive: {
     color: "#007bff",
   },
-  activeIndicator: {
-    position: "absolute",
-    top: "8px",
-    right: "8px",
-    width: "20px",
-    height: "20px",
-    borderRadius: "50%",
-    backgroundColor: "#007bff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "white",
-    fontSize: "12px",
-    fontWeight: "bold",
-    animation: "slideIn 0.3s ease-out",
-  },
 });
 
 const getDefaultViewFilter = (userRole) => {
@@ -542,28 +420,25 @@ const getDefaultViewFilter = (userRole) => {
   return 'all';
 };
 
-
 const MobileEventCard = ({ event, onOpenAttendance, onEdit, onDelete, isOverdue, formatDate, theme, styles }) => {
   if (!theme) {
-    // If theme is missing, return a simple placeholder or null to prevent crash
-    // returning null or an empty Box is safer than crashing
-    return <Box sx={{ height: 100 }} />; 
+    return <Box sx={{ height: 100 }} />;
   }
   const isDark = theme.palette.mode === 'dark';
   const borderColor = isOverdue ? theme.palette.error.main : (isDark ? theme.palette.divider : '#e9ecef');
 
   return (
-    <div 
-      style={{ 
+    <div
+      style={{
         ...styles.mobileCard,
         borderColor: borderColor,
         backgroundColor: isDark ? theme.palette.background.default : '#fff'
       }}
     >
       <Typography variant="h6" sx={{ fontWeight: 'bold', marginBottom: '0.75rem', color: isDark ? '#fff' : '#333' }}>
-        {event.event_name || 'N/A'}
+        {event.eventName || 'N/A'}
       </Typography>
-      
+
       {isOverdue && (
         <Typography variant="caption" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
           OVERDUE!
@@ -574,19 +449,17 @@ const MobileEventCard = ({ event, onOpenAttendance, onEdit, onDelete, isOverdue,
         <span style={styles.mobileCardLabel}>Date:</span>
         <span style={styles.mobileCardValue}>{formatDate(event.date)}</span>
       </div>
-      
+
       <div style={styles.mobileCardRow}>
         <span style={styles.mobileCardLabel}>Leader:</span>
-        <span style={styles.mobileCardValue}>{event.leader_name || 'N/A'}</span>
+        <span style={styles.mobileCardValue}>{event.eventLeaderName || 'N/A'}</span>
       </div>
-      
+
       <div style={styles.mobileCardRow}>
         <span style={styles.mobileCardLabel}>Type:</span>
         <span style={styles.mobileCardValue}>{event.eventType || 'N/A'}</span>
       </div>
 
-      {/* Add more key data rows here */}
-      
       <div style={styles.mobileActions}>
         <Tooltip title="View Attendance">
           <IconButton onClick={() => onOpenAttendance(event)} size="small" sx={{ color: theme.palette.primary.main }}>
@@ -610,15 +483,18 @@ const MobileEventCard = ({ event, onOpenAttendance, onEdit, onDelete, isOverdue,
 
 const Events = () => {
   const location = useLocation();
-  const theme = useTheme()
+  const theme = useTheme();
+
   if (!theme) {
-    return <LinearProgress />; 
+    return <LinearProgress />;
   }
+
   const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
   const isDarkMode = theme.palette.mode === 'dark';
   const eventTypeStyles = useMemo(() => {
     return getEventTypeStyles(isDarkMode, theme);
   }, [isDarkMode, theme]);
+
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
   const isLeaderAt12 = userRole === "leader at 12";
@@ -626,7 +502,7 @@ const Events = () => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-  // [ALL STATE DECLARATIONS - Keep existing state from your code]
+  // State declarations
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
@@ -677,48 +553,1194 @@ const Events = () => {
   });
   const searchTimeoutRef = useRef(null);
 
-  // [ALL useMemo, useCallback, useEffect, and handler functions - Keep all existing code]
-  // ... (keeping all your existing functions exactly as they are)
+  // Helper Functions
+  const getCacheKey = useCallback((params) => {
+    return JSON.stringify({
+      page: params.page,
+      limit: params.limit,
+      status: params.status,
+      event_type: params.event_type,
+      search: params.search,
+      personal: params.personal
+    });
+  }, []);
 
-  return (
-    <Box sx={{ 
+  const getCachedData = useCallback((key) => {
+    const cached = cacheRef.current.data.get(key);
+    const timestamp = cacheRef.current.timestamp.get(key);
+
+    if (cached && timestamp) {
+      const age = Date.now() - timestamp;
+      if (age < cacheRef.current.CACHE_DURATION) {
+        return cached;
+      }
+    }
+    return null;
+  }, []);
+
+  const setCachedData = useCallback((key, data) => {
+    cacheRef.current.data.set(key, data);
+    cacheRef.current.timestamp.set(key, Date.now());
+
+    if (cacheRef.current.data.size > 50) {
+      const firstKey = cacheRef.current.data.keys().next().value;
+      cacheRef.current.data.delete(firstKey);
+      cacheRef.current.timestamp.delete(firstKey);
+    }
+  }, []);
+
+  const clearCache = useCallback(() => {
+    cacheRef.current.data.clear();
+    cacheRef.current.timestamp.clear();
+  }, []);
+
+  // Calculate pagination values
+  const paginatedEvents = useMemo(() => events, [events]);
+  const startIndex = useMemo(() => {
+    return totalEvents > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
+  }, [currentPage, rowsPerPage, totalEvents]);
+  const endIndex = useMemo(() => {
+    return Math.min(currentPage * rowsPerPage, totalEvents);
+  }, [currentPage, rowsPerPage, totalEvents]);
+
+  // All event types including "all"
+  const allEventTypes = useMemo(() => {
+    return ['all', ...eventTypes.map(t => typeof t === 'string' ? t : t.name)];
+  }, [eventTypes]);
+
+  const themedStyles = {
+    container: {
+      ...styles.container,
+      backgroundColor: isDarkMode ? theme.palette.background.default : '#f5f7fa',
+    },
+    topSection: {
+      ...styles.topSection,
+      backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
+      color: isDarkMode ? theme.palette.text.primary : '#212529',
+    },
+    tr: {
+      borderBottom: "1px solid",
+      borderColor: isDarkMode ? theme.palette.divider : '#e9ecef',
+      transition: "background-color 0.2s ease",
+    },
+    trHover: {
+      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#f8f9fa',
+    },
+    td: {
+      padding: "1rem",
+      fontSize: "0.9rem",
+      verticalAlign: "top",
+      color: isDarkMode ? theme.palette.text.primary : '#212529',
+    },
+  };
+
+  // Fetch Events Function
+const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
+ setLoading(true);
+  setIsLoading(true);
+
+ try {
+ const token = localStorage.getItem("token");
+
+ if (!token) {
+ setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+ setTimeout(() => window.location.href = '/login', 2000);
+ setEvents([]);
+ setFilteredEvents([]); 
+ setLoading(false);
+ setIsLoading(false);
+ return;
+ }
+
+const headers = {
+ Authorization: `Bearer ${token}`,
+ 'Content-Type': 'application/json'
+};
+
+const shouldApplyPersonalFilter =
+viewFilter === 'personal' &&
+ (userRole === "admin" || userRole === "leader at 12");
+
+const params = {
+page: filters.page !== undefined ? filters.page : currentPage,
+limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
+event_type: filters.event_type !== undefined ? filters.event_type : (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
+search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
+personal: filters.personal !== undefined ? filters.personal : (shouldApplyPersonalFilter ? true : undefined),
+start_date: filters.start_date !== undefined ? filters.start_date : '2025-10-20',
+...filters
+};
+
+ Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
+
+const cacheKey = getCacheKey(params);
+
+ if (!forceRefresh) {
+ const cachedData = getCachedData(cacheKey);
+ if (cachedData) {
+ setEvents(cachedData.events);
+ setFilteredEvents(cachedData.events);
+ setTotalEvents(cachedData.total_events);
+ setTotalPages(cachedData.total_pages);
+ if (filters.page !== undefined) setCurrentPage(filters.page);
+ setLoading(false);
+ setIsLoading(false);
+ return;
+ }
+ }
+
+const endpoint = `${BACKEND_URL}/events`;
+
+const response = await axios.get(endpoint, {
+ headers,
+ params,
+timeout: 60000
+ });
+
+ const responseData = response.data;
+const newEvents = responseData.events || responseData.results || [];
+
+const totalEventsCount = responseData.total_events || responseData.total || 0;
+const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+      
+ setCachedData(cacheKey, {
+  events: newEvents,
+  total_events: totalEventsCount,
+  total_pages: totalPagesCount
+ });
+
+setEvents(newEvents);
+setFilteredEvents(newEvents);
+setTotalEvents(totalEventsCount);
+setTotalPages(totalPagesCount);
+
+ if (filters.page !== undefined) setCurrentPage(filters.page);
+
+} catch (err) {
+ console.error("Error fetching events:", err);
+
+if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+ setSnackbar({
+open: true,
+ severity: "warning",
+ message: "Request timeout. Please refresh and try again.",
+ });
+} else if (err.response?.status === 401) {
+ setSnackbar({
+ open: true,
+ message: "Session expired. Logging out...",
+ severity: "error"
+});
+localStorage.removeItem("token");
+localStorage.removeItem("userProfile");
+setTimeout(() => window.location.href = '/login', 2000);
+ } else {
+ setSnackbar({
+  open: true,
+  message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`,
+  severity: "error",
+  });
+ }
+
+ setEvents([]);
+ setFilteredEvents([]);
+ setTotalEvents(0);
+ setTotalPages(1);
+} finally {
+setLoading(false);
+setIsLoading(false);
+}
+}, [
+currentPage, 
+rowsPerPage, 
+selectedStatus, 
+selectedEventTypeFilter, 
+searchQuery, 
+viewFilter, 
+userRole, 
+getCacheKey, 
+getCachedData, 
+setCachedData, 
+BACKEND_URL, 
+setEvents, 
+setFilteredEvents, 
+setTotalEvents, 
+setTotalPages, 
+setCurrentPage, 
+setSnackbar
+]);
+
+const fetchEventTypes = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${BACKEND_URL}/event-types`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to fetch event types`);
+      }
+
+      const eventTypesData = await response.json();
+      const actualEventTypes = eventTypesData.filter(item => item.isEventType === true);
+
+      setEventTypes(actualEventTypes);
+      setCustomEventTypes(actualEventTypes);
+      setUserCreatedEventTypes(actualEventTypes);
+      localStorage.setItem('eventTypes', JSON.stringify(actualEventTypes));
+
+      return actualEventTypes;
+
+    } catch (error) {
+      console.error('Error fetching event types:', error);
+
+      try {
+        const cachedTypes = localStorage.getItem('eventTypes');
+        if (cachedTypes) {
+          const parsed = JSON.parse(cachedTypes);
+          setEventTypes(parsed);
+          setCustomEventTypes(parsed);
+          setUserCreatedEventTypes(parsed);
+          return parsed;
+        }
+      } catch (cacheError) {
+        console.error('Cache read failed:', cacheError);
+      }
+
+      return [];
+    }
+  };
+
+  const getCurrentUserLeaderAt1 = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(
+        `${BACKEND_URL}/current-user/leader-at-1`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      return response.data.leader_at_1 || '';
+    } catch (error) {
+      console.error('Error getting current user leader at 1:', error);
+      return '';
+    }
+  };
+
+  // Utility Functions
+  const isOverdue = (event) => {
+    const did_not_meet = event.did_not_meet || false;
+    const hasAttendees = event.attendees && event.attendees.length > 0;
+    const status = (event.status || event.Status || '').toLowerCase().trim();
+
+    if (hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || did_not_meet) {
+      return false;
+    }
+
+    if (!event?.date) return false;
+
+    const eventDate = new Date(event.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    eventDate.setHours(0, 0, 0, 0);
+
+    return eventDate < today;
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "Not set";
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) return "Not set";
+    return dateObj.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    }).replace(/\//g, ' - ');
+  };
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setFilterOptions({
+      leader: '',
+      day: 'all',
+      eventType: 'all'
+    });
+    setActiveFilters({});
+    setSelectedEventTypeFilter('all');
+    setSelectedStatus('incomplete');
+    setCurrentPage(1);
+
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    fetchEvents({
+      page: 1,
+      limit: rowsPerPage,
+      personal: shouldApplyPersonalFilter,
+      start_date: '2025-10-20'
+    }, true);
+  };
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      const trimmedSearch = value.trim();
+
+      let shouldApplyPersonalFilter = undefined;
+      if (userRole === "admin" || userRole === "leader at 12") {
+        shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
+      }
+
+      setCurrentPage(1);
+
+      fetchEvents({
+        page: 1,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: trimmedSearch || undefined,
+        personal: shouldApplyPersonalFilter,
+        start_date: '2025-10-20'
+      }, true);
+    }, 500);
+  };
+
+  const handleSearchSubmit = () => {
+    const trimmedSearch = searchQuery.trim();
+
+    let shouldApplyPersonalFilter = undefined;
+    if (userRole === "admin" || userRole === "leader at 12") {
+      shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
+    }
+
+    setCurrentPage(1);
+
+    fetchEvents({
+      page: 1,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: trimmedSearch || undefined,
+      personal: shouldApplyPersonalFilter,
+      start_date: '2025-10-20'
+    }, true);
+  };
+
+  const handleRowsPerPageChange = (e) => {
+    const newRowsPerPage = Number(e.target.value);
+    setRowsPerPage(newRowsPerPage);
+    setCurrentPage(1);
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    fetchEvents({
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      search: searchQuery.trim() || undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      page: 1,
+      limit: newRowsPerPage,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      start_date: '2025-10-20'
+    }, true);
+  };
+
+  const handleEventTypeClick = (typeValue) => {
+    if (selectedEventTypeFilter === typeValue) {
+      fetchEvents({}, true);
+      return;
+    }
+
+    setSelectedEventTypeFilter(typeValue);
+    setCurrentPage(1);
+
+    const selectedTypeObj = customEventTypes.find(
+      (et) => et.name?.toLowerCase() === typeValue.toLowerCase()
+    );
+
+    if (selectedTypeObj) {
+      setSelectedEventTypeObj(selectedTypeObj);
+    } else {
+      setSelectedEventTypeObj(null);
+    }
+
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    fetchEvents({
+      page: 1,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: typeValue,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      start_date: '2025-10-20'
+    }, true);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages && !isLoading) {
+      const newPage = currentPage + 1;
+
+      const shouldApplyPersonalFilter =
+        viewFilter === 'personal' &&
+        (userRole === "admin" || userRole === "leader at 12");
+
+      fetchEvents({
+        page: newPage,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: searchQuery.trim() || undefined,
+        personal: shouldApplyPersonalFilter ? true : undefined,
+        start_date: '2025-10-20'
+      });
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1 && !isLoading) {
+      const newPage = currentPage - 1;
+
+      const shouldApplyPersonalFilter =
+        viewFilter === 'personal' &&
+        (userRole === "admin" || userRole === "leader at 12");
+
+      fetchEvents({
+        page: newPage,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        search: searchQuery.trim() || undefined,
+        personal: shouldApplyPersonalFilter ? true : undefined,
+        start_date: '2025-10-20'
+      });
+    }
+  };
+
+  const handleCaptureClick = (event) => {
+    setSelectedEvent(event);
+    setAttendanceModalOpen(true);
+  };
+
+  const handleCloseCreateEventModal = () => {
+    setCreateEventModalOpen(false);
+    fetchEvents();
+  };
+
+  const applyFilters = (filters) => {
+    setActiveFilters(filters);
+    setFilterOptions(filters);
+    setCurrentPage(1);
+
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    const apiFilters = {
+      page: 1,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalFilter ? true : undefined,
+      start_date: '2025-10-20'
+    };
+
+    if (filters.leader && filters.leader.trim()) {
+      apiFilters.search = filters.leader.trim();
+    }
+
+    if (filters.day && filters.day !== 'all') {
+      apiFilters.day = filters.day;
+    }
+
+    if (filters.eventType && filters.eventType !== 'all') {
+      apiFilters.event_type = filters.eventType;
+    }
+
+    Object.keys(apiFilters).forEach(key =>
+      apiFilters[key] === undefined && delete apiFilters[key]
+    );
+
+    fetchEvents(apiFilters, true);
+  };
+
+  const handleAttendanceSubmit = async (data) => {
+    try {
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+      const eventId = selectedEvent._id;
+      const eventName = selectedEvent.eventName || 'Event';
+
+      const leaderEmail = currentUser?.email || '';
+      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
+
+      let payload;
+
+      if (data === "did_not_meet") {
+        payload = {
+          attendees: [],
+          leaderEmail,
+          leaderName,
+          did_not_meet: true,
+        };
+      } else if (Array.isArray(data)) {
+        payload = {
+          attendees: data,
+          leaderEmail,
+          leaderName,
+          did_not_meet: false,
+        };
+      } else {
+        payload = data;
+      }
+
+      const response = await axios.put(
+        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+        payload,
+        { headers }
+      );
+
+      await fetchEvents();
+
+      setAttendanceModalOpen(false);
+      setSelectedEvent(null);
+
+      setSnackbar({
+        open: true,
+        message: payload.did_not_meet
+          ? `${eventName} marked as 'Did Not Meet'.`
+          : `Successfully captured attendance for ${eventName}`,
+        severity: "success",
+      });
+
+      return { success: true, message: "Attendance submitted successfully" };
+    } catch (error) {
+      console.error("Error in handleAttendanceSubmit:", error);
+      const errData = error.response?.data;
+      let errorMessage = error.message;
+
+      if (errData) {
+        if (Array.isArray(errData?.errors)) {
+          errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+        } else {
+          errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+        }
+      }
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error",
+      });
+
+      return { success: false, message: errorMessage };
+    }
+  };
+
+  const handleEditEvent = (event) => {
+    const eventToEdit = {
+      ...event,
+      UUID: event.UUID || event._id,
+      id: event._id || event.id
+    };
+
+    setSelectedEvent(eventToEdit);
+    setEditModalOpen(true);
+  };
+
+  const handleDeleteEvent = async (event) => {
+    if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.delete(`${BACKEND_URL}/events/${event._id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.status === 200) {
+          fetchEvents();
+          setSnackbar({
+            open: true,
+            message: "Event deleted successfully",
+            severity: "success",
+          });
+        }
+      } catch (error) {
+        console.error("Error deleting event:", error);
+        setSnackbar({
+          open: true,
+          message: "Failed to delete event",
+          severity: "error",
+        });
+      }
+    }
+  };
+
+  const handleSaveEventType = async (eventTypeData, eventTypeId = null) => {
+    try {
+      const token = localStorage.getItem("token");
+      let response;
+
+      if (eventTypeId) {
+        const originalName = editingEventType?.name;
+        if (!originalName) {
+          throw new Error("Cannot update: original event type name not found");
+        }
+
+        response = await axios.put(
+          `${BACKEND_URL}/event-types/${encodeURIComponent(originalName)}`,
+          eventTypeData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } else {
+        response = await axios.post(
+          `${BACKEND_URL}/event-types`,
+          eventTypeData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+
+      const result = response.data;
+
+      await fetchEventTypes();
+
+      setEventTypesModalOpen(false);
+      setEditingEventType(null);
+
+      setSnackbar({
+        open: true,
+        message: `Event type ${eventTypeId ? 'updated' : 'created'} successfully!`,
+        severity: "success",
+      });
+
+      return result;
+    } catch (error) {
+      console.error(`Error ${eventTypeId ? 'updating' : 'creating'} event type:`, error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.detail || error.message || `Failed to ${eventTypeId ? 'update' : 'create'} event type`,
+        severity: "error",
+      });
+      throw error;
+    }
+  };
+
+  const handleSaveEvent = async (updatedData) => {
+    try {
+      const token = localStorage.getItem("token");
+      const eventIdentifier = selectedEvent.UUID || selectedEvent._id || selectedEvent.id;
+      if (!eventIdentifier) {
+        throw new Error("No event identifier found");
+      }
+
+      const response = await axios.put(
+        `${BACKEND_URL}/events/${eventIdentifier}`,
+        updatedData,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 200) {
+        setSnackbar({
+          open: true,
+          message: "Event updated successfully!",
+          severity: "success",
+        });
+        fetchEvents({}, true);
+        setEditModalOpen(false);
+        setSelectedEvent(null);
+      }
+    } catch (error) {
+      console.error("Error updating event:", error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.detail || "Failed to update event",
+        severity: "error",
+      });
+    }
+  };
+
+  const openTypeMenu = (event, type) => {
+    setTypeMenuAnchor(event.currentTarget);
+    setTypeMenuFor(type);
+  };
+
+  const closeTypeMenu = () => {
+    setTypeMenuAnchor(null);
+    setTypeMenuFor(null);
+  };
+
+  const handleEditType = async (type) => {
+    try {
+      let eventTypeToEdit;
+
+      if (typeof type === 'string') {
+        const fullEventType = eventTypes.find(et =>
+          et.name === type || et.name?.toLowerCase() === type.toLowerCase()
+        );
+
+        if (fullEventType) {
+          eventTypeToEdit = fullEventType;
+        } else {
+          eventTypeToEdit = { name: type };
+        }
+      } else {
+        eventTypeToEdit = type;
+      }
+
+      setEditingEventType(eventTypeToEdit);
+      setEventTypesModalOpen(true);
+      closeTypeMenu();
+
+    } catch (error) {
+      console.error("Error preparing event type for editing:", error);
+      setSnackbar({
+        open: true,
+        message: "Error loading event type data",
+        severity: "error",
+      });
+    }
+  };
+
+  const handleCloseEventTypesModal = () => {
+    setEventTypesModalOpen(false);
+    setEditingEventType(null);
+  };
+
+  const handleDeleteType = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const typeName = typeof toDeleteType === 'string' ? toDeleteType : toDeleteType.name;
+
+      const response = await axios.delete(`${BACKEND_URL}/event-types/${encodeURIComponent(typeName)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const updatedEventTypes = customEventTypes.filter(
+        type => type.name !== typeName
+      );
+      setCustomEventTypes(updatedEventTypes);
+      setEventTypes(updatedEventTypes.map(type => type.name));
+
+      const updatedUserEventTypes = userCreatedEventTypes.filter(
+        type => type.name !== typeName
+      );
+      setUserCreatedEventTypes(updatedUserEventTypes);
+
+      setConfirmDeleteOpen(false);
+      setToDeleteType(null);
+
+      setSnackbar({
+        open: true,
+        message: response.data.message || `Event type "${typeName}" deleted successfully`,
+        severity: "success",
+      });
+
+      if (selectedEventTypeFilter === typeName) {
+        setSelectedEventTypeFilter('all');
+        setSelectedEventTypeObj(null);
+        localStorage.removeItem("selectedEventTypeObj");
+      }
+
+      fetchEvents({}, true);
+
+    } catch (error) {
+      console.error("Error deleting event type:", error);
+      setConfirmDeleteOpen(false);
+
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.detail || error.message || "Failed to delete event type",
+        severity: "error",
+      });
+    }
+  };
+
+  // useEffects
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem("token");
+      const userProfile = localStorage.getItem("userProfile");
+
+      if (!token || !userProfile) {
+        setSnackbar({
+          open: true,
+          message: "Please log in to continue",
+          severity: "warning",
+        });
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    const fetchCurrentUserLeaderAt1 = async () => {
+      const leaderAt1 = await getCurrentUserLeaderAt1();
+      setCurrentUserLeaderAt1(leaderAt1);
+    };
+
+    fetchCurrentUserLeaderAt1();
+  }, []);
+
+  useEffect(() => {
+    fetchEventTypes();
+  }, []);
+
+  useEffect(() => {
+    const savedEventTypes = localStorage.getItem("customEventTypes");
+    if (savedEventTypes) {
+      try {
+        const parsed = JSON.parse(savedEventTypes);
+        setCustomEventTypes(parsed);
+        setUserCreatedEventTypes(parsed);
+        setEventTypes(parsed.map((type) => type.name));
+      } catch (error) {
+        console.error("Error parsing saved event types:", error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (customEventTypes.length > 0) {
+      localStorage.setItem(
+        "customEventTypes",
+        JSON.stringify(customEventTypes)
+      );
+    }
+  }, [customEventTypes]);
+
+  useEffect(() => {
+    if (currentSelectedEventType) {
+      localStorage.setItem("selectedEventType", currentSelectedEventType);
+    } else {
+      localStorage.removeItem("selectedEventType");
+    }
+  }, [currentSelectedEventType]);
+
+  useEffect(() => {
+    clearCache();
+  }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
+
+  useEffect(() => {
+    const shouldApplyPersonalByDefault =
+      (userRole === "user" || userRole === "leader at 1" || userRole === "registrant");
+
+    let initialViewFilter = 'all';
+    if (userRole === "user" || userRole === "leader at 1" || userRole === "registrant") {
+      initialViewFilter = 'personal';
+    } else if (userRole === "admin" || userRole === "leader at 12") {
+      initialViewFilter = viewFilter;
+    }
+
+    if (viewFilter !== initialViewFilter) {
+      setViewFilter(initialViewFilter);
+    }
+
+    const fetchParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+      search: searchQuery.trim() || undefined,
+      personal: shouldApplyPersonalByDefault ? undefined : (viewFilter === 'personal' ? true : undefined),
+      start_date: '2025-10-20'
+    };
+
+    Object.keys(fetchParams).forEach(key =>
+      fetchParams[key] === undefined && delete fetchParams[key]
+    );
+
+    fetchEvents(fetchParams, true);
+  }, [
+    selectedStatus, selectedEventTypeFilter, viewFilter, currentPage, rowsPerPage, userRole
+  ]);
+
+  const StatusBadges = () => {
+    const statuses = [
+      { value: 'incomplete', label: 'Incomplete', style: styles.statusBadgeIncomplete },
+      { value: 'complete', label: 'Complete', style: styles.statusBadgeComplete },
+      { value: 'did_not_meet', label: 'Did Not Meet', style: styles.statusBadgeDidNotMeet }
+    ];
+
+    return (
+      <div style={styles.statusBadgeContainer}>
+        {statuses.map(status => (
+          <button
+            key={status.value}
+            style={{
+              ...styles.statusBadge,
+              ...status.style,
+              ...(selectedStatus === status.value ? styles.statusBadgeActive : {})
+            }}
+            onClick={() => {
+              setSelectedStatus(status.value);
+              setCurrentPage(1);
+            }}
+          >
+            {status.label}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const ViewFilterButtons = () => {
+    if (userRole !== "admin" && userRole !== "leader at 12") {
+      return null;
+    }
+
+    return (
+      <div style={styles.viewFilterContainer}>
+        <span style={styles.viewFilterLabel}>View:</span>
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="all"
+            checked={viewFilter === 'all'}
+            onChange={(e) => {
+              setViewFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+          />
+          <span style={styles.viewFilterText}>All Events</span>
+        </label>
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="personal"
+            checked={viewFilter === 'personal'}
+            onChange={(e) => {
+              setViewFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+          />
+          <span style={styles.viewFilterText}>Personal</span>
+        </label>
+      </div>
+    );
+  };
+
+  const EventTypeSelector = () => {
+    const [hoveredType, setHoveredType] = useState(null);
+
+    const allTypes = useMemo(() => {
+      const baseTypes = ["all"];
+      const eventTypeNames = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
+      return [...baseTypes, ...eventTypeNames];
+    }, [eventTypes]);
+
+    const getDisplayName = (type) => {
+      if (!type) return "";
+      if (type === "all") return "All Events";
+      return typeof type === "string" ? type : type.name || String(type);
+    };
+
+    const getTypeValue = (type) => {
+      if (type === "all") return "all";
+      return typeof type === "string" ? type : type.name || String(type);
+    };
+
+    return (
+      <div style={eventTypeStyles.container}>
+        <div style={eventTypeStyles.header}>Filter by Event Type</div>
+
+        <div style={eventTypeStyles.selectedTypeDisplay}>
+          <div style={eventTypeStyles.checkIcon}>✓</div>
+          <span>{getDisplayName(selectedEventTypeFilter)}</span>
+        </div>
+
+        <div style={eventTypeStyles.typesGrid}>
+          {allTypes.map((type) => {
+            const displayName = getDisplayName(type);
+            const typeValue = getTypeValue(type);
+            const isActive = selectedEventTypeFilter === typeValue;
+            const isHovered = hoveredType === typeValue;
+
+            return (
+              <div
+                key={typeValue}
+                style={{
+                  ...eventTypeStyles.typeCard,
+                  ...(isActive ? eventTypeStyles.typeCardActive : {}),
+                  ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
+                  position: "relative",
+                  minWidth: isMobileView ? "120px" : "150px",
+                  minHeight: "60px",
+                  padding: "0.75rem 1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+                onClick={() => {
+                  handleEventTypeClick(typeValue);
+                }}
+                onMouseEnter={() => setHoveredType(typeValue)}
+                onMouseLeave={() => setHoveredType(null)}
+              >
+                <span
+                  style={{
+                    ...eventTypeStyles.typeName,
+                    ...(isActive ? eventTypeStyles.typeNameActive : {}),
+                    zIndex: 1,
+                  }}
+                >
+                  {displayName}
+                </span>
+
+                {isAdmin && typeValue !== 'all' && (
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openTypeMenu(e, type);
+                    }}
+                    aria-label="type actions"
+                    sx={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
+                  >
+                    <MoreVertIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <Popover
+          open={Boolean(typeMenuAnchor)}
+          anchorEl={typeMenuAnchor}
+          onClose={closeTypeMenu}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
+          slotProps={{
+            paper: {
+              elevation: 4,
+              sx: { borderRadius: 1 },
+            },
+          }}
+        >
+          <MenuItem
+            onClick={() => {
+              if (typeMenuFor) handleEditType(typeMenuFor);
+              closeTypeMenu();
+            }}
+          >
+            <ListItemIcon>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Edit</ListItemText>
+          </MenuItem>
+
+          <MenuItem
+            onClick={() => {
+              setToDeleteType(typeMenuFor);
+              setConfirmDeleteOpen(true);
+              closeTypeMenu();
+            }}
+            sx={{ color: "error.main" }}
+          >
+            <ListItemIcon>
+              <DeleteIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText>Delete</ListItemText>
+          </MenuItem>
+        </Popover>
+
+        <Dialog
+          open={confirmDeleteOpen}
+          onClose={() => setConfirmDeleteOpen(false)}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle>Delete Event Type</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to delete{" "}
+              <strong>{toDeleteType?.name || toDeleteType || "this event type"}</strong>? This
+              cannot be undone.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
+            <Button color="error" onClick={handleDeleteType}>
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </div>
+    );
+  };
+
+ return (
+    // ** 1. MAIN CONTAINER (Full Height, No Scroll)**
+    <Box sx={{
       height: "100vh",
       fontFamily: "system-ui, sans-serif",
       padding: "1rem",
-      paddingTop: "5rem",
+      paddingTop: "5rem", // Keep this if you have a fixed Navbar
       paddingBottom: "1rem",
       boxSizing: "border-box",
       display: "flex",
       flexDirection: "column",
-      overflow: "hidden",
+      overflow: "hidden", // CRUCIAL: Prevents the body/main Box from scrolling
       position: "relative",
       width: "100%",
       maxWidth: "100vw",
       backgroundColor: isDarkMode ? theme.palette.background.default : '#f5f7fa',
     }}>
-      {/* Loading Indicator */}
       {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999 }} />}
-      
-      {/* Header Section */}
-      <Box sx={{ 
+
+      {/* ** 2. FILTER/SEARCH SECTION (Fixed Height)** */}
+      <Box sx={{
         padding: isMobileView ? "1rem" : "1.5rem",
         borderRadius: "16px",
         marginBottom: isMobileView ? "0.5rem" : "1rem",
         boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-        flexShrink: 0,
+        flexShrink: 0, // CRUCIAL: Keeps this section's height fixed
         backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
       }}>
         <EventTypeSelector />
 
-        {/* Search and Filter Row */}
-        <Box sx={{ 
-          display: "flex", 
-          gap: 2, 
-          alignItems: "center", 
-          marginBottom: isMobileView ? "0.75rem" : "1.5rem", 
+        <Box sx={{
+          display: "flex",
+          gap: 2,
+          alignItems: "center",
+          marginBottom: isMobileView ? "0.75rem" : "1.5rem",
           flexWrap: "wrap",
-          px: 1 
+          px: 1
         }}>
+          {/* ... TextField (Search) ... */}
           <TextField
             size="small"
             placeholder="Search by Event Name, Leader, or Email..."
@@ -736,8 +1758,8 @@ const Events = () => {
                 </InputAdornment>
               ),
             }}
-            sx={{ 
-              flex: 1, 
+            sx={{
+              flex: 1,
               minWidth: 200,
               '& .MuiInputBase-input': {
                 fontSize: isMobileView ? '14px' : '0.95rem',
@@ -745,24 +1767,26 @@ const Events = () => {
               }
             }}
           />
-          
-          <Button 
+
+          {/* ... Button (Search) ... */}
+          <Button
             variant="contained"
             onClick={handleSearchSubmit}
-            disabled={isLoading}
+            disabled={loading}
             sx={{
               padding: isMobileView ? '0.6rem 1rem' : '0.75rem 1.5rem',
               fontSize: isMobileView ? '14px' : '0.95rem',
               whiteSpace: 'nowrap',
             }}
           >
-            {isLoading ? '⏳' : 'SEARCH'}
+            {loading ? '⏳' : 'SEARCH'}
           </Button>
 
-          <Button 
+          {/* ... Button (Clear All) ... */}
+          <Button
             variant="outlined"
             onClick={clearAllFilters}
-            disabled={isLoading}
+            disabled={loading}
             sx={{
               padding: isMobileView ? '0.6rem 1rem' : '0.75rem 1.5rem',
               fontSize: isMobileView ? '14px' : '0.95rem',
@@ -774,71 +1798,70 @@ const Events = () => {
               }
             }}
           >
-            {isLoading ? '⏳' : 'CLEAR ALL'}
+            {loading ? '⏳' : 'CLEAR ALL'}
           </Button>
         </Box>
 
-        {/* View Filter Row */}
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
+        <Box sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: '1.5rem',
-          flexWrap: 'wrap', 
+          flexWrap: 'wrap',
           gap: '1rem',
-          px: 1 
+          px: 1
         }}>
           <StatusBadges />
           <ViewFilterButtons />
         </Box>
       </Box>
 
-      {/* Events Container */}
-      <Paper sx={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column',
+      {/* ** 3. SCROLLABLE CONTENT AREA (Flex Grow)** */}
+      <Box sx={{
+        flexGrow: 1,
+        overflowY: 'auto', // Allows content to scroll vertically
         borderRadius: '16px',
-        overflow: 'hidden',
         boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
         backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
+        // The paddingBottom accounts for the FAB on mobile, otherwise it's just general padding
+        paddingBottom: isMobileView ? '70px' : '1rem', 
       }}>
+
         {isMobileView ? (
-          /* Mobile Card View */
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ 
-              flex: 1,
-              overflowY: "auto",
-              overflowX: "hidden",
+          // ** MOBILE VIEW FIX: Removed minHeight: '100vh' from inner box **
+          <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* Scrollable list container */}
+            <Box sx={{
+              flexGrow: 1,
               padding: "0.75rem",
-              minHeight: "250px",
             }}>
               {loading ? (
                 Array.from({ length: 5 }).map((_, idx) => (
-                  <Skeleton 
-                    key={`mobile-skeleton-${idx}`} 
-                    variant="rectangular" 
-                    height={120} 
-                    sx={{ mb: 2, borderRadius: 2 }} 
+                  <Skeleton
+                    key={`mobile-skeleton-${idx}`}
+                    variant="rectangular"
+                    height={120}
+                    sx={{ mb: 2, borderRadius: 2 }}
                   />
                 ))
               ) : paginatedEvents.length === 0 ? (
-                <Box sx={{ 
-                  textAlign: "center", 
-                  padding: "2rem", 
+                <Box sx={{
+                  textAlign: "center",
+                  padding: "2rem",
                   color: isDarkMode ? theme.palette.text.primary : '#666',
                 }}>
                   <Typography>No events found matching your criteria.</Typography>
                 </Box>
               ) : (
+                // ** THIS IS THE LIST OF MOBILE EVENT CARDS **
                 paginatedEvents.map((event) => (
-                  <MobileEventCard 
-                    key={event._id} 
-                    event={event} 
+                  <MobileEventCard
+                    key={event._id}
+                    event={event}
                     onOpenAttendance={() => handleCaptureClick(event)}
-                    onEdit={() => handleEditEvent(event)} 
+                    onEdit={() => handleEditEvent(event)}
                     onDelete={() => handleDeleteEvent(event)}
-                    isOverdue={isOverdue(event)} 
+                    isOverdue={isOverdue(event)}
                     formatDate={formatDate}
                     theme={theme}
                     styles={styles}
@@ -847,8 +1870,8 @@ const Events = () => {
               )}
             </Box>
 
-            {/* Mobile Pagination */}
-            <Box sx={{ 
+            {/* Pagination for MOBILE - Fixed at the bottom of the scrollable Box */}
+            <Box sx={{
               padding: '1rem',
               borderTop: `1px solid ${isDarkMode ? theme.palette.divider : '#e9ecef'}`,
               backgroundColor: isDarkMode ? theme.palette.background.paper : '#f8f9fa',
@@ -858,6 +1881,7 @@ const Events = () => {
               alignItems: 'center',
               flexShrink: 0,
             }}>
+              {/* ... Mobile Pagination content ... */}
               <Typography variant="body2" sx={{ color: '#6c757d' }}>
                 {totalEvents > 0 ? `${startIndex}-${endIndex} of ${totalEvents}` : '0-0 of 0'}
               </Typography>
@@ -866,38 +1890,39 @@ const Events = () => {
                   variant="outlined"
                   size="small"
                   onClick={handlePreviousPage}
-                  disabled={currentPage === 1 || isLoading}
+                  disabled={currentPage === 1 || loading}
                   sx={{ minWidth: 'auto' }}
                 >
-                  {isLoading ? '⏳' : '◀ Prev'}
+                  {loading ? '⏳' : '◀ Prev'}
                 </Button>
-
                 <Typography variant="body2" sx={{ padding: '0 0.5rem', color: '#6c757d' }}>
                   {currentPage} / {totalPages}
                 </Typography>
-
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={handleNextPage}
-                  disabled={currentPage >= totalPages || isLoading || totalPages === 0}
+                  disabled={currentPage >= totalPages || loading || totalPages === 0}
                   sx={{ minWidth: 'auto' }}
                 >
-                  {isLoading ? '⏳' : 'Next ▶'}
+                  {loading ? '⏳' : 'Next ▶'}
                 </Button>
               </Box>
             </Box>
           </Box>
+
         ) : (
-          /* Desktop Table View */
+          // DESKTOP VIEW
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ flex: 1, overflow: 'auto' }}>
-              <table style={{ 
-                width: '100%', 
-                borderCollapse: 'collapse', 
-                minWidth: '1300px' 
+            {/* The table container still needs to handle horizontal scroll for the table itself */}
+            <Box sx={{ flex: 1, overflowX: 'auto' }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                minWidth: '1300px'
               }}>
-                <thead style={{ 
+                {/* ... The rest of your desktop table structure (thead, tbody, tr, td) ... */}
+                <thead style={{
                   backgroundColor: "#000",
                   color: "#fff",
                 }}>
@@ -913,6 +1938,7 @@ const Events = () => {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* ... Table rows (loading, no results, paginated events) ... */}
                   {loading ? (
                     Array.from({ length: 5 }).map((_, idx) => (
                       <tr key={`desktop-skeleton-${idx}`}>
@@ -923,16 +1949,16 @@ const Events = () => {
                     ))
                   ) : paginatedEvents.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ 
-                        ...themedStyles.td, 
-                        textAlign: 'center', 
-                        padding: '2rem' 
+                      <td colSpan={8} style={{
+                        ...themedStyles.td,
+                        textAlign: 'center',
+                        padding: '2rem'
                       }}>
                         <Typography>No events found matching your criteria.</Typography>
                       </td>
                     </tr>
                   ) : (
-                    paginatedEvents.map((event, index) => {
+                    paginatedEvents.map((event) => {
                       const dayOfWeek = event.day || 'Not set';
                       const shouldShowLeaderAt1 = event.leader1 && event.leader1.trim() !== '';
                       const shouldShowLeaderAt12 = event.leader12 && event.leader12.trim() !== '';
@@ -1026,7 +2052,7 @@ const Events = () => {
               </table>
             </Box>
 
-            {/* Desktop Pagination */}
+            {/* Pagination for DESKTOP - This remains fixed at the bottom of the content area */}
             <Box sx={{ ...styles.paginationContainer, flexShrink: 0 }}>
               <Box sx={styles.rowsPerPage}>
                 <Typography variant="body2">Rows per page:</Typography>
@@ -1034,7 +2060,7 @@ const Events = () => {
                   value={rowsPerPage}
                   onChange={handleRowsPerPageChange}
                   style={styles.rowsSelect}
-                  disabled={isLoading}
+                  disabled={loading}
                 >
                   <option value={10}>10</option>
                   <option value={25}>25</option>
@@ -1046,38 +2072,41 @@ const Events = () => {
               <Typography variant="body2" sx={styles.paginationInfo}>
                 {totalEvents > 0 ? `${startIndex}-${endIndex} of ${totalEvents}` : '0-0 of 0'}
               </Typography>
-              
+
               <Box sx={styles.paginationControls}>
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={handlePreviousPage}
-                  disabled={currentPage === 1 || isLoading}
+                  disabled={currentPage === 1 || loading}
                 >
-                  {isLoading ? '⏳' : '< Previous'}
+                  {loading ? '⏳' : '< Previous'}
                 </Button>
-
                 <Typography variant="body2" sx={{ padding: '0 1rem', color: '#6c757d' }}>
                   Page {currentPage} of {totalPages}
                 </Typography>
-
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={handleNextPage}
-                  disabled={currentPage >= totalPages || isLoading || totalPages === 0}
+                  disabled={currentPage >= totalPages || loading || totalPages === 0}
                 >
-                  {isLoading ? '⏳' : 'Next >'}
+                  {loading ? '⏳' : 'Next >'}
                 </Button>
               </Box>
             </Box>
           </Box>
         )}
-      </Paper>
+      </Box>
 
-      {/* FAB Menu */}
+      {/* ** 4. FAB (FIXED relative to the main container)** */}
       {isAdmin && (
-        <Box sx={fabStyles.fabContainer}>
+        <Box sx={{
+          position: 'absolute',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 1000,
+        }}>
           {fabMenuOpen && (
             <Box sx={fabStyles.fabMenu}>
               <Box
@@ -1122,7 +2151,7 @@ const Events = () => {
         </Box>
       )}
 
-      {/* Modals */}
+      {/* ... The rest of your Modals (Eventsfilter, AttendanceModal, EventTypesModal, createEventModalOpen, EditEventModal, Snackbar) ... */}
       <Eventsfilter
         open={showFilter}
         onClose={() => setShowFilter(false)}
@@ -1217,6 +2246,6 @@ const Events = () => {
       </Snackbar>
     </Box>
   );
-}; 
+};
 
 export default Events;
