@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, UserPlus, X, CheckCircle, ChevronDown, Menu, ArrowLeft } from "lucide-react";
+import { ArrowLeft, UserPlus,  Search,  CheckCircle, ChevronDown , X} from "lucide-react"; 
 
 // Create a global cache for people data
 let globalPeopleCache = {
@@ -8,7 +8,7 @@ let globalPeopleCache = {
   expiry: 5 * 60 * 1000 // 5 minutes cache
 };
 
-const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
+const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   const [formData, setFormData] = useState({
     invitedBy: "",
     name: "",
@@ -26,6 +26,13 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
   const [loadingInviters, setLoadingInviters] = useState(false);
   const [showLeaderModal, setShowLeaderModal] = useState(false);
   const [preloadedPeople, setPreloadedPeople] = useState([]);
+  const [touched, setTouched] = useState({});
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [autoFilledLeaders, setAutoFilledLeaders] = useState({
+    leader1: "",
+    leader12: "",
+    leader144: ""
+  });
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -40,18 +47,18 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
     const now = Date.now();
     if (globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
         (now - globalPeopleCache.timestamp) < globalPeopleCache.expiry) {
-      console.log("📦 Using cached people data in AttendanceModal");
+      console.log("📦 Using cached people data in AddPersonToEvents");
       setPreloadedPeople(globalPeopleCache.data);
       return;
     }
 
     try {
-      console.log("🔄 Fetching fresh people data for AttendanceModal cache");
+      console.log("🔄 Fetching fresh people data for AddPersonToEvents cache");
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("perPage", "100");
+      params.append("perPage", "500");
       params.append("page", "1");
 
       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
@@ -65,9 +72,9 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
         id: p._id,
         fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
         email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-        leader144: p["Leader @144"] || p.leader144 || "",
+        leader1: p["Leader @1"] || p.leader1 || p.leaders?.[0] || "",
+        leader12: p["Leader @12"] || p.leader12 || p.leaders?.[1] || "",
+        leader144: p["Leader @144"] || p.leader144 || p.leaders?.[2] || "",
         phone: p.Number || p.Phone || p.phone || "",
       }));
 
@@ -79,9 +86,9 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
       };
 
       setPreloadedPeople(formatted);
-      console.log(`✅ Pre-loaded ${formatted.length} people into AttendanceModal cache`);
+      console.log(`✅ Pre-loaded ${formatted.length} people into AddPersonToEvents cache`);
     } catch (err) {
-      console.error("Error pre-loading people in AttendanceModal:", err);
+      console.error("Error pre-loading people in AddPersonToEvents:", err);
       if (globalPeopleCache.data.length > 0) {
         setPreloadedPeople(globalPeopleCache.data);
       }
@@ -122,6 +129,9 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
           id: p._id,
           fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
           email: p.Email || p.email || "",
+          leader1: p["Leader @1"] || p.leader1 || p.leaders?.[0] || "",
+          leader12: p["Leader @12"] || p.leader12 || p.leaders?.[1] || "",
+          leader144: p["Leader @144"] || p.leader144 || p.leaders?.[2] || "",
         }));
 
         setInviterResults(formatted);
@@ -150,13 +160,42 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
     setFormData({ ...formData, invitedBy: person.fullName });
     setInviterSearch(person.fullName);
     setShowInviterDropdown(false);
+    setTouched({ ...touched, invitedBy: true });
+
+    // ✅ Auto-fill ALL leaders including Leader @144 (can be empty string if inviter doesn't have it)
+    const leadersToFill = {
+      leader1: person.leader1 || "",
+      leader12: person.leader12 || "",
+      leader144: person.leader144 || "" // Auto-fill even if empty
+    };
+    
+    setAutoFilledLeaders(leadersToFill);
+    
+    console.log("✅ Auto-filled all leaders from inviter:", {
+      inviter: person.fullName,
+      leaders: leadersToFill
+    });
+  };
+
+  const isFieldEmpty = (fieldName) => {
+    const value = fieldName === 'invitedBy' ? inviterSearch : formData[fieldName];
+    return !value || value.trim() === "";
+  };
+
+  const showError = (fieldName) => {
+    return attemptedSubmit && isFieldEmpty(fieldName);
   };
 
   const validateForm = () => {
+    setAttemptedSubmit(true);
+
     const requiredFields = {
       name: formData.name?.trim(),
       surname: formData.surname?.trim(), 
-      email: formData.email?.trim()
+      email: formData.email?.trim(),
+      mobile: formData.mobile?.trim(),
+      dob: formData.dob?.trim(),
+      address: formData.address?.trim()
     };
 
     const missingFields = Object.entries(requiredFields)
@@ -167,9 +206,9 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
       setAlert({
         open: true,
         type: "error",
-        message: `Missing required fields: ${missingFields.join(', ')}`,
+        message: `Please fill in all required fields: ${missingFields.join(', ')}`,
       });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
       return false;
     }
 
@@ -195,119 +234,126 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
   };
 
   const handleSubmit = async (leaderInfo) => {
-  try {
-    const token = localStorage.getItem("token");
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
-
-    // ✅ FIXED: Use EXACT lowercase field names with leaders array
-    const personData = {
-      name: formData.name.trim(),
-      surname: formData.surname.trim(),
-      email: formData.email.toLowerCase().trim(),
-      number: formData.mobile || "",
-      address: formData.address || "",
-      gender: formData.gender || "",
-      dob: formData.dob || "",
-      invitedBy: formData.invitedBy || "",
-      leaders: [
-        leaderInfo.leader1 || "",
-        leaderInfo.leader12 || "",
-        leaderInfo.leader144 || "",
-        "" // leader1728 (empty string)
-      ],
-      stage: "Win",
-    };
-
-    console.log("📤 Sending person data to backend:", personData);
-
-    const response = await fetch(`${BACKEND_URL}/people`, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(personData),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      console.log("✅ Person created successfully:", data);
-
-      // Invalidate cache since we added a new person
-      globalPeopleCache = {
-        data: [],
-        timestamp: null,
-        expiry: 5 * 60 * 1000
+    try {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       };
 
-      setAlert({
-        open: true,
-        type: "success",
-        message: "Person added successfully!",
+      // ✅ Use EXACT lowercase field names with leaders array
+      const personData = {
+        name: formData.name.trim(),
+        surname: formData.surname.trim(),
+        email: formData.email.toLowerCase().trim(),
+        number: formData.mobile || "",
+        address: formData.address || "",
+        gender: formData.gender || "",
+        dob: formData.dob || "",
+        invitedBy: formData.invitedBy || "",
+        leaders: [
+          leaderInfo.leader1 || "",
+          leaderInfo.leader12 || "",
+          leaderInfo.leader144 || "", // Can be empty - that's OK
+          "" // leader1728 (empty string)
+        ],
+        stage: "Win",
+      };
+
+      console.log("📤 Sending person data to backend:", personData);
+
+      const response = await fetch(`${BACKEND_URL}/people`, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(personData),
       });
 
-      if (typeof onPersonAdded === "function") {
-        onPersonAdded(data.person || data);
-      }
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Person created successfully:", data);
 
-      setTimeout(() => {
-        onClose();
-        setFormData({
-          invitedBy: "",
-          name: "",
-          surname: "",
-          gender: "",
-          email: "",
-          mobile: "",
-          dob: "",
-          address: "",
+        // Invalidate cache since we added a new person
+        globalPeopleCache = {
+          data: [],
+          timestamp: null,
+          expiry: 5 * 60 * 1000
+        };
+
+        setAlert({
+          open: true,
+          type: "success",
+          message: "Person added successfully!",
         });
-        setInviterSearch("");
-        setInviterResults([]);
-        setShowLeaderModal(false);
-      }, 1500);
-    } else {
-      const error = await response.json();
-      console.error("❌ Add person error - FULL DETAILS:", {
-        status: response.status,
-        statusText: response.statusText,
-        error: error,
-        sentData: personData
-      });
 
-      let errorMessage = "Failed to add person";
-      if (error.detail) {
-        if (typeof error.detail === 'string') {
-          errorMessage = error.detail;
-        } else if (Array.isArray(error.detail)) {
-          errorMessage = error.detail.map(err => {
-            const field = err.loc?.[err.loc.length - 1] || 'field';
-            return `${field}: ${err.msg || err}`;
-          }).join(', ');
-        } else if (typeof error.detail === 'object') {
-          errorMessage = JSON.stringify(error.detail);
+        if (typeof onPersonAdded === "function") {
+          onPersonAdded(data.person || data);
         }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
 
+        setTimeout(() => {
+          onClose();
+          setFormData({
+            invitedBy: "",
+            name: "",
+            surname: "",
+            gender: "",
+            email: "",
+            mobile: "",
+            dob: "",
+            address: "",
+          });
+          setInviterSearch("");
+          setInviterResults([]);
+          setShowLeaderModal(false);
+          setAttemptedSubmit(false);
+          setTouched({});
+          setAutoFilledLeaders({
+            leader1: "",
+            leader12: "",
+            leader144: ""
+          });
+        }, 1500);
+      } else {
+        const error = await response.json();
+        console.error("❌ Add person error - FULL DETAILS:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: error,
+          sentData: personData
+        });
+
+        let errorMessage = "Failed to add person";
+        if (error.detail) {
+          if (typeof error.detail === 'string') {
+            errorMessage = error.detail;
+          } else if (Array.isArray(error.detail)) {
+            errorMessage = error.detail.map(err => {
+              const field = err.loc?.[err.loc.length - 1] || 'field';
+              return `${field}: ${err.msg || err}`;
+            }).join(', ');
+          } else if (typeof error.detail === 'object') {
+            errorMessage = JSON.stringify(error.detail);
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        setAlert({
+          open: true,
+          type: "error",
+          message: errorMessage,
+        });
+        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
+      }
+    } catch (error) {
+      console.error("❌ Network error adding person:", error);
       setAlert({
         open: true,
         type: "error",
-        message: errorMessage,
+        message: "Network error: Could not connect to server",
       });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
+      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
-  } catch (error) {
-    console.error("❌ Network error adding person:", error);
-    setAlert({
-      open: true,
-      type: "error",
-      message: "Network error: Could not connect to server",
-    });
-    setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-  }
-};
+  };
 
   const handleClose = () => {
     setFormData({
@@ -323,11 +369,30 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
     setInviterSearch("");
     setInviterResults([]);
     setShowLeaderModal(false);
+    setAttemptedSubmit(false);
+    setTouched({});
+    setAutoFilledLeaders({
+      leader1: "",
+      leader12: "",
+      leader144: ""
+    });
     onClose();
   };
 
   if (!isOpen) return null;
 
+  // Get current theme from localStorage or default to light
+  const getCurrentTheme = () => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') || 'light';
+    }
+    return 'light';
+  };
+
+  const currentTheme = getCurrentTheme();
+  const isDarkMode = currentTheme === 'dark';
+
+  // Theme-aware styles
   const styles = {
     overlay: {
       position: "fixed",
@@ -343,19 +408,20 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
       padding: "10px",
     },
     modal: {
-      background: "#fff",
+      background: isDarkMode ? "#1e1e1e" : "#fff",
       borderRadius: "12px",
       width: "100%",
       maxWidth: "600px",
       maxHeight: "90vh",
       overflowY: "auto",
       padding: "20px",
+      color: isDarkMode ? "#fff" : "#333",
     },
     title: {
       fontSize: "clamp(20px, 4vw, 24px)",
       fontWeight: "600",
       marginBottom: "20px",
-      color: "#333",
+      color: isDarkMode ? "#fff" : "#333",
       textAlign: "center",
     },
     form: {
@@ -372,16 +438,37 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
     label: {
       fontSize: "14px",
       fontWeight: "500",
-      color: "#555",
+      color: isDarkMode ? "#ccc" : "#555",
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+    },
+    required: {
+      color: "#dc3545",
+      fontSize: "12px",
+      fontWeight: "600",
     },
     input: {
       padding: "12px",
       fontSize: "16px",
       borderRadius: "8px",
-      border: "1px solid #ddd",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
       outline: "none",
       width: "100%",
       boxSizing: "border-box",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      color: isDarkMode ? "#ffffff" : "#333",
+    },
+    inputError: {
+      padding: "12px",
+      fontSize: "16px",
+      borderRadius: "8px",
+      border: "2px solid #dc3545",
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      color: isDarkMode ? "#ffffff" : "#333",
     },
     dropdown: {
       position: "absolute",
@@ -389,8 +476,8 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
       left: 0,
       right: 0,
       marginTop: "4px",
-      background: "#fff",
-      border: "1px solid #ddd",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1000,
@@ -400,14 +487,17 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
     dropdownItem: {
       padding: "12px",
       cursor: "pointer",
-      borderBottom: "1px solid #f0f0f0",
+      borderBottom: `1px solid ${isDarkMode ? "#3a3a3a" : "#f0f0f0"}`,
       transition: "background 0.2s",
+      color: isDarkMode ? "#ffffff" : "#333",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
     },
     dropdownEmpty: {
       padding: "12px",
-      color: "#999",
+      color: isDarkMode ? "#aaa" : "#999",
       textAlign: "center",
       fontSize: "14px",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
     },
     radioGroup: {
       display: "flex",
@@ -420,6 +510,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
       alignItems: "center",
       gap: "8px",
       cursor: "pointer",
+      color: isDarkMode ? "#ccc" : "#555",
     },
     buttonGroup: {
       display: "flex",
@@ -430,14 +521,15 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
     closeBtn: {
       flex: "1 1 120px",
       background: "transparent",
-      border: "1px solid #ddd",
-      color: "#666",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      color: isDarkMode ? "#ccc" : "#666",
       padding: "12px 16px",
       borderRadius: "6px",
       cursor: "pointer",
       fontSize: "16px",
       fontWeight: "500",
       minWidth: "120px",
+      transition: "all 0.2s ease",
     },
     nextBtn: {
       flex: "1 1 120px",
@@ -450,6 +542,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
       fontSize: "16px",
       fontWeight: "500",
       minWidth: "120px",
+      transition: "all 0.2s ease",
     },
   };
 
@@ -464,21 +557,25 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
               gridTemplateColumns: '1fr 1fr',
               gap: '20px',
               marginBottom: '20px',
-              borderBottom: '1px solid #e0e0e0',
+              borderBottom: `1px solid ${isDarkMode ? "#444" : "#e0e0e0"}`,
               paddingBottom: '10px'
             }}>
-              <div style={{ fontWeight: '600', color: '#333' }}>NEW PERSON INFO</div>
-              <div style={{ fontWeight: '600', color: '#333' }}>LEADER INFO</div>
+              <div style={{ fontWeight: '600', color: isDarkMode ? "#ccc" : "#333" }}>NEW PERSON INFO</div>
+              <div style={{ fontWeight: '600', color: isDarkMode ? "#ccc" : "#333" }}>LEADER INFO</div>
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Invited By *</label>
+              <label style={styles.label}>
+                Invited By
+                {showError('invitedBy') && <span style={styles.required}>Required</span>}
+              </label>
               <input
                 type="text"
                 value={inviterSearch}
                 onChange={(e) => {
                   setInviterSearch(e.target.value);
                   setShowInviterDropdown(true);
+                  setTouched({ ...touched, invitedBy: true });
                 }}
                 onFocus={() => {
                   setShowInviterDropdown(true);
@@ -487,7 +584,8 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
                     setInviterResults(preloadedPeople.slice(0, 10));
                   }
                 }}
-                style={styles.input}
+                onBlur={() => setTouched({ ...touched, invitedBy: true })}
+                style={showError('invitedBy') ? styles.inputError : styles.input}
                 placeholder="Start typing to search..."
                 autoComplete="off"
               />
@@ -507,11 +605,15 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
                       key={person.id}
                       style={styles.dropdownItem}
                       onClick={() => handleInviterSelect(person)}
-                      onMouseEnter={(e) => e.target.style.background = "#f8f9fa"}
-                      onMouseLeave={(e) => e.target.style.background = "transparent"}
+                      onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
+                      onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
                     >
                       <div style={{ fontWeight: "500" }}>{person.fullName}</div>
-                      <div style={{ fontSize: "12px", color: "#666" }}>{person.email}</div>
+                      <div style={{ fontSize: "12px", color: isDarkMode ? "#999" : "#666" }}>
+                        {person.email}
+                        {person.leader1 && <span> • L@1: {person.leader1}</span>}
+                        {person.leader12 && <span> • L@12: {person.leader12}</span>}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -519,29 +621,35 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Name *</label>
+              <label style={styles.label}>
+                Name
+                {showError('name') && <span style={styles.required}>Required</span>}
+              </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                style={styles.input}
-                required
+                onBlur={() => setTouched({ ...touched, name: true })}
+                style={showError('name') ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Surname *</label>
+              <label style={styles.label}>
+                Surname
+                {showError('surname') && <span style={styles.required}>Required</span>}
+              </label>
               <input
                 type="text"
                 value={formData.surname}
                 onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
-                style={styles.input}
-                required
+                onBlur={() => setTouched({ ...touched, surname: true })}
+                style={showError('surname') ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Gender **</label>
+              <label style={styles.label}>Gender</label>
               <div style={styles.radioGroup}>
                 <label style={styles.radioLabel}>
                   <input
@@ -567,51 +675,78 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Email Address *</label>
+              <label style={styles.label}>
+                Email Address
+                {showError('email') && <span style={styles.required}>Required</span>}
+              </label>
               <input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                style={styles.input}
-                required
+                onBlur={() => setTouched({ ...touched, email: true })}
+                style={showError('email') ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Mobile Number *</label>
+              <label style={styles.label}>
+                Mobile Number
+                {showError('mobile') && <span style={styles.required}>Required</span>}
+              </label>
               <input
                 type="tel"
                 value={formData.mobile}
                 onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                style={styles.input}
+                onBlur={() => setTouched({ ...touched, mobile: true })}
+                style={showError('mobile') ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Date Of Birth *</label>
+              <label style={styles.label}>
+                Date Of Birth
+                {showError('dob') && <span style={styles.required}>Required</span>}
+              </label>
               <input
                 type="date"
                 value={formData.dob}
                 onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                style={styles.input}
+                onBlur={() => setTouched({ ...touched, dob: true })}
+                style={showError('dob') ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Home Address *</label>
+              <label style={styles.label}>
+                Home Address
+                {showError('address') && <span style={styles.required}>Required</span>}
+              </label>
               <input
                 type="text"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                style={styles.input}
+                onBlur={() => setTouched({ ...touched, address: true })}
+                style={showError('address') ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.buttonGroup}>
-              <button type="button" style={styles.closeBtn} onClick={handleClose}>
+              <button 
+                type="button" 
+                style={styles.closeBtn} 
+                onClick={handleClose}
+                onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3d3d3d" : "#f8f9fa"}
+                onMouseLeave={(e) => e.target.style.background = "transparent"}
+              >
                 CANCEL
               </button>
-              <button type="button" style={styles.nextBtn} onClick={handleNext}>
+              <button 
+                type="button" 
+                style={styles.nextBtn} 
+                onClick={handleNext}
+                onMouseEnter={(e) => e.target.style.background = "#4f46e5"}
+                onMouseLeave={(e) => e.target.style.background = "#6366f1"}
+              >
                 NEXT
               </button>
             </div>
@@ -627,6 +762,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
           onSubmit={handleSubmit}
           personData={formData}
           preloadedPeople={preloadedPeople}
+          autoFilledLeaders={autoFilledLeaders}
         />
       )}
 
@@ -655,11 +791,11 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
   );
 };
 
-const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedPeople = [] }) => {
+const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedPeople = [], autoFilledLeaders }) => {
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
-    leader144: ""
+    leader144: "" // Optional - can be empty if inviter doesn't have one
   });
 
   const [leaderSearches, setLeaderSearches] = useState({
@@ -683,6 +819,24 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
+
+  // ✅ Auto-fill ALL leaders including Leader @144 (even if empty)
+  useEffect(() => {
+    if (isOpen && autoFilledLeaders) {
+      console.log("🔄 Auto-filling ALL leaders in LeaderSelectionModal:", autoFilledLeaders);
+      
+      const filledLeaders = {
+        leader1: autoFilledLeaders.leader1 || "",
+        leader12: autoFilledLeaders.leader12 || "",
+        leader144: autoFilledLeaders.leader144 || "" // Auto-fill even if empty - that's OK!
+      };
+      
+      setLeaderData(filledLeaders);
+      setLeaderSearches(filledLeaders);
+      
+      console.log("✅ All leaders auto-filled (Leader @144 can be empty):", filledLeaders);
+    }
+  }, [isOpen, autoFilledLeaders]);
 
   const fetchLeaders = async (searchTerm, leaderField) => {
     if (!searchTerm || searchTerm.length < 1) {
@@ -722,9 +876,9 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
           id: p._id,
           fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
           email: p.Email || p.email || "",
-          leader1: p["Leader @1"] || p.leader1 || "",
-          leader12: p["Leader @12"] || p.leader12 || "",
-          leader144: p["Leader @144"] || p.leader144 || "",
+          leader1: p["Leader @1"] || p.leader1 || p.leaders?.[0] || "",
+          leader12: p["Leader @12"] || p.leader12 || p.leaders?.[1] || "",
+          leader144: p["Leader @144"] || p.leader144 || p.leaders?.[2] || "",
         }));
 
         setLeaderResults(prev => ({ ...prev, [leaderField]: formatted }));
@@ -787,6 +941,18 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
     onSubmit(leaderData);
   };
 
+  // Get current theme from localStorage or default to light
+  const getCurrentTheme = () => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') || 'light';
+    }
+    return 'light';
+  };
+
+  const currentTheme = getCurrentTheme();
+  const isDarkMode = currentTheme === 'dark';
+
+  // Theme-aware styles for LeaderSelectionModal
   const styles = {
     overlay: {
       position: "fixed",
@@ -802,19 +968,20 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
       padding: "10px",
     },
     modal: {
-      background: "#fff",
+      background: isDarkMode ? "#1e1e1e" : "#fff",
       borderRadius: "12px",
       width: "100%",
       maxWidth: "500px",
       maxHeight: "90vh",
       overflowY: "auto",
       padding: "20px",
+      color: isDarkMode ? "#fff" : "#333",
     },
     title: {
       fontSize: "clamp(20px, 4vw, 24px)",
       fontWeight: "600",
       marginBottom: "20px",
-      color: "#333",
+      color: isDarkMode ? "#fff" : "#333",
       textAlign: "center",
     },
     headerSection: {
@@ -822,7 +989,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
       gridTemplateColumns: '1fr 1fr',
       gap: '20px',
       marginBottom: '20px',
-      borderBottom: '1px solid #e0e0e0',
+      borderBottom: `1px solid ${isDarkMode ? "#444" : "#e0e0e0"}`,
       paddingBottom: '10px'
     },
     form: {
@@ -839,16 +1006,18 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
     label: {
       fontSize: "14px",
       fontWeight: "500",
-      color: "#555",
+      color: isDarkMode ? "#ccc" : "#555",
     },
     input: {
       padding: "12px",
       fontSize: "16px",
       borderRadius: "8px",
-      border: "1px solid #ddd",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
       outline: "none",
       width: "100%",
       boxSizing: "border-box",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      color: isDarkMode ? "#ffffff" : "#333",
     },
     dropdown: {
       position: "absolute",
@@ -856,8 +1025,8 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
       left: 0,
       right: 0,
       marginTop: "4px",
-      background: "#fff",
-      border: "1px solid #ddd",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1000,
@@ -867,14 +1036,17 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
     dropdownItem: {
       padding: "12px",
       cursor: "pointer",
-      borderBottom: "1px solid #f0f0f0",
+      borderBottom: `1px solid ${isDarkMode ? "#3a3a3a" : "#f0f0f0"}`,
       transition: "background 0.2s",
+      color: isDarkMode ? "#ffffff" : "#333",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
     },
     dropdownEmpty: {
       padding: "12px",
-      color: "#999",
+      color: isDarkMode ? "#aaa" : "#999",
       textAlign: "center",
       fontSize: "14px",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
     },
     buttonGroup: {
       display: "flex",
@@ -885,8 +1057,8 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
     backBtn: {
       flex: "1 1 120px",
       background: "transparent",
-      border: "1px solid #ddd",
-      color: "#666",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      color: isDarkMode ? "#ccc" : "#666",
       padding: "12px 16px",
       borderRadius: "6px",
       cursor: "pointer",
@@ -896,7 +1068,8 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: '8px'
+      gap: '8px',
+      transition: "all 0.2s ease",
     },
     saveBtn: {
       flex: "1 1 120px",
@@ -909,6 +1082,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
       fontSize: "16px",
       fontWeight: "500",
       minWidth: "120px",
+      transition: "all 0.2s ease",
     },
   };
 
@@ -933,11 +1107,11 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
             key={`${leaderField}-${person.id}`}
             style={styles.dropdownItem}
             onClick={() => handleLeaderSelect(person, leaderField)}
-            onMouseEnter={(e) => e.target.style.background = "#f8f9fa"}
-            onMouseLeave={(e) => e.target.style.background = "transparent"}
+            onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
+            onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
           >
             <div style={{ fontWeight: "500" }}>{person.fullName}</div>
-            <div style={{ fontSize: "12px", color: "#666" }}>
+            <div style={{ fontSize: "12px", color: isDarkMode ? "#999" : "#666" }}>
               {person.email} • {person[leaderField] || `No ${leaderField}`}
             </div>
           </div>
@@ -954,11 +1128,11 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
         <h2 style={styles.title}>Create New Person</h2>
 
         <div style={styles.headerSection}>
-          <div style={{ fontWeight: '600', color: '#999' }}>NEW PERSON INFO</div>
-          <div style={{ fontWeight: '600', color: '#333' }}>LEADER INFO</div>
+          <div style={{ fontWeight: '600', color: isDarkMode ? "#999" : "#999" }}>NEW PERSON INFO</div>
+          <div style={{ fontWeight: '600', color: isDarkMode ? "#ccc" : "#333" }}>LEADER INFO</div>
         </div>
 
-        <div style={{ height: '2px', background: '#e0e0e0', margin: '20px 0' }}></div>
+        <div style={{ height: '2px', background: isDarkMode ? "#444" : "#e0e0e0", margin: '20px 0' }}></div>
 
         <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
           <div style={styles.inputGroup}>
@@ -1018,7 +1192,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
                 }
               }}
               style={styles.input}
-              placeholder="Leader @144..."
+              placeholder="Leader @144 "
               autoComplete="off"
             />
             {renderLeaderDropdown('leader144')}
@@ -1029,6 +1203,8 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
               type="button"
               style={styles.backBtn}
               onClick={onBack}
+              onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3d3d3d" : "#f8f9fa"}
+              onMouseLeave={(e) => e.target.style.background = "transparent"}
             >
               <ArrowLeft size={16} />
               BACK
@@ -1037,6 +1213,8 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
               type="button"
               style={styles.saveBtn}
               onClick={handleSave}
+              onMouseEnter={(e) => e.target.style.background = "#218838"}
+              onMouseLeave={(e) => e.target.style.background = "#28a745"}
             >
               SAVE
             </button>
@@ -1046,8 +1224,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedP
     </div>
   );
 };
-
-
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
   const [activeTab, setActiveTab] = useState(0);
