@@ -159,26 +159,48 @@ function ServiceCheckIn() {
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
-  const getFilteredEvents = () => {
-    console.log('🎯 Available events for dropdown:', events);
-    return events.filter(event => {
-      const isGlobal = event.isGlobal === true;
-      const isOpen = event.status?.toLowerCase() !== 'closed';
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+const getFilteredEvents = () => {
+  console.log('📋 All available events:', events);
+  
+  const filteredEvents = events.filter(event => {
+    // More flexible filtering for global events
+    const isGlobal = event.isGlobal === true || 
+                    event.eventType === "Global Events" || 
+                    event.eventType === "global" ||
+                    event.eventType?.toLowerCase().includes("global");
+    
+    const isOpen = event.status?.toLowerCase() === 'open' || event.status?.toLowerCase() === "incomplete";
 
-      return isGlobal && isOpen && isNotCell;
+    console.log(`🔍 Event: ${event.eventName}`, {
+      id: event.id,
+      isGlobal,
+      isOpen,
+      eventType: event.eventType,
+      status: event.status,
+      isGlobalFlag: event.isGlobal
     });
-  };
 
-  const getClosedEvents = () => {
-    return events.filter(event => {
-      const isClosed = event.status?.toLowerCase() === 'closed';
-      const isGlobal = event.isGlobal === true;
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+    return isGlobal && isOpen;
+  });
 
-      return isClosed && isGlobal && isNotCell;
-    });
-  };
+  console.log('✅ Filtered Global Events:', filteredEvents.map(e => ({
+    id: e.id,
+    name: e.eventName,
+    type: e.eventType,
+    status: e.status
+  })));
+  return filteredEvents;
+};
+
+const getClosedEvents = () => {
+  return events.filter(event => {
+    const isClosed = event.status?.toLowerCase() === 'closed';
+    const isGlobal = event.eventType === "Global Events";
+    const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+
+    return isClosed && isGlobal && isNotCell;
+  });
+};
 
   useEffect(() => {
     if (events.length > 0 && !currentEventId) {
@@ -476,142 +498,229 @@ function ServiceCheckIn() {
     }));
   };
 
-  const fetchConsolidatedPeople = async () => {
-    if (!currentEventId) {
-      setConsolidatedPeople([]);
-      return;
+  // const fetchConsolidatedPeople = async () => {
+  //   if (!currentEventId) {
+  //     setConsolidatedPeople([]);
+  //     return;
+  //   }
+
+  //   setIsLoadingConsolidated(true);
+  //   try {
+  //     const token = localStorage.getItem("token");
+  //     let consolidatedData = [];
+
+  //     console.log("🔄 Fetching consolidated people for event:", currentEventId);
+
+  //     try {
+  //       console.log("📊 Calling consolidations endpoint...");
+  //       const response = await axios.get(`${BASE_URL}/consolidations`, {
+  //         headers: {
+  //           'Authorization': `Bearer ${token}`,
+  //         },
+  //         params: {
+  //           event_id: currentEventId
+  //         }
+  //       });
+
+  //       console.log("📊 Consolidations API response:", response.data);
+
+  //       if (response.data && response.data.consolidations) {
+  //         consolidatedData = response.data.consolidations;
+  //         console.log(`✅ Found ${consolidatedData.length} consolidations from /consolidations endpoint`);
+  //       } else {
+  //         console.log("❌ No consolidations data in response");
+  //       }
+  //     } catch (error) {
+  //       console.log("❌ Consolidations endpoint failed:", error.message);
+  //     }
+
+  //     if (consolidatedData.length === 0) {
+  //       try {
+  //         console.log("📊 Trying event-specific consolidations endpoint...");
+  //         const eventConsolidationsResponse = await axios.get(`${BASE_URL}/events/${currentEventId}/consolidations`, {
+  //           headers: {
+  //             'Authorization': `Bearer ${token}`,
+  //           }
+  //         });
+
+  //         console.log("📊 Event consolidations response:", eventConsolidationsResponse.data);
+
+  //         if (eventConsolidationsResponse.data && eventConsolidationsResponse.data.consolidations) {
+  //           consolidatedData = eventConsolidationsResponse.data.consolidations;
+  //           console.log(`✅ Found ${consolidatedData.length} consolidations from event endpoint`);
+  //         }
+  //       } catch (error) {
+  //         console.log("❌ Event consolidations endpoint failed:", error.message);
+  //       }
+  //     }
+
+  //     if (consolidatedData.length === 0) {
+  //       try {
+  //         console.log("📊 Checking for consolidation tasks...");
+  //         const tasksResponse = await axios.get(`${BASE_URL}/tasks`, {
+  //           headers: {
+  //             'Authorization': `Bearer ${token}`,
+  //           },
+  //           params: {
+  //             taskType: "consolidation",
+  //             event_id: currentEventId
+  //           }
+  //         });
+
+  //         console.log("📋 Tasks API response:", tasksResponse.data);
+
+  //         if (tasksResponse.data && Array.isArray(tasksResponse.data.tasks)) {
+  //           consolidatedData = tasksResponse.data.tasks.map(task => ({
+  //             _id: task._id,
+  //             name: task.contacted_person?.name || task.person_name,
+  //             surname: "",
+  //             email: task.contacted_person?.email || task.person_email,
+  //             phone: task.contacted_person?.phone || task.person_phone,
+  //             assigned_to: task.assignedfor || task.assignedTo,
+  //             decision_type: task.decision_type || task.consolidation_type,
+  //             decision_date: task.followup_date,
+  //             status: task.status,
+  //             task_id: task._id,
+  //             is_from_task: true
+  //           }));
+  //           console.log(`✅ Found ${consolidatedData.length} consolidation tasks`);
+  //         }
+  //       } catch (error) {
+  //         console.log("❌ Tasks endpoint failed:", error.message);
+  //       }
+  //     }
+
+  //     if (consolidatedData.length === 0) {
+  //       try {
+  //         console.log("📊 Checking event attendees for consolidation flags...");
+  //         const eventResponse = await axios.get(`${BASE_URL}/events/${currentEventId}`);
+  //         const event = eventResponse.data;
+
+  //         const consolidatedAttendees = event.attendees?.filter(attendee =>
+  //           attendee.is_consolidation ||
+  //           attendee.consolidation_id ||
+  //           attendee.decision ||
+  //           attendee.decision_type
+  //         ) || [];
+
+  //         if (consolidatedAttendees.length > 0) {
+  //           consolidatedData = consolidatedAttendees.map(attendee => ({
+  //             _id: attendee.consolidation_id || attendee.id,
+  //             name: attendee.name || attendee.person_name,
+  //             surname: attendee.surname || attendee.person_surname || "",
+  //             email: attendee.email || attendee.person_email,
+  //             phone: attendee.phone || attendee.person_phone,
+  //             assigned_to: attendee.assigned_to || "Not assigned",
+  //             decision_type: attendee.decision || attendee.decision_type,
+  //             decision_date: attendee.time || new Date().toISOString(),
+  //             status: "active",
+  //             is_from_attendee: true
+  //           }));
+  //           console.log(`✅ Found ${consolidatedData.length} consolidated attendees`);
+  //         }
+  //       } catch (error) {
+  //         console.log("❌ Events endpoint failed:", error.message);
+  //       }
+  //     }
+
+  //     console.log("✅ Final consolidated data:", consolidatedData);
+  //     setConsolidatedPeople(consolidatedData);
+
+  //   } catch (error) {
+  //     console.error("💥 Error fetching consolidated people:", error);
+  //     setConsolidatedPeople([]);
+  //   } finally {
+  //     setIsLoadingConsolidated(false);
+  //   }
+  // };
+// Replace your current fetchConsolidatedPeople function with this:
+const fetchConsolidatedPeople = async () => {
+  if (!currentEventId) {
+    setConsolidatedPeople([]);
+    return;
+  }
+
+  setIsLoadingConsolidated(true);
+  try {
+    const token = localStorage.getItem("token");
+    let consolidatedData = [];
+
+    console.log("🔄 Fetching consolidated people for event:", currentEventId);
+
+    // Try multiple endpoints to get consolidation data
+    try {
+      const response = await axios.get(`${BASE_URL}/consolidations`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        params: {
+          event_id: currentEventId
+        }
+      });
+
+      if (response.data && response.data.consolidations) {
+        consolidatedData = response.data.consolidations;
+        console.log(`✅ Found ${consolidatedData.length} consolidations from /consolidations endpoint`);
+      }
+    } catch (error) {
+      console.log("❌ Consolidations endpoint failed:", error.message);
     }
 
-    setIsLoadingConsolidated(true);
-    try {
-      const token = localStorage.getItem("token");
-      let consolidatedData = [];
-
-      console.log("🔄 Fetching consolidated people for event:", currentEventId);
-
+    // If no data from consolidations endpoint, try tasks
+    if (consolidatedData.length === 0) {
       try {
-        console.log("📊 Calling consolidations endpoint...");
-        const response = await axios.get(`${BASE_URL}/consolidations`, {
+        const tasksResponse = await axios.get(`${BASE_URL}/tasks`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
           params: {
+            taskType: "consolidation",
             event_id: currentEventId
           }
         });
 
-        console.log("📊 Consolidations API response:", response.data);
-
-        if (response.data && response.data.consolidations) {
-          consolidatedData = response.data.consolidations;
-          console.log(`✅ Found ${consolidatedData.length} consolidations from /consolidations endpoint`);
-        } else {
-          console.log("❌ No consolidations data in response");
+        if (tasksResponse.data && Array.isArray(tasksResponse.data.tasks)) {
+          consolidatedData = tasksResponse.data.tasks.map(task => ({
+            _id: task._id,
+            name: task.contacted_person?.name || task.person_name || task.recipient_name,
+            surname: "",
+            email: task.contacted_person?.email || task.person_email || task.recipient_email,
+            phone: task.contacted_person?.phone || task.person_phone || task.recipient_phone,
+            assigned_to: task.assignedfor || task.assignedTo,
+            decision_type: task.decision_type || task.consolidation_type || "Commitment", // Default to Commitment
+            decision_date: task.followup_date || task.decision_date,
+            status: task.status,
+            task_id: task._id,
+            is_from_task: true
+          }));
+          console.log(`✅ Found ${consolidatedData.length} consolidation tasks`);
         }
       } catch (error) {
-        console.log("❌ Consolidations endpoint failed:", error.message);
+        console.log("❌ Tasks endpoint failed:", error.message);
       }
-
-      if (consolidatedData.length === 0) {
-        try {
-          console.log("📊 Trying event-specific consolidations endpoint...");
-          const eventConsolidationsResponse = await axios.get(`${BASE_URL}/events/${currentEventId}/consolidations`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            }
-          });
-
-          console.log("📊 Event consolidations response:", eventConsolidationsResponse.data);
-
-          if (eventConsolidationsResponse.data && eventConsolidationsResponse.data.consolidations) {
-            consolidatedData = eventConsolidationsResponse.data.consolidations;
-            console.log(`✅ Found ${consolidatedData.length} consolidations from event endpoint`);
-          }
-        } catch (error) {
-          console.log("❌ Event consolidations endpoint failed:", error.message);
-        }
-      }
-
-      if (consolidatedData.length === 0) {
-        try {
-          console.log("📊 Checking for consolidation tasks...");
-          const tasksResponse = await axios.get(`${BASE_URL}/tasks`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-            params: {
-              taskType: "consolidation",
-              event_id: currentEventId
-            }
-          });
-
-          console.log("📋 Tasks API response:", tasksResponse.data);
-
-          if (tasksResponse.data && Array.isArray(tasksResponse.data.tasks)) {
-            consolidatedData = tasksResponse.data.tasks.map(task => ({
-              _id: task._id,
-              name: task.contacted_person?.name || task.person_name,
-              surname: "",
-              email: task.contacted_person?.email || task.person_email,
-              phone: task.contacted_person?.phone || task.person_phone,
-              assigned_to: task.assignedfor || task.assignedTo,
-              decision_type: task.decision_type || task.consolidation_type,
-              decision_date: task.followup_date,
-              status: task.status,
-              task_id: task._id,
-              is_from_task: true
-            }));
-            console.log(`✅ Found ${consolidatedData.length} consolidation tasks`);
-          }
-        } catch (error) {
-          console.log("❌ Tasks endpoint failed:", error.message);
-        }
-      }
-
-      if (consolidatedData.length === 0) {
-        try {
-          console.log("📊 Checking event attendees for consolidation flags...");
-          const eventResponse = await axios.get(`${BASE_URL}/events/${currentEventId}`);
-          const event = eventResponse.data;
-
-          const consolidatedAttendees = event.attendees?.filter(attendee =>
-            attendee.is_consolidation ||
-            attendee.consolidation_id ||
-            attendee.decision ||
-            attendee.decision_type
-          ) || [];
-
-          if (consolidatedAttendees.length > 0) {
-            consolidatedData = consolidatedAttendees.map(attendee => ({
-              _id: attendee.consolidation_id || attendee.id,
-              name: attendee.name || attendee.person_name,
-              surname: attendee.surname || attendee.person_surname || "",
-              email: attendee.email || attendee.person_email,
-              phone: attendee.phone || attendee.person_phone,
-              assigned_to: attendee.assigned_to || "Not assigned",
-              decision_type: attendee.decision || attendee.decision_type,
-              decision_date: attendee.time || new Date().toISOString(),
-              status: "active",
-              is_from_attendee: true
-            }));
-            console.log(`✅ Found ${consolidatedData.length} consolidated attendees`);
-          }
-        } catch (error) {
-          console.log("❌ Events endpoint failed:", error.message);
-        }
-      }
-
-      console.log("✅ Final consolidated data:", consolidatedData);
-      setConsolidatedPeople(consolidatedData);
-
-    } catch (error) {
-      console.error("💥 Error fetching consolidated people:", error);
-      setConsolidatedPeople([]);
-    } finally {
-      setIsLoadingConsolidated(false);
     }
-  };
 
+    // Update event consolidations count
+    setEventConsolidations((prev) => ({
+      ...prev,
+      [currentEventId]: consolidatedData.length
+    }));
+
+    console.log("✅ Final consolidated data:", consolidatedData);
+    setConsolidatedPeople(consolidatedData);
+
+  } catch (error) {
+    console.error("💥 Error fetching consolidated people:", error);
+    setConsolidatedPeople([]);
+    setEventConsolidations((prev) => ({
+      ...prev,
+      [currentEventId]: 0
+    }));
+  } finally {
+    setIsLoadingConsolidated(false);
+  }
+};
+  
   useEffect(() => {
     if (currentEventId) {
       fetchConsolidatedPeople();
@@ -620,131 +729,61 @@ function ServiceCheckIn() {
     }
   }, [currentEventId]);
 
-  useEffect(() => {
-    if (hasDataLoaded) return;
+useEffect(() => {
+  if (hasDataLoaded) return;
 
-    const fetchEvents = async () => {
-      setIsLoadingEvents(true);
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${BASE_URL}/events`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+  const fetchEvents = async () => {
+    setIsLoadingEvents(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${BASE_URL}/events/global`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
+      });
 
-        const data = await response.json();
-
-        console.log('📋 Raw events data:', data);
-
-        const filteredEvents = (data.events || []).filter(event => {
-          const isGlobal = event.isGlobal === true;
-          const isOpen = event.status?.toLowerCase() !== 'closed';
-          const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-
-          console.log(`🔍 Event: ${event.eventName}`, {
-            isGlobal,
-            isOpen,
-            isNotCell,
-            eventType: event.eventType,
-            status: event.status,
-            isGlobalFlag: event.isGlobal
-          });
-
-          return isGlobal && isOpen && isNotCell;
-        });
-
-        console.log('✅ Filtered events:', filteredEvents);
-
-        const transformedEvents = filteredEvents.map(event => ({
-          id: event._id || event.id,
-          eventName: event.eventName || event.name || "Unnamed Event",
-          status: event.status || "open",
-          isGlobal: event.isGlobal,
-          isTicketed: event.isTicketed || false,
-          date: event.date || event.createdAt,
-          eventType: event.eventType
-        }));
-
-        setEvents(transformedEvents);
-
-      } catch (err) {
-        console.error('❌ Error fetching events:', err);
-        toast.error(err.response?.data?.detail || "Failed to fetch events");
-      } finally {
-        setIsLoadingEvents(false);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
 
-    fetchEvents();
-  }, [hasDataLoaded]);
+      const data = await response.json();
 
-  useEffect(() => {
-    if (hasDataLoaded) return;
+      console.log('📋 Global events data:', data);
 
-    const fetchAllPeople = async () => {
-      setIsLoadingPeople(true);
-      try {
-        let allPeople = [];
-        let page = 1;
-        const perPage = 50; // REDUCED from 200 to 50 for faster initial load
-        let total = Infinity;
+      // Handle different response structures
+      const eventsData = data.events || data.results || [];
+      
+      console.log('✅ Global events found:', eventsData.map(e => ({
+        id: e._id || e.id,
+        name: e.eventName,
+        status: e.status,
+        isGlobal: e.isGlobal
+      })));
 
-        // Only fetch first 2 pages initially (100 people)
-        const maxInitialPages = 2;
+      const transformedEvents = eventsData.map(event => ({
+        id: event._id || event.id,
+        eventName: event.eventName || event.name || "Unnamed Event",
+        status: event.status || "open",
+        isGlobal: event.isGlobal || true, // Since we're fetching from /events/global
+        isTicketed: event.isTicketed || false,
+        date: event.date || event.createdAt || event.created_at,
+        eventType: event.eventType || "Global Events"
+      }));
 
-        while (allPeople.length < total && page <= maxInitialPages) {
-          const res = await axios.get(
-            `${BASE_URL}/people?page=${page}&perPage=${perPage}`
-          );
-          const results = toArray(res.data);
-          const peoplePage = results.map((p) => ({
-            _id: p._id || p.id || `${p.Email || p.Name || ""}-${page}`,
-            name: p.Name || p.name || "",
-            surname: p.Surname || p.surname || "",
-            email: p.Email || p.email || "",
-            phone: p.Number || p.Phone || p.phone || "",
-            leader1: p["Leader @1"] || p.leader1 || "",
-            leader12: p["Leader @12"] || p.leader12 || "",
-            leader144: p["Leader @144"] || p.leader144 || "",
-          }));
+      console.log('🎯 Transformed global events for dropdown:', transformedEvents);
+      setEvents(transformedEvents);
 
-          allPeople = allPeople.concat(peoplePage);
-          total =
-            typeof res.data?.total === "number"
-              ? res.data.total
-              : allPeople.length;
+    } catch (err) {
+      console.error('❌ Error fetching global events:', err);
+      toast.error(err.response?.data?.detail || "Failed to fetch global events");
+    } finally {
+      setIsLoadingEvents(false);
+    }
+  };
 
-          if (results.length === 0) break;
-          page += 1;
-        }
-
-        setAttendees(allPeople);
-
-        localStorage.setItem("serviceCheckInDataLoaded", "true");
-        setHasDataLoaded(true);
-
-        // Load remaining people in background if needed
-        if (allPeople.length < total) {
-          setTimeout(() => {
-            fetchRemainingPeople(page, perPage, total, allPeople);
-          }, 1000);
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error(err.response?.data?.detail || err.message);
-      } finally {
-        setIsLoadingPeople(false);
-      }
-    };
-
-    fetchAllPeople();
-  }, [hasDataLoaded]);
+  fetchEvents();
+}, [hasDataLoaded]);
 
   const fetchRemainingPeople = async (startPage, perPage, total, currentPeople) => {
     try {
@@ -789,33 +828,49 @@ function ServiceCheckIn() {
     setConsolidationOpen(true);
   };
 
-  const handleFinishConsolidation = async (task) => {
-    console.log("🎯 Consolidation task completed:", task);
+const handleFinishConsolidation = async (task) => {
+  console.log("🎯 Consolidation task completed:", task);
 
-    if (currentEventId) {
-      try {
-        setConsolidationOpen(false);
+  if (currentEventId) {
+    try {
+      setConsolidationOpen(false);
 
-        toast.success(`Consolidation task created for ${task.recipientName}`);
+      toast.success(`Consolidation task created for ${task.recipientName}`);
 
-        setTimeout(async () => {
-          console.log("🔄 Refreshing consolidated people list...");
-          await fetchConsolidatedPeople();
+      // Immediately update the consolidated people list
+      const newConsolidatedPerson = {
+        _id: task.task_id || `temp-${Date.now()}`,
+        name: task.recipientName?.split(' ')[0] || 'Unknown',
+        surname: task.recipientName?.split(' ').slice(1).join(' ') || '',
+        email: task.recipient_email || '',
+        phone: task.recipient_phone || '',
+        assigned_to: task.assignedTo,
+        decision_type: task.decisionType || task.taskStage || "Commitment",
+        decision_date: new Date().toISOString(),
+        status: "Open",
+        is_new: true
+      };
 
-          setEventConsolidations((prev) => ({
-            ...prev,
-            [currentEventId]: (prev[currentEventId] || 0) + 1,
-          }));
+      // Add to consolidated people immediately
+      setConsolidatedPeople(prev => [...prev, newConsolidatedPerson]);
 
-          console.log("✅ Consolidated people list refreshed");
-        }, 2000);
+      // Update the count in eventConsolidations
+      setEventConsolidations((prev) => ({
+        ...prev,
+        [currentEventId]: (prev[currentEventId] || 0) + 1,
+      }));
 
-      } catch (error) {
-        console.error("❌ Error in consolidation completion:", error);
-        toast.error("Task created but failed to refresh list");
-      }
+      // Refresh from server after a short delay
+      setTimeout(async () => {
+        await fetchConsolidatedPeople();
+      }, 1000);
+
+    } catch (error) {
+      console.error("❌ Error in consolidation completion:", error);
+      toast.error("Task created but failed to refresh list");
     }
-  };
+  }
+};
 
   const handleEditClick = (person) => {
     setEditingPerson(person);
@@ -1083,7 +1138,29 @@ function ServiceCheckIn() {
     </Card>
   );
 
-  const ConsolidatedPersonCard = ({ person, showNumber, index }) => (
+const ConsolidatedPersonCard = ({ person, showNumber, index }) => {
+  // Normalize decision type
+  const getDecisionType = (type) => {
+    if (!type) return 'Commitment'; // Default to Commitment
+    
+    const lowerType = type.toLowerCase();
+    if (lowerType.includes('commitment') || lowerType.includes('first_time')) {
+      return 'Commitment';
+    } else if (lowerType.includes('recommitment')) {
+      return 'Recommitment';
+    }
+    return 'Commitment'; // Default fallback
+  };
+
+  const decisionType = getDecisionType(person.decision_type);
+
+  useEffect(() => {
+  if (currentEventId) {
+    fetchConsolidatedPeople();
+  }
+}, [currentEventId, events]);
+  
+  return (
     <Card
       variant="outlined"
       sx={{
@@ -1100,10 +1177,10 @@ function ServiceCheckIn() {
             <Typography variant="subtitle2" fontWeight={600}>
               {showNumber && `${index}. `}{person.name || person.person_name} {person.surname || person.person_surname}
               <Chip
-                label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
+                label={decisionType}
                 size="small"
                 sx={{ ml: 1, fontSize: "0.7rem", height: 20 }}
-                color="secondary"
+                color={decisionType === 'Commitment' ? 'secondary' : 'primary'}
               />
             </Typography>
             {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
@@ -1125,16 +1202,19 @@ function ServiceCheckIn() {
             <Divider sx={{ my: 1 }} />
             <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
               {person.decision_date && (
-                <Chip label={`Date: ${person.decision_date}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
-              )}
-              {person.decision_type && (
-                <Chip
-                  label={`Type: ${person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}`}
-                  size="small"
-                  variant="outlined"
-                  sx={{ fontSize: "0.7rem", height: 20 }}
+                <Chip 
+                  label={`Date: ${new Date(person.decision_date).toLocaleDateString()}`} 
+                  size="small" 
+                  variant="outlined" 
+                  sx={{ fontSize: "0.7rem", height: 20 }} 
                 />
               )}
+              <Chip
+                label={`Type: ${decisionType}`}
+                size="small"
+                variant="outlined"
+                sx={{ fontSize: "0.7rem", height: 20 }}
+              />
               {person.status && (
                 <Chip
                   label={`Status: ${person.status}`}
@@ -1149,7 +1229,7 @@ function ServiceCheckIn() {
       </CardContent>
     </Card>
   );
-
+};
   const mainColumns = [
     {
       field: 'name',
@@ -1239,6 +1319,18 @@ function ServiceCheckIn() {
           return ['Name', 'Email', 'Phone'];
       }
     };
+
+useEffect(() => {
+  console.log('📊 Current events state:', events);
+  console.log('🎯 Filtered events:', getFilteredEvents().map(e => ({
+    id: e.id,
+    name: e.eventName,
+    type: e.eventType,
+    status: e.status,
+    isGlobal: e.isGlobal
+  })));
+  console.log('🔒 Current event ID:', currentEventId);
+}, [events, currentEventId]);
 
     return (
       <Dialog
@@ -1535,69 +1627,77 @@ function ServiceCheckIn() {
             </Typography>
           </Paper>
         </Grid>
-        <Grid item xs={6} sm={6} md={3}>
-          <Paper
-            variant="outlined"
-            sx={{
-              p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
-              textAlign: "center",
-              cursor: "pointer",
-              boxShadow: 3,
-              "&:hover": { boxShadow: 6, transform: "translateY(-2px)" },
-              transition: "all 0.2s"
-            }}
-            onClick={() => { setConsolidatedModalOpen(true); setConsolidatedSearch(""); setConsolidatedPage(0); }}
-          >
-            <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-              <MergeIcon color="secondary" sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color="secondary.main">
-                {consolidatedPeople.length}
-              </Typography>
-            </Stack>
-            <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
-              Consolidated
-            </Typography>
-          </Paper>
-        </Grid>
+<Grid item xs={6} sm={6} md={3}>
+  <Paper
+    variant="outlined"
+    sx={{
+      p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
+      textAlign: "center",
+      cursor: "pointer",
+      boxShadow: 3,
+      "&:hover": { boxShadow: 6, transform: "translateY(-2px)" },
+      transition: "all 0.2s"
+    }}
+    onClick={() => { setConsolidatedModalOpen(true); setConsolidatedSearch(""); setConsolidatedPage(0); }}
+  >
+    <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
+      <MergeIcon color="secondary" sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
+      <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color="secondary.main">
+        {consolidatedPeople.length} {/* This should now update properly */}
+      </Typography>
+    </Stack>
+    <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
+      Consolidated
+    </Typography>
+  </Paper>
+</Grid>
       </Grid>
 
       {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={6} md={4}>
-          {/* Event Selection Dropdown */}
-          <Select
-            size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-            value={currentEventId}
-            onChange={(e) => setCurrentEventId(e.target.value)}
-            displayEmpty
-            fullWidth
-            sx={{ boxShadow: 2 }}
-          >
-            <MenuItem value="">
-              <Typography color="text.secondary">
-                Select Global Event {getFilteredEvents().length > 0 ? `(${getFilteredEvents().length} available)` : ''}
-              </Typography>
-            </MenuItem>
-            {getFilteredEvents().map((ev) => (
-              <MenuItem key={ev.id} value={ev.id}>
-                <Box>
-                  <Typography variant="body2" fontWeight="medium">
-                    {ev.eventName}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {ev.eventType} • {new Date(ev.date).toLocaleDateString()}
-                  </Typography>
-                </Box>
-              </MenuItem>
-            ))}
-            {getFilteredEvents().length === 0 && (
-              <MenuItem disabled>
-                <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                  No global events available
-                </Typography>
-              </MenuItem>
-            )}
-          </Select>
+<Select
+  size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+  value={currentEventId}
+  onChange={(e) => {
+    console.log('🎯 Selected event ID:', e.target.value);
+    setCurrentEventId(e.target.value);
+  }}
+  displayEmpty
+  fullWidth
+  sx={{ boxShadow: 2 }}
+>
+  <MenuItem value="">
+    <Typography color="text.secondary">
+      Select Global Event
+    </Typography>
+  </MenuItem>
+  
+  {/* Debug info */}
+  {console.log('🔄 Rendering dropdown with events:', getFilteredEvents())}
+  
+  {getFilteredEvents().map((ev) => (
+    <MenuItem key={ev.id} value={ev.id}>
+      <Typography variant="body2" fontWeight="medium">
+        {ev.eventName}
+      </Typography>
+    </MenuItem>
+  ))}
+  {getFilteredEvents().length === 0 && events.length > 0 && (
+    <MenuItem disabled>
+      <Typography variant="body2" color="text.secondary" fontStyle="italic">
+        No open global events
+      </Typography>
+    </MenuItem>
+  )}
+  {events.length === 0 && (
+    <MenuItem disabled>
+      <Typography variant="body2" color="text.secondary" fontStyle="italic">
+        No events loaded
+      </Typography>
+    </MenuItem>
+  )}
+</Select>
         </Grid>
         <Grid item xs={12} sm={6} md={5}>
           <TextField
