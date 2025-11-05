@@ -19,11 +19,11 @@ import { debounce } from "lodash";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
-const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [], consolidatedPeople = [] }) => {
+const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [], consolidatedPeople = [], currentEventId }) => {
   const [recipient, setRecipient] = useState(null); 
   const [assignedTo, setAssignedTo] = useState("");
   const [dateTime, setDateTime] = useState("");
-  const [taskStage, setTaskStage] = useState(""); // Start empty to force selection
+  const [taskStage, setTaskStage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [recipients, setRecipients] = useState([]);
@@ -32,13 +32,11 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const [error, setError] = useState("");
   const [alreadyConsolidated, setAlreadyConsolidated] = useState(false);
 
-  // Only two decision types
   const decisionTypes = [
     "Commitment",
     "Recommitment"
   ];
 
-  // Enhanced debounced search with better error handling
   const debouncedSearch = useCallback(
     debounce(async (query) => {
       if (!query || query.length < 2) {
@@ -76,7 +74,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     []
   );
 
-  // Alternative: Search from local attendees if API fails
   const searchLocalAttendees = useCallback((query) => {
     if (!query || query.length < 2) {
       setRecipients([]);
@@ -92,11 +89,9 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     setRecipients(filtered.slice(0, 25));
   }, [attendeesWithStatus]);
 
-  // Combined search function
   const handleSearch = useCallback((query) => {
     setSearchQuery(query);
     
-    // Try API search first, fallback to local search
     if (attendeesWithStatus.length > 0) {
       searchLocalAttendees(query);
     } else {
@@ -104,13 +99,12 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
   }, [debouncedSearch, searchLocalAttendees, attendeesWithStatus.length]);
 
-  // Reset when modal opens
   useEffect(() => {
     if (open) {
       setDateTime(dayjs().format("YYYY/MM/DD, HH:mm"));
       setRecipient(null);
       setAssignedTo("");
-      setTaskStage(""); // Force user to select decision type
+      setTaskStage("");
       setRecipients([]);
       setSearchQuery("");
       setError("");
@@ -118,14 +112,12 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
   }, [open]);
 
-  // Check if person is already consolidated
   const checkIfAlreadyConsolidated = useCallback((person) => {
     if (!person) return false;
     
     const personEmail = person.Email || person.email;
     const personName = `${person.Name || person.name} ${person.Surname || person.surname}`.trim().toLowerCase();
     
-    // Check in current consolidated people list
     const isInConsolidatedList = consolidatedPeople.some(consolidated => {
       const consolidatedEmail = consolidated.email || consolidated.person_email;
       const consolidatedName = `${consolidated.name || consolidated.person_name} ${consolidated.surname || consolidated.person_surname}`.trim().toLowerCase();
@@ -134,7 +126,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
              (personName === consolidatedName);
     });
     
-    // Check person's stage and decision history
     const hasConsolidationStage = person.Stage === "Consolidate";
     const hasDecisionHistory = person.DecisionHistory && person.DecisionHistory.length > 0;
     
@@ -149,7 +140,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     return isInConsolidatedList || hasConsolidationStage || hasDecisionHistory;
   }, [consolidatedPeople]);
 
-  // Get the HIGHEST available leader in the hierarchy (priority from 1728 down to 1)
   const getHighestAvailableLeader = (person) => {
     const leader1 = person["Leader @1"] || person.leader1;
     const leader12 = person["Leader @12"] || person.leader12;
@@ -163,8 +153,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       leader1728
     });
 
-    // Choose the HIGHEST available leader in the hierarchy
-    // Priority: Leader @1728 → Leader @144 → Leader @12 → Leader @1
     if (leader1728 && leader1728.trim()) {
       console.log("✅ Assigning to highest leader: Leader @1728:", leader1728);
       return { 
@@ -194,7 +182,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         hasLeader: true
       };
     } else {
-      // No leaders assigned at all
       console.log("❌ No leaders found for person");
       return { 
         leader: "No Leader Assigned", 
@@ -204,13 +191,11 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
   };
 
-  // Update assignedTo whenever recipient changes
   useEffect(() => {
     if (recipient) {
       const leaderInfo = getHighestAvailableLeader(recipient);
       setAssignedTo(leaderInfo.leader);
       
-      // Check if person is already consolidated
       const isAlreadyConsolidated = checkIfAlreadyConsolidated(recipient);
       setAlreadyConsolidated(isAlreadyConsolidated);
       
@@ -228,159 +213,185 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
   }, [recipient, checkIfAlreadyConsolidated]);
 
-  // Handle task stage change
   const handleTaskStageChange = (event) => {
     setTaskStage(event.target.value);
     console.log("📝 Decision type changed to:", event.target.value);
   };
 
-  // Submit consolidation task
-  const handleFinish = async () => {
-    if (!recipient) {
-      setError("Please select a person for consolidation");
-      return;
-    }
+const handleFinish = async () => {
+  if (!recipient) {
+    setError("Please select a person for consolidation");
+    return;
+  }
 
-    if (!taskStage) {
-      setError("Please select a decision type");
-      return;
-    }
+  if (!taskStage) {
+    setError("Please select a decision type");
+    return;
+  }
 
-    if (alreadyConsolidated) {
-      setError("This person has already been consolidated and cannot be consolidated again.");
-      return;
-    }
+  if (alreadyConsolidated) {
+    setError("This person has already been consolidated and cannot be consolidated again.");
+    return;
+  }
 
-    const leaderInfo = getHighestAvailableLeader(recipient);
-    
-    if (!leaderInfo.hasLeader) {
-      setError("Cannot create consolidation task: No leader available for assignment");
-      return;
-    }
+  const leaderInfo = getHighestAvailableLeader(recipient);
+  
+  if (!leaderInfo.hasLeader) {
+    setError("Cannot create consolidation task: No leader available for assignment");
+    return;
+  }
 
-    // Double-check consolidation status
-    const finalCheck = checkIfAlreadyConsolidated(recipient);
-    if (finalCheck) {
-      setError("This person has already been consolidated. Please select someone else.");
-      return;
-    }
+  const finalCheck = checkIfAlreadyConsolidated(recipient);
+  if (finalCheck) {
+    setError("This person has already been consolidated. Please select someone else.");
+    return;
+  }
 
-    // Generate a unique memberID if not available
-    const memberID = recipient._id || recipient.id || `consolidation-${Date.now()}`;
-    
-    // Map task stage to backend decision type
-    const decisionType = taskStage.toLowerCase();
-    
-    // Prepare task data according to your EXACT backend TaskModel schema
-    const taskData = {
-      name: `Consolidation: ${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
-      taskType: "Church - Consolidation",
-      description: `Follow up with ${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname} who made a ${taskStage.toLowerCase()}`,
-      followup_date: new Date().toISOString(),
-      status: "Open",
-      assignedfor: leaderInfo.leader, // Using the highest available leader
-      type: "followup",
-      priority: "high",
-      memberID: memberID,
-      contacted_person: {
-        name: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
-        email: recipient.Email || recipient.email || "",
-        phone: recipient.Phone || recipient.phone || ""
-      },
-      // Add consolidation-specific fields
-      consolidation_type: taskStage,
-      decision_type: decisionType,
-      recipient_name: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
-      recipient_email: recipient.Email || recipient.email || "",
-      recipient_phone: recipient.Phone || recipient.phone || "",
-      decision_date: new Date().toISOString().split('T')[0],
-      // Add any other required fields
-      taskName: `Consolidation - ${taskStage}`,
-      assignedTo: leaderInfo.leader,
-      email: recipient.Email || recipient.email || "",
-      leader_level: leaderInfo.level
-    };
-
-    console.log("📤 Sending task data to backend:", taskData);
-    console.log("🎯 Decision Type:", decisionType);
-    console.log("👥 Assigned To Highest Leader:", leaderInfo.leader);
-    console.log("📊 Level Info:", { level: leaderInfo.level });
-
-    setLoading(true);
-
-    try {
-      const token = localStorage.getItem("token");
-      console.log("🔑 Token available:", !!token);
-
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
-
-      const response = await axios.post(`${BASE_URL}/tasks`, taskData, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log("✅ Task creation response:", response.data);
-
-      // Call onFinish with consolidation data for service check-in
-      onFinish({
-        ...response.data,
-        consolidatedCount: 1,
-        recipientName: taskData.recipient_name,
-        assignedTo: taskData.assignedfor,
-        taskStage: taskData.consolidation_type,
-        decisionType: decisionType,
-        leaderLevel: leaderInfo.level
-      });
-      
-      onClose();
-      
-      // Reset form
-      setRecipient(null);
-      setAssignedTo("");
-      setTaskStage("");
-      setAlreadyConsolidated(false);
-      
-    } catch (err) {
-      console.error("❌ Error creating consolidation task:", err);
-      
-      // Detailed error logging
-      if (err.response) {
-        console.error("📡 Server response error:", {
-          status: err.response.status,
-          data: err.response.data,
-        });
-        
-        // Show validation errors if available
-        if (err.response.data && err.response.data.detail) {
-          if (Array.isArray(err.response.data.detail)) {
-            // Pydantic validation errors
-            const errorMessages = err_response.data.detail.map(error => 
-              `${error.loc && error.loc[1] ? error.loc[1] : 'Field'}: ${error.msg}`
-            ).join(', ');
-            setError(`Validation errors: ${errorMessages}`);
-          } else {
-            setError(`Server error: ${err.response.data.detail}`);
-          }
-        } else {
-          setError(`Server error: ${err.response.status} - ${err.response.data?.message || 'Unknown error'}`);
-        }
-      } else if (err.request) {
-        console.error("🌐 Network error:", err.request);
-        setError("Network error: Could not connect to server. Please check your connection.");
-      } else {
-        console.error("⚡ Request setup error:", err.message);
-        setError(`Request error: ${err.message}`);
-      }
-    } finally {
-      setLoading(false);
-    }
+  const decisionType = taskStage.toLowerCase() === 'recommitment' ? 'recommitment' : 'first_time';
+  
+  // Get leader's email from the cached people data
+  const leaderEmail = await findLeaderEmail(leaderInfo.leader);
+  
+  const consolidationData = {
+    person_name: recipient.Name || recipient.name,
+    person_surname: recipient.Surname || recipient.surname,
+    person_email: recipient.Email || recipient.email || "",
+    person_phone: recipient.Phone || recipient.phone || "",
+    decision_type: decisionType,
+    decision_date: new Date().toISOString().split('T')[0],
+    assigned_to: leaderInfo.leader,
+    assigned_to_email: leaderEmail, // Add leader's email
+    event_id: currentEventId,
+    leaders: [
+      recipient["Leader @1"] || recipient.leader1 || "",
+      recipient["Leader @12"] || recipient.leader12 || "",
+      recipient["Leader @144"] || recipient.leader144 || "",
+      recipient["Leader @1728"] || recipient.leader1728 || ""
+    ]
   };
 
-  // Handle Enter key press
+  console.log("📤 Sending consolidation data to backend:", consolidationData);
+  console.log("👥 Leader assignment:", {
+    leader: leaderInfo.leader,
+    email: leaderEmail,
+    level: leaderInfo.level
+  });
+
+  setLoading(true);
+
+  try {
+    const token = localStorage.getItem("token");
+    console.log("🔑 Token available:", !!token);
+
+    if (!token) {
+      throw new Error("No authentication token found");
+    }
+
+    // Create consolidation record
+    const response = await axios.post(`${BASE_URL}/consolidations`, consolidationData, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log("✅ Consolidation creation response:", response.data);
+
+    onFinish({
+      ...response.data,
+      recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
+      assignedTo: leaderInfo.leader,
+      taskStage: taskStage,
+      decisionType: decisionType,
+      leaderLevel: leaderInfo.level,
+      task_id: response.data.task_id,
+      recipient_email: recipient.Email || recipient.email || "",
+      recipient_phone: recipient.Phone || recipient.phone || "",
+      leader_email: leaderEmail
+    });
+    
+    onClose();
+    
+    setRecipient(null);
+    setAssignedTo("");
+    setTaskStage("");
+    setAlreadyConsolidated(false);
+    
+  } catch (err) {
+    console.error("❌ Error creating consolidation:", err);
+    
+    if (err.response) {
+      console.error("📡 Server response error:", {
+        status: err.response.status,
+        data: err.response.data,
+      });
+      
+      if (err.response.data && err.response.data.detail) {
+        setError(`Server error: ${err.response.data.detail}`);
+      } else {
+        setError(`Server error: ${err.response.status} - ${err.response.data?.message || 'Unknown error'}`);
+      }
+    } else if (err.request) {
+      console.error("🌐 Network error:", err.request);
+      setError("Network error: Could not connect to server. Please check your connection.");
+    } else {
+      console.error("⚡ Request setup error:", err.message);
+      setError(`Request error: ${err.message}`);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Helper function to find leader's email
+const findLeaderEmail = async (leaderName) => {
+  if (!leaderName) return "";
+  
+  try {
+    // First try to search in the cached people data
+    const cachedLeader = people_cache.data.find(person => 
+      person.FullName?.toLowerCase() === leaderName.toLowerCase() ||
+      person.Name?.toLowerCase() === leaderName.toLowerCase()
+    );
+    
+    if (cachedLeader?.Email) {
+      console.log(`✅ Found leader email in cache: ${cachedLeader.Email}`);
+      return cachedLeader.Email;
+    }
+    
+    // If not found in cache, try API search
+    const token = localStorage.getItem("token");
+    const searchResponse = await axios.get(`${BASE_URL}/people/search`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      params: {
+        query: leaderName,
+        limit: 5
+      }
+    });
+    
+    if (searchResponse.data?.results?.length > 0) {
+      const foundLeader = searchResponse.data.results.find(person => 
+        person.Name?.toLowerCase() === leaderName.toLowerCase() ||
+        person.FullName?.toLowerCase() === leaderName.toLowerCase()
+      );
+      
+      if (foundLeader?.Email) {
+        console.log(`✅ Found leader email via API: ${foundLeader.Email}`);
+        return foundLeader.Email;
+      }
+    }
+    
+    console.log(`⚠️ Could not find email for leader: ${leaderName}`);
+    return "";
+    
+  } catch (error) {
+    console.error("Error searching for leader email:", error);
+    return "";
+  }
+};
+
   const handleKeyPress = (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -390,14 +401,12 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
   };
 
-  // Input styles
   const roundedInput = {
     "& .MuiOutlinedInput-root": {
       borderRadius: "15px",
     },
   };
 
-  // Render person option with consolidation status
   const renderPersonOption = (props, option) => {
     const fullName = `${option.Name || option.name || ""} ${option.Surname || option.surname || ""}`.trim();
     const isConsolidated = checkIfAlreadyConsolidated(option);
@@ -458,7 +467,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           </Alert>
         )}
 
-        {/* Task Type */}
         <TextField
           label="Task Type"
           value="Church - Consolidation"
@@ -468,7 +476,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           sx={roundedInput}
         />
 
-        {/* Recipient Search */}
         <Autocomplete
           options={recipients}
           loading={loadingRecipients}
@@ -502,7 +509,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           )}
         />
 
-        {/* Assigned To (Highest Leader) - AUTO-SET */}
         <TextField
           label="Assigned To Leader"
           value={assignedTo}
@@ -518,7 +524,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           sx={roundedInput}
         />
 
-        {/* Date & Time */}
         <TextField
           label="Due Date & Time"
           value={dateTime}
@@ -529,7 +534,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           sx={roundedInput}
         />
 
-        {/* Decision Type - Only two options */}
         <TextField
           select
           label="Decision Type *"
@@ -549,7 +553,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           ))}
         </TextField>
 
-        {/* Status */}
         <TextField
           label="Status"
           value="Open"

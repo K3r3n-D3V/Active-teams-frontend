@@ -53,6 +53,16 @@ const formatDate = (dateString) => {
   }
 };
 
+// ADD: Same toArray function from ServiceCheckIn
+const toArray = (resData) =>
+  Array.isArray(resData)
+    ? resData
+    : Array.isArray(resData?.results)
+      ? resData.results
+      : Array.isArray(resData?.events)
+        ? resData.events
+        : [];
+
 function EventHistory({ 
   onViewDetails,
   onViewNewPeople,
@@ -80,6 +90,7 @@ function EventHistory({
 
   const displayEvents = events.length > 0 ? events : localEvents;
 
+  // UPDATED: Fetch events in the same way as ServiceCheckIn but for closed events
   const fetchEvents = async () => {
     if (events.length > 0) return;
 
@@ -98,7 +109,8 @@ function EventHistory({
         throw new Error('Authentication token not found. Please log in again.');
       }
       
-      const response = await fetch(`${API_URL}/events`, {
+      // UPDATED: Use the same endpoint as ServiceCheckIn but filter for closed events
+      const response = await fetch(`${API_URL}/events/global`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -119,18 +131,50 @@ function EventHistory({
 
       const data = await response.json();
       
-      const closedGlobalEvents = (data.events || []).filter(event => {
-        const isClosed = event.status?.toLowerCase() === 'closed';
-        const isGlobal = event.isGlobal === true;
-        const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      console.log('📋 Raw events data for history:', data);
+
+      // Handle different response structures using toArray
+      const eventsData = toArray(data);
+      
+      // UPDATED: Filter for closed/completed global events - same logic as ServiceCheckIn
+      const closedGlobalEvents = eventsData.filter(event => {
+        const isClosed = event.status?.toLowerCase() === 'closed' || 
+                        event.status?.toLowerCase() === 'complete' ||
+                        event.status?.toLowerCase() === 'completed';
         
-        return isClosed && isGlobal && isNotCell;
+        const isGlobal = event.isGlobal === true || 
+                        event.eventType === "Global Events" || 
+                        event.eventType === "global" ||
+                        event.eventType?.toLowerCase().includes("global");
+
+        console.log(`🔍 Event History Check: ${event.eventName}`, {
+          id: event._id || event.id,
+          isClosed,
+          isGlobal,
+          status: event.status,
+          eventType: event.eventType
+        });
+
+        return isClosed && isGlobal;
       });
 
+      console.log('✅ Closed Global Events for History:', closedGlobalEvents.map(e => ({
+        id: e._id || e.id,
+        name: e.eventName,
+        type: e.eventType,
+        status: e.status
+      })));
+
+      // UPDATED: Use same transformation as ServiceCheckIn
       const transformedEvents = closedGlobalEvents.map(event => ({
         id: event._id || event.id,
-        eventName: event.eventName || event["Event Name"] || "Unnamed Event",
-        date: event.date || event.createdAt || event["Date Of Event"],
+        eventName: event.eventName || event.name || "Unnamed Event",
+        status: event.status || "closed",
+        isGlobal: event.isGlobal || true,
+        isTicketed: event.isTicketed || false,
+        date: event.date || event.createdAt || event.created_at,
+        eventType: event.eventType || "Global Events",
+        // Include additional data that might be needed
         total_attendance: event.total_attendance || event.attendees?.length || 0,
         attendees: event.attendees || [],
         newPeople: event.newPeople || [],
@@ -147,9 +191,27 @@ function EventHistory({
     }
   };
 
+  // UPDATED: Check localStorage for cached events on component mount
   useEffect(() => {
-    // Don't automatically fetch - only fetch when explicitly requested
-  }, []);
+    const cachedEvents = localStorage.getItem("events");
+    if (cachedEvents && !events.length) {
+      try {
+        const parsedEvents = JSON.parse(cachedEvents);
+        // Filter cached events for closed ones
+        const closedCachedEvents = parsedEvents.filter(event => 
+          event.status?.toLowerCase() === 'closed' || 
+          event.status?.toLowerCase() === 'complete' ||
+          event.status?.toLowerCase() === 'completed'
+        );
+        if (closedCachedEvents.length > 0) {
+          setLocalEvents(closedCachedEvents);
+          setHasFetched(true);
+        }
+      } catch (error) {
+        console.error('Error parsing cached events:', error);
+      }
+    }
+  }, [events.length]);
 
   const getEventStats = (event) => {
     const attendance = event.total_attendance || event.attendees?.length || 0;
@@ -357,6 +419,13 @@ function EventHistory({
               <Typography variant="body2" color="text.secondary">
                 {formatDate(event.rawEvent.date)}
               </Typography>
+              <Chip 
+                label={event.rawEvent.status || 'Closed'} 
+                size="small" 
+                color="default"
+                variant="outlined"
+                sx={{ mt: 0.5 }}
+              />
             </Box>
           </Box>
 
