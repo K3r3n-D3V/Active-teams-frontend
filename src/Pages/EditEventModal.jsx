@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTheme } from "@mui/material/styles";
 
 // small helper hook for responsiveness
 function useWindowSize() {
@@ -18,6 +19,7 @@ function useWindowSize() {
 }
 
 const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
+  const theme = useTheme();
   const [formData, setFormData] = useState({
     eventName: "",
     eventLeader: "",
@@ -58,6 +60,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
 
   const { width } = useWindowSize();
   const isSmall = (width || 0) <= 420; // targets small phones
+  const isDark = theme.palette.mode === "dark";
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -97,7 +100,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0,0,0,0.7)",
+      background: isDark ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.45)",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
@@ -105,52 +108,53 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       padding: isSmall ? "12px" : "20px",
     },
     modal: {
-      background: "#1e1e1e", // dark modal background
-      borderRadius: "12px",
+      background: isDark ? theme.palette.background.paper : "#fff",
+      borderRadius: 12,
       width: "100%",
-      maxWidth: isSmall ? "96%" : "700px",
+      maxWidth: isSmall ? "96%" : 700,
       maxHeight: "90vh",
       overflowY: "auto",
       padding: isSmall ? "14px" : "24px",
-      color: "#f1f1f1",
-      boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+      color: theme.palette.text.primary,
+      boxShadow: theme.shadows[24],
+      border: isDark ? `1px solid ${theme.palette.divider}` : "1px solid rgba(0,0,0,0.08)",
     },
     title: {
-      fontSize: isSmall ? "18px" : "22px",
-      fontWeight: "600",
-      marginBottom: "24px",
-      color: "#fff",
+      fontSize: isSmall ? 18 : 22,
+      fontWeight: 600,
+      marginBottom: 24,
+      color: theme.palette.text.primary,
       textAlign: "center",
     },
     formGroup: {
-      marginBottom: "16px",
+      marginBottom: 16,
     },
     label: {
       display: "block",
-      fontSize: "14px",
-      fontWeight: "500",
-      color: "#ccc",
-      marginBottom: "6px",
+      fontSize: 14,
+      fontWeight: 500,
+      color: theme.palette.text.secondary,
+      marginBottom: 6,
     },
     input: {
       width: "100%",
       padding: isSmall ? "8px 10px" : "10px 12px",
-      fontSize: isSmall ? "13px" : "14px",
-      borderRadius: "6px",
-      border: "1px solid #555",
-      backgroundColor: "#2b2b2b",
-      color: "#fff",
+      fontSize: isSmall ? 13 : 14,
+      borderRadius: 6,
+      border: `1px solid ${isDark ? theme.palette.divider : "rgba(0,0,0,0.12)"}`,
+      backgroundColor: isDark ? theme.palette.background.default : "#fff",
+      color: theme.palette.text.primary,
       outline: "none",
       boxSizing: "border-box",
     },
     readOnlyInput: {
       width: "100%",
       padding: isSmall ? "8px 10px" : "10px 12px",
-      fontSize: isSmall ? "13px" : "14px",
-      borderRadius: "6px",
-      border: "1px solid #555",
-      backgroundColor: "#333",
-      color: "#999",
+      fontSize: isSmall ? 13 : 14,
+      borderRadius: 6,
+      border: `1px solid ${theme.palette.divider}`,
+      backgroundColor: isDark ? "#2b2b2b" : "#f5f5f5",
+      color: isDark ? theme.palette.text.secondary : "#666",
       outline: "none",
       boxSizing: "border-box",
       cursor: "not-allowed",
@@ -158,52 +162,52 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     checkboxGroup: {
       display: "flex",
       alignItems: "center",
-      gap: "12px",
+      gap: 12,
     },
     checkbox: {
-      width: "16px",
-      height: "16px",
-      accentColor: "#2563eb", // blue checkbox in dark mode
+      width: 16,
+      height: 16,
+      accentColor: theme.palette.primary.main,
     },
     buttonGroup: {
       display: "flex",
-      gap: "12px",
-      marginTop: "18px",
+      gap: 12,
+      marginTop: 18,
       justifyContent: "flex-end",
       flexDirection: isSmall ? "column-reverse" : "row",
     },
     cancelBtn: {
       padding: isSmall ? "10px" : "10px 20px",
       background: "transparent",
-      border: "1px solid #555",
-      borderRadius: "6px",
-      color: "#ccc",
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 6,
+      color: theme.palette.text.secondary,
       cursor: "pointer",
-      fontSize: "14px",
-      fontWeight: "500",
+      fontSize: 14,
+      fontWeight: 500,
       transition: "all 0.2s ease",
       width: isSmall ? "100%" : "auto",
     },
     saveBtn: {
       padding: isSmall ? "10px" : "10px 20px",
-      background: "#2563eb",
+      background: theme.palette.primary.main,
       border: "none",
-      borderRadius: "6px",
-      color: "#fff",
+      borderRadius: 6,
+      color: theme.palette.primary.contrastText,
       cursor: "pointer",
-      fontSize: "14px",
-      fontWeight: "500",
+      fontSize: 14,
+      fontWeight: 500,
       transition: "all 0.2s ease",
       width: isSmall ? "100%" : "auto",
     },
     infoBox: {
-      background: "#2b2b2b",
-      border: "1px solid #555",
-      borderRadius: "6px",
+      background: isDark ? theme.palette.background.default : "#f7f7f7",
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 6,
       padding: isSmall ? "10px" : "12px",
       marginBottom: isSmall ? "12px" : "16px",
-      fontSize: isSmall ? "12px" : "12px",
-      color: "#999",
+      fontSize: isSmall ? 12 : 12,
+      color: theme.palette.text.secondary,
     },
   };
 
@@ -333,19 +337,19 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         </div>
 
         <div style={styles.buttonGroup}>
-          <button 
-            style={styles.cancelBtn} 
+          <button
+            style={styles.cancelBtn}
             onClick={onClose}
-            onMouseEnter={(e) => e.target.style.background = "#333"}
-            onMouseLeave={(e) => e.target.style.background = "transparent"}
+            onMouseEnter={(e) => { if (!isDark) e.currentTarget.style.background = "#f5f5f5"; else e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
           >
             CANCEL
           </button>
-          <button 
-            style={styles.saveBtn} 
+          <button
+            style={styles.saveBtn}
             onClick={handleSave}
-            onMouseEnter={(e) => e.target.style.background = "#1e40af"}
-            onMouseLeave={(e) => e.target.style.background = "#2563eb"}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = 0.95}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
           >
             SAVE
           </button>

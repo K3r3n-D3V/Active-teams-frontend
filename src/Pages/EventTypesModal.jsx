@@ -8,8 +8,9 @@ import {
   Checkbox,
   Typography,
   useTheme,
+  IconButton,
 } from "@mui/material";
-
+import CloseIcon from '@mui/icons-material/Close';
 const EventTypesModal = ({
   open,
   onClose,
@@ -30,6 +31,39 @@ const EventTypesModal = ({
   const [errors, setErrors] = useState({});
   const nameInputRef = useRef(null);
   const isDarkMode = theme.palette.mode === "dark";
+
+  // theme-aware dark/light styles
+  const darkModeStyles = {
+    modalBg: isDarkMode ? theme.palette.background.paper : "#fff",
+    modalBorder: isDarkMode ? `1px solid ${theme.palette.divider}` : "1px solid rgba(0,0,0,0.08)",
+    headerBg: isDarkMode ? theme.palette.background.default : theme.palette.primary.main,
+    headerColor: isDarkMode ? theme.palette.text.primary : theme.palette.primary.contrastText,
+    textColor: theme.palette.text.primary,
+    input: {
+      "& .MuiOutlinedInput-root": {
+        bgcolor: isDarkMode ? "#272727" : "#fff",
+        color: theme.palette.text.primary,
+        "& fieldset": {
+          borderColor: isDarkMode ? theme.palette.divider : "rgba(0,0,0,0.23)",
+        },
+        "&:hover fieldset": {
+          borderColor: theme.palette.primary.main,
+        },
+        "&.Mui-focused fieldset": {
+          borderColor: theme.palette.primary.main,
+        },
+      },
+      "& .MuiFormHelperText-root": {
+        color: isDarkMode ? theme.palette.text.secondary : "rgba(0,0,0,0.6)",
+      },
+      "& .MuiInputLabel-root": {
+        color: isDarkMode ? theme.palette.text.secondary : "rgba(0,0,0,0.6)",
+      },
+    },
+    formControlLabel: {
+      color: theme.palette.text.primary,
+    },
+  };
 
   // ✅ Validation
   const validateForm = () => {
@@ -67,6 +101,18 @@ const EventTypesModal = ({
 
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  // live character counts for helper text
+  const nameCharCount = formData.name ? formData.name.length : 0;
+  const descCharCount = formData.description ? formData.description.length : 0;
+
+  // handle Enter key on the name field: submit on Enter (no Shift), allow Shift+Enter for newline in multiline fields
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!loading) handleSubmit();
     }
   };
 
@@ -144,6 +190,16 @@ const EventTypesModal = ({
     }
   }, [open]);
 
+  // ✅ Close handler (prevents closing while saving)
+  const handleClose = () => {
+    if (loading) return; // don't allow closing while submitting
+    resetForm();
+    if (typeof setSelectedEventTypeObj === "function") {
+      setSelectedEventTypeObj(null);
+    }
+    if (typeof onClose === "function") onClose();
+  };
+
   // responsive helpers (smaller devices)
   const { breakpoints } = theme;
 
@@ -161,23 +217,23 @@ const EventTypesModal = ({
        <Box
          sx={{
           width: { xs: "95%", sm: "85%", md: "700px" },
-           maxWidth: "700px",
-           bgcolor: isDarkMode ? 'background.paper' : 'background.default',
-           color: 'text.primary',
-           borderRadius: "12px",
-           boxShadow: theme.shadows[10],
-           overflow: "hidden",
-           maxHeight: "90vh",
-           display: "flex",
-           flexDirection: "column",
-           border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
+          maxWidth: "700px",
+          bgcolor: darkModeStyles.modalBg,
+          color: darkModeStyles.textColor,
+          borderRadius: 2,
+          boxShadow: theme.shadows[10],
+          overflow: "hidden",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          border: darkModeStyles.modalBorder,
          }}
        >
          {/* Header */}
          <Box
            sx={{
-             backgroundColor: isDarkMode ? 'primary.dark' : 'primary.main',
-             color: 'primary.contrastText',
+             backgroundColor: darkModeStyles.headerBg,
+             color: darkModeStyles.headerColor,
              padding: { xs: "12px 16px", sm: "16px 20px", md: "20px 24px" },
              display: "flex",
              justifyContent: "space-between",
@@ -220,16 +276,9 @@ const EventTypesModal = ({
              }
              placeholder="Enter event type name..."
              disabled={loading}
-             sx={{
-               mb: 3,
-               '& .MuiOutlinedInput-root': {
-                 '&:hover fieldset': {
-                   borderColor: 'primary.main',
-                 },
-               },
-             }}
+             sx={{ mb: 3, ...darkModeStyles.input }}
            />
-
+ 
            {/* Checkboxes */}
            <Box
              sx={{
@@ -251,6 +300,7 @@ const EventTypesModal = ({
                  />
                }
                label="Ticketed Event"
+               sx={{ color: darkModeStyles.formControlLabel.color }}
              />
              <FormControlLabel
                control={
@@ -263,6 +313,7 @@ const EventTypesModal = ({
                  />
                }
                label="Global Event"
+               sx={{ color: darkModeStyles.formControlLabel.color }}
              />
              <FormControlLabel
                control={
@@ -275,9 +326,10 @@ const EventTypesModal = ({
                  />
                }
                label="Personal Steps Event"
+               sx={{ color: darkModeStyles.formControlLabel.color }}
              />
            </Box>
-
+ 
            {/* Description */}
            <TextField
              label="Event Description"
@@ -296,16 +348,9 @@ const EventTypesModal = ({
              }
              placeholder="Enter a detailed description of this event type..."
              disabled={loading}
-             sx={{
-               mb: 3,
-               '& .MuiOutlinedInput-root': {
-                 '&:hover fieldset': {
-                   borderColor: 'primary.main',
-                 },
-               },
-             }}
+             sx={{ mb: 3, ...darkModeStyles.input }}
            />
-
+ 
            {/* Buttons - responsive: stack on xs */}
            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mt: 3, flexDirection: { xs: "column-reverse", sm: "row" } }}>
              <Button
