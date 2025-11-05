@@ -687,6 +687,7 @@ const Events = () => {
     if (!forceRefresh) {
       const cachedData = getCachedData(cacheKey);
       if (cachedData) {
+        // ✅ BACKEND NOW HANDLES DEDUPLICATION - Use events directly
         setEvents(cachedData.events);
         setFilteredEvents(cachedData.events);
         setTotalEvents(cachedData.total_events);
@@ -698,16 +699,33 @@ const Events = () => {
       }
     }
 
-    // Fetch data
-    const response = await axios.get(endpoint, { headers, params, timeout: 60000 });
+    const endpoint = `${BACKEND_URL}/events`;
+
+    console.log('Fetching events with params:', params);
+
+    const response = await axios.get(endpoint, {
+      headers,
+      params,
+      timeout: 60000
+    });
+
     const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
 
-    // Map data: leaders endpoint returns 'cells', normal events endpoint may use 'events' or 'results'
-    const newEvents = responseData.cells || responseData.events || responseData.results || [];
-    const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-    const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+    // ✅ BACKEND NOW HANDLES DEDUPLICATION - Use events directly from backend
+    console.log('✅ Backend returned events:', newEvents.length);
+    
+    // Debug: Check for any remaining duplicates (should be 0)
+    const eventIds = newEvents.map(e => e._id);
+    const uniqueIds = new Set(eventIds);
+    if (eventIds.length !== uniqueIds.size) {
+      console.warn('⚠️ Backend still returning duplicates:', {
+        totalEvents: eventIds.length,
+        uniqueEvents: uniqueIds.size,
+        duplicates: eventIds.length - uniqueIds.size
+      });
+    }
 
-    // Cache it
     setCachedData(cacheKey, {
       events: newEvents,
       total_events: totalEventsCount,
@@ -763,6 +781,51 @@ const Events = () => {
 
   const fetchEventTypes = async () => {
     try {
+};
+
+const validateEventStatus = (event) => {
+  const status = (event.status || '').toLowerCase();
+  const hasAttendees = event.attendees && event.attendees.length > 0;
+  const didNotMeet = event.did_not_meet || false;
+  
+  // If event is marked as complete but has no attendees and didn't meet, it's invalid
+  if (status === 'complete' && !hasAttendees && !didNotMeet) {
+    return 'incomplete';
+  }
+  
+  return status;
+};
+
+  const handleFetchError = (err) => {
+    if (err.response?.status === 401) {
+      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.detail || "Error loading events. Please try again.",
+        severity: "error",
+      });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+ 
+useEffect(() => {
+  console.log('Available event types:', eventTypes);
+  console.log('Selected event type filter:', selectedEventTypeFilter);
+}, [eventTypes, selectedEventTypeFilter]);
+
+  useEffect(() => {
+    const checkAuth = () => {
       const token = localStorage.getItem("token");
       const response = await fetch(`${BACKEND_URL}/event-types`, {
         headers: {
@@ -876,22 +939,23 @@ const Events = () => {
   };
 
   const handleSearchChange = (e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
+  const value = e.target.value;
+  setSearchQuery(value);
 
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+  if (searchTimeoutRef.current) {
+    clearTimeout(searchTimeoutRef.current);
+  }
+
+  searchTimeoutRef.current = setTimeout(() => {
+    const trimmedSearch = value.trim();
+
+    let shouldApplyPersonalFilter = undefined;
+    if (userRole === "admin" || userRole === "leader at 12") {
+      shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
     }
 
-    searchTimeoutRef.current = setTimeout(() => {
-      const trimmedSearch = value.trim();
-
-      let shouldApplyPersonalFilter = undefined;
-      if (userRole === "admin" || userRole === "leader at 12") {
-        shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
-      }
-
-      setCurrentPage(1);
+    setCurrentPage(1);
+    clearCache(); // Clear cache on search
 
       fetchEvents({
         page: 1,
@@ -1068,56 +1132,64 @@ const Events = () => {
   };
 
   const handleAttendanceSubmit = async (data) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      const eventId = selectedEvent._id;
-      const eventName = selectedEvent.eventName || 'Event';
+  try {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+    const eventId = selectedEvent._id;
+    const eventName = selectedEvent.eventName || 'Event';
 
-      const leaderEmail = currentUser?.email || '';
-      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
+    const leaderEmail = currentUser?.email || '';
+    const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
-      let payload;
+    let payload;
 
-      if (data === "did_not_meet") {
-        payload = {
-          attendees: [],
-          leaderEmail,
-          leaderName,
-          did_not_meet: true,
-        };
-      } else if (Array.isArray(data)) {
-        payload = {
-          attendees: data,
-          leaderEmail,
-          leaderName,
-          did_not_meet: false,
-        };
-      } else {
-        payload = data;
-      }
+    if (data === "did_not_meet") {
+      payload = {
+        attendees: [],
+        all_attendees: [], // Send empty array for did_not_meet
+        leaderEmail,
+        leaderName,
+        did_not_meet: true,
+      };
+    } else if (Array.isArray(data)) {
+      // Legacy support - if only array is sent
+      payload = {
+        attendees: data,
+        all_attendees: data, // Use same array as persistent
+        leaderEmail,
+        leaderName,
+        did_not_meet: false,
+      };
+    } else {
+      // New format with both attendees and all_attendees
+      payload = {
+        ...data,
+        leaderEmail,
+        leaderName,
+      };
+    }
 
-      const response = await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        payload,
-        { headers }
-      );
+    const response = await axios.put(
+      `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+      payload,
+      { headers }
+    );
 
-      await fetchEvents();
+    await fetchEvents();
 
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
+    setAttendanceModalOpen(false);
+    setSelectedEvent(null);
 
-      setSnackbar({
-        open: true,
-        message: payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
+    setSnackbar({
+      open: true,
+      message: payload.did_not_meet
+        ? `${eventName} marked as 'Did Not Meet'.`
+        : `Successfully captured attendance for ${eventName}`,
+      severity: "success",
+    });
 
-      return { success: true, message: "Attendance submitted successfully" };
-    } catch (error) {
+    return { success: true, message: "Attendance submitted successfully" };
+  } catch (error) {
       console.error("Error in handleAttendanceSubmit:", error);
       const errData = error.response?.data;
       let errorMessage = error.message;

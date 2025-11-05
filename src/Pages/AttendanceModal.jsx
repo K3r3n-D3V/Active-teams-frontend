@@ -43,6 +43,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     }
   }, [isOpen]);
 
+<<<<<<< Updated upstream
   const loadPreloadedPeople = async () => {
     const now = Date.now();
     if (globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
@@ -94,6 +95,8 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       }
     }
   };
+=======
+>>>>>>> Stashed changes
 
   const fetchInviters = async (searchTerm) => {
     if (!searchTerm || searchTerm.length < 1) {
@@ -1319,7 +1322,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         setPreloadedPeople(globalPeopleCache.data);
       }
     }
-  };
+  }
 
     // Helper function to get current week identifier
   function get_current_week_identifier() {
@@ -1329,16 +1332,16 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     return `${year}-W${week.toString().padStart(2, '0')}`;
   }
 
-  
-  function getWeekNumber(date) {
+function getWeekNumber(date) {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     const dayNum = d.getUTCDay() || 7;
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-  }
+}
 
-  // Fixed fetchPeople function
+
+
   const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
     const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
 
@@ -1467,10 +1470,12 @@ const loadExistingAttendance = async () => {
     const eventId = event._id || event.id;
     console.log("📥 Loading attendance data for event:", eventId);
 
-    // ✅ FIX: Check if THIS WEEK has been captured using weekly tracking
-    const currentWeek = get_current_week_identifier();
+    const currentWeek = getCurrentWeekIdentifier();
     
-    // Check if current week has attendance data
+    // ✅ FIX: Load persistent attendees list (these always show up)
+    const persistentList = event.persistent_attendees || [];
+    
+    // Check if THIS WEEK has been captured
     const hasCurrentWeekData = 
         event.attendance && 
         event.attendance[currentWeek] && 
@@ -1484,11 +1489,11 @@ const loadExistingAttendance = async () => {
         event.attendance[currentWeek].status === 'did_not_meet';
 
     console.log(`🔍 Current week: ${currentWeek}`);
+    console.log(`📊 Persistent attendees: ${persistentList.length}`);
     console.log(`📊 Has current week data: ${hasCurrentWeekData}`);
     console.log(`📊 Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
-    console.log(`📊 Event attendance object:`, event.attendance);
 
-    // ✅ CASE 1: Current week has been captured as "complete"
+    // ✅ CASE 1: Current week HAS been captured - show checked state
     if (hasCurrentWeekData) {
         console.log("✅ Current week HAS been captured - loading checked state");
 
@@ -1496,76 +1501,29 @@ const loadExistingAttendance = async () => {
         const newCheckedIn = {};
         const newDecisions = {};
         const newDecisionTypes = {};
-        const newPriceTiers = {};
-        const newPaymentMethods = {};
-        const newPaidAmounts = {};
 
-        const checkedInAttendees = [];
+        // Only mark as checked if they were in THIS week's attendees list
+        weekData.attendees.forEach(attendee => {
+            if (attendee.id) {
+                newCheckedIn[attendee.id] = true;
 
-        if (weekData.attendees && Array.isArray(weekData.attendees)) {
-            weekData.attendees.forEach(attendee => {
-                if (attendee.id) {
-                    newCheckedIn[attendee.id] = true;
-
-                    const personObj = {
-                        id: attendee.id,
-                        fullName: attendee.fullName || attendee.name || "Unknown Person",
-                        email: attendee.email || "",
-                        leader12: attendee.leader12 || "",
-                        leader144: attendee.leader144 || "",
-                        phone: attendee.phone || "",
-                    };
-
-                    checkedInAttendees.push(personObj);
-
-                    if (attendee.decision) {
-                        newDecisions[attendee.id] = true;
-                        newDecisionTypes[attendee.id] = attendee.decision;
-                    }
-
-                    if (isTicketedEvent) {
-                        if (attendee.priceTier) {
-                            newPriceTiers[attendee.id] = {
-                                name: attendee.priceTier,
-                                price: attendee.price || 0,
-                                ageGroup: attendee.ageGroup || "",
-                                memberType: attendee.memberType || ""
-                            };
-                        }
-                        if (attendee.paymentMethod) {
-                            newPaymentMethods[attendee.id] = attendee.paymentMethod;
-                        }
-                        if (attendee.paid !== undefined) {
-                            newPaidAmounts[attendee.id] = attendee.paid;
-                        }
-                    }
+                if (attendee.decision) {
+                    newDecisions[attendee.id] = true;
+                    newDecisionTypes[attendee.id] = attendee.decision;
                 }
-            });
-        }
-
-        const updatedPersistentAttendees = [...persistentCommonAttendees];
-        checkedInAttendees.forEach(checkedInPerson => {
-            if (!updatedPersistentAttendees.some(p => p.id === checkedInPerson.id)) {
-                updatedPersistentAttendees.push(checkedInPerson);
             }
         });
-        
-        setPersistentCommonAttendees(updatedPersistentAttendees);
-        savePersistentCommonAttendees(updatedPersistentAttendees);
 
+        // Load the persistent list (ALL names)
+        setPersistentCommonAttendees(persistentList);
+        
+        // Load the check-in states (only checked people)
         setCheckedIn(newCheckedIn);
         setDecisions(newDecisions);
         setDecisionTypes(newDecisionTypes);
-        setPriceTiers(newPriceTiers);
-        setPaymentMethods(newPaymentMethods);
-        setPaidAmounts(newPaidAmounts);
         setDidNotMeet(false);
 
-        console.log("✅ Loaded current week state:", {
-            checkedCount: Object.keys(newCheckedIn).length,
-            persistentCount: updatedPersistentAttendees.length
-        });
-
+        console.log(`✅ Loaded: ${persistentList.length} names, ${Object.keys(newCheckedIn).length} checked`);
     } 
     // ✅ CASE 2: Current week marked as "did not meet"
     else if (hasCurrentWeekDidNotMeet) {
@@ -1573,75 +1531,33 @@ const loadExistingAttendance = async () => {
         
         setDidNotMeet(true);
         setCheckedIn({});
-        setDecisions({});
-        setDecisionTypes({});
-        setPriceTiers({});
-        setPaymentMethods({});
-        setPaidAmounts({});
-        setManualHeadcount("");
+        setPersistentCommonAttendees(persistentList);
         
     }
-    // ✅ CASE 3: NEW WEEK - Start fresh with people listed but NOT checked
+    // ✅ CASE 3: NEW WEEK - Show names but nothing checked
     else {
-        console.log("🆕 NEW WEEK - Starting fresh (people listed but NOT checked)");
+        console.log("🆕 NEW WEEK - Names listed but NOTHING checked");
 
-        // Load last week's attendees as unchecked reference
-        try {
-            const token = localStorage.getItem("token");
-            const response = await fetch(
-                `${BACKEND_URL}/events/${eventId}/last-attendance`,
-                {
-                    headers: { Authorization: `Bearer ${token}` }
-                }
-            );
+        // Load persistent attendees as reference
+        setPersistentCommonAttendees(persistentList);
 
-            if (response.ok) {
-                const data = await response.json();
-
-                if (data.has_previous_attendance && data.attendees) {
-                    console.log("📋 Found previous week's attendees:", data.attendees.length);
-
-                    const previousAttendees = data.attendees.map(attendee => ({
-                        id: attendee.id,
-                        fullName: attendee.name || attendee.fullName || "",
-                        email: attendee.email || "",
-                        leader12: attendee.leader12 || "",
-                        leader144: attendee.leader144 || "",
-                        phone: attendee.phone || attendee.Number || "" 
-                    }));
-
-                    const merged = [...persistentCommonAttendees];
-                    previousAttendees.forEach(prevAttendee => {
-                        if (!merged.some(p => p.id === prevAttendee.id)) {
-                            merged.push(prevAttendee);
-                        }
-                    });
-
-                    setPersistentCommonAttendees(merged);
-                    savePersistentCommonAttendees(merged);
-
-                    console.log("✅ Pre-populated names from last week (UNCHECKED)");
-                }
-            }
-        } catch (error) {
-            console.error("❌ Error fetching last attendance:", error);
-        }
-
-        // Clear all checkboxes and states for new week
+        // ✅ CRITICAL: All checkboxes start UNCHECKED
         setCheckedIn({});
         setDecisions({});
         setDecisionTypes({});
-        setPriceTiers({});
-        setPaymentMethods({});
-        setPaidAmounts({});
         setManualHeadcount("");
         setDidNotMeet(false);
 
-        console.log("✅ Ready for new week - all checkboxes UNCHECKED");
+        console.log(`✅ Loaded ${persistentList.length} names - all UNCHECKED (new week)`);
     }
 };
-
-  useEffect(() => {
+function getCurrentWeekIdentifier() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const week = getWeekNumber(now);
+    return `${year}-W${week.toString().padStart(2, '0')}`;
+}
+ useEffect(() => {
     if (isOpen && event) {
       console.log("🎯 Modal opened with event:", event);
 
@@ -1650,7 +1566,7 @@ const loadExistingAttendance = async () => {
       setActiveTab(0);
       setShowMobileMenu(false);
 
-      loadExistingAttendance();
+      loadExistingAttendance(); // ✅ This now loads from event.persistent_attendees
       fetchPeople();
 
       if (event.eventType === "cell") {
@@ -1842,7 +1758,6 @@ const loadExistingAttendance = async () => {
 
     persistentCommonAttendees.forEach(persistentAttendee => {
       if (!combined.some(common => common.id === persistentAttendee.id)) {
-        // FIX: Ensure every attendee has a proper name
         const fixedAttendee = {
           ...persistentAttendee,
           fullName: persistentAttendee.fullName || persistentAttendee.name || "Unknown Person",
@@ -1857,7 +1772,6 @@ const loadExistingAttendance = async () => {
 
     return combined;
   };
-
   // Calculate statistics
   const attendeesCount = Object.keys(checkedIn).filter(id => checkedIn[id]).length;
   const decisionsCount = Object.keys(decisions).filter(id => decisions[id]).length;
@@ -1879,7 +1793,7 @@ const loadExistingAttendance = async () => {
     person.email.toLowerCase().includes(associateSearch.toLowerCase())
   );
 
-const handleSave = async () => {
+  const handleSave = async () => {
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
 
     if (!didNotMeet && attendeesList.length === 0) {
@@ -1926,7 +1840,7 @@ const handleSave = async () => {
         return;
     }
 
-    const allPeople = getAllCommonAttendees();
+     const allPeople = getAllCommonAttendees();
 
     const selectedAttendees = attendeesList.map((id) => {
         const person = allPeople.find((p) => p.id === id);
@@ -1940,6 +1854,7 @@ const handleSave = async () => {
             phone: person?.phone || "",
             time: new Date().toISOString(),
             decision: decisions[id] ? decisionTypes[id] || "" : "",
+            checked_in: true 
         };
 
         if (isTicketedEvent) {
@@ -1955,11 +1870,12 @@ const handleSave = async () => {
         return attendee;
     });
 
-    console.log("📝 Preparing to submit attendance:");
+       console.log("📝 Preparing to submit attendance:");
     console.log("   Event ID:", eventId);
     console.log("   Did Not Meet:", didNotMeet);
-    console.log("   Attendees Count:", selectedAttendees.length);
-    console.log("   Current Week:", get_current_week_identifier());
+    console.log("   Checked-in Attendees:", selectedAttendees.length);
+    console.log("   Persistent Attendees:", persistentCommonAttendees.length);
+    console.log("   Current Week:", getCurrentWeekIdentifier());
 
     try {
         let result;
@@ -1970,7 +1886,16 @@ const handleSave = async () => {
             if (didNotMeet) {
                 result = await onSubmit("did_not_meet");
             } else {
-                result = await onSubmit(selectedAttendees);
+                // ✅ CRITICAL: Send both checked-in attendees AND persistent list
+                result = await onSubmit({
+                    attendees: selectedAttendees,
+                    all_attendees: persistentCommonAttendees, // ✅ Send persistent list
+                    leaderEmail: currentUser?.email || "",
+                    leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+                    did_not_meet: false,
+                    isTicketed: isTicketedEvent,
+                    week: getCurrentWeekIdentifier()
+                });
             }
         } else {
             console.log("🔄 Using direct API call...");
@@ -1981,14 +1906,15 @@ const handleSave = async () => {
                 Authorization: `Bearer ${token}`,
             };
 
-            // ✅ ADD WEEK IDENTIFIER to payload
+            // ✅ CRITICAL: Send both checked-in AND persistent attendees
             const payload = {
                 attendees: selectedAttendees,
+                all_attendees: persistentCommonAttendees, // ✅ Send persistent list
                 leaderEmail: currentUser?.email || "",
                 leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
                 did_not_meet: didNotMeet,
                 isTicketed: isTicketedEvent,
-                week: get_current_week_identifier() // Add week tracking
+                week: getCurrentWeekIdentifier()
             };
 
             const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
@@ -2038,13 +1964,12 @@ const handleSave = async () => {
         });
         setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
-};
-
+  };
   const handleDidNotMeet = () => {
     setShowDidNotMeetConfirm(true);
   };
 
-  const confirmDidNotMeet = async () => {
+    const confirmDidNotMeet = async () => {
     setShowDidNotMeetConfirm(false);
     setDidNotMeet(true);
     setCheckedIn({});
@@ -2077,14 +2002,15 @@ const handleSave = async () => {
                 Authorization: `Bearer ${token}`,
             };
 
-            // ✅ ADD WEEK IDENTIFIER to payload
+            // ✅ CRITICAL: Send persistent list even for "Did Not Meet"
             const payload = {
                 attendees: [],
+                all_attendees: persistentCommonAttendees, // ✅ Send persistent list
                 leaderEmail: currentUser?.email || "",
                 leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
                 did_not_meet: true,
                 isTicketed: isTicketedEvent,
-                week: get_current_week_identifier() // Add week tracking
+                week: getCurrentWeekIdentifier()
             };
 
             const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
@@ -2129,7 +2055,7 @@ const handleSave = async () => {
         });
         setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
-};
+  };
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
