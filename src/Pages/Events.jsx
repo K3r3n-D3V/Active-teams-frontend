@@ -15,7 +15,6 @@ import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment, Paper } 
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
 import Popover from "@mui/material/Popover";
-import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
@@ -461,6 +460,11 @@ const MobileEventCard = ({ event, onOpenAttendance, onEdit, onDelete, isOverdue,
         <span style={styles.mobileCardValue}>{event.eventType || 'N/A'}</span>
       </div>
 
+      <div style={styles.mobileCardRow}>
+        <span style={styles.mobileCardLabel}>Leader @1:</span>
+        <span style={styles.mobileCardValue}>{event.leader1 || 'N/A'}</span>
+      </div>
+
       <div style={styles.mobileActions}>
         <Tooltip title="View Attendance">
           <IconButton onClick={() => onOpenAttendance(event)} size="small" sx={{ color: theme.palette.primary.main }}>
@@ -502,6 +506,7 @@ const Events = () => {
   const isAdmin = userRole === "admin";
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  const DEFAULT_API_START_DATE = '2025-10-27'
 
   // State declarations
   const [showFilter, setShowFilter] = useState(false);
@@ -635,147 +640,156 @@ const Events = () => {
     },
   };
 
-  // Fetch Events Function
-const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
- setLoading(true);
-  setIsLoading(true);
+  // ✅ FIXED: Updated fetchEvents function
+  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
+    setLoading(true);
+    setIsLoading(true);
+    const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+    const userRole = userProfile?.role || "";
 
- try {
- const token = localStorage.getItem("token");
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+        setTimeout(() => window.location.href = '/login', 2000);
+        setEvents([]);
+        setFilteredEvents([]);
+        setLoading(false);
+        setIsLoading(false);
+        return;
+      }
 
- if (!token) {
- setSnackbar({ open: true, message: "Please log in again", severity: "error" });
- setTimeout(() => window.location.href = '/login', 2000);
- setEvents([]);
- setFilteredEvents([]); 
- setLoading(false);
- setIsLoading(false);
- return;
- }
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
 
-const headers = {
- Authorization: `Bearer ${token}`,
- 'Content-Type': 'application/json'
-};
+      const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
+      const params = {
+        page: filters.page !== undefined ? filters.page : currentPage,
+        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+        status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
+        event_type: filters.event_type !== undefined ? filters.event_type : (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
+        search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
+        personal: filters.personal !== undefined ? filters.personal : (viewFilter === 'personal' && ["admin","leader at 12","leader at 144"].includes(userRole) ? true : undefined),
+        start_date: startDateParam,
+        ...filters
+      };
 
-const shouldApplyPersonalFilter =
-viewFilter === 'personal' &&
- (userRole === "admin" || userRole === "leader at 12");
+      // Remove undefined/null params
+      Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
 
-const params = {
-page: filters.page !== undefined ? filters.page : currentPage,
-limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
-event_type: filters.event_type !== undefined ? filters.event_type : (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
-search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
-personal: filters.personal !== undefined ? filters.personal : (shouldApplyPersonalFilter ? true : undefined),
-start_date: filters.start_date !== undefined ? filters.start_date : '2025-10-20',
-...filters
-};
+      // ✅ FIXED: Single endpoint declaration
+      let endpoint;
+      if (["leader at 12","leader at 144"].includes(userRole.toLowerCase())) {
+        endpoint = `${BACKEND_URL}/leaders/cells-for/${userProfile.email}`;
+      } else {
+        endpoint = `${BACKEND_URL}/events`;
+      }
 
- Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
+      console.log('Fetching events from:', endpoint, 'with params:', params);
 
-const cacheKey = getCacheKey(params);
+      // Caching
+      const cacheKey = getCacheKey({ ...params, leader: ["leader at 12","leader at 144"].includes(userRole.toLowerCase()) });
+      if (!forceRefresh) {
+        const cachedData = getCachedData(cacheKey);
+        if (cachedData) {
+          setEvents(cachedData.events);
+          setFilteredEvents(cachedData.events);
+          setTotalEvents(cachedData.total_events);
+          setTotalPages(cachedData.total_pages);
+          if (filters.page !== undefined) setCurrentPage(filters.page);
+          setLoading(false);
+          setIsLoading(false);
+          return;
+        }
+      }
 
- if (!forceRefresh) {
- const cachedData = getCachedData(cacheKey);
- if (cachedData) {
- setEvents(cachedData.events);
- setFilteredEvents(cachedData.events);
- setTotalEvents(cachedData.total_events);
- setTotalPages(cachedData.total_pages);
- if (filters.page !== undefined) setCurrentPage(filters.page);
- setLoading(false);
- setIsLoading(false);
- return;
- }
- }
+      const response = await axios.get(endpoint, {
+        headers,
+        params,
+        timeout: 60000
+      });
 
-const endpoint = `${BACKEND_URL}/events`;
+      const responseData = response.data;
+      const newEvents = responseData.events || responseData.results || [];
 
-const response = await axios.get(endpoint, {
- headers,
- params,
-timeout: 60000
- });
-
- const responseData = response.data;
-const newEvents = responseData.events || responseData.results || [];
-
-const totalEventsCount = responseData.total_events || responseData.total || 0;
-const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+      // ✅ BACKEND NOW HANDLES DEDUPLICATION
+      console.log('✅ Backend returned events:', newEvents.length);
       
- setCachedData(cacheKey, {
-  events: newEvents,
-  total_events: totalEventsCount,
-  total_pages: totalPagesCount
- });
+      // Debug: Check for any remaining duplicates
+      const eventIds = newEvents.map(e => e._id);
+      const uniqueIds = new Set(eventIds);
+      if (eventIds.length !== uniqueIds.size) {
+        console.warn('⚠️ Backend still returning duplicates:', {
+          totalEvents: eventIds.length,
+          uniqueEvents: uniqueIds.size,
+          duplicates: eventIds.length - uniqueIds.size
+        });
+      }
 
-setEvents(newEvents);
-setFilteredEvents(newEvents);
-setTotalEvents(totalEventsCount);
-setTotalPages(totalPagesCount);
+      // ✅ FIXED: Use actual values from response
+      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
 
- if (filters.page !== undefined) setCurrentPage(filters.page);
+      setCachedData(cacheKey, {
+        events: newEvents,
+        total_events: totalEventsCount,
+        total_pages: totalPagesCount
+      });
 
-} catch (err) {
- console.error("Error fetching events:", err);
+      // Update state
+      setEvents(newEvents);
+      setFilteredEvents(newEvents);
+      setTotalEvents(totalEventsCount);
+      setTotalPages(totalPagesCount);
+      if (filters.page !== undefined) setCurrentPage(filters.page);
 
-if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
- setSnackbar({
-open: true,
- severity: "warning",
- message: "Request timeout. Please refresh and try again.",
- });
-} else if (err.response?.status === 401) {
- setSnackbar({
- open: true,
- message: "Session expired. Logging out...",
- severity: "error"
-});
-localStorage.removeItem("token");
-localStorage.removeItem("userProfile");
-setTimeout(() => window.location.href = '/login', 2000);
- } else {
- setSnackbar({
-  open: true,
-  message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`,
-  severity: "error",
-  });
- }
+    } catch (err) {
+      console.error("Error fetching events:", err);
+      if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+        setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
+      } else if (err.response?.status === 401) {
+        setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+        localStorage.removeItem("token");
+        localStorage.removeItem("userProfile");
+        setTimeout(() => window.location.href = '/login', 2000);
+      } else {
+        setSnackbar({ open: true, message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`, severity: "error" });
+      }
+      setEvents([]);
+      setFilteredEvents([]);
+      setTotalEvents(0);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+      setIsLoading(false);
+    }
+  }, [
+    currentPage,
+    rowsPerPage,
+    selectedStatus,
+    selectedEventTypeFilter,
+    searchQuery,
+    viewFilter,
+    userRole,
+    getCacheKey,
+    getCachedData,
+    setCachedData,
+    BACKEND_URL,
+    setEvents,
+    setFilteredEvents,
+    setTotalEvents,
+    setTotalPages,
+    setCurrentPage,
+    setSnackbar
+  ]);
 
- setEvents([]);
- setFilteredEvents([]);
- setTotalEvents(0);
- setTotalPages(1);
-} finally {
-setLoading(false);
-setIsLoading(false);
-}
-}, [
-currentPage, 
-rowsPerPage, 
-selectedStatus, 
-selectedEventTypeFilter, 
-searchQuery, 
-viewFilter, 
-userRole, 
-getCacheKey, 
-getCachedData, 
-setCachedData, 
-BACKEND_URL, 
-setEvents, 
-setFilteredEvents, 
-setTotalEvents, 
-setTotalPages, 
-setCurrentPage, 
-setSnackbar
-]);
-
-const fetchEventTypes = async () => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await fetch(`${BACKEND_URL}/event-types`, {
+  // ✅ FIXED: Complete fetchEventTypes function
+  const fetchEventTypes = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${BACKEND_URL}/event-types`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -794,10 +808,10 @@ const fetchEventTypes = async () => {
       localStorage.setItem('eventTypes', JSON.stringify(actualEventTypes));
 
       return actualEventTypes;
-
     } catch (error) {
       console.error('Error fetching event types:', error);
-
+      
+      // Try to load from cache if available
       try {
         const cachedTypes = localStorage.getItem('eventTypes');
         if (cachedTypes) {
@@ -810,10 +824,72 @@ const fetchEventTypes = async () => {
       } catch (cacheError) {
         console.error('Cache read failed:', cacheError);
       }
-
+      
       return [];
     }
   };
+
+  const validateEventStatus = (event) => {
+    const status = (event.status || '').toLowerCase();
+    const hasAttendees = event.attendees && event.attendees.length > 0;
+    const didNotMeet = event.did_not_meet || false;
+    
+    // If event is marked as complete but has no attendees and didn't meet, it's invalid
+    if (status === 'complete' && !hasAttendees && !didNotMeet) {
+      return 'incomplete';
+    }
+    
+    return status;
+  };
+
+  const handleFetchError = (err) => {
+    if (err.response?.status === 401) {
+      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.detail || "Error loading events. Please try again.",
+        severity: "error",
+      });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('Available event types:', eventTypes);
+    console.log('Selected event type filter:', selectedEventTypeFilter);
+  }, [eventTypes, selectedEventTypeFilter]);
+
+  // ✅ FIXED: Separate auth check function
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem("token");
+      const userProfile = localStorage.getItem("userProfile");
+
+      if (!token || !userProfile) {
+        setSnackbar({
+          open: true,
+          message: "Please log in to continue",
+          severity: "warning",
+        });
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   const getCurrentUserLeaderAt1 = async () => {
     try {
@@ -837,13 +913,12 @@ const fetchEventTypes = async () => {
     const did_not_meet = event.did_not_meet || false;
     const hasAttendees = event.attendees && event.attendees.length > 0;
     const status = (event.status || event.Status || '').toLowerCase().trim();
+    const isMissedRecurrent = event.is_recurring && event.recurrent_status === 'missed';
 
-    if (hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || did_not_meet) {
+    if (hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || did_not_meet || isMissedRecurrent) {
       return false;
     }
-
     if (!event?.date) return false;
-
     const eventDate = new Date(event.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -883,7 +958,7 @@ const fetchEventTypes = async () => {
       page: 1,
       limit: rowsPerPage,
       personal: shouldApplyPersonalFilter,
-      start_date: '2025-10-20'
+      start_date: DEFAULT_API_START_DATE
     }, true);
   };
 
@@ -904,6 +979,7 @@ const fetchEventTypes = async () => {
       }
 
       setCurrentPage(1);
+      clearCache(); // Clear cache on search
 
       fetchEvents({
         page: 1,
@@ -912,7 +988,7 @@ const fetchEventTypes = async () => {
         event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
         search: trimmedSearch || undefined,
         personal: shouldApplyPersonalFilter,
-        start_date: '2025-10-20'
+        start_date: DEFAULT_API_START_DATE
       }, true);
     }, 500);
   };
@@ -934,7 +1010,7 @@ const fetchEventTypes = async () => {
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
       search: trimmedSearch || undefined,
       personal: shouldApplyPersonalFilter,
-      start_date: '2025-10-20'
+      start_date: DEFAULT_API_START_DATE
     }, true);
   };
 
@@ -953,7 +1029,7 @@ const fetchEventTypes = async () => {
       page: 1,
       limit: newRowsPerPage,
       personal: shouldApplyPersonalFilter ? true : undefined,
-      start_date: '2025-10-20'
+      start_date: DEFAULT_API_START_DATE
     }, true);
   };
 
@@ -987,7 +1063,7 @@ const fetchEventTypes = async () => {
       event_type: typeValue,
       search: searchQuery.trim() || undefined,
       personal: shouldApplyPersonalFilter ? true : undefined,
-      start_date: '2025-10-20'
+      start_date: DEFAULT_API_START_DATE
     }, true);
   };
 
@@ -1006,7 +1082,7 @@ const fetchEventTypes = async () => {
         event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
         search: searchQuery.trim() || undefined,
         personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20'
+        start_date: DEFAULT_API_START_DATE
       });
     }
   };
@@ -1026,7 +1102,7 @@ const fetchEventTypes = async () => {
         event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
         search: searchQuery.trim() || undefined,
         personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: '2025-10-20'
+        start_date: DEFAULT_API_START_DATE
       });
     }
   };
@@ -1057,7 +1133,7 @@ const fetchEventTypes = async () => {
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
       search: searchQuery.trim() || undefined,
       personal: shouldApplyPersonalFilter ? true : undefined,
-      start_date: '2025-10-20'
+      start_date: DEFAULT_API_START_DATE
     };
 
     if (filters.leader && filters.leader.trim()) {
@@ -1079,78 +1155,88 @@ const fetchEventTypes = async () => {
     fetchEvents(apiFilters, true);
   };
 
-  const handleAttendanceSubmit = async (data) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      const eventId = selectedEvent._id;
-      const eventName = selectedEvent.eventName || 'Event';
+ // This stays in Events.jsx
+const handleAttendanceSubmit = async (data) => {
+  try {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+    const eventId = selectedEvent._id;
+    const eventName = selectedEvent.eventName || 'Event';
 
-      const leaderEmail = currentUser?.email || '';
-      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
+    const leaderEmail = currentUser?.email || '';
+    const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
-      let payload;
+    let payload;
 
-      if (data === "did_not_meet") {
-        payload = {
-          attendees: [],
-          leaderEmail,
-          leaderName,
-          did_not_meet: true,
-        };
-      } else if (Array.isArray(data)) {
-        payload = {
-          attendees: data,
-          leaderEmail,
-          leaderName,
-          did_not_meet: false,
-        };
-      } else {
-        payload = data;
-      }
-
-      const response = await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        payload,
-        { headers }
-      );
-
-      await fetchEvents();
-
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-
-      setSnackbar({
-        open: true,
-        message: payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
-
-      return { success: true, message: "Attendance submitted successfully" };
-    } catch (error) {
-      console.error("Error in handleAttendanceSubmit:", error);
-      const errData = error.response?.data;
-      let errorMessage = error.message;
-
-      if (errData) {
-        if (Array.isArray(errData?.errors)) {
-          errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
-        } else {
-          errorMessage = errData.detail || errData.message || JSON.stringify(errData);
-        }
-      }
-
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
-
-      return { success: false, message: errorMessage };
+    if (data === "did_not_meet") {
+      payload = {
+        attendees: [],
+        all_attendees: [],
+        leaderEmail,
+        leaderName,
+        did_not_meet: true,
+      };
+    } else if (Array.isArray(data)) {
+      payload = {
+        attendees: data,
+        all_attendees: data,
+        leaderEmail,
+        leaderName,
+        did_not_meet: false,
+      };
+    } else {
+      payload = {
+        ...data,
+        leaderEmail,
+        leaderName,
+      };
     }
-  };
+
+    // 🔍 ADD DEBUG LOGGING
+    console.log("🔄 Sending payload to backend:", JSON.stringify(payload, null, 2));
+    console.log("🔍 First attendee structure:", payload.attendees[0]);
+
+    const response = await axios.put(
+      `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+      payload,
+      { headers }
+    );
+
+    await fetchEvents();
+    setAttendanceModalOpen(false);
+    setSelectedEvent(null);
+
+    setSnackbar({
+      open: true,
+      message: payload.did_not_meet
+        ? `${eventName} marked as 'Did Not Meet'.`
+        : `Successfully captured attendance for ${eventName}`,
+      severity: "success",
+    });
+
+    return { success: true, message: "Attendance submitted successfully" };
+  } catch (error) {
+    console.error("Error in handleAttendanceSubmit:", error);
+    const errData = error.response?.data;
+    let errorMessage = error.message;
+
+    if (errData) {
+      if (Array.isArray(errData?.errors)) {
+        errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+      } else {
+        errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+      }
+    }
+
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: "error",
+    });
+
+    return { success: false, message: errorMessage };
+  }
+};
 
   const handleEditEvent = (event) => {
     const eventToEdit = {
@@ -1278,10 +1364,8 @@ const fetchEventTypes = async () => {
     }
   };
 
-  // accept anchor DOM node to avoid relying on pooled synthetic event
-  const openTypeMenu = (anchorEl, type) => {
-  console.log(anchorEl);
-    setTypeMenuAnchor(anchorEl);
+  const openTypeMenu = (event, type) => {
+    setTypeMenuAnchor(event.currentTarget);
     setTypeMenuFor(type);
   };
 
@@ -1475,7 +1559,7 @@ const fetchEventTypes = async () => {
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
       search: searchQuery.trim() || undefined,
       personal: shouldApplyPersonalByDefault ? undefined : (viewFilter === 'personal' ? true : undefined),
-      start_date: '2025-10-20'
+      start_date: DEFAULT_API_START_DATE
     };
 
     Object.keys(fetchParams).forEach(key =>
@@ -1535,7 +1619,7 @@ const fetchEventTypes = async () => {
               setCurrentPage(1);
             }}
           />
-          <span style={styles.viewFilterText}>All Events</span>
+          <span style={styles.viewFilterText}>CELLS</span>
         </label>
         <label style={styles.viewFilterRadio}>
           <input
@@ -1565,7 +1649,7 @@ const fetchEventTypes = async () => {
 
     const getDisplayName = (type) => {
       if (!type) return "";
-      if (type === "all") return "All Events";
+      if (type === "all") return "CELLS";
       return typeof type === "string" ? type : type.name || String(type);
     };
 
@@ -1597,7 +1681,7 @@ const fetchEventTypes = async () => {
                   ...eventTypeStyles.typeCard,
                   ...(isActive ? eventTypeStyles.typeCardActive : {}),
                   ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
-                  position: "relative",
+                  position: "relative", // This is crucial
                   minWidth: isMobileView ? "120px" : "150px",
                   minHeight: "60px",
                   padding: "0.75rem 1rem",
@@ -1605,6 +1689,7 @@ const fetchEventTypes = async () => {
                   alignItems: "center",
                   justifyContent: "center",
                   cursor: "pointer",
+                  overflow: "visible", // Ensure popover isn't clipped
                 }}
                 onClick={() => {
                   handleEventTypeClick(typeValue);
@@ -1627,11 +1712,21 @@ const fetchEventTypes = async () => {
                     size="small"
                     onClick={(e) => {
                       e.stopPropagation();
-                       // capture the DOM node synchronously and pass it
-+                      openTypeMenu(e.currentTarget, type);;
+                      openTypeMenu(e, type);
                     }}
                     aria-label="type actions"
-                    sx={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
+                    sx={{
+                      position: "absolute",
+                      top: 4,
+                      right: 4,
+                      zIndex: 2,
+                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)',
+                      '&:hover': {
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)',
+                      },
+                      width: 24,
+                      height: 24,
+                    }}
                   >
                     <MoreVertIcon fontSize="small" />
                   </IconButton>
@@ -1640,46 +1735,74 @@ const fetchEventTypes = async () => {
             );
           })}
         </div>
+        <Popover
+          open={Boolean(typeMenuAnchor)}
+          anchorEl={typeMenuAnchor}
+          onClose={closeTypeMenu}
+          anchorOrigin={{
+            vertical: "bottom",
+            horizontal: "right"
+          }}
+          transformOrigin={{
+            vertical: "top",
+            horizontal: "right"
+          }}
+          sx={{
+            '& .MuiPopover-paper': {
+              borderRadius: 1,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+              minWidth: 120,
+              marginTop: '4px',
+            }
+          }}
+          disableScrollLock={true}
+        >
+          <MenuItem
+            onClick={() => {
+              if (typeMenuFor) handleEditType(typeMenuFor);
+              closeTypeMenu();
+            }}
+            sx={{
+              padding: '8px 16px',
+              fontSize: '0.875rem',
+              '&:hover': {
+                backgroundColor: 'rgba(0, 123, 255, 0.08)',
+              }
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 36 }}>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Edit"
+              primaryTypographyProps={{ fontSize: '0.875rem' }}
+            />
+          </MenuItem>
 
-     <Menu
-  anchorEl={typeMenuAnchor}
-  open={Boolean(typeMenuAnchor)}
-  onClose={closeTypeMenu}
-  anchorOrigin={{ vertical: "top", horizontal: "right" }}
-  transformOrigin={{ vertical: "bottom", horizontal: "right" }}
-  MenuListProps={{ dense: true }}
-  PaperProps={{
-    elevation: 4,
-    sx: { borderRadius: 1, mt: -0.5, minWidth: 160 },
-  }}
->
-  <MenuItem
-    onClick={() => {
-      if (typeMenuFor) handleEditType(typeMenuFor);
-      closeTypeMenu();
-    }}
-  >
-    <ListItemIcon>
-      <EditIcon fontSize="small" />
-    </ListItemIcon>
-    <ListItemText>Edit</ListItemText>
-  </MenuItem>
-
-  <MenuItem
-    onClick={() => {
-      setToDeleteType(typeMenuFor);
-      setConfirmDeleteOpen(true);
-      closeTypeMenu();
-    }}
-    sx={{ color: "error.main" }}
-  >
-    <ListItemIcon>
-      <DeleteIcon fontSize="small" color="error" />
-    </ListItemIcon>
-    <ListItemText>Delete</ListItemText>
-  </MenuItem>
-</Menu>
-
+          <MenuItem
+            onClick={() => {
+              setToDeleteType(typeMenuFor);
+              setConfirmDeleteOpen(true);
+              closeTypeMenu();
+            }}
+            sx={{
+              padding: '8px 16px',
+              fontSize: '0.875rem',
+              color: "error.main",
+              '&:hover': {
+                backgroundColor: 'rgba(211, 47, 47, 0.08)',
+              }
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 36 }}>
+              <DeleteIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Delete"
+              primaryTypographyProps={{ fontSize: '0.875rem' }}
+            />
+          </MenuItem>
+        </Popover>
         <Dialog
           open={confirmDeleteOpen}
           onClose={() => setConfirmDeleteOpen(false)}
@@ -1705,13 +1828,12 @@ const fetchEventTypes = async () => {
     );
   };
 
- return (
-    // ** 1. MAIN CONTAINER (Full Height, No Scroll)**
+  return (
     <Box sx={{
       height: "100vh",
       fontFamily: "system-ui, sans-serif",
       padding: "1rem",
-      paddingTop: "5rem", // Keep this if you have a fixed Navbar
+      paddingTop: "5rem",
       paddingBottom: "1rem",
       boxSizing: "border-box",
       display: "flex",
@@ -1827,7 +1949,7 @@ const fetchEventTypes = async () => {
         boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
         backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
         // The paddingBottom accounts for the FAB on mobile, otherwise it's just general padding
-        paddingBottom: isMobileView ? '70px' : '1rem', 
+        paddingBottom: isMobileView ? '70px' : '1rem',
       }}>
 
         {isMobileView ? (
@@ -2171,7 +2293,7 @@ const fetchEventTypes = async () => {
             setAttendanceModalOpen(false);
             setSelectedEvent(null);
           }}
-          onSubmit={handleAttendanceSubmit}
+           onSubmit={handleAttendanceSubmit}
           event={selectedEvent}
           currentUser={currentUser}
         />
