@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, UserPlus,  Search,  CheckCircle, ChevronDown , X} from "lucide-react"; 
+import { ArrowLeft, UserPlus,  Search,  CheckCircle, ChevronDown , X, Menu} from "lucide-react"; 
 
 // Create a global cache for people data
 let globalPeopleCache = {
@@ -43,7 +43,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     }
   }, [isOpen]);
 
-<<<<<<< Updated upstream
   const loadPreloadedPeople = async () => {
     const now = Date.now();
     if (globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
@@ -95,8 +94,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       }
     }
   };
-=======
->>>>>>> Stashed changes
 
   const fetchInviters = async (searchTerm) => {
     if (!searchTerm || searchTerm.length < 1) {
@@ -179,6 +176,8 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       leaders: leadersToFill
     });
   };
+
+  
 
   const isFieldEmpty = (fieldName) => {
     const value = fieldName === 'invitedBy' ? inviterSearch : formData[fieldName];
@@ -794,7 +793,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   );
 };
 
-const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, personData, preloadedPeople = [], autoFilledLeaders }) => {
+const LeaderSelectionModal = ({ isOpen, onBack, onSubmit,  preloadedPeople = [], autoFilledLeaders }) => {
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
@@ -1340,7 +1339,24 @@ function getWeekNumber(date) {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-
+const handleSubmitAttendance = (attendanceData) => {
+  console.log("📝 Preparing to submit attendance:");
+  console.log("   Event ID:", event?._id); // Changed from props.event to event
+  console.log("   Did Not Meet:", attendanceData === "did_not_meet");
+  console.log("   Checked-in Attendees:", Array.isArray(attendanceData) ? attendanceData.length : 'unknown');
+  console.log("   Persistent Attendees:", attendanceData?.all_attendees?.length || 'unknown');
+  console.log("   Current Week:", get_current_week_identifier()); // Use your existing function
+  
+  console.log("🔄 Using onSubmit prop...");
+  
+  // Call the function passed from Events.jsx
+  if (onSubmit) { // Changed from props.onSubmit to onSubmit
+    return onSubmit(attendanceData);
+  } else {
+    console.error("❌ No onSubmit prop provided to AttendanceModal");
+    return Promise.resolve({ success: false, message: "No submit handler" });
+  }
+};
 
   const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
     const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
