@@ -1778,7 +1778,7 @@ const Events = () => {
             }}
           />
           <span style={styles.viewFilterText}>
-            {isLeaderAt12 ? "ALL CELLS" : "ALL CELLS"}
+            {isLeaderAt12 ? "VIEW ALL" : "VIEW ALL"}
           </span>
         </label>
         <label style={styles.viewFilterRadio}>
@@ -1809,7 +1809,7 @@ const Events = () => {
             }}
           />
           <span style={styles.viewFilterText}>
-            {isLeaderAt12 ? "MY CELLS ONLY" : "MY CELLS ONLY"}
+            {isLeaderAt12 ? "PERSONAL" : "PERSONAL"}
           </span>
         </label>
       </div>
