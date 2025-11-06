@@ -15,7 +15,6 @@ import {
   Autocomplete,
   CircularProgress,
   Alert,
-  LinearProgress,
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
@@ -139,9 +138,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [cacheLoading, setCacheLoading] = useState(true);
   const [cacheError, setCacheError] = useState("");
-  const [totalPeopleCount, setTotalPeopleCount] = useState(0);
-  const [loadProgress, setLoadProgress] = useState(0);
-  const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
     const fetchAllPeople = async () => {
@@ -154,9 +150,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
         if (response.data.success) {
           const peopleData = response.data.cached_data || [];
           setAllPeople(peopleData);
-          setTotalPeopleCount(peopleData.length);
-          setLoadProgress(response.data.load_progress || 100);
-          setIsComplete(response.data.is_complete || true);
         } else {
           throw new Error("Failed to load cache");
         }
@@ -169,15 +162,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
     };
 
     fetchAllPeople();
-
-    const pollInterval = setInterval(() => {
-      if (cacheLoading || !isComplete) {
-        fetchAllPeople();
-      }
-    }, 2000);
-
-    return () => clearInterval(pollInterval);
-  }, [cacheLoading, isComplete]);
+  }, []);
 
   const filteredPeople = useMemo(() => {
     if (!searchQuery || searchQuery.length < 1) {
@@ -323,22 +308,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
-  const refreshData = async () => {
-    try {
-      setCacheLoading(true);
-      setCacheError("");
-      
-      await axios.post(`${BACKEND_URL}/cache/people/refresh`);
-      
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-      
-    } catch (err) {
-      setCacheError("Failed to refresh data");
-      setCacheLoading(false);
-    }
-  };
   return (
     <Box
       sx={{
@@ -384,33 +353,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
           borderRadius: 4,
           boxShadow: 3,
           background: theme.palette.background.paper,
-          position: "relative",
         }}
       >
-        <Box
-          sx={{
-            position: "absolute",
-            top: 8,
-            left: 8,
-            right: 8,
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
-            {cacheLoading && (
-              <LinearProgress 
-                variant="determinate" 
-                value={loadProgress} 
-                sx={{ flex: 1, maxWidth: 120, height: 6, borderRadius: 3 }}
-              />
-            )}
-
-          </Box>
-        </Box>
-
-        <Box display="flex" justifyContent="center" alignItems="center" mb={1} mt={4}>
+        <Box display="flex" justifyContent="center" alignItems="center" mb={1}>
           <img
             src={darkLogo}
             alt="The Active Church Logo"
@@ -431,21 +376,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
         {cacheError && (
           <Alert severity="warning" sx={{ borderRadius: 2 }}>
             {cacheError}
-          </Alert>
-        )}
-
-        {cacheLoading && loadProgress < 100 && (
-          <Alert severity="info" sx={{ borderRadius: 2 }}>
-            <Box sx={{ width: '100%' }}>
-              <Typography variant="body2" gutterBottom>
-                Loading people data... {loadProgress}% complete
-              </Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={loadProgress} 
-                sx={{ height: 6, borderRadius: 3 }}
-              />
-            </Box>
           </Alert>
         )}
 
@@ -649,7 +579,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               type="submit"
               variant="contained"
               size="large"
-              disabled={loading || (cacheLoading && totalPeopleCount === 0)}
+              disabled={loading || cacheLoading}
               sx={{
                 backgroundColor: "#000",
                 color: "#fff",
