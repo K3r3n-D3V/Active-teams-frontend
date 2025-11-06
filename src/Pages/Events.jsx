@@ -410,12 +410,26 @@ const getEventTypeStyles = (isDarkMode, theme) => ({
 });
 
 const getDefaultViewFilter = (userRole) => {
-  const role = userRole?.toLowerCase() || '';
-  if (role === "user" || role === "leader at 1" || role === "registrant") {
-    return 'personal';
-  }
-  if (role === "admin" || role === "leader at 12") {
+  if (!userRole) return 'all';
+  
+  const normalizedRole = userRole.toLowerCase().trim();
+  
+  // ✅ FIXED: Better role detection for leader at 12
+  const isLeaderAt12 = 
+    normalizedRole.includes("leader at 12") ||
+    normalizedRole.includes("leader@12") ||
+    normalizedRole.includes("leader @12") ||
+    normalizedRole.includes("leader at12");
+  
+  const isAdmin = normalizedRole === "admin";
+  const isUser = normalizedRole === "user" || normalizedRole.includes("leader at 144") || normalizedRole.includes("leader at 1278");
+  const isRegistrant = normalizedRole === "registrant";
+
+  if (isAdmin || isLeaderAt12) {
     return 'all';
+  }
+  if (isUser || isRegistrant) {
+    return 'personal';
   }
   return 'all';
 };
@@ -502,8 +516,16 @@ const Events = () => {
 
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
-  const isLeaderAt12 = userRole === "leader at 12";
+  
+  // ✅ FIXED: Better role detection for leader at 12
+  const isLeaderAt12 = 
+    userRole.includes("leader at 12") ||
+    userRole.includes("leader@12") ||
+    userRole.includes("leader @12") ||
+    userRole.includes("leader at12");
+  
   const isAdmin = userRole === "admin";
+
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = '2025-10-27'
@@ -640,150 +662,200 @@ const Events = () => {
     },
   };
 
-  // ✅ FIXED: Updated fetchEvents function
-  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
-    setLoading(true);
-    setIsLoading(true);
-    const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
-    const userRole = userProfile?.role || "";
+ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
+  setLoading(true);
+  setIsLoading(true);
+  const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+  const userRole = userProfile?.role || "";
 
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setSnackbar({ open: true, message: "Please log in again", severity: "error" });
-        setTimeout(() => window.location.href = '/login', 2000);
-        setEvents([]);
-        setFilteredEvents([]);
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+      setTimeout(() => window.location.href = '/login', 2000);
+      setEvents([]);
+      setFilteredEvents([]);
+      setLoading(false);
+      setIsLoading(false);
+      return;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
+    const params = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
+      event_type: filters.event_type !== undefined ? filters.event_type : (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
+      search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
+      personal: filters.personal !== undefined ? filters.personal : (viewFilter === 'personal' && ["admin","leader at 12","leader at 144"].includes(userRole) ? true : undefined),
+      start_date: startDateParam,
+      ...filters
+    };
+
+    // Remove undefined/null params
+    Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
+
+    // ✅ FIXED: Always use /events endpoint - backend handles role logic
+    const endpoint = `${BACKEND_URL}/events`;
+
+    console.log('Fetching events from:', endpoint, 'with params:', params);
+
+    // Caching
+    const cacheKey = getCacheKey({ ...params, userRole });
+    if (!forceRefresh) {
+      const cachedData = getCachedData(cacheKey);
+      if (cachedData) {
+        setEvents(cachedData.events);
+        setFilteredEvents(cachedData.events);
+        setTotalEvents(cachedData.total_events);
+        setTotalPages(cachedData.total_pages);
+        if (filters.page !== undefined) setCurrentPage(filters.page);
         setLoading(false);
         setIsLoading(false);
         return;
       }
-
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
-      const params = {
-        page: filters.page !== undefined ? filters.page : currentPage,
-        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
-        event_type: filters.event_type !== undefined ? filters.event_type : (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
-        search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
-        personal: filters.personal !== undefined ? filters.personal : (viewFilter === 'personal' && ["admin","leader at 12","leader at 144"].includes(userRole) ? true : undefined),
-        start_date: startDateParam,
-        ...filters
-      };
-
-      // Remove undefined/null params
-      Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
-
-      // ✅ FIXED: Single endpoint declaration
-      let endpoint;
-      if (["leader at 12","leader at 144"].includes(userRole.toLowerCase())) {
-        endpoint = `${BACKEND_URL}/leaders/cells-for/${userProfile.email}`;
-      } else {
-        endpoint = `${BACKEND_URL}/events`;
-      }
-
-      console.log('Fetching events from:', endpoint, 'with params:', params);
-
-      // Caching
-      const cacheKey = getCacheKey({ ...params, leader: ["leader at 12","leader at 144"].includes(userRole.toLowerCase()) });
-      if (!forceRefresh) {
-        const cachedData = getCachedData(cacheKey);
-        if (cachedData) {
-          setEvents(cachedData.events);
-          setFilteredEvents(cachedData.events);
-          setTotalEvents(cachedData.total_events);
-          setTotalPages(cachedData.total_pages);
-          if (filters.page !== undefined) setCurrentPage(filters.page);
-          setLoading(false);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const response = await axios.get(endpoint, {
-        headers,
-        params,
-        timeout: 60000
-      });
-
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
-
-      // ✅ BACKEND NOW HANDLES DEDUPLICATION
-      console.log('✅ Backend returned events:', newEvents.length);
-      
-      // Debug: Check for any remaining duplicates
-      const eventIds = newEvents.map(e => e._id);
-      const uniqueIds = new Set(eventIds);
-      if (eventIds.length !== uniqueIds.size) {
-        console.warn('⚠️ Backend still returning duplicates:', {
-          totalEvents: eventIds.length,
-          uniqueEvents: uniqueIds.size,
-          duplicates: eventIds.length - uniqueIds.size
-        });
-      }
-
-      // ✅ FIXED: Use actual values from response
-      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
-
-      setCachedData(cacheKey, {
-        events: newEvents,
-        total_events: totalEventsCount,
-        total_pages: totalPagesCount
-      });
-
-      // Update state
-      setEvents(newEvents);
-      setFilteredEvents(newEvents);
-      setTotalEvents(totalEventsCount);
-      setTotalPages(totalPagesCount);
-      if (filters.page !== undefined) setCurrentPage(filters.page);
-
-    } catch (err) {
-      console.error("Error fetching events:", err);
-      if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-        setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
-      } else if (err.response?.status === 401) {
-        setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
-        localStorage.removeItem("token");
-        localStorage.removeItem("userProfile");
-        setTimeout(() => window.location.href = '/login', 2000);
-      } else {
-        setSnackbar({ open: true, message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`, severity: "error" });
-      }
-      setEvents([]);
-      setFilteredEvents([]);
-      setTotalEvents(0);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
-      setIsLoading(false);
     }
-  }, [
-    currentPage,
-    rowsPerPage,
-    selectedStatus,
-    selectedEventTypeFilter,
-    searchQuery,
-    viewFilter,
-    userRole,
-    getCacheKey,
-    getCachedData,
-    setCachedData,
-    BACKEND_URL,
-    setEvents,
-    setFilteredEvents,
-    setTotalEvents,
-    setTotalPages,
-    setCurrentPage,
-    setSnackbar
-  ]);
+
+    const response = await axios.get(endpoint, {
+      headers,
+      params,
+      timeout: 60000 
+    });
+
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
+
+    console.log('✅ Backend returned events:', newEvents.length);
+    console.log('📦 Sample event data:', newEvents[0]);
+console.log('📦 Persistent attendees in first event:', newEvents[0]?.persistent_attendees);
+    
+    // Debug: Check for any remaining duplicates
+    const eventIds = newEvents.map(e => e._id);
+    const uniqueIds = new Set(eventIds);
+    if (eventIds.length !== uniqueIds.size) {
+      console.warn('⚠️ Backend still returning duplicates:', {
+        totalEvents: eventIds.length,
+        uniqueEvents: uniqueIds.size,
+        duplicates: eventIds.length - uniqueIds.size
+      });
+    }
+
+    // ✅ FIXED: Use actual values from response
+    const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+    const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+
+    setCachedData(cacheKey, {
+      events: newEvents,
+      total_events: totalEventsCount,
+      total_pages: totalPagesCount
+    });
+
+    // Update state
+    setEvents(newEvents);
+    setFilteredEvents(newEvents);
+    setTotalEvents(totalEventsCount);
+    setTotalPages(totalPagesCount);
+    if (filters.page !== undefined) setCurrentPage(filters.page);
+
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+      setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
+    } else if (err.response?.status === 401) {
+      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else {
+      setSnackbar({ open: true, message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`, severity: "error" });
+    }
+    setEvents([]);
+    setFilteredEvents([]);
+    setTotalEvents(0);
+    setTotalPages(1);
+  } finally {
+    setLoading(false);
+    setIsLoading(false);
+  }
+}, [
+  currentPage,
+  rowsPerPage,
+  selectedStatus,
+  selectedEventTypeFilter,
+  searchQuery,
+  viewFilter,
+  userRole,
+  getCacheKey,
+  getCachedData,
+  setCachedData,
+  BACKEND_URL,
+  setEvents,
+  setFilteredEvents,
+  setTotalEvents,
+  setTotalPages,
+  setCurrentPage,
+  setSnackbar
+]);
+
+useEffect(() => {
+  const checkAccess = async () => {
+    const userRole = currentUser?.role?.toLowerCase() || "";
+    const email = currentUser?.email || "";
+    
+    console.log("🔐 Checking user access:", { userRole, email });
+    
+    // Define roles that have access
+    const isAdmin = userRole === "admin";
+    const isLeaderAt12 = 
+      userRole.includes("leader at 12") ||
+      userRole.includes("leader@12") ||
+      userRole.includes("leader @12") ||
+      userRole.includes("leader at12");
+    const isRegistrant = userRole === "registrant";
+    const isLeader144or1728 = 
+      userRole.includes("leader at 144") ||
+      userRole.includes("leader at 1278") ||
+      userRole.includes("leader at 1728");
+    const isUser = userRole === "user";
+    
+    // ✅ ALL these roles can access Events page
+    const hasAccess = isAdmin || isLeaderAt12 || isRegistrant || isLeader144or1728 || isUser;
+    
+    if (!hasAccess) {
+      // Check if they're a leader in the People database
+      try {
+        const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+        });
+        
+        if (!response.data.isLeader) {
+          // Not a leader - redirect away
+          alert("You must be a leader to access the Events page");
+          window.location.href = "/dashboard";
+        }
+      } catch (error) {
+        console.error("Error checking leader status:", error);
+        alert("Unable to verify access. Please contact support.");
+        window.location.href = "/dashboard";
+      }
+    } else {
+      console.log("✅ Access granted:", { 
+        isAdmin, 
+        isLeaderAt12, 
+        isRegistrant, 
+        isLeader144or1728,
+        isUser 
+      });
+    }
+  };
+  
+  checkAccess();
+}, [currentUser?.email, currentUser?.role]);
 
   // ✅ FIXED: Complete fetchEventTypes function
   const fetchEventTypes = async () => {
@@ -865,12 +937,13 @@ const Events = () => {
     };
   }, []);
 
+
+
   useEffect(() => {
     console.log('Available event types:', eventTypes);
     console.log('Selected event type filter:', selectedEventTypeFilter);
   }, [eventTypes, selectedEventTypeFilter]);
 
-  // ✅ FIXED: Separate auth check function
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem("token");
@@ -1600,43 +1673,59 @@ const handleAttendanceSubmit = async (data) => {
     );
   };
 
-  const ViewFilterButtons = () => {
-    if (userRole !== "admin" && userRole !== "leader at 12") {
-      return null;
-    }
+const ViewFilterButtons = () => {
+  // ✅ FIXED: Get current user inside the component
+  const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+  const userRole = currentUser?.role?.toLowerCase() || "";
+  
+  // ✅ FIXED: Proper role detection for leader at 12
+  const isLeaderAt12 = 
+    userRole.includes("leader at 12") ||
+    userRole.includes("leader@12") ||
+    userRole.includes("leader @12") ||
+    userRole.includes("leader at12");
+  
+  const isAdmin = userRole === "admin";
 
-    return (
-      <div style={styles.viewFilterContainer}>
-        <span style={styles.viewFilterLabel}>View:</span>
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="all"
-            checked={viewFilter === 'all'}
-            onChange={(e) => {
-              setViewFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-          />
-          <span style={styles.viewFilterText}>CELLS</span>
-        </label>
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="personal"
-            checked={viewFilter === 'personal'}
-            onChange={(e) => {
-              setViewFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-          />
-          <span style={styles.viewFilterText}>Personal</span>
-        </label>
-      </div>
-    );
-  };
+  // ✅ FIXED: Show for BOTH admin AND leader at 12
+  if (!isAdmin && !isLeaderAt12) {
+    return null;
+  }
+
+  return (
+    <div style={styles.viewFilterContainer}>
+      <span style={styles.viewFilterLabel}>View:</span>
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="all"
+          checked={viewFilter === 'all'}
+          onChange={(e) => {
+            setViewFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+        />
+        <span style={styles.viewFilterText}>
+          {isLeaderAt12 ? "ALL CELLS" : "ALL CELLS"}
+        </span>
+      </label>
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="personal"
+          checked={viewFilter === 'personal'}
+          onChange={(e) => {
+            setViewFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+        />
+        <span style={styles.viewFilterText}>MY CELLS ONLY</span>
+      </label>
+    </div>
+  );
+};
 
   const EventTypeSelector = () => {
     const [hoveredType, setHoveredType] = useState(null);
