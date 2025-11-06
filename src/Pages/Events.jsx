@@ -287,7 +287,7 @@ const fabStyles = {
     position: "fixed",
     bottom: "20px",
     right: "20px",
-    zIndex: 1000,
+    zIndex: 1300,
   },
   fabMenu: {
     position: "absolute",
@@ -297,6 +297,7 @@ const fabStyles = {
     flexDirection: "column",
     gap: "12px",
     transition: "all 0.3s ease",
+    zIndex: 1300,
   },
   fabMenuItem: {
     display: "flex",
@@ -305,10 +306,20 @@ const fabStyles = {
     background: "#fff",
     padding: "12px 16px",
     borderRadius: "50px",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
     cursor: "pointer",
     whiteSpace: "nowrap",
     transition: "all 0.2s ease",
+    border: "1px solid #e0e0e0",
+    '&:hover': {
+      transform: 'translateY(-2px)',
+      boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
+      backgroundColor: '#f8f9fa',
+    },
+    '&:focus': {
+      outline: '2px solid #007bff',
+      outlineOffset: '2px',
+    },
   },
   fabMenuLabel: {
     fontSize: "14px",
@@ -324,7 +335,8 @@ const fabStyles = {
     alignItems: "center",
     justifyContent: "center",
     color: "#fff",
-    fontSize: "16px",
+    fontSize: "12px",
+    fontWeight: "bold",
   },
 };
 
@@ -411,16 +423,16 @@ const getEventTypeStyles = (isDarkMode, theme) => ({
 
 const getDefaultViewFilter = (userRole) => {
   if (!userRole) return 'all';
-  
+
   const normalizedRole = userRole.toLowerCase().trim();
-  
+
   // ✅ FIXED: Better role detection for leader at 12
-  const isLeaderAt12 = 
+  const isLeaderAt12 =
     normalizedRole.includes("leader at 12") ||
     normalizedRole.includes("leader@12") ||
     normalizedRole.includes("leader @12") ||
     normalizedRole.includes("leader at12");
-  
+
   const isAdmin = normalizedRole === "admin";
   const isUser = normalizedRole === "user" || normalizedRole.includes("leader at 144") || normalizedRole.includes("leader at 1278");
   const isRegistrant = normalizedRole === "registrant";
@@ -499,7 +511,6 @@ const MobileEventCard = ({ event, onOpenAttendance, onEdit, onDelete, isOverdue,
     </div>
   );
 };
-
 const Events = () => {
   const location = useLocation();
   const theme = useTheme();
@@ -516,15 +527,29 @@ const Events = () => {
 
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
-  
+
   // ✅ FIXED: Better role detection for leader at 12
-  const isLeaderAt12 = 
+  const isLeaderAt12 =
     userRole.includes("leader at 12") ||
     userRole.includes("leader@12") ||
     userRole.includes("leader @12") ||
-    userRole.includes("leader at12");
-  
+    userRole.includes("leader at12") ||
+    userRole.includes("leaderat12");
+
   const isAdmin = userRole === "admin";
+  const isRegistrant = userRole === "registrant";
+  const isRegularUser = userRole === "user" ||
+    userRole.includes("leader at 144") ||
+    userRole.includes("leader at 1278") ||
+    userRole.includes("leader at 1728");
+
+  console.log("🔍 Current User Role Analysis:", {
+    userRole,
+    isLeaderAt12,
+    isAdmin,
+    isRegistrant,
+    isRegularUser
+  });
 
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -662,200 +687,222 @@ const Events = () => {
     },
   };
 
- const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
-  setLoading(true);
-  setIsLoading(true);
-  const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
-  const userRole = userProfile?.role || "";
+  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
+    setLoading(true);
+    setIsLoading(true);
+    const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+    const userRole = userProfile?.role || "";
 
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setSnackbar({ open: true, message: "Please log in again", severity: "error" });
-      setTimeout(() => window.location.href = '/login', 2000);
-      setEvents([]);
-      setFilteredEvents([]);
-      setLoading(false);
-      setIsLoading(false);
-      return;
-    }
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-
-    const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
-    const params = {
-      page: filters.page !== undefined ? filters.page : currentPage,
-      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-      status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
-      event_type: filters.event_type !== undefined ? filters.event_type : (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
-      search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
-      personal: filters.personal !== undefined ? filters.personal : (viewFilter === 'personal' && ["admin","leader at 12","leader at 144"].includes(userRole) ? true : undefined),
-      start_date: startDateParam,
-      ...filters
-    };
-
-    // Remove undefined/null params
-    Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
-
-    // ✅ FIXED: Always use /events endpoint - backend handles role logic
-    const endpoint = `${BACKEND_URL}/events`;
-
-    console.log('Fetching events from:', endpoint, 'with params:', params);
-
-    // Caching
-    const cacheKey = getCacheKey({ ...params, userRole });
-    if (!forceRefresh) {
-      const cachedData = getCachedData(cacheKey);
-      if (cachedData) {
-        setEvents(cachedData.events);
-        setFilteredEvents(cachedData.events);
-        setTotalEvents(cachedData.total_events);
-        setTotalPages(cachedData.total_pages);
-        if (filters.page !== undefined) setCurrentPage(filters.page);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+        setTimeout(() => window.location.href = '/login', 2000);
+        setEvents([]);
+        setFilteredEvents([]);
         setLoading(false);
         setIsLoading(false);
         return;
       }
-    }
 
-    const response = await axios.get(endpoint, {
-      headers,
-      params,
-      timeout: 60000 
-    });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
 
-    const responseData = response.data;
-    const newEvents = responseData.events || responseData.results || [];
+      const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
-    console.log('✅ Backend returned events:', newEvents.length);
-    console.log('📦 Sample event data:', newEvents[0]);
-console.log('📦 Persistent attendees in first event:', newEvents[0]?.persistent_attendees);
-    
-    // Debug: Check for any remaining duplicates
-    const eventIds = newEvents.map(e => e._id);
-    const uniqueIds = new Set(eventIds);
-    if (eventIds.length !== uniqueIds.size) {
-      console.warn('⚠️ Backend still returning duplicates:', {
-        totalEvents: eventIds.length,
-        uniqueEvents: uniqueIds.size,
-        duplicates: eventIds.length - uniqueIds.size
+      // ✅ FIXED: Enhanced params for leader at 12
+      const params = {
+        page: filters.page !== undefined ? filters.page : currentPage,
+        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+        status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
+        event_type: filters.event_type !== undefined ? filters.event_type : (selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined),
+        search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
+        personal: filters.personal !== undefined ? filters.personal : (viewFilter === 'personal' && ["admin", "leader at 12", "leader at 144"].includes(userRole) ? true : undefined),
+        start_date: startDateParam,
+        ...filters
+      };
+
+      // ✅ FIXED: Special handling for leader at 12
+      const isLeaderAt12 =
+        userRole.includes("leader at 12") ||
+        userRole.includes("leader@12") ||
+        userRole.includes("leader @12") ||
+        userRole.includes("leader at12");
+
+      if (isLeaderAt12) {
+        // Leader at 12 should see their cells, people under them, and Global events
+        params.leader_at_12_view = true;
+
+        // If they select "personal" view, show only their direct cells
+        if (viewFilter === 'personal') {
+          params.personal_cells_only = true;
+        }
+        // If they select "all" view, show their cells + people under them + Global events
+        else {
+          params.include_subordinate_cells = true;
+          params.include_global_events = true;
+        }
+      }
+
+      // Remove undefined/null params
+      Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
+
+      // ✅ FIXED: Always use /events endpoint - backend handles role logic
+      const endpoint = `${BACKEND_URL}/events`;
+
+      console.log('Fetching events from:', endpoint, 'with params:', params);
+
+      // Caching
+      const cacheKey = getCacheKey({ ...params, userRole });
+      if (!forceRefresh) {
+        const cachedData = getCachedData(cacheKey);
+        if (cachedData) {
+          setEvents(cachedData.events);
+          setFilteredEvents(cachedData.events);
+          setTotalEvents(cachedData.total_events);
+          setTotalPages(cachedData.total_pages);
+          if (filters.page !== undefined) setCurrentPage(filters.page);
+          setLoading(false);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const response = await axios.get(endpoint, {
+        headers,
+        params,
+        timeout: 60000
       });
-    }
 
-    // ✅ FIXED: Use actual values from response
-    const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-    const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+      const responseData = response.data;
+      const newEvents = responseData.events || responseData.results || [];
 
-    setCachedData(cacheKey, {
-      events: newEvents,
-      total_events: totalEventsCount,
-      total_pages: totalPagesCount
-    });
+      console.log('✅ Backend returned events:', newEvents.length);
 
-    // Update state
-    setEvents(newEvents);
-    setFilteredEvents(newEvents);
-    setTotalEvents(totalEventsCount);
-    setTotalPages(totalPagesCount);
-    if (filters.page !== undefined) setCurrentPage(filters.page);
-
-  } catch (err) {
-    console.error("Error fetching events:", err);
-    if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-      setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
-    } else if (err.response?.status === 401) {
-      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
-      localStorage.removeItem("token");
-      localStorage.removeItem("userProfile");
-      setTimeout(() => window.location.href = '/login', 2000);
-    } else {
-      setSnackbar({ open: true, message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`, severity: "error" });
-    }
-    setEvents([]);
-    setFilteredEvents([]);
-    setTotalEvents(0);
-    setTotalPages(1);
-  } finally {
-    setLoading(false);
-    setIsLoading(false);
-  }
-}, [
-  currentPage,
-  rowsPerPage,
-  selectedStatus,
-  selectedEventTypeFilter,
-  searchQuery,
-  viewFilter,
-  userRole,
-  getCacheKey,
-  getCachedData,
-  setCachedData,
-  BACKEND_URL,
-  setEvents,
-  setFilteredEvents,
-  setTotalEvents,
-  setTotalPages,
-  setCurrentPage,
-  setSnackbar
-]);
-
-useEffect(() => {
-  const checkAccess = async () => {
-    const userRole = currentUser?.role?.toLowerCase() || "";
-    const email = currentUser?.email || "";
-    
-    console.log("🔐 Checking user access:", { userRole, email });
-    
-    // Define roles that have access
-    const isAdmin = userRole === "admin";
-    const isLeaderAt12 = 
-      userRole.includes("leader at 12") ||
-      userRole.includes("leader@12") ||
-      userRole.includes("leader @12") ||
-      userRole.includes("leader at12");
-    const isRegistrant = userRole === "registrant";
-    const isLeader144or1728 = 
-      userRole.includes("leader at 144") ||
-      userRole.includes("leader at 1278") ||
-      userRole.includes("leader at 1728");
-    const isUser = userRole === "user";
-    
-    // ✅ ALL these roles can access Events page
-    const hasAccess = isAdmin || isLeaderAt12 || isRegistrant || isLeader144or1728 || isUser;
-    
-    if (!hasAccess) {
-      // Check if they're a leader in the People database
-      try {
-        const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      // Debug: Check for any remaining duplicates
+      const eventIds = newEvents.map(e => e._id);
+      const uniqueIds = new Set(eventIds);
+      if (eventIds.length !== uniqueIds.size) {
+        console.warn('⚠️ Backend still returning duplicates:', {
+          totalEvents: eventIds.length,
+          uniqueEvents: uniqueIds.size,
+          duplicates: eventIds.length - uniqueIds.size
         });
-        
-        if (!response.data.isLeader) {
-          // Not a leader - redirect away
-          alert("You must be a leader to access the Events page");
+      }
+
+      // ✅ FIXED: Use actual values from response
+      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+
+      setCachedData(cacheKey, {
+        events: newEvents,
+        total_events: totalEventsCount,
+        total_pages: totalPagesCount
+      });
+
+      // Update state
+      setEvents(newEvents);
+      setFilteredEvents(newEvents);
+      setTotalEvents(totalEventsCount);
+      setTotalPages(totalPagesCount);
+      if (filters.page !== undefined) setCurrentPage(filters.page);
+
+    } catch (err) {
+      console.error("Error fetching events:", err);
+      if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+        setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
+      } else if (err.response?.status === 401) {
+        setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+        localStorage.removeItem("token");
+        localStorage.removeItem("userProfile");
+        setTimeout(() => window.location.href = '/login', 2000);
+      } else {
+        setSnackbar({ open: true, message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`, severity: "error" });
+      }
+      setEvents([]);
+      setFilteredEvents([]);
+      setTotalEvents(0);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+      setIsLoading(false);
+    }
+  }, [
+    currentPage,
+    rowsPerPage,
+    selectedStatus,
+    selectedEventTypeFilter,
+    searchQuery,
+    viewFilter,
+    userRole,
+    getCacheKey,
+    getCachedData,
+    setCachedData,
+    BACKEND_URL,
+    setEvents,
+    setFilteredEvents,
+    setTotalEvents,
+    setTotalPages,
+    setCurrentPage,
+    setSnackbar
+  ]);
+
+  useEffect(() => {
+    const checkAccess = async () => {
+      const userRole = currentUser?.role?.toLowerCase() || "";
+      const email = currentUser?.email || "";
+
+      console.log("🔐 Checking user access:", { userRole, email });
+
+      // Define roles that have access
+      const isAdmin = userRole === "admin";
+      const isLeaderAt12 =
+        userRole.includes("leader at 12") ||
+        userRole.includes("leader@12") ||
+        userRole.includes("leader @12") ||
+        userRole.includes("leader at12");
+      const isRegistrant = userRole === "registrant";
+      const isLeader144or1728 =
+        userRole.includes("leader at 144") ||
+        userRole.includes("leader at 1278") ||
+        userRole.includes("leader at 1728");
+      const isUser = userRole === "user";
+
+      // ✅ ALL these roles can access Events page
+      const hasAccess = isAdmin || isLeaderAt12 || isRegistrant || isLeader144or1728 || isUser;
+
+      if (!hasAccess) {
+        // Check if they're a leader in the People database
+        try {
+          const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+          });
+
+          if (!response.data.isLeader) {
+            // Not a leader - redirect away
+            alert("You must be a leader to access the Events page");
+            window.location.href = "/dashboard";
+          }
+        } catch (error) {
+          console.error("Error checking leader status:", error);
+          alert("Unable to verify access. Please contact support.");
           window.location.href = "/dashboard";
         }
-      } catch (error) {
-        console.error("Error checking leader status:", error);
-        alert("Unable to verify access. Please contact support.");
-        window.location.href = "/dashboard";
+      } else {
+        console.log("✅ Access granted:", {
+          isAdmin,
+          isLeaderAt12,
+          isRegistrant,
+          isLeader144or1728,
+          isUser
+        });
       }
-    } else {
-      console.log("✅ Access granted:", { 
-        isAdmin, 
-        isLeaderAt12, 
-        isRegistrant, 
-        isLeader144or1728,
-        isUser 
-      });
-    }
-  };
-  
-  checkAccess();
-}, [currentUser?.email, currentUser?.role]);
+    };
+
+    checkAccess();
+  }, [currentUser?.email, currentUser?.role]);
 
   // ✅ FIXED: Complete fetchEventTypes function
   const fetchEventTypes = async () => {
@@ -882,7 +929,7 @@ useEffect(() => {
       return actualEventTypes;
     } catch (error) {
       console.error('Error fetching event types:', error);
-      
+
       // Try to load from cache if available
       try {
         const cachedTypes = localStorage.getItem('eventTypes');
@@ -896,7 +943,7 @@ useEffect(() => {
       } catch (cacheError) {
         console.error('Cache read failed:', cacheError);
       }
-      
+
       return [];
     }
   };
@@ -905,12 +952,12 @@ useEffect(() => {
     const status = (event.status || '').toLowerCase();
     const hasAttendees = event.attendees && event.attendees.length > 0;
     const didNotMeet = event.did_not_meet || false;
-    
+
     // If event is marked as complete but has no attendees and didn't meet, it's invalid
     if (status === 'complete' && !hasAttendees && !didNotMeet) {
       return 'incomplete';
     }
-    
+
     return status;
   };
 
@@ -1228,88 +1275,88 @@ useEffect(() => {
     fetchEvents(apiFilters, true);
   };
 
- // This stays in Events.jsx
-const handleAttendanceSubmit = async (data) => {
-  try {
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
-    const eventId = selectedEvent._id;
-    const eventName = selectedEvent.eventName || 'Event';
+  // This stays in Events.jsx
+  const handleAttendanceSubmit = async (data) => {
+    try {
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+      const eventId = selectedEvent._id;
+      const eventName = selectedEvent.eventName || 'Event';
 
-    const leaderEmail = currentUser?.email || '';
-    const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
+      const leaderEmail = currentUser?.email || '';
+      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
-    let payload;
+      let payload;
 
-    if (data === "did_not_meet") {
-      payload = {
-        attendees: [],
-        all_attendees: [],
-        leaderEmail,
-        leaderName,
-        did_not_meet: true,
-      };
-    } else if (Array.isArray(data)) {
-      payload = {
-        attendees: data,
-        all_attendees: data,
-        leaderEmail,
-        leaderName,
-        did_not_meet: false,
-      };
-    } else {
-      payload = {
-        ...data,
-        leaderEmail,
-        leaderName,
-      };
-    }
-
-    // 🔍 ADD DEBUG LOGGING
-    console.log("🔄 Sending payload to backend:", JSON.stringify(payload, null, 2));
-    console.log("🔍 First attendee structure:", payload.attendees[0]);
-
-    const response = await axios.put(
-      `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-      payload,
-      { headers }
-    );
-
-    await fetchEvents();
-    setAttendanceModalOpen(false);
-    setSelectedEvent(null);
-
-    setSnackbar({
-      open: true,
-      message: payload.did_not_meet
-        ? `${eventName} marked as 'Did Not Meet'.`
-        : `Successfully captured attendance for ${eventName}`,
-      severity: "success",
-    });
-
-    return { success: true, message: "Attendance submitted successfully" };
-  } catch (error) {
-    console.error("Error in handleAttendanceSubmit:", error);
-    const errData = error.response?.data;
-    let errorMessage = error.message;
-
-    if (errData) {
-      if (Array.isArray(errData?.errors)) {
-        errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+      if (data === "did_not_meet") {
+        payload = {
+          attendees: [],
+          all_attendees: [],
+          leaderEmail,
+          leaderName,
+          did_not_meet: true,
+        };
+      } else if (Array.isArray(data)) {
+        payload = {
+          attendees: data,
+          all_attendees: data,
+          leaderEmail,
+          leaderName,
+          did_not_meet: false,
+        };
       } else {
-        errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+        payload = {
+          ...data,
+          leaderEmail,
+          leaderName,
+        };
       }
+
+      // 🔍 ADD DEBUG LOGGING
+      console.log("🔄 Sending payload to backend:", JSON.stringify(payload, null, 2));
+      console.log("🔍 First attendee structure:", payload.attendees[0]);
+
+      const response = await axios.put(
+        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+        payload,
+        { headers }
+      );
+
+      await fetchEvents();
+      setAttendanceModalOpen(false);
+      setSelectedEvent(null);
+
+      setSnackbar({
+        open: true,
+        message: payload.did_not_meet
+          ? `${eventName} marked as 'Did Not Meet'.`
+          : `Successfully captured attendance for ${eventName}`,
+        severity: "success",
+      });
+
+      return { success: true, message: "Attendance submitted successfully" };
+    } catch (error) {
+      console.error("Error in handleAttendanceSubmit:", error);
+      const errData = error.response?.data;
+      let errorMessage = error.message;
+
+      if (errData) {
+        if (Array.isArray(errData?.errors)) {
+          errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+        } else {
+          errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+        }
+      }
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error",
+      });
+
+      return { success: false, message: errorMessage };
     }
-
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: "error",
-    });
-
-    return { success: false, message: errorMessage };
-  }
-};
+  };
 
   const handleEditEvent = (event) => {
     const eventToEdit = {
@@ -1617,7 +1664,7 @@ const handleAttendanceSubmit = async (data) => {
     let initialViewFilter = 'all';
     if (userRole === "user" || userRole === "leader at 1" || userRole === "registrant") {
       initialViewFilter = 'personal';
-    } else if (userRole === "admin" || userRole === "leader at 12") {
+    } else if (userRole === "admin" || isLeaderAt12) { // ✅ FIXED: Use isLeaderAt12
       initialViewFilter = viewFilter;
     }
 
@@ -1631,20 +1678,33 @@ const handleAttendanceSubmit = async (data) => {
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
       event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
       search: searchQuery.trim() || undefined,
-      personal: shouldApplyPersonalByDefault ? undefined : (viewFilter === 'personal' ? true : undefined),
       start_date: DEFAULT_API_START_DATE
     };
+
+    // ✅ FIXED: Handle Leader at 12 parameters
+    if (isLeaderAt12) {
+      if (viewFilter === 'personal') {
+        fetchParams.show_personal_cells = true;
+        fetchParams.show_all_authorized = false;
+      } else {
+        fetchParams.show_personal_cells = false;
+        fetchParams.show_all_authorized = true;
+      }
+    } else if (isAdmin && viewFilter === 'personal') {
+      fetchParams.personal = true;
+    }
 
     Object.keys(fetchParams).forEach(key =>
       fetchParams[key] === undefined && delete fetchParams[key]
     );
 
+    console.log("🔍 useEffect - Fetching with params:", fetchParams);
     fetchEvents(fetchParams, true);
   }, [
-    selectedStatus, selectedEventTypeFilter, viewFilter, currentPage, rowsPerPage, userRole
+    selectedStatus, selectedEventTypeFilter, viewFilter, currentPage, rowsPerPage, userRole, isLeaderAt12, isAdmin
   ]);
 
-  const StatusBadges = () => {
+  const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
     const statuses = [
       { value: 'incomplete', label: 'Incomplete', style: styles.statusBadgeIncomplete },
       { value: 'complete', label: 'Complete', style: styles.statusBadgeComplete },
@@ -1673,72 +1733,155 @@ const handleAttendanceSubmit = async (data) => {
     );
   };
 
-const ViewFilterButtons = () => {
-  // ✅ FIXED: Get current user inside the component
-  const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
-  const userRole = currentUser?.role?.toLowerCase() || "";
-  
-  // ✅ FIXED: Proper role detection for leader at 12
-  const isLeaderAt12 = 
-    userRole.includes("leader at 12") ||
-    userRole.includes("leader@12") ||
-    userRole.includes("leader @12") ||
-    userRole.includes("leader at12");
-  
-  const isAdmin = userRole === "admin";
+  const ViewFilterButtons = () => {
+    const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+    const userRole = currentUser?.role?.toLowerCase() || "";
 
-  // ✅ FIXED: Show for BOTH admin AND leader at 12
-  if (!isAdmin && !isLeaderAt12) {
-    return null;
-  }
+    const isLeaderAt12 =
+      userRole.includes("leader at 12") ||
+      userRole.includes("leader@12") ||
+      userRole.includes("leader @12") ||
+      userRole.includes("leader at12");
 
-  return (
-    <div style={styles.viewFilterContainer}>
-      <span style={styles.viewFilterLabel}>View:</span>
-      <label style={styles.viewFilterRadio}>
-        <input
-          type="radio"
-          name="viewFilter"
-          value="all"
-          checked={viewFilter === 'all'}
-          onChange={(e) => {
-            setViewFilter(e.target.value);
-            setCurrentPage(1);
-          }}
-        />
-        <span style={styles.viewFilterText}>
-          {isLeaderAt12 ? "ALL CELLS" : "ALL CELLS"}
-        </span>
-      </label>
-      <label style={styles.viewFilterRadio}>
-        <input
-          type="radio"
-          name="viewFilter"
-          value="personal"
-          checked={viewFilter === 'personal'}
-          onChange={(e) => {
-            setViewFilter(e.target.value);
-            setCurrentPage(1);
-          }}
-        />
-        <span style={styles.viewFilterText}>MY CELLS ONLY</span>
-      </label>
-    </div>
-  );
-};
+    const isAdmin = userRole === "admin";
 
-  const EventTypeSelector = () => {
+    if (!isAdmin && !isLeaderAt12) {
+      return null;
+    }
+
+    return (
+      <div style={styles.viewFilterContainer}>
+        <span style={styles.viewFilterLabel}>View:</span>
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="all"
+            checked={viewFilter === 'all'}
+            onChange={(e) => {
+              setViewFilter(e.target.value);
+              setCurrentPage(1);
+
+              const fetchParams = {
+                page: 1,
+                limit: rowsPerPage,
+                start_date: DEFAULT_API_START_DATE
+              };
+
+              if (isLeaderAt12) {
+                fetchParams.show_personal_cells = false;
+                fetchParams.show_all_authorized = true;
+              } else if (isAdmin) {
+                fetchParams.personal = false;
+              }
+              fetchEvents(fetchParams, true);
+            }}
+          />
+          <span style={styles.viewFilterText}>
+            {isLeaderAt12 ? "ALL CELLS" : "ALL CELLS"}
+          </span>
+        </label>
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="personal"
+            checked={viewFilter === 'personal'}
+            onChange={(e) => {
+              setViewFilter(e.target.value);
+              setCurrentPage(1);
+              const fetchParams = {
+                page: 1,
+                limit: rowsPerPage,
+                start_date: DEFAULT_API_START_DATE
+              };
+
+              if (isLeaderAt12) {
+                // Leader at 12: "MY CELLS ONLY" = show only personal cells
+                fetchParams.show_personal_cells = true;
+                fetchParams.show_all_authorized = false;
+              } else if (isAdmin) {
+                // Admin: "MY CELLS ONLY" = show only personal events
+                fetchParams.personal = true;
+              }
+
+              fetchEvents(fetchParams, true);
+            }}
+          />
+          <span style={styles.viewFilterText}>
+            {isLeaderAt12 ? "MY CELLS ONLY" : "MY CELLS ONLY"}
+          </span>
+        </label>
+      </div>
+    );
+  };
+
+  const EventTypeSelector = ({
+    eventTypes,
+    selectedEventTypeFilter,
+    setSelectedEventTypeFilter,
+    fetchEvents,
+    setCurrentPage,
+    rowsPerPage,
+    selectedStatus,
+    searchQuery,
+    viewFilter,
+    userRole,
+    customEventTypes,
+    setSelectedEventTypeObj,
+    DEFAULT_API_START_DATE,
+    isLeaderAt12,
+    isAdmin,
+    isRegistrant,
+    isRegularUser
+  }) => {
     const [hoveredType, setHoveredType] = useState(null);
+    const theme = useTheme();
+    const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
+    const isDarkMode = theme.palette.mode === 'dark';
+    const eventTypeStyles = getEventTypeStyles(isDarkMode, theme);
 
+    console.log("🎯 EventTypeSelector - Role Check:", {
+      isLeaderAt12,
+      isAdmin,
+      isRegistrant,
+      isRegularUser,
+      userRole
+    });
+
+    // ✅ FIXED: Determine which event types to show based on role
     const allTypes = useMemo(() => {
-      const baseTypes = ["all"];
-      const eventTypeNames = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
-      return [...baseTypes, ...eventTypeNames];
-    }, [eventTypes]);
+      // Get all available event types from your database/API
+      const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
+
+      if (isAdmin || isRegistrant) {
+        console.log("👑 Admin/Registrant - Showing ALL event types including:", availableTypes);
+        return ["all", ...availableTypes];
+      }
+      else if (isLeaderAt12) {
+        console.log("👥 Leader at 12 - Showing: CELLS and Global Events");
+        const leaderTypes = ["all"];
+
+        // ✅ FIXED: Always show these options for Leaders at 12
+        leaderTypes.push("CELLS");
+        leaderTypes.push("Global Events");
+
+        console.log("📋 Leader at 12 event types:", leaderTypes);
+        return leaderTypes;
+      }
+      else {
+        console.log("👤 Regular User/Other - Showing only: CELLS");
+        // Regular users and other leaders ONLY see CELLS
+        // If CELLS doesn't exist in available types, still show it
+        return ["CELLS"];
+      }
+    }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser]);
 
     const getDisplayName = (type) => {
       if (!type) return "";
-      if (type === "all") return "CELLS";
+      if (type === "all") {
+        return isLeaderAt12 ? "ALL CELLS" : "ALL EVENTS";
+      }
       return typeof type === "string" ? type : type.name || String(type);
     };
 
@@ -1747,9 +1890,68 @@ const ViewFilterButtons = () => {
       return typeof type === "string" ? type : type.name || String(type);
     };
 
+    const handleEventTypeClick = (typeValue) => {
+      if (selectedEventTypeFilter === typeValue) {
+        fetchEvents({}, true);
+        return;
+      }
+
+      setSelectedEventTypeFilter(typeValue);
+      setCurrentPage(1);
+
+      const selectedTypeObj = customEventTypes.find(
+        (et) => et.name?.toLowerCase() === typeValue.toLowerCase()
+      );
+
+      if (selectedTypeObj) {
+        setSelectedEventTypeObj(selectedTypeObj);
+      } else {
+        setSelectedEventTypeObj(null);
+      }
+
+      // ✅ FIXED: Handle personal filtering correctly for each role
+      const fetchParams = {
+        page: 1,
+        limit: rowsPerPage,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+        event_type: typeValue !== 'all' ? typeValue : undefined,
+        search: searchQuery.trim() || undefined,
+        start_date: DEFAULT_API_START_DATE
+      };
+
+      if (isAdmin && viewFilter === 'personal') {
+        fetchParams.personal = true;
+      } else if (isRegistrant && typeValue === 'cells') {
+        // For registrant viewing Cells, always apply personal filter
+        fetchParams.personal = true;
+      } else if (isLeaderAt12) {
+        // ✅ FIXED: Use proper Leader at 12 parameters
+        if (viewFilter === 'personal') {
+          fetchParams.show_personal_cells = true;
+          fetchParams.show_all_authorized = false;
+        } else {
+          fetchParams.show_personal_cells = false;
+          fetchParams.show_all_authorized = true;
+        }
+      }
+
+      fetchEvents(fetchParams, true);
+    };
+
+    // ✅ FIXED: ALWAYS show the selector for Leaders at 12
+    // Show for regular users too
+    if (!isLeaderAt12 && !isAdmin && !isRegistrant && !isRegularUser) {
+      return null;
+    }
+
     return (
       <div style={eventTypeStyles.container}>
-        <div style={eventTypeStyles.header}>Filter by Event Type</div>
+        <div style={eventTypeStyles.header}>
+          {isAdmin ? "All Event Types" :
+            isRegistrant ? "All Event Types (Your Cells Only)" :
+              isLeaderAt12 ? "Cells & Global Events" :
+                "Your Cells"}
+        </div>
 
         <div style={eventTypeStyles.selectedTypeDisplay}>
           <div style={eventTypeStyles.checkIcon}>✓</div>
@@ -1770,7 +1972,7 @@ const ViewFilterButtons = () => {
                   ...eventTypeStyles.typeCard,
                   ...(isActive ? eventTypeStyles.typeCardActive : {}),
                   ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
-                  position: "relative", // This is crucial
+                  position: "relative",
                   minWidth: isMobileView ? "120px" : "150px",
                   minHeight: "60px",
                   padding: "0.75rem 1rem",
@@ -1778,11 +1980,9 @@ const ViewFilterButtons = () => {
                   alignItems: "center",
                   justifyContent: "center",
                   cursor: "pointer",
-                  overflow: "visible", // Ensure popover isn't clipped
+                  overflow: "visible",
                 }}
-                onClick={() => {
-                  handleEventTypeClick(typeValue);
-                }}
+                onClick={() => handleEventTypeClick(typeValue)}
                 onMouseEnter={() => setHoveredType(typeValue)}
                 onMouseLeave={() => setHoveredType(null)}
               >
@@ -1795,124 +1995,10 @@ const ViewFilterButtons = () => {
                 >
                   {displayName}
                 </span>
-
-                {isAdmin && typeValue !== 'all' && (
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openTypeMenu(e, type);
-                    }}
-                    aria-label="type actions"
-                    sx={{
-                      position: "absolute",
-                      top: 4,
-                      right: 4,
-                      zIndex: 2,
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)',
-                      '&:hover': {
-                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)',
-                      },
-                      width: 24,
-                      height: 24,
-                    }}
-                  >
-                    <MoreVertIcon fontSize="small" />
-                  </IconButton>
-                )}
               </div>
             );
           })}
         </div>
-        <Popover
-          open={Boolean(typeMenuAnchor)}
-          anchorEl={typeMenuAnchor}
-          onClose={closeTypeMenu}
-          anchorOrigin={{
-            vertical: "bottom",
-            horizontal: "right"
-          }}
-          transformOrigin={{
-            vertical: "top",
-            horizontal: "right"
-          }}
-          sx={{
-            '& .MuiPopover-paper': {
-              borderRadius: 1,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-              minWidth: 120,
-              marginTop: '4px',
-            }
-          }}
-          disableScrollLock={true}
-        >
-          <MenuItem
-            onClick={() => {
-              if (typeMenuFor) handleEditType(typeMenuFor);
-              closeTypeMenu();
-            }}
-            sx={{
-              padding: '8px 16px',
-              fontSize: '0.875rem',
-              '&:hover': {
-                backgroundColor: 'rgba(0, 123, 255, 0.08)',
-              }
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 36 }}>
-              <EditIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Edit"
-              primaryTypographyProps={{ fontSize: '0.875rem' }}
-            />
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              setToDeleteType(typeMenuFor);
-              setConfirmDeleteOpen(true);
-              closeTypeMenu();
-            }}
-            sx={{
-              padding: '8px 16px',
-              fontSize: '0.875rem',
-              color: "error.main",
-              '&:hover': {
-                backgroundColor: 'rgba(211, 47, 47, 0.08)',
-              }
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 36 }}>
-              <DeleteIcon fontSize="small" color="error" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Delete"
-              primaryTypographyProps={{ fontSize: '0.875rem' }}
-            />
-          </MenuItem>
-        </Popover>
-        <Dialog
-          open={confirmDeleteOpen}
-          onClose={() => setConfirmDeleteOpen(false)}
-          maxWidth="xs"
-          fullWidth
-        >
-          <DialogTitle>Delete Event Type</DialogTitle>
-          <DialogContent>
-            <Typography>
-              Are you sure you want to delete{" "}
-              <strong>{toDeleteType?.name || toDeleteType || "this event type"}</strong>? This
-              cannot be undone.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setConfirmDeleteOpen(false)}>Cancel</Button>
-            <Button color="error" onClick={handleDeleteType}>
-              Delete
-            </Button>
-          </DialogActions>
-        </Dialog>
       </div>
     );
   };
@@ -1944,7 +2030,25 @@ const ViewFilterButtons = () => {
         flexShrink: 0, // CRUCIAL: Keeps this section's height fixed
         backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
       }}>
-        <EventTypeSelector />
+        <EventTypeSelector
+          eventTypes={eventTypes}
+          selectedEventTypeFilter={selectedEventTypeFilter}
+          setSelectedEventTypeFilter={setSelectedEventTypeFilter}
+          fetchEvents={fetchEvents}
+          setCurrentPage={setCurrentPage}
+          rowsPerPage={rowsPerPage}
+          selectedStatus={selectedStatus}
+          searchQuery={searchQuery}
+          viewFilter={viewFilter}
+          userRole={userRole}
+          customEventTypes={customEventTypes}
+          setSelectedEventTypeObj={setSelectedEventTypeObj}
+          DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
+          isLeaderAt12={isLeaderAt12}
+          isAdmin={isAdmin}
+          isRegistrant={isRegistrant}
+          isRegularUser={isRegularUser}
+        />
 
         <Box sx={{
           display: "flex",
@@ -2025,7 +2129,11 @@ const ViewFilterButtons = () => {
           gap: '1rem',
           px: 1
         }}>
-          <StatusBadges />
+          <StatusBadges
+            selectedStatus={selectedStatus}
+            setSelectedStatus={setSelectedStatus}
+            setCurrentPage={setCurrentPage}
+          />
           <ViewFilterButtons />
         </Box>
       </Box>
@@ -2313,52 +2421,92 @@ const ViewFilterButtons = () => {
         )}
       </Box>
 
-      {/* ** 4. FAB (FIXED relative to the main container)** */}
+      {/* ** 4. FAB (Fixed with proper positioning and behavior) ** */}
       {isAdmin && (
         <Box sx={{
-          position: 'absolute',
+          position: 'fixed', // Changed from 'absolute' to 'fixed' for consistent positioning
           bottom: '24px',
           right: '24px',
-          zIndex: 1000,
+          zIndex: 1300, // Increased z-index to ensure it's above other elements
         }}>
+          {/* Backdrop to close when clicking outside */}
           {fabMenuOpen && (
-            <Box sx={fabStyles.fabMenu}>
-              <Box
-                sx={fabStyles.fabMenuItem}
-                onClick={() => {
-                  setFabMenuOpen(false);
-                  setEventTypesModalOpen(true);
-                  setEditingEventType(null);
-                }}
-              >
-                <Typography sx={fabStyles.fabMenuLabel}>Create Event Type</Typography>
-                <Box sx={fabStyles.fabMenuIcon}>📋</Box>
-              </Box>
-
-              <Box
-                sx={fabStyles.fabMenuItem}
-                onClick={() => {
-                  setFabMenuOpen(false);
-                  setCreateEventModalOpen(true);
-                }}
-              >
-                <Typography sx={fabStyles.fabMenuLabel}>Create Event</Typography>
-                <Box sx={fabStyles.fabMenuIcon}>📅</Box>
-              </Box>
-            </Box>
+            <Box
+              sx={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 1299,
+                backgroundColor: 'transparent',
+              }}
+              onClick={() => setFabMenuOpen(false)}
+            />
           )}
 
+          {/* FAB Menu Items */}
+          <Box
+            sx={{
+              ...fabStyles.fabMenu,
+              opacity: fabMenuOpen ? 1 : 0,
+              visibility: fabMenuOpen ? 'visible' : 'hidden',
+              transform: fabMenuOpen ? 'translateY(0)' : 'translateY(10px)',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              pointerEvents: fabMenuOpen ? 'auto' : 'none',
+            }}
+          >
+            <Box
+              sx={fabStyles.fabMenuItem}
+              onClick={() => {
+                setFabMenuOpen(false);
+                setEventTypesModalOpen(true);
+                setEditingEventType(null);
+              }}
+              role="button"
+              tabIndex={fabMenuOpen ? 0 : -1}
+              aria-label="Create Event Type"
+            >
+              <Typography sx={fabStyles.fabMenuLabel}>Create Event Type</Typography>
+              <Box sx={fabStyles.fabMenuIcon}>📋</Box>
+            </Box>
+
+            <Box
+              sx={fabStyles.fabMenuItem}
+              onClick={() => {
+                setFabMenuOpen(false);
+                setCreateEventModalOpen(true);
+              }}
+              role="button"
+              tabIndex={fabMenuOpen ? 0 : -1}
+              aria-label="Create Event"
+            >
+              <Typography sx={fabStyles.fabMenuLabel}>Create Event</Typography>
+              <Box sx={fabStyles.fabMenuIcon}>📅</Box>
+            </Box>
+          </Box>
+
+          {/* Main FAB Button */}
           <IconButton
             sx={{
               backgroundColor: "#007bff",
               color: "white",
               width: 56,
               height: 56,
-              '&:hover': { backgroundColor: "#0056b3" },
-              transform: fabMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-              transition: 'all 0.3s ease',
+              '&:hover': {
+                backgroundColor: "#0056b3",
+                transform: 'scale(1.05)',
+              },
+              transform: fabMenuOpen ? 'rotate(45deg) scale(1.05)' : 'rotate(0deg) scale(1)',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+              position: 'relative',
+              zIndex: 1301, // Higher than menu items
             }}
             onClick={() => setFabMenuOpen(!fabMenuOpen)}
+            aria-label={fabMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={fabMenuOpen}
+            aria-haspopup="true"
           >
             +
           </IconButton>
@@ -2382,7 +2530,7 @@ const ViewFilterButtons = () => {
             setAttendanceModalOpen(false);
             setSelectedEvent(null);
           }}
-           onSubmit={handleAttendanceSubmit}
+          onSubmit={handleAttendanceSubmit}
           event={selectedEvent}
           currentUser={currentUser}
         />
