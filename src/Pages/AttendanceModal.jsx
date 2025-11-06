@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, UserPlus,  Search,  CheckCircle, ChevronDown , X, Menu} from "lucide-react"; 
 
-// Create a global cache for people data
 let globalPeopleCache = {
   data: [],
   timestamp: null,
-  expiry: 5 * 60 * 1000 // 5 minutes cache
+  expiry: 5 * 60 * 1000 
 };
 
 const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
@@ -36,39 +35,12 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
-  // Pre-load people data when component mounts or opens
   useEffect(() => {
     if (isOpen) {
       loadPreloadedPeople();
     }
   }, [isOpen]);
   
-  useEffect(() => {
-    if (isOpen && event) {
-      console.log("🎯 Modal opened with event:", event);
-      console.log("📋 Persistent attendees in event:", event.persistent_attendees);
-      console.log("📋 Attendance data:", event.attendance);
-
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-      setShowMobileMenu(false);
-
-      loadExistingAttendance();
-      fetchPeople();
-
-      if (event.eventType === "cell") {
-        fetchCommonAttendees(event._id || event.id);
-      } else {
-        setCommonAttendees([]);
-      }
-
-      if (event.did_not_meet) {
-        setDidNotMeet(true);
-      }
-    }
-  }, [isOpen, event]);
-
   const loadPreloadedPeople = async () => {
     const now = Date.now();
     if (globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
@@ -1254,6 +1226,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit,  preloadedPeople = [],
 };
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
+    const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
   const [decisions, setDecisions] = useState({});
@@ -1266,7 +1239,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [openPaymentDropdown, setOpenPaymentDropdown] = useState(null);
   const [people, setPeople] = useState([]);
   const [commonAttendees, setCommonAttendees] = useState([]);
-  const [searchName, setSearchName] = useState("");
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
@@ -1295,6 +1267,32 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   ];
 
   const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
+
+   useEffect(() => {
+    if (isOpen && event) {
+      console.log("🎯 Modal opened with event:", event);
+      console.log("📋 Persistent attendees in event:", event.persistent_attendees);
+      console.log("📋 Attendance data:", event.attendance);
+
+      setSearchName("");
+      setAssociateSearch("");
+      setActiveTab(0);
+      setShowMobileMenu(false);
+
+      loadExistingAttendance();
+      fetchPeople();
+
+      if (event.eventType === "cell") {
+        fetchCommonAttendees(event._id || event.id);
+      } else {
+        setCommonAttendees([]);
+      }
+
+      if (event.did_not_meet) {
+        setDidNotMeet(true);
+      }
+    }
+  }, [isOpen, event]);
 
   // Fixed missing loadPreloadedPeople function
   const loadPreloadedPeople = async () => {
@@ -1356,6 +1354,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     const week = getWeekNumber(now);
     return `${year}-W${week.toString().padStart(2, '0')}`;
   }
+
 
 function getWeekNumber(date) {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -1595,29 +1594,6 @@ function getCurrentWeekIdentifier() {
     const week = getWeekNumber(now);
     return `${year}-W${week.toString().padStart(2, '0')}`;
 }
- useEffect(() => {
-    if (isOpen && event) {
-      console.log("🎯 Modal opened with event:", event);
-
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-      setShowMobileMenu(false);
-
-      loadExistingAttendance(); // ✅ This now loads from event.persistent_attendees
-      fetchPeople();
-
-      if (event.eventType === "cell") {
-        fetchCommonAttendees(event._id || event.id);
-      } else {
-        setCommonAttendees([]);
-      }
-
-      if (event.did_not_meet) {
-        setDidNotMeet(true);
-      }
-    }
-  }, [isOpen, event]);
 
   useEffect(() => {
     const checkScreenSize = () => {

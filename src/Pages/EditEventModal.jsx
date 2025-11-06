@@ -7,15 +7,17 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     day: "",
     location: "",
     date: "",
-    status: "",
+    status: "open",
     recurring: false,
     eventTimestamp: "",
     UUID: "",
     _id: ""
   });
+  const [loading, setLoading] = useState(false);
+  const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
 
   useEffect(() => {
-    if (event) {
+    if (event && isOpen) {
       console.log('📝 Loading event for editing:', {
         name: event.eventName,
         UUID: event.UUID,
@@ -23,21 +25,55 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         fullEvent: event
       });
 
+      // ✅ CRITICAL FIX: Extract identifiers with better fallbacks
+      const eventUUID = event.UUID || event.uuid || "";
+      const eventId = event._id || event.id || "";
+      
+      console.log('🔍 Extracted identifiers:', {
+        UUID: eventUUID,
+        _id: eventId,
+        hasUUID: !!eventUUID,
+        hasId: !!eventId
+      });
+
+      // ✅ CRITICAL: Ensure at least ONE identifier exists
+      if (!eventUUID && !eventId) {
+        console.error('❌ CRITICAL: No identifier found in event object!', event);
+        setAlert({
+          open: true,
+          type: "error",
+          message: "Cannot edit event: No identifier found. Please refresh and try again.",
+        });
+        return;
+      }
+
+      // ✅ Set form data with identifiers preserved
       setFormData({
-        UUID: event.UUID || "",
-        _id: event._id || event.id || "",
+        // Identifiers - MUST preserve both
+        UUID: eventUUID,
+        _id: eventId,
         
+        // Form fields with safe fallbacks
         eventName: event.eventName || event.name || "",
-        eventLeader: event.eventLeaderName || event.leader || "",
-        day: event.day || "",
+        eventLeader: event.eventLeader || event.eventLeaderName || event.leader || "",
+        day: event.day || event.recurring_day?.[0] || "",
         location: event.location || event.address || "",
         date: event.date || event.dateOfEvent || "",
-        status: event.status || event.Status || "Incomplete",
-        recurring: event.renocaming || event.isVirtual || false,
-        eventTimestamp: event.eventTimestamp || event.created_at || ""
+        status: event.status || event.Status || "open",
+        recurring: event.renocaming || event.recurring || event.isVirtual || false,
+        eventTimestamp: event.eventTimestamp || event.created_at || event.updated_at || ""
       });
+
+      // ✅ Verify state was set correctly
+      setTimeout(() => {
+        console.log('✅ FormData after setting:', {
+          UUID: eventUUID,
+          _id: eventId,
+          eventName: event.eventName || event.name || ""
+        });
+      }, 100);
     }
-  }, [event]);
+  }, [event, isOpen]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -47,25 +83,107 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     }));
   };
 
-  const handleSave = () => {
-    const updatePayload = {
-      eventName: formData.eventName,
-      day: formData.day,
-      location: formData.location,
-      date: formData.date,
-      status: formData.status,
-      renocaming: formData.recurring,
-    };
+  const handleSave = async () => {
+    console.log('💾 Save initiated - Current formData:', formData);
+    
+    // ✅ CRITICAL FIX: Prefer _id over UUID for updates
+    const primaryIdentifier = formData._id || formData.UUID;
+    
+    if (!primaryIdentifier) {
+      console.error('❌ No event identifier found. FormData:', formData);
+      console.error('❌ Original event:', event);
+      
+      setAlert({
+        open: true,
+        type: "error",
+        message: "Cannot save: Missing event identifier. Please close and try again.",
+      });
+      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+      return;
+    }
 
-    console.log('💾 Saving event update:', {
-      UUID: formData.UUID,
-      _id: formData._id,
-      identifier: formData.UUID || formData._id,
-      payload: updatePayload
-    });
+    // ✅ Validate required fields
+    if (!formData.eventName?.trim() || !formData.date) {
+      setAlert({
+        open: true,
+        type: "error",
+        message: "Please fill in event name and date",
+      });
+      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      return;
+    }
 
-    onSave(updatePayload);
-    onClose();
+    setLoading(true);
+
+    try {
+      // ✅ CRITICAL FIX: Build payload with correct identifier
+      const updatePayload = {
+        // Use the primary identifier (_id preferred)
+        ...(formData._id && { _id: formData._id }),
+        ...(formData.UUID && { UUID: formData.UUID }),
+        
+        // Updated fields
+        eventName: formData.eventName.trim(),
+        day: formData.day,
+        location: formData.location,
+        date: formData.date,
+        status: formData.status,
+        renocaming: formData.recurring,
+        
+        // Preserve original data
+        eventLeader: formData.eventLeader,
+        eventType: event?.eventType,
+        isTicketed: event?.isTicketed,
+        isGlobal: event?.isGlobal
+      };
+
+      console.log('💾 Saving event with payload:', {
+        identifier: primaryIdentifier,
+        identifierType: formData._id ? '_id' : 'UUID',
+        payload: updatePayload
+      });
+
+      // ✅ Call the save function with the payload
+      const result = await onSave(updatePayload);
+      
+      if (result.success) {
+        setAlert({
+          open: true,
+          type: "success",
+          message: "Event updated successfully! Refreshing...",
+        });
+        
+        setTimeout(() => {
+          setAlert({ open: false, type: "success", message: "" });
+          onClose();
+        }, 1500);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error saving event:', error);
+      
+      // ✅ Extract proper error message
+      let errorMessage = "Failed to update event";
+      
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      setAlert({
+        open: true,
+        type: "error",
+        message: errorMessage,
+      });
+      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -77,7 +195,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0,0,0,0.8)", // darker overlay
+      background: "rgba(0,0,0,0.8)",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
@@ -85,10 +203,10 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       padding: "20px",
     },
     modal: {
-      background: "#1e1e1e", // dark modal background
+      background: "#1e1e1e",
       borderRadius: "12px",
       width: "100%",
-      maxWidth: "700px", // wider modal
+      maxWidth: "700px",
       maxHeight: "90vh",
       overflowY: "auto",
       padding: "24px",
@@ -143,7 +261,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     checkbox: {
       width: "16px",
       height: "16px",
-      accentColor: "#2563eb", // blue checkbox in dark mode
+      accentColor: "#2563eb",
     },
     buttonGroup: {
       display: "flex",
@@ -173,6 +291,17 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       fontWeight: "500",
       transition: "all 0.2s ease",
     },
+    saveBtnDisabled: {
+      padding: "10px 20px",
+      background: "#666",
+      border: "none",
+      borderRadius: "6px",
+      color: "#ccc",
+      cursor: "not-allowed",
+      fontSize: "14px",
+      fontWeight: "500",
+      opacity: 0.6,
+    },
     infoBox: {
       background: "#2b2b2b",
       border: "1px solid #555",
@@ -182,29 +311,69 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       fontSize: "12px",
       color: "#999",
     },
+    alert: {
+      position: "fixed",
+      top: "20px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      padding: "12px 20px",
+      borderRadius: "6px",
+      color: "#fff",
+      fontSize: "14px",
+      fontWeight: "500",
+      zIndex: 10001,
+    },
+    alertSuccess: {
+      background: "#10b981",
+    },
+    alertError: {
+      background: "#ef4444",
+    },
   };
+
+  const hasIdentifier = !!(formData._id || formData.UUID);
 
   return (
     <div style={styles.overlay}>
       <div style={styles.modal}>
         <h2 style={styles.title}>Edit Event</h2>
 
-        {(formData.UUID || formData._id) && (
+        {/* ✅ Event Identifier Status */}
+        <div style={{
+          ...styles.infoBox,
+          border: hasIdentifier ? "1px solid #555" : "2px solid #ef4444",
+          background: hasIdentifier ? "#2b2b2b" : "#442222"
+        }}>
+          <strong>Event Identification:</strong>
+          <br />
+          {formData._id && (
+            <div style={{color: "#10b981", marginTop: "4px"}}>
+              ✅ ID: {formData._id}
+            </div>
+          )}
+          {formData.UUID && (
+            <div style={{color: "#10b981", marginTop: "4px"}}>
+              ✅ UUID: {formData.UUID}
+            </div>
+          )}
+          {!hasIdentifier && (
+            <div style={{color: "#ef4444", marginTop: "4px"}}>
+              ❌ No identifier found - cannot save
+            </div>
+          )}
+        </div>
+
+        {/* Event Type Info */}
+        {event?.eventType && (
           <div style={styles.infoBox}>
-            <strong>Event Identifier:</strong>
-            <br />
-            {formData.UUID && (
-              <>
-                UUID: {formData.UUID.substring(0, 20)}...
-                <br />
-              </>
-            )}
-            {formData._id && <>MongoDB ID: {formData._id}</>}
+            <strong>Event Type:</strong> {event.eventType}
+            {event?.isGlobal && <span> • 🌍 Global</span>}
+            {event?.isTicketed && <span> • 🎫 Ticketed</span>}
           </div>
         )}
 
         <div style={styles.formGroup}>
-          <label style={styles.label}>Event Name</label>
+          <label style={styles.label}>Event Name *</label>
           <input
             type="text"
             name="eventName"
@@ -212,6 +381,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             onChange={handleInputChange}
             style={styles.input}
             placeholder="Event Name"
+            disabled={loading || !hasIdentifier}
           />
         </div>
 
@@ -221,10 +391,9 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             type="text"
             name="eventLeader"
             value={formData.eventLeader}
-            onChange={handleInputChange}
             style={styles.readOnlyInput}
             readOnly
-            title="Leader cannot be changed after event creation"
+            title="Leader cannot be changed"
           />
         </div>
 
@@ -235,6 +404,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             value={formData.day}
             onChange={handleInputChange}
             style={styles.input}
+            disabled={loading || !hasIdentifier}
           >
             <option value="">Select Day</option>
             <option value="Monday">Monday</option>
@@ -256,17 +426,19 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             onChange={handleInputChange}
             style={styles.input}
             placeholder="Event Location"
+            disabled={loading || !hasIdentifier}
           />
         </div>
 
         <div style={styles.formGroup}>
-          <label style={styles.label}>Date of Event</label>
+          <label style={styles.label}>Date of Event *</label>
           <input
             type="date"
             name="date"
             value={formData.date ? formData.date.split('T')[0] : ''}
             onChange={handleInputChange}
             style={styles.input}
+            disabled={loading || !hasIdentifier}
           />
         </div>
 
@@ -277,10 +449,13 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             value={formData.status}
             onChange={handleInputChange}
             style={styles.input}
+            disabled={loading || !hasIdentifier}
           >
+            <option value="open">Open</option>
             <option value="Incomplete">Incomplete</option>
             <option value="Complete">Complete</option>
             <option value="Did Not Meet">Did Not Meet</option>
+            <option value="cancelled">Cancelled</option>
           </select>
         </div>
 
@@ -292,6 +467,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
               checked={formData.recurring}
               onChange={handleInputChange}
               style={styles.checkbox}
+              disabled={loading || !hasIdentifier}
             />
             <label style={styles.label}>Recurring Event</label>
           </div>
@@ -301,11 +477,9 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           <label style={styles.label}>Created At</label>
           <input
             type="text"
-            name="eventTimestamp"
-            value={formData.eventTimestamp}
+            value={formData.eventTimestamp ? new Date(formData.eventTimestamp).toLocaleString() : 'Unknown'}
             style={styles.readOnlyInput}
             readOnly
-            title="Event creation timestamp cannot be changed"
           />
         </div>
 
@@ -313,21 +487,32 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           <button 
             style={styles.cancelBtn} 
             onClick={onClose}
-            onMouseEnter={(e) => e.target.style.background = "#333"}
-            onMouseLeave={(e) => e.target.style.background = "transparent"}
+            disabled={loading}
           >
             CANCEL
           </button>
           <button 
-            style={styles.saveBtn} 
+            style={hasIdentifier && !loading ? styles.saveBtn : styles.saveBtnDisabled} 
             onClick={handleSave}
-            onMouseEnter={(e) => e.target.style.background = "#1e40af"}
-            onMouseLeave={(e) => e.target.style.background = "#2563eb"}
+            disabled={loading || !hasIdentifier}
+            title={!hasIdentifier ? "Cannot save without event identifier" : "Save changes"}
           >
-            SAVE
+            {loading ? "SAVING..." : hasIdentifier ? "SAVE" : "MISSING ID"}
           </button>
         </div>
       </div>
+
+      {/* Alert Messages */}
+      {alert.open && (
+        <div
+          style={{
+            ...styles.alert,
+            ...(alert.type === "success" ? styles.alertSuccess : styles.alertError),
+          }}
+        >
+          {alert.message}
+        </div>
+      )}
     </div>
   );
 };

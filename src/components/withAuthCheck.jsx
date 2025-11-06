@@ -1,16 +1,47 @@
-import React, { useContext } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../contexts/AuthContext";
 import { Box, Typography, Paper, Button, CircularProgress } from "@mui/material";
 import { Block } from "@mui/icons-material";
 
-const withAuthCheck = (WrappedComponent, allowedRoles = []) => {
+const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false) => {
   return function AuthenticatedComponent(props) {
     const { user, loading } = useContext(AuthContext);
     const location = useLocation();
+    const [hasCell, setHasCell] = useState(false);
+    const [cellLoading, setCellLoading] = useState(true);
+
+    // Check if user has a cell when required
+    useEffect(() => {
+      const checkUserCell = async () => {
+        if (requiresCell && user?.role === 'user') {
+          try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/check-leader-status`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            const data = await response.json();
+            setHasCell(data.hasCell || false);
+          } catch (error) {
+            console.error('Error checking user cell:', error);
+            setHasCell(false);
+          } finally {
+            setCellLoading(false);
+          }
+        } else {
+          setCellLoading(false);
+        }
+      };
+
+      if (user) {
+        checkUserCell();
+      }
+    }, [user, requiresCell]);
 
     // Show loading indicator while auth is being initialized
-    if (loading) {
+    if (loading || (requiresCell && cellLoading)) {
       return (
         <Box sx={{ 
           display: 'flex', 
@@ -27,6 +58,12 @@ const withAuthCheck = (WrappedComponent, allowedRoles = []) => {
     if (!user) {
       console.log('🔒 No user found, redirecting to login from:', location.pathname);
       return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    }
+
+    // Check cell access for regular users
+    if (requiresCell && user.role === 'user' && !hasCell) {
+      console.log('🚫 User does not have cell access, redirecting to home');
+      return <Navigate to="/" replace />;
     }
 
     // Check role-based access

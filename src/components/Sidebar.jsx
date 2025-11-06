@@ -31,7 +31,7 @@ const allMenuItems = [
   { label: 'Home', path: '/', icon: Home, roles: ['admin', 'leader', 'user', 'registrant'] },
   { label: 'Profile', path: '/profile', icon: Person, roles: ['admin', 'leader', 'user', 'registrant'] },
   { label: 'People', path: '/people', icon: Group, roles: ['admin', 'leader'] },
-  { label: 'Events', path: '/events', icon: Event, roles: ['admin', 'leader', 'user', 'registrant'] },
+  { label: 'Events', path: '/events', icon: Event, roles: ['admin', 'leader', 'user', 'registrant'], requiresCell: true },
   { label: 'Stats', path: '/stats', icon: BarChart, roles: ['admin'] },
   { label: 'Service Check-in', path: '/service-check-in', icon: HowToReg, roles: ['admin', 'registrant'] },
   { label: 'Daily Tasks', path: '/daily-tasks', icon: Assignment, roles: ['admin', 'leader', 'user', 'registrant'] },
@@ -43,12 +43,39 @@ export default function Sidebar({ mode, setMode }) {
   const isMobile = useMediaQuery('(max-width:900px)');
   const location = useLocation();
   const { user } = useContext(AuthContext);
+  const [userHasCell, setUserHasCell] = useState(true);
 
   // Load mode from localStorage on mount
   useEffect(() => {
     const savedMode = localStorage.getItem('themeMode');
     if (savedMode) setMode(savedMode);
   }, [setMode]);
+
+  // Check if user has a cell
+  useEffect(() => {
+    const checkUserAccess = async () => {
+      if (user?.role === 'user') {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/check-leader-status`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          const data = await response.json();
+          setUserHasCell(data.hasCell || false);
+          console.log('🔍 User cell check:', data);
+        } catch (error) {
+          console.error('Error checking user cell:', error);
+          setUserHasCell(false);
+        }
+      }
+    };
+
+    if (user) {
+      checkUserAccess();
+    }
+  }, [user]);
 
   const handleToggleMode = () => {
     setMode((prev) => {
@@ -70,10 +97,19 @@ export default function Sidebar({ mode, setMode }) {
     return null;
   }
 
-  // Filter menu items based on user role
-  const menuItems = allMenuItems.filter(item => 
-    item.roles.includes(user?.role)
-  );
+  // Filter menu items based on user role AND cell access for events
+  const menuItems = allMenuItems.filter(item => {
+    if (!item.roles.includes(user?.role)) {
+      return false;
+    }
+    
+    // For Events page, check if user needs a cell
+    if (item.path === '/events' && user?.role === 'user') {
+      return userHasCell;
+    }
+    
+    return true;
+  });
 
   const drawerContent = (
     <Box
@@ -100,18 +136,6 @@ export default function Sidebar({ mode, setMode }) {
           }}
         />
       </Box>
-
-      {/* User Info */}
-      {/* {user && (
-        <Box sx={{ px: 2, pb: 1 }}>
-          <Typography variant="caption" sx={{ color: textColor, opacity: 0.7 }}>
-            {user.name}
-          </Typography>
-          <Typography variant="caption" display="block" sx={{ color: textColor, opacity: 0.5, textTransform: 'capitalize' }}>
-            {user.role}
-          </Typography>
-        </Box>
-      )} */}
 
       {/* Menu Items */}
       <List sx={{ flexGrow: 1 }}>

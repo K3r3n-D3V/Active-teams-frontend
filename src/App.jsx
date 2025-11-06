@@ -31,7 +31,7 @@ import Admin from "./Pages/Admin";
 const ProtectedHome = withAuthCheck(Home, ['admin', 'leader', 'user', 'registrant']);
 const ProtectedProfile = withAuthCheck(Profile, ['admin', 'leader', 'user', 'registrant']);
 const ProtectedPeople = withAuthCheck(People, ['admin', 'leader']);
-const ProtectedEvents = withAuthCheck(Events, ['admin', 'leader', 'user', 'registrant']);
+const ProtectedEvents = withAuthCheck(Events, ['admin', 'leader', 'user', 'registrant'], true); 
 const ProtectedStats = withAuthCheck(Stats, ['admin', 'leader']);
 const ProtectedCheckIn = withAuthCheck(ServiceCheckIn, ['admin', 'registrant']);
 const ProtectedDailyTasks = withAuthCheck(DailyTasks, ['admin', 'leader', 'user', 'registrant']);
