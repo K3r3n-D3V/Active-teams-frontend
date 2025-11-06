@@ -208,29 +208,44 @@ const EventTypesModal = ({
         {/* Body */}
         <Box sx={{ flex: 1, overflowY: "auto", padding: "24px" }}>
           {/* Event Type Name */}
-          <TextField
-            label="Event Type Name"
-            name="name"
-            fullWidth
-            margin="normal"
-            inputRef={nameInputRef}
-            value={formData.name}
-            onChange={handleInputChange}
-            error={!!errors.name}
-            helperText={errors.name}
-            placeholder="Enter event type name"
-            disabled={loading}
-            sx={{
-              mb: 3,
-              input: { color: "#fff" },
-              label: { color: "#aaa" },
-              "& .MuiOutlinedInput-root": {
-                "& fieldset": { borderColor: "#555" },
-                "&:hover fieldset": { borderColor: "#888" },
-              },
-            }}
-          />
-
+<TextField
+  label="Event Type Name"
+  name="name"
+  fullWidth
+  margin="normal"
+  inputRef={nameInputRef}
+  value={formData.name}
+  onChange={handleInputChange}
+  error={!!errors.name}
+  helperText={errors.name}
+  placeholder="Enter event type name"
+  disabled={loading}
+  sx={{
+    mb: 3,
+    // ✅ Use theme-based colors
+    input: { 
+      color: isDarkMode ? "#fff" : "#000" // Black text in light mode, white in dark mode
+    },
+    label: { 
+      color: isDarkMode ? "#aaa" : "#666" // Darker label in light mode
+    },
+    "& .MuiOutlinedInput-root": {
+      "& fieldset": { 
+        borderColor: isDarkMode ? "#555" : "#ccc" 
+      },
+      "&:hover fieldset": { 
+        borderColor: isDarkMode ? "#888" : "#999" 
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: theme.palette.primary.main,
+      },
+    },
+    // ✅ Ensure helper text is also visible
+    "& .MuiFormHelperText-root": {
+      color: isDarkMode ? "#aaa" : "#666",
+    },
+  }}
+/>
           {/* Checkboxes */}
           <Box
             sx={{
@@ -280,32 +295,45 @@ const EventTypesModal = ({
           </Box>
 
           {/* Description */}
-          <TextField
-            label="Event Description"
-            name="description"
-            fullWidth
-            multiline
-            rows={4}
-            value={formData.description}
-            onChange={handleInputChange}
-            error={!!errors.description}
-            helperText={
-              errors.description ||
-              "Describe the purpose and details of this event type"
-            }
-            placeholder="Enter a detailed description of this event type..."
-            disabled={loading}
-            sx={{
-              mb: 3,
-              textarea: { color: "#fff" },
-              label: { color: "#aaa" },
-              "& .MuiOutlinedInput-root": {
-                "& fieldset": { borderColor: "#555" },
-                "&:hover fieldset": { borderColor: "#888" },
-              },
-            }}
-          />
-
+         <TextField
+  label="Event Description"
+  name="description"
+  fullWidth
+  multiline
+  rows={4}
+  value={formData.description}
+  onChange={handleInputChange}
+  error={!!errors.description}
+  helperText={
+    errors.description ||
+    "Describe the purpose and details of this event type"
+  }
+  placeholder="Enter a detailed description of this event type..."
+  disabled={loading}
+  sx={{
+    mb: 3,
+    textarea: { 
+      color: isDarkMode ? "#fff" : "#000" // Black text in light mode, white in dark mode
+    },
+    label: { 
+      color: isDarkMode ? "#aaa" : "#666" 
+    },
+    "& .MuiOutlinedInput-root": {
+      "& fieldset": { 
+        borderColor: isDarkMode ? "#555" : "#ccc" 
+      },
+      "&:hover fieldset": { 
+        borderColor: isDarkMode ? "#888" : "#999" 
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: theme.palette.primary.main,
+      },
+    },
+    "& .MuiFormHelperText-root": {
+      color: isDarkMode ? "#aaa" : "#666",
+    },
+  }}
+/>
           {/* Buttons */}
           <Box
             sx={{
