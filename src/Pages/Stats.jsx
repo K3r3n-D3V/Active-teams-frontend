@@ -1224,7 +1224,7 @@ const StatsDashboard = () => {
           <Grid item xs={12}>
             <Grid container spacing={3}>
               {/* Outstanding Cells */}
-              <Grid item xs={12} md={6}>
+               <Grid item xs={12} md={6}>
                 <Paper sx={{ 
                   p: { xs: 3, sm: 4 }, 
                   borderRadius: 2, 
