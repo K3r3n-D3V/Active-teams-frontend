@@ -53,7 +53,7 @@ const formatDate = (dateString) => {
   }
 };
 
-// ADD: Same toArray function from ServiceCheckIn
+// Helper function to extract events from response
 const toArray = (resData) =>
   Array.isArray(resData)
     ? resData
@@ -90,121 +90,93 @@ function EventHistory({
 
   const displayEvents = events.length > 0 ? events : localEvents;
 
-  // UPDATED: Fetch events in the same way as ServiceCheckIn but for closed events
-  const fetchEvents = async () => {
-    if (events.length > 0) return;
 
-    try {
-      setLoading(true);
-      setError(null);
-      setHasFetched(true);
-      
-      const token = localStorage.getItem('token');
-      
-      if (!API_URL) {
-        throw new Error('API URL is not configured');
-      }
+const fetchEvents = async () => {
+  if (events.length > 0) return;
 
-      if (!token) {
-        throw new Error('Authentication token not found. Please log in again.');
-      }
-      
-      // UPDATED: Use the same endpoint as ServiceCheckIn but filter for closed events
-      const response = await fetch(`${API_URL}/events/global`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Your session may have expired. Please log in again.');
-      }
-
-      if (response.status === 403) {
-        throw new Error('Access denied. You do not have permission to view events.');
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to load events (Error ${response.status}). Please try again.`);
-      }
-
-      const data = await response.json();
-      
-      console.log('📋 Raw events data for history:', data);
-
-      // Handle different response structures using toArray
-      const eventsData = toArray(data);
-      
-      // UPDATED: Filter for closed/completed global events - same logic as ServiceCheckIn
-      const closedGlobalEvents = eventsData.filter(event => {
-        const isClosed = event.status?.toLowerCase() === 'closed' || 
-                        event.status?.toLowerCase() === 'complete' ||
-                        event.status?.toLowerCase() === 'completed';
-        
-        const isGlobal = event.isGlobal === true || 
-                        event.eventType === "Global Events" || 
-                        event.eventType === "global" ||
-                        event.eventType?.toLowerCase().includes("global");
-
-        console.log(`🔍 Event History Check: ${event.eventName}`, {
-          id: event._id || event.id,
-          isClosed,
-          isGlobal,
-          status: event.status,
-          eventType: event.eventType
-        });
-
-        return isClosed && isGlobal;
-      });
-
-      console.log('✅ Closed Global Events for History:', closedGlobalEvents.map(e => ({
-        id: e._id || e.id,
-        name: e.eventName,
-        type: e.eventType,
-        status: e.status
-      })));
-
-      // UPDATED: Use same transformation as ServiceCheckIn
-      const transformedEvents = closedGlobalEvents.map(event => ({
-        id: event._id || event.id,
-        eventName: event.eventName || event.name || "Unnamed Event",
-        status: event.status || "closed",
-        isGlobal: event.isGlobal || true,
-        isTicketed: event.isTicketed || false,
-        date: event.date || event.createdAt || event.created_at,
-        eventType: event.eventType || "Global Events",
-        // Include additional data that might be needed
-        total_attendance: event.total_attendance || event.attendees?.length || 0,
-        attendees: event.attendees || [],
-        newPeople: event.newPeople || [],
-        consolidations: event.consolidations || [],
-        summary: event.summary || {}
-      }));
-      
-      setLocalEvents(transformedEvents);
-    } catch (err) {
-      console.error('Error fetching events:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    setError(null);
+    setHasFetched(true);
+    
+    const token = localStorage.getItem('token');
+    
+    if (!API_URL) {
+      throw new Error('API URL is not configured');
     }
-  };
 
-  // UPDATED: Check localStorage for cached events on component mount
+    if (!token) {
+      throw new Error('Authentication token not found. Please log in again.');
+    }
+    
+    const response = await fetch(`${API_URL}/events/global`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 401) {
+      throw new Error('Authentication failed. Your session may have expired. Please log in again.');
+    }
+
+    if (response.status === 403) {
+      throw new Error('Access denied. You do not have permission to view events.');
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to load events (Error ${response.status}). Please try again.`);
+    }
+
+    const data = await response.json();
+    
+    console.log('📋 Raw events data for history:', data);
+
+    // Handle different response structures using toArray
+    const eventsData = toArray(data);
+    
+    console.log('🔍 All events from API:', eventsData);
+
+    // ✅ FIXED: Transform the data to match what the frontend expects
+    const transformedEvents = eventsData.map(event => ({
+      id: event._id || event.id,
+      eventName: event.eventName || event.name || "Unnamed Event",
+      status: event.status || "incomplete",
+      isGlobal: event.isGlobal || true,
+      isTicketed: event.isTicketed || false,
+      date: event.date || event.createdAt || event.created_at,
+      eventType: event.eventType || "Global Events",
+      
+      // ✅ FIXED: Use the correct data from backend
+      total_attendance: event.total_attendance || event.attendees?.length || 0,
+      attendees: event.attendees || [],
+      did_not_meet: event.did_not_meet || false,
+      
+      // ✅ FIXED: Use the enhanced data from backend
+      newPeople: event.newPeople || [], // This comes from get_new_people_for_event
+      consolidations: event.consolidations || [], // This comes from get_consolidations_for_event
+      summary: event.summary || {} // This comes from get_event_summary_stats
+    }));
+    
+    setLocalEvents(transformedEvents);
+    console.log(`🎯 Final events to display: ${transformedEvents.length}`, transformedEvents);
+
+  } catch (err) {
+    console.error('Error fetching events:', err);
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  // Check localStorage for cached events on component mount
   useEffect(() => {
     const cachedEvents = localStorage.getItem("events");
     if (cachedEvents && !events.length) {
       try {
         const parsedEvents = JSON.parse(cachedEvents);
-        // Filter cached events for closed ones
-        const closedCachedEvents = parsedEvents.filter(event => 
-          event.status?.toLowerCase() === 'closed' || 
-          event.status?.toLowerCase() === 'complete' ||
-          event.status?.toLowerCase() === 'completed'
-        );
-        if (closedCachedEvents.length > 0) {
-          setLocalEvents(closedCachedEvents);
+        if (parsedEvents.length > 0) {
+          setLocalEvents(parsedEvents);
           setHasFetched(true);
         }
       } catch (error) {
@@ -213,44 +185,52 @@ function EventHistory({
     }
   }, [events.length]);
 
-  const getEventStats = (event) => {
-    const attendance = event.total_attendance || event.attendees?.length || 0;
-    const newPeople = event.newPeople?.length || event.summary?.new_people || 0;
-    const consolidated = event.consolidations?.length || event.summary?.total_decisions || 0;
+const getEventStats = (event) => {
+  // ✅ FIXED: Use the data from the enhanced backend response
+  const attendance = event.total_attendance || event.attendees?.length || 0;
+  
+  // Use newPeople array length from backend
+  const newPeople = event.newPeople?.length || event.summary?.new_people || 0;
+  
+  // Use consolidations array length from backend  
+  const consolidated = event.consolidations?.length || event.summary?.total_decisions || 0;
 
-    return {
-      attendance,
-      newPeople,
-      consolidated
-    };
+  return {
+    attendance,
+    newPeople,
+    consolidated
   };
+};
 
-  const handleViewDetails = (eventId) => {
-    const event = displayEvents.find(e => e.id === eventId);
-    if (onViewDetails) {
-      onViewDetails(eventId);
-    } else {
-      setDetailsDialog({ open: true, event });
-    }
-  };
+const handleViewDetails = (eventId) => {
+  const event = displayEvents.find(e => e.id === eventId);
+  if (onViewDetails) {
+    onViewDetails(eventId);
+  } else {
+    // ✅ Show the attendees that were captured in that event
+    setDetailsDialog({ open: true, event });
+  }
+};
 
-  const handleViewNewPeople = (eventId) => {
-    const event = displayEvents.find(e => e.id === eventId);
-    if (onViewNewPeople) {
-      onViewNewPeople(eventId);
-    } else {
-      setNewPeopleDialog({ open: true, event });
-    }
-  };
+const handleViewNewPeople = (eventId) => {
+  const event = displayEvents.find(e => e.id === eventId);
+  if (onViewNewPeople) {
+    onViewNewPeople(eventId);
+  } else {
+    // ✅ Show the new people for this event
+    setNewPeopleDialog({ open: true, event });
+  }
+};
 
-  const handleViewConverts = (eventId) => {
-    const event = displayEvents.find(e => e.id === eventId);
-    if (onViewConverts) {
-      onViewConverts(eventId);
-    } else {
-      setConvertsDialog({ open: true, event });
-    }
-  };
+const handleViewConverts = (eventId) => {
+  const event = displayEvents.find(e => e.id === eventId);
+  if (onViewConverts) {
+    onViewConverts(eventId);
+  } else {
+    // ✅ Show the consolidations/decisions for this event
+    setConvertsDialog({ open: true, event });
+  }
+};
 
   const rows = displayEvents.map((event) => {
     const stats = getEventStats(event);
@@ -282,42 +262,62 @@ function EventHistory({
     },
     { 
       field: 'attendanceCount', 
-      headerName: 'Attendance Count', 
+      headerName: 'Attendance', 
       flex: 1, 
-      minWidth: 120,
+      minWidth: 100,
       align: 'center',
       headerAlign: 'center',
       type: 'number'
     },
     { 
       field: 'newPeopleCount', 
-      headerName: 'New People Count', 
+      headerName: 'New People', 
       flex: 1, 
-      minWidth: 120,
+      minWidth: 100,
       align: 'center',
       headerAlign: 'center',
       type: 'number'
     },
     { 
       field: 'consolidatedCount', 
-      headerName: 'Coverts Count', 
+      headerName: 'Decisions', 
       flex: 1, 
-      minWidth: 120,
+      minWidth: 100,
       align: 'center',
       headerAlign: 'center',
       type: 'number'
     },
     {
+      field: 'status',
+      headerName: 'Status',
+      flex: 1,
+      minWidth: 100,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params) => (
+        <Chip 
+          label={params.row.rawEvent.status || 'Unknown'} 
+          size="small"
+          color={
+            params.row.rawEvent.status === 'complete' ? 'success' :
+            params.row.rawEvent.status === 'incomplete' ? 'warning' :
+            params.row.rawEvent.did_not_meet ? 'error' : 'default'
+          }
+          variant="outlined"
+        />
+      )
+    },
+    {
       field: 'viewDetails',
-      headerName: 'View Details',
-      width: 130,
+      headerName: 'Details',
+      width: 100,
       sortable: false,
       filterable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => (
         <IconButton 
-          size="medium" 
+          size="small" 
           color="primary"
           onClick={() => handleViewDetails(params.row.eventId)}
           title="View Attendance Details"
@@ -329,30 +329,30 @@ function EventHistory({
             }
           }}
         >
-          <GroupIcon />
+          <GroupIcon fontSize="small" />
         </IconButton>
       )
     },
     {
       field: 'viewNewPeople',
-      headerName: 'View New People',
-      width: 150,
+      headerName: 'New',
+      width: 80,
       sortable: false,
       filterable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => (
         <IconButton 
-          size="medium" 
+          size="small" 
           color="primary"
           onClick={() => handleViewNewPeople(params.row.eventId)}
           disabled={params.row.newPeopleCount === 0}
           title="View New People"
           sx={{ 
-            backgroundColor: theme.palette.primary.main,
+            backgroundColor: theme.palette.success.main,
             color: 'white',
             '&:hover': { 
-              backgroundColor: theme.palette.primary.dark
+              backgroundColor: theme.palette.success.dark
             },
             '&.Mui-disabled': {
               backgroundColor: theme.palette.action.disabledBackground,
@@ -360,30 +360,30 @@ function EventHistory({
             }
           }}
         >
-          <PersonAddAltIcon />
+          <PersonAddAltIcon fontSize="small" />
         </IconButton>
       )
     },
     {
       field: 'viewConverts',
-      headerName: 'View Converts/...',
-      width: 150,
+      headerName: 'Decisions',
+      width: 100,
       sortable: false,
       filterable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => (
         <IconButton 
-          size="medium" 
+          size="small" 
           color="primary"
           onClick={() => handleViewConverts(params.row.eventId)}
           disabled={params.row.consolidatedCount === 0}
           title="View Decisions"
           sx={{ 
-            backgroundColor: theme.palette.primary.main,
+            backgroundColor: theme.palette.secondary.main,
             color: 'white',
             '&:hover': { 
-              backgroundColor: theme.palette.primary.dark
+              backgroundColor: theme.palette.secondary.dark
             },
             '&.Mui-disabled': {
               backgroundColor: theme.palette.action.disabledBackground,
@@ -391,7 +391,7 @@ function EventHistory({
             }
           }}
         >
-          <MergeIcon />
+          <MergeIcon fontSize="small" />
         </IconButton>
       )
     },
@@ -420,9 +420,13 @@ function EventHistory({
                 {formatDate(event.rawEvent.date)}
               </Typography>
               <Chip 
-                label={event.rawEvent.status || 'Closed'} 
+                label={event.rawEvent.status || 'Unknown'} 
                 size="small" 
-                color="default"
+                color={
+                  event.rawEvent.status === 'complete' ? 'success' :
+                  event.rawEvent.status === 'incomplete' ? 'warning' :
+                  event.rawEvent.did_not_meet ? 'error' : 'default'
+                }
                 variant="outlined"
                 sx={{ mt: 0.5 }}
               />
@@ -476,10 +480,10 @@ function EventHistory({
               onClick={() => handleViewNewPeople(event.eventId)}
               disabled={stats.newPeople === 0}
               sx={{ 
-                backgroundColor: theme.palette.primary.main,
+                backgroundColor: theme.palette.success.main,
                 color: 'white',
                 '&:hover': { 
-                  backgroundColor: theme.palette.primary.dark
+                  backgroundColor: theme.palette.success.dark
                 },
                 '&.Mui-disabled': {
                   backgroundColor: theme.palette.action.disabledBackground,
@@ -495,10 +499,10 @@ function EventHistory({
               onClick={() => handleViewConverts(event.eventId)}
               disabled={stats.consolidated === 0}
               sx={{ 
-                backgroundColor: theme.palette.primary.main,
+                backgroundColor: theme.palette.secondary.main,
                 color: 'white',
                 '&:hover': { 
-                  backgroundColor: theme.palette.primary.dark
+                  backgroundColor: theme.palette.secondary.dark
                 },
                 '&.Mui-disabled': {
                   backgroundColor: theme.palette.action.disabledBackground,
@@ -578,13 +582,13 @@ function EventHistory({
           }}
         >
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            {loading ? 'Loading events...' : hasFetched ? 'No Closed Events Found' : 'Event History'}
+            {loading ? 'Loading events...' : hasFetched ? 'No Events Found' : 'Event History'}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {loading 
               ? 'Please wait while we fetch your events...'
               : hasFetched 
-                ? 'Closed events will appear here once they are saved and closed from the service check-in.'
+                ? 'Global events will appear here once they are created.'
                 : 'Click the button below to load your event history.'
             }
           </Typography>
@@ -714,8 +718,14 @@ function EventHistory({
                 <React.Fragment key={attendee.id || index}>
                   <ListItem>
                     <ListItemText 
-                      primary={attendee.name || `Person ${index + 1}`}
-                      secondary={attendee.phone || attendee.email || 'No contact info'}
+                      primary={attendee.name || attendee.fullName || `Person ${index + 1}`}
+                      secondary={
+                        <Stack spacing={0.5}>
+                          {attendee.phone && <Typography variant="caption">Phone: {attendee.phone}</Typography>}
+                          {attendee.email && <Typography variant="caption">Email: {attendee.email}</Typography>}
+                          {attendee.decision && <Typography variant="caption">Decision: {attendee.decision}</Typography>}
+                        </Stack>
+                      }
                     />
                   </ListItem>
                   {index < (detailsDialog.event?.attendees?.length - 1) && <Divider />}
@@ -774,11 +784,18 @@ function EventHistory({
                 <React.Fragment key={person.id || index}>
                   <ListItem>
                     <ListItemText 
-                      primary={person.name || `Person ${index + 1}`}
+                      primary={person.name || person.fullName || `Person ${index + 1}`}
                       secondary={
                         <Stack spacing={0.5}>
                           {person.phone && <Typography variant="caption">Phone: {person.phone}</Typography>}
                           {person.email && <Typography variant="caption">Email: {person.email}</Typography>}
+                          {person.decision && <Typography variant="caption">Decision: {person.decision}</Typography>}
+                          <Chip 
+                            label="New Person" 
+                            size="small" 
+                            color="success" 
+                            variant="outlined"
+                          />
                         </Stack>
                       }
                     />
@@ -786,6 +803,11 @@ function EventHistory({
                   {index < (newPeopleDialog.event?.newPeople?.length - 1) && <Divider />}
                 </React.Fragment>
               ))}
+              {(!newPeopleDialog.event?.newPeople || newPeopleDialog.event.newPeople.length === 0) && (
+                <ListItem>
+                  <ListItemText primary="No new people found for this event" />
+                </ListItem>
+              )}
             </List>
           </Stack>
         </DialogContent>
@@ -794,7 +816,7 @@ function EventHistory({
         </DialogActions>
       </Dialog>
 
-      {/* Converts/Decisions Dialog */}
+      {/* Decisions Dialog */}
       <Dialog 
         open={convertsDialog.open} 
         onClose={() => setConvertsDialog({ open: false, event: null })}
@@ -842,7 +864,7 @@ function EventHistory({
                     <ListItemText 
                       primary={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                          <Typography>{person.name || `Person ${index + 1}`}</Typography>
+                          <Typography>{person.name || `${person.name} ${person.surname}` || `Person ${index + 1}`}</Typography>
                           <Chip 
                             label={person.type === 'first_time' ? 'First Time' : 'Recommitment'}
                             color={person.type === 'first_time' ? 'primary' : 'secondary'}
@@ -850,12 +872,24 @@ function EventHistory({
                           />
                         </Box>
                       }
-                      secondary={person.phone || person.email || 'No contact info'}
+                      secondary={
+                        <Stack spacing={0.5}>
+                          {person.phone && <Typography variant="caption">Phone: {person.phone}</Typography>}
+                          {person.email && <Typography variant="caption">Email: {person.email}</Typography>}
+                          {person.assigned_to && <Typography variant="caption">Assigned to: {person.assigned_to}</Typography>}
+                          {person.decision_date && <Typography variant="caption">Date: {formatDate(person.decision_date)}</Typography>}
+                        </Stack>
+                      }
                     />
                   </ListItem>
                   {index < (convertsDialog.event?.consolidations?.length - 1) && <Divider />}
                 </React.Fragment>
               ))}
+              {(!convertsDialog.event?.consolidations || convertsDialog.event.consolidations.length === 0) && (
+                <ListItem>
+                  <ListItemText primary="No decisions recorded for this event" />
+                </ListItem>
+              )}
             </List>
           </Stack>
         </DialogContent>
