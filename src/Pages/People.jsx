@@ -1,4 +1,4 @@
-// People.jsx (Exact match search + View filter)
+// People.jsx (Exact match search + View filter - FIXED)
 import React, { useState, useEffect, useMemo, useCallback, useRef, useContext } from 'react';
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import axios from 'axios';
@@ -331,28 +331,6 @@ export const PeopleSection = () => {
     return '';
   }, [userProfile, user]);
 
-  // Get current user info - Replace this with your actual user context/auth
-  useEffect(() => {
-    // TODO: Replace with actual user fetching logic
-    // For now, using placeholder - you need to get the logged-in user's name
-    const fetchCurrentUser = async () => {
-      try {
-        // Example: const userData = await axios.get(`${BACKEND_URL}/current-user`);
-        // setCurrentUser(userData.data);
-        
-        // PLACEHOLDER - Replace with actual user data
-        setCurrentUser({
-          name: 'John Doe', // Replace with actual user's full name
-          // You might store this in localStorage, context, or fetch from API
-        });
-      } catch (err) {
-        console.error('Failed to fetch current user:', err);
-      }
-    };
-    
-    fetchCurrentUser();
-  }, [BACKEND_URL]);
-
   const fetchAllPeople = useCallback(async (forceRefresh = false) => {
     const now = Date.now();
     if (!forceRefresh && globalPeopleCache && globalCacheTimestamp && (now - globalCacheTimestamp < CACHE_DURATION)) {
@@ -566,7 +544,7 @@ export const PeopleSection = () => {
       address: person.location || '',
       email: person.email || '',
       number: person.phone || '',
-      invitedBy: person.invitedBy || '',
+      invitedBy: person.leaders?.leader1 || person.invitedBy || '',
       gender: person.gender || '',
       leader12: person.leaders?.leader12 || '',
       leader144: person.leaders?.leader144 || '',
@@ -591,9 +569,9 @@ export const PeopleSection = () => {
       invitedBy: savedPerson.invitedBy || '',
       leaders: {
         leader1: savedPerson.invitedBy || '',
-        leader12: savedPerson.leaders?.[0] || '',
-        leader144: savedPerson.leaders?.[1] || '',
-        leader1728: savedPerson.leaders?.[2] || ''
+        leader12: savedPerson.leader12 || '',
+        leader144: savedPerson.leader144 || '',
+        leader1728: savedPerson.leader1728 || ''
       }
     };
 
@@ -708,7 +686,7 @@ export const PeopleSection = () => {
         </TextField>
       </Box>
 
-      <Box sx={{ flex: 1, border: '1px solid #e0e0e0', borderRadius: 2, py: 2, mb: 2, position: 'relative' }}>
+      <Box sx={{ position: 'relative' }}>
         {viewMode === 'grid' ? (
           <>
             <DragDropBoard
