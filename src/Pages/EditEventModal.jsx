@@ -145,8 +145,10 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         ...(formData._id && { _id: formData._id }),
         ...(formData.UUID && { UUID: formData.UUID }),
         
-        // Updated fields
+        // ⚠️ CRITICAL: Event name must be sent to backend
         eventName: formData.eventName.trim(),
+        
+        // Updated fields
         day: formData.day,
         location: formData.location,
         date: formData.date,
@@ -163,23 +165,33 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       console.log('💾 Saving event with payload:', {
         identifier: primaryIdentifier,
         identifierType: formData._id ? '_id' : 'UUID',
-        payload: updatePayload
+        payload: updatePayload,
+        eventNameChanged: formData.eventName.trim() !== event?.eventName
       });
 
       // ✅ Call the save function with the payload
       const result = await onSave(updatePayload);
       
-      if (result.success) {
+      console.log('✅ Save result:', result);
+      
+      if (result && (result.success || result.event)) {
         setAlert({
           open: true,
           type: "success",
           message: "Event updated successfully! Refreshing...",
         });
         
+        // ✅ CRITICAL: Close modal after short delay and force refresh
         setTimeout(() => {
           setAlert({ open: false, type: "success", message: "" });
-          onClose();
-        }, 1500);
+          setLoading(false);
+          // Call onClose with explicit true parameter
+          if (typeof onClose === 'function') {
+            onClose(true);
+          }
+        }, 800);
+      } else {
+        throw new Error(result?.message || "Update failed - no confirmation received");
       }
       
     } catch (error) {
@@ -511,11 +523,10 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         </div>
 
         <div style={styles.buttonGroup}>
-          <button
-            style={styles.cancelBtn}
-            onClick={onClose}
-            onMouseEnter={(e) => { if (!isDark) e.currentTarget.style.background = "#f5f5f5"; else e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
-            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+          <button 
+            style={styles.cancelBtn} 
+            onClick={() => onClose(false)}
+            disabled={loading}
           >
             CANCEL
           </button>

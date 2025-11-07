@@ -783,6 +783,8 @@ const Events = () => {
   };
 
  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
+  console.log("🔍 [fetchEvents] Called with:", { filters, forceRefresh });
+  
   setLoading(true);
   setIsLoading(true);
   const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
@@ -807,7 +809,6 @@ const Events = () => {
 
     const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
-    // ✅ FIXED: Enhanced params for leader at 12
     const params = {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
@@ -817,6 +818,7 @@ const Events = () => {
       start_date: startDateParam,
       ...filters
     };
+    
     if (filters.event_type !== undefined) {
       params.event_type = filters.event_type;
     } else if (selectedEventTypeFilter !== 'all') {
@@ -824,6 +826,7 @@ const Events = () => {
     } else {
       params.event_type = "CELLS";
     }
+    
     const isLeaderAt12 =
       userRole.includes("leader at 12") ||
       userRole.includes("leader@12") ||
@@ -834,111 +837,110 @@ const Events = () => {
       params.leader_at_12_view = true;
       if (viewFilter === 'personal') {
         params.personal_cells_only = true;
-      }
-      else {
+      } else {
         params.include_subordinate_cells = true;
         params.include_global_events = true;
       }
     }
+    
     Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
+    
     const endpoint = `${BACKEND_URL}/events`;
-    console.log('Fetching events from:', endpoint, 'with params:', params);
+    console.log('🌐 Fetching events from:', endpoint, 'with params:', params);
 
-      // Caching
-      const cacheKey = getCacheKey({ ...params, userRole });
-      if (!forceRefresh) {
-        const cachedData = getCachedData(cacheKey);
-        if (cachedData) {
-          setEvents(cachedData.events);
-          setFilteredEvents(cachedData.events);
-          setTotalEvents(cachedData.total_events);
-          setTotalPages(cachedData.total_pages);
-          if (filters.page !== undefined) setCurrentPage(filters.page);
-          setLoading(false);
-          setIsLoading(false);
-          return;
-        }
+    const cacheKey = getCacheKey({ ...params, userRole });
+    
+    if (!forceRefresh) {
+      const cachedData = getCachedData(cacheKey);
+      if (cachedData) {
+        console.log("📦 Using cached data");
+        setEvents(cachedData.events);
+        setFilteredEvents(cachedData.events);
+        setTotalEvents(cachedData.total_events);
+        setTotalPages(cachedData.total_pages);
+        if (filters.page !== undefined) setCurrentPage(filters.page);
+        setLoading(false);
+        setIsLoading(false);
+        return;
       }
-
-      const response = await axios.get(endpoint, {
-        headers,
-        params,
-        timeout: 60000
-      });
-
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
-
-      console.log('✅ Backend returned events:', newEvents.length);
-      console.log("Events",newEvents)
-      
-      // Debug: Check for any remaining duplicates
-      const eventIds = newEvents.map(e => e._id);
-      const uniqueIds = new Set(eventIds);
-      if (eventIds.length !== uniqueIds.size) {
-        console.warn('⚠️ Backend still returning duplicates:', {
-          totalEvents: eventIds.length,
-          uniqueEvents: uniqueIds.size,
-          duplicates: eventIds.length - uniqueIds.size
-        });
-      }
-
-      // ✅ FIXED: Use actual values from response
-      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
-
-      setCachedData(cacheKey, {
-        events: newEvents,
-        total_events: totalEventsCount,
-        total_pages: totalPagesCount
-      });
-
-      // Update state
-      setEvents(newEvents);
-      setFilteredEvents(newEvents);
-      setTotalEvents(totalEventsCount);
-      setTotalPages(totalPagesCount);
-      if (filters.page !== undefined) setCurrentPage(filters.page);
-
-    } catch (err) {
-      console.error("Error fetching events:", err);
-      if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-        setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
-      } else if (err.response?.status === 401) {
-        setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
-        localStorage.removeItem("token");
-        localStorage.removeItem("userProfile");
-        setTimeout(() => window.location.href = '/login', 2000);
-      } else {
-        setSnackbar({ open: true, message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`, severity: "error" });
-      }
-      setEvents([]);
-      setFilteredEvents([]);
-      setTotalEvents(0);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
-      setIsLoading(false);
+    } else {
+      console.log("🔄 Force refresh - bypassing cache");
     }
-  }, [
-    currentPage,
-    rowsPerPage,
-    selectedStatus,
-    selectedEventTypeFilter,
-    searchQuery,
-    viewFilter,
-    userRole,
-    getCacheKey,
-    getCachedData,
-    setCachedData,
-    BACKEND_URL,
-    setEvents,
-    setFilteredEvents,
-    setTotalEvents,
-    setTotalPages,
-    setCurrentPage,
-    setSnackbar
-  ]);
+
+    const response = await axios.get(endpoint, {
+      headers,
+      params,
+      timeout: 60000
+    });
+
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
+
+    console.log('✅ Backend returned events:', newEvents.length);
+
+    const eventIds = newEvents.map(e => e._id);
+    const uniqueIds = new Set(eventIds);
+    if (eventIds.length !== uniqueIds.size) {
+      console.warn('⚠️ Backend still returning duplicates:', {
+        totalEvents: eventIds.length,
+        uniqueEvents: uniqueIds.size,
+        duplicates: eventIds.length - uniqueIds.size
+      });
+    }
+
+    const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+    const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+
+    setCachedData(cacheKey, {
+      events: newEvents,
+      total_events: totalEventsCount,
+      total_pages: totalPagesCount
+    });
+
+    console.log("🔄 Updating state with new events...");
+    setEvents(newEvents);
+    setFilteredEvents(newEvents);
+    setTotalEvents(totalEventsCount);
+    setTotalPages(totalPagesCount);
+    if (filters.page !== undefined) setCurrentPage(filters.page);
+    
+    console.log("✅ State updated with", newEvents.length, "events");
+
+  } catch (err) {
+    console.error("❌ Error fetching events:", err);
+    if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+      setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
+    } else if (err.response?.status === 401) {
+      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else {
+      setSnackbar({ open: true, message: `Error loading events: ${err.message || 'Please check your connection and try again.'}`, severity: "error" });
+    }
+    setEvents([]);
+    setFilteredEvents([]);
+    setTotalEvents(0);
+    setTotalPages(1);
+  } finally {
+    setLoading(false);
+    setIsLoading(false);
+  }
+}, [
+  currentPage,
+  rowsPerPage,
+  selectedStatus,
+  selectedEventTypeFilter,
+  searchQuery,
+  viewFilter,
+  userRole,
+  getCacheKey,
+  getCachedData,
+  setCachedData,
+  BACKEND_URL,
+  DEFAULT_API_START_DATE,
+  setSnackbar
+]);;
 
 useEffect(() => {
   const checkAccess = async () => {
@@ -1537,55 +1539,54 @@ useEffect(() => {
     }
   };
 
- const handleSaveEvent = async (eventData) => {
+ 
+const handleSaveEvent = async (eventData) => {
   try {
     console.log("💾 [handleSaveEvent] Received event data:", eventData);
     
-    // ✅ CRITICAL FIX: Prefer _id, fallback to UUID
     const eventIdentifier = eventData._id || eventData.UUID || eventData.id;
     
     if (!eventIdentifier) {
       console.error("❌ No event identifier found:", eventData);
       throw new Error("No event identifier (_id or UUID) found");
     }
-
+    
     console.log("🔧 Updating event with identifier:", {
       identifier: eventIdentifier,
-      type: eventData._id ? '_id' : 'UUID'
+      type: eventData._id ? '_id' : 'UUID',
+      newName: eventData.eventName
     });
     
     const token = localStorage.getItem("token");
     if (!token) {
       throw new Error("No authentication token found");
     }
-
+    
     const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     };
-
-    // ✅ Build the correct endpoint
+    
     const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
     console.log("🌐 PUT request to:", endpoint);
-
-    // ✅ Clean up payload - remove undefined values
+    
     const cleanPayload = Object.entries(eventData).reduce((acc, [key, value]) => {
       if (value !== undefined && value !== null) {
         acc[key] = value;
       }
       return acc;
     }, {});
-
+    
     console.log("📤 Sending payload:", cleanPayload);
-
+    
     const response = await fetch(endpoint, {
       method: "PUT",
       headers: headers,
       body: JSON.stringify(cleanPayload),
     });
-
+    
     console.log("📥 Response status:", response.status, response.statusText);
-
+    
     if (!response.ok) {
       let errorData;
       let errorMessage;
@@ -1594,7 +1595,6 @@ useEffect(() => {
         errorData = await response.json();
         console.error("❌ Server error response:", errorData);
         
-        // ✅ Extract proper error message
         if (typeof errorData === 'string') {
           errorMessage = errorData;
         } else if (errorData.detail) {
@@ -1613,14 +1613,90 @@ useEffect(() => {
       
       throw new Error(errorMessage);
     }
-
-    const updatedEvent = await response.json();
-    console.log("✅ Event updated successfully:", updatedEvent);
-
-    // ✅ Refresh the events list
-    await fetchEvents({}, true); // Force refresh with current filters
     
-    // ✅ Show success message
+    const updatedEvent = await response.json();
+    console.log("✅ Event updated successfully from backend:", updatedEvent);
+    
+    // ✅ NUCLEAR OPTION: Clear everything and force complete refresh
+    console.log("🗑️ Clearing all caches and state...");
+    
+    // Clear the cache completely
+    clearCache();
+    
+    // Clear localStorage cache if any
+    const cacheKeys = Object.keys(localStorage).filter(key => key.includes('events_cache') || key.includes('cache'));
+    cacheKeys.forEach(key => localStorage.removeItem(key));
+    
+    // ✅ FORCE A COMPLETE RE-FETCH - Wait a bit for DB to propagate
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    console.log("🔄 Forcing complete refresh of events...");
+    
+    // Build exact params for current view
+    const refreshParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      // Add timestamp to bust any server-side cache
+      _t: Date.now()
+    };
+
+    // Add status filter
+    if (selectedStatus && selectedStatus !== 'all') {
+      refreshParams.status = selectedStatus;
+    }
+
+    // Add search filter
+    if (searchQuery && searchQuery.trim()) {
+      refreshParams.search = searchQuery.trim();
+    }
+
+    // Add event type filter
+    if (selectedEventTypeFilter === 'all') {
+      refreshParams.event_type = "CELLS";
+    } else if (selectedEventTypeFilter) {
+      refreshParams.event_type = selectedEventTypeFilter;
+    }
+
+    // Add personal/view filters
+    if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
+      const isLeaderAt12 = userRole?.includes("leader at 12") || 
+                          userRole?.includes("leader@12") || 
+                          userRole?.includes("leader at12");
+      
+      if (isLeaderAt12) {
+        refreshParams.leader_at_12_view = true;
+        if (viewFilter === 'personal') {
+          refreshParams.personal_cells_only = true;
+          refreshParams.show_personal_cells = true;
+          refreshParams.show_all_authorized = false;
+        } else {
+          refreshParams.include_subordinate_cells = true;
+          refreshParams.include_global_events = true;
+          refreshParams.show_personal_cells = false;
+          refreshParams.show_all_authorized = true;
+        }
+      } else if (isAdmin && viewFilter === 'personal') {
+        refreshParams.personal = true;
+      }
+    }
+
+    // Remove undefined values
+    Object.keys(refreshParams).forEach(key => 
+      refreshParams[key] === undefined && delete refreshParams[key]
+    );
+
+    console.log("🔍 Refreshing with params:", refreshParams);
+    
+    // Call fetchEvents with force refresh
+    await fetchEvents(refreshParams, true);
+    
+    // ✅ Double-check: Wait and fetch again if needed
+    setTimeout(async () => {
+      console.log("🔄 Double-checking with second refresh...");
+      await fetchEvents(refreshParams, true);
+    }, 1000);
+    
     setSnackbar({
       open: true,
       message: "Event updated successfully!",
@@ -1637,7 +1713,6 @@ useEffect(() => {
       fullError: error
     });
     
-    // ✅ Ensure we always throw a string message
     const errorMessage = error.message || String(error) || "Failed to update event";
     
     setSnackbar({
@@ -1647,6 +1722,51 @@ useEffect(() => {
     });
     
     throw new Error(errorMessage);
+  }
+};
+
+const handleCloseEditModal = async (shouldRefresh = false) => {
+  console.log("🚪 Closing edit modal, shouldRefresh:", shouldRefresh);
+  
+  setEditModalOpen(false);
+  setSelectedEvent(null);
+  
+  if (shouldRefresh) {
+    console.log("🔄 Modal requested refresh, forcing complete reload...");
+    
+    // Clear all caches
+    clearCache();
+    
+    // Wait a moment
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Force refresh with current filters
+    const refreshParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now() // Cache buster
+    };
+
+    if (selectedStatus && selectedStatus !== 'all') {
+      refreshParams.status = selectedStatus;
+    }
+
+    if (searchQuery && searchQuery.trim()) {
+      refreshParams.search = searchQuery.trim();
+    }
+
+    if (selectedEventTypeFilter === 'all') {
+      refreshParams.event_type = "CELLS";
+    } else if (selectedEventTypeFilter) {
+      refreshParams.event_type = selectedEventTypeFilter;
+    }
+
+    Object.keys(refreshParams).forEach(key => 
+      refreshParams[key] === undefined && delete refreshParams[key]
+    );
+
+    await fetchEvents(refreshParams, true);
   }
 };
 
@@ -1977,7 +2097,7 @@ const ViewFilterButtons = () => {
           }}
         />
         <span style={styles.viewFilterText}>
-          {isLeaderAt12 ? "ALL CELLS (My Disciples)" : "ALL CELLS"}
+          {isLeaderAt12 ? "VIEW ALL(My Disciples)" : "VIEW ALL"}
         </span>
       </label>
       <label style={styles.viewFilterRadio}>
@@ -2012,7 +2132,7 @@ const ViewFilterButtons = () => {
           }}
         />
         <span style={styles.viewFilterText}>
-          {isLeaderAt12 ? "MY CELLS ONLY" : "MY CELLS ONLY"}
+          {isLeaderAt12 ? "PERSONAL" : "PERSONAL"}
         </span>
       </label>
     </div>
@@ -2887,12 +3007,12 @@ const EventTypeSelector = ({
         </Box>
       )}
 
-      <EditEventModal
-        isOpen={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
-        event={selectedEvent}
-        onSave={handleSaveEvent}
-      />
+ <EditEventModal
+  isOpen={editModalOpen}
+  onClose={handleCloseEditModal}  
+  event={selectedEvent}
+  onSave={handleSaveEvent}
+/>
 
     <Snackbar
   open={snackbar.open}
