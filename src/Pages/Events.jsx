@@ -1646,7 +1646,6 @@ const handleSaveEvent = async (eventData) => {
       refreshParams.status = selectedStatus;
     }
 
-    // Add search filter
     if (searchQuery && searchQuery.trim()) {
       refreshParams.search = searchQuery.trim();
     }
