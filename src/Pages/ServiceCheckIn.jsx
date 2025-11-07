@@ -1698,33 +1698,31 @@ function ServiceCheckIn() {
                 </span>
               </Tooltip>
 
-              <Tooltip title={currentEventId ? "Save and Close Event" : "Please select an event first"}>
-                <span>
-                  <Button
-                    variant="contained"
-                    startIcon={isClosingEvent ? <CloseIcon /> : <SaveIcon />}
-                    onClick={handleSaveAndCloseEvent}
-                    disabled={!currentEventId || isClosingEvent}
-                    sx={{
-                      minWidth: 'auto',
-                      px: 2,
-                      opacity: currentEventId ? 1 : 0.5,
-                      cursor: currentEventId ? "pointer" : "not-allowed",
-                      "&:hover": currentEventId ? { 
-                        transform: "translateY(-2px)",
-                        boxShadow: 4 
-                      } : {},
-                      transition: "all 0.2s",
-                      backgroundColor: theme.palette.warning.main,
-                      "&:hover": {
-                        backgroundColor: theme.palette.warning.dark,
-                      }
-                    }}
-                  >
-                    {isClosingEvent ? "Closing..." : "Save"}
-                  </Button>
-                </span>
-              </Tooltip>
+            <Tooltip title={currentEventId ? "Save and Close Event" : "Please select an event first"}>
+  <span>
+    <Button
+      variant="contained"
+      startIcon={isClosingEvent ? <CloseIcon /> : <SaveIcon />}
+      onClick={handleSaveAndCloseEvent}
+      disabled={!currentEventId || isClosingEvent}
+      sx={{
+        minWidth: 'auto',
+        px: 2,
+        opacity: currentEventId ? 1 : 0.5,
+        cursor: currentEventId ? "pointer" : "not-allowed",
+        transition: "all 0.2s",
+        backgroundColor: theme.palette.warning.main,
+        "&:hover": currentEventId ? { 
+          transform: "translateY(-2px)",
+          boxShadow: 4,
+          backgroundColor: theme.palette.warning.dark,
+        } : {},
+      }}
+    >
+      {isClosingEvent ? "Closing..." : "Save"}
+    </Button>
+  </span>
+</Tooltip>
             </Stack>
           </Stack>
         </Grid>

@@ -2835,21 +2835,47 @@ function getCurrentWeekIdentifier() {
     <>
       <div style={styles.overlay}>
         <div style={styles.modal}>
-          <div style={styles.header}>
-            <h2 style={styles.title}>
-              ATTENDANCE
-              {isTicketedEvent && (
-                <span style={styles.ticketBadge}>Ticketed Event</span>
-              )}
-            </h2>
-            <button
-              style={styles.addPersonBtn}
-              onClick={() => setShowAddPersonModal(true)}
-            >
-              <UserPlus size={18} />
-              Add New Person
-            </button>
-          </div>
+          // ...existing code...
+    
+     <div style={styles.header}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h2 style={styles.title}>ATTENDANCE</h2>
+
+          {/* Event metadata badges (reflects fields stored in DB) */}
+          {event?.isTicketed && (
+            <span style={styles.ticketBadge}>💰 Ticketed Event</span>
+          )}
+          {event?.isGlobal && (
+            <span style={{
+              ...styles.ticketBadge,
+              background: "#17a2b8",
+              color: "#fff"
+            }}>🌍 Global Event</span>
+          )}
+          {event?.hasPersonSteps && (
+            <span style={{
+              ...styles.ticketBadge,
+              background: "#6f42c1",
+              color: "#fff"
+            }}>👥 Personal Steps</span>
+          )}
+
+          {/* priceTiers quick info */}
+          {Array.isArray(event?.priceTiers) && event.priceTiers.length > 0 && (
+            <div style={{ fontSize: 13, color: "#666", marginLeft: 6 }}>
+              {event.priceTiers.length} price tier(s)
+            </div>
+          )}
+        </div>
+
+        <button
+          style={styles.addPersonBtn}
+          onClick={() => setShowAddPersonModal(true)}
+        >
+          <UserPlus size={18} />
+          Add New Person
+        </button>
+      </div>
 
           <div style={styles.tabsContainer}>
             {isMobile && (

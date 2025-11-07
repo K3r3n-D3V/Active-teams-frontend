@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
-
+ 
 const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRole }) => {
   const [hoveredButton, setHoveredButton] = useState(null);
+  const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  React.useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const isSmall = (width || 0) <= 420;
   
   if (!isOpen) return null;
 
@@ -21,7 +28,18 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRo
       justifyContent: 'center',
       zIndex: 1000,
     },
-    floatingOptions: {
+    floatingOptions: isSmall ? {
+      position: 'fixed',
+      bottom: '24px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+      zIndex: 1100,
+      width: '92%',
+      alignItems: 'center'
+    } : {
       position: 'fixed',
       bottom: '90px',
       right: '20px',
@@ -44,8 +62,9 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRo
       fontWeight: '500',
       color: '#333',
       transition: 'all 0.2s ease',
-      minWidth: '200px',
+      minWidth: isSmall ? '100%' : '200px',
       justifyContent: 'flex-start',
+      width: isSmall ? '100%' : 'auto',
     },
     optionIcon: {
       width: '40px',

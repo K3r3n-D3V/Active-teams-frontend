@@ -471,78 +471,78 @@ const handleSubmit = async (e) => {
         boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
       };
 
-  // IMPROVED DARK MODE STYLES - FIXED DAY VISIBILITY
+  // IMPROVED DARK MODE STYLES - THEMED
   const darkModeStyles = {
     textField: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#ffffff" : "white",
-        color: isDarkMode ? "#000000" : "#000000",
+        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+        color: theme.palette.text.primary,
         "& fieldset": {
-          borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
+          borderColor: isDarkMode ? theme.palette.divider : "rgba(0, 0, 0, 0.23)",
         },
         "&:hover fieldset": {
-          borderColor: isDarkMode ? "#888" : "rgba(0, 0, 0, 0.87)",
+          borderColor: isDarkMode ? theme.palette.primary.light : "rgba(0, 0, 0, 0.87)",
         },
         "&.Mui-focused fieldset": {
           borderColor: theme.palette.primary.main,
+          boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
         },
         "& input": {
-          color: "#000000",
-          WebkitTextFillColor: "#000000",
+          color: theme.palette.text.primary,
+          WebkitTextFillColor: theme.palette.text.primary,
         },
         "& textarea": {
-          color: "#000000",
+          color: theme.palette.text.primary,
         },
       },
       "& .MuiInputLabel-root": {
-        color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.6)",
+        color: theme.palette.text.secondary,
         "&.Mui-focused": {
           color: theme.palette.primary.main,
         },
         "&.MuiInputLabel-shrink": {
-          color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.6)",
+          color: theme.palette.text.secondary,
         },
       },
       "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-        color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.54)",
+        color: theme.palette.text.secondary,
       },
       "& .MuiFormHelperText-root": {
-        color: isDarkMode ? "#ccc" : "rgba(0, 0, 0, 0.6)",
-        bgcolor: isDarkMode ? "transparent" : "transparent",
+        color: theme.palette.text.secondary,
         "&.Mui-error": {
-          color: isDarkMode ? "#ff6b6b" : "#d32f2f",
+          color: theme.palette.error.main,
         },
       },
     },
     autocomplete: {
       "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#ffffff" : "white",
-        color: "#000000",
+        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+        color: theme.palette.text.primary,
         "& fieldset": {
-          borderColor: isDarkMode ? "#555" : "rgba(0, 0, 0, 0.23)",
+          borderColor: isDarkMode ? theme.palette.divider : "rgba(0, 0, 0, 0.23)",
         },
         "&:hover fieldset": {
-          borderColor: isDarkMode ? "#888" : "rgba(0, 0, 0, 0.87)",
+          borderColor: isDarkMode ? theme.palette.primary.light : "rgba(0, 0, 0, 0.87)",
         },
         "&.Mui-focused fieldset": {
           borderColor: theme.palette.primary.main,
         },
       },
       "& .MuiAutocomplete-input": {
-        color: "#000000",
+        color: theme.palette.text.primary,
       },
       "& .MuiInputLabel-root": {
-        color: isDarkMode ? "#666" : "rgba(0, 0, 0, 0.6)",
+        color: theme.palette.text.secondary,
       },
     },
     formControlLabel: {
       "& .MuiFormControlLabel-label": {
-        color: isDarkMode ? "#ffffff" : "#000000", // Fixed: White text in dark mode
+        color: theme.palette.text.primary,
         fontSize: "0.95rem",
         fontWeight: 500,
       },
       "& .MuiCheckbox-root": {
-        color: isDarkMode ? "#888" : "rgba(0, 0, 0, 0.6)",
+        color: theme.palette.text.secondary,
         "&.Mui-checked": {
           color: theme.palette.primary.main,
         },
@@ -550,37 +550,37 @@ const handleSubmit = async (e) => {
     },
     button: {
       outlined: {
-        borderColor: isDarkMode ? "#555" : theme.palette.primary.main,
-        color: isDarkMode ? "#ffffff" : theme.palette.primary.main,
+        borderColor: theme.palette.divider,
+        color: theme.palette.text.primary,
         "&:hover": {
-          borderColor: isDarkMode ? "#777" : theme.palette.primary.dark,
-          bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(25,118,210,0.04)",
+          borderColor: theme.palette.primary.dark,
+          bgcolor: theme.palette.action.hover,
         },
       },
     },
     errorText: {
-      color: isDarkMode ? "#ff6b6b" : "#d32f2f",
+      color: theme.palette.error.main,
     },
     card: {
-      bgcolor: isDarkMode ? "#2d2d2d" : "#f9f9f9",
-      border: isDarkMode ? "1px solid #444" : "1px solid #e0e0e0",
+      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+      border: `1px solid ${theme.palette.divider}`,
     },
     sectionTitle: {
-      color: isDarkMode ? "#ffffff" : "#000000",
+      color: theme.palette.text.primary,
     },
     helperText: {
-      color: isDarkMode ? "#ccc" : "#666",
+      color: theme.palette.text.secondary,
     },
     daysContainer: {
-      '& .MuiFormControlLabel-root': {
+      "& .MuiFormControlLabel-root": {
         margin: 0,
-        '& .MuiFormControlLabel-label': {
-          color: isDarkMode ? '#ffffff' : '#000000', // Fixed day label visibility
-          fontSize: '0.95rem',
+        "& .MuiFormControlLabel-label": {
+          color: theme.palette.text.primary,
+          fontSize: "0.95rem",
           fontWeight: 500,
-        }
-      }
-    }
+        },
+      },
+    },
   };
 
   if (isGlobalEvent && !["admin", "registrant"].includes(user?.role)) {
@@ -598,9 +598,9 @@ const handleSubmit = async (e) => {
           ...cardStyle,
           ...(isDarkMode && !isModal
             ? {
-                bgcolor: "#1e1e1e",
-                color: "#ffffff",
-                border: "1px solid #333",
+                bgcolor: theme.palette.background.paper,
+                color: theme.palette.text.primary,
+                border: `1px solid ${theme.palette.divider}`,
               }
             : {}),
         }}
