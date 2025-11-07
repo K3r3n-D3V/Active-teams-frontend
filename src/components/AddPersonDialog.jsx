@@ -53,40 +53,38 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     }
   }, [open]);
 
-useEffect(() => {
-  if (!open) return;
+  useEffect(() => {
+    if (!open) return;
 
-  const fetchAllPeople = async () => {
-    const allPeople = [];
-    let page = 1;
-    const perPage = 1000;
-    let moreData = true;
+    const fetchAllPeople = async () => {
+      const allPeople = [];
+      let page = 1;
+      const perPage = 1000;
+      let moreData = true;
 
-    try {
-      while (moreData) {
-        const response = await axios.get(`${BASE_URL}/people?page=${page}&perPage=${perPage}`);
-        const results = response.data?.results || [];
+      try {
+        while (moreData) {
+          const response = await axios.get(`${BASE_URL}/people?page=${page}&perPage=${perPage}`);
+          const results = response.data?.results || [];
 
-        allPeople.push(...results);
+          allPeople.push(...results);
 
-        if (results.length < perPage) {
-          moreData = false; // No more data
-        } else {
-          page += 1;
+          if (results.length < perPage) {
+            moreData = false;
+          } else {
+            page += 1;
+          }
         }
+        setPeopleList(allPeople);
+        console.log("Total people fetched:", allPeople.length);
+      } catch (err) {
+        console.error("Failed to fetch people:", err);
+        setPeopleList([]);
       }
+    };
 
-      setPeopleList(allPeople);
-      console.log("Total people fetched:", allPeople.length);
-    } catch (err) {
-      console.error("Failed to fetch people:", err);
-      setPeopleList([]);
-    }
-  };
-
-  fetchAllPeople();
-}, [open]);
-
+    fetchAllPeople();
+  }, [open]);
 
   const leftFields = [
     { name: "name", label: "Name", icon: <PersonIcon fontSize="small" sx={{ color: inputText }} />, required: true },
@@ -129,7 +127,7 @@ useEffect(() => {
       invitedBy: label,
       leader12: person?.["Leader @12"] || "",
       leader144: person?.["Leader @144"] || "",
-      leader1728: person?.["Leader @ 1728"] || ""
+      leader1728: person?.["Leader @1728"] || ""
     }));
   };
 
@@ -150,22 +148,20 @@ useEffect(() => {
     setIsSubmitting(true);
 
     try {
-    const payload = {
-      invitedBy: formData.invitedBy,
-      name: formData.name,
-      surname: formData.surname,
-      gender: formData.gender,
-      email: formData.email,
-      number: formData.number,
-      dob: formData.dob,
-      address: formData.address,
-      leaders: [
-        formData.leader12,
-        formData.leader144,
-        formData.leader1728,
-      ].filter(Boolean),
-      stage: formData.stage || "Win", 
-    };
+      const payload = {
+        invitedBy: formData.invitedBy,
+        name: formData.name,
+        surname: formData.surname,
+        gender: formData.gender,
+        email: formData.email,
+        number: formData.number,
+        dob: formData.dob,
+        address: formData.address,
+        leader12: formData.leader12,
+        leader144: formData.leader144,
+        leader1728: formData.leader1728,
+        stage: formData.stage || "Win", 
+      };
       let res;
 
       if (isEdit && personId) {
@@ -205,43 +201,89 @@ useEffect(() => {
 
   const labelStyles = { fontWeight: 500, color: inputLabel };
 
-  const renderTextField = ({ name, label, select, options, type }) => {
-if (name === "invitedBy") {
-  const peopleOptions = peopleList.map(person => {
-    const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
-    return { label: fullName, person };
-  });
-
-  return (
-    <Autocomplete
-      key={name}
-      freeSolo
-      disabled={isSubmitting}
-      options={peopleOptions}
-      getOptionLabel={(option) => typeof option === "string" ? option : option.label}
-      value={
-        peopleOptions.find(option => option.label === formData[name]) || null
-      }
-      onChange={(e, newValue) => handleInvitedByChange(newValue)}
-      onInputChange={(e, newInputValue, reason) => {
-        if (reason === "input") {
-          setFormData(prev => ({ ...prev, invitedBy: newInputValue }));
+  const renderLeaderAutocomplete = (name, label) => {
+    const peopleOptions = peopleList.map(person => {
+      const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
+      return { label: fullName, person };
+    });
+    
+    return (
+      <Autocomplete
+        key={name}
+        freeSolo
+        disabled={isSubmitting}
+        options={peopleOptions}
+        getOptionLabel={(option) => typeof option === "string" ? option : option.label}
+        value={
+          peopleOptions.find(option => option.label === formData[name]) || 
+          (formData[name] ? { label: formData[name] } : null)
         }
-      }}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label="Invited By"
-          size="small"
-          margin="dense"
-          InputProps={{ ...params.InputProps, sx: inputStyles(false) }}
-          InputLabelProps={{ sx: labelStyles }}
-          sx={{ mb: 1 }}
+        onChange={(e, newValue) => {
+          const value = newValue ? (typeof newValue === "string" ? newValue : newValue.label) : "";
+          setFormData(prev => ({ ...prev, [name]: value }));
+        }}
+        onInputChange={(e, newInputValue, reason) => {
+          if (reason === "input") {
+            setFormData(prev => ({ ...prev, [name]: newInputValue }));
+          }
+        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label={label}
+            size="small"
+            margin="dense"
+            InputProps={{ ...params.InputProps, sx: inputStyles(false) }}
+            InputLabelProps={{ sx: labelStyles }}
+            sx={{ mb: 1 }}
+          />
+        )}
+      />
+    );
+  };
+
+  const renderTextField = ({ name, label, select, options, type }) => {
+    if (name === "invitedBy") {
+      const peopleOptions = peopleList.map(person => {
+        const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
+        return { label: fullName, person };
+      });
+
+      return (
+        <Autocomplete
+          key={name}
+          freeSolo
+          disabled={isSubmitting}
+          options={peopleOptions}
+          getOptionLabel={(option) => typeof option === "string" ? option : option.label}
+          value={
+            peopleOptions.find(option => option.label === formData[name]) || 
+            (formData[name] ? { label: formData[name] } : null)
+          }
+          onChange={(e, newValue) => {
+            handleInvitedByChange(newValue);
+          }}
+          onInputChange={(e, newInputValue, reason) => {
+            if (reason === "input") {
+              setFormData(prev => ({ ...prev, [name]: newInputValue }));
+            }
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label={label || "Invited By"}
+              size="small"
+              margin="dense"
+              error={!!errors[name]}
+              helperText={errors[name]}
+              InputProps={{ ...params.InputProps, sx: inputStyles(!!errors[name]) }}
+              InputLabelProps={{ sx: labelStyles }}
+              sx={{ mb: 1 }}
+            />
+          )}
         />
-      )}
-    />
-  );
-}
+      );
+    }
 
     return (
       <TextField
@@ -274,7 +316,7 @@ if (name === "invitedBy") {
   });
 
   return (
-    <Dialog 
+    <Dialog
       open={open}
       onClose={handleClose}
       maxWidth="md"
@@ -291,36 +333,17 @@ if (name === "invitedBy") {
         <Grid container spacing={3} sx={{ mt: 0.5 }}>
           <Grid item xs={12} sm={6}>
             {leftFields.map(renderTextField)}
-            {renderTextField({ name: "invitedBy" })}
+            {renderTextField({ name: "invitedBy", label: "Invited By" })}
           </Grid>
           <Grid item xs={12} sm={6}>
             {rightFields.map(renderTextField)}
-            {(formData.leader12 || formData.leader144 || formData.leader1728) && (
-              <>
-                <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: inputLabel }}>
-                  Leader Information (Auto-populated)
-                </Typography>
-                {["leader12", "leader144", "leader1728"].map((leaderField) => (
-                  formData[leaderField] && (
-                    <TextField
-                      key={leaderField}
-                      label={leaderField.replace("leader", "Leader @")}
-                      value={formData[leaderField]}
-                      fullWidth
-                      size="small"
-                      margin="dense"
-                      disabled
-                      InputProps={{
-                        readOnly: true,
-                        sx: { ...inputStyles(false), backgroundColor: theme.palette.action.hover, opacity: 0.8 }
-                      }}
-                      InputLabelProps={{ sx: labelStyles }}
-                      sx={{ mb: 1 }}
-                    />
-                  )
-                ))}
-              </>
-            )}
+            
+            <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, color: inputLabel, fontWeight: 600 }}>
+              Additional Leaders (Optional)
+            </Typography>
+            {renderLeaderAutocomplete("leader12", "Leader @12")}
+            {renderLeaderAutocomplete("leader144", "Leader @144")}
+            {renderLeaderAutocomplete("leader1728", "Leader @1728")}
           </Grid>
         </Grid>
       </DialogContent>
@@ -344,11 +367,11 @@ if (name === "invitedBy") {
           onClick={handleSaveClick}
           disabled={!isFormValid() || isSubmitting}
           sx={{
-            backgroundColor: (isFormValid() && !isSubmitting) ? btnBg : "#999", 
+            backgroundColor: (isFormValid() && !isSubmitting) ? btnBg : "#999",
             color: "#fff",
             textTransform: "none", borderRadius: 2, minWidth: 140, px: 3, boxShadow: 3,
-            "&:hover": { 
-              backgroundColor: (isFormValid() && !isSubmitting) ? btnHover : "#999" 
+            "&:hover": {
+              backgroundColor: (isFormValid() && !isSubmitting) ? btnHover : "#999"
             },
             opacity: isSubmitting ? 0.7 : 1,
           }}
