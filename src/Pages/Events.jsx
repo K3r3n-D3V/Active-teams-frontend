@@ -462,6 +462,7 @@ function generateDynamicColumns(events) {
   // Fields to exclude from the DataGrid
   const excludedFields = [
     'persistent_attendees',
+    'UUID',
     'did_not_meet',
     'status',
     'is_overdue',
