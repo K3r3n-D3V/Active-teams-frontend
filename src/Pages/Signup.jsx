@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useContext, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -13,6 +13,8 @@ import {
   useTheme,
   useMediaQuery,
   Autocomplete,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
@@ -97,7 +99,7 @@ const WelcomeOverlay = ({ name, mode }) => {
           Welcome{name ? ", " : ""}{name || "Friend"}!
         </Typography>
         <Typography variant="body1">
-          Your account is ready. Taking you to your dashboard…
+          Your account is ready. Taking you to your dashboard...
         </Typography>
       </Box>
     </Box>
@@ -132,42 +134,78 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  const [peopleList, setPeopleList] = useState([]);
-  const [loadingPeople, setLoadingPeople] = useState(false);
+  const [allPeople, setAllPeople] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [cacheLoading, setCacheLoading] = useState(true);
+  const [cacheError, setCacheError] = useState("");
 
-  // Fetch people when component mounts (for invited_by autocomplete only)
   useEffect(() => {
     const fetchAllPeople = async () => {
-      setLoadingPeople(true);
-      const allPeople = [];
-      let page = 1;
-      const perPage = 1000;
-      let moreData = true;
-
       try {
-        while (moreData) {
-          const response = await axios.get(`${BACKEND_URL}/people?page=${page}&perPage=${perPage}`);
-          const results = response.data?.results || [];
-          allPeople.push(...results);
-          
-          if (results.length < perPage) {
-            moreData = false;
-          } else {
-            page += 1;
-          }
+        setCacheLoading(true);
+        setCacheError("");
+        
+        const response = await axios.get(`${BACKEND_URL}/cache/people`);
+        
+        if (response.data.success) {
+          const peopleData = response.data.cached_data || [];
+          setAllPeople(peopleData);
+        } else {
+          throw new Error("Failed to load cache");
         }
-        setPeopleList(allPeople);
-        console.log("Total people fetched for signup:", allPeople.length);
+        
       } catch (err) {
-        console.error("Failed to fetch people for signup:", err);
-        setPeopleList([]);
+        setCacheError("Failed to load people data. You can still type names manually.");
       } finally {
-        setLoadingPeople(false);
+        setCacheLoading(false);
       }
     };
 
     fetchAllPeople();
   }, []);
+
+  const filteredPeople = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 1) {
+      return allPeople.slice(0, 100);
+    }
+    
+    const query = searchQuery.toLowerCase().trim();
+    
+    const results = allPeople.filter(person => {
+      const fullName = `${person.Name || ''} ${person.Surname || ''}`.toLowerCase().trim();
+      const email = (person.Email || '').toLowerCase();
+      const name = (person.Name || '').toLowerCase();
+      const surname = (person.Surname || '').toLowerCase();
+      
+      return fullName.includes(query) || 
+             name.includes(query) || 
+             email.includes(query) || 
+             surname.includes(query);
+    });
+
+    results.sort((a, b) => {
+      const aFullName = `${a.Name || ''} ${a.Surname || ''}`.toLowerCase().trim();
+      const bFullName = `${b.Name || ''} ${b.Surname || ''}`.toLowerCase().trim();
+      
+      if (aFullName.startsWith(query) && !bFullName.startsWith(query)) return -1;
+      if (!aFullName.startsWith(query) && bFullName.startsWith(query)) return 1;
+      
+      if (aFullName === query && bFullName !== query) return -1;
+      if (aFullName !== query && bFullName === query) return 1;
+      
+      return aFullName.length - bFullName.length;
+    });
+
+    return results.slice(0, 50);
+  }, [allPeople, searchQuery]);
+
+  const autocompleteOptions = useMemo(() => {
+    return filteredPeople.map(person => ({
+      ...person,
+      label: `${person.Name || ''} ${person.Surname || ''}`.trim() || 'Unknown Name',
+      key: person._id || person.key,
+    }));
+  }, [filteredPeople]);
 
   const validate = () => {
     const newErrors = {};
@@ -195,15 +233,22 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    if (errors[e.target.name]) {
+      setErrors(prev => ({ ...prev, [e.target.name]: "" }));
+    }
   };
 
-  const handleInvitedByChange = (value) => {
-    const invitedByValue = typeof value === "string" ? value : (value?.label || "");
+  const handleInvitedByChange = (event, newValue) => {
+    const invitedByValue = newValue ? newValue.label : "";
     setForm(prev => ({ ...prev, invited_by: invitedByValue }));
     
     if (errors.invited_by) {
       setErrors(prev => ({ ...prev, invited_by: "" }));
     }
+  };
+
+  const handleSearchChange = (event, value) => {
+    setSearchQuery(value);
   };
 
   const handleSubmit = async (e) => {
@@ -244,7 +289,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
         try {
           await login(submitData.email, submitData.password);
         } catch (loginErr) {
-          console.error("Auto-login failed:", loginErr);
           navigate("/login");
           return;
         }
@@ -258,17 +302,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
         }, 2000);
       }
     } catch (error) {
-      console.error("Signup error:", error);
       alert("Network or server error occurred.");
     } finally {
       setLoading(false);
     }
   };
-
-  const peopleOptions = peopleList.map(person => {
-    const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
-    return { label: fullName, person };
-  });
 
   return (
     <Box
@@ -335,6 +373,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
           FILL IN YOUR DETAILS
         </Typography>
 
+        {cacheError && (
+          <Alert severity="warning" sx={{ borderRadius: 2 }}>
+            {cacheError}
+          </Alert>
+        )}
+
         <Box
           component="form"
           onSubmit={handleSubmit}
@@ -367,43 +411,81 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 fullWidth
                 InputLabelProps={type === "date" ? { shrink: true } : undefined}
                 sx={{
-                  "& .MuiOutlinedInput-root": { borderRadius: 3 },
-                  "& .MuiFormHelperText-root": { color: theme.palette.error.main },
+                  "& .MuiOutlinedInput-root": { 
+                    borderRadius: 3,
+                    '& fieldset': {
+                      borderColor: errors[name] ? theme.palette.error.main : undefined,
+                    },
+                  },
+                  "& .MuiFormHelperText-root": { 
+                    color: errors[name] ? theme.palette.error.main : theme.palette.text.secondary 
+                  },
                 }}
               />
             ))}
 
-            <Autocomplete
-              freeSolo
-              disabled={loading || loadingPeople}
-              options={peopleOptions}
-              getOptionLabel={(option) => typeof option === "string" ? option : option.label}
-              value={
-                peopleOptions.find(option => option.label === form.invited_by) || null
-              }
-              onChange={(e, newValue) => handleInvitedByChange(newValue)}
-              onInputChange={(e, newInputValue, reason) => {
-                if (reason === "input") {
-                  setForm(prev => ({ ...prev, invited_by: newInputValue }));
-                }
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Invited By"
-                  name="invited_by"
-                  error={!!errors.invited_by}
-                  helperText={errors.invited_by || (loadingPeople ? "Loading people..." : "")}
-                  fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": { borderRadius: 3 },
-                    "& .MuiFormHelperText-root": { 
-                      color: errors.invited_by ? theme.palette.error.main : theme.palette.text.secondary 
-                    },
-                  }}
-                />
-              )}
-            />
+            <Box sx={{ gridColumn: { xs: "1", sm: "1" } }}>
+              <Autocomplete
+                freeSolo
+                options={autocompleteOptions}
+                getOptionLabel={(option) => typeof option === "string" ? option : option.label}
+                value={autocompleteOptions.find(option => option.label === form.invited_by) || form.invited_by}
+                onChange={handleInvitedByChange}
+                onInputChange={handleSearchChange}
+                filterOptions={(x) => x}
+                loading={cacheLoading}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Invited By"
+                    name="invited_by"
+                    error={!!errors.invited_by}
+                    helperText={errors.invited_by || "Start typing to search through all people..."}
+                    fullWidth
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {cacheLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": { 
+                        borderRadius: 3,
+                        '& fieldset': {
+                          borderColor: errors.invited_by ? theme.palette.error.main : undefined,
+                        },
+                      },
+                      "& .MuiFormHelperText-root": { 
+                        color: errors.invited_by ? theme.palette.error.main : theme.palette.text.secondary,
+                        mx: 0,
+                      },
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.key || option._id}>
+                    <Box>
+                      <Typography variant="body1">
+                        {option.label}
+                      </Typography>
+                      {option.Email && (
+                        <Typography variant="caption" color="text.secondary">
+                          {option.Email}
+                        </Typography>
+                      )}
+                    </Box>
+                  </li>
+                )}
+                sx={{
+                  '& .MuiAutocomplete-inputRoot': {
+                    paddingRight: '9px !important',
+                  }
+                }}
+              />
+            </Box>
 
             <FormControl fullWidth error={!!errors.gender}>
               <InputLabel>Gender</InputLabel>
@@ -444,8 +526,15 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 ),
               }}
               sx={{
-                "& .MuiOutlinedInput-root": { borderRadius: 3 },
-                "& .MuiFormHelperText-root": { color: theme.palette.error.main },
+                "& .MuiOutlinedInput-root": { 
+                  borderRadius: 3,
+                  '& fieldset': {
+                    borderColor: errors.password ? theme.palette.error.main : undefined,
+                  },
+                },
+                "& .MuiFormHelperText-root": { 
+                  color: errors.password ? theme.palette.error.main : theme.palette.text.secondary 
+                },
               }}
             />
 
@@ -466,16 +555,23 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 ),
               }}
               sx={{
-                "& .MuiOutlinedInput-root": { borderRadius: 3 },
-                "& .MuiFormHelperText-root": { color: theme.palette.error.main },
+                "& .MuiOutlinedInput-root": { 
+                  borderRadius: 3,
+                  '& fieldset': {
+                    borderColor: errors.confirm_password ? theme.palette.error.main : undefined,
+                  },
+                },
+                "& .MuiFormHelperText-root": { 
+                  color: errors.confirm_password ? theme.palette.error.main : theme.palette.text.secondary 
+                },
               }}
             />
           </Box>
 
           {Object.keys(errors).length > 0 && (
-            <Typography color="error" textAlign="center" mt={1}>
+            <Alert severity="error" sx={{ borderRadius: 2 }}>
               Please fix the highlighted errors above.
-            </Typography>
+            </Alert>
           )}
 
           <Box textAlign="center">
@@ -483,7 +579,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               type="submit"
               variant="contained"
               size="large"
-              disabled={loading}
+              disabled={loading || cacheLoading}
               sx={{
                 backgroundColor: "#000",
                 color: "#fff",
@@ -496,6 +592,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 },
                 "&:active": {
                   backgroundColor: "#444",
+                },
+                "&:disabled": {
+                  backgroundColor: "#666",
                 },
               }}
             >

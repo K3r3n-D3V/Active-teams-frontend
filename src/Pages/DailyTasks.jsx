@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
+import * as XLSX from 'xlsx';
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -174,6 +175,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       setTaskTypes(Array.isArray(data) ? data : data.taskTypes || []);
     } catch (err) {
       console.error("Error fetching task types:", err.message);
+      alert(err.message)
     }
   };
 
@@ -242,6 +244,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       setTasks(normalizedTasks);
     } catch (err) {
       console.error("Error fetching user tasks:", err.message);
+      alert(err.message);
     } finally {
       setLoading(false);
     }
@@ -285,6 +288,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       setSearchResults(filtered);
     } catch (err) {
       console.error("Error fetching people:", err);
+      alert(err.message);
       setSearchResults([]);
     }
   };
@@ -300,10 +304,11 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       setAssignedResults(data.results || []);
     } catch (err) {
       console.error("Error fetching assigned people:", err);
+      alert(err.message);
     }
   };
 
-  const createTask = async (taskPayload) => {
+    const createTask = async (taskPayload) => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
@@ -432,7 +437,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       recipient: {
         Name: task.contacted_person?.name?.split(" ")[0] || "",
         Surname: task.contacted_person?.name?.split(" ")[1] || "",
-        Phone: task.contacted_person?.phone || "",
+        Phone: task.contacted_person?.Number || "",
         Email: task.contacted_person?.email || "",
       },
       recipientDisplay: task.contacted_person?.name || "",
@@ -460,8 +465,8 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
         name: taskData.assignedTo || storedUser.name,
         taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
-          name: `${person.Name} ${person.Surname}` || "Unknown",
-          phone: person.Phone || "",
+          name: `${person.Name} ${person.Surname || ""}`.trim(),
+          Number: person.Phone || person.Number || "",
           email: person.Email || "",
         },
         followup_date: new Date(taskData.dueDate).toISOString(),
@@ -469,6 +474,8 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
         type: formType || "call",
         assignedfor: storedUser.email,
       };
+
+      console.log("Task payload being sent:", JSON.stringify(taskPayload, null, 2));
 
       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
@@ -495,6 +502,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       filterType === "all" ||
       task.type === filterType ||
       (filterType === "consolidation" && task.taskType === "consolidation");
+
     let matchesDate = true;
 
     const today = new Date();
@@ -506,6 +514,10 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       const startOfWeek = getStartOfWeek(today);
       const endOfWeek = getEndOfWeek(today);
       matchesDate = isDateInRange(taskDate, startOfWeek, endOfWeek);
+    } else if (dateRange === "thisMonth") {
+      const startOfMonth = getStartOfMonth(today);
+      const endOfMonth = getEndOfMonth(today);
+      matchesDate = isDateInRange(taskDate, startOfMonth, endOfMonth);
     } else if (dateRange === "previous7") {
       const sevenDaysAgo = new Date(today);
       sevenDaysAgo.setDate(today.getDate() - 6);
@@ -528,7 +540,160 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
     }
 
     return matchesType && matchesDate;
+});
+
+ const downloadFilteredTasks = () => {
+  try {
+    if (!filteredTasks || filteredTasks.length === 0) {
+      alert("No data to download.");
+      return;
+    }
+
+    // Map tasks to formatted data
+    const formattedTasks = filteredTasks.map(task => ({
+      "Member ID": task.memberID || storedUser.id || "",
+      "Name": task.name || storedUser.name || "",
+      "Task Type": task.taskType || "",
+      "Contact Person": task.contacted_person?.name || "",
+      "Contact Phone": task.contacted_person?.phone || task.contacted_person?.Number || "",
+      "Contact Email": task.contacted_person?.email || "",
+      "Follow-up Date": task.followup_date
+        ? new Date(task.followup_date).toLocaleString()
+        : "",
+      "Status": task.status || "",
+      "Type": task.type || "",
+      "Assigned For": task.assignedfor || storedUser.email || "",
+    }));
+
+    // Get headers
+    const headers = Object.keys(formattedTasks[0]);
+
+    // Calculate column widths based on content
+const columnWidths = headers.map(header => {
+  // Start with header length
+  let maxLength = header.length;
+  
+  // Check all values in this column
+  formattedTasks.forEach(task => {
+    const value = String(task[header] || "");
+    if (value.length > maxLength) {
+      maxLength = value.length;  // Takes the longest value
+    }
   });
+  
+  // Excel width calculation: characters * 7 + 5 (approximate)
+  return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
+});
+
+    // Create column width XML
+    let colWidthsXml = columnWidths.map(width => 
+      `<x:Width>${width}</x:Width>`
+    ).join('\n                  ');
+
+    // Create HTML table with styling
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+        <head>
+          <meta charset="utf-8">
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Filtered Tasks</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                  <x:WorksheetColumns>
+${columnWidths.map((width, index) => `                    <x:Column ss:Index="${index + 1}" ss:AutoFitWidth="0" ss:Width="${width}"/>`).join('\n')}
+                  </x:WorksheetColumns>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              font-family: Calibri, Arial, sans-serif;
+            }
+            th {
+              background-color: #a3aca3ff;
+              color: white;
+              font-weight: bold;
+              padding: 12px 8px;
+              text-align: center;
+              border: 1px solid #ddd;
+              font-size: 11pt;
+              white-space: nowrap;
+            }
+            td {
+              padding: 8px;
+              border: 1px solid #ddd;
+              font-size: 10pt;
+              text-align: left;
+            }
+            tr:nth-child(even) {
+              background-color: #f2f2f2;
+            }
+          </style>
+        </head>
+        <body>
+          <table border="1">
+            <thead>
+              <tr>
+    `;
+
+    // Add headers
+    headers.forEach(header => {
+      html += `                <th>${header}</th>\n`;
+    });
+
+    html += `              </tr>\n            </thead>\n            <tbody>\n`;
+
+    // Add data rows
+    formattedTasks.forEach(task => {
+      html += `              <tr>\n`;
+      headers.forEach(header => {
+        const value = task[header] || "";
+        html += `                <td>${value}</td>\n`;
+      });
+      html += `              </tr>\n`;
+    });
+
+    html += `            </tbody>
+          </table>
+        </body>
+      </html>`;
+
+    // Create blob and download
+    const blob = new Blob([html], { 
+      type: 'application/vnd.ms-excel;charset=utf-8;' 
+    });
+
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    const fileName = `filtered_tasks_${storedUser.name}_${new Date().toISOString().split('T')[0]}.xls`;
+    
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+
+    // Cleanup
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+
+    console.log("Download successful!");
+  } catch (error) {
+    console.error("Error downloading Excel file:", error);
+    alert("Error creating Excel file: " + error.message);
+  }
+};
 
   const totalCount = filteredTasks.length;
 
@@ -645,9 +810,36 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
           >
             <option value="today">Today</option>
             <option value="thisWeek">This Week</option>
+            <option value="thisMonth">This Month</option>
             <option value="previousWeek">Previous Week</option>
             <option value="previousMonth">Previous Month</option>
           </select>
+        </div>
+        {/* 👇 Add download button here */}
+        <div style={{ marginTop: '16px' }}>
+          <button
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              backgroundColor: isDarkMode ? '#fff' : '#000',
+              color: isDarkMode ? '#000' : '#fff',
+              fontWeight: '600',
+              padding: '14px 28px',
+              borderRadius: '12px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '15px',
+              marginTop: '12px',
+              boxShadow: isDarkMode
+                ? '0 2px 8px rgba(255,255,255,0.1)'
+                : '0 4px 24px rgba(0, 0, 0, 0.08)',
+            }}
+            onClick={downloadFilteredTasks}
+          >
+            Download Filtered Tasks
+          </button>
         </div>
       </div>
 
@@ -707,7 +899,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
               <div
                 style={{ cursor: 'pointer' }}
                 onClick={() => {
-                  alert(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
+                  alert(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.Number || task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
                 }}
               >
                 <p style={{ 

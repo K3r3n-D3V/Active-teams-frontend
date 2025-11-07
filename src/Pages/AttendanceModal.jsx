@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, UserPlus,  Search,  CheckCircle, ChevronDown , X, Menu} from "lucide-react"; 
 
-// Create a global cache for people data
 let globalPeopleCache = {
   data: [],
   timestamp: null,
-  expiry: 5 * 60 * 1000 // 5 minutes cache
+  expiry: 5 * 60 * 1000 
 };
 
 const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
@@ -36,13 +35,12 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
-  // Pre-load people data when component mounts or opens
   useEffect(() => {
     if (isOpen) {
       loadPreloadedPeople();
     }
   }, [isOpen]);
-
+  
   const loadPreloadedPeople = async () => {
     const now = Date.now();
     if (globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
@@ -1228,6 +1226,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit,  preloadedPeople = [],
 };
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
+    const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
   const [decisions, setDecisions] = useState({});
@@ -1240,7 +1239,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [openPaymentDropdown, setOpenPaymentDropdown] = useState(null);
   const [people, setPeople] = useState([]);
   const [commonAttendees, setCommonAttendees] = useState([]);
-  const [searchName, setSearchName] = useState("");
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
@@ -1269,6 +1267,32 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   ];
 
   const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
+
+   useEffect(() => {
+    if (isOpen && event) {
+      console.log("🎯 Modal opened with event:", event);
+      console.log("📋 Persistent attendees in event:", event.persistent_attendees);
+      console.log("📋 Attendance data:", event.attendance);
+
+      setSearchName("");
+      setAssociateSearch("");
+      setActiveTab(0);
+      setShowMobileMenu(false);
+
+      loadExistingAttendance();
+      fetchPeople();
+
+      if (event.eventType === "cell") {
+        fetchCommonAttendees(event._id || event.id);
+      } else {
+        setCommonAttendees([]);
+      }
+
+      if (event.did_not_meet) {
+        setDidNotMeet(true);
+      }
+    }
+  }, [isOpen, event]);
 
   // Fixed missing loadPreloadedPeople function
   const loadPreloadedPeople = async () => {
@@ -1330,6 +1354,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     const week = getWeekNumber(now);
     return `${year}-W${week.toString().padStart(2, '0')}`;
   }
+
 
 function getWeekNumber(date) {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -1488,8 +1513,12 @@ const loadExistingAttendance = async () => {
 
     const currentWeek = getCurrentWeekIdentifier();
     
-    // ✅ FIX: Load persistent attendees list (these always show up)
+    // ✅ FIX 1: Always load persistent attendees first
     const persistentList = event.persistent_attendees || [];
+    console.log(`📋 Found ${persistentList.length} persistent attendees in event data`);
+    
+    // ✅ FIX 2: ALWAYS set the persistent list regardless of week status
+    setPersistentCommonAttendees(persistentList);
     
     // Check if THIS WEEK has been captured
     const hasCurrentWeekData = 
@@ -1505,20 +1534,19 @@ const loadExistingAttendance = async () => {
         event.attendance[currentWeek].status === 'did_not_meet';
 
     console.log(`🔍 Current week: ${currentWeek}`);
-    console.log(`📊 Persistent attendees: ${persistentList.length}`);
     console.log(`📊 Has current week data: ${hasCurrentWeekData}`);
     console.log(`📊 Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
 
     // ✅ CASE 1: Current week HAS been captured - show checked state
     if (hasCurrentWeekData) {
-        console.log("✅ Current week HAS been captured - loading checked state");
+        console.log("✅ Current week captured - loading checked state");
 
         const weekData = event.attendance[currentWeek];
         const newCheckedIn = {};
         const newDecisions = {};
         const newDecisionTypes = {};
 
-        // Only mark as checked if they were in THIS week's attendees list
+        // Mark attendees as checked
         weekData.attendees.forEach(attendee => {
             if (attendee.id) {
                 newCheckedIn[attendee.id] = true;
@@ -1530,10 +1558,6 @@ const loadExistingAttendance = async () => {
             }
         });
 
-        // Load the persistent list (ALL names)
-        setPersistentCommonAttendees(persistentList);
-        
-        // Load the check-in states (only checked people)
         setCheckedIn(newCheckedIn);
         setDecisions(newDecisions);
         setDecisionTypes(newDecisionTypes);
@@ -1547,15 +1571,11 @@ const loadExistingAttendance = async () => {
         
         setDidNotMeet(true);
         setCheckedIn({});
-        setPersistentCommonAttendees(persistentList);
         
     }
     // ✅ CASE 3: NEW WEEK - Show names but nothing checked
     else {
         console.log("🆕 NEW WEEK - Names listed but NOTHING checked");
-
-        // Load persistent attendees as reference
-        setPersistentCommonAttendees(persistentList);
 
         // ✅ CRITICAL: All checkboxes start UNCHECKED
         setCheckedIn({});
@@ -1567,35 +1587,13 @@ const loadExistingAttendance = async () => {
         console.log(`✅ Loaded ${persistentList.length} names - all UNCHECKED (new week)`);
     }
 };
+
 function getCurrentWeekIdentifier() {
     const now = new Date();
     const year = now.getFullYear();
     const week = getWeekNumber(now);
     return `${year}-W${week.toString().padStart(2, '0')}`;
 }
- useEffect(() => {
-    if (isOpen && event) {
-      console.log("🎯 Modal opened with event:", event);
-
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-      setShowMobileMenu(false);
-
-      loadExistingAttendance(); // ✅ This now loads from event.persistent_attendees
-      fetchPeople();
-
-      if (event.eventType === "cell") {
-        fetchCommonAttendees(event._id || event.id);
-      } else {
-        setCommonAttendees([]);
-      }
-
-      if (event.did_not_meet) {
-        setDidNotMeet(true);
-      }
-    }
-  }, [isOpen, event]);
 
   useEffect(() => {
     const checkScreenSize = () => {

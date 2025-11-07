@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -61,29 +60,20 @@ function ServiceCheckIn() {
     return stored ? JSON.parse(stored) : [];
   });
 
-  const [events, setEvents] = useState(() => {
-    const stored = localStorage.getItem("events");
-    return stored ? JSON.parse(stored) : [];
-  });
+  // Removed localStorage caching for events
+  const [events, setEvents] = useState([]);
 
-  const [currentEventId, setCurrentEventId] = useState(
-    localStorage.getItem("currentEventId") || ""
-  );
+  // Removed localStorage caching for currentEventId
+  const [currentEventId, setCurrentEventId] = useState("");
 
-  const [eventCheckIns, setEventCheckIns] = useState(() => {
-    const stored = localStorage.getItem("eventCheckIns");
-    return stored ? JSON.parse(stored) : {};
-  });
+  // Removed localStorage caching for eventCheckIns
+  const [eventCheckIns, setEventCheckIns] = useState({});
 
-  const [eventNewPeople, setEventNewPeople] = useState(() => {
-    const stored = localStorage.getItem("eventNewPeople");
-    return stored ? JSON.parse(stored) : {};
-  });
+  // Removed localStorage caching for eventNewPeople
+  const [eventNewPeople, setEventNewPeople] = useState({});
 
-  const [eventConsolidations, setEventConsolidations] = useState(() => {
-    const stored = localStorage.getItem("eventConsolidations");
-    return stored ? JSON.parse(stored) : {};
-  });
+  // Removed localStorage caching for eventConsolidations
+  const [eventConsolidations, setEventConsolidations] = useState({});
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -159,21 +149,149 @@ function ServiceCheckIn() {
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
-  const getFilteredEvents = () => {
-    console.log('🎯 Available events for dropdown:', events);
-    return events.filter(event => {
-      const isGlobal = event.isGlobal === true;
-      const isOpen = event.status?.toLowerCase() !== 'closed';
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-
-      return isGlobal && isOpen && isNotCell;
+  // Debug useEffect
+  useEffect(() => {
+    console.log("🔍 DEBUG - Current State:", {
+      currentEventId,
+      eventsCount: events.length,
+      filteredEvents: getFilteredEvents().length,
+      events: events.map(e => ({ id: e.id, name: e.eventName, status: e.status }))
     });
+  }, [events, currentEventId]);
+
+  // People fetching functions
+  const toArray = (resData) =>
+    Array.isArray(resData)
+      ? resData
+      : Array.isArray(resData?.results)
+        ? resData.results
+        : Array.isArray(resData?.events)
+          ? resData.events
+          : [];
+
+  const fetchAllPeople = async () => {
+    setIsLoadingPeople(true);
+    try {
+      let allPeople = [];
+      let page = 1;
+      const perPage = 50;
+      const maxInitialPages = 2;
+      let total = Infinity;
+
+      while (allPeople.length < total && page <= maxInitialPages) {
+        const res = await axios.get(
+          `${BASE_URL}/people?page=${page}&perPage=${perPage}`
+        );
+        const results = toArray(res.data);
+        const peoplePage = results.map((p) => ({
+          _id: p._id || p.id || `${p.Email || p.Name || ""}-${page}`,
+          name: p.Name || p.name || "",
+          surname: p.Surname || p.surname || "",
+          email: p.Email || p.email || "",
+          phone: p.Number || p.Phone || p.phone || "",
+          leader1: p["Leader @1"] || p.leader1 || "",
+          leader12: p["Leader @12"] || p.leader12 || "",
+          leader144: p["Leader @144"] || p.leader144 || "",
+        }));
+
+        allPeople = allPeople.concat(peoplePage);
+        total =
+          typeof res.data?.total === "number"
+            ? res.data.total
+            : allPeople.length;
+
+        if (results.length === 0) break;
+        page += 1;
+      }
+
+      setAttendees(allPeople);
+      localStorage.setItem("serviceCheckInDataLoaded", "true");
+      setHasDataLoaded(true);
+
+      if (allPeople.length < total) {
+        setTimeout(() => {
+          fetchRemainingPeople(page, perPage, total, allPeople);
+        }, 1000);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || err.message);
+    } finally {
+      setIsLoadingPeople(false);
+    }
+  };
+
+  const fetchRemainingPeople = async (startPage, perPage, total, currentPeople) => {
+    try {
+      let allPeople = [...currentPeople];
+      let page = startPage;
+
+      while (allPeople.length < total) {
+        const res = await axios.get(
+          `${BASE_URL}/people?page=${page}&perPage=${perPage}`
+        );
+        const results = toArray(res.data);
+        const peoplePage = results.map((p) => ({
+          _id: p._id || p.id || `${p.Email || p.Name || ""}-${page}`,
+          name: p.Name || p.name || "",
+          surname: p.Surname || p.surname || "",
+          email: p.Email || p.email || "",
+          phone: p.Number || p.Phone || p.phone || "",
+          leader1: p["Leader @1"] || p.leader1 || "",
+          leader12: p["Leader @12"] || p.leader12 || "",
+          leader144: p["Leader @144"] || p.leader144 || "",
+        }));
+
+        allPeople = allPeople.concat(peoplePage);
+        setAttendees([...allPeople]);
+
+        if (results.length === 0) break;
+        page += 1;
+      }
+
+      console.log(`✅ Loaded all ${allPeople.length} people in background`);
+    } catch (err) {
+      console.error("Background fetch error:", err);
+    }
+  };
+
+  const getFilteredEvents = () => {
+    console.log('📋 All available events:', events);
+    
+    const filteredEvents = events.filter(event => {
+      // More flexible filtering for global events
+      const isGlobal = event.isGlobal === true || 
+                      event.eventType === "Global Events" || 
+                      event.eventType === "global" ||
+                      event.eventType?.toLowerCase().includes("global");
+      
+      const isOpen = event.status?.toLowerCase() === 'open' || event.status?.toLowerCase() === "incomplete";
+
+      console.log(`🔍 Event kerr: ${event.eventName}`, {
+        id: event.id,
+        isGlobal,
+        isOpen,
+        eventType: event.eventType,
+        status: event.status,
+        isGlobalFlag: event.isGlobal
+      });
+
+      return isGlobal && isOpen;
+    });
+
+    console.log('✅ Filtered Global Events:', filteredEvents.map(e => ({
+      id: e.id,
+      name: e.eventName,
+      type: e.eventType,
+      status: e.status
+    })));
+    return filteredEvents;
   };
 
   const getClosedEvents = () => {
     return events.filter(event => {
-      const isClosed = event.status?.toLowerCase() === 'closed';
-      const isGlobal = event.isGlobal === true;
+      const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'incomplete';
+      const isGlobal = event.eventType === "Global Events";
       const isNotCell = event.eventType?.toLowerCase() !== 'cell';
 
       return isClosed && isGlobal && isNotCell;
@@ -185,11 +303,14 @@ function ServiceCheckIn() {
       const filteredEvents = getFilteredEvents();
       if (filteredEvents.length > 0) {
         const firstEventId = filteredEvents[0].id;
-        setCurrentEventId(firstEventId);
-        console.log('✅ Auto-selected first event:', firstEventId);
+        // Only update if different from current
+        if (firstEventId !== currentEventId) {
+          setCurrentEventId(firstEventId);
+          console.log('✅ Auto-selected first event:', firstEventId);
+        }
       }
     }
-  }, [events]);
+  }, [events, currentEventId]);
 
   const loadEventCheckIns = async () => {
     if (!currentEventId) return;
@@ -267,7 +388,7 @@ function ServiceCheckIn() {
       console.error('❌ Error loading event check-ins:', error);
       const storedCheckIns = eventCheckIns[currentEventId] || [];
       if (storedCheckIns.length > 0) {
-        console.log('🔄 Using stored check-ins from localStorage');
+        console.log('🔄 Using stored check-ins from state');
       }
     }
   };
@@ -280,12 +401,20 @@ function ServiceCheckIn() {
   }, [currentEventId, attendees]);
 
   const handleSaveAndCloseEvent = async () => {
+    console.log("🔄 Saving and closing event:", currentEventId);
+    
     if (!currentEventId) {
       toast.error("Please select an event first");
       return;
     }
 
-    if (!window.confirm("Are you sure you want to close this event? This action cannot be undone.")) {
+    const currentEvent = events.find(event => event.id === currentEventId);
+    if (!currentEvent) {
+      toast.error("Selected event not found");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) {
       return;
     }
 
@@ -293,9 +422,10 @@ function ServiceCheckIn() {
     try {
       const token = localStorage.getItem("token");
 
-      await axios.patch(
+      // Use "closed" status consistently
+      await axios.put(
         `${BASE_URL}/events/${currentEventId}`,
-        { status: "closed" },
+        { status: "closed" }, // Use "closed" instead of "incomplete"
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -303,20 +433,27 @@ function ServiceCheckIn() {
         }
       );
 
+      // Update local state with consistent status
       setEvents(prev => prev.map(event =>
         event.id === currentEventId
           ? { ...event, status: "closed" }
           : event
       ));
 
-      toast.success("Event closed successfully!");
+      toast.success(`Event "${currentEvent.eventName}" closed successfully!`);
 
-      setCurrentEventId("");
-      localStorage.removeItem("currentEventId");
+      // Don't clear currentEventId immediately - let user see the success message
+      setTimeout(() => {
+        setCurrentEventId("");
+      }, 2000);
 
     } catch (error) {
       console.error("Error closing event:", error);
-      toast.error("Failed to close event");
+      if (error.response?.status === 404) {
+        toast.error("Event not found on server");
+      } else {
+        toast.error("Failed to close event");
+      }
     } finally {
       setIsClosingEvent(false);
     }
@@ -421,49 +558,80 @@ function ServiceCheckIn() {
     }
   }, [consolidationOpen]);
 
-  useEffect(() => {
-    const dataLoaded = localStorage.getItem("serviceCheckInDataLoaded") === "true";
-    const hasCachedData = localStorage.getItem("attendees") && localStorage.getItem("events");
+  // FIXED: Properly defined fetchEvents function
+  const fetchEvents = async () => {
+    setIsLoadingEvents(true);
+    try {
+      const token = localStorage.getItem('token');
+      console.log('🔄 Fetching events with token:', token ? 'Token exists' : 'No token');
+      
+      const response = await fetch(`${BASE_URL}/events/global`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-    if (dataLoaded && hasCachedData) {
-      setHasDataLoaded(true);
-      setIsLoadingPeople(false);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      console.log('📋 Global events data:', data);
+
+      const eventsData = data.events || data.results || [];
+      
+      console.log('✅ Global events found:', eventsData.map(e => ({
+        id: e._id || e.id,
+        name: e.eventName,
+        status: e.status,
+        isGlobal: e.isGlobal
+      })));
+
+      const transformedEvents = eventsData.map(event => ({
+        id: event._id || event.id,
+        eventName: event.eventName || event.name || "Unnamed Event",
+        status: event.status || "incomplete",
+        isGlobal: event.isGlobal || true,
+        isTicketed: event.isTicketed || false,
+        date: event.date || event.createdAt || event.created_at,
+        eventType: event.eventType || "Global Events"
+      }));
+
+      console.log('🎯 Transformed global events for dropdown:', transformedEvents);
+      setEvents(transformedEvents);
+
+    } catch (err) {
+      console.error('❌ Error fetching global events:', err);
+      toast.error(err.response?.data?.detail || "Failed to fetch global events");
+    } finally {
       setIsLoadingEvents(false);
     }
-  }, []);
+  };
 
+  // FIXED: Proper useEffect for initial data loading - ALWAYS fetch events
+  useEffect(() => {
+    console.log('🚀 Component mounted - fetching events and people...');
+    
+    // Always fetch events on component mount
+    fetchEvents();
+    
+    const dataLoaded = localStorage.getItem("serviceCheckInDataLoaded") === "true";
+    const hasCachedPeople = localStorage.getItem("attendees");
+
+    if (dataLoaded && hasCachedPeople) {
+      setHasDataLoaded(true);
+      setIsLoadingPeople(false);
+    } else {
+      fetchAllPeople();
+    }
+  }, []); // Empty dependency array - runs once on mount
+
+  // Only keep attendees in localStorage, remove events caching
   useEffect(() => {
     localStorage.setItem("attendees", JSON.stringify(attendees));
   }, [attendees]);
-
-  useEffect(() => {
-    localStorage.setItem("events", JSON.stringify(events));
-  }, [events]);
-
-  useEffect(() => {
-    localStorage.setItem("currentEventId", currentEventId);
-  }, [currentEventId]);
-
-  useEffect(() => {
-    localStorage.setItem("eventCheckIns", JSON.stringify(eventCheckIns));
-  }, [eventCheckIns]);
-
-  useEffect(() => {
-    localStorage.setItem("eventNewPeople", JSON.stringify(eventNewPeople));
-  }, [eventNewPeople]);
-
-  useEffect(() => {
-    localStorage.setItem("eventConsolidations", JSON.stringify(eventConsolidations));
-  }, [eventConsolidations]);
-
-  const toArray = (resData) =>
-    Array.isArray(resData)
-      ? resData
-      : Array.isArray(resData?.results)
-        ? resData.results
-        : Array.isArray(resData?.events)
-          ? resData.events
-          : [];
 
   const getAttendeesWithPresentStatus = () => {
     const currentEventCheckIns = eventCheckIns[currentEventId] || [];
@@ -490,7 +658,6 @@ function ServiceCheckIn() {
       console.log("🔄 Fetching consolidated people for event:", currentEventId);
 
       try {
-        console.log("📊 Calling consolidations endpoint...");
         const response = await axios.get(`${BASE_URL}/consolidations`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -500,13 +667,9 @@ function ServiceCheckIn() {
           }
         });
 
-        console.log("📊 Consolidations API response:", response.data);
-
         if (response.data && response.data.consolidations) {
           consolidatedData = response.data.consolidations;
           console.log(`✅ Found ${consolidatedData.length} consolidations from /consolidations endpoint`);
-        } else {
-          console.log("❌ No consolidations data in response");
         }
       } catch (error) {
         console.log("❌ Consolidations endpoint failed:", error.message);
@@ -514,27 +677,6 @@ function ServiceCheckIn() {
 
       if (consolidatedData.length === 0) {
         try {
-          console.log("📊 Trying event-specific consolidations endpoint...");
-          const eventConsolidationsResponse = await axios.get(`${BASE_URL}/events/${currentEventId}/consolidations`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            }
-          });
-
-          console.log("📊 Event consolidations response:", eventConsolidationsResponse.data);
-
-          if (eventConsolidationsResponse.data && eventConsolidationsResponse.data.consolidations) {
-            consolidatedData = eventConsolidationsResponse.data.consolidations;
-            console.log(`✅ Found ${consolidatedData.length} consolidations from event endpoint`);
-          }
-        } catch (error) {
-          console.log("❌ Event consolidations endpoint failed:", error.message);
-        }
-      }
-
-      if (consolidatedData.length === 0) {
-        try {
-          console.log("📊 Checking for consolidation tasks...");
           const tasksResponse = await axios.get(`${BASE_URL}/tasks`, {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -545,21 +687,21 @@ function ServiceCheckIn() {
             }
           });
 
-          console.log("📋 Tasks API response:", tasksResponse.data);
-
           if (tasksResponse.data && Array.isArray(tasksResponse.data.tasks)) {
             consolidatedData = tasksResponse.data.tasks.map(task => ({
               _id: task._id,
-              name: task.contacted_person?.name || task.person_name,
+              name: task.contacted_person?.name || task.person_name || task.recipient_name,
               surname: "",
-              email: task.contacted_person?.email || task.person_email,
-              phone: task.contacted_person?.phone || task.person_phone,
+              email: task.contacted_person?.email || task.person_email || task.recipient_email,
+              phone: task.contacted_person?.phone || task.person_phone || task.recipient_phone,
               assigned_to: task.assignedfor || task.assignedTo,
-              decision_type: task.decision_type || task.consolidation_type,
-              decision_date: task.followup_date,
+              decision_type: task.decision_type || task.consolidation_type || "Commitment",
+              consolidation_type: task.consolidation_type || task.decision_type,
+              decision_date: task.followup_date || task.decision_date,
               status: task.status,
               task_id: task._id,
-              is_from_task: true
+              is_from_task: true,
+              event_id: task.event_id || currentEventId
             }));
             console.log(`✅ Found ${consolidatedData.length} consolidation tasks`);
           }
@@ -568,41 +710,12 @@ function ServiceCheckIn() {
         }
       }
 
-      if (consolidatedData.length === 0) {
-        try {
-          console.log("📊 Checking event attendees for consolidation flags...");
-          const eventResponse = await axios.get(`${BASE_URL}/events/${currentEventId}`);
-          const event = eventResponse.data;
+      const filteredConsolidations = consolidatedData.filter(consolidation => 
+        consolidation.event_id === currentEventId || !consolidation.event_id
+      );
 
-          const consolidatedAttendees = event.attendees?.filter(attendee =>
-            attendee.is_consolidation ||
-            attendee.consolidation_id ||
-            attendee.decision ||
-            attendee.decision_type
-          ) || [];
-
-          if (consolidatedAttendees.length > 0) {
-            consolidatedData = consolidatedAttendees.map(attendee => ({
-              _id: attendee.consolidation_id || attendee.id,
-              name: attendee.name || attendee.person_name,
-              surname: attendee.surname || attendee.person_surname || "",
-              email: attendee.email || attendee.person_email,
-              phone: attendee.phone || attendee.person_phone,
-              assigned_to: attendee.assigned_to || "Not assigned",
-              decision_type: attendee.decision || attendee.decision_type,
-              decision_date: attendee.time || new Date().toISOString(),
-              status: "active",
-              is_from_attendee: true
-            }));
-            console.log(`✅ Found ${consolidatedData.length} consolidated attendees`);
-          }
-        } catch (error) {
-          console.log("❌ Events endpoint failed:", error.message);
-        }
-      }
-
-      console.log("✅ Final consolidated data:", consolidatedData);
-      setConsolidatedPeople(consolidatedData);
+      console.log("✅ Final consolidated data for current event:", filteredConsolidations);
+      setConsolidatedPeople(filteredConsolidations);
 
     } catch (error) {
       console.error("💥 Error fetching consolidated people:", error);
@@ -619,167 +732,6 @@ function ServiceCheckIn() {
       setConsolidatedPeople([]);
     }
   }, [currentEventId]);
-
-  useEffect(() => {
-    if (hasDataLoaded) return;
-
-    const fetchEvents = async () => {
-      setIsLoadingEvents(true);
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${BASE_URL}/events`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        console.log('📋 Raw events data:', data);
-
-        const filteredEvents = (data.events || []).filter(event => {
-          const isGlobal = event.isGlobal === true;
-          const isOpen = event.status?.toLowerCase() !== 'closed';
-          const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-
-          console.log(`🔍 Event: ${event.eventName}`, {
-            isGlobal,
-            isOpen,
-            isNotCell,
-            eventType: event.eventType,
-            status: event.status,
-            isGlobalFlag: event.isGlobal
-          });
-
-          return isGlobal && isOpen && isNotCell;
-        });
-
-        console.log('✅ Filtered events:', filteredEvents);
-
-        const transformedEvents = filteredEvents.map(event => ({
-          id: event._id || event.id,
-          eventName: event.eventName || event.name || "Unnamed Event",
-          status: event.status || "open",
-          isGlobal: event.isGlobal,
-          isTicketed: event.isTicketed || false,
-          date: event.date || event.createdAt,
-          eventType: event.eventType
-        }));
-
-        setEvents(transformedEvents);
-
-      } catch (err) {
-        console.error('❌ Error fetching events:', err);
-        toast.error(err.response?.data?.detail || "Failed to fetch events");
-      } finally {
-        setIsLoadingEvents(false);
-      }
-    };
-
-    fetchEvents();
-  }, [hasDataLoaded]);
-
-  useEffect(() => {
-    if (hasDataLoaded) return;
-
-    const fetchAllPeople = async () => {
-      setIsLoadingPeople(true);
-      try {
-        let allPeople = [];
-        let page = 1;
-        const perPage = 50; // REDUCED from 200 to 50 for faster initial load
-        let total = Infinity;
-
-        // Only fetch first 2 pages initially (100 people)
-        const maxInitialPages = 2;
-
-        while (allPeople.length < total && page <= maxInitialPages) {
-          const res = await axios.get(
-            `${BASE_URL}/people?page=${page}&perPage=${perPage}`
-          );
-          const results = toArray(res.data);
-          const peoplePage = results.map((p) => ({
-            _id: p._id || p.id || `${p.Email || p.Name || ""}-${page}`,
-            name: p.Name || p.name || "",
-            surname: p.Surname || p.surname || "",
-            email: p.Email || p.email || "",
-            phone: p.Number || p.Phone || p.phone || "",
-            leader1: p["Leader @1"] || p.leader1 || "",
-            leader12: p["Leader @12"] || p.leader12 || "",
-            leader144: p["Leader @144"] || p.leader144 || "",
-          }));
-
-          allPeople = allPeople.concat(peoplePage);
-          total =
-            typeof res.data?.total === "number"
-              ? res.data.total
-              : allPeople.length;
-
-          if (results.length === 0) break;
-          page += 1;
-        }
-
-        setAttendees(allPeople);
-
-        localStorage.setItem("serviceCheckInDataLoaded", "true");
-        setHasDataLoaded(true);
-
-        // Load remaining people in background if needed
-        if (allPeople.length < total) {
-          setTimeout(() => {
-            fetchRemainingPeople(page, perPage, total, allPeople);
-          }, 1000);
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error(err.response?.data?.detail || err.message);
-      } finally {
-        setIsLoadingPeople(false);
-      }
-    };
-
-    fetchAllPeople();
-  }, [hasDataLoaded]);
-
-  const fetchRemainingPeople = async (startPage, perPage, total, currentPeople) => {
-    try {
-      let allPeople = [...currentPeople];
-      let page = startPage;
-
-      while (allPeople.length < total) {
-        const res = await axios.get(
-          `${BASE_URL}/people?page=${page}&perPage=${perPage}`
-        );
-        const results = toArray(res.data);
-        const peoplePage = results.map((p) => ({
-          _id: p._id || p.id || `${p.Email || p.Name || ""}-${page}`,
-          name: p.Name || p.name || "",
-          surname: p.Surname || p.surname || "",
-          email: p.Email || p.email || "",
-          phone: p.Number || p.Phone || p.phone || "",
-          leader1: p["Leader @1"] || p.leader1 || "",
-          leader12: p["Leader @12"] || p.leader12 || "",
-          leader144: p["Leader @144"] || p.leader144 || "",
-        }));
-
-        allPeople = allPeople.concat(peoplePage);
-
-        setAttendees([...allPeople]);
-
-        if (results.length === 0) break;
-        page += 1;
-      }
-
-      console.log(`✅ Loaded all ${allPeople.length} people in background`);
-    } catch (err) {
-      console.error("Background fetch error:", err);
-    }
-  };
 
   const handleConsolidationClick = () => {
     if (!currentEventId) {
@@ -798,17 +750,37 @@ function ServiceCheckIn() {
 
         toast.success(`Consolidation task created for ${task.recipientName}`);
 
+        const actualDecisionType = task.decisionType || task.taskStage || task.consolidation_type || "Commitment";
+        
+        console.log("📝 Actual decision type being saved:", actualDecisionType);
+
+        const newConsolidatedPerson = {
+          _id: task.task_id || `temp-${Date.now()}`,
+          name: task.recipientName?.split(' ')[0] || 'Unknown',
+          surname: task.recipientName?.split(' ').slice(1).join(' ') || '',
+          email: task.recipient_email || '',
+          phone: task.recipient_phone || '',
+          assigned_to: task.assignedTo,
+          decision_type: actualDecisionType,
+          consolidation_type: actualDecisionType,
+          decision_date: new Date().toISOString(),
+          status: "Open",
+          is_new: true,
+          event_id: currentEventId
+        };
+
+        console.log("✅ New consolidated person with decision type:", newConsolidatedPerson.decision_type);
+
+        setConsolidatedPeople(prev => [...prev, newConsolidatedPerson]);
+
+        setEventConsolidations((prev) => ({
+          ...prev,
+          [currentEventId]: (prev[currentEventId] || 0) + 1,
+        }));
+
         setTimeout(async () => {
-          console.log("🔄 Refreshing consolidated people list...");
           await fetchConsolidatedPeople();
-
-          setEventConsolidations((prev) => ({
-            ...prev,
-            [currentEventId]: (prev[currentEventId] || 0) + 1,
-          }));
-
-          console.log("✅ Consolidated people list refreshed");
-        }, 2000);
+        }, 1000);
 
       } catch (error) {
         console.error("❌ Error in consolidation completion:", error);
@@ -947,9 +919,7 @@ function ServiceCheckIn() {
     ? attendeesWithStatus.filter(a => eventNewPeople[currentEventId].includes(a._id))
     : [];
 
-  const consolidationsForEvent = currentEventId && eventConsolidations[currentEventId]
-    ? eventConsolidations[currentEventId]
-    : 0;
+  const consolidationsForEvent = currentEventId ? consolidatedPeople.length : 0;
 
   const filteredAttendees = attendeesWithStatus.filter((a) => {
     const lc = search.toLowerCase();
@@ -1030,6 +1000,10 @@ function ServiceCheckIn() {
       sx={{
         mb: 1,
         boxShadow: 2,
+        minHeight: '120px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
         "&:last-child": { mb: 0 },
         ...(firstTimeAddedIds.includes(attendee._id) && {
           border: `2px solid ${theme.palette.success.main}`,
@@ -1037,7 +1011,7 @@ function ServiceCheckIn() {
         }),
       }}
     >
-      <CardContent sx={{ p: 2 }}>
+      <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
           <Box flex={1}>
             <Typography variant="subtitle2" fontWeight={600}>
@@ -1083,72 +1057,97 @@ function ServiceCheckIn() {
     </Card>
   );
 
-  const ConsolidatedPersonCard = ({ person, showNumber, index }) => (
-    <Card
-      variant="outlined"
-      sx={{
-        mb: 1,
-        boxShadow: 2,
-        "&:last-child": { mb: 0 },
-        border: `2px solid ${theme.palette.secondary.main}`,
-        backgroundColor: theme.palette.secondary.light + "0a",
-      }}
-    >
-      <CardContent sx={{ p: 2 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-          <Box flex={1}>
-            <Typography variant="subtitle2" fontWeight={600}>
-              {showNumber && `${index}. `}{person.name || person.person_name} {person.surname || person.person_surname}
-              <Chip
-                label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
-                size="small"
-                sx={{ ml: 1, fontSize: "0.7rem", height: 20 }}
-                color="secondary"
-              />
-            </Typography>
-            {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
-            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
-          </Box>
-        </Box>
+  const ConsolidatedPersonCard = ({ person, showNumber, index }) => {
+    const decisionType = person.decision_type || person.consolidation_type || "Commitment";
+    
+    console.log("🔍 Person data for card:", {
+      name: person.name,
+      decision_type: person.decision_type,
+      consolidation_type: person.consolidation_type,
+      finalDecisionType: decisionType
+    });
 
-        <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
-          <Chip
-            label={`Assigned to: ${person.assigned_to || person.assignedTo || 'Not assigned'}`}
-            size="small"
-            variant="outlined"
-            color="primary"
-          />
-        </Stack>
+    const getDisplayDecisionType = (type) => {
+      if (!type) return 'Commitment';
+      return type;
+    };
 
-        {(person.decision_date || person.decision_type) && (
-          <>
-            <Divider sx={{ my: 1 }} />
-            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
-              {person.decision_date && (
-                <Chip label={`Date: ${person.decision_date}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
-              )}
-              {person.decision_type && (
+    const displayDecisionType = getDisplayDecisionType(decisionType);
+    
+    return (
+      <Card
+        variant="outlined"
+        sx={{
+          mb: 1,
+          boxShadow: 2,
+          minHeight: '120px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          "&:last-child": { mb: 0 },
+          border: `2px solid ${theme.palette.secondary.main}`,
+          backgroundColor: theme.palette.secondary.light + "0a",
+        }}
+      >
+        <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+            <Box flex={1}>
+              <Typography variant="subtitle2" fontWeight={600}>
+                {showNumber && `${index}. `}{person.name || person.person_name} {person.surname || person.person_surname}
                 <Chip
-                  label={`Type: ${person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}`}
+                  label={displayDecisionType}
+                  size="small"
+                  sx={{ ml: 1, fontSize: "0.7rem", height: 20 }}
+                  color={displayDecisionType === 'Recommitment' ? 'primary' : 'secondary'}
+                />
+              </Typography>
+              {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
+              {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+            </Box>
+          </Box>
+
+          <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
+            <Chip
+              label={`Assigned to: ${person.assigned_to || person.assignedTo || person.assignedfor || 'Not assigned'}`}
+              size="small"
+              variant="outlined"
+              color="primary"
+            />
+          </Stack>
+
+          {(person.decision_date || person.decision_type) && (
+            <>
+              <Divider sx={{ my: 1 }} />
+              <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+                {person.decision_date && (
+                  <Chip 
+                    label={`Date: ${new Date(person.decision_date).toLocaleDateString()}`} 
+                    size="small" 
+                    variant="outlined" 
+                    sx={{ fontSize: "0.7rem", height: 20 }} 
+                  />
+                )}
+                <Chip
+                  label={`Type: ${displayDecisionType}`}
                   size="small"
                   variant="outlined"
                   sx={{ fontSize: "0.7rem", height: 20 }}
                 />
-              )}
-              {person.status && (
-                <Chip
-                  label={`Status: ${person.status}`}
-                  size="small"
-                  color={person.status === 'completed' ? 'success' : 'default'}
-                  sx={{ fontSize: "0.7rem", height: 20 }}
-                />
-              )}
-            </Stack>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
+                {person.status && (
+                  <Chip
+                    label={`Status: ${person.status}`}
+                    size="small"
+                    color={person.status === 'completed' ? 'success' : 'default'}
+                    sx={{ fontSize: "0.7rem", height: 20 }}
+                  />
+                )}
+              </Stack>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   const mainColumns = [
     {
@@ -1276,7 +1275,7 @@ function ServiceCheckIn() {
           {isSmDown ? (
             <Box>
               {paginatedData.map((item, idx) => (
-                <Card key={item._id || item.id || idx} variant="outlined" sx={{ mb: 1, boxShadow: 2 }}>
+                <Card key={item._id || item.id || idx} variant="outlined" sx={{ mb: 1, boxShadow: 2, minHeight: '100px' }}>
                   <CardContent sx={{ p: 1.5 }}>
                     <Typography variant="subtitle2" fontWeight={600}>
                       {item.name} {item.surname}
@@ -1286,13 +1285,13 @@ function ServiceCheckIn() {
                     {eventHistoryDetails.type === 'consolidated' && (
                       <>
                         <Chip
-                          label={item.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
+                          label={item.decision_type || item.consolidation_type || 'Commitment'}
                           size="small"
                           sx={{ mt: 0.5 }}
-                          color="secondary"
+                          color={(item.decision_type || item.consolidation_type) === 'Recommitment' ? 'primary' : 'secondary'}
                         />
                         <Typography variant="body2" sx={{ mt: 0.5 }}>
-                          Assigned to: {item.assigned_to || 'Not assigned'}
+                          Assigned to: {item.assigned_to || item.assignedTo || 'Not assigned'}
                         </Typography>
                       </>
                     )}
@@ -1332,12 +1331,13 @@ function ServiceCheckIn() {
                       <>
                         <TableCell>
                           <Chip
-                            label={item.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
+                            label={item.decision_type || item.consolidation_type || 'Commitment'}
                             size="small"
-                            color="secondary"
+                            color={(item.decision_type || item.consolidation_type) === 'Recommitment' ? 'primary' : 'secondary'}
+                            variant="filled"
                           />
                         </TableCell>
-                        <TableCell>{item.assigned_to || "Not assigned"}</TableCell>
+                        <TableCell>{item.assigned_to || item.assignedTo || "Not assigned"}</TableCell>
                         <TableCell>
                           <Chip
                             label={item.status || 'Active'}
@@ -1386,7 +1386,7 @@ function ServiceCheckIn() {
   };
 
   const SkeletonLoader = () => (
-    <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
+    <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: 4, minHeight: "100vh" }}>
       <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
 
       <Skeleton
@@ -1399,7 +1399,7 @@ function ServiceCheckIn() {
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
         {[1, 2, 3].map((item) => (
           <Grid item xs={6} sm={6} md={3} key={item}>
-            <Paper variant="outlined" sx={{ p: getResponsiveValue(1.5, 2, 2.5, 3, 3), textAlign: "center" }}>
+            <Paper variant="outlined" sx={{ p: getResponsiveValue(1.5, 2, 2.5, 3, 3), textAlign: "center", minHeight: '100px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
                 <Skeleton variant="circular" width={getResponsiveValue(20, 24, 28, 32, 32)} height={getResponsiveValue(20, 24, 28, 32, 32)} />
                 <Skeleton variant="text" width="40%" height={getResponsiveValue(24, 28, 32, 36, 40)} sx={{ borderRadius: 1 }} />
@@ -1425,7 +1425,7 @@ function ServiceCheckIn() {
         </Grid>
       </Grid>
 
-      <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, p: 1 }}>
+      <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, p: 1, minHeight: '48px' }}>
         <Stack direction="row" spacing={2}>
           <Skeleton variant="rounded" width={120} height={36} sx={{ borderRadius: 1 }} />
           <Skeleton variant="rounded" width={120} height={36} sx={{ borderRadius: 1 }} />
@@ -1443,7 +1443,7 @@ function ServiceCheckIn() {
             boxShadow: 2
           }}>
             {[1, 2, 3, 4, 5].map((item) => (
-              <Card key={item} variant="outlined" sx={{ mb: 1, boxShadow: 2 }}>
+              <Card key={item} variant="outlined" sx={{ mb: 1, boxShadow: 2, minHeight: '120px' }}>
                 <CardContent sx={{ p: 2 }}>
                   <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
                     <Box flex={1}>
@@ -1484,10 +1484,10 @@ function ServiceCheckIn() {
   }
 
   return (
-    <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
+    <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: 8, minHeight: "100vh" }}>
       <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
 
-      {/* Stats Cards */}
+      {/* Stats Cards - FIXED: All cards now have the same hover behavior */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
         <Grid item xs={6} sm={6} md={3}>
           <Paper
@@ -1495,19 +1495,37 @@ function ServiceCheckIn() {
             sx={{
               p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
               textAlign: "center",
-              cursor: "pointer",
+              cursor: currentEventId ? "pointer" : "default",
               boxShadow: 3,
-              "&:hover": { boxShadow: 6, transform: "translateY(-2px)" },
-              transition: "all 0.2s"
+              minHeight: '100px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              "&:hover": currentEventId ? { boxShadow: 6, transform: "translateY(-2px)" } : {},
+              transition: "all 0.2s",
+              opacity: currentEventId ? 1 : 0.6
             }}
-            onClick={() => { setModalOpen(true); setModalSearch(""); setModalPage(0); }}
+            onClick={() => { 
+              if (currentEventId) {
+                setModalOpen(true); 
+                setModalSearch(""); 
+                setModalPage(0); 
+              }
+            }}
           >
             <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-              <GroupIcon color="primary" sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color="primary">{presentCount}</Typography>
+              <GroupIcon color={currentEventId ? "primary" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
+              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={currentEventId ? "primary" : "text.disabled"}>
+                {presentCount}
+              </Typography>
             </Stack>
             <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
               Present
+              {!currentEventId && (
+                <Typography variant="caption" display="block" color="text.disabled">
+                  Select event
+                </Typography>
+              )}
             </Typography>
           </Paper>
         </Grid>
@@ -1517,21 +1535,37 @@ function ServiceCheckIn() {
             sx={{
               p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
               textAlign: "center",
-              cursor: "pointer",
+              cursor: currentEventId ? "pointer" : "default",
               boxShadow: 3,
-              "&:hover": { boxShadow: 6, transform: "translateY(-2px)" },
-              transition: "all 0.2s"
+              minHeight: '100px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              "&:hover": currentEventId ? { boxShadow: 6, transform: "translateY(-2px)" } : {},
+              transition: "all 0.2s",
+              opacity: currentEventId ? 1 : 0.6
             }}
-            onClick={() => { setNewPeopleModalOpen(true); setNewPeopleSearch(""); setNewPeoplePage(0); }}
+            onClick={() => { 
+              if (currentEventId) {
+                setNewPeopleModalOpen(true); 
+                setNewPeopleSearch(""); 
+                setNewPeoplePage(0); 
+              }
+            }}
           >
             <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-              <PersonAddAltIcon color="success" sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color="success.main">
+              <PersonAddAltIcon color={currentEventId ? "success" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
+              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={currentEventId ? "success.main" : "text.disabled"}>
                 {newPeopleForEvent.length}
               </Typography>
             </Stack>
             <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
               New People
+              {!currentEventId && (
+                <Typography variant="caption" display="block" color="text.disabled">
+                  Select event
+                </Typography>
+              )}
             </Typography>
           </Paper>
         </Grid>
@@ -1541,21 +1575,37 @@ function ServiceCheckIn() {
             sx={{
               p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
               textAlign: "center",
-              cursor: "pointer",
+              cursor: currentEventId ? "pointer" : "default",
               boxShadow: 3,
-              "&:hover": { boxShadow: 6, transform: "translateY(-2px)" },
-              transition: "all 0.2s"
+              minHeight: '100px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              "&:hover": currentEventId ? { boxShadow: 6, transform: "translateY(-2px)" } : {},
+              transition: "all 0.2s",
+              opacity: currentEventId ? 1 : 0.6
             }}
-            onClick={() => { setConsolidatedModalOpen(true); setConsolidatedSearch(""); setConsolidatedPage(0); }}
+            onClick={() => { 
+              if (currentEventId) {
+                setConsolidatedModalOpen(true); 
+                setConsolidatedSearch(""); 
+                setConsolidatedPage(0); 
+              }
+            }}
           >
             <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-              <MergeIcon color="secondary" sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color="secondary.main">
-                {consolidatedPeople.length}
+              <MergeIcon color={currentEventId ? "secondary" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
+              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={currentEventId ? "secondary.main" : "text.disabled"}>
+                {consolidationsForEvent}
               </Typography>
             </Stack>
             <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
               Consolidated
+              {!currentEventId && (
+                <Typography variant="caption" display="block" color="text.disabled">
+                  Select event
+                </Typography>
+              )}
             </Typography>
           </Paper>
         </Grid>
@@ -1564,36 +1614,41 @@ function ServiceCheckIn() {
       {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={6} md={4}>
-          {/* Event Selection Dropdown */}
           <Select
             size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
             value={currentEventId}
-            onChange={(e) => setCurrentEventId(e.target.value)}
+            onChange={(e) => {
+              console.log('🎯 Selected event ID:', e.target.value);
+              setCurrentEventId(e.target.value);
+            }}
             displayEmpty
             fullWidth
             sx={{ boxShadow: 2 }}
           >
             <MenuItem value="">
               <Typography color="text.secondary">
-                Select Global Event {getFilteredEvents().length > 0 ? `(${getFilteredEvents().length} available)` : ''}
+                Select Global Event
               </Typography>
             </MenuItem>
+            
             {getFilteredEvents().map((ev) => (
               <MenuItem key={ev.id} value={ev.id}>
-                <Box>
-                  <Typography variant="body2" fontWeight="medium">
-                    {ev.eventName}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {ev.eventType} • {new Date(ev.date).toLocaleDateString()}
-                  </Typography>
-                </Box>
+                <Typography variant="body2" fontWeight="medium">
+                  {ev.eventName}
+                </Typography>
               </MenuItem>
             ))}
-            {getFilteredEvents().length === 0 && (
+            {getFilteredEvents().length === 0 && events.length > 0 && (
               <MenuItem disabled>
                 <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                  No global events available
+                  No open global events
+                </Typography>
+              </MenuItem>
+            )}
+            {events.length === 0 && (
+              <MenuItem disabled>
+                <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                  {isLoadingEvents ? "Loading events..." : "No events available"}
                 </Typography>
               </MenuItem>
             )}
@@ -1627,7 +1682,6 @@ function ServiceCheckIn() {
               </span>
             </Tooltip>
             <Stack direction="row" spacing={2} alignItems="center">
-              {/* Consolidation Icon */}
               <Tooltip title={currentEventId ? "Consolidation" : "Please select an event first"}>
                 <span>
                   <EmojiPeopleIcon
@@ -1644,36 +1698,33 @@ function ServiceCheckIn() {
                 </span>
               </Tooltip>
 
-              {/* Save Button */}
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="center"
-                sx={{
-                  cursor: currentEventId ? "pointer" : "not-allowed",
-                  opacity: currentEventId ? 1 : 0.5,
-                  "&:hover": currentEventId ? { transform: "translateY(-2px)" } : {},
-                  transition: "all 0.2s"
-                }}
-                onClick={currentEventId ? handleSaveAndCloseEvent : undefined}
-              >
-                {isClosingEvent ? (
-                  <Skeleton
-                    variant="circular"
-                    width={36}
-                    height={36}
-                  />
-                ) : (
-                  <SaveIcon
+              <Tooltip title={currentEventId ? "Save and Close Event" : "Please select an event first"}>
+                <span>
+                  <Button
+                    variant="contained"
+                    startIcon={isClosingEvent ? <CloseIcon /> : <SaveIcon />}
+                    onClick={handleSaveAndCloseEvent}
+                    disabled={!currentEventId || isClosingEvent}
                     sx={{
-                      fontSize: 36,
-                      color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled",
-                      "&:hover": currentEventId ? { color: "secondary.dark" } : {},
-                      filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none",
+                      minWidth: 'auto',
+                      px: 2,
+                      opacity: currentEventId ? 1 : 0.5,
+                      cursor: currentEventId ? "pointer" : "not-allowed",
+                      "&:hover": currentEventId ? { 
+                        transform: "translateY(-2px)",
+                        boxShadow: 4 
+                      } : {},
+                      transition: "all 0.2s",
+                      backgroundColor: theme.palette.warning.main,
+                      "&:hover": {
+                        backgroundColor: theme.palette.warning.dark,
+                      }
                     }}
-                  />
-                )}
-              </Stack>
+                  >
+                    {isClosingEvent ? "Closing..." : "Save"}
+                  </Button>
+                </span>
+              </Tooltip>
             </Stack>
           </Stack>
         </Grid>
@@ -1681,7 +1732,7 @@ function ServiceCheckIn() {
 
       {/* Main Attendees List */}
       <Box sx={{ minHeight: 400 }}>
-        <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3 }}>
+        <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, minHeight: '48px' }}>
           <Tabs
             value={activeTab}
             onChange={(e, newValue) => setActiveTab(newValue)}
@@ -1809,7 +1860,7 @@ function ServiceCheckIn() {
           {isSmDown ? (
             <Box>
               {modalPaginatedAttendees.map((a, idx) => (
-                <Card key={a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 } }}>
+                <Card key={a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 }, minHeight: '100px' }}>
                   <CardContent sx={{ p: 1.5 }}>
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                       <Box flex={1}>
@@ -1951,7 +2002,7 @@ function ServiceCheckIn() {
               {isSmDown ? (
                 <Box>
                   {newPeoplePaginatedList.map((a, idx) => (
-                    <Card key={a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 } }}>
+                    <Card key={a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 }, minHeight: '100px' }}>
                       <CardContent sx={{ p: 1.5 }}>
                         <Typography variant="subtitle2" fontWeight={600} sx={{ fontSize: '0.9rem' }}>
                           {newPeoplePage * newPeopleRowsPerPage + idx + 1}. {a.name} {a.surname}
@@ -2052,7 +2103,10 @@ function ServiceCheckIn() {
         }}
       >
         <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          Consolidated People: {consolidatedPeople.length}
+          Consolidated People: {consolidationsForEvent}
+          <Typography variant="body2" color="text.secondary">
+            For current service only
+          </Typography>
         </DialogTitle>
         <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
           <TextField
@@ -2074,7 +2128,7 @@ function ServiceCheckIn() {
                 Loading consolidated people...
               </Typography>
             </Box>
-          ) : consolidatedPeople.length === 0 ? (
+          ) : filteredConsolidatedPeople.length === 0 ? (
             <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
               No consolidated people for this event
             </Typography>
@@ -2126,20 +2180,20 @@ function ServiceCheckIn() {
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
+                            label={person.decision_type || person.consolidation_type || 'Commitment'}
                             size="small"
-                            color="secondary"
+                            color={(person.decision_type || person.consolidation_type) === 'Recommitment' ? 'primary' : 'secondary'}
                             variant="filled"
                           />
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2">
-                            {person.assigned_to || person.assignedTo || 'Not assigned'}
+                            {person.assigned_to || person.assignedTo || person.assignedfor || 'Not assigned'}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2">
-                            {person.decision_date || 'No date'}
+                            {person.decision_date ? new Date(person.decision_date).toLocaleDateString() : 'No date'}
                           </Typography>
                         </TableCell>
                         <TableCell>
