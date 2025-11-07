@@ -1,6 +1,25 @@
 import React, { useState, useEffect } from "react";
+import { useTheme } from "@mui/material/styles";
+
+// small helper hook for responsiveness
+function useWindowSize() {
+  const isClient = typeof window === "object";
+  const getSize = () => ({
+    width: isClient ? window.innerWidth : undefined,
+    height: isClient ? window.innerHeight : undefined,
+  });
+  const [windowSize, setWindowSize] = useState(getSize);
+  useEffect(() => {
+    if (!isClient) return;
+    const handleResize = () => setWindowSize(getSize());
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isClient]);
+  return windowSize;
+}
 
 const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
+  const theme = useTheme();
   const [formData, setFormData] = useState({
     eventName: "",
     eventLeader: "",
@@ -74,6 +93,10 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       }, 100);
     }
   }, [event, isOpen]);
+
+  const { width } = useWindowSize();
+  const isSmall = (width || 0) <= 420; // targets small phones
+  const isDark = theme.palette.mode === "dark";
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -195,60 +218,61 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0,0,0,0.8)",
+      background: isDark ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.45)",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
       zIndex: 10000,
-      padding: "20px",
+      padding: isSmall ? "12px" : "20px",
     },
     modal: {
-      background: "#1e1e1e",
-      borderRadius: "12px",
+      background: isDark ? theme.palette.background.paper : "#fff",
+      borderRadius: 12,
       width: "100%",
-      maxWidth: "700px",
+      maxWidth: isSmall ? "96%" : 700,
       maxHeight: "90vh",
       overflowY: "auto",
-      padding: "24px",
-      color: "#f1f1f1",
-      boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+      padding: isSmall ? "14px" : "24px",
+      color: theme.palette.text.primary,
+      boxShadow: theme.shadows[24],
+      border: isDark ? `1px solid ${theme.palette.divider}` : "1px solid rgba(0,0,0,0.08)",
     },
     title: {
-      fontSize: "22px",
-      fontWeight: "600",
-      marginBottom: "24px",
-      color: "#fff",
+      fontSize: isSmall ? 18 : 22,
+      fontWeight: 600,
+      marginBottom: 24,
+      color: theme.palette.text.primary,
       textAlign: "center",
     },
     formGroup: {
-      marginBottom: "16px",
+      marginBottom: 16,
     },
     label: {
       display: "block",
-      fontSize: "14px",
-      fontWeight: "500",
-      color: "#ccc",
-      marginBottom: "6px",
+      fontSize: 14,
+      fontWeight: 500,
+      color: theme.palette.text.secondary,
+      marginBottom: 6,
     },
     input: {
       width: "100%",
-      padding: "10px 12px",
-      fontSize: "14px",
-      borderRadius: "6px",
-      border: "1px solid #555",
-      backgroundColor: "#2b2b2b",
-      color: "#fff",
+      padding: isSmall ? "8px 10px" : "10px 12px",
+      fontSize: isSmall ? 13 : 14,
+      borderRadius: 6,
+      border: `1px solid ${isDark ? theme.palette.divider : "rgba(0,0,0,0.12)"}`,
+      backgroundColor: isDark ? theme.palette.background.default : "#fff",
+      color: theme.palette.text.primary,
       outline: "none",
       boxSizing: "border-box",
     },
     readOnlyInput: {
       width: "100%",
-      padding: "10px 12px",
-      fontSize: "14px",
-      borderRadius: "6px",
-      border: "1px solid #555",
-      backgroundColor: "#333",
-      color: "#999",
+      padding: isSmall ? "8px 10px" : "10px 12px",
+      fontSize: isSmall ? 13 : 14,
+      borderRadius: 6,
+      border: `1px solid ${theme.palette.divider}`,
+      backgroundColor: isDark ? "#2b2b2b" : "#f5f5f5",
+      color: isDark ? theme.palette.text.secondary : "#666",
       outline: "none",
       boxSizing: "border-box",
       cursor: "not-allowed",
@@ -256,40 +280,43 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     checkboxGroup: {
       display: "flex",
       alignItems: "center",
-      gap: "12px",
+      gap: 12,
     },
     checkbox: {
-      width: "16px",
-      height: "16px",
-      accentColor: "#2563eb",
+      width: 16,
+      height: 16,
+      accentColor: theme.palette.primary.main,
     },
     buttonGroup: {
       display: "flex",
-      gap: "12px",
-      marginTop: "24px",
+      gap: 12,
+      marginTop: 18,
       justifyContent: "flex-end",
+      flexDirection: isSmall ? "column-reverse" : "row",
     },
     cancelBtn: {
-      padding: "10px 20px",
+      padding: isSmall ? "10px" : "10px 20px",
       background: "transparent",
-      border: "1px solid #555",
-      borderRadius: "6px",
-      color: "#ccc",
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 6,
+      color: theme.palette.text.secondary,
       cursor: "pointer",
-      fontSize: "14px",
-      fontWeight: "500",
+      fontSize: 14,
+      fontWeight: 500,
       transition: "all 0.2s ease",
+      width: isSmall ? "100%" : "auto",
     },
     saveBtn: {
-      padding: "10px 20px",
-      background: "#2563eb",
+      padding: isSmall ? "10px" : "10px 20px",
+      background: theme.palette.primary.main,
       border: "none",
-      borderRadius: "6px",
-      color: "#fff",
+      borderRadius: 6,
+      color: theme.palette.primary.contrastText,
       cursor: "pointer",
-      fontSize: "14px",
-      fontWeight: "500",
+      fontSize: 14,
+      fontWeight: 500,
       transition: "all 0.2s ease",
+      width: isSmall ? "100%" : "auto",
     },
     saveBtnDisabled: {
       padding: "10px 20px",
@@ -303,13 +330,13 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       opacity: 0.6,
     },
     infoBox: {
-      background: "#2b2b2b",
-      border: "1px solid #555",
-      borderRadius: "6px",
-      padding: "12px",
-      marginBottom: "16px",
-      fontSize: "12px",
-      color: "#999",
+      background: isDark ? theme.palette.background.default : "#f7f7f7",
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 6,
+      padding: isSmall ? "10px" : "12px",
+      marginBottom: isSmall ? "12px" : "16px",
+      fontSize: isSmall ? 12 : 12,
+      color: theme.palette.text.secondary,
     },
     alert: {
       position: "fixed",
@@ -484,18 +511,19 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         </div>
 
         <div style={styles.buttonGroup}>
-          <button 
-            style={styles.cancelBtn} 
+          <button
+            style={styles.cancelBtn}
             onClick={onClose}
-            disabled={loading}
+            onMouseEnter={(e) => { if (!isDark) e.currentTarget.style.background = "#f5f5f5"; else e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
           >
             CANCEL
           </button>
-          <button 
-            style={hasIdentifier && !loading ? styles.saveBtn : styles.saveBtnDisabled} 
+          <button
+            style={styles.saveBtn}
             onClick={handleSave}
-            disabled={loading || !hasIdentifier}
-            title={!hasIdentifier ? "Cannot save without event identifier" : "Save changes"}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = 0.95}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
           >
             {loading ? "SAVING..." : hasIdentifier ? "SAVE" : "MISSING ID"}
           </button>

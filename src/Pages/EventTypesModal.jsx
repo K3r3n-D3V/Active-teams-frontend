@@ -8,8 +8,9 @@ import {
   Checkbox,
   Typography,
   useTheme,
+  IconButton,
 } from "@mui/material";
-
+import CloseIcon from '@mui/icons-material/Close';
 const EventTypesModal = ({
   open,
   onClose,
@@ -30,6 +31,39 @@ const EventTypesModal = ({
   const [errors, setErrors] = useState({});
   const nameInputRef = useRef(null);
   const isDarkMode = theme.palette.mode === "dark";
+
+  // theme-aware dark/light styles
+  const darkModeStyles = {
+    modalBg: isDarkMode ? theme.palette.background.paper : "#fff",
+    modalBorder: isDarkMode ? `1px solid ${theme.palette.divider}` : "1px solid rgba(0,0,0,0.08)",
+    headerBg: isDarkMode ? theme.palette.background.default : theme.palette.primary.main,
+    headerColor: isDarkMode ? theme.palette.text.primary : theme.palette.primary.contrastText,
+    textColor: theme.palette.text.primary,
+    input: {
+      "& .MuiOutlinedInput-root": {
+        bgcolor: isDarkMode ? "#272727" : "#fff",
+        color: theme.palette.text.primary,
+        "& fieldset": {
+          borderColor: isDarkMode ? theme.palette.divider : "rgba(0,0,0,0.23)",
+        },
+        "&:hover fieldset": {
+          borderColor: theme.palette.primary.main,
+        },
+        "&.Mui-focused fieldset": {
+          borderColor: theme.palette.primary.main,
+        },
+      },
+      "& .MuiFormHelperText-root": {
+        color: isDarkMode ? theme.palette.text.secondary : "rgba(0,0,0,0.6)",
+      },
+      "& .MuiInputLabel-root": {
+        color: isDarkMode ? theme.palette.text.secondary : "rgba(0,0,0,0.6)",
+      },
+    },
+    formControlLabel: {
+      color: theme.palette.text.primary,
+    },
+  };
 
   // ✅ Validation
   const validateForm = () => {
@@ -67,6 +101,18 @@ const EventTypesModal = ({
 
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  // live character counts for helper text
+  const nameCharCount = formData.name ? formData.name.length : 0;
+  const descCharCount = formData.description ? formData.description.length : 0;
+
+  // handle Enter key on the name field: submit on Enter (no Shift), allow Shift+Enter for newline in multiline fields
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!loading) handleSubmit();
     }
   };
 
@@ -144,226 +190,190 @@ const EventTypesModal = ({
     }
   }, [open]);
 
-  return (
-    <Modal
-      open={open}
-      onClose={() => !loading && handleSubmit()}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "20px",
-      }}
-    >
-      <Box
-        sx={{
-          width: { xs: "95%", sm: "80%", md: "700px" },
+  // ✅ Close handler (prevents closing while saving)
+  const handleClose = () => {
+    if (loading) return; // don't allow closing while submitting
+    resetForm();
+    if (typeof setSelectedEventTypeObj === "function") {
+      setSelectedEventTypeObj(null);
+    }
+    if (typeof onClose === "function") onClose();
+  };
+
+  // responsive helpers (smaller devices)
+  const { breakpoints } = theme;
+
+   return (
+     <Modal
+       open={open}
+       onClose={handleClose}
+       sx={{
+         display: "flex",
+         alignItems: "center",
+         justifyContent: "center",
+         padding: "20px",
+       }}
+     >
+       <Box
+         sx={{
+          width: { xs: "95%", sm: "85%", md: "700px" },
           maxWidth: "700px",
-          bgcolor: isDarkMode ? "#1e1e1e" : "#fff",
-          color: isDarkMode ? "#f1f1f1" : "#111",
-          borderRadius: "12px",
-          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+          bgcolor: darkModeStyles.modalBg,
+          color: darkModeStyles.textColor,
+          borderRadius: 2,
+          boxShadow: theme.shadows[10],
           overflow: "hidden",
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
-        }}
-      >
-        {/* Header */}
-        <Box
-          sx={{
-            backgroundColor: isDarkMode ? "#111" : "#f5f5f5",
-            color: isDarkMode ? "white" : "black",
-            padding: "20px 24px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
-            {selectedEventType ? "Edit Event Type" : "Create New Event Type"}
-          </Typography>
-          <button
-            onClick={onClose}
-            disabled={loading}
-            style={{
-              background: "rgba(255, 255, 255, 0.15)",
-              border: "none",
-              borderRadius: "50%",
-              width: "32px",
-              height: "32px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: loading ? "not-allowed" : "pointer",
-              fontSize: "20px",
-              color: "white",
-              transition: "all 0.2s ease",
-            }}
-          >
-            ×
-          </button>
-        </Box>
-
-        {/* Body */}
-        <Box sx={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-          {/* Event Type Name */}
-<TextField
-  label="Event Type Name"
-  name="name"
-  fullWidth
-  margin="normal"
-  inputRef={nameInputRef}
-  value={formData.name}
-  onChange={handleInputChange}
-  error={!!errors.name}
-  helperText={errors.name}
-  placeholder="Enter event type name"
-  disabled={loading}
-  sx={{
-    mb: 3,
-    // ✅ Use theme-based colors
-    input: { 
-      color: isDarkMode ? "#fff" : "#000" // Black text in light mode, white in dark mode
-    },
-    label: { 
-      color: isDarkMode ? "#aaa" : "#666" // Darker label in light mode
-    },
-    "& .MuiOutlinedInput-root": {
-      "& fieldset": { 
-        borderColor: isDarkMode ? "#555" : "#ccc" 
-      },
-      "&:hover fieldset": { 
-        borderColor: isDarkMode ? "#888" : "#999" 
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: theme.palette.primary.main,
-      },
-    },
-    // ✅ Ensure helper text is also visible
-    "& .MuiFormHelperText-root": {
-      color: isDarkMode ? "#aaa" : "#666",
-    },
-  }}
-/>
-          {/* Checkboxes */}
-          <Box
-            sx={{
-              display: "flex",
-              gap: 2,
-              alignItems: "center",
-              mb: 3,
-              flexWrap: "nowrap",
-            }}
-          >
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isTicketed}
-                  onChange={handleCheckboxChange("isTicketed")}
-                  color="primary"
-                  disabled={loading}
-                  sx={{ color: "#bbb" }}
-                />
-              }
-              label="Ticketed Event"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isGlobal}
-                  onChange={handleCheckboxChange("isGlobal")}
-                  color="primary"
-                  disabled={loading}
-                  sx={{ color: "#bbb" }}
-                />
-              }
-              label="Global Event"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.hasPersonSteps}
-                  onChange={handleCheckboxChange("hasPersonSteps")}
-                  color="primary"
-                  disabled={loading}
-                  sx={{ color: "#bbb" }}
-                />
-              }
-              label="Personal Steps Event"
-            />
-          </Box>
-
-          {/* Description */}
-         <TextField
-  label="Event Description"
-  name="description"
-  fullWidth
-  multiline
-  rows={4}
-  value={formData.description}
-  onChange={handleInputChange}
-  error={!!errors.description}
-  helperText={
-    errors.description ||
-    "Describe the purpose and details of this event type"
-  }
-  placeholder="Enter a detailed description of this event type..."
-  disabled={loading}
-  sx={{
-    mb: 3,
-    textarea: { 
-      color: isDarkMode ? "#fff" : "#000" // Black text in light mode, white in dark mode
-    },
-    label: { 
-      color: isDarkMode ? "#aaa" : "#666" 
-    },
-    "& .MuiOutlinedInput-root": {
-      "& fieldset": { 
-        borderColor: isDarkMode ? "#555" : "#ccc" 
-      },
-      "&:hover fieldset": { 
-        borderColor: isDarkMode ? "#888" : "#999" 
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: theme.palette.primary.main,
-      },
-    },
-    "& .MuiFormHelperText-root": {
-      color: isDarkMode ? "#aaa" : "#666",
-    },
-  }}
-/>
-          {/* Buttons */}
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 2,
-              mt: 3,
-            }}
-          >
-            <Button
-              variant="outlined"
-              onClick={onClose}
-              disabled={loading}
-              sx={{ flex: 1, borderColor: "#888", color: "#ccc" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleSubmit}
-              disabled={loading}
-              sx={{ flex: 1 }}
-            >
-              {loading ? "Saving..." : "Submit"}
-            </Button>
-          </Box>
-        </Box>
-      </Box>
-    </Modal>
-  );
-};
-
-export default EventTypesModal;
+          border: darkModeStyles.modalBorder,
+         }}
+       >
+         {/* Header */}
+         <Box
+           sx={{
+             backgroundColor: darkModeStyles.headerBg,
+             color: darkModeStyles.headerColor,
+             padding: { xs: "12px 16px", sm: "16px 20px", md: "20px 24px" },
+             display: "flex",
+             justifyContent: "space-between",
+             alignItems: "center",
+           }}
+         >
+           <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
+             {selectedEventType ? "Edit Event Type" : "Create New Event Type"}
+           </Typography>
+           <IconButton
+             onClick={handleClose}
+             disabled={loading}
+             sx={{
+               color: 'primary.contrastText',
+               '&:hover': {
+                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
+               },
+             }}
+           >
+             <CloseIcon />
+           </IconButton>
+         </Box>
+ 
+         {/* Content */}
+         <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
+           {/* Event Type Name */}
+           <TextField
+             inputRef={nameInputRef}
+             label="Event Type Name"
+             name="name"
+             fullWidth
+             value={formData.name}
+             onChange={handleInputChange}
+             onKeyPress={handleKeyPress}
+             error={!!errors.name}
+             helperText={
+               errors.name || 
+               `${nameCharCount}/50 characters` +
+               (nameCharCount > 45 ? " (approaching limit)" : "")
+             }
+             placeholder="Enter event type name..."
+             disabled={loading}
+             sx={{ mb: 3, ...darkModeStyles.input }}
+           />
+ 
+           {/* Checkboxes */}
+           <Box
+             sx={{
+               display: "flex",
+               flexWrap: "wrap",
+               gap: { xs: 1, sm: 2 },
+               alignItems: "center",
+               mb: 3,
+             }}
+           >
+             <FormControlLabel
+               control={
+                 <Checkbox
+                   name="isTicketed"
+                   checked={formData.isTicketed}
+                   onChange={handleCheckboxChange("isTicketed")}
+                   color="primary"
+                   disabled={loading}
+                 />
+               }
+               label="Ticketed Event"
+               sx={{ color: darkModeStyles.formControlLabel.color }}
+             />
+             <FormControlLabel
+               control={
+                 <Checkbox
+                   name="isGlobal"
+                   checked={formData.isGlobal}
+                   onChange={handleCheckboxChange("isGlobal")}
+                   color="primary"
+                   disabled={loading}
+                 />
+               }
+               label="Global Event"
+               sx={{ color: darkModeStyles.formControlLabel.color }}
+             />
+             <FormControlLabel
+               control={
+                 <Checkbox
+                   name="hasPersonSteps"
+                   checked={formData.hasPersonSteps}
+                   onChange={handleCheckboxChange("hasPersonSteps")}
+                   color="primary"
+                   disabled={loading}
+                 />
+               }
+               label="Personal Steps Event"
+               sx={{ color: darkModeStyles.formControlLabel.color }}
+             />
+           </Box>
+ 
+           {/* Description */}
+           <TextField
+             label="Event Description"
+             name="description"
+             fullWidth
+             multiline
+             rows={4}
+             value={formData.description}
+             onChange={handleInputChange}
+             error={!!errors.description}
+             helperText={
+               errors.description || 
+               `${descCharCount}/500 characters` +
+               (descCharCount > 450 ? " (approaching limit)" : "") +
+               " - Describe the purpose and details of this event type"
+             }
+             placeholder="Enter a detailed description of this event type..."
+             disabled={loading}
+             sx={{ mb: 3, ...darkModeStyles.input }}
+           />
+ 
+           {/* Buttons - responsive: stack on xs */}
+           <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mt: 3, flexDirection: { xs: "column-reverse", sm: "row" } }}>
+             <Button
+               variant="outlined"
+               onClick={handleClose}
+               disabled={loading}
+               sx={{ width: { xs: "100%", sm: "auto" }, flex: 1 }}
+             >
+               Cancel
+             </Button>
+             <Button
+               variant="contained"
+               onClick={handleSubmit}
+               disabled={loading}
+               sx={{ width: { xs: "100%", sm: "auto" }, flex: 1 }}
+             >
+               {loading ? "Saving..." : selectedEventType ? "Update" : "Create"}
+             </Button>
+           </Box>
+         </Box>
+       </Box>
+     </Modal>
+   );
+ };
+ 
+ export default EventTypesModal;

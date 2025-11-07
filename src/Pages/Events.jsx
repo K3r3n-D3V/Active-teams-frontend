@@ -11,7 +11,8 @@ import Skeleton from "@mui/material/Skeleton";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
-import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment, Paper } from "@mui/material";
+import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment } from "@mui/material";
+import { DataGrid,GridToolbar } from '@mui/x-data-grid';
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
 import Popover from "@mui/material/Popover";
@@ -445,6 +446,101 @@ const getDefaultViewFilter = (userRole) => {
   }
   return 'all';
 };
+ const formatDate = (date) => {
+    if (!date) return "Not set";
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) return "Not set";
+    return dateObj.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    }).replace(/\//g, ' - ');
+  };
+
+  function generateDynamicColumns(events) {
+  if (!events || events.length === 0) return [];
+
+  const excludedFields = [
+    'persistent_attendees',
+    'UUID',
+    'did_not_meet',
+    'status',
+    'is_overdue',
+    'isoverdue',
+    'is overdue',
+    'is_recurring',
+    'week_identifier',
+    'attendees',
+    '_id',
+    'attendance',
+    'LOCATION',
+    'location',
+    'eventType',
+    'event_type',
+    'eventTypes',
+    'Status',
+  ];
+
+  const sampleEvent = events[0];
+
+  // DEBUG: See all field names
+  console.log('🔍 ALL FIELDS:', Object.keys(sampleEvent));
+
+  // Use case-insensitive filtering and keyword matching
+  const filteredFields = Object.keys(sampleEvent).filter((key) => {
+    const keyLower = key.toLowerCase();
+    
+    // Check exact match
+    const exactMatch = excludedFields.includes(key);
+    
+    // Check case-insensitive match
+    const caseInsensitiveMatch = excludedFields.some(excluded => 
+      excluded.toLowerCase() === keyLower
+    );
+    
+    // Check if contains "overdue" in any form
+    const containsOverdue = keyLower.includes('overdue');
+    
+    const shouldExclude = exactMatch || caseInsensitiveMatch || containsOverdue;
+    
+    if (shouldExclude) {
+      console.log(`🗑️ Removing field: "${key}"`);
+    }
+    
+    return !shouldExclude;
+  });
+
+  console.log('✅ FIELDS TO SHOW:', filteredFields);
+
+  return filteredFields.map((key) => ({
+    field: key,
+    headerName: key
+      .replace(/_/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (str) => str.toUpperCase()),
+    flex: 1,
+    minWidth: 150,
+    renderCell: (params) => {
+      const value = params.value;
+      if (key.toLowerCase().includes('date')) return formatDate(value);
+      if (!value) return '-';
+
+      return (
+        <Box
+          sx={{
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: 180,
+          }}
+          title={String(value)}
+        >
+          {String(value)}
+        </Box>
+      );
+    },
+  }));
+}
 
 const MobileEventCard = ({ event, onOpenAttendance, onEdit, onDelete, isOverdue, formatDate, theme, styles }) => {
   if (!theme) {
@@ -774,7 +870,8 @@ const Events = () => {
       const newEvents = responseData.events || responseData.results || [];
 
       console.log('✅ Backend returned events:', newEvents.length);
-
+      console.log("Events",newEvents)
+      
       // Debug: Check for any remaining duplicates
       const eventIds = newEvents.map(e => e._id);
       const uniqueIds = new Set(eventIds);
@@ -992,6 +1089,8 @@ useEffect(() => {
   useEffect(() => {
     console.log('Available event types:', eventTypes);
     console.log('Selected event type filter:', selectedEventTypeFilter);
+    
+    console.log("Event ",paginatedEvents)
   }, [eventTypes, selectedEventTypeFilter]);
 
   useEffect(() => {
@@ -1050,16 +1149,6 @@ useEffect(() => {
     return eventDate < today;
   };
 
-  const formatDate = (date) => {
-    if (!date) return "Not set";
-    const dateObj = new Date(date);
-    if (isNaN(dateObj.getTime())) return "Not set";
-    return dateObj.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    }).replace(/\//g, ' - ');
-  };
 
   const clearAllFilters = () => {
     setSearchQuery('');
@@ -2490,142 +2579,99 @@ const EventTypeSelector = ({
           // DESKTOP VIEW
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             {/* The table container still needs to handle horizontal scroll for the table itself */}
-            <Box sx={{ flex: 1, overflowX: 'auto' }}>
-              <table style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                minWidth: '1300px'
-              }}>
-                {/* ... The rest of your desktop table structure (thead, tbody, tr, td) ... */}
-                <thead style={{
-                  backgroundColor: "#000",
-                  color: "#fff",
-                }}>
-                  <tr>
-                    <th style={styles.th}>Event Name</th>
-                    <th style={styles.th}>Leader</th>
-                    <th style={styles.th}>Leader at 1</th>
-                    <th style={styles.th}>Leader at 12</th>
-                    <th style={styles.th}>Day</th>
-                    <th style={styles.th}>Email</th>
-                    <th style={styles.th}>Date Of Event</th>
-                    <th style={styles.th}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* ... Table rows (loading, no results, paginated events) ... */}
-                  {loading ? (
-                    Array.from({ length: 5 }).map((_, idx) => (
-                      <tr key={`desktop-skeleton-${idx}`}>
-                        <td colSpan={8} style={{ ...themedStyles.td, padding: '1rem' }}>
-                          <Skeleton variant="rectangular" height={60} />
-                        </td>
-                      </tr>
-                    ))
-                  ) : paginatedEvents.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{
-                        ...themedStyles.td,
-                        textAlign: 'center',
-                        padding: '2rem'
-                      }}>
-                        <Typography>No events found matching your criteria.</Typography>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedEvents.map((event) => {
-                      const dayOfWeek = event.day || 'Not set';
-                      const shouldShowLeaderAt1 = event.leader1 && event.leader1.trim() !== '';
-                      const shouldShowLeaderAt12 = event.leader12 && event.leader12.trim() !== '';
+         <Box sx={{ flex: 1, overflowX: 'auto' }}>
+    {loading ? (
+      <Typography sx={{ p: 3 }}>Loading events...</Typography>
+    ) : paginatedEvents.length === 0 ? (
+      <Typography sx={{ p: 3, textAlign: 'center' }}>
+        No events found matching your criteria.
+      </Typography>
+    ) : (
+      <DataGrid
+        rows={paginatedEvents.map((event, idx) => ({
+          id: event._id || idx,
+          ...event,
+        }))}
+        columns={[
+          ...generateDynamicColumns(paginatedEvents, formatDate, isOverdue),
+          {
+            field: 'actions',
+            headerName: 'Actions',
+            sortable: false,
+            flex: 1,
+            minWidth: 200,
+            renderCell: (params) => (
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Tooltip title="Capture Attendance" arrow>
+                  <IconButton
+                    onClick={() => handleCaptureClick(params.row)}
+                    size="small"
+                    sx={{
+                      backgroundColor: '#007bff',
+                      color: '#fff',
+                      '&:hover': { backgroundColor: '#0056b3' },
+                    }}
+                  >
+                    <CheckBoxIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Edit Event" arrow>
+                  <IconButton
+                    onClick={() => handleEditEvent(params.row)}
+                    size="small"
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                {isAdmin && (
+                  <Tooltip title="Delete Event" arrow>
+                    <IconButton
+                      onClick={() => handleDeleteEvent(params.row)}
+                      size="small"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
+            ),
+          },
+        ]}
+        autoHeight
+        disableRowSelectionOnClick
+        pageSizeOptions={[10, 25, 50, 100]}
+        paginationModel={{ page: currentPage - 1, pageSize: rowsPerPage }}
+        onPaginationModelChange={(model) => {
+          const newPage = model.page + 1;
+          handlePageChange(newPage);
+        }}
+        rowCount={totalEvents}
+        paginationMode="server"
+        slots={{ toolbar: GridToolbar }}
+        slotProps={{
+          toolbar: {
+            showQuickFilter: true,
+            quickFilterProps: { debounceMs: 500 },
+          },
+        }}
+        sx={{
+          border: 'none',
+          '& .MuiDataGrid-columnHeaders': {
+            backgroundColor: '#000',
+            color: '#fff',
+            fontWeight: 600,
+          },
+          '& .MuiDataGrid-cell': {
+            alignItems: 'center',
+          },
+          '& .MuiDataGrid-virtualScroller': {
+            overflowY: 'auto !important',
+          },
+        }}
+      />
+    )}
+  </Box>
 
-                      return (
-                        <tr
-                          key={event._id}
-                          style={{
-                            ...themedStyles.tr,
-                            ...(hoveredRow === event._id ? themedStyles.trHover : {}),
-                          }}
-                          onMouseEnter={() => setHoveredRow(event._id)}
-                          onMouseLeave={() => setHoveredRow(null)}
-                        >
-                          <td style={themedStyles.td}>
-                            <Box sx={styles.truncatedText} title={event.eventName}>
-                              {event.eventName}
-                            </Box>
-                          </td>
-                          <td style={themedStyles.td}>
-                            <Box sx={styles.truncatedText} title={event.eventLeaderName}>
-                              {event.eventLeaderName || '-'}
-                            </Box>
-                          </td>
-                          <td style={themedStyles.td}>
-                            <Box sx={styles.truncatedText}>
-                              {shouldShowLeaderAt1 ? (event.leader1 || '-') : '-'}
-                            </Box>
-                          </td>
-                          <td style={themedStyles.td}>
-                            <Box sx={styles.truncatedText}>
-                              {shouldShowLeaderAt12 ? (event.leader12 || '-') : '-'}
-                            </Box>
-                          </td>
-                          <td style={themedStyles.td}>
-                            <Box>{dayOfWeek}</Box>
-                            {isOverdue(event) && (
-                              <Box sx={styles.overdueLabel}>
-                                Overdue
-                              </Box>
-                            )}
-                          </td>
-                          <td style={themedStyles.td}>
-                            <Box sx={styles.emailText} title={event.eventLeaderEmail}>
-                              {event.eventLeaderEmail || '-'}
-                            </Box>
-                          </td>
-                          <td style={themedStyles.td}>{formatDate(event.date)}</td>
-                          <td style={themedStyles.td}>
-                            <Box sx={styles.actionIcons}>
-                              <Tooltip title="Capture Attendance" arrow>
-                                <IconButton
-                                  onClick={() => handleCaptureClick(event)}
-                                  size="small"
-                                  sx={{
-                                    backgroundColor: '#007bff',
-                                    color: '#fff',
-                                    '&:hover': { backgroundColor: '#0056b3' }
-                                  }}
-                                >
-                                  <CheckBoxIcon />
-                                </IconButton>
-                              </Tooltip>
-
-                              <Tooltip title="Edit Event" arrow>
-                                <IconButton
-                                  onClick={() => handleEditEvent(event)}
-                                  size="small"
-                                >
-                                  <EditIcon />
-                                </IconButton>
-                              </Tooltip>
-
-                              {isAdmin && (
-                                <Tooltip title="Delete Event" arrow>
-                                  <IconButton
-                                    onClick={() => handleDeleteEvent(event)}
-                                    size="small"
-                                  >
-                                    <DeleteIcon />
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                            </Box>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </Box>
 
             {/* Pagination for DESKTOP - This remains fixed at the bottom of the content area */}
             <Box sx={{ ...styles.paginationContainer, flexShrink: 0 }}>
