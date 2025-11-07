@@ -456,57 +456,90 @@ const getDefaultViewFilter = (userRole) => {
       year: "numeric"
     }).replace(/\//g, ' - ');
   };
-function generateDynamicColumns(events) {
+
+  function generateDynamicColumns(events) {
   if (!events || events.length === 0) return [];
 
-  // Fields to exclude from the DataGrid
   const excludedFields = [
     'persistent_attendees',
     'UUID',
     'did_not_meet',
     'status',
-    '_is_overdue',
+    'is_overdue',
+    'isoverdue',
+    'is overdue',
     'is_recurring',
     'week_identifier',
     'attendees',
     '_id',
     'attendance',
+    'LOCATION',
+    'location',
+    'eventType',
+    'event_type',
+    'eventTypes',
+    'Status',
   ];
 
-  // Use the keys of the first event as the base for dynamic columns
   const sampleEvent = events[0];
 
-  return Object.keys(sampleEvent)
-    .filter((key) => !excludedFields.includes(key))
-    .map((key) => ({
-      field: key,
-      headerName: key
-        .replace(/_/g, ' ') // replace underscores with spaces
-        .replace(/([A-Z])/g, ' $1') // split camelCase
-        .replace(/^./, (str) => str.toUpperCase()), // capitalize first letter
-      flex: 1,
-      minWidth: 150,
-      renderCell: (params) => {
-        const value = params.value;
-        // Custom formatting for known field types
-        if (key.toLowerCase().includes('date')) return formatDate(value);
-        if (!value) return '-';
+  // DEBUG: See all field names
+  console.log('🔍 ALL FIELDS:', Object.keys(sampleEvent));
 
-        return (
-          <Box
-            sx={{
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              maxWidth: 180,
-            }}
-            title={String(value)}
-          >
-            {String(value)}
-          </Box>
-        );
-      },
-    }));
+  // Use case-insensitive filtering and keyword matching
+  const filteredFields = Object.keys(sampleEvent).filter((key) => {
+    const keyLower = key.toLowerCase();
+    
+    // Check exact match
+    const exactMatch = excludedFields.includes(key);
+    
+    // Check case-insensitive match
+    const caseInsensitiveMatch = excludedFields.some(excluded => 
+      excluded.toLowerCase() === keyLower
+    );
+    
+    // Check if contains "overdue" in any form
+    const containsOverdue = keyLower.includes('overdue');
+    
+    const shouldExclude = exactMatch || caseInsensitiveMatch || containsOverdue;
+    
+    if (shouldExclude) {
+      console.log(`🗑️ Removing field: "${key}"`);
+    }
+    
+    return !shouldExclude;
+  });
+
+  console.log('✅ FIELDS TO SHOW:', filteredFields);
+
+  return filteredFields.map((key) => ({
+    field: key,
+    headerName: key
+      .replace(/_/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (str) => str.toUpperCase()),
+    flex: 1,
+    minWidth: 150,
+    renderCell: (params) => {
+      const value = params.value;
+      if (key.toLowerCase().includes('date')) return formatDate(value);
+      if (!value) return '-';
+
+      return (
+        <Box
+          sx={{
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: 180,
+          }}
+          title={String(value)}
+        >
+          {String(value)}
+        </Box>
+      );
+    },
+  }));
 }
 
 const MobileEventCard = ({ event, onOpenAttendance, onEdit, onDelete, isOverdue, formatDate, theme, styles }) => {
