@@ -465,7 +465,7 @@ function generateDynamicColumns(events) {
     'UUID',
     'did_not_meet',
     'status',
-    'is_overdue',
+    '_is_overdue',
     'is_recurring',
     'week_identifier',
     'attendees',
