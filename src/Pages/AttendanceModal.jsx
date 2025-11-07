@@ -1383,96 +1383,134 @@ const handleSubmitAttendance = (attendanceData) => {
   }
 };
 
-  const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
-    const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
+ 
+const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
+  const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
 
-    // First try to use cached results
-    if (peopleCache[cacheKey]) {
-      console.log("📦 Using cached results for:", cacheKey);
-      setPeople(peopleCache[cacheKey]);
-      return;
-    }
+  // Check cache first
+  if (peopleCache[cacheKey]) {
+    console.log("📦 Using cached results for:", cacheKey);
+    setPeople(peopleCache[cacheKey]);
+    return;
+  }
 
-    // Then try to filter from preloaded data for instant results
-    if (preloadedPeople.length > 0 && (!filter || filter.length < 3)) {
-      const filteredFromPreloaded = preloadedPeople.filter(person =>
-        person.fullName.toLowerCase().includes(filter.toLowerCase()) ||
-        person.email.toLowerCase().includes(filter.toLowerCase())
-      );
+  // Filter from preloaded data for instant results
+  if (preloadedPeople.length > 0 && filter) {
+    const searchLower = filter.toLowerCase().trim();
+    
+    const filteredFromPreloaded = preloadedPeople.filter(person => {
+      const name = (person.Name || person.name || "").toLowerCase();
+      const surname = (person.Surname || person.surname || "").toLowerCase();
+      const fullName = `${name} ${surname}`.trim();
+      const email = (person.email || person.Email || "").toLowerCase();
       
-      if (filteredFromPreloaded.length > 0) {
-        console.log("⚡ Using preloaded data for instant results");
-        setPeople(filteredFromPreloaded.slice(0, 50));
-        setPeopleCache(prev => ({
-          ...prev,
-          [cacheKey]: filteredFromPreloaded.slice(0, 50)
-        }));
-        return;
-      }
-    }
-
-    // Fallback to API call
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const params = new URLSearchParams();
-
-      if (filter && filter.trim().length > 0) {
-        params.append("name", filter.trim());
-      }
-
-      const leaderFilters = [];
-      if (leader1 && leader1.trim().length > 0) leaderFilters.push(leader1.trim());
-      if (leader12 && leader12.trim().length > 0) leaderFilters.push(leader12.trim());
-      if (leader144 && leader144.trim().length > 0) leaderFilters.push(leader144.trim());
-      if (leader1728 && leader1728.trim().length > 0) leaderFilters.push(leader1728.trim());
-
-      if (leaderFilters.length > 0) {
-        params.append("leaders", leaderFilters.join(","));
-      }
-
-      params.append("perPage", "50");
-      params.append("page", "1");
-
-      console.log("🔍 Fetching people with params:", params.toString());
-
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      console.log(`✅ Found ${peopleArray.length} people`);
-
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-        leader144: p["Leader @144"] || p.leader144 || "",
-        leader1728: p["Leader @1728"] || p.leader1728 || "",
-        phone: p.Number || p.Phone || p.phone || "",
-      }));
-
+      // ✅ FIXED: Use includes instead of startsWith for surname
+      return (
+        fullName.includes(searchLower) ||  // Matches "gia katufu"
+        name.includes(searchLower) ||      // Matches "gia" 
+        surname.includes(searchLower) ||   // Matches "katufu" ✅ FIXED
+        email.includes(searchLower)        // Matches email
+      );
+    });
+    
+    if (filteredFromPreloaded.length > 0) {
+      console.log(`⚡ Found ${filteredFromPreloaded.length} matches in preloaded data`);
+      setPeople(filteredFromPreloaded.slice(0, 50));
       setPeopleCache(prev => ({
         ...prev,
-        [cacheKey]: formatted
+        [cacheKey]: filteredFromPreloaded.slice(0, 50)
       }));
-
-      setPeople(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      setPeople([]);
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+  }
+
+  // Fallback to API if no cached/preloaded results
+  try {
+    setLoading(true);
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const params = new URLSearchParams();
+
+    if (filter && filter.trim().length > 0) {
+      params.append("name", filter.trim());
+    }
+
+    // Leader filters
+    const leaderFilters = [];
+    if (leader1 && leader1.trim().length > 0) leaderFilters.push(leader1.trim());
+    if (leader12 && leader12.trim().length > 0) leaderFilters.push(leader12.trim());
+    if (leader144 && leader144.trim().length > 0) leaderFilters.push(leader144.trim());
+    if (leader1728 && leader1728.trim().length > 0) leaderFilters.push(leader1728.trim());
+
+    if (leaderFilters.length > 0) {
+      params.append("leaders", leaderFilters.join(","));
+    }
+
+    params.append("perPage", "50");
+    params.append("page", "1");
+
+    console.log("🔍 Fetching people with params:", params.toString());
+
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const peopleArray = data.people || data.results || [];
+
+    console.log(`✅ API returned ${peopleArray.length} people`);
+
+    // Enhanced client-side filtering
+    let filtered = peopleArray;
+    
+    if (filter && filter.trim().length > 0) {
+      const searchLower = filter.toLowerCase().trim();
+      
+      filtered = peopleArray.filter((p) => {
+        const name = (p.Name || p.name || "").toLowerCase();
+        const surname = (p.Surname || p.surname || "").toLowerCase();
+        const fullName = `${name} ${surname}`.trim();
+        const email = (p.Email || p.email || "").toLowerCase();
+        
+        // ✅ FIXED: Use includes instead of startsWith for surname
+        return (
+          fullName.includes(searchLower) ||
+          name.includes(searchLower) ||
+          surname.includes(searchLower) || // ✅ FIXED
+          email.includes(searchLower)
+        );
+      });
+      
+      console.log(`✅ Client-side filtered to ${filtered.length} matches`);
+    }
+
+    const formatted = filtered.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p.leader1 || "",
+      leader12: p["Leader @12"] || p.leader12 || "",
+      leader144: p["Leader @144"] || p.leader144 || "",
+      leader1728: p["Leader @1728"] || p.leader1728 || "",
+      phone: p.Number || p.Phone || p.phone || "",
+    }));
+
+    setPeopleCache(prev => ({
+      ...prev,
+      [cacheKey]: formatted
+    }));
+
+    setPeople(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    setPeople([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchCommonAttendees = async (cellId) => {
     try {
