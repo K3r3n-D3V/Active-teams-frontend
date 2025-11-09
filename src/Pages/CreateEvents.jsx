@@ -25,7 +25,7 @@ import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 
 function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -37,8 +37,8 @@ const CreateEvents = ({
   isModal = false,
   onClose,
   eventTypes = [],
-  selectedEventType, 
-  selectedEventTypeObj = null, 
+  selectedEventType,
+  selectedEventTypeObj = null,
   fetchEvents,
 }) => {
   const navigate = useNavigate();
@@ -114,45 +114,8 @@ const CreateEvents = ({
     }
   }, [selectedEventTypeObj, selectedEventType]);
 
-  const fetchPeople = async (filter = "") => {
-    try {
-      setLoadingPeople(true);
-      const params = new URLSearchParams();
-      params.append("perPage", "1000");
-      if (filter) params.append("name", filter);
-
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-      
-      const peopleArray = data.people || data.results || data || [];
-
-      const formatted = peopleArray.map((p) => ({
-        id: p._id || p.id || Math.random(),
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-      }));
-
-      setPeopleData(formatted);
-      
-    } catch (err) {
-      console.error("❌ Error fetching people:", err);
-      setPeopleData([]);
-    } finally {
-      setLoadingPeople(false);
-    }
-  };
-
   useEffect(() => {
-    if (BACKEND_URL) fetchPeople();
-  }, [BACKEND_URL]);
-
-  
-
-  useEffect(() => {
-    if (!eventId && isTicketedEvent && priceTiers.length === 0) {
+    if (isTicketedEvent && priceTiers.length === 0) {
       setPriceTiers([
         {
           name: "",
@@ -163,7 +126,39 @@ const CreateEvents = ({
         },
       ]);
     }
-  }, [eventId, isTicketedEvent]);
+  }, [isTicketedEvent]);
+
+const fetchPeople = async (filter = "") => {
+  try {
+    setLoadingPeople(true);
+    const params = new URLSearchParams();
+    params.append("perPage", "1000");
+    if (filter) params.append("name", filter); 
+
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    const data = await res.json();
+    
+    const peopleArray = data.people || data.results || data || [];
+
+    const formatted = peopleArray.map((p) => ({
+      id: p._id || p.id || Math.random(),
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p.leader1 || "",
+      leader12: p["Leader @12"] || p.leader12 || "",
+    }));
+
+    setPeopleData(formatted);
+    
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    setPeopleData([]);
+  } finally {
+    setLoadingPeople(false);
+  }
+};
+
 
   useEffect(() => {
     if (!eventId) return;
@@ -172,6 +167,8 @@ const CreateEvents = ({
       try {
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
         const data = response.data;
+
+        console.log("Fetched event data:", data);
 
         if (data.date) {
           const dt = new Date(data.date);
@@ -188,9 +185,24 @@ const CreateEvents = ({
           data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
         }
 
-        if (isTicketedEvent) {
+        if (data.isTicketed !== undefined) {
+          setEventTypeFlags(prev => ({
+            ...prev,
+            isTicketed: !!data.isTicketed
+          }));
+        }
+
+        if (data.isTicketed) {
+          console.log("Setting price tiers for ticketed event:", data.priceTiers);
           if (data.priceTiers && Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
-            setPriceTiers(data.priceTiers);
+            const formattedPriceTiers = data.priceTiers.map(tier => ({
+              name: tier.name || "",
+              price: tier.price || "",
+              ageGroup: tier.ageGroup || "",
+              memberType: tier.memberType || "",
+              paymentMethod: tier.paymentMethod || "",
+            }));
+            setPriceTiers(formattedPriceTiers);
           } else {
             setPriceTiers([
               {
@@ -202,9 +214,12 @@ const CreateEvents = ({
               },
             ]);
           }
+        } else {
+          setPriceTiers([]);
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
+
       } catch (err) {
         console.error("Failed to fetch event:", err);
         setErrorMessage("Failed to load event data. Please try again.");
@@ -213,8 +228,7 @@ const CreateEvents = ({
     };
 
     fetchEventData();
-  }, [eventId, BACKEND_URL, isTicketedEvent]);
-
+  }, [eventId, BACKEND_URL]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => {
@@ -322,76 +336,99 @@ const CreateEvents = ({
     return Object.keys(newErrors).length === 0;
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (!validateForm()) {
-    return;
-  }
+  const getDayFromDate = (dateString) => {
+    if (!dateString) return "One-time";
+    
+    const date = new Date(dateString);
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[date.getDay()];
+  };
 
-  setIsSubmitting(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  try {
-    const eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
+    setIsSubmitting(true);
 
-    if (!eventTypeToSend) {
-      setErrorMessage("Event type is required");
-      setErrorAlert(true);
-      setIsSubmitting(false);
-      return;
-    }
+    try {
+      const eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
 
-    console.log('🎯 Creating event with type:', eventTypeToSend);
+      if (!eventTypeToSend) {
+        setErrorMessage("Event type is required");
+        setErrorAlert(true);
+        setIsSubmitting(false);
+        return;
+      }
 
-    const payload = {
-      UUID: generateUUID(),
-      eventTypeName: eventTypeToSend,  
-      eventName: formData.eventName,
-      isTicketed: !!isTicketedEvent,
-      isGlobal: !!isGlobalEvent,
-      hasPersonSteps: !!hasPersonSteps,
-      isEventType: false,
-      location: formData.location,
-      eventLeader: formData.eventLeader,
-      description: formData.description,
-      userEmail: user?.email || "",
-      recurring_day: formData.recurringDays,
-      event_type: eventTypeToSend,  
-      status: "open",
-    };
+      console.log('Creating event with type:', eventTypeToSend);
 
-      // Price tiers
-      if (isTicketedEvent && priceTiers.length > 0) {
-        payload.priceTiers = priceTiers.map((tier) => ({
-          name: tier.name || "",
-          price: parseFloat(tier.price) || 0,
-          ageGroup: tier.ageGroup || "",
-          memberType: tier.memberType || "",
-          paymentMethod: tier.paymentMethod || "",
-        }));
+      // FIXED: Calculate the correct day value
+      let dayValue = "One-time";
+      
+      if (formData.recurringDays.length > 0) {
+        // For recurring events, use the first recurring day
+        dayValue = formData.recurringDays[0];
+      } else if (formData.date) {
+        // For one-time events, calculate day from the date
+        dayValue = getDayFromDate(formData.date);
+      }
+
+      const payload = {
+        UUID: generateUUID(),
+        eventTypeName: eventTypeToSend,
+        event_type: eventTypeToSend,
+        eventName: formData.eventName,
+        isTicketed: !!isTicketedEvent,
+        isGlobal: !!isGlobalEvent,
+        hasPersonSteps: !!hasPersonSteps,
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        eventLeaderName: formData.eventLeader,
+        eventLeaderEmail: user?.email || "", 
+        description: formData.description,
+        userEmail: user?.email || "",
+        email: user?.email || "",
+        recurring_day: formData.recurringDays,
+        day: dayValue, // FIXED: Now correctly sets the actual day
+        status: "open",
+        leader1: formData.leader1 || "",
+        leader12: formData.leader12 || "",
+      };
+
+      if (formData.date && formData.time) {
+        const [hoursStr, minutesStr] = formData.time.split(":");
+        let hours = Number(hoursStr);
+        const minutes = Number(minutesStr);
+        if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
+        if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+
+        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
+          .toString()
+          .padStart(2, "0")}:00`;
+      }
+
+      if (isTicketedEvent) {
+        if (priceTiers.length > 0) {
+          payload.priceTiers = priceTiers.map((tier) => ({
+            name: tier.name || "",
+            price: parseFloat(tier.price) || 0,
+            ageGroup: tier.ageGroup || "",
+            memberType: tier.memberType || "",
+            paymentMethod: tier.paymentMethod || "",
+          }));
+        } else {
+          payload.priceTiers = [];
+        }
       } else {
         payload.priceTiers = [];
       }
 
-      // Leaders for personal steps
       if (hasPersonSteps && !isGlobalEvent) {
-        if (formData.leader1) payload.leader1 = formData.leader1;
-        if (formData.leader12) payload.leader12 = formData.leader12;
+        payload.leader1 = formData.leader1 || "";
+        payload.leader12 = formData.leader12 || "";
       }
 
-      // Date/Time
-      if ((!hasPersonSteps || isGlobalEvent) && formData.date && formData.time) {
-        const [hoursStr, minutesStr] = formData.time.split(":");
-        let hours = Number(hoursStr);
-        const minutes = Number(minutesStr);
-        
-        if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
-        if (formData.timePeriod === "AM" && hours === 12) hours = 0;
-
-        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00`;
-      }
-
-      console.log('📤 Payload:', payload);
+      console.log('Final Payload:', payload);
 
       const token = localStorage.getItem("token");
       const headers = {
@@ -403,7 +440,7 @@ const CreateEvents = ({
         ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
         : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
 
-      console.log("✅ Response:", response.data);
+      console.log("Response:", response.data);
 
       setSuccessMessage(
         eventId ? "Event updated successfully!" : "Event created successfully!"
@@ -411,35 +448,36 @@ const CreateEvents = ({
       setSuccessAlert(true);
 
       if (!eventId) resetForm();
-setTimeout(() => {
-  if (isModal && typeof onClose === "function") {
-    onClose(true); // This will trigger the refresh in Events.jsx
-  } else {
-    navigate("/events", { 
-      state: { 
-        refresh: true,
-        timestamp: Date.now()
-      } 
-    });
-  }
-}, 1200);
+
+      setTimeout(() => {
+        if (isModal && typeof onClose === "function") {
+          onClose(true);
+        } else {
+          navigate("/events", {
+            state: {
+              refresh: true,
+              timestamp: Date.now()
+            }
+          });
+        }
+      }, 1200);
 
     } catch (err) {
-      console.error("❌ Error:", err);
-      console.error("❌ Response:", err?.response?.data);
-      
+      console.error("Error:", err);
+      console.error("Response:", err?.response?.data);
+
       let errorMsg = "Failed to submit event";
-      
+
       if (err?.response?.data) {
         const errorData = err.response.data;
-        
+
         if (Array.isArray(errorData.detail)) {
           errorMsg = "Validation errors: " + errorData.detail.map(errorObj => {
             if (errorObj.msg) return errorObj.msg;
             if (errorObj.loc && errorObj.msg) return `${errorObj.loc.join('.')}: ${errorObj.msg}`;
             return JSON.stringify(errorObj);
           }).join(', ');
-        } 
+        }
         else if (errorData.detail && typeof errorData.detail === 'object') {
           errorMsg = errorData.detail.msg || JSON.stringify(errorData.detail);
         }
@@ -462,40 +500,40 @@ setTimeout(() => {
 
   const containerStyle = isModal
     ? {
-        padding: "0",
-        minHeight: "auto",
-        backgroundColor: "transparent",
-        width: "100%",
-        height: "100%",
-        maxHeight: "none",
-        overflowY: "auto",
-      }
+      padding: "0",
+      minHeight: "auto",
+      backgroundColor: "transparent",
+      width: "100%",
+      height: "100%",
+      maxHeight: "none",
+      overflowY: "auto",
+    }
     : {
-        minHeight: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
-        px: 2,
-      };
+      minHeight: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
+      px: 2,
+    };
 
   const cardStyle = isModal
     ? {
-        width: "100%",
-        height: "100%",
-        padding: "1.5rem",
-        borderRadius: 0,
-        boxShadow: "none",
-        backgroundColor: "transparent",
-        maxHeight: "none",
-        overflow: "visible",
-      }
+      width: "100%",
+      height: "100%",
+      padding: "1.5rem",
+      borderRadius: 0,
+      boxShadow: "none",
+      backgroundColor: "transparent",
+      maxHeight: "none",
+      overflow: "visible",
+    }
     : {
-        width: { xs: "100%", sm: "85%", md: "700px" },
-        p: 5,
-        borderRadius: "20px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-      };
+      width: { xs: "100%", sm: "85%", md: "700px" },
+      p: 5,
+      borderRadius: "20px",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+    };
 
   const darkModeStyles = {
     textField: {
@@ -525,6 +563,18 @@ setTimeout(() => {
         "&.Mui-focused": {
           color: theme.palette.primary.main,
         },
+        "&.MuiInputLabel-shrink": {
+          color: theme.palette.text.secondary,
+        },
+      },
+      "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+        color: theme.palette.text.secondary,
+      },
+      "& .MuiFormHelperText-root": {
+        color: theme.palette.text.secondary,
+        "&.Mui-error": {
+          color: theme.palette.error.main,
+        },
       },
     },
     autocomplete: {
@@ -534,8 +584,30 @@ setTimeout(() => {
         "& fieldset": {
           borderColor: isDarkMode ? theme.palette.divider : "rgba(0, 0, 0, 0.23)",
         },
+        "&:hover fieldset": {
+          borderColor: isDarkMode ? theme.palette.primary.light : "rgba(0, 0, 0, 0.87)",
+        },
         "&.Mui-focused fieldset": {
           borderColor: theme.palette.primary.main,
+        },
+      },
+      "& .MuiAutocomplete-input": {
+        color: theme.palette.text.primary,
+      },
+      "& .MuiInputLabel-root": {
+        color: theme.palette.text.secondary,
+      },
+    },
+    formControlLabel: {
+      "& .MuiFormControlLabel-label": {
+        color: theme.palette.text.primary,
+        fontSize: "0.95rem",
+        fontWeight: 500,
+      },
+      "& .MuiCheckbox-root": {
+        color: theme.palette.text.secondary,
+        "&.Mui-checked": {
+          color: theme.palette.primary.main,
         },
       },
     },
@@ -549,14 +621,59 @@ setTimeout(() => {
         },
       },
     },
+    errorText: {
+      color: theme.palette.error.main,
+    },
+    card: {
+      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+      border: `1px solid ${theme.palette.divider}`,
+    },
+    sectionTitle: {
+      color: theme.palette.text.primary,
+    },
+    helperText: {
+      color: theme.palette.text.secondary,
+    },
+    daysContainer: {
+      "& .MuiFormControlLabel-root": {
+        margin: 0,
+        "& .MuiFormControlLabel-label": {
+          color: theme.palette.text.primary,
+          fontSize: "0.95rem",
+          fontWeight: 500,
+        },
+      },
+    },
   };
 
   return (
     <Box sx={containerStyle}>
-      <Card sx={cardStyle}>
-        <CardContent>
+      <Card
+        sx={{
+          ...cardStyle,
+          ...(isDarkMode && !isModal
+            ? {
+              bgcolor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+            }
+            : {}),
+        }}
+      >
+        <CardContent
+          sx={{
+            padding: isModal ? "0" : "1rem",
+            "&:last-child": { paddingBottom: isModal ? "0" : "1rem" },
+          }}
+        >
           {!isModal && (
-            <Typography variant="h4" fontWeight="bold" textAlign="center" mb={4}>
+            <Typography
+              variant="h4"
+              fontWeight="bold"
+              textAlign="center"
+              mb={4}
+              sx={{ color: isDarkMode ? "#ffffff" : theme.palette.primary.main }}
+            >
               {eventId ? "Edit Event" : "Create New Event"}
             </Typography>
           )}
@@ -585,21 +702,68 @@ setTimeout(() => {
 
             {isTicketedEvent && (
               <Box sx={{ mb: 3 }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-                  <Typography variant="h6">Price Tiers *</Typography>
-                  <Button startIcon={<AddIcon />} onClick={handleAddPriceTier} variant="contained" size="small">
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 2,
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={darkModeStyles.sectionTitle}
+                  >
+                    Price Tiers *
+                  </Typography>
+                  <Button
+                    startIcon={<AddIcon />}
+                    onClick={handleAddPriceTier}
+                    variant="contained"
+                    size="small"
+                  >
                     Add Price Tier
                   </Button>
                 </Box>
 
+                {errors.priceTiers && (
+                  <Typography
+                    variant="caption"
+                    sx={{ ...darkModeStyles.errorText, mb: 1, display: "block" }}
+                  >
+                    {errors.priceTiers}
+                  </Typography>
+                )}
+
                 {priceTiers.map((tier, index) => (
-                  <Card key={index} sx={{ mb: 2, p: 2 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-                      <Typography variant="subtitle2" fontWeight="bold">
+                  <Card
+                    key={index}
+                    sx={{
+                      mb: 2,
+                      p: 2,
+                      ...darkModeStyles.card,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        mb: 2,
+                      }}
+                    >
+                      <Typography
+                        variant="subtitle2"
+                        fontWeight="bold"
+                        sx={{ color: isDarkMode ? "#ffffff" : "#000000" }}
+                      >
                         Price Tier {index + 1}
                       </Typography>
                       {priceTiers.length > 1 && (
-                        <IconButton size="small" onClick={() => handleRemovePriceTier(index)} color="error">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemovePriceTier(index)}
+                          color="error"
+                        >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       )}
@@ -608,10 +772,12 @@ setTimeout(() => {
                     <TextField
                       label="Price Name *"
                       value={tier.name}
-                      onChange={(e) => handlePriceTierChange(index, "name", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(index, "name", e.target.value)
+                      }
                       fullWidth
                       size="small"
-                      sx={{ mb: 2 }}
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
                       error={!!errors[`tier_${index}_name`]}
                       helperText={errors[`tier_${index}_name`]}
                     />
@@ -620,11 +786,13 @@ setTimeout(() => {
                       label="Price (R) *"
                       type="number"
                       value={tier.price}
-                      onChange={(e) => handlePriceTierChange(index, "price", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(index, "price", e.target.value)
+                      }
                       fullWidth
                       size="small"
                       inputProps={{ min: 0, step: "0.01" }}
-                      sx={{ mb: 2 }}
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
                       error={!!errors[`tier_${index}_price`]}
                       helperText={errors[`tier_${index}_price`]}
                     />
@@ -632,10 +800,12 @@ setTimeout(() => {
                     <TextField
                       label="Age Group *"
                       value={tier.ageGroup}
-                      onChange={(e) => handlePriceTierChange(index, "ageGroup", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(index, "ageGroup", e.target.value)
+                      }
                       fullWidth
                       size="small"
-                      sx={{ mb: 2 }}
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
                       error={!!errors[`tier_${index}_ageGroup`]}
                       helperText={errors[`tier_${index}_ageGroup`]}
                     />
@@ -643,10 +813,16 @@ setTimeout(() => {
                     <TextField
                       label="Member Type *"
                       value={tier.memberType}
-                      onChange={(e) => handlePriceTierChange(index, "memberType", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(
+                          index,
+                          "memberType",
+                          e.target.value
+                        )
+                      }
                       fullWidth
                       size="small"
-                      sx={{ mb: 2 }}
+                      sx={{ mb: 2, ...darkModeStyles.textField }}
                       error={!!errors[`tier_${index}_memberType`]}
                       helperText={errors[`tier_${index}_memberType`]}
                     />
@@ -654,9 +830,16 @@ setTimeout(() => {
                     <TextField
                       label="Payment Method *"
                       value={tier.paymentMethod}
-                      onChange={(e) => handlePriceTierChange(index, "paymentMethod", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(
+                          index,
+                          "paymentMethod",
+                          e.target.value
+                        )
+                      }
                       fullWidth
                       size="small"
+                      sx={{ ...darkModeStyles.textField }}
                       error={!!errors[`tier_${index}_paymentMethod`]}
                       helperText={errors[`tier_${index}_paymentMethod`]}
                     />
@@ -665,7 +848,12 @@ setTimeout(() => {
               </Box>
             )}
 
-            <Box display="flex" gap={2} mb={3}>
+            <Box
+              display="flex"
+              gap={2}
+              flexDirection={{ xs: "column", sm: "row" }}
+              mb={3}
+            >
               <TextField
                 label="Date *"
                 type="date"
@@ -676,6 +864,7 @@ setTimeout(() => {
                 InputLabelProps={{ shrink: true }}
                 error={!!errors.date}
                 helperText={errors.date}
+                sx={darkModeStyles.textField}
               />
               <TextField
                 label="Time *"
@@ -687,14 +876,24 @@ setTimeout(() => {
                 InputLabelProps={{ shrink: true }}
                 error={!!errors.time}
                 helperText={errors.time}
+                sx={darkModeStyles.textField}
               />
             </Box>
 
             <Box mb={3}>
-              <Typography fontWeight="bold" mb={1}>
+              <Typography
+                fontWeight="bold"
+                mb={1}
+                sx={darkModeStyles.sectionTitle}
+              >
                 Recurring Days {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
               </Typography>
-              <Box display="flex" flexWrap="wrap" gap={2}>
+              <Box
+                display="flex"
+                flexWrap="wrap"
+                gap={2}
+                sx={darkModeStyles.daysContainer}
+              >
                 {days.map((day) => (
                   <FormControlLabel
                     key={day}
@@ -709,7 +908,7 @@ setTimeout(() => {
                 ))}
               </Box>
               {errors.recurringDays && (
-                <Typography variant="caption" color="error">
+                <Typography variant="caption" sx={darkModeStyles.errorText}>
                   {errors.recurringDays}
                 </Typography>
               )}
@@ -721,7 +920,7 @@ setTimeout(() => {
               onChange={(e) => handleChange("location", e.target.value)}
               fullWidth
               size="small"
-              sx={{ mb: 3 }}
+              sx={{ mb: 3, ...darkModeStyles.textField }}
               error={!!errors.location}
               helperText={errors.location}
               InputProps={{
@@ -733,53 +932,103 @@ setTimeout(() => {
               }}
             />
 
-            <Autocomplete
-              freeSolo
-              options={peopleData}
-              loading={loadingPeople}
-              getOptionLabel={(option) => typeof option === 'string' ? option : option.fullName || ''}
-              value={formData.eventLeader}
-              onChange={(event, newValue) => {
-                const selectedName = typeof newValue === 'string' ? newValue : newValue?.fullName || '';
-                
-                if (hasPersonSteps && !isGlobalEvent && newValue && typeof newValue !== 'string') {
-                  setFormData((prev) => ({
-                    ...prev,
-                    eventLeader: selectedName,
-                    eventName: selectedName,
-                    leader1: newValue.leader1 || "",
-                    leader12: newValue.leader12 || "",
-                  }));
-                } else {
-                  handleChange("eventLeader", selectedName);
-                }
-              }}
-              onInputChange={(event, newInputValue) => {
-                handleChange("eventLeader", newInputValue || "");
-                if (newInputValue.length >= 2) fetchPeople(newInputValue);
-              }}
-              sx={{ mb: 3, ...darkModeStyles.autocomplete }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Event Leader *"
-                  size="small"
-                  error={!!errors.eventLeader}
-                  helperText={errors.eventLeader}
-                  InputProps={{
-                    ...params.InputProps,
-                    startAdornment: (
-                      <>
-                        <InputAdornment position="start">
-                          <PersonIcon />
-                        </InputAdornment>
-                        {params.InputProps.startAdornment}
-                      </>
-                    ),
-                  }}
-                />
+            <Box sx={{ mb: 3, position: 'relative' }}>
+              <TextField
+                label="Event Leader *"
+                value={formData.eventLeader}
+                onChange={(e) => {
+                  handleChange("eventLeader", e.target.value);
+                  if (e.target.value.length >= 2) {
+                    fetchPeople(e.target.value);
+                  } else {
+                    setPeopleData([]);
+                  }
+                }}
+                onFocus={() => {
+                  if (formData.eventLeader.length === 0) {
+                    setPeopleData([]);
+                  }
+                }}
+                fullWidth
+                size="small"
+                sx={darkModeStyles.textField}
+                error={!!errors.eventLeader}
+                helperText={errors.eventLeader || (peopleData.length > 0 ? `${peopleData.length} people found` : "Type to search for people")}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon />
+                    </InputAdornment>
+                  ),
+                }}
+                placeholder="Type name to search..."
+              />
+              
+              {peopleData.length > 0 && (
+                <Box sx={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  zIndex: 1000,
+                  backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
+                  border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
+                  borderRadius: '4px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  mt: 0.5,
+                }}>
+                  {peopleData.map((person) => (
+                    <Box
+                      key={person.id || `${person.fullName}-${person.email}`}
+                      sx={{
+                        padding: '12px',
+                        cursor: 'pointer',
+                        borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
+                        '&:hover': {
+                          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
+                        },
+                        '&:last-child': {
+                          borderBottom: 'none',
+                        },
+                      }}
+                      onClick={() => {
+                        const selectedName = person.fullName;
+                        
+                        if (hasPersonSteps && !isGlobalEvent) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            eventLeader: selectedName,
+                            eventName: selectedName,
+                            leader1: person.leader1 || "",
+                            leader12: person.leader12 || "",
+                          }));
+                        } else {
+                          handleChange("eventLeader", selectedName);
+                        }
+                        setPeopleData([]);
+                      }}
+                    >
+                      <Typography variant="body1" fontWeight="500">
+                        {person.fullName}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                        {person.email}
+                        {person.leader1 && ` • L@1: ${person.leader1}`}
+                        {person.leader12 && ` • L@12: ${person.leader12}`}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
               )}
-            />
+              
+              {loadingPeople && (
+                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                  Searching...
+                </Typography>
+              )}
+            </Box>
 
             {hasPersonSteps && !isGlobalEvent && (
               <>
@@ -788,7 +1037,7 @@ setTimeout(() => {
                   value={formData.leader1 || ""}
                   fullWidth
                   size="small"
-                  sx={{ mb: 2 }}
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
                   error={!!errors.leader1}
                   helperText={errors.leader1}
                   InputProps={{ readOnly: true }}
@@ -799,7 +1048,7 @@ setTimeout(() => {
                   value={formData.leader12 || ""}
                   fullWidth
                   size="small"
-                  sx={{ mb: 2 }}
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
                   error={!!errors.leader12}
                   helperText={errors.leader12}
                   InputProps={{ readOnly: true }}
@@ -808,9 +1057,9 @@ setTimeout(() => {
             )}
 
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {isTicketedEvent && <Chip label="💰 Ticketed Event" color="warning" size="small" />}
-              {isGlobalEvent && <Chip label="🌍 Global Event" color="info" size="small" />}
-              {hasPersonSteps && !isGlobalEvent && <Chip label="📊 Personal Steps Event" color="secondary" size="small" />}
+              {isTicketedEvent && <Chip label="Ticketed Event" color="warning" size="small" />}
+              {isGlobalEvent && <Chip label="Global Event" color="info" size="small" />}
+              {hasPersonSteps && !isGlobalEvent && <Chip label="Personal Steps Event" color="secondary" size="small" />}
             </Box>
 
             <TextField
@@ -821,7 +1070,7 @@ setTimeout(() => {
               multiline
               rows={3}
               size="small"
-              sx={{ mb: 3 }}
+              sx={{ mb: 3, ...darkModeStyles.textField }}
               error={!!errors.description}
               helperText={errors.description}
               InputProps={{
@@ -833,7 +1082,7 @@ setTimeout(() => {
               }}
             />
 
-            <Box display="flex" gap={2}>
+            <Box display="flex" gap={2} sx={{ mt: 3 }}>
               <Button
                 variant="outlined"
                 fullWidth
@@ -844,6 +1093,7 @@ setTimeout(() => {
                     navigate("/events");
                   }
                 }}
+                sx={darkModeStyles.button.outlined}
               >
                 Cancel
               </Button>
@@ -853,10 +1103,23 @@ setTimeout(() => {
                 variant="contained"
                 fullWidth
                 disabled={isSubmitting}
+                sx={{
+                  bgcolor: "primary.main",
+                  color: "#ffffff",
+                  "&:hover": { bgcolor: "primary.dark" },
+                  "&:disabled": {
+                    bgcolor: isDarkMode ? "#333" : "#ccc",
+                    color: isDarkMode ? "#666" : "#999",
+                  },
+                }}
               >
                 {isSubmitting
-                  ? eventId ? "Updating..." : "Creating..."
-                  : eventId ? "Update Event" : "Create Event"}
+                  ? eventId
+                    ? "Updating..."
+                    : "Creating..."
+                  : eventId
+                    ? "Update Event"
+                    : "Create Event"}
               </Button>
             </Box>
           </form>
@@ -867,7 +1130,14 @@ setTimeout(() => {
             onClose={() => setSuccessAlert(false)}
             anchorOrigin={{ vertical: "top", horizontal: "center" }}
           >
-            <Alert severity="success" variant="filled">
+            <Alert
+              severity="success"
+              variant="filled"
+              sx={{
+                bgcolor: "#4caf50",
+                color: "#ffffff",
+              }}
+            >
               {successMessage}
             </Alert>
           </Snackbar>
@@ -878,7 +1148,14 @@ setTimeout(() => {
             onClose={() => setErrorAlert(false)}
             anchorOrigin={{ vertical: "top", horizontal: "center" }}
           >
-            <Alert severity="error" variant="filled">
+            <Alert
+              severity="error"
+              variant="filled"
+              sx={{
+                bgcolor: "#f44336",
+                color: "#ffffff",
+              }}
+            >
               {errorMessage}
             </Alert>
           </Snackbar>
