@@ -25,7 +25,7 @@ import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 
 function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -37,8 +37,9 @@ const CreateEvents = ({
   isModal = false,
   onClose,
   eventTypes = [],
-  selectedEventType, 
-  selectedEventTypeObj = null, 
+  selectedEventType,
+  selectedEventTypeObj = null,
+  fetchEvents,
 }) => {
   const navigate = useNavigate();
   const { id: eventId } = useParams();
@@ -113,44 +114,8 @@ const CreateEvents = ({
     }
   }, [selectedEventTypeObj, selectedEventType]);
 
-  const fetchPeople = async (filter = "") => {
-    try {
-      setLoadingPeople(true);
-      const params = new URLSearchParams();
-      params.append("perPage", "1000");
-      if (filter) params.append("name", filter);
-
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-        leader144: p["Leader @144"] || p.leader144 || "",
-      }));
-
-      setPeopleData(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      setErrorMessage("Failed to load people data. Please refresh the page.");
-      setErrorAlert(true);
-      setPeopleData([]);
-    } finally {
-      setLoadingPeople(false);
-    }
-  };
-
   useEffect(() => {
-    if (BACKEND_URL) fetchPeople();
-  }, [BACKEND_URL]);
-
-  useEffect(() => {
-    if (!eventId && isTicketedEvent && priceTiers.length === 0) {
+    if (isTicketedEvent && priceTiers.length === 0) {
       setPriceTiers([
         {
           name: "",
@@ -161,7 +126,39 @@ const CreateEvents = ({
         },
       ]);
     }
-  }, [eventId, isTicketedEvent]);
+  }, [isTicketedEvent]);
+
+const fetchPeople = async (filter = "") => {
+  try {
+    setLoadingPeople(true);
+    const params = new URLSearchParams();
+    params.append("perPage", "1000");
+    if (filter) params.append("name", filter); 
+
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    const data = await res.json();
+    
+    const peopleArray = data.people || data.results || data || [];
+
+    const formatted = peopleArray.map((p) => ({
+      id: p._id || p.id || Math.random(),
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p.leader1 || "",
+      leader12: p["Leader @12"] || p.leader12 || "",
+    }));
+
+    setPeopleData(formatted);
+    
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    setPeopleData([]);
+  } finally {
+    setLoadingPeople(false);
+  }
+};
+
 
   useEffect(() => {
     if (!eventId) return;
@@ -170,6 +167,8 @@ const CreateEvents = ({
       try {
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
         const data = response.data;
+
+        console.log("Fetched event data:", data);
 
         if (data.date) {
           const dt = new Date(data.date);
@@ -186,9 +185,24 @@ const CreateEvents = ({
           data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
         }
 
-        if (isTicketedEvent) {
+        if (data.isTicketed !== undefined) {
+          setEventTypeFlags(prev => ({
+            ...prev,
+            isTicketed: !!data.isTicketed
+          }));
+        }
+
+        if (data.isTicketed) {
+          console.log("Setting price tiers for ticketed event:", data.priceTiers);
           if (data.priceTiers && Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
-            setPriceTiers(data.priceTiers);
+            const formattedPriceTiers = data.priceTiers.map(tier => ({
+              name: tier.name || "",
+              price: tier.price || "",
+              ageGroup: tier.ageGroup || "",
+              memberType: tier.memberType || "",
+              paymentMethod: tier.paymentMethod || "",
+            }));
+            setPriceTiers(formattedPriceTiers);
           } else {
             setPriceTiers([
               {
@@ -200,9 +214,12 @@ const CreateEvents = ({
               },
             ]);
           }
+        } else {
+          setPriceTiers([]);
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
+
       } catch (err) {
         console.error("Failed to fetch event:", err);
         setErrorMessage("Failed to load event data. Please try again.");
@@ -211,7 +228,7 @@ const CreateEvents = ({
     };
 
     fetchEventData();
-  }, [eventId, BACKEND_URL, isTicketedEvent]);
+  }, [eventId, BACKEND_URL]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => {
@@ -319,159 +336,205 @@ const CreateEvents = ({
     return Object.keys(newErrors).length === 0;
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+  const getDayFromDate = (dateString) => {
+    if (!dateString) return "One-time";
+    
+    const date = new Date(dateString);
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[date.getDay()];
+  };
 
-  setIsSubmitting(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  try {
-    // ✅ Get exact event type name
-    const eventTypeToSend =
-      selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
+    setIsSubmitting(true);
 
-    if (!eventTypeToSend) {
-      setErrorMessage("Event type is required");
-      setErrorAlert(true);
-      setIsSubmitting(false);
-      return;
-    }
+    try {
+      const eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
 
-    console.log('🎯 Creating event with type:', eventTypeToSend);
-
-    const payload = {
-      UUID: generateUUID(),
-      eventType: eventTypeToSend, // ✅ This is the event type NAME
-      eventName: formData.eventName,
-      isTicketed: !!isTicketedEvent,
-      isGlobal: !!isGlobalEvent,
-      hasPersonSteps: !!hasPersonSteps,
-      isEventType: false, // ✅ CRITICAL: This is NOT an event type definition
-      location: formData.location,
-      eventLeader: formData.eventLeader,
-      description: formData.description,
-      userEmail: user?.email || "",
-      recurring_day: formData.recurringDays,
-      status: "open",
-    };
-
-    // Price tiers
-    if (isTicketedEvent && priceTiers.length > 0) {
-      payload.priceTiers = priceTiers.map((tier) => ({
-        name: tier.name || "",
-        price: parseFloat(tier.price) || 0,
-        ageGroup: tier.ageGroup || "",
-        memberType: tier.memberType || "",
-        paymentMethod: tier.paymentMethod || "",
-      }));
-    } else {
-      payload.priceTiers = [];
-    }
-
-    // Leaders for personal steps
-    if (hasPersonSteps && !isGlobalEvent) {
-      if (formData.leader1) payload.leader1 = formData.leader1;
-      if (formData.leader12) payload.leader12 = formData.leader12;
-    }
-
-    // Date/Time
-    if (((!hasPersonSteps) || isGlobalEvent) && formData.date && formData.time) {
-      const [hoursStr, minutesStr] = formData.time.split(":");
-      let hours = Number(hoursStr);
-      const minutes = Number(minutesStr);
-      if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
-      if (formData.timePeriod === "AM" && hours === 12) hours = 0;
-
-      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
-        .toString()
-        .padStart(2, "0")}:00`;
-    }
-
-    console.log('📤 Payload:', {
-      eventType: payload.eventType,
-      isEventType: payload.isEventType,
-      eventName: payload.eventName
-    });
-
-    const token = localStorage.getItem("token");
-    const headers = {
-      Authorization: token ? `Bearer ${token}` : "",
-      "Content-Type": "application/json",
-    };
-
-    const response = eventId
-      ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
-      : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
-
-    console.log("✅ Response:", response.data);
-
-    setSuccessMessage(
-      eventId ? "Event updated successfully!" : "Event created successfully!"
-    );
-    setSuccessAlert(true);
-
-    if (!eventId) resetForm();
-
-    setTimeout(() => {
-      if (isModal && typeof onClose === "function") {
-        onClose();
-      } else {
-        navigate("/events", { state: { refresh: true } });
+      if (!eventTypeToSend) {
+        setErrorMessage("Event type is required");
+        setErrorAlert(true);
+        setIsSubmitting(false);
+        return;
       }
-    }, 1200);
-  } catch (err) {
-    console.error("❌ Error:", err);
-    console.error("❌ Response:", err?.response?.data);
-    setErrorMessage(
-      err?.response?.data?.message ||
-        err?.response?.data?.detail ||
-        err?.message ||
-        "Failed to submit event"
-    );
-    setErrorAlert(true);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+
+      console.log('Creating event with type:', eventTypeToSend);
+
+      // FIXED: Calculate the correct day value
+      let dayValue = "One-time";
+      
+      if (formData.recurringDays.length > 0) {
+        // For recurring events, use the first recurring day
+        dayValue = formData.recurringDays[0];
+      } else if (formData.date) {
+        // For one-time events, calculate day from the date
+        dayValue = getDayFromDate(formData.date);
+      }
+
+      const payload = {
+        UUID: generateUUID(),
+        eventTypeName: eventTypeToSend,
+        event_type: eventTypeToSend,
+        eventName: formData.eventName,
+        isTicketed: !!isTicketedEvent,
+        isGlobal: !!isGlobalEvent,
+        hasPersonSteps: !!hasPersonSteps,
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        eventLeaderName: formData.eventLeader,
+        eventLeaderEmail: user?.email || "", 
+        description: formData.description,
+        userEmail: user?.email || "",
+        email: user?.email || "",
+        recurring_day: formData.recurringDays,
+        day: dayValue, // FIXED: Now correctly sets the actual day
+        status: "open",
+        leader1: formData.leader1 || "",
+        leader12: formData.leader12 || "",
+      };
+
+      if (formData.date && formData.time) {
+        const [hoursStr, minutesStr] = formData.time.split(":");
+        let hours = Number(hoursStr);
+        const minutes = Number(minutesStr);
+        if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
+        if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+
+        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
+          .toString()
+          .padStart(2, "0")}:00`;
+      }
+
+      if (isTicketedEvent) {
+        if (priceTiers.length > 0) {
+          payload.priceTiers = priceTiers.map((tier) => ({
+            name: tier.name || "",
+            price: parseFloat(tier.price) || 0,
+            ageGroup: tier.ageGroup || "",
+            memberType: tier.memberType || "",
+            paymentMethod: tier.paymentMethod || "",
+          }));
+        } else {
+          payload.priceTiers = [];
+        }
+      } else {
+        payload.priceTiers = [];
+      }
+
+      if (hasPersonSteps && !isGlobalEvent) {
+        payload.leader1 = formData.leader1 || "";
+        payload.leader12 = formData.leader12 || "";
+      }
+
+      console.log('Final Payload:', payload);
+
+      const token = localStorage.getItem("token");
+      const headers = {
+        Authorization: token ? `Bearer ${token}` : "",
+        "Content-Type": "application/json",
+      };
+
+      const response = eventId
+        ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
+        : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
+
+      console.log("Response:", response.data);
+
+      setSuccessMessage(
+        eventId ? "Event updated successfully!" : "Event created successfully!"
+      );
+      setSuccessAlert(true);
+
+      if (!eventId) resetForm();
+
+      setTimeout(() => {
+        if (isModal && typeof onClose === "function") {
+          onClose(true);
+        } else {
+          navigate("/events", {
+            state: {
+              refresh: true,
+              timestamp: Date.now()
+            }
+          });
+        }
+      }, 1200);
+
+    } catch (err) {
+      console.error("Error:", err);
+      console.error("Response:", err?.response?.data);
+
+      let errorMsg = "Failed to submit event";
+
+      if (err?.response?.data) {
+        const errorData = err.response.data;
+
+        if (Array.isArray(errorData.detail)) {
+          errorMsg = "Validation errors: " + errorData.detail.map(errorObj => {
+            if (errorObj.msg) return errorObj.msg;
+            if (errorObj.loc && errorObj.msg) return `${errorObj.loc.join('.')}: ${errorObj.msg}`;
+            return JSON.stringify(errorObj);
+          }).join(', ');
+        }
+        else if (errorData.detail && typeof errorData.detail === 'object') {
+          errorMsg = errorData.detail.msg || JSON.stringify(errorData.detail);
+        }
+        else if (errorData.message) {
+          errorMsg = errorData.message;
+        }
+        else if (errorData.detail) {
+          errorMsg = errorData.detail;
+        }
+      } else if (err?.message) {
+        errorMsg = err.message;
+      }
+
+      setErrorMessage(errorMsg);
+      setErrorAlert(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const containerStyle = isModal
     ? {
-        padding: "0",
-        minHeight: "auto",
-        backgroundColor: "transparent",
-        width: "100%",
-        height: "100%",
-        maxHeight: "none",
-        overflowY: "auto",
-      }
+      padding: "0",
+      minHeight: "auto",
+      backgroundColor: "transparent",
+      width: "100%",
+      height: "100%",
+      maxHeight: "none",
+      overflowY: "auto",
+    }
     : {
-        minHeight: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
-        px: 2,
-      };
+      minHeight: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
+      px: 2,
+    };
 
   const cardStyle = isModal
     ? {
-        width: "100%",
-        height: "100%",
-        padding: "1.5rem",
-        borderRadius: 0,
-        boxShadow: "none",
-        backgroundColor: "transparent",
-        maxHeight: "none",
-        overflow: "visible",
-      }
+      width: "100%",
+      height: "100%",
+      padding: "1.5rem",
+      borderRadius: 0,
+      boxShadow: "none",
+      backgroundColor: "transparent",
+      maxHeight: "none",
+      overflow: "visible",
+    }
     : {
-        width: { xs: "100%", sm: "85%", md: "700px" },
-        p: 5,
-        borderRadius: "20px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-      };
+      width: { xs: "100%", sm: "85%", md: "700px" },
+      p: 5,
+      borderRadius: "20px",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+    };
 
-  // IMPROVED DARK MODE STYLES - THEMED
   const darkModeStyles = {
     textField: {
       "& .MuiOutlinedInput-root": {
@@ -583,14 +646,6 @@ const handleSubmit = async (e) => {
     },
   };
 
-  if (isGlobalEvent && !["admin", "registrant"].includes(user?.role)) {
-    return (
-      <Typography variant="h6" color="error" textAlign="center" mt={5}>
-        You do not have permission to view or create this event.
-      </Typography>
-    );
-  }
-
   return (
     <Box sx={containerStyle}>
       <Card
@@ -598,10 +653,10 @@ const handleSubmit = async (e) => {
           ...cardStyle,
           ...(isDarkMode && !isModal
             ? {
-                bgcolor: theme.palette.background.paper,
-                color: theme.palette.text.primary,
-                border: `1px solid ${theme.palette.divider}`,
-              }
+              bgcolor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+            }
             : {}),
         }}
       >
@@ -624,43 +679,27 @@ const handleSubmit = async (e) => {
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Event Type - Read Only */}
             <TextField
-              label="Event Type"
-              value={
-                (() => {
-                  const et = formData.eventType;
-                  if (!et) return "";
-                  return typeof et === "string" ? et : et.name || "";
-                })()
-              }
+              label="Event Type *"
+              value={formData.eventType}
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
-              InputProps={{
-                readOnly: true,
-              }}
+              InputProps={{ readOnly: true }}
               disabled
             />
 
-            {/* Event Name */}
             <TextField
-              label="Event Name"
+              label="Event Name *"
               value={formData.eventName}
               onChange={(e) => handleChange("eventName", e.target.value)}
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
               error={!!errors.eventName}
-              helperText={
-                errors.eventName ||
-                (hasPersonSteps && !isGlobalEvent
-                  ? "Auto-filled when event leader is selected"
-                  : "")
-              }
+              helperText={errors.eventName}
             />
 
-            {/* TICKETED EVENT PRICE TIERS */}
             {isTicketedEvent && (
               <Box sx={{ mb: 3 }}>
                 <Box
@@ -712,8 +751,8 @@ const handleSubmit = async (e) => {
                         mb: 2,
                       }}
                     >
-                      <Typography 
-                        variant="subtitle2" 
+                      <Typography
+                        variant="subtitle2"
                         fontWeight="bold"
                         sx={{ color: isDarkMode ? "#ffffff" : "#000000" }}
                       >
@@ -731,7 +770,7 @@ const handleSubmit = async (e) => {
                     </Box>
 
                     <TextField
-                      label="Price Name (e.g., Early Bird, VIP)"
+                      label="Price Name *"
                       value={tier.name}
                       onChange={(e) =>
                         handlePriceTierChange(index, "name", e.target.value)
@@ -744,7 +783,7 @@ const handleSubmit = async (e) => {
                     />
 
                     <TextField
-                      label="Price (R)"
+                      label="Price (R) *"
                       type="number"
                       value={tier.price}
                       onChange={(e) =>
@@ -759,7 +798,7 @@ const handleSubmit = async (e) => {
                     />
 
                     <TextField
-                      label="Age Group"
+                      label="Age Group *"
                       value={tier.ageGroup}
                       onChange={(e) =>
                         handlePriceTierChange(index, "ageGroup", e.target.value)
@@ -772,7 +811,7 @@ const handleSubmit = async (e) => {
                     />
 
                     <TextField
-                      label="Member Type"
+                      label="Member Type *"
                       value={tier.memberType}
                       onChange={(e) =>
                         handlePriceTierChange(
@@ -789,7 +828,7 @@ const handleSubmit = async (e) => {
                     />
 
                     <TextField
-                      label="Payment Method (e.g., Cash, EFT)"
+                      label="Payment Method *"
                       value={tier.paymentMethod}
                       onChange={(e) =>
                         handlePriceTierChange(
@@ -806,21 +845,9 @@ const handleSubmit = async (e) => {
                     />
                   </Card>
                 ))}
-
-                {priceTiers.length === 0 && (
-                  <Typography
-                    variant="body2"
-                    sx={darkModeStyles.helperText}
-                    textAlign="center"
-                    py={2}
-                  >
-                    Click "Add Price Tier" to create pricing options
-                  </Typography>
-                )}
               </Box>
             )}
 
-            {/* Date & Time */}
             <Box
               display="flex"
               gap={2}
@@ -828,7 +855,7 @@ const handleSubmit = async (e) => {
               mb={3}
             >
               <TextField
-                label="Date"
+                label="Date *"
                 type="date"
                 value={formData.date}
                 onChange={(e) => handleChange("date", e.target.value)}
@@ -840,7 +867,7 @@ const handleSubmit = async (e) => {
                 sx={darkModeStyles.textField}
               />
               <TextField
-                label="Time"
+                label="Time *"
                 type="time"
                 value={formData.time}
                 onChange={(e) => handleChange("time", e.target.value)}
@@ -853,29 +880,17 @@ const handleSubmit = async (e) => {
               />
             </Box>
 
-            {/* Recurring Days - FIXED DARK MODE VISIBILITY */}
             <Box mb={3}>
               <Typography
                 fontWeight="bold"
                 mb={1}
                 sx={darkModeStyles.sectionTitle}
               >
-                Recurring Days{" "}
-                {hasPersonSteps && !isGlobalEvent && (
-                  <span style={{ color: isDarkMode ? "#ff6b6b" : "red" }}>*</span>
-                )}
+                Recurring Days {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{ ...darkModeStyles.helperText, mb: 2 }}
-              >
-                {hasPersonSteps && !isGlobalEvent
-                  ? "Select the days this cell meets regularly"
-                  : "Optional: Select days if this event repeats weekly"}
-              </Typography>
-              <Box 
-                display="flex" 
-                flexWrap="wrap" 
+              <Box
+                display="flex"
+                flexWrap="wrap"
                 gap={2}
                 sx={darkModeStyles.daysContainer}
               >
@@ -886,15 +901,6 @@ const handleSubmit = async (e) => {
                       <Checkbox
                         checked={formData.recurringDays.includes(day)}
                         onChange={() => handleDayChange(day)}
-                        sx={{
-                          color: isDarkMode ? '#888' : 'rgba(0, 0, 0, 0.6)',
-                          '&.Mui-checked': {
-                            color: theme.palette.primary.main,
-                          },
-                          '& .MuiSvgIcon-root': {
-                            fontSize: 24,
-                          }
-                        }}
                       />
                     }
                     label={day}
@@ -908,9 +914,8 @@ const handleSubmit = async (e) => {
               )}
             </Box>
 
-            {/* Location */}
             <TextField
-              label="Location"
+              label="Location *"
               value={formData.location}
               onChange={(e) => handleChange("location", e.target.value)}
               fullWidth
@@ -927,235 +932,138 @@ const handleSubmit = async (e) => {
               }}
             />
 
-            {/* Event Leader with Autocomplete */}
-            <Autocomplete
-              freeSolo
-              filterOptions={(options) => options}
-              loading={loadingPeople}
-              options={peopleData}
-              getOptionLabel={(option) =>
-                typeof option === "string" ? option : option.fullName || ""
-              }
-              isOptionEqualToValue={(option, value) => {
-                return (
-                  (typeof option === "string" ? option : option.fullName) ===
-                  (typeof value === "string" ? value : value.fullName)
-                );
-              }}
-              renderOption={(props, option) => (
-                <li
-                  {...props}
-                  key={option.id || option.fullName || Math.random()}
-                  style={{
-                    backgroundColor: isDarkMode ? "#2d2d2d" : "white",
-                    color: isDarkMode ? "#ffffff" : "#000000",
-                  }}
-                >
-                  {option.fullName}
-                </li>
-              )}
-              value={
-                typeof formData.eventLeader === "string"
-                  ? formData.eventLeader
-                  : peopleData.find(
-                      (p) => p.fullName === formData.eventLeader
-                    ) || ""
-              }
-              onChange={(event, newValue) => {
-                if (newValue) {
-                  const name =
-                    typeof newValue === "string"
-                      ? newValue
-                      : newValue?.fullName || "";
-
-                  if (hasPersonSteps && !isGlobalEvent) {
-                    console.log(
-                      "🔄 Auto-filling leaders for Personal Steps event:",
-                      {
-                        eventLeader: name,
-                        leader1: newValue.leader1,
-                        leader12: newValue.leader12,
-                        personData: newValue,
-                      }
-                    );
-
-                    setFormData((prev) => ({
-                      ...prev,
-                      eventLeader: name,
-                      eventName: name,
-                      leader1: newValue.leader1 || "",
-                      leader12: newValue.leader12 || "",
-                    }));
-                  } else if (hasPersonSteps && !isGlobalEvent) {
-                    setFormData((prev) => ({
-                      ...prev,
-                      eventLeader: name,
-                      eventName: name,
-                    }));
+            <Box sx={{ mb: 3, position: 'relative' }}>
+              <TextField
+                label="Event Leader *"
+                value={formData.eventLeader}
+                onChange={(e) => {
+                  handleChange("eventLeader", e.target.value);
+                  if (e.target.value.length >= 2) {
+                    fetchPeople(e.target.value);
                   } else {
-                    handleChange("eventLeader", name);
+                    setPeopleData([]);
                   }
-                } else {
-                  handleChange("eventLeader", "");
-                  if (hasPersonSteps && !isGlobalEvent) {
-                    setFormData((prev) => ({
-                      ...prev,
-                      leader1: "",
-                      leader12: "",
-                    }));
+                }}
+                onFocus={() => {
+                  if (formData.eventLeader.length === 0) {
+                    setPeopleData([]);
                   }
-                }
-              }}
-              onInputChange={(event, newInputValue) => {
-                handleChange("eventLeader", newInputValue || "");
-                if (newInputValue && newInputValue.length >= 2) {
-                  fetchPeople(newInputValue);
-                } else if (!newInputValue) {
-                  fetchPeople("");
-                }
-              }}
-              sx={{
-                ...darkModeStyles.autocomplete,
-                mb: 3,
-              }}
-              componentsProps={{
-                paper: {
-                  sx: {
-                    bgcolor: isDarkMode ? "#2d2d2d" : "white",
-                    color: isDarkMode ? "#ffffff" : "#000000",
-                    "& .MuiAutocomplete-option": {
-                      color: isDarkMode ? "#ffffff" : "#000000",
-                      "&:hover": {
-                        bgcolor: isDarkMode ? "#404040" : "#f5f5f5",
-                      },
-                      '&[aria-selected="true"]': {
-                        bgcolor: isDarkMode ? "#404040" : "#e3f2fd",
-                      },
-                    },
-                  },
-                },
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Event Leader"
-                  size="small"
-                  required
-                  sx={darkModeStyles.textField}
-                  error={!!errors.eventLeader}
-                  helperText={
-                    errors.eventLeader ||
-                    (loadingPeople
-                      ? "Loading..."
-                      : hasPersonSteps && !isGlobalEvent
-                      ? `Select leader to auto-fill hierarchy (${peopleData.length} found)`
-                      : `Type to search (${peopleData.length} found)`)
-                  }
-                  InputProps={{
-                    ...params.InputProps,
-                    startAdornment: (
-                      <>
-                        <InputAdornment position="start">
-                          <PersonIcon />
-                        </InputAdornment>
-                        {params.InputProps.startAdornment}
-                      </>
-                    ),
-                  }}
-                />
+                }}
+                fullWidth
+                size="small"
+                sx={darkModeStyles.textField}
+                error={!!errors.eventLeader}
+                helperText={errors.eventLeader || (peopleData.length > 0 ? `${peopleData.length} people found` : "Type to search for people")}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon />
+                    </InputAdornment>
+                  ),
+                }}
+                placeholder="Type name to search..."
+              />
+              
+              {peopleData.length > 0 && (
+                <Box sx={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  zIndex: 1000,
+                  backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
+                  border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
+                  borderRadius: '4px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  mt: 0.5,
+                }}>
+                  {peopleData.map((person) => (
+                    <Box
+                      key={person.id || `${person.fullName}-${person.email}`}
+                      sx={{
+                        padding: '12px',
+                        cursor: 'pointer',
+                        borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
+                        '&:hover': {
+                          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
+                        },
+                        '&:last-child': {
+                          borderBottom: 'none',
+                        },
+                      }}
+                      onClick={() => {
+                        const selectedName = person.fullName;
+                        
+                        if (hasPersonSteps && !isGlobalEvent) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            eventLeader: selectedName,
+                            eventName: selectedName,
+                            leader1: person.leader1 || "",
+                            leader12: person.leader12 || "",
+                          }));
+                        } else {
+                          handleChange("eventLeader", selectedName);
+                        }
+                        setPeopleData([]);
+                      }}
+                    >
+                      <Typography variant="body1" fontWeight="500">
+                        {person.fullName}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                        {person.email}
+                        {person.leader1 && ` • L@1: ${person.leader1}`}
+                        {person.leader12 && ` • L@12: ${person.leader12}`}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
               )}
-            />
+              
+              {loadingPeople && (
+                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                  Searching...
+                </Typography>
+              )}
+            </Box>
 
-            {/* Leader Hierarchy for Personal Steps Events */}
             {hasPersonSteps && !isGlobalEvent && (
               <>
                 <TextField
-                  label="Leader @1"
+                  label="Leader @1 *"
                   value={formData.leader1 || ""}
                   fullWidth
                   size="small"
-                  required
                   sx={{ mb: 2, ...darkModeStyles.textField }}
                   error={!!errors.leader1}
-                  helperText={
-                    errors.leader1 ||
-                    "Auto-filled from Event Leader's hierarchy"
-                  }
-                  InputProps={{
-                    readOnly: true,
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon />
-                      </InputAdornment>
-                    ),
-                  }}
-                  placeholder="Will be auto-filled when Event Leader is selected"
+                  helperText={errors.leader1}
+                  InputProps={{ readOnly: true }}
                 />
 
                 <TextField
-                  label="Leader @12"
+                  label="Leader @12 *"
                   value={formData.leader12 || ""}
                   fullWidth
                   size="small"
-                  required
                   sx={{ mb: 2, ...darkModeStyles.textField }}
                   error={!!errors.leader12}
-                  helperText={
-                    errors.leader12 ||
-                    "Auto-filled from Event Leader's hierarchy"
-                  }
-                  InputProps={{
-                    readOnly: true,
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon />
-                      </InputAdornment>
-                    ),
-                  }}
-                  placeholder="Will be auto-filled when Event Leader is selected"
+                  helperText={errors.leader12}
+                  InputProps={{ readOnly: true }}
                 />
               </>
             )}
 
-            {/* Event Type Badges */}
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {isTicketedEvent && (
-                <Chip
-                  label="💰 Ticketed Event"
-                  color="warning"
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              )}
-              {isGlobalEvent && (
-                <Chip
-                  label="🌍 Global Event"
-                  color="info"
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              )}
-              {hasPersonSteps && !isGlobalEvent && (
-                <Chip
-                  label="📊 Personal Steps Event"
-                  color="secondary"
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              )}
-              {hasPersonSteps && !isGlobalEvent && (
-                <Chip
-                  label="👥 Cell Group"
-                  color="success"
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              )}
+              {isTicketedEvent && <Chip label="Ticketed Event" color="warning" size="small" />}
+              {isGlobalEvent && <Chip label="Global Event" color="info" size="small" />}
+              {hasPersonSteps && !isGlobalEvent && <Chip label="Personal Steps Event" color="secondary" size="small" />}
             </Box>
 
-            {/* Description */}
             <TextField
-              label="Description"
+              label="Description *"
               value={formData.description}
               onChange={(e) => handleChange("description", e.target.value)}
               fullWidth
@@ -1174,7 +1082,6 @@ const handleSubmit = async (e) => {
               }}
             />
 
-            {/* Action Buttons */}
             <Box display="flex" gap={2} sx={{ mt: 3 }}>
               <Button
                 variant="outlined"
@@ -1183,7 +1090,7 @@ const handleSubmit = async (e) => {
                   if (isModal && typeof onClose === "function") {
                     onClose();
                   } else {
-                    navigate("/events", { state: { refresh: true } });
+                    navigate("/events");
                   }
                 }}
                 sx={darkModeStyles.button.outlined}
@@ -1211,21 +1118,20 @@ const handleSubmit = async (e) => {
                     ? "Updating..."
                     : "Creating..."
                   : eventId
-                  ? "Update Event"
-                  : "Create Event"}
+                    ? "Update Event"
+                    : "Create Event"}
               </Button>
             </Box>
           </form>
 
-          {/* Success Snackbar */}
           <Snackbar
             open={successAlert}
             autoHideDuration={3000}
             onClose={() => setSuccessAlert(false)}
             anchorOrigin={{ vertical: "top", horizontal: "center" }}
           >
-            <Alert 
-              severity="success" 
+            <Alert
+              severity="success"
               variant="filled"
               sx={{
                 bgcolor: "#4caf50",
@@ -1236,15 +1142,14 @@ const handleSubmit = async (e) => {
             </Alert>
           </Snackbar>
 
-          {/* Error Snackbar */}
           <Snackbar
             open={errorAlert}
             autoHideDuration={3000}
             onClose={() => setErrorAlert(false)}
             anchorOrigin={{ vertical: "top", horizontal: "center" }}
           >
-            <Alert 
-              severity="error" 
+            <Alert
+              severity="error"
               variant="filled"
               sx={{
                 bgcolor: "#f44336",
