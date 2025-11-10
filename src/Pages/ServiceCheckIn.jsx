@@ -262,8 +262,8 @@ function ServiceCheckIn() {
       // More flexible filtering for global events
       const isGlobal = event.isGlobal === true || 
                       event.eventType === "Global Events" || 
-                      event.eventType === "global" ||
-                      event.eventType?.toLowerCase().includes("global");
+                      event.eventType === "Event" ||
+                      event.eventType?.toLowerCase().includes("event");
       
       const isOpen = event.status?.toLowerCase() === 'open' || event.status?.toLowerCase() === "incomplete";
 

@@ -673,7 +673,7 @@ const StatsDashboard = () => {
         p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
         textAlign: "center",
         boxShadow: 3,
-        minHeight: '100px',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center'
@@ -696,7 +696,7 @@ const StatsDashboard = () => {
         textAlign: "center",
         cursor: "pointer",
         boxShadow: 3,
-        minHeight: '100px',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -1093,10 +1093,20 @@ const StatsDashboard = () => {
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: 8, minHeight: "100vh" }}>
       <CssBaseline />
       
-      {/* Header */}
+      {/* Header with Controls and Stats in one line */}
       <Box sx={{ mb: cardSpacing }}>
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
           <Box sx={{ flex: 1, minWidth: isSmDown ? '100%' : 'auto' }}>
+          <Typography 
+            variant={getResponsiveValue("h6", "h5", "h4", "h4", "h4")} 
+            fontWeight="bold"
+            sx={{ 
+              textAlign: isSmDown ? 'center' : 'left',
+              width: isSmDown ? '100%' : 'auto'
+            }}
+          >
+            Dashboard Overview
+          </Typography>
           </Box>
           
           <Box display="flex" gap={1} alignItems="center" sx={{ ml: 'auto' }}>
@@ -1134,7 +1144,7 @@ const StatsDashboard = () => {
         )}
       </Box>
 
-      {/* Main Stats Grid */}
+      {/* Main Stats Grid - 2x2 layout on mobile */}
       <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
         <Grid item xs={6} sm={6} md={3}>
           {stats.loading ? (
@@ -1206,205 +1216,207 @@ const StatsDashboard = () => {
         </Tabs>
       </Paper>
 
-      {/* Tab Content */}
-      {activeTab === 0 && (
-        <Paper variant="outlined" sx={{ mb: cardSpacing, boxShadow: 3, p: isSmDown ? 1 : 2 }}>
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-            {stats.loading ? (
-              <>
-                <Skeleton variant="text" width="40%" height={32} />
-                <Skeleton variant="rectangular" width={60} height={32} sx={{ borderRadius: 16 }} />
-              </>
-            ) : (
-              <>
-                <Typography variant={getResponsiveValue("h6", "h6", "h5", "h5", "h5")} fontWeight="bold">
-                  Overdue Cells
-                </Typography>
-                <Chip 
-                  label={overdueCells.length} 
-                  color="warning" 
-                  variant="outlined"
-                />
-              </>
-            )}
-          </Box>
-
-          <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-            {stats.loading ? (
-              Array.from({ length: 3 }).map((_, index) => (
-                <OutstandingItemSkeleton key={index} />
-              ))
-            ) : overdueCells.length > 0 ? (
-              overdueCells.slice(0, 5).map((cell, index) => (
-                <OutstandingItem
-                  key={cell._id || index}
-                  item={cell}
-                  type="cells"
-                  index={index}
-                />
-              ))
-            ) : (
-              <Box textAlign="center" py={4}>
-                <CheckCircle color="success" sx={{ fontSize: 48, mb: 2 }} />
-                <Typography variant="h6" color="textSecondary">
-                  All cells are completed!
-                </Typography>
-              </Box>
-            )}
-            
-            {!stats.loading && overdueCells.length > 5 && (
-              <Box textAlign="center" mt={2}>
-                <Button 
-                  variant="outlined"
-                  startIcon={<Visibility />}
-                  onClick={() => setViewAllCellsModalOpen(true)}
-                  size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-                >
-                  View All {overdueCells.length} Cells
-                </Button>
-              </Box>
-            )}
-          </Box>
-        </Paper>
-      )}
-
-      {activeTab === 1 && (
-        <Paper variant="outlined" sx={{ mb: cardSpacing, boxShadow: 3, p: isSmDown ? 1 : 2 }}>
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-            {stats.loading ? (
-              <>
-                <Skeleton variant="text" width="30%" height={32} />
-                <Skeleton variant="rectangular" width={60} height={32} sx={{ borderRadius: 16 }} />
-              </>
-            ) : (
-              <>
-                <Typography variant={getResponsiveValue("h6", "h6", "h5", "h5", "h5")} fontWeight="bold">
-                  All Tasks
-                </Typography>
-                <Chip 
-                  label={allTasks.length} 
-                  color="secondary" 
-                  variant="outlined"
-                />
-              </>
-            )}
-          </Box>
-
-          <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-            {stats.loading ? (
-              Array.from({ length: 3 }).map((_, index) => (
-                <OutstandingItemSkeleton key={index} />
-              ))
-            ) : allTasks.length > 0 ? (
-              allTasks.slice(0, 5).map((task, index) => (
-                <OutstandingItem
-                  key={task._id || index}
-                  item={task}
-                  type="tasks"
-                  index={index}
-                />
-              ))
-            ) : (
-              <Box textAlign="center" py={4}>
-                <CheckCircle color="success" sx={{ fontSize: 48, mb: 2 }} />
-                <Typography variant="h6" color="textSecondary">
-                  No tasks found!
-                </Typography>
-              </Box>
-            )}
-            
-            {!stats.loading && allTasks.length > 5 && (
-              <Box textAlign="center" mt={2}>
-                <Button 
-                  variant="outlined"
-                  startIcon={<Visibility />}
-                  onClick={() => setViewAllTasksModalOpen(true)}
-                  size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-                >
-                  View All {allTasks.length} Tasks
-                </Button>
-              </Box>
-            )}
-          </Box>
-        </Paper>
-      )}
-
-      {activeTab === 2 && (
-        <Paper variant="outlined" sx={{ mb: cardSpacing, boxShadow: 3, p: isSmDown ? 1 : 2 }}>
-          {stats.loading ? (
-            <Box>
-              <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
-              <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 1 }} />
-            </Box>
-          ) : (
-            <Box>
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} flexWrap="wrap" gap={2}>
-                <Typography variant={getResponsiveValue("h6", "h6", "h5", "h5", "h5")} fontWeight="bold">
-                  Event Calendar
-                </Typography>
-                <Box display="flex" gap={1} alignItems="center">
+      {/* Tab Content with consistent height */}
+      <Box sx={{ minHeight: '400px' }}>
+        {activeTab === 0 && (
+          <Paper variant="outlined" sx={{ boxShadow: 3, p: isSmDown ? 1 : 2, height: '100%' }}>
+            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+              {stats.loading ? (
+                <>
+                  <Skeleton variant="text" width="40%" height={32} />
+                  <Skeleton variant="rectangular" width={60} height={32} sx={{ borderRadius: 16 }} />
+                </>
+              ) : (
+                <>
+                  <Typography variant={getResponsiveValue("h6", "h6", "h5", "h5", "h5")} fontWeight="bold">
+                    Overdue Cells
+                  </Typography>
                   <Chip 
-                    icon={<CalendarToday />}
-                    label={formatDisplayDate(selectedDate)}
+                    label={overdueCells.length} 
+                    color="warning" 
                     variant="outlined"
-                    size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
                   />
-                  <Button
-                    variant="contained"
-                    startIcon={<Add />}
-                    onClick={handleCreateEvent}
+                </>
+              )}
+            </Box>
+
+            <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+              {stats.loading ? (
+                Array.from({ length: 3 }).map((_, index) => (
+                  <OutstandingItemSkeleton key={index} />
+                ))
+              ) : overdueCells.length > 0 ? (
+                overdueCells.slice(0, 5).map((cell, index) => (
+                  <OutstandingItem
+                    key={cell._id || index}
+                    item={cell}
+                    type="cells"
+                    index={index}
+                  />
+                ))
+              ) : (
+                <Box textAlign="center" py={4}>
+                  <CheckCircle color="success" sx={{ fontSize: 48, mb: 2 }} />
+                  <Typography variant="h6" color="textSecondary">
+                    All cells are completed!
+                  </Typography>
+                </Box>
+              )}
+              
+              {!stats.loading && overdueCells.length > 5 && (
+                <Box textAlign="center" mt={2}>
+                  <Button 
+                    variant="outlined"
+                    startIcon={<Visibility />}
+                    onClick={() => setViewAllCellsModalOpen(true)}
                     size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
                   >
-                    Create Event
+                    View All {overdueCells.length} Cells
                   </Button>
                 </Box>
-              </Box>
+              )}
+            </Box>
+          </Paper>
+        )}
 
-              <Box sx={{ display: 'flex', flexDirection: isSmDown ? 'column' : 'row', gap: 3 }}>
-                {/* Enhanced Calendar */}
-                <Box sx={{ flex: 1 }}>
-                  <EnhancedCalendar />
+        {activeTab === 1 && (
+          <Paper variant="outlined" sx={{ boxShadow: 3, p: isSmDown ? 1 : 2, height: '100%' }}>
+            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+              {stats.loading ? (
+                <>
+                  <Skeleton variant="text" width="30%" height={32} />
+                  <Skeleton variant="rectangular" width={60} height={32} sx={{ borderRadius: 16 }} />
+                </>
+              ) : (
+                <>
+                  <Typography variant={getResponsiveValue("h6", "h6", "h5", "h5", "h5")} fontWeight="bold">
+                    All Tasks
+                  </Typography>
+                  <Chip 
+                    label={allTasks.length} 
+                    color="secondary" 
+                    variant="outlined"
+                  />
+                </>
+              )}
+            </Box>
+
+            <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+              {stats.loading ? (
+                Array.from({ length: 3 }).map((_, index) => (
+                  <OutstandingItemSkeleton key={index} />
+                ))
+              ) : allTasks.length > 0 ? (
+                allTasks.slice(0, 5).map((task, index) => (
+                  <OutstandingItem
+                    key={task._id || index}
+                    item={task}
+                    type="tasks"
+                    index={index}
+                  />
+                ))
+              ) : (
+                <Box textAlign="center" py={4}>
+                  <CheckCircle color="success" sx={{ fontSize: 48, mb: 2 }} />
+                  <Typography variant="h6" color="textSecondary">
+                    No tasks found!
+                  </Typography>
+                </Box>
+              )}
+              
+              {!stats.loading && allTasks.length > 5 && (
+                <Box textAlign="center" mt={2}>
+                  <Button 
+                    variant="outlined"
+                    startIcon={<Visibility />}
+                    onClick={() => setViewAllTasksModalOpen(true)}
+                    size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+                  >
+                    View All {allTasks.length} Tasks
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          </Paper>
+        )}
+
+        {activeTab === 2 && (
+          <Paper variant="outlined" sx={{ boxShadow: 3, p: isSmDown ? 1 : 2, height: '100%' }}>
+            {stats.loading ? (
+              <Box>
+                <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
+                <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 1 }} />
+              </Box>
+            ) : (
+              <Box>
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} flexWrap="wrap" gap={2}>
+                  <Typography variant={getResponsiveValue("h6", "h6", "h5", "h5", "h5")} fontWeight="bold">
+                    Event Calendar
+                  </Typography>
+                  <Box display="flex" gap={1} alignItems="center">
+                    <Chip 
+                      icon={<CalendarToday />}
+                      label={formatDisplayDate(selectedDate)}
+                      variant="outlined"
+                      size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+                    />
+                    <Button
+                      variant="contained"
+                      startIcon={<Add />}
+                      onClick={handleCreateEvent}
+                      size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+                    >
+                      Create Event
+                    </Button>
+                  </Box>
                 </Box>
 
-                {/* Events for selected date */}
-                <Box sx={{ flex: 1, minWidth: isSmDown ? '100%' : 300 }}>
-                  <Typography variant={getResponsiveValue("body1", "h6", "h6", "h6", "h6")} gutterBottom>
-                    Events on {formatDisplayDate(selectedDate)}
-                  </Typography>
-                  
-                  <Box sx={{ maxHeight: 250, overflow: 'auto' }}>
-                    {eventsOnSelectedDate.length > 0 ? (
-                      eventsOnSelectedDate.map((event, index) => (
-                        <Card key={event._id || index} sx={{ mb: 1, p: 1.5 }}>
-                          <Typography variant="subtitle2" fontWeight="bold">
-                            {event.eventName}
+                <Box sx={{ display: 'flex', flexDirection: isSmDown ? 'column' : 'row', gap: 3 }}>
+                  {/* Enhanced Calendar */}
+                  <Box sx={{ flex: 1 }}>
+                    <EnhancedCalendar />
+                  </Box>
+
+                  {/* Events for selected date */}
+                  <Box sx={{ flex: 1, minWidth: isSmDown ? '100%' : 300 }}>
+                    <Typography variant={getResponsiveValue("body1", "h6", "h6", "h6", "h6")} gutterBottom>
+                      Events on {formatDisplayDate(selectedDate)}
+                    </Typography>
+                    
+                    <Box sx={{ maxHeight: 250, overflow: 'auto' }}>
+                      {eventsOnSelectedDate.length > 0 ? (
+                        eventsOnSelectedDate.map((event, index) => (
+                          <Card key={event._id || index} sx={{ mb: 1, p: 1.5 }}>
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {event.eventName}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary">
+                              Type: {event.eventType} • {event.time || 'No time set'}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={event.status || 'incomplete'}
+                              color={event.status === 'completed' ? 'success' : 'warning'}
+                              sx={{ mt: 0.5 }}
+                            />
+                          </Card>
+                        ))
+                      ) : (
+                        <Box textAlign="center" py={3}>
+                          <Event color="disabled" sx={{ fontSize: 48, mb: 1 }} />
+                          <Typography variant="body2" color="textSecondary">
+                            No events scheduled
                           </Typography>
-                          <Typography variant="caption" color="textSecondary">
-                            Type: {event.eventType} • {event.time || 'No time set'}
-                          </Typography>
-                          <Chip
-                            size="small"
-                            label={event.status || 'incomplete'}
-                            color={event.status === 'completed' ? 'success' : 'warning'}
-                            sx={{ mt: 0.5 }}
-                          />
-                        </Card>
-                      ))
-                    ) : (
-                      <Box textAlign="center" py={3}>
-                        <Event color="disabled" sx={{ fontSize: 48, mb: 1 }} />
-                        <Typography variant="body2" color="textSecondary">
-                          No events scheduled
-                        </Typography>
-                      </Box>
-                    )}
+                        </Box>
+                      )}
+                    </Box>
                   </Box>
                 </Box>
               </Box>
-            </Box>
-          )}
-        </Paper>
-      )}
+            )}
+          </Paper>
+        )}
+      </Box>
 
       {/* Modals */}
       <CreateEventModal />
