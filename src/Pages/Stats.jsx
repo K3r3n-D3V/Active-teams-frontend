@@ -1097,16 +1097,7 @@ const StatsDashboard = () => {
       <Box sx={{ mb: cardSpacing }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
           <Box sx={{ flex: 1, minWidth: isSmDown ? '100%' : 'auto' }}>
-          <Typography 
-            variant={getResponsiveValue("h6", "h5", "h4", "h4", "h4")} 
-            fontWeight="bold"
-            sx={{ 
-              textAlign: isSmDown ? 'center' : 'left',
-              width: isSmDown ? '100%' : 'auto'
-            }}
-          >
-            Dashboard Overview
-          </Typography>
+            {/* Empty space on left for balance */}
           </Box>
           
           <Box display="flex" gap={1} alignItems="center" sx={{ ml: 'auto' }}>
