@@ -51,3 +51,41 @@ export const refreshToken = async (refreshTokenId, refreshTokenValue) => {
 
   return response.json(); // Should return new access and refresh tokens
 };
+
+
+// // Add this function to your StatsDashboard component
+// export const calculateOverdueCells = (events) => {
+//   const today = new Date();
+//   today.setHours(0, 0, 0, 0);
+
+//   return events.filter(event => {
+//     // Must match exactly what your Events screen uses
+//     if (!event.eventType) return false;
+    
+//     const eventType = event.eventType.toLowerCase();
+//     const isCellEvent = eventType.includes('cell') || 
+//                        eventType.includes('small group') ||
+//                        eventType.includes('small-group') ||
+//                        eventType.includes('small_groups');
+    
+//     if (!isCellEvent) return false;
+
+//     // Completion logic that matches Events screen
+//     const did_not_meet = event.did_not_meet || false;
+//     const hasAttendees = event.attendees && event.attendees.length > 0;
+//     const status = (event.status || '').toLowerCase().trim();
+    
+//     const isCompleted = hasAttendees || 
+//                        status === 'completed' || 
+//                        status === 'closed' || 
+//                        did_not_meet;
+
+//     if (isCompleted) return false;
+//     if (!event.date) return false;
+    
+//     const eventDate = new Date(event.date);
+//     eventDate.setHours(0, 0, 0, 0);
+    
+//     return eventDate < today;
+//   });
+// };
