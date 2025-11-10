@@ -628,7 +628,7 @@ const Events = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
   const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
-  // const [typeMenuFor, setTypeMenuFor] = useState(null);
+  const [typeMenuFor, setTypeMenuFor] = useState(null);
   
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [toDeleteType, setToDeleteType] = useState(null);
@@ -786,10 +786,6 @@ const Events = () => {
       params.event_type = "CELLS";
     }
     
-    // REMOVE THIS DUPLICATE DECLARATION:
-    // const isLeaderAt12 = ... (remove all these lines)
-    
-    // USE THE MAIN COMPONENT SCOPE isLeaderAt12 INSTEAD:
     if (isLeaderAt12) {
       params.leader_at_12_view = true;
       if (viewFilter === 'personal') {
@@ -945,7 +941,78 @@ const fetchEventTypes = useCallback(async () => {
   }
 }, [BACKEND_URL]);
 
-  
+const refreshAfterEventTypeUpdate = useCallback(async (oldName, newName) => {
+  try {
+    console.log("🔄 Refreshing after event type update:", { oldName, newName });
+    
+    // ✅ FIRST: Update the filter to the new name if we were viewing the old one
+    if (selectedEventTypeFilter === oldName) {
+      console.log(`🔄 Updating filter from '${oldName}' to '${newName}'`);
+      setSelectedEventTypeFilter(newName);
+    }
+    
+    // ✅ SECOND: Refresh event types
+    await fetchEventTypes();
+    
+    // ✅ THIRD: Force refresh events with UPDATED filter
+    const refreshParams = {
+      page: 1, // Always go to page 1 after changes
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now() // Cache buster
+    };
+
+    // Apply current filters with the UPDATED event type
+    if (selectedStatus !== 'all') {
+      refreshParams.status = selectedStatus;
+    }
+
+    if (searchQuery.trim()) {
+      refreshParams.search = searchQuery.trim();
+    }
+
+    // ✅ CRITICAL: Use the NEW event type name in the filter
+    const currentFilter = selectedEventTypeFilter === oldName ? newName : selectedEventTypeFilter;
+    
+    if (currentFilter === 'all') {
+      refreshParams.event_type = "CELLS";
+    } else {
+      refreshParams.event_type = currentFilter;
+    }
+
+    // Apply view filters
+    if (currentFilter === 'all' || currentFilter === 'CELLS') {
+      if (isLeaderAt12) {
+        refreshParams.leader_at_12_view = true;
+        if (viewFilter === 'personal') {
+          refreshParams.personal_cells_only = true;
+        } else {
+          refreshParams.include_subordinate_cells = true;
+        }
+      } else if (isAdmin && viewFilter === 'personal') {
+        refreshParams.personal = true;
+      }
+    }
+
+    console.log("🔍 Refreshing events with UPDATED params:", refreshParams);
+    await fetchEvents(refreshParams, true);
+    
+  } catch (error) {
+    console.error("Error refreshing after event type update:", error);
+  }
+}, [
+  fetchEventTypes, 
+  selectedEventTypeFilter, 
+  rowsPerPage, 
+  selectedStatus, 
+  searchQuery, 
+  isLeaderAt12, 
+  isAdmin, 
+  viewFilter, 
+  fetchEvents,
+  DEFAULT_API_START_DATE
+]);  
+
   const getCurrentUserLeaderAt1 = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
@@ -1316,54 +1383,6 @@ const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
     }
   }, [BACKEND_URL, fetchEvents]);
 
- const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null) => {
-    try {
-      const token = localStorage.getItem("token");
-      let response;
-
-      if (eventTypeId) {
-        const originalName = editingEventType?.name;
-        if (!originalName) {
-          throw new Error("Cannot update: original event type name not found");
-        }
-
-        response = await axios.put(
-          `${BACKEND_URL}/event-types/${encodeURIComponent(originalName)}`,
-          eventTypeData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      } else {
-        response = await axios.post(
-          `${BACKEND_URL}/event-types`,
-          eventTypeData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      }
-
-      const result = response.data;
-
-      await fetchEventTypes();
-
-      setEventTypesModalOpen(false);
-      setEditingEventType(null);
-
-      setSnackbar({
-        open: true,
-        message: `Event type ${eventTypeId ? 'updated' : 'created'} successfully!`,
-        severity: "success",
-      });
-
-      return result;
-    } catch (error) {
-      console.error(`Error ${eventTypeId ? 'updating' : 'creating'} event type:`, error);
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.detail || error.message || `Failed to ${eventTypeId ? 'update' : 'create'} event type`,
-        severity: "error",
-      });
-      throw error;
-    }
-  }, [BACKEND_URL, editingEventType, fetchEventTypes]);
 
 const handleSaveEvent = useCallback(async (eventData) => {
     try {
@@ -1864,6 +1883,22 @@ const handleDeleteType = useCallback(async () => {
   }, [currentUser?.email, currentUser?.role, BACKEND_URL]);
   
 
+// Add this useEffect to debug the current state
+useEffect(() => {
+  console.log("🔍 [CURRENT STATE DEBUG]", {
+    selectedEventTypeFilter,
+    eventTypes: eventTypes.map(et => ({ name: et.name, _id: et._id })),
+    events: events.map(ev => ({ 
+      name: ev.eventName, 
+      eventType: ev.eventType,
+      _id: ev._id 
+    })),
+    eventsCount: events.length
+  });
+}, [selectedEventTypeFilter, eventTypes, events]);
+
+
+
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) {
@@ -1872,7 +1907,7 @@ const handleDeleteType = useCallback(async () => {
     };
   }, []);
 
-  // Auth check effect
+
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem("token");
@@ -1912,6 +1947,82 @@ const handleDeleteType = useCallback(async () => {
     return eventDate < today;
   }, []);
 
+  // Add this useEffect to track filter changes
+useEffect(() => {
+  console.log("🎯 FILTER CHANGE DEBUG:", {
+    selectedEventTypeFilter,
+    eventsCount: events.length,
+    eventTypes: eventTypes.map(et => et.name)
+  });
+}, [selectedEventTypeFilter, events, eventTypes]);
+
+// Add this to your handleSaveEventType to see the flow
+const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null) => {
+    try {
+      const token = localStorage.getItem("token");
+      let response;
+      const oldName = editingEventType?.name;
+
+      console.log("💾 STARTING Event Type Save:", { oldName, newData: eventTypeData, eventTypeId });
+
+      if (eventTypeId) {
+        if (!oldName) {
+          throw new Error("Cannot update: original event type name not found");
+        }
+
+        console.log(`🔄 Updating event type from '${oldName}' to '${eventTypeData.name}'`);
+        
+        response = await axios.put(
+          `${BACKEND_URL}/event-types/${encodeURIComponent(oldName)}`,
+          eventTypeData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } else {
+        response = await axios.post(
+          `${BACKEND_URL}/event-types`,
+          eventTypeData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+
+      const result = response.data;
+      const newName = result.name;
+
+      console.log("✅ Event type saved successfully:", result);
+      console.log("🔄 Will refresh with:", { oldName, newName, nameChanged: oldName !== newName });
+
+      // ✅ CRITICAL: Refresh everything after event type update
+      if (eventTypeId && oldName !== newName) {
+        // Name was changed - refresh with the name mapping
+        console.log("🔄 Name changed - calling refreshAfterEventTypeUpdate");
+        await refreshAfterEventTypeUpdate(oldName, newName);
+      } else {
+        // New event type or no name change - just refresh normally
+        console.log("🔄 No name change - refreshing normally");
+        await fetchEventTypes();
+        await fetchEvents({}, true);
+      }
+
+      setEventTypesModalOpen(false);
+      setEditingEventType(null);
+
+      setSnackbar({
+        open: true,
+        message: `Event type ${eventTypeId ? 'updated' : 'created'} successfully!`,
+        severity: "success",
+      });
+
+      return result;
+    } catch (error) {
+      console.error(`Error ${eventTypeId ? 'updating' : 'creating'} event type:`, error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.detail || error.message || `Failed to ${eventTypeId ? 'update' : 'create'} event type`,
+        severity: "error",
+      });
+      throw error;
+    }
+  }, [BACKEND_URL, editingEventType, fetchEventTypes, fetchEvents, refreshAfterEventTypeUpdate]);
 
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
@@ -2164,7 +2275,11 @@ const ViewFilterButtons = () => {
   isLeaderAt12,
   isAdmin,
   isRegistrant,
-  isRegularUser
+  isRegularUser,
+  setEditingEventType,
+  setEventTypesModalOpen,
+  setToDeleteType,
+  setConfirmDeleteOpen
 }) => {
   const [hoveredType, setHoveredType] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
@@ -2287,17 +2402,17 @@ const ViewFilterButtons = () => {
     setSelectedTypeForMenu(null);
   };
 
-  const handleEditEventType = () => {
-    if (selectedTypeForMenu && selectedTypeForMenu !== 'all') {
-      const eventTypeToEdit = eventTypes.find(
-        et => et.name?.toLowerCase() === selectedTypeForMenu.toLowerCase()
-      ) || { name: selectedTypeForMenu };
-      
-      setEditingEventType(eventTypeToEdit);
-      setEventTypesModalOpen(true);
-    }
-    handleMenuClose();
-  };
+const handleEditEventType = () => {
+  if (selectedTypeForMenu && selectedTypeForMenu !== 'all') {
+    const eventTypeToEdit = eventTypes.find(
+      et => et.name?.toLowerCase() === selectedTypeForMenu.toLowerCase()
+    ) || { name: selectedTypeForMenu };
+    
+    setEditingEventType(eventTypeToEdit);
+    setEventTypesModalOpen(true);
+  }
+  handleMenuClose();
+};
 
   const handleDeleteEventType = () => {
     if (selectedTypeForMenu && selectedTypeForMenu !== 'all') {
@@ -2480,25 +2595,29 @@ console.log("=== END DEBUG ===");
         flexShrink: 0, 
         backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
       }}>
-        <EventTypeSelector
-          eventTypes={eventTypes}
-          selectedEventTypeFilter={selectedEventTypeFilter}
-          setSelectedEventTypeFilter={setSelectedEventTypeFilter}
-          fetchEvents={fetchEvents}
-          setCurrentPage={setCurrentPage}
-          rowsPerPage={rowsPerPage}
-          selectedStatus={selectedStatus}
-          searchQuery={searchQuery}
-          viewFilter={viewFilter}
-          userRole={userRole}
-          customEventTypes={customEventTypes}
-          setSelectedEventTypeObj={setSelectedEventTypeObj}
-          DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
-          isLeaderAt12={isLeaderAt12}
-          isAdmin={isAdmin}
-          isRegistrant={isRegistrant}
-          isRegularUser={isRegularUser}
-        />
+     
+     <EventTypeSelector
+  eventTypes={eventTypes}
+  selectedEventTypeFilter={selectedEventTypeFilter}
+  setSelectedEventTypeFilter={setSelectedEventTypeFilter}
+  fetchEvents={fetchEvents}
+  setCurrentPage={setCurrentPage}
+  rowsPerPage={rowsPerPage}
+  selectedStatus={selectedStatus}
+  searchQuery={searchQuery}
+  viewFilter={viewFilter}
+  userRole={userRole}
+  setSelectedEventTypeObj={setSelectedEventTypeObj}
+  DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
+  isLeaderAt12={isLeaderAt12}
+  isAdmin={isAdmin}
+  isRegistrant={isRegistrant}
+  isRegularUser={isRegularUser}
+  setEditingEventType={setEditingEventType}
+  setEventTypesModalOpen={setEventTypesModalOpen}
+  setToDeleteType={setToDeleteType}
+  setConfirmDeleteOpen={setConfirmDeleteOpen}
+/>
 
         <Box sx={{
           display: "flex",
