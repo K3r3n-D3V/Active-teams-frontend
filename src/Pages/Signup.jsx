@@ -36,8 +36,16 @@ const WelcomeOverlay = ({ name, mode }) => {
     const dur = 2 + Math.random() * 1.5;
     const delay = Math.random() * 0.6;
     const colors = [
-      "#f94144", "#f3722c", "#f8961e", "#f9844a", "#f9c74f",
-      "#90be6d", "#43aa8b", "#577590", "#9b5de5", "#00bbf9",
+      "#f94144",
+      "#f3722c",
+      "#f8961e",
+      "#f9844a",
+      "#f9c74f",
+      "#90be6d",
+      "#43aa8b",
+      "#577590",
+      "#9b5de5",
+      "#00bbf9",
     ];
     const backgroundColor = colors[Math.floor(Math.random() * colors.length)];
     const borderRadius = Math.random() > 0.6 ? `${size / 2}px` : "2px";
@@ -70,17 +78,26 @@ const WelcomeOverlay = ({ name, mode }) => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: mode === "dark" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.65)",
+        background:
+          mode === "dark" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.65)",
         backdropFilter: "blur(2px)",
         overflow: "hidden",
         "@keyframes fall": {
-          "0%": { transform: "translate3d(0, -10vh, 0) rotate(0deg)", opacity: 1 },
+          "0%": {
+            transform: "translate3d(0, -10vh, 0) rotate(0deg)",
+            opacity: 1,
+          },
           "80%": { opacity: 1 },
-          "100%": { transform: "translate3d(0, 110vh, 0) rotate(360deg)", opacity: 0.6 },
+          "100%": {
+            transform: "translate3d(0, 110vh, 0) rotate(360deg)",
+            opacity: 0.6,
+          },
         },
       }}
     >
-      <Box sx={{ position: "absolute", inset: 0, pointerEvents: "none" }}>{pieces}</Box>
+      <Box sx={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        {pieces}
+      </Box>
       <Box
         sx={{
           position: "relative",
@@ -96,7 +113,8 @@ const WelcomeOverlay = ({ name, mode }) => {
         }}
       >
         <Typography variant="h5" fontWeight="bold" gutterBottom>
-          Welcome{name ? ", " : ""}{name || "Friend"}!
+          Welcome{name ? ", " : ""}
+          {name || "Friend"}!
         </Typography>
         <Typography variant="body1">
           Your account is ready. Taking you to your dashboard...
@@ -112,6 +130,7 @@ const initialForm = {
   date_of_birth: "",
   home_address: "",
   invited_by: "",
+  leader: "",
   phone_number: "",
   email: "",
   gender: "",
@@ -133,7 +152,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   const [allPeople, setAllPeople] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [cacheLoading, setCacheLoading] = useState(true);
@@ -144,18 +163,19 @@ const Signup = ({ onSignup, mode, setMode }) => {
       try {
         setCacheLoading(true);
         setCacheError("");
-        
+
         const response = await axios.get(`${BACKEND_URL}/cache/people`);
-        
+
         if (response.data.success) {
           const peopleData = response.data.cached_data || [];
           setAllPeople(peopleData);
         } else {
           throw new Error("Failed to load cache");
         }
-        
       } catch (err) {
-        setCacheError("Failed to load people data. You can still type names manually.");
+        setCacheError(
+          "Failed to load people data. You can still type names manually."
+        );
       } finally {
         setCacheLoading(false);
       }
@@ -168,31 +188,40 @@ const Signup = ({ onSignup, mode, setMode }) => {
     if (!searchQuery || searchQuery.length < 1) {
       return allPeople.slice(0, 100);
     }
-    
+
     const query = searchQuery.toLowerCase().trim();
-    
-    const results = allPeople.filter(person => {
-      const fullName = `${person.Name || ''} ${person.Surname || ''}`.toLowerCase().trim();
-      const email = (person.Email || '').toLowerCase();
-      const name = (person.Name || '').toLowerCase();
-      const surname = (person.Surname || '').toLowerCase();
-      
-      return fullName.includes(query) || 
-             name.includes(query) || 
-             email.includes(query) || 
-             surname.includes(query);
+
+    const results = allPeople.filter((person) => {
+      const fullName = `${person.Name || ""} ${person.Surname || ""}`
+        .toLowerCase()
+        .trim();
+      const email = (person.Email || "").toLowerCase();
+      const name = (person.Name || "").toLowerCase();
+      const surname = (person.Surname || "").toLowerCase();
+
+      return (
+        fullName.includes(query) ||
+        name.includes(query) ||
+        email.includes(query) ||
+        surname.includes(query)
+      );
     });
 
     results.sort((a, b) => {
-      const aFullName = `${a.Name || ''} ${a.Surname || ''}`.toLowerCase().trim();
-      const bFullName = `${b.Name || ''} ${b.Surname || ''}`.toLowerCase().trim();
-      
-      if (aFullName.startsWith(query) && !bFullName.startsWith(query)) return -1;
+      const aFullName = `${a.Name || ""} ${a.Surname || ""}`
+        .toLowerCase()
+        .trim();
+      const bFullName = `${b.Name || ""} ${b.Surname || ""}`
+        .toLowerCase()
+        .trim();
+
+      if (aFullName.startsWith(query) && !bFullName.startsWith(query))
+        return -1;
       if (!aFullName.startsWith(query) && bFullName.startsWith(query)) return 1;
-      
+
       if (aFullName === query && bFullName !== query) return -1;
       if (aFullName !== query && bFullName === query) return 1;
-      
+
       return aFullName.length - bFullName.length;
     });
 
@@ -200,9 +229,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
   }, [allPeople, searchQuery]);
 
   const autocompleteOptions = useMemo(() => {
-    return filteredPeople.map(person => ({
+    return filteredPeople.map((person) => ({
       ...person,
-      label: `${person.Name || ''} ${person.Surname || ''}`.trim() || 'Unknown Name',
+      label:
+        `${person.Name || ""} ${person.Surname || ""}`.trim() || "Unknown Name",
       key: person._id || person.key,
     }));
   }, [filteredPeople]);
@@ -211,19 +241,25 @@ const Signup = ({ onSignup, mode, setMode }) => {
     const newErrors = {};
     if (!form.name.trim()) newErrors.name = "Name is required";
     if (!form.surname.trim()) newErrors.surname = "Surname is required";
-    if (!form.date_of_birth) newErrors.date_of_birth = "Date of Birth is required";
+    if (!form.date_of_birth)
+      newErrors.date_of_birth = "Date of Birth is required";
     else if (new Date(form.date_of_birth) > new Date())
       newErrors.date_of_birth = "Date cannot be in the future";
-    if (!form.home_address.trim()) newErrors.home_address = "Home Address is required";
-    if (!form.invited_by.trim()) newErrors.invited_by = "Invited By is required";
-    if (!form.phone_number.trim()) newErrors.phone_number = "Phone Number is required";
+    if (!form.home_address.trim())
+      newErrors.home_address = "Home Address is required";
+    if (!form.invited_by.trim())
+      newErrors.invited_by = "Invited By is required";
+    if (!form.phone_number.trim())
+      newErrors.phone_number = "Phone Number is required";
     if (!form.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Invalid email";
+    else if (!/\S+@\S+\.\S+/.test(form.email))
+      newErrors.email = "Invalid email";
     if (!form.gender) newErrors.gender = "Select a gender";
     if (!form.password) newErrors.password = "Password is required";
     else if (form.password.length < 6)
       newErrors.password = "Password must be at least 6 characters";
-    if (!form.confirm_password) newErrors.confirm_password = "Confirm your password";
+    if (!form.confirm_password)
+      newErrors.confirm_password = "Confirm your password";
     else if (form.confirm_password !== form.password)
       newErrors.confirm_password = "Passwords do not match";
 
@@ -234,16 +270,16 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     if (errors[e.target.name]) {
-      setErrors(prev => ({ ...prev, [e.target.name]: "" }));
+      setErrors((prev) => ({ ...prev, [e.target.name]: "" }));
     }
   };
 
   const handleInvitedByChange = (event, newValue) => {
     const invitedByValue = newValue ? newValue.label : "";
-    setForm(prev => ({ ...prev, invited_by: invitedByValue }));
-    
+    setForm((prev) => ({ ...prev, invited_by: invitedByValue }));
+
     if (errors.invited_by) {
-      setErrors(prev => ({ ...prev, invited_by: "" }));
+      setErrors((prev) => ({ ...prev, invited_by: "" }));
     }
   };
 
@@ -259,7 +295,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
     const submitData = { ...form };
     delete submitData.confirm_password;
-    
+
     try {
       const res = await fetch(`${BACKEND_URL}/signup`, {
         method: "POST",
@@ -283,7 +319,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           gender: submitData.gender,
         };
         setUserProfile(userData);
-        
+
         if (onSignup) onSignup(submitData);
 
         try {
@@ -292,7 +328,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           navigate("/login");
           return;
         }
-        
+
         setWelcomeName(submitData.name || submitData.email);
         setShowWelcome(true);
         setTimeout(() => {
@@ -322,7 +358,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
       }}
     >
       {showWelcome && <WelcomeOverlay name={welcomeName} mode={mode} />}
-      
+
       <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
           onClick={() => {
@@ -341,7 +377,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
         </IconButton>
       </Box>
-      
+
       <Box
         sx={{
           maxWidth: 800,
@@ -411,14 +447,18 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 fullWidth
                 InputLabelProps={type === "date" ? { shrink: true } : undefined}
                 sx={{
-                  "& .MuiOutlinedInput-root": { 
+                  "& .MuiOutlinedInput-root": {
                     borderRadius: 3,
-                    '& fieldset': {
-                      borderColor: errors[name] ? theme.palette.error.main : undefined,
+                    "& fieldset": {
+                      borderColor: errors[name]
+                        ? theme.palette.error.main
+                        : undefined,
                     },
                   },
-                  "& .MuiFormHelperText-root": { 
-                    color: errors[name] ? theme.palette.error.main : theme.palette.text.secondary 
+                  "& .MuiFormHelperText-root": {
+                    color: errors[name]
+                      ? theme.palette.error.main
+                      : theme.palette.text.secondary,
                   },
                 }}
               />
@@ -428,8 +468,14 @@ const Signup = ({ onSignup, mode, setMode }) => {
               <Autocomplete
                 freeSolo
                 options={autocompleteOptions}
-                getOptionLabel={(option) => typeof option === "string" ? option : option.label}
-                value={autocompleteOptions.find(option => option.label === form.invited_by) || form.invited_by}
+                getOptionLabel={(option) =>
+                  typeof option === "string" ? option : option.label
+                }
+                value={
+                  autocompleteOptions.find(
+                    (option) => option.label === form.invited_by
+                  ) || form.invited_by
+                }
                 onChange={handleInvitedByChange}
                 onInputChange={handleSearchChange}
                 filterOptions={(x) => x}
@@ -440,26 +486,35 @@ const Signup = ({ onSignup, mode, setMode }) => {
                     label="Invited By"
                     name="invited_by"
                     error={!!errors.invited_by}
-                    helperText={errors.invited_by || "Start typing to search through all people..."}
+                    helperText={
+                      errors.invited_by ||
+                      "Start typing to search through all people..."
+                    }
                     fullWidth
                     InputProps={{
                       ...params.InputProps,
                       endAdornment: (
                         <>
-                          {cacheLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                          {cacheLoading ? (
+                            <CircularProgress color="inherit" size={20} />
+                          ) : null}
                           {params.InputProps.endAdornment}
                         </>
                       ),
                     }}
                     sx={{
-                      "& .MuiOutlinedInput-root": { 
+                      "& .MuiOutlinedInput-root": {
                         borderRadius: 3,
-                        '& fieldset': {
-                          borderColor: errors.invited_by ? theme.palette.error.main : undefined,
+                        "& fieldset": {
+                          borderColor: errors.invited_by
+                            ? theme.palette.error.main
+                            : undefined,
                         },
                       },
-                      "& .MuiFormHelperText-root": { 
-                        color: errors.invited_by ? theme.palette.error.main : theme.palette.text.secondary,
+                      "& .MuiFormHelperText-root": {
+                        color: errors.invited_by
+                          ? theme.palette.error.main
+                          : theme.palette.text.secondary,
                         mx: 0,
                       },
                     }}
@@ -468,9 +523,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 renderOption={(props, option) => (
                   <li {...props} key={option.key || option._id}>
                     <Box>
-                      <Typography variant="body1">
-                        {option.label}
-                      </Typography>
+                      <Typography variant="body1">{option.label}</Typography>
                       {option.Email && (
                         <Typography variant="caption" color="text.secondary">
                           {option.Email}
@@ -480,12 +533,36 @@ const Signup = ({ onSignup, mode, setMode }) => {
                   </li>
                 )}
                 sx={{
-                  '& .MuiAutocomplete-inputRoot': {
-                    paddingRight: '9px !important',
-                  }
+                  "& .MuiAutocomplete-inputRoot": {
+                    paddingRight: "9px !important",
+                  },
                 }}
               />
             </Box>
+            <TextField
+              label="Leader"
+              name="leader"
+              value={form.leader}
+              onChange={handleChange}
+              error={!!errors.leader}
+              helperText={errors.leader}
+              fullWidth
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 3,
+                  "& fieldset": {
+                    borderColor: errors.leader
+                      ? theme.palette.error.main
+                      : undefined,
+                  },
+                },
+                "& .MuiFormHelperText-root": {
+                  color: errors.leader
+                    ? theme.palette.error.main
+                    : theme.palette.text.secondary,
+                },
+              }}
+            />
 
             <FormControl fullWidth error={!!errors.gender}>
               <InputLabel>Gender</InputLabel>
@@ -520,20 +597,27 @@ const Signup = ({ onSignup, mode, setMode }) => {
               fullWidth
               InputProps={{
                 endAdornment: (
-                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                  <IconButton
+                    onClick={() => setShowPassword(!showPassword)}
+                    edge="end"
+                  >
                     {showPassword ? <Visibility /> : <VisibilityOff />}
                   </IconButton>
                 ),
               }}
               sx={{
-                "& .MuiOutlinedInput-root": { 
+                "& .MuiOutlinedInput-root": {
                   borderRadius: 3,
-                  '& fieldset': {
-                    borderColor: errors.password ? theme.palette.error.main : undefined,
+                  "& fieldset": {
+                    borderColor: errors.password
+                      ? theme.palette.error.main
+                      : undefined,
                   },
                 },
-                "& .MuiFormHelperText-root": { 
-                  color: errors.password ? theme.palette.error.main : theme.palette.text.secondary 
+                "& .MuiFormHelperText-root": {
+                  color: errors.password
+                    ? theme.palette.error.main
+                    : theme.palette.text.secondary,
                 },
               }}
             />
@@ -549,20 +633,27 @@ const Signup = ({ onSignup, mode, setMode }) => {
               fullWidth
               InputProps={{
                 endAdornment: (
-                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
+                  <IconButton
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    edge="end"
+                  >
                     {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
                   </IconButton>
                 ),
               }}
               sx={{
-                "& .MuiOutlinedInput-root": { 
+                "& .MuiOutlinedInput-root": {
                   borderRadius: 3,
-                  '& fieldset': {
-                    borderColor: errors.confirm_password ? theme.palette.error.main : undefined,
+                  "& fieldset": {
+                    borderColor: errors.confirm_password
+                      ? theme.palette.error.main
+                      : undefined,
                   },
                 },
-                "& .MuiFormHelperText-root": { 
-                  color: errors.confirm_password ? theme.palette.error.main : theme.palette.text.secondary 
+                "& .MuiFormHelperText-root": {
+                  color: errors.confirm_password
+                    ? theme.palette.error.main
+                    : theme.palette.text.secondary,
                 },
               }}
             />
@@ -607,7 +698,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
               Already have an account?{" "}
               <Typography
                 component="span"
-                sx={{ color: "#42a5f5", cursor: "pointer", textDecoration: "underline" }}
+                sx={{
+                  color: "#42a5f5",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
                 onClick={() => navigate("/login")}
               >
                 Log In
