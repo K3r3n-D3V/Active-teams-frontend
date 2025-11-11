@@ -206,6 +206,7 @@ export default function Profile() {
     address: "",
     phone: "",
     invitedBy: "",
+    leader: "",
     gender: "",
     currentPassword: "",
     newPassword: "",
@@ -480,6 +481,7 @@ export default function Profile() {
       home_address: form.address,
       phone_number: form.phone,
       invited_by: form.invitedBy,
+      leader: form.leader,
       gender: form.gender,
     };
 
@@ -816,6 +818,14 @@ export default function Profile() {
                     Invited By
                   </Typography>
                   <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={!editMode} sx={commonFieldSx} />
+                </Grid>
+
+                {/* Leader */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                    Leader
+                  </Typography>
+                  <TextField value={form.leader || ""} onChange={handleChange("leader")} fullWidth disabled={!editMode} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Gender */}
