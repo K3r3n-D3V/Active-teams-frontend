@@ -435,36 +435,35 @@ const formatDate = (date) => {
   }).replace(/\//g, ' - ');
 };
 
-function generateDynamicColumns(events) {
+const generateDynamicColumns = (events) => {
   if (!events || events.length === 0) return [];
-
-  const excludedFields = [
-    'persistent_attendees',
-    'UUID',
-    'did_not_meet',
-    'status',
-    'is_recurring',
-    'week_identifier',
-    'attendees',
-    '_id',
-    'attendance',
-    'LOCATION',
-    'location',
-    'eventType',
-    'event_type',
-    'eventTypes',
-    'Status',
-  ];
 
   const sampleEvent = events[0];
   const filteredFields = Object.keys(sampleEvent).filter((key) => {
     const keyLower = key.toLowerCase();
+    
+    // Fields to exclude
+    const excludedFields = [
+      'persistent_attendees', 'uuid', 'did_not_meet', 'status', 'is_recurring', 
+      'week_identifier', 'attendees', '_id', 'isoverdue', 'attendance', 'location', 
+      'eventtype', 'event_type', 'eventtypes', 'status', 'displaydate', 'originatedid',
+      'leader12', 'leader@12', 'leader at 12', 'original_event_id'
+    ];
+
     const exactMatch = excludedFields.includes(key);
     const caseInsensitiveMatch = excludedFields.some(excluded => 
       excluded.toLowerCase() === keyLower
     );
+    
+    // Also exclude fields that contain these words
     const containsOverdue = keyLower.includes('overdue');
-    const shouldExclude = exactMatch || caseInsensitiveMatch || containsOverdue;
+    const containsDisplayDate = keyLower.includes('display') && keyLower.includes('date');
+    const containsOriginated = keyLower.includes('originated');
+    const containsLeader12 = keyLower.includes('leader') && keyLower.includes('12');
+    
+    const shouldExclude = exactMatch || caseInsensitiveMatch || containsOverdue || 
+                         containsDisplayDate || containsOriginated || containsLeader12;
+    
     return !shouldExclude;
   });
 
@@ -636,15 +635,14 @@ const Events = () => {
   const [editingEventType, setEditingEventType] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
   
-  // Calculate initial view filter based on user role
-  const initialViewFilter = useMemo(() => {
-    if (userRole === "user" || userRole === "leader at 1" || userRole === "registrant") {
-      return 'personal';
-    } else if (userRole === "admin" || isLeaderAt12) {
-      return 'all';
-    }
+const initialViewFilter = useMemo(() => {
+  if (userRole === "user" || userRole === "leader at 1" || userRole === "registrant" || isRegularUser) {
+    return 'personal';
+  } else if (userRole === "admin" || isLeaderAt12) {
     return 'all';
-  }, [userRole, isLeaderAt12]);
+  }
+  return 'all';
+}, [userRole, isLeaderAt12, isRegularUser]);
 
   const [viewFilter, setViewFilter] = useState(initialViewFilter);
   const [filterOptions, setFilterOptions] = useState({
@@ -741,13 +739,11 @@ const Events = () => {
     },
   };
 
- const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
+const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
   console.log("fetchEvents Called with:", { filters, forceRefresh });
   
   setLoading(true);
   setIsLoading(true);
-  const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
-  const userRole = userProfile?.role || "";
 
   try {
     const token = localStorage.getItem("token");
@@ -778,34 +774,23 @@ const Events = () => {
       ...filters
     };
     
-    if (filters.event_type !== undefined) {
-      params.event_type = filters.event_type;
-    } else if (selectedEventTypeFilter !== 'all') {
-      params.event_type = selectedEventTypeFilter;
-    } else {
-      params.event_type = "CELLS";
-    }
+    // Determine which endpoint to use based on event type
+    let endpoint;
+    const eventType = filters.event_type || selectedEventTypeFilter;
     
-    if (isLeaderAt12) {
-      params.leader_at_12_view = true;
-      if (viewFilter === 'personal') {
-        params.personal_cells_only = true;
-        params.show_personal_cells = true;
-        params.show_all_authorized = false;
-      } else {
-        params.include_subordinate_cells = true;
-        params.include_global_events = true;
-        params.show_personal_cells = false;
-        params.show_all_authorized = true;
-      }
+    if (eventType === 'all' || eventType === 'CELLS' || !eventType) {
+      endpoint = `${BACKEND_URL}/events/cells`;
+      console.log("Using CELLS endpoint");
+    } else {
+      endpoint = `${BACKEND_URL}/events/other`;
+      console.log("Using OTHER EVENTS endpoint for:", eventType);
     }
     
     Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
     
-    const endpoint = `${BACKEND_URL}/events`;
     console.log('Fetching events from:', endpoint, 'with params:', params);
 
-    const cacheKey = getCacheKey({ ...params, userRole });
+    const cacheKey = getCacheKey({ ...params, userRole, endpoint });
     
     if (!forceRefresh) {
       const cachedData = getCachedData(cacheKey);
@@ -834,16 +819,6 @@ const Events = () => {
     const newEvents = responseData.events || responseData.results || [];
 
     console.log('Backend returned events:', newEvents.length);
-
-    const eventIds = newEvents.map(e => e._id);
-    const uniqueIds = new Set(eventIds);
-    if (eventIds.length !== uniqueIds.size) {
-      console.warn('Backend still returning duplicates:', {
-        totalEvents: eventIds.length,
-        uniqueEvents: uniqueIds.size,
-        duplicates: eventIds.length - uniqueIds.size
-      });
-    }
 
     const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
     const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
@@ -891,7 +866,6 @@ const Events = () => {
   searchQuery,
   viewFilter,
   userRole,
-  isLeaderAt12,
   getCacheKey,
   getCachedData,
   setCachedData,
@@ -899,6 +873,8 @@ const Events = () => {
   DEFAULT_API_START_DATE,
   setSnackbar
 ]);
+
+
 
 const fetchEventTypes = useCallback(async () => {
   try {
@@ -1150,7 +1126,7 @@ const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
     console.log("🔄 Modal requested refresh, forcing complete reload...");
     
     clearCache();
-        setCurrentPage(1);
+    setCurrentPage(1);
     
     setTimeout(() => {
       const refreshParams = {
@@ -1159,11 +1135,13 @@ const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
         start_date: DEFAULT_API_START_DATE,
         _t: Date.now(), 
         status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : "CELLS",
         search: searchQuery.trim() || undefined,
       };
 
-      if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
+      // ✅ CRITICAL: Determine which endpoint to use based on event type
+      if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' || !selectedEventTypeFilter) {
+        refreshParams.event_type = "CELLS";
+        
         if (isLeaderAt12) {
           refreshParams.leader_at_12_view = true;
           if (viewFilter === 'personal') {
@@ -1174,11 +1152,14 @@ const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
         } else if (isAdmin && viewFilter === 'personal') {
           refreshParams.personal = true;
         }
+      } else {
+        // For Global Events and other event types
+        refreshParams.event_type = selectedEventTypeFilter;
       }
 
       console.log("🔍 Refreshing events after creation:", refreshParams);
       fetchEvents(refreshParams, true);
-    }, 800); // Increased delay to ensure state updates
+    }, 800);
   }
 }, [
   clearCache, 
@@ -1385,184 +1366,168 @@ const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
 
 
 const handleSaveEvent = useCallback(async (eventData) => {
-    try {
-      console.log("[handleSaveEvent] Received event data:", eventData);
-      
-      const eventIdentifier = eventData._id || eventData.UUID || eventData.id;
-      
-      if (!eventIdentifier) {
-        throw new Error("No event identifier (_id or UUID) found");
+  try {
+    console.log("[handleSaveEvent] Received event data:", eventData);
+    
+    const eventIdentifier = eventData._id || eventData.UUID || eventData.id;
+    
+    if (!eventIdentifier) {
+      throw new Error("No event identifier (_id or UUID) found");
+    }
+    
+    console.log("🔧 Updating event with identifier:", {
+      identifier: eventIdentifier,
+      type: eventData._id ? '_id' : 'UUID',
+      newName: eventData.eventName
+    });
+    
+    const token = localStorage.getItem("token");
+    if (!token) {
+      throw new Error("No authentication token found");
+    }
+    
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    
+    const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
+    console.log("PUT request to:", endpoint);
+    
+    const cleanPayload = Object.entries(eventData).reduce((acc, [key, value]) => {
+      if (value !== undefined && value !== null) {
+        acc[key] = value;
       }
+      return acc;
+    }, {});
+    
+    console.log("Sending payload:", cleanPayload);
+    
+    const response = await fetch(endpoint, {
+      method: "PUT",
+      headers: headers,
+      body: JSON.stringify(cleanPayload),
+    });
+    
+    console.log(" Response status:", response.status, response.statusText);
+    
+    if (!response.ok) {
+      let errorData;
+      let errorMessage;
       
-      console.log("🔧 Updating event with identifier:", {
-        identifier: eventIdentifier,
-        type: eventData._id ? '_id' : 'UUID',
-        newName: eventData.eventName
-      });
-      
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
-      
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-      
-      const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
-      console.log("PUT request to:", endpoint);
-      
-      const cleanPayload = Object.entries(eventData).reduce((acc, [key, value]) => {
-        if (value !== undefined && value !== null) {
-          acc[key] = value;
-        }
-        return acc;
-      }, {});
-      
-      console.log("Sending payload:", cleanPayload);
-      
-      const response = await fetch(endpoint, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify(cleanPayload),
-      });
-      
-      console.log(" Response status:", response.status, response.statusText);
-      
-      if (!response.ok) {
-        let errorData;
-        let errorMessage;
+      try {
+        errorData = await response.json();
+        console.error(" Server error response:", errorData);
         
-        try {
-          errorData = await response.json();
-          console.error(" Server error response:", errorData);
-          
-          if (typeof errorData === 'string') {
-            errorMessage = errorData;
-          } else if (errorData.detail) {
-            errorMessage = typeof errorData.detail === 'string' 
-              ? errorData.detail 
-              : JSON.stringify(errorData.detail);
-          } else if (errorData.message) {
-            errorMessage = errorData.message;
-          } else {
-            errorMessage = JSON.stringify(errorData);
-          }
-        } catch (Error) {
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        } else if (errorData.detail) {
+          errorMessage = typeof errorData.detail === 'string' 
+            ? errorData.detail 
+            : JSON.stringify(errorData.detail);
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else {
+          errorMessage = JSON.stringify(errorData);
         }
-        
-        throw new Error(errorMessage);
+      } catch (Error) {
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
       }
-      
-      const updatedEvent = await response.json();
-      console.log(" Event updated successfully from backend:", updatedEvent);
-      
-      console.log(" Clearing all caches and state...");
-            clearCache();
-      
-      const cacheKeys = Object.keys(localStorage).filter(key => key.includes('events_cache') || key.includes('cache'));
-      cacheKeys.forEach(key => localStorage.removeItem(key));
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      console.log("🔄 Forcing complete refresh of events...");
-      
-      const refreshParams = {
-        page: currentPage,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        // Add timestamp to bust any server-side cache
-        _t: Date.now()
-      };
-
-      // Add status filter
-      if (selectedStatus && selectedStatus !== 'all') {
-        refreshParams.status = selectedStatus;
-      }
-
-      if (searchQuery && searchQuery.trim()) {
-        refreshParams.search = searchQuery.trim();
-      }
-
-      // Add event type filter
-      if (selectedEventTypeFilter === 'all') {
-        refreshParams.event_type = "CELLS";
-      } else if (selectedEventTypeFilter) {
-        refreshParams.event_type = selectedEventTypeFilter;
-      }
-
-      // Add personal/view filters
-      if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
-      const isLeaderAt12 =
-  userRole.includes("leader at 12") ||
-  userRole.includes("leader@12") ||
-  userRole.includes("leader @12") ||
-  userRole.includes("leader at12") ||
-  userRole.includes("leaderat12") ||
-  userRole.includes("leader at 12") || 
-  userRole.includes("leader@ 12") || 
-  userRole === "leader at 12";
-        
-        if (isLeaderAt12) {
-          refreshParams.leader_at_12_view = true;
-          if (viewFilter === 'personal') {
-            refreshParams.personal_cells_only = true;
-            refreshParams.show_personal_cells = true;
-            refreshParams.show_all_authorized = false;
-          } else {
-            refreshParams.include_subordinate_cells = true;
-            refreshParams.include_global_events = true;
-            refreshParams.show_personal_cells = false;
-            refreshParams.show_all_authorized = true;
-          }
-        } else if (isAdmin && viewFilter === 'personal') {
-          refreshParams.personal = true;
-        }
-      }
-
-      // Remove undefined values
-      Object.keys(refreshParams).forEach(key => 
-        refreshParams[key] === undefined && delete refreshParams[key]
-      );
-
-      console.log("🔍 Refreshing with params:", refreshParams);
-      
-      await fetchEvents(refreshParams, true);
-      
-      setTimeout(async () => {
-        console.log("🔄 Double-checking with second refresh...");
-        await fetchEvents(refreshParams, true);
-      }, 1000);
-      
-      setSnackbar({
-        open: true,
-        message: "Event updated successfully!",
-        severity: "success",
-      });
-      
-      return { success: true, event: updatedEvent };
-      
-    } catch (error) {
-      console.error(" Error in handleSaveEvent:", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-        fullError: error
-      });
-      
-      const errorMessage = error.message || String(error) || "Failed to update event";
-      
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
       
       throw new Error(errorMessage);
     }
-  }, [BACKEND_URL, clearCache, currentPage, rowsPerPage, selectedStatus, searchQuery, selectedEventTypeFilter, userRole, isAdmin, viewFilter, fetchEvents, DEFAULT_API_START_DATE]);
+    
+    const updatedEvent = await response.json();
+    console.log(" Event updated successfully from backend:", updatedEvent);
+    
+    console.log(" Clearing all caches and state...");
+    clearCache();
+    
+    const cacheKeys = Object.keys(localStorage).filter(key => key.includes('events_cache') || key.includes('cache'));
+    cacheKeys.forEach(key => localStorage.removeItem(key));
+    
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    console.log("🔄 Forcing complete refresh of events...");
+    
+    const refreshParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now()
+    };
+
+    if (selectedStatus && selectedStatus !== 'all') {
+      refreshParams.status = selectedStatus;
+    }
+
+    if (searchQuery && searchQuery.trim()) {
+      refreshParams.search = searchQuery.trim();
+    }
+
+    // ✅ CRITICAL: Determine which endpoint to use
+    if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' || !selectedEventTypeFilter) {
+      refreshParams.event_type = "CELLS";
+      
+      if (isLeaderAt12) {
+        refreshParams.leader_at_12_view = true;
+        if (viewFilter === 'personal') {
+          refreshParams.personal_cells_only = true;
+          refreshParams.show_personal_cells = true;
+          refreshParams.show_all_authorized = false;
+        } else {
+          refreshParams.include_subordinate_cells = true;
+          refreshParams.include_global_events = true;
+          refreshParams.show_personal_cells = false;
+          refreshParams.show_all_authorized = true;
+        }
+      } else if (isAdmin && viewFilter === 'personal') {
+        refreshParams.personal = true;
+      }
+    } else {
+      refreshParams.event_type = selectedEventTypeFilter;
+    }
+
+    Object.keys(refreshParams).forEach(key => 
+      refreshParams[key] === undefined && delete refreshParams[key]
+    );
+
+    console.log("🔍 Refreshing with params:", refreshParams);
+    
+    await fetchEvents(refreshParams, true);
+    
+    setTimeout(async () => {
+      console.log("🔄 Double-checking with second refresh...");
+      await fetchEvents(refreshParams, true);
+    }, 1000);
+    
+    setSnackbar({
+      open: true,
+      message: "Event updated successfully!",
+      severity: "success",
+    });
+    
+    return { success: true, event: updatedEvent };
+    
+  } catch (error) {
+    console.error(" Error in handleSaveEvent:", {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      fullError: error
+    });
+    
+    const errorMessage = error.message || String(error) || "Failed to update event";
+    
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: "error",
+    });
+    
+    throw new Error(errorMessage);
+  }
+}, [BACKEND_URL, clearCache, currentPage, rowsPerPage, selectedStatus, searchQuery, selectedEventTypeFilter, userRole, isAdmin, viewFilter, fetchEvents, DEFAULT_API_START_DATE]);
   
   const handleCloseEditModal = useCallback(async (shouldRefresh = false) => {
     console.log("🚪 Closing edit modal, shouldRefresh:", shouldRefresh);
@@ -1786,37 +1751,46 @@ const handleDeleteType = useCallback(async () => {
     return status;
   };
 
-  const handleSearchChange = useCallback((e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
 
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+const handleSearchChange = useCallback((e) => {
+  const value = e.target.value;
+  setSearchQuery(value);
+
+  if (searchTimeoutRef.current) {
+    clearTimeout(searchTimeoutRef.current);
+  }
+
+  searchTimeoutRef.current = setTimeout(() => {
+    const trimmedSearch = value.trim();
+
+    let shouldApplyPersonalFilter = undefined;
+    if (userRole === "admin" || userRole === "leader at 12") {
+      shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
     }
 
-    searchTimeoutRef.current = setTimeout(() => {
-      const trimmedSearch = value.trim();
+    setCurrentPage(1);
+    clearCache();
 
-      let shouldApplyPersonalFilter = undefined;
-      if (userRole === "admin" || userRole === "leader at 12") {
-        shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
-      }
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      search: trimmedSearch || undefined,
+      personal: shouldApplyPersonalFilter,
+      start_date: DEFAULT_API_START_DATE
+    };
 
-      setCurrentPage(1);
-      clearCache(); // Clear cache on search
+    // Determine event_type for endpoint selection
+    if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+      fetchParams.event_type = selectedEventTypeFilter;
+    } else {
+      fetchParams.event_type = "CELLS";
+    }
 
-      fetchEvents({
-        page: 1,
-        limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-        search: trimmedSearch || undefined,
-        personal: shouldApplyPersonalFilter,
-        start_date: DEFAULT_API_START_DATE
-      }, true);
-    }, 500);
-  }, [userRole, viewFilter, clearCache, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
-
+    console.log("Search fetching with params:", fetchParams);
+    fetchEvents(fetchParams, true);
+  }, 800); // Increased delay for better performance
+}, [userRole, viewFilter, clearCache, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -1882,8 +1856,14 @@ const handleDeleteType = useCallback(async () => {
     checkAccess();
   }, [currentUser?.email, currentUser?.role, BACKEND_URL]);
   
+// Add this useEffect to initialize the event type filter properly
+useEffect(() => {
+  if (eventTypes.length > 0 && !selectedEventTypeFilter) {
+    console.log("Initializing event type filter to 'all'");
+    setSelectedEventTypeFilter('all');
+  }
+}, [eventTypes.length, selectedEventTypeFilter]);
 
-// Add this useEffect to debug the current state
 useEffect(() => {
   console.log("🔍 [CURRENT STATE DEBUG]", {
     selectedEventTypeFilter,
@@ -2072,56 +2052,74 @@ const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
 
-  useEffect(() => {
-    const fetchParams = {
-      page: currentPage,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      search: searchQuery.trim() || undefined,
-      start_date: DEFAULT_API_START_DATE
-    };
+useEffect(() => {
+  // Don't fetch if we're still initializing
+  if (eventTypes.length === 0) {
+    return;
+  }
 
-    if (selectedEventTypeFilter === 'all') {
-      fetchParams.event_type = "CELLS";
-    } else {
-      fetchParams.event_type = selectedEventTypeFilter;
-    }
+  const fetchParams = {
+    page: currentPage,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    search: searchQuery.trim() || undefined,
+    start_date: DEFAULT_API_START_DATE
+  };
 
-    if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
-      if (isLeaderAt12) {
-        if (viewFilter === 'personal') {
-          fetchParams.show_personal_cells = true;
-          fetchParams.show_all_authorized = false;
-        } else {
-          fetchParams.show_personal_cells = false;
-          fetchParams.show_all_authorized = true;
-        }
-      } else if (isAdmin && viewFilter === 'personal') {
-        fetchParams.personal = true;
+  // Always send event_type
+  if (selectedEventTypeFilter === 'all') {
+    fetchParams.event_type = "CELLS";
+  } else {
+    fetchParams.event_type = selectedEventTypeFilter;
+  }
+
+  // Apply personal filters only for Cells events and appropriate users
+  if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
+    if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
+      if (viewFilter === 'personal') {
+        fetchParams.show_personal_cells = true;
+        fetchParams.show_all_authorized = false;
+        fetchParams.include_subordinate_cells = false;
+      } else {
+        fetchParams.show_personal_cells = false;
+        fetchParams.show_all_authorized = true;
+        fetchParams.include_subordinate_cells = true;
       }
+    } else if (isAdmin) {
+      fetchParams.personal = viewFilter === 'personal';
     }
+  }
 
-    Object.keys(fetchParams).forEach(key =>
-      fetchParams[key] === undefined && delete fetchParams[key]
-    );
+  // For regular users, always show personal events
+  if (isRegularUser) {
+    fetchParams.personal = true;
+  }
 
-    console.log("🔍 useEffect - Fetching with params:", fetchParams);
+  Object.keys(fetchParams).forEach(key =>
+    fetchParams[key] === undefined && delete fetchParams[key]
+  );
+
+  console.log("useEffect - Fetching with params:", fetchParams);
+  
+  // Use a timeout to prevent rapid re-fetches
+  const timeoutId = setTimeout(() => {
     fetchEvents(fetchParams, true);
-  }, [
-    selectedStatus, 
-    selectedEventTypeFilter, 
-    viewFilter, 
-    currentPage, 
-    rowsPerPage, 
-    userRole, 
-    isLeaderAt12, 
-    isAdmin,
-    searchQuery,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
+  }, 150);
 
- 
+  return () => clearTimeout(timeoutId);
+}, [
+  selectedEventTypeFilter, 
+  selectedStatus, 
+  viewFilter, 
+  currentPage, 
+  rowsPerPage, 
+  searchQuery,
+  eventTypes.length,
+  isLeaderAt12,
+  isAdmin,
+  isRegularUser
+]);
 
   const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
     const statuses = [
@@ -2162,22 +2160,65 @@ console.log("🔍 DEBUG User Role:", {
 
 
 const ViewFilterButtons = () => {
-  // Show toggle for both Admin and Leader at 12
-  const shouldShowToggle = isAdmin || isLeaderAt12;
+  // Show toggle for both Admin and Leader at 12, but only for CELLS events
+  const shouldShowToggle = (isAdmin || isLeaderAt12) && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
   
   console.log("ViewFilterButtons Debug:", {
     userRole,
     isLeaderAt12,
     isAdmin,
-    shouldShowToggle
+    shouldShowToggle,
+    selectedEventTypeFilter
   });
 
   if (!shouldShowToggle) {
-    console.log("Not showing toggle - user is not Admin or Leader at 12");
+    console.log("Not showing toggle - conditions not met");
     return null;
   }
 
-  console.log("Showing toggle for Admin/Leader at 12");
+  const handleViewFilterChange = (newViewFilter) => {
+    setViewFilter(newViewFilter);
+    setCurrentPage(1);
+
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      event_type: "CELLS" // Always use CELLS for this filter
+    };
+
+    if (isLeaderAt12) {
+      if (newViewFilter === 'personal') {
+        // Leader at 12 - "PERSONAL" = show only their own cells
+        fetchParams.leader_at_12_view = true;
+        fetchParams.show_personal_cells = true;
+        fetchParams.show_all_authorized = false;
+        fetchParams.include_subordinate_cells = false;
+        fetchParams.include_global_events = false;
+      } else {
+        // Leader at 12 - "VIEW ALL" = show their cells + disciples' cells
+        fetchParams.leader_at_12_view = true;
+        fetchParams.show_personal_cells = false;
+        fetchParams.show_all_authorized = true;
+        fetchParams.include_subordinate_cells = true;
+        fetchParams.include_global_events = true;
+      }
+    } else if (isAdmin) {
+      // Admin view filter
+      fetchParams.personal = newViewFilter === 'personal';
+    }
+
+    // Apply current search and status filters
+    if (selectedStatus !== 'all') {
+      fetchParams.status = selectedStatus;
+    }
+    if (searchQuery.trim()) {
+      fetchParams.search = searchQuery.trim();
+    }
+
+    console.log(`View filter changed to ${newViewFilter} - fetching:`, fetchParams);
+    fetchEvents(fetchParams, true);
+  };
 
   return (
     <div style={styles.viewFilterContainer}>
@@ -2188,32 +2229,7 @@ const ViewFilterButtons = () => {
           name="viewFilter"
           value="all"
           checked={viewFilter === 'all'}
-          onChange={(e) => {
-            setViewFilter(e.target.value);
-            setCurrentPage(1);
-
-            const fetchParams = {
-              page: 1,
-              limit: rowsPerPage,
-              start_date: DEFAULT_API_START_DATE,
-              event_type: selectedEventTypeFilter === 'all' ? "CELLS" : selectedEventTypeFilter
-            };
-
-            if (isLeaderAt12) {
-              // Leader at 12 - "VIEW ALL" = show their cells + disciples' cells
-              fetchParams.leader_at_12_view = true;
-              fetchParams.show_personal_cells = false;
-              fetchParams.show_all_authorized = true;
-              fetchParams.include_subordinate_cells = true;
-              fetchParams.include_global_events = true;
-            } else if (isAdmin) {
-              // Admin - "VIEW ALL" = show all cells
-              fetchParams.personal = false;
-            }
-            
-            console.log("VIEW ALL selected - fetching:", fetchParams);
-            fetchEvents(fetchParams, true);
-          }}
+          onChange={(e) => handleViewFilterChange(e.target.value)}
         />
         <span style={styles.viewFilterText}>
           {isLeaderAt12 ? "ALL CELLS (My Disciples)" : "VIEW ALL"}
@@ -2225,31 +2241,7 @@ const ViewFilterButtons = () => {
           name="viewFilter"
           value="personal"
           checked={viewFilter === 'personal'}
-          onChange={(e) => {
-            setViewFilter(e.target.value);
-            setCurrentPage(1);
-            const fetchParams = {
-              page: 1,
-              limit: rowsPerPage,
-              start_date: DEFAULT_API_START_DATE,
-              event_type: selectedEventTypeFilter === 'all' ? "CELLS" : selectedEventTypeFilter
-            };
-
-            if (isLeaderAt12) {
-              // Leader at 12 - "PERSONAL" = show only their own cells
-              fetchParams.leader_at_12_view = true;
-              fetchParams.show_personal_cells = true;
-              fetchParams.show_all_authorized = false;
-              fetchParams.include_subordinate_cells = false;
-              fetchParams.include_global_events = false;
-            } else if (isAdmin) {
-              // Admin - "PERSONAL" = show only their created cells
-              fetchParams.personal = true;
-            }
-
-            console.log("PERSONAL selected - fetching:", fetchParams);
-            fetchEvents(fetchParams, true);
-          }}
+          onChange={(e) => handleViewFilterChange(e.target.value)}
         />
         <span style={styles.viewFilterText}>
           {isLeaderAt12 ? "MY CELLS ONLY" : "PERSONAL"}
@@ -2344,52 +2336,69 @@ const ViewFilterButtons = () => {
     return typeof type === "string" ? type : type.name || String(type);
   };
 
-  const handleEventTypeClick = (typeValue) => {
-    if (selectedEventTypeFilter === typeValue) {
-      fetchEvents({}, true);
-      return;
-    }
+const handleEventTypeClick = (typeValue) => {
+  console.log("Event type clicked:", typeValue, "current:", selectedEventTypeFilter);
+  
+  // Prevent unnecessary re-fetch if clicking the same type
+  if (selectedEventTypeFilter === typeValue) {
+    console.log("Same type clicked, refreshing data...");
+    fetchEvents({}, true);
+    return;
+  }
 
-    setSelectedEventTypeFilter(typeValue);
-    setCurrentPage(1);
+  setSelectedEventTypeFilter(typeValue);
+  setCurrentPage(1);
 
-    const selectedTypeObj = eventTypes.find(
-      type => (type.name || type) === typeValue
-    );
-    setSelectedEventTypeObj(selectedTypeObj || null);
+  const selectedTypeObj = eventTypes.find(
+    type => (type.name || type) === typeValue
+  );
+  setSelectedEventTypeObj(selectedTypeObj || null);
 
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      search: searchQuery.trim() || undefined,
-      start_date: DEFAULT_API_START_DATE
-    };
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    search: searchQuery.trim() || undefined,
+    start_date: DEFAULT_API_START_DATE
+  };
 
-    if (typeValue === "all") {
-      fetchParams.event_type = "CELLS";
-    } else {
-      fetchParams.event_type = typeValue;
-    }
+  // Always send event_type
+  if (typeValue === "all") {
+    fetchParams.event_type = "CELLS";
+  } else {
+    fetchParams.event_type = typeValue;
+  }
 
-    if (typeValue !== 'all' && typeValue !== 'CELLS') {
-      // Don't apply personal filters for ticketed/global events
-    } else {
-      if (isAdmin && viewFilter === 'personal') {
-        fetchParams.personal = true;
-      } else if (isLeaderAt12) {
-        if (viewFilter === 'personal') {
-          fetchParams.show_personal_cells = true;
-          fetchParams.show_all_authorized = false;
-        } else {
-          fetchParams.show_personal_cells = false;
-          fetchParams.show_all_authorized = true;
-        }
+  // Only apply personal filters for Cells events
+  if (typeValue === 'all' || typeValue === 'CELLS') {
+    if (isAdmin && viewFilter === 'personal') {
+      fetchParams.personal = true;
+    } else if (isLeaderAt12) {
+      if (viewFilter === 'personal') {
+        fetchParams.show_personal_cells = true;
+        fetchParams.show_all_authorized = false;
+      } else {
+        fetchParams.show_personal_cells = false;
+        fetchParams.show_all_authorized = true;
       }
     }
+  }
 
-    fetchEvents(fetchParams, true);
-  };
+  console.log("Fetching with params:", fetchParams);
+  fetchEvents(fetchParams, true);
+};
+
+useEffect(() => {
+  console.log("🔍 DEBUG - Current State:", {
+    selectedEventTypeFilter,
+    eventsCount: events.length,
+    loading,
+    userRole,
+    isAdmin,
+    isLeaderAt12,
+    viewFilter
+  });
+}, [selectedEventTypeFilter, events, loading, userRole, isAdmin, isLeaderAt12, viewFilter]);
 
   const handleMenuOpen = (event, type) => {
     event.stopPropagation(); 
@@ -2596,7 +2605,7 @@ console.log("=== END DEBUG ===");
         backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
       }}>
      
-     <EventTypeSelector
+    <EventTypeSelector
   eventTypes={eventTypes}
   selectedEventTypeFilter={selectedEventTypeFilter}
   setSelectedEventTypeFilter={setSelectedEventTypeFilter}
@@ -2618,7 +2627,6 @@ console.log("=== END DEBUG ===");
   setToDeleteType={setToDeleteType}
   setConfirmDeleteOpen={setConfirmDeleteOpen}
 />
-
         <Box sx={{
           display: "flex",
           gap: 2,
