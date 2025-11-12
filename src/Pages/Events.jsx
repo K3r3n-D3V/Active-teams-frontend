@@ -2159,6 +2159,7 @@ console.log("🔍 DEBUG User Role:", {
 });
 
 
+// ...existing code...
 const ViewFilterButtons = () => {
   // Show toggle for both Admin and Leader at 12, but only for CELLS events
   const shouldShowToggle = (isAdmin || isLeaderAt12) && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
@@ -2220,9 +2221,12 @@ const ViewFilterButtons = () => {
     fetchEvents(fetchParams, true);
   };
 
+  // Only leaders@12 and admins reach here (shouldShowToggle guard above),
+  // so render the radio controls directly.
   return (
     <div style={styles.viewFilterContainer}>
       <span style={styles.viewFilterLabel}>View:</span>
+
       <label style={styles.viewFilterRadio}>
         <input
           type="radio"
@@ -2235,6 +2239,7 @@ const ViewFilterButtons = () => {
           {isLeaderAt12 ? "ALL CELLS (My Disciples)" : "VIEW ALL"}
         </span>
       </label>
+
       <label style={styles.viewFilterRadio}>
         <input
           type="radio"
@@ -2250,6 +2255,7 @@ const ViewFilterButtons = () => {
     </div>
   );
 };
+// ...existing code...
 
  const EventTypeSelector = ({
   eventTypes,
