@@ -314,6 +314,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           date_of_birth: submitData.date_of_birth,
           home_address: submitData.home_address,
           invited_by: submitData.invited_by,
+          leader: submitData.leader,
           phone_number: submitData.phone_number,
           email: submitData.email,
           gender: submitData.gender,
