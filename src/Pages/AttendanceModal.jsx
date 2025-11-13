@@ -1161,20 +1161,13 @@ useEffect(() => {
   return (
     <div style={styles.overlay}>
       <div style={styles.modal}>
-        <h2 style={styles.title}>Confirm Leadership</h2>
-        <p style={styles.subtitle}>
-          The system auto-filled these leaders based on the 'Invited By' person. 
-          Please confirm or adjust them manually.
-        </p>
+        <h2 style={styles.title}> Leadership</h2>
+      
 
         <div style={styles.leaderGroup}>
           {['leader1', 'leader12', 'leader144'].map((field) => (
             <div key={field} style={styles.inputGroup}>
-              <label style={styles.label}>
-                {field === 'leader1' && "Leader @1 (Vicky)"}
-                {field === 'leader12' && "Leader @12 (Sash)"}
-                {field === 'leader144' && "Leader @144 (Keren)"}
-              </label>
+             
               <input
                 type="text"
                 value={leaderSearches[field]}

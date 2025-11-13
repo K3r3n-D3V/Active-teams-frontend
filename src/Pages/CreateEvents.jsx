@@ -336,13 +336,13 @@ const fetchPeople = async (filter = "") => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const getDayFromDate = (dateString) => {
-    if (!dateString) return "One-time";
-    
-    const date = new Date(dateString);
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[date.getDay()];
-  };
+const getDayFromDate = (dateString) => {
+  if (!dateString) return "";
+  
+  const date = new Date(dateString);
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return days[date.getDay()];
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -362,38 +362,37 @@ const fetchPeople = async (filter = "") => {
 
       console.log('Creating event with type:', eventTypeToSend);
 
-      // FIXED: Calculate the correct day value
-      let dayValue = "One-time";
-      
-      if (formData.recurringDays.length > 0) {
-        // For recurring events, use the first recurring day
-        dayValue = formData.recurringDays[0];
-      } else if (formData.date) {
-        // For one-time events, calculate day from the date
-        dayValue = getDayFromDate(formData.date);
-      }
+let dayValue = "";
+
+if (formData.date) {
+  dayValue = getDayFromDate(formData.date);
+} else if (formData.recurringDays.length > 0) {
+  // Fallback: if no date but has recurring days, use first recurring day
+  dayValue = formData.recurringDays[0];
+} else {
+  // Final fallback
+  dayValue = "One-time";
+}
 
       const payload = {
-        UUID: generateUUID(),
-        eventTypeName: eventTypeToSend,
-        event_type: eventTypeToSend,
-        eventName: formData.eventName,
-        isTicketed: !!isTicketedEvent,
-        isGlobal: !!isGlobalEvent,
-        hasPersonSteps: !!hasPersonSteps,
-        location: formData.location,
-        eventLeader: formData.eventLeader,
-        eventLeaderName: formData.eventLeader,
-        eventLeaderEmail: user?.email || "", 
-        description: formData.description,
-        userEmail: user?.email || "",
-        email: user?.email || "",
-        recurring_day: formData.recurringDays,
-        day: dayValue, // FIXED: Now correctly sets the actual day
-        status: "open",
-        leader1: formData.leader1 || "",
-        leader12: formData.leader12 || "",
-      };
+  UUID: generateUUID(),
+  eventTypeName: eventTypeToSend,  // Backend expects this field name
+  eventName: formData.eventName,
+  isTicketed: !!isTicketedEvent,
+  isGlobal: !!isGlobalEvent,
+  hasPersonSteps: !!hasPersonSteps,
+  location: formData.location,
+  eventLeader: formData.eventLeader,
+  eventLeaderName: formData.eventLeader,  // Backend uses this
+  eventLeaderEmail: user?.email || "",    // Backend uses this
+  description: formData.description,
+  userEmail: user?.email || "",           // Backend uses this
+  recurring_day: formData.recurringDays,
+  day: dayValue,
+  status: "open",
+  leader1: formData.leader1 || "",
+  leader12: formData.leader12 || "",
+};
 
       if (formData.date && formData.time) {
         const [hoursStr, minutesStr] = formData.time.split(":");

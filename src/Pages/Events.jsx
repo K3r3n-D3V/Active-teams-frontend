@@ -2530,17 +2530,7 @@ const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null
           </span>
         </label>
         
-        {/* Temporary debug button */}
-        {isLeaderAt12 && (
-          <Button 
-            variant="outlined" 
-            size="small"
-            onClick={testLeaderAt12Backend}
-            sx={{ ml: 2 }}
-          >
-            Test Backend
-          </Button>
-        )}
+       
       </div>
     );
   };
