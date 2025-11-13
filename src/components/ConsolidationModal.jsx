@@ -218,179 +218,179 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     console.log("📝 Decision type changed to:", event.target.value);
   };
 
-const handleFinish = async () => {
-  if (!recipient) {
-    setError("Please select a person for consolidation");
-    return;
-  }
-
-  if (!taskStage) {
-    setError("Please select a decision type");
-    return;
-  }
-
-  if (alreadyConsolidated) {
-    setError("This person has already been consolidated and cannot be consolidated again.");
-    return;
-  }
-
-  const leaderInfo = getHighestAvailableLeader(recipient);
-  
-  if (!leaderInfo.hasLeader) {
-    setError("Cannot create consolidation task: No leader available for assignment");
-    return;
-  }
-
-  const finalCheck = checkIfAlreadyConsolidated(recipient);
-  if (finalCheck) {
-    setError("This person has already been consolidated. Please select someone else.");
-    return;
-  }
-
-  const decisionType = taskStage.toLowerCase() === 'recommitment' ? 'recommitment' : 'first_time';
-  
-  // Get leader's email from the cached people data
-  const leaderEmail = await findLeaderEmail(leaderInfo.leader);
-  
-  const consolidationData = {
-    person_name: recipient.Name || recipient.name,
-    person_surname: recipient.Surname || recipient.surname,
-    person_email: recipient.Email || recipient.email || "",
-    person_phone: recipient.Phone || recipient.phone || "",
-    decision_type: decisionType,
-    decision_date: new Date().toISOString().split('T')[0],
-    assigned_to: leaderInfo.leader,
-    assigned_to_email: leaderEmail, // Add leader's email
-    event_id: currentEventId,
-    leaders: [
-      recipient["Leader @1"] || recipient.leader1 || "",
-      recipient["Leader @12"] || recipient.leader12 || "",
-      recipient["Leader @144"] || recipient.leader144 || "",
-      recipient["Leader @1728"] || recipient.leader1728 || ""
-    ]
-  };
-
-  console.log("📤 Sending consolidation data to backend:", consolidationData);
-  console.log("👥 Leader assignment:", {
-    leader: leaderInfo.leader,
-    email: leaderEmail,
-    level: leaderInfo.level
-  });
-
-  setLoading(true);
-
-  try {
-    const token = localStorage.getItem("token");
-    console.log("🔑 Token available:", !!token);
-
-    if (!token) {
-      throw new Error("No authentication token found");
-    }
-
-    // Create consolidation record
-    const response = await axios.post(`${BASE_URL}/consolidations`, consolidationData, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+  // FIXED: Simplified leader email lookup without people_cache
+  const findLeaderEmail = async (leaderName) => {
+    if (!leaderName || leaderName === "No Leader Assigned") return "";
     
-    console.log("✅ Consolidation creation response:", response.data);
-
-    onFinish({
-      ...response.data,
-      recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
-      assignedTo: leaderInfo.leader,
-      taskStage: taskStage,
-      decisionType: decisionType,
-      leaderLevel: leaderInfo.level,
-      task_id: response.data.task_id,
-      recipient_email: recipient.Email || recipient.email || "",
-      recipient_phone: recipient.Phone || recipient.phone || "",
-      leader_email: leaderEmail
-    });
-    
-    onClose();
-    
-    setRecipient(null);
-    setAssignedTo("");
-    setTaskStage("");
-    setAlreadyConsolidated(false);
-    
-  } catch (err) {
-    console.error("❌ Error creating consolidation:", err);
-    
-    if (err.response) {
-      console.error("📡 Server response error:", {
-        status: err.response.status,
-        data: err.response.data,
+    try {
+      const token = localStorage.getItem("token");
+      const searchResponse = await axios.get(`${BASE_URL}/people/search`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        params: {
+          query: leaderName,
+          limit: 5,
+          fields: "Name,Email"
+        }
       });
       
-      if (err.response.data && err.response.data.detail) {
-        setError(`Server error: ${err.response.data.detail}`);
-      } else {
-        setError(`Server error: ${err.response.status} - ${err.response.data?.message || 'Unknown error'}`);
+      if (searchResponse.data?.results?.length > 0) {
+        const foundLeader = searchResponse.data.results.find(person => 
+          person.Name?.toLowerCase() === leaderName.toLowerCase() ||
+          person.FullName?.toLowerCase() === leaderName.toLowerCase()
+        );
+        
+        if (foundLeader?.Email) {
+          console.log(`✅ Found leader email via API: ${foundLeader.Email}`);
+          return foundLeader.Email;
+        }
       }
-    } else if (err.request) {
-      console.error("🌐 Network error:", err.request);
-      setError("Network error: Could not connect to server. Please check your connection.");
-    } else {
-      console.error("⚡ Request setup error:", err.message);
-      setError(`Request error: ${err.message}`);
-    }
-  } finally {
-    setLoading(false);
-  }
-};
-
-// Helper function to find leader's email
-const findLeaderEmail = async (leaderName) => {
-  if (!leaderName) return "";
-  
-  try {
-    // First try to search in the cached people data
-    const cachedLeader = people_cache.data.find(person => 
-      person.FullName?.toLowerCase() === leaderName.toLowerCase() ||
-      person.Name?.toLowerCase() === leaderName.toLowerCase()
-    );
-    
-    if (cachedLeader?.Email) {
-      console.log(`✅ Found leader email in cache: ${cachedLeader.Email}`);
-      return cachedLeader.Email;
-    }
-    
-    // If not found in cache, try API search
-    const token = localStorage.getItem("token");
-    const searchResponse = await axios.get(`${BASE_URL}/people/search`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      params: {
-        query: leaderName,
-        limit: 5
-      }
-    });
-    
-    if (searchResponse.data?.results?.length > 0) {
-      const foundLeader = searchResponse.data.results.find(person => 
-        person.Name?.toLowerCase() === leaderName.toLowerCase() ||
-        person.FullName?.toLowerCase() === leaderName.toLowerCase()
-      );
       
-      if (foundLeader?.Email) {
-        console.log(`✅ Found leader email via API: ${foundLeader.Email}`);
-        return foundLeader.Email;
-      }
+      console.log(`⚠️ Could not find email for leader: ${leaderName}`);
+      return "";
+      
+    } catch (error) {
+      console.error("Error searching for leader email:", error);
+      return "";
     }
+  };
+
+  // FIXED: Enhanced handleFinish with better validation
+  const handleFinish = async () => {
+    if (!recipient) {
+      setError("Please select a person for consolidation");
+      return;
+    }
+
+    if (!taskStage) {
+      setError("Please select a decision type");
+      return;
+    }
+
+    if (alreadyConsolidated) {
+      setError("This person has already been consolidated and cannot be consolidated again.");
+      return;
+    }
+
+    const leaderInfo = getHighestAvailableLeader(recipient);
     
-    console.log(`⚠️ Could not find email for leader: ${leaderName}`);
-    return "";
+    if (!leaderInfo.hasLeader) {
+      setError("Cannot create consolidation task: No leader available for assignment");
+      return;
+    }
+
+    const finalCheck = checkIfAlreadyConsolidated(recipient);
+    if (finalCheck) {
+      setError("This person has already been consolidated. Please select someone else.");
+      return;
+    }
+
+    // IMPORTANT: Log current check-in status before proceeding
+    console.log("🔍 PRE-CONSOLIDATION CHECK - Person status:", {
+      name: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
+      email: recipient.Email || recipient.email,
+      isCheckedIn: false, // Consolidation should NEVER check people in
+      action: "Creating consolidation task only"
+    });
+
+    const decisionType = taskStage.toLowerCase() === 'recommitment' ? 'recommitment' : 'first_time';
     
-  } catch (error) {
-    console.error("Error searching for leader email:", error);
-    return "";
-  }
-};
+    // Get leader's email
+    const leaderEmail = await findLeaderEmail(leaderInfo.leader);
+    
+    const consolidationData = {
+      person_name: recipient.Name || recipient.name,
+      person_surname: recipient.Surname || recipient.surname,
+      person_email: recipient.Email || recipient.email || "",
+      person_phone: recipient.Phone || recipient.phone || "",
+      decision_type: decisionType,
+      decision_date: new Date().toISOString().split('T')[0],
+      assigned_to: leaderInfo.leader,
+      assigned_to_email: leaderEmail,
+      event_id: currentEventId,
+      leaders: [
+        recipient["Leader @1"] || recipient.leader1 || "",
+        recipient["Leader @12"] || recipient.leader12 || "",
+        recipient["Leader @144"] || recipient.leader144 || "",
+        recipient["Leader @1728"] || recipient.leader1728 || ""
+      ],
+      // EXPLICITLY state this is not a check-in
+      is_check_in: false,
+      attendance_status: "not_checked_in"
+    };
+
+    console.log("📤 Sending consolidation data (NO CHECK-IN):", consolidationData);
+
+    setLoading(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      console.log("🔑 Token available:", !!token);
+
+      if (!token) {
+        throw new Error("No authentication token found");
+      }
+
+      // Create consolidation record ONLY
+      const response = await axios.post(`${BASE_URL}/consolidations`, consolidationData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log("✅ Consolidation creation response:", response.data);
+
+      // Call onFinish with consolidation data only - NO CHECK-IN
+      onFinish({
+        ...response.data,
+        recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
+        assignedTo: leaderInfo.leader,
+        taskStage: taskStage,
+        decisionType: decisionType,
+        leaderLevel: leaderInfo.level,
+        task_id: response.data.task_id,
+        recipient_email: recipient.Email || recipient.email || "",
+        recipient_phone: recipient.Phone || recipient.phone || "",
+        leader_email: leaderEmail,
+        // EXPLICITLY mark that this is not a check-in
+        isConsolidationOnly: true
+      });
+      
+      onClose();
+      
+      // Reset form
+      setRecipient(null);
+      setAssignedTo("");
+      setTaskStage("");
+      setAlreadyConsolidated(false);
+      
+    } catch (err) {
+      console.error("❌ Error creating consolidation:", err);
+      
+      if (err.response) {
+        console.error("📡 Server response error:", {
+          status: err.response.status,
+          data: err.response.data,
+        });
+        
+        if (err.response.data && err.response.data.detail) {
+          setError(`Server error: ${err.response.data.detail}`);
+        } else {
+          setError(`Server error: ${err.response.status} - ${err.response.data?.message || 'Unknown error'}`);
+        }
+      } else if (err.request) {
+        console.error("🌐 Network error:", err.request);
+        setError("Network error: Could not connect to server. Please check your connection.");
+      } else {
+        console.error("⚡ Request setup error:", err.message);
+        setError(`Request error: ${err.message}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleKeyPress = (event) => {
     if (event.key === 'Enter') {
@@ -456,7 +456,7 @@ const findLeaderEmail = async (leaderName) => {
           Consolidation Assignment
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Assign follow-up task for new converts
+          Assign follow-up task for new converts (Does NOT check people in)
         </Typography>
       </DialogTitle>
       
@@ -466,6 +466,12 @@ const findLeaderEmail = async (leaderName) => {
             {error}
           </Alert>
         )}
+
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            <strong>Note:</strong> This creates a consolidation task only. It does NOT mark the person as checked in to the event.
+          </Typography>
+        </Alert>
 
         <TextField
           label="Task Type"
