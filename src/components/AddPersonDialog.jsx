@@ -142,47 +142,54 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSaveClick = async () => {
-    if (!validate() || isSubmitting) return;
+const handleSaveClick = async () => {
+  if (!validate() || isSubmitting) return;
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    try {
-      const payload = {
-        invitedBy: formData.invitedBy,
-        name: formData.name,
-        surname: formData.surname,
-        gender: formData.gender,
-        email: formData.email,
-        number: formData.number,
-        dob: formData.dob,
-        address: formData.address,
-        leader12: formData.leader12,
-        leader144: formData.leader144,
-        leader1728: formData.leader1728,
-        stage: formData.stage || "Win", 
-      };
-      let res;
+  try {
+    // FIX: Create leaders array from individual leader fields
+    const leaders = [
+      formData.leader12 || "",
+      formData.leader144 || "", 
+      formData.leader1728 || ""
+    ].filter(leader => leader.trim() !== ""); // Remove empty strings
 
-      if (isEdit && personId) {
-        res = await axios.patch(`${BASE_URL}/people/${personId}`, payload);
-        onSave({ ...payload, _id: personId });
-      } else {
-        res = await axios.post(`${BASE_URL}/people`, payload);
-        onSave(res.data);
-      }
+    const payload = {
+      invitedBy: formData.invitedBy,
+      name: formData.name,
+      surname: formData.surname,
+      gender: formData.gender,
+      email: formData.email,
+      number: formData.number,
+      dob: formData.dob,
+      address: formData.address,
+      leaders: leaders,  // ✅ Send as array, not individual fields
+      stage: formData.stage || "Win", 
+    };
 
-      setFormData(initialFormState);
-      onClose();
-    } catch (err) {
-      console.error("Failed to save person:", err);
-      const msg = err.response?.data?.detail || "An error occurred";
-      toast.error(`Error: ${msg}`);
-    } finally {
-      setIsSubmitting(false);
+    console.log("📤 Sending payload:", payload); // Debug log
+
+    let res;
+
+    if (isEdit && personId) {
+      res = await axios.patch(`${BASE_URL}/people/${personId}`, payload);
+      onSave({ ...payload, _id: personId });
+    } else {
+      res = await axios.post(`${BASE_URL}/people`, payload);
+      onSave(res.data);
     }
-  };
 
+    setFormData(initialFormState);
+    onClose();
+  } catch (err) {
+    console.error("Failed to save person:", err);
+    const msg = err.response?.data?.detail || "An error occurred";
+    toast.error(`Error: ${msg}`);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   const handleClose = () => {
     if (isSubmitting) return;
     setFormData(initialFormState);
