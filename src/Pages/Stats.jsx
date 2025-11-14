@@ -204,107 +204,73 @@ const StatsDashboard = () => {
 
       const dateRange = getDateRange();
 
-      // Fetch events with simpler parameters
-      let allEvents = [];
-      let page = 1;
-      const perPage = 50;
-      let hasMore = true;
+      // Use existing endpoints instead of non-existent ones
+      // 1. Fetch cell events using your existing /events/cells endpoint
+      const cellsParams = {
+        page: '1',
+        limit: '100',
+        start_date: dateRange.start
+      };
 
-      while (hasMore) {
-        const eventsParams = {
-          page: page.toString(),
-          perPage: perPage.toString()
-        };
-
-        const eventsResponse = await fetch(
-          `${BACKEND_URL}/events?${new URLSearchParams(eventsParams)}`,
-          { headers }
-        );
-        
-        if (!eventsResponse.ok) {
-          throw new Error(`Failed to fetch events: ${eventsResponse.status}`);
-        }
-
-        const eventsData = await eventsResponse.json();
-        const eventsBatch = eventsData.events || eventsData.results || eventsData.data || [];
-        
-        if (eventsBatch.length === 0) {
-          hasMore = false;
-        } else {
-          allEvents = [...allEvents, ...eventsBatch];
-          page++;
-          
-          if (page > 20) {
-            hasMore = false;
-          }
-        }
+      const cellsResponse = await fetch(
+        `${BACKEND_URL}/events/cells?${new URLSearchParams(cellsParams)}`,
+        { headers }
+      );
+      
+      if (!cellsResponse.ok) {
+        throw new Error(`Failed to fetch cells: ${cellsResponse.status}`);
       }
 
-      // Filter events by date range on the client side
-      const filteredEvents = allEvents.filter(event => {
-        if (!event.date) return false;
-        const eventDate = new Date(event.date);
-        const startDate = new Date(dateRange.start);
-        const endDate = new Date(dateRange.end);
-        return eventDate >= startDate && eventDate <= endDate;
-      });
+      const cellsData = await cellsResponse.json();
+      const cellEvents = cellsData.events || [];
 
-      // Filter global and ticketed events for attendance stats
-      const globalTicketedEvents = filteredEvents.filter(event => 
-        event.isGlobal || 
-        event.isTicketed || 
-        (event.eventType && (
-          event.eventType.toLowerCase().includes('global') ||
-          event.eventType.toLowerCase().includes('service') ||
-          event.eventType.toLowerCase().includes('sunday') ||
-          event.eventType.toLowerCase().includes('main')
-        ))
-      );
-
-      // Use centralized service for overdue calculation
-      const overdueCells = EventCalculationService.getOverdueCells(allEvents);
-
-      // Fetch all tasks
+      // 2. Fetch all tasks using your existing /tasks endpoint
       let allTasks = [];
       try {
         const tasksResponse = await fetch(`${BACKEND_URL}/tasks`, { headers });
         if (tasksResponse.ok) {
           const tasksData = await tasksResponse.json();
-          allTasks = Array.isArray(tasksData) ? tasksData : tasksData.tasks || tasksData.results || [];
+          allTasks = tasksData.tasks || tasksData.results || [];
         }
       } catch (tasksError) {
         console.warn('Error fetching tasks:', tasksError);
       }
 
-      // Fetch recent people count
+      // 3. Fetch people count using your existing /people endpoint
       let recentPeopleCount = 0;
       try {
         const peopleResponse = await fetch(`${BACKEND_URL}/people?perPage=1`, { headers });
         if (peopleResponse.ok) {
           const peopleData = await peopleResponse.json();
           const totalPeople = peopleData.total || peopleData.count || 0;
+          // Use 10% of total as "recent people" estimate
           recentPeopleCount = Math.max(1, Math.floor(totalPeople * 0.1));
         }
       } catch (peopleError) {
-        recentPeopleCount = Math.floor(allEvents.length * 0.1);
+        console.warn('Error fetching people count:', peopleError);
+        // Fallback: estimate based on events
+        recentPeopleCount = Math.floor(cellEvents.length * 0.1);
       }
 
-      // Calculate overview stats
-      const totalAttendance = globalTicketedEvents.reduce((sum, event) => 
-        sum + (event.total_attendance || event.attendees?.length || 0), 0
-      );
+      // Calculate overdue cells using your existing service
+      const overdueCells = EventCalculationService.getOverdueCells(cellEvents);
+      
+      // Calculate total attendance from cell events
+      const totalAttendance = cellEvents.reduce((sum, event) => {
+        return sum + (event.attendees?.length || 0);
+      }, 0);
 
       const overviewData = {
         total_attendance: totalAttendance,
         outstanding_cells: overdueCells.length,
         outstanding_tasks: allTasks.length,
         recent_people: recentPeopleCount,
-        events_count: globalTicketedEvents.length
+        events_count: cellEvents.length
       };
 
       setStats({
         overview: overviewData,
-        events: globalTicketedEvents,
+        events: cellEvents,
         overdueCells: overdueCells,
         recentPeople: recentPeopleCount,
         allTasks: allTasks,

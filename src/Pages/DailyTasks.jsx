@@ -466,7 +466,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
         taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
           name: `${person.Name} ${person.Surname || ""}`.trim(),
-          Number: person.Phone || person.Number || "",
+          phone: person.Phone || person.Number || "",
           email: person.Email || "",
         },
         followup_date: new Date(taskData.dueDate).toISOString(),
