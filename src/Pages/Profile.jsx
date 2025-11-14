@@ -182,6 +182,11 @@ export default function Profile() {
   const { userProfile, setUserProfile, setProfilePic, profilePic } =
     useContext(UserContext);
 
+  // Check user role permissions
+  const userRole = userProfile?.role?.toLowerCase() || "";
+  const canEditProfile = userRole === "admin" || userRole === "leader";
+  const isRegularUser = !canEditProfile;
+
   const fileInputRef = useRef(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -349,15 +354,16 @@ export default function Profile() {
   const validate = () => {
     const n = {};
     
-    // Required fields - only validate if trying to change them (which they can't now)
-    // Keep basic validation in case of admin features later
-    if (!form.name.trim()) n.name = "Name is required";
-    if (!form.surname.trim()) n.surname = "Surname is required";
-    if (!form.email.trim()) n.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
+    // Required fields - only validate if user can edit them
+    if (canEditProfile) {
+      if (!form.name.trim()) n.name = "Name is required";
+      if (!form.surname.trim()) n.surname = "Surname is required";
+      if (!form.email.trim()) n.email = "Email is required";
+      else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
+    }
     
     // Date validation
-    if (form.dob) {
+    if (form.dob && canEditProfile) {
       const dobDate = new Date(form.dob);
       const today = new Date();
       if (dobDate > today) {
@@ -366,7 +372,7 @@ export default function Profile() {
     }
     
     // Phone validation (optional) - VERY RELAXED
-    if (form.phone && form.phone.trim()) {
+    if (form.phone && form.phone.trim() && canEditProfile) {
       const hasNumbers = /\d/.test(form.phone);
       if (!hasNumbers) {
         n.phone = "Phone number should contain numbers";
@@ -428,12 +434,59 @@ export default function Profile() {
       // Handle password change if requested
       const hasPasswordChange = form.newPassword && form.confirmPassword && form.currentPassword;
       
+      // Handle profile updates (only for admin/leader)
+      const hasProfileChanges = canEditProfile && Object.keys(form).some((key) => {
+        if (["currentPassword", "newPassword", "confirmPassword"].includes(key)) {
+          return false;
+        }
+        return form[key] !== originalForm[key];
+      });
+
+      if (hasProfileChanges) {
+        try {
+          const profileData = {
+            name: form.name,
+            surname: form.surname,
+            date_of_birth: form.dob,
+            email: form.email,
+            home_address: form.address,
+            phone_number: form.phone,
+            invited_by: form.invitedBy,
+            gender: form.gender,
+          };
+
+          await updateUserProfile(profileData);
+          
+          // Update context and local storage
+          const updatedProfile = { ...userProfile, ...profileData };
+          setUserProfile(updatedProfile);
+          localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
+          
+          // Update original form
+          setOriginalForm({ ...form });
+          
+          setSnackbar({
+            open: true,
+            message: "Profile updated successfully!",
+            severity: "success",
+          });
+        } catch (profileError) {
+          console.error("❌ Profile update failed:", profileError);
+          setSnackbar({
+            open: true,
+            message: `Profile update failed: ${profileError.message}`,
+            severity: "error",
+          });
+          return; // Don't proceed to password change if profile update failed
+        }
+      }
+      
       if (hasPasswordChange) {
         try {
           await updatePassword(form.currentPassword, form.newPassword);
           setSnackbar({
             open: true,
-            message: "Password updated successfully!",
+            message: hasProfileChanges ? "Profile and password updated successfully!" : "Password updated successfully!",
             severity: "success",
           });
           
@@ -462,7 +515,7 @@ export default function Profile() {
         }
       }
 
-      console.log("✅ Password update completed successfully");
+      console.log("✅ Update completed successfully");
 
     } catch (err) {
       console.error("❌ Update failed:", err);
@@ -662,6 +715,23 @@ export default function Profile() {
             <Typography variant="h4" sx={{ fontWeight: 700, color: isDark ? "#ffffff" : "#000000", mb: 1, fontSize: { xs: "1.5rem", sm: "2rem", md: "2.25rem" }, }}>
               {form.name} {form.surname}
             </Typography>
+            {/* Role Badge */}
+            {canEditProfile && (
+              <Typography variant="body2" sx={{ 
+                display: "inline-block",
+                px: 2, 
+                py: 0.5, 
+                borderRadius: 2,
+                bgcolor: currentCarouselItem.color + "20",
+                color: currentCarouselItem.color,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                fontSize: "0.75rem",
+                letterSpacing: 1
+              }}>
+                {userRole}
+              </Typography>
+            )}
           </Box>
         </Box>
       </Box>
@@ -670,6 +740,13 @@ export default function Profile() {
       <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
         <Card sx={{ bgcolor: isDark ? "#111111" : "#ffffff", borderRadius: 3, boxShadow: isDark ? "0 8px 32px rgba(255,255,255,0.02)" : "0 8px 32px rgba(0,0,0,0.08)", border: `1px solid ${isDark ? "#222222" : "#e0e0e0"}`, }}>
           <CardContent sx={{ p: { xs: 3, sm: 4 }, pt: 4 }}>
+            {/* Info Banner for Regular Users */}
+            {isRegularUser && (
+              <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+                Your profile information is managed by church administrators. You can only change your password.
+              </Alert>
+            )}
+
             <Box component="form" onSubmit={handleSubmit}>
               {/* Personal Information Fields */}
               <Grid container spacing={3}>
@@ -678,7 +755,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Name
                   </Typography>
-                  <TextField value={form.name || ""} onChange={handleChange("name")} fullWidth disabled={true} error={!!errors.name} helperText={errors.name} sx={commonFieldSx} />
+                  <TextField value={form.name || ""} onChange={handleChange("name")} fullWidth disabled={!canEditProfile} error={!!errors.name} helperText={errors.name} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Surname */}
@@ -686,7 +763,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Surname
                   </Typography>
-                  <TextField value={form.surname || ""} onChange={handleChange("surname")} fullWidth disabled={true} error={!!errors.surname} helperText={errors.surname} sx={commonFieldSx} />
+                  <TextField value={form.surname || ""} onChange={handleChange("surname")} fullWidth disabled={!canEditProfile} error={!!errors.surname} helperText={errors.surname} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Date of Birth */}
@@ -694,7 +771,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Date Of Birth
                   </Typography>
-                  <TextField value={form.dob || ""} onChange={handleChange("dob")} fullWidth type="date" disabled={true} error={!!errors.dob} helperText={errors.dob} InputLabelProps={{ shrink: true }} sx={commonFieldSx} />
+                  <TextField value={form.dob || ""} onChange={handleChange("dob")} fullWidth type="date" disabled={!canEditProfile} error={!!errors.dob} helperText={errors.dob} InputLabelProps={{ shrink: true }} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Email */}
@@ -702,7 +779,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Email Address
                   </Typography>
-                  <TextField value={form.email || ""} onChange={handleChange("email")} fullWidth disabled={true} error={!!errors.email} helperText={errors.email} sx={commonFieldSx} />
+                  <TextField value={form.email || ""} onChange={handleChange("email")} fullWidth disabled={!canEditProfile} error={!!errors.email} helperText={errors.email} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Home Address */}
@@ -710,7 +787,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Home Address
                   </Typography>
-                  <TextField value={form.address || ""} onChange={handleChange("address")} fullWidth disabled={true} sx={commonFieldSx} />
+                  <TextField value={form.address || ""} onChange={handleChange("address")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Phone Number */}
@@ -718,7 +795,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Phone Number
                   </Typography>
-                  <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth disabled={true} error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
+                  <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth disabled={!canEditProfile} error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Invited By */}
@@ -726,7 +803,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Invited By
                   </Typography>
-                  <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={true} sx={commonFieldSx} />
+                  <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Gender */}
@@ -734,7 +811,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Gender
                   </Typography>
-                  <TextField select value={form.gender || ""} onChange={handleChange("gender")} fullWidth disabled={true} sx={commonFieldSx}>
+                  <TextField select value={form.gender || ""} onChange={handleChange("gender")} fullWidth disabled={!canEditProfile} sx={commonFieldSx}>
                     {genderOptions.map((option) => (
                       <MenuItem key={option.value} value={option.value}>
                         {option.label}
@@ -781,7 +858,7 @@ export default function Profile() {
               {/* Action Buttons */}
               <Box sx={{ mt: 4, display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap", }}>
                 <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
-                  Update Password
+                  {canEditProfile ? "Save Changes" : "Update Password"}
                 </Button>
               </Box>
             </Box>
