@@ -182,31 +182,78 @@ export default function Profile() {
   const { userProfile, setUserProfile, setProfilePic, profilePic } =
     useContext(UserContext);
 
-  // FIXED: Better role checking logic
-  const checkIfCanEdit = (profile) => {
-    if (!profile?.role) {
+  // CRITICAL FIX: Store the logged-in user's role separately and NEVER let it change
+  const [loggedInUserRole, setLoggedInUserRole] = useState(() => {
+    // Get from localStorage on mount - this is the logged-in user's role
+    const storedProfile = localStorage.getItem("userProfile");
+    if (storedProfile) {
+      try {
+        const parsed = JSON.parse(storedProfile);
+        const role = parsed.role || "user";
+        console.log("🔐 Initial logged-in user role:", role);
+        return role;
+      } catch (e) {
+        console.error("Failed to parse stored profile:", e);
+      }
+    }
+    return "user";
+  });
+
+  // Enhanced role checking logic to handle multiple roles
+  // CRITICAL: Use loggedInUserRole instead of userProfile.role
+  const checkIfCanEdit = useCallback((roleToCheck) => {
+    if (!roleToCheck) {
       console.log("❌ No role found, defaulting to regular user");
       return false;
     }
     
-    const roleStr = String(profile.role).toLowerCase().trim();
+    const roleStr = String(roleToCheck).toLowerCase().trim();
     console.log("🔍 Checking role:", roleStr);
     
-    const isAdmin = roleStr === "admin" || roleStr.includes("admin");
-    const isLeader = roleStr === "leader" || roleStr.includes("leader");
+    // Split roles by common separators (slash, comma, space, pipe)
+    const roles = roleStr
+      .split(/[\/,\s|]+/)
+      .map(r => r.trim())
+      .filter(r => r.length > 0);
     
-    console.log("👤 Role check - Admin:", isAdmin, "Leader:", isLeader);
-    return isAdmin || isLeader;
-  };
+    console.log("👤 Parsed roles:", roles);
+    
+    // Check if ANY role is admin or leader
+    const hasAdminRole = roles.some(role => role === "admin");
+    const hasLeaderRole = roles.some(role => role === "leader");
+    const canEdit = hasAdminRole || hasLeaderRole;
+    
+    console.log("👤 Has Admin:", hasAdminRole, "| Has Leader:", hasLeaderRole, "| Can Edit:", canEdit);
+    
+    return canEdit;
+  }, []);
 
-  const canEditProfile = checkIfCanEdit(userProfile);
+  // CRITICAL: Always use loggedInUserRole for permission checks
+  const canEditProfile = checkIfCanEdit(loggedInUserRole);
   const isRegularUser = !canEditProfile;
 
-  // Get display role
-  const getUserRole = () => {
-    if (!userProfile?.role) return "User";
-    return String(userProfile.role).charAt(0).toUpperCase() + String(userProfile.role).slice(1).toLowerCase();
-  };
+  // Get display role with proper formatting for multiple roles
+  const getUserRole = useCallback(() => {
+    if (!loggedInUserRole) return "User";
+    
+    const roleStr = String(loggedInUserRole).trim();
+    
+    // Split by common separators (slash, comma, space, pipe)
+    const roles = roleStr
+      .split(/[\/,\s|]+/)
+      .map(role => role.trim())
+      .filter(role => role.length > 0)
+      .map(role => role.charAt(0).toUpperCase() + role.slice(1).toLowerCase());
+    
+    // Remove duplicates
+    const uniqueRoles = [...new Set(roles)];
+    
+    // If no valid roles found, return "User"
+    if (uniqueRoles.length === 0) return "User";
+    
+    // Join multiple roles with " / "
+    return uniqueRoles.join(" / ");
+  }, [loggedInUserRole]);
 
   const fileInputRef = useRef(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -306,6 +353,12 @@ export default function Profile() {
           console.log("📥 Received profile data:", serverProfile);
           console.log("👤 User role from server:", serverProfile.role);
           
+          // CRITICAL: Store the logged-in user's role and NEVER change it
+          if (serverProfile.role) {
+            setLoggedInUserRole(serverProfile.role);
+            console.log("🔐 Logged-in user role set to:", serverProfile.role);
+          }
+          
           setUserProfile(serverProfile);
           updateFormWithProfile(serverProfile);
           
@@ -315,13 +368,13 @@ export default function Profile() {
             setProfilePic(pic);
           }
           
-          // Cache data
+          // Cache data - but we'll always use loggedInUserRole for permissions
           localStorage.setItem("userProfile", JSON.stringify(serverProfile));
           localStorage.setItem("profileLoaded", "true");
           setHasProfileLoaded(true);
           
           console.log("✅ Profile loaded successfully");
-          console.log("✅ Can edit profile:", checkIfCanEdit(serverProfile));
+          console.log("✅ Can edit profile:", checkIfCanEdit(serverProfile.role));
         }
       } catch (error) {
         console.error("❌ Failed to load profile:", error);
@@ -336,7 +389,7 @@ export default function Profile() {
     };
 
     loadProfile();
-  }, [setUserProfile, setProfilePic, hasProfileLoaded]);
+  }, [setUserProfile, setProfilePic, hasProfileLoaded, checkIfCanEdit]);
 
   // Update form with profile data
   const updateFormWithProfile = useCallback((profile) => {
@@ -447,6 +500,7 @@ export default function Profile() {
     e.preventDefault();
     console.log("🔄 Form submission started");
     console.log("👤 Can edit profile:", canEditProfile);
+    console.log("🔐 Logged-in user role:", loggedInUserRole);
 
     if (!validate()) {
       console.log("❌ Form validation failed:", errors);
