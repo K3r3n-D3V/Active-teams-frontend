@@ -1090,6 +1090,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
               name="taskType"
               value={taskData.taskType}
               onChange={handleChange}
+              required
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -1217,6 +1218,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
                 fetchAssigned(value);
               }}
               autoComplete="off"
+              disabled
               required
               style={{
                 width: '100%',
