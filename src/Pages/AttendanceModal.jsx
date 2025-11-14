@@ -1498,91 +1498,86 @@ const AttendanceModal = ({
     }
   };
 
-  const fetchPeople = async (filter = "") => {
-    const cacheKey = filter;
+const fetchPeople = async (filter = "") => {
+  const cacheKey = filter.toLowerCase().trim();
 
-    // First try to use cached results
-    if (peopleCache[cacheKey]) {
-      console.log("📦 Using cached results for:", cacheKey);
-      setPeople(peopleCache[cacheKey]);
+  // 1️⃣ Try cached results first
+  if (peopleCache[cacheKey]) {
+    console.log("📦 Using cached results for:", cacheKey);
+    setPeople(peopleCache[cacheKey]);
+    return;
+  }
+
+  // 2️⃣ Try filtering from preloaded data for instant UI response
+  if (preloadedPeople.length > 0 && (!filter || filter.length < 3)) {
+    const filteredFromPreloaded = preloadedPeople.filter((person) =>
+      [person.fullName, person.email, person.phone]
+        .filter(Boolean)
+        .some((val) => val.toLowerCase().includes(filter.toLowerCase()))
+    );
+
+    if (filteredFromPreloaded.length > 0) {
+      console.log("⚡ Using preloaded data for instant results");
+      const sliced = filteredFromPreloaded.slice(0, 50);
+      setPeople(sliced);
+      setPeopleCache((prev) => ({ ...prev, [cacheKey]: sliced }));
       return;
     }
+  }
 
-    // Then try to filter from preloaded data for instant results
-    if (preloadedPeople.length > 0 && (!filter || filter.length < 3)) {
-      const filteredFromPreloaded = preloadedPeople.filter(
-        (person) =>
-          person.fullName.toLowerCase().includes(filter.toLowerCase()) ||
-          person.email.toLowerCase().includes(filter.toLowerCase())
-      );
+  // 3️⃣ Otherwise, fetch from API
+  try {
+    setLoading(true);
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+    const params = new URLSearchParams();
 
-      if (filteredFromPreloaded.length > 0) {
-        console.log("⚡ Using preloaded data for instant results");
-        setPeople(filteredFromPreloaded.slice(0, 50));
-        setPeopleCache((prev) => ({
-          ...prev,
-          [cacheKey]: filteredFromPreloaded.slice(0, 50),
-        }));
-        return;
-      }
+    // 🔍 Backend already supports partial regex match, so we just send `name`
+   if (filter && filter.trim().length > 0) {
+  params.append("name", filter.toLowerCase().trim());
+}
+
+    params.append("perPage", "50");
+    params.append("page", "1");
+
+    console.log("🔍 Fetching people with params:", params.toString());
+
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
+      headers,
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
     }
 
-    // Fallback to API call
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
+    const data = await res.json();
+    const peopleArray = data.results || data.people || [];
 
-      const params = new URLSearchParams();
+    console.log(`✅ Found ${peopleArray.length} people`);
 
-      if (filter && filter.trim().length > 0) {
-        params.append("name", filter.trim());
-      }
+    // 🧩 Normalize backend fields
+    const formatted = peopleArray.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+      email: p.Email || "",
+      leader1: p["Leader @1"] || "",
+      leader12: p["Leader @12"] || "",
+      leader144: p["Leader @144"] || "",
+      leader1728: p["Leader @1728"] || "",
+      phone: p.Number || "",
+    }));
 
-      params.append("perPage", "50");
-      params.append("page", "1");
+    // 💾 Cache and update state
+    setPeopleCache((prev) => ({ ...prev, [cacheKey]: formatted }));
+    setPeople(formatted);
+  } catch (err) {
+    console.error("❌ Error fetching people:", err);
+    setPeople([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
-      console.log("🔍 Fetching people with params:", params.toString());
-
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
-        headers,
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      console.log(`✅ Found ${peopleArray.length} people`);
-
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${
-          p.Surname || p.surname || ""
-        }`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-        leader144: p["Leader @144"] || p.leader144 || "",
-        leader1728: p["Leader @1728"] || p.leader1728 || "",
-        phone: p.Number || p.Phone || p.phone || "",
-      }));
-
-      setPeopleCache((prev) => ({
-        ...prev,
-        [cacheKey]: formatted,
-      }));
-
-      setPeople(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      setPeople([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchCommonAttendees = async (cellId) => {
     try {
@@ -1991,17 +1986,30 @@ const AttendanceModal = ({
     .filter((id) => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
 
-  const filteredCommonAttendees = getAllCommonAttendees().filter(
-    (person) =>
-      person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
-      person.email.toLowerCase().includes(searchName.toLowerCase())
-  );
+ // 🔍 Filter common attendees based on search input (partial match)
+const filteredCommonAttendees = getAllCommonAttendees()
+  .map(person => {
+    const name = person.fullName?.toLowerCase() || "";
+    const search = searchName.toLowerCase().trim();
 
-  const filteredPeople = people.filter(
-    (person) =>
-      person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
-      person.email.toLowerCase().includes(associateSearch.toLowerCase())
-  );
+    const index = name.indexOf(search);
+    return { ...person, _matchIndex: index === -1 ? 9999 : index };
+  })
+  .filter(p => p._matchIndex !== 9999)
+  .sort((a, b) => a._matchIndex - b._matchIndex); // rank closest match first
+
+
+const filteredPeople = people
+  .map(person => {
+    const name = person.fullName?.toLowerCase() || "";
+    const search = associateSearch.toLowerCase().trim();
+
+    const index = name.indexOf(search);
+    return { ...person, _matchIndex: index === -1 ? 9999 : index };
+  })
+  .filter(p => p._matchIndex !== 9999)
+  .sort((a, b) => a._matchIndex - b._matchIndex);
+
 
   const handleSave = async () => {
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
