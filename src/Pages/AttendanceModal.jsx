@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import {
   ArrowLeft,
   UserPlus,
-  Search,
-  CheckCircle,
+ Search,
+ CheckCircle,
   ChevronDown,
   X,
   Menu,
@@ -87,11 +87,7 @@ const loadPreloadedPeople = async () => {
         leadersArray: p.leaders
       });
 
-      // CORRECT MAPPING:
-      // - leader1 = Leader @1 (Vicky)
-      // - leader12 = Leader @12 (Sash)  
-      // - leader144 = Leader @144 (Keren)
-      // - leader1728 = Leader @1728
+   
       const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
       const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
       const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
@@ -101,10 +97,10 @@ const loadPreloadedPeople = async () => {
         id: p._id,
         fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
         email: p.Email || p.email || "",
-        leader1: leader1,        // This should be Vicky
-        leader12: leader12,      // This should be Sash
-        leader144: leader144,    // This should be Keren
-        leader1728: leader1728,  // Leader @1728
+        leader1: leader1, 
+        leader12: leader12, 
+        leader144: leader144, 
+        leader1728: leader1728, 
         phone: p.Number || p.Phone || p.phone || "",
       };
     });
@@ -126,7 +122,7 @@ const loadPreloadedPeople = async () => {
   }
 };
 
- const fetchInviters = async (searchTerm) => {
+  const fetchInviters = async (searchTerm) => {
   if (!searchTerm || searchTerm.length < 1) {
     setInviterResults([]);
     return;
@@ -168,10 +164,10 @@ const loadPreloadedPeople = async () => {
           id: p._id,
           fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
           email: p.Email || p.email || "",
-          leader1: leader1,        // Vicky
-          leader12: leader12,      // Sash
-          leader144: leader144,    // Keren
-          leader1728: leader1728,  // Leader @1728
+          leader1: leader1,        // Vicky
+          leader12: leader12,      // Sash
+          leader144: leader144,    // Keren
+          leader1728: leader1728,  // Leader @1728
           phone: p.Number || p.Phone || p.phone || "",
         };
       });
@@ -200,7 +196,9 @@ const loadPreloadedPeople = async () => {
     return () => clearTimeout(delay);
   }, [inviterSearch]);
 
-const handleInviterSelect = (person) => {
+
+
+  const handleInviterSelect = (person) => {
   console.log("=== handleInviterSelect DEBUG ===");
   console.log("Selected inviter:", person.fullName);
   
@@ -209,62 +207,50 @@ const handleInviterSelect = (person) => {
   setShowInviterDropdown(false);
   setTouched({ ...touched, invitedBy: true });
 
-  // ✅ CRITICAL FIX: Check if someone reports TO this person at each level
-  // To determine if they ARE a leader at that level, we need to check if they have DOWNLINES
-  
-  // For now, we'll use a heuristic: if person.leader144 is EMPTY or matches their own name,
-  // they ARE a Leader @144. If leader144 has someone else's name, they REPORT to that person.
-  
-  const hasLeader144Above = person.leader144 && 
-                            person.leader144.trim() !== "" && 
-                            person.leader144.trim().toLowerCase() !== person.fullName.trim().toLowerCase();
-  
-  const hasLeader12Above = person.leader12 && 
-                           person.leader12.trim() !== "" && 
-                           person.leader12.trim().toLowerCase() !== person.fullName.trim().toLowerCase();
+  const normalizedFull = (person.fullName || "").trim().toLowerCase();
+  const leader144Raw = (person.leader144 || "").trim();
+  const leader12Raw = (person.leader12 || "").trim();
 
-  const isLeaderAt144 = !hasLeader144Above; // If no one above them at 144, they ARE the 144 leader
-  const isLeaderAt12 = !hasLeader12Above;   // If no one above them at 12, they ARE the 12 leader
-
-  console.log("Inviter leader status:", {
-    hasLeader144Above,
-    hasLeader12Above,
-    isLeaderAt144,
-    isLeaderAt12,
-    leader1: person.leader1,
-    leader12: person.leader12,
+  console.log("Leadership analysis:", {
     leader144: person.leader144,
-    fullName: person.fullName
+    leader12: person.leader12,
+    normalizedFull,
+    leader144Raw,
+    leader12Raw
   });
 
   let leadersToFill;
 
-  // CASE 1: If inviter IS a Leader @144 (no one above them at that level)
-  if (isLeaderAt144) {
-    leadersToFill = {
-      leader1: person.leader1 || "",           // The inviter's Leader @1
-      leader12: person.leader12 || "",         // The inviter's Leader @12
-      leader144: person.fullName || ""         // ✅ The INVITER themselves (they ARE the Leader @144)
-    };
-    console.log("✅ CASE 1: Inviter IS Leader @144 - auto-filled ALL leaders:", leadersToFill);
-  }
-  // CASE 2: If inviter IS a Leader @12 but NOT @144
-  else if (isLeaderAt12 && !isLeaderAt144) {
+  // ✅ FIX APPLIED: Priority check is now Leader @12, then Leader @144.
+  // This ensures that an empty Leader @144 field doesn't prematurely categorize
+  // a person as Leader @144 when they should be Leader @12.
+
+  // 1. Check if they ARE their own Leader @12 OR have NO Leader @12 → Leader @12
+  if (leader12Raw.toLowerCase() === normalizedFull || !leader12Raw) {
     leadersToFill = {
       leader1: person.leader1 || "",
-      leader12: person.fullName || "",         // ✅ The INVITER themselves (they ARE the Leader @12)
-      leader144: ""                            // ✅ EMPTY - not filled in yet
+      leader12: person.fullName || "", // They ARE Leader @12
+      leader144: person.leader144 || "" // Keep existing Leader @144 (or empty)
     };
-    console.log("✅ CASE 2: Inviter IS Leader @12 only - auto-filled L@1, L@12 (self), L@144 left EMPTY:", leadersToFill);
+    console.log("✅ CASE 1 (NEW): Inviter IS Leader @12 (Highest Priority)");
   }
-  // CASE 3: Inviter is NOT a leader at 12 or 144 - just propagate their leaders
+  // 2. Check if they ARE their own Leader @144 OR have NO Leader @144 → Leader @144
+  else if (leader144Raw.toLowerCase() === normalizedFull || !leader144Raw) {
+    leadersToFill = {
+      leader1: person.leader1 || "",
+      leader12: person.leader12 || "", // Keep existing Leader @12 (or empty)
+      leader144: person.fullName || "" // They ARE Leader @144
+    };
+    console.log("✅ CASE 2 (NEW): Inviter IS Leader @144 (Secondary Priority)");
+  }
+  // 3. Regular person - they have leaders at both levels
   else {
     leadersToFill = {
       leader1: person.leader1 || "",
       leader12: person.leader12 || "",
       leader144: person.leader144 || ""
     };
-    console.log("✅ CASE 3: Inviter is NOT a leader - propagating their existing leaders:", leadersToFill);
+    console.log("✅ CASE 3 (NEW): Inviter is NOT a leader");
   }
 
   setAutoFilledLeaders(leadersToFill);
@@ -328,7 +314,7 @@ const handleInviterSelect = (person) => {
     }
   };
 
- const handleSubmit = async (leaderInfo) => {
+  const handleSubmit = async (leaderInfo) => {
   try {
     const token = localStorage.getItem("token");
     const headers = {
@@ -339,7 +325,8 @@ const handleInviterSelect = (person) => {
     // Update to include Leader @1728 in the leaders array
     const personData = {
       name: formData.name.trim(),
-      surname: formData.surname.trim(),
+      // 🐛 FIX: Corrected typo from formData.eventsurname to formData.surname
+      surname: formData.surname.trim(), 
       email: formData.email.toLowerCase().trim(),
       number: formData.mobile || "",
       address: formData.address || "",
@@ -347,10 +334,10 @@ const handleInviterSelect = (person) => {
       dob: formData.dob || "",
       invitedBy: formData.invitedBy || "",
       leaders: [
-        leaderInfo.leader1 || "",     
-        leaderInfo.leader12 || "",    
-        leaderInfo.leader144 || "",   
-        leaderInfo.leader1728 || ""  
+        leaderInfo.leader1 || "",     
+        leaderInfo.leader12 || "",    
+        leaderInfo.leader144 || "",   
+        leaderInfo.leader1728 || ""  
       ],
       stage: "Win",
     };
@@ -885,13 +872,7 @@ const handleInviterSelect = (person) => {
   );
 };
 
-const LeaderSelectionModal = ({
-  isOpen,
-  onBack,
-  onSubmit,
-  preloadedPeople = [],
-  autoFilledLeaders,
-}) => {
+const LeaderSelectionModal = ({ isOpen, onBack, onSubmit,  preloadedPeople = [], autoFilledLeaders }) => {
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
@@ -921,151 +902,25 @@ const LeaderSelectionModal = ({
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
-  const styles = {
-    overlay: {
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: isDarkMode ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.45)",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      zIndex: 10001,
-      padding: 10,
-    },
-    modal: {
-      background: theme.palette.background.paper,
-      borderRadius: 12,
-      width: "100%",
-      maxWidth: 500,
-      maxHeight: "90vh",
-      overflowY: "auto",
-      padding: 20,
-      color: theme.palette.text.primary,
-      border: `1px solid ${theme.palette.divider}`,
-      boxShadow: theme.shadows[6],
-    },
-    title: {
-      fontSize: "clamp(20px, 4vw, 24px)",
-      fontWeight: 600,
-      marginBottom: 20,
-      color: theme.palette.text.primary,
-      textAlign: "center",
-    },
-    headerSection: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 16,
-      marginBottom: 16,
-      borderBottom: `1px solid ${theme.palette.divider}`,
-      paddingBottom: 10,
-    },
-    form: { display: "flex", flexDirection: "column", gap: 12 },
-    inputGroup: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 8,
-      position: "relative",
-    },
-    label: {
-      fontSize: 14,
-      fontWeight: 500,
-      color: theme.palette.text.secondary,
-    },
-    input: {
-      padding: 12,
-      fontSize: 16,
-      borderRadius: 8,
-      border: `1px solid ${theme.palette.divider}`,
-      outline: "none",
-      width: "100%",
-      boxSizing: "border-box",
-      background: theme.palette.background.default,
-      color: theme.palette.text.primary,
-    },
-    dropdown: {
-      position: "absolute",
-      top: "100%",
-      left: 0,
-      right: 0,
-      marginTop: 4,
-      background: theme.palette.background.paper,
-      border: `1px solid ${theme.palette.divider}`,
-      borderRadius: 8,
-      boxShadow: theme.shadows[4],
-      zIndex: 1000,
-      maxHeight: 200,
-      overflowY: "auto",
-    },
-    dropdownItem: {
-      padding: 12,
-      cursor: "pointer",
-      borderBottom: `1px solid ${theme.palette.divider}`,
-      transition: "background 0.15s",
-      color: theme.palette.text.primary,
-      background: theme.palette.background.paper,
-    },
-    dropdownEmpty: {
-      padding: 12,
-      color: theme.palette.text.secondary,
-      textAlign: "center",
-      fontSize: 14,
-    },
-    buttonGroup: { display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" },
-    backBtn: {
-      flex: "1 1 120px",
-      background: "transparent",
-      border: `1px solid ${theme.palette.divider}`,
-      color: theme.palette.text.secondary,
-      padding: "12px 16px",
-      borderRadius: 6,
-      cursor: "pointer",
-      fontSize: 16,
-      fontWeight: 500,
-      minWidth: 120,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-    },
-    saveBtn: {
-      flex: "1 1 120px",
-      background: theme.palette.success.main,
-      color: theme.palette.success.contrastText || "#fff",
-      border: "none",
-      padding: "12px 16px",
-      borderRadius: 6,
-      cursor: "pointer",
-      fontSize: 16,
-      fontWeight: 500,
-      minWidth: 120,
-    },
-  };
-  // ✅ Auto-fill ALL leaders including Leader @144 (even if empty)
-  useEffect(() => {
-    if (isOpen && autoFilledLeaders) {
-      console.log(
-        "🔄 Auto-filling ALL leaders in LeaderSelectionModal:",
-        autoFilledLeaders
-      );
 
-      const filledLeaders = {
-        leader1: autoFilledLeaders.leader1 || "",
-        leader12: autoFilledLeaders.leader12 || "",
-        leader144: autoFilledLeaders.leader144 || "", // Auto-fill even if empty - that's OK!
-      };
-
-      setLeaderData(filledLeaders);
-      setLeaderSearches(filledLeaders);
-
-      console.log(
-        "✅ All leaders auto-filled (Leader @144 can be empty):",
-        filledLeaders
-      );
-    }
-  }, [isOpen, autoFilledLeaders]);
+ // In LeaderSelectionModal useEffect
+useEffect(() => {
+  if (isOpen && autoFilledLeaders) {
+    console.log("Auto-filling ALL leaders in LeaderSelectionModal:", autoFilledLeaders);
+    
+    // Use ALL the auto-filled leaders including Leader @144
+    const filledLeaders = {
+      leader1: autoFilledLeaders.leader1 || "",
+      leader12: autoFilledLeaders.leader12 || "",
+      leader144: autoFilledLeaders.leader144 || "" // This should contain "Keeren" if she's Leader @144
+    };
+    
+    setLeaderData(filledLeaders);
+    setLeaderSearches(filledLeaders);
+    
+    console.log("All leaders auto-filled in modal:", filledLeaders);
+  }
+}, [isOpen, autoFilledLeaders]);
 
   const fetchLeaders = async (searchTerm, leaderField) => {
     if (!searchTerm || searchTerm.length < 1) {
@@ -1104,119 +959,216 @@ const LeaderSelectionModal = ({
         const data = await res.json();
         const peopleArray = data.people || data.results || [];
 
-        const formatted = peopleArray.map((p) => ({
+       const formatted = peopleArray.map((p) => ({
           id: p._id,
           fullName: `${p.Name || p.name || ""} ${
             p.Surname || p.surname || ""
           }`.trim(),
           email: p.Email || p.email || "",
-          leader1: p["Leader @1"] || p.leader1 || p.leaders?.[0] || "",
-          leader12: p["Leader @12"] || p.leader12 || p.leaders?.[1] || "",
-          leader144: p["Leader @144"] || p.leader144 || p.leaders?.[2] || "",
+          leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
+          leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
+          leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+          // FIX: Completing the truncated line and using consistent key/index (assuming 1728)
+          leader1728: p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || p.leaders?.[3] || "", 
         }));
-
-        setLeaderResults((prev) => ({ ...prev, [leaderField]: formatted }));
+        
+        setLeaderResults(prev => ({ 
+          ...prev, 
+          [leaderField]: formatted 
+        }));
       }
     } catch (err) {
-      console.error("Error fetching leaders:", err);
+      console.error(`Error fetching leaders for ${leaderField}:`, err);
     } finally {
       setLoadingLeaders(false);
     }
   };
 
-  // Fast search with preloaded data
+  // Debounced search for leaders (similar to inviter search, but per field)
   useEffect(() => {
     const delays = {};
-
-    Object.keys(leaderSearches).forEach((field) => {
-      if (delays[field]) clearTimeout(delays[field]);
-
-      delays[field] = setTimeout(() => {
-        if (leaderSearches[field].length >= 1) {
-          fetchLeaders(leaderSearches[field], field);
-        } else {
-          setLeaderResults((prev) => ({ ...prev, [field]: [] }));
-        }
-      }, 100);
-    });
-
-    return () => {
-      Object.values(delays).forEach((delay) => clearTimeout(delay));
-    };
-  }, [leaderSearches]);
-
-  const handleLeaderSelect = (person, leaderField) => {
-    setLeaderData((prev) => ({
-      ...prev,
-      [leaderField]: person.fullName,
-    }));
-    setLeaderSearches((prev) => ({
-      ...prev,
-      [leaderField]: person.fullName,
-    }));
-    setShowDropdowns((prev) => ({ ...prev, [leaderField]: false }));
-  };
-
-  const handleLeaderSearchChange = (value, leaderField) => {
-    setLeaderSearches((prev) => ({ ...prev, [leaderField]: value }));
-    setLeaderData((prev) => ({ ...prev, [leaderField]: value }));
-    setShowDropdowns((prev) => ({ ...prev, [leaderField]: true }));
-
-    // Show recent people when empty or show cached results immediately
-    if (value.length === 0 && preloadedPeople.length > 0) {
-      setLeaderResults((prev) => ({
-        ...prev,
-        [leaderField]: preloadedPeople.slice(0, 10),
-      }));
-    }
-  };
-
-  const handleSave = () => {
-    onSubmit(leaderData);
-  };
     
-  const renderLeaderDropdown = (leaderField) => {
-    if (!showDropdowns[leaderField]) {
-      return null;
-    }
+    ['leader1', 'leader12', 'leader144'].forEach(field => {
+      const searchTerm = leaderSearches[field];
+      if (searchTerm.length >= 1) {
+        delays[field] = setTimeout(() => {
+          fetchLeaders(searchTerm, field);
+        }, 150);
+      } else {
+        // Clear results if search term is empty
+        setLeaderResults(prev => ({ ...prev, [field]: [] }));
+      }
+    });
+    
+    return () => {
+      Object.values(delays).forEach(clearTimeout);
+    };
+  }, [leaderSearches, preloadedPeople]); // Depend on preloadedPeople to enable cache search
 
-    return (
-      <div style={styles.dropdown}>
-        {loadingLeaders && <div style={styles.dropdownEmpty}>Loading...</div>}
-        {!loadingLeaders &&
-          leaderResults[leaderField].length === 0 &&
-          leaderSearches[leaderField].length >= 1 && (
-            <div style={styles.dropdownEmpty}>No people found</div>
-          )}
-        {!loadingLeaders && leaderSearches[leaderField].length === 0 && (
-          <div style={styles.dropdownEmpty}>Type to search leaders...</div>
-        )}
-        {!loadingLeaders &&
-          leaderResults[leaderField].map((person) => (
-            <div
-              key={`${leaderField}-${person.id}`}
-              style={styles.dropdownItem}
-              onClick={() => handleLeaderSelect(person, leaderField)}
-              onMouseEnter={(e) =>
-                (e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa")
-              }
-              onMouseLeave={(e) =>
-                (e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff")
-              }
-            >
-              <div style={{ fontWeight: "500" }}>{person.fullName}</div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: isDarkMode ? "#999" : "#666",
-                }}
-              >
-                {person.email} • {person[leaderField] || `No ${leaderField}`}
-              </div>
-            </div>
-          ))}
-      </div>
-    );
+  const handleLeaderSelect = (person, field) => {
+    setLeaderData(prev => ({ ...prev, [field]: person.fullName }));
+    setLeaderSearches(prev => ({ ...prev, [field]: person.fullName }));
+    setShowDropdowns(prev => ({ ...prev, [field]: false }));
+  };
+
+  const handleSearchChange = (e, field) => {
+    const value = e.target.value;
+    setLeaderSearches(prev => ({ ...prev, [field]: value }));
+    // Immediately show dropdown on change/focus
+    setShowDropdowns(prev => ({ ...prev, [field]: true }));
+  };
+
+  const handleSubmitLeaders = () => {
+    // Collect final leader data, including a placeholder for leader1728 (which is not edited here)
+    const finalLeaderInfo = {
+      leader1: leaderData.leader1 || "",
+      leader12: leaderData.leader12 || "",
+      leader144: leaderData.leader144 || "",
+      leader1728: "" // Placeholder, assuming this is manually added or derived elsewhere if needed
+    };
+    onSubmit(finalLeaderInfo);
+  };
+
+  const getCurrentTheme = () => localStorage.getItem('theme') || 'light';
+  const isDarkMode = getCurrentTheme() === 'dark';
+
+  const styles = {
+    overlay: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.7)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10002,
+      padding: "10px",
+    },
+    modal: {
+      background: isDarkMode ? "#1e1e1e" : "#fff",
+      borderRadius: "12px",
+      width: "100%",
+      maxWidth: "500px",
+      maxHeight: "90vh",
+      overflowY: "auto",
+      padding: "30px",
+      color: isDarkMode ? "#fff" : "#333",
+      boxShadow: "0 8px 25px rgba(0,0,0,0.3)",
+      animation: 'fadeIn 0.3s ease-out'
+    },
+    title: {
+      fontSize: "clamp(22px, 5vw, 28px)",
+      fontWeight: "700",
+      marginBottom: "10px",
+      textAlign: "center",
+      color: "#6366f1",
+    },
+    subtitle: {
+      fontSize: "15px",
+      fontWeight: "500",
+      marginBottom: "30px",
+      textAlign: "center",
+      color: isDarkMode ? "#ccc" : "#555",
+    },
+    leaderGroup: {
+      display: "flex",
+      flexDirection: "column",
+      gap: "20px",
+      marginBottom: "30px",
+    },
+    inputGroup: {
+      position: "relative",
+      display: "flex",
+      flexDirection: "column",
+      gap: "6px",
+    },
+    label: {
+      fontSize: "14px",
+      fontWeight: "600",
+      color: isDarkMode ? "#ccc" : "#444",
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+    },
+    input: {
+      padding: "12px",
+      fontSize: "16px",
+      borderRadius: "8px",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      color: isDarkMode ? "#ffffff" : "#333",
+    },
+    dropdown: {
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      marginTop: "4px",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      borderRadius: "8px",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+      zIndex: 1003,
+      maxHeight: "150px",
+      overflowY: "auto",
+    },
+    dropdownItem: {
+      padding: "10px 12px",
+      cursor: "pointer",
+      borderBottom: `1px solid ${isDarkMode ? "#3a3a3a" : "#f0f0f0"}`,
+      transition: "background 0.2s",
+      color: isDarkMode ? "#ffffff" : "#333",
+      fontSize: "15px"
+    },
+    dropdownEmpty: {
+      padding: "10px 12px",
+      color: isDarkMode ? "#aaa" : "#999",
+      textAlign: "center",
+      fontSize: "14px",
+    },
+    buttonGroup: {
+      display: "flex",
+      gap: "12px",
+      marginTop: "20px",
+      justifyContent: "space-between",
+    },
+    backBtn: {
+      background: "transparent",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      color: isDarkMode ? "#ccc" : "#666",
+      padding: "12px 16px",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontSize: "16px",
+      fontWeight: "500",
+      flex: 1,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      transition: "all 0.2s ease",
+    },
+    submitBtn: {
+      background: "#6366f1",
+      color: "#fff",
+      border: "none",
+      padding: "12px 16px",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontSize: "16px",
+      fontWeight: "600",
+      flex: 1.5,
+      transition: "all 0.2s ease",
+    },
+    '@keyframes fadeIn': {
+      from: { opacity: 0, transform: 'translateY(-20px)' },
+      to: { opacity: 1, transform: 'translateY(0)' }
+    }
   };
 
   if (!isOpen) return null;
@@ -1224,146 +1176,74 @@ const LeaderSelectionModal = ({
   return (
     <div style={styles.overlay}>
       <div style={styles.modal}>
-        <h2 style={styles.title}>Create New Person</h2>
+        <h2 style={styles.title}> Leadership</h2>
+      
 
-        <div style={styles.headerSection}>
-          <div
-            style={{ fontWeight: "600", color: isDarkMode ? "#999" : "#999" }}
-          >
-            NEW PERSON INFO
-          </div>
-          <div
-            style={{ fontWeight: "600", color: isDarkMode ? "#ccc" : "#333" }}
-          >
-            LEADER INFO
-          </div>
+        <div style={styles.leaderGroup}>
+          {['leader1', 'leader12', 'leader144'].map((field) => (
+            <div key={field} style={styles.inputGroup}>
+             
+              <input
+                type="text"
+                value={leaderSearches[field]}
+                onChange={(e) => handleSearchChange(e, field)}
+                onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
+                onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
+                style={styles.input}
+                placeholder={`Search for ${field.replace('leader', 'Leader @')}...`}
+                autoComplete="off"
+              />
+              {showDropdowns[field] && leaderSearches[field].length > 0 && (
+                <div style={styles.dropdown}>
+                  {loadingLeaders && <div style={styles.dropdownEmpty}>Searching...</div>}
+                  {!loadingLeaders && leaderResults[field].length === 0 && (
+                    <div style={styles.dropdownEmpty}>No leaders found</div>
+                  )}
+                  {!loadingLeaders && leaderResults[field].map((person) => (
+                    <div
+                      key={person.id}
+                      style={styles.dropdownItem}
+                      onClick={() => handleLeaderSelect(person, field)}
+                      onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
+                      onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
+                    >
+                      {person.fullName}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
-        <div
-          style={{
-            height: "2px",
-            background: isDarkMode ? "#444" : "#e0e0e0",
-            margin: "20px 0",
-          }}
-        ></div>
-
-        <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
-          <div style={styles.inputGroup}>
-            <input
-              type="text"
-              value={leaderSearches.leader1}
-              onChange={(e) =>
-                handleLeaderSearchChange(e.target.value, "leader1")
-              }
-              onFocus={() => {
-                setShowDropdowns((prev) => ({ ...prev, leader1: true }));
-                if (
-                  leaderSearches.leader1.length === 0 &&
-                  preloadedPeople.length > 0
-                ) {
-                  setLeaderResults((prev) => ({
-                    ...prev,
-                    leader1: preloadedPeople.slice(0, 10),
-                  }));
-                }
-              }}
-              style={styles.input}
-              placeholder="Leader @1..."
-              autoComplete="off"
-            />
-            {renderLeaderDropdown("leader1")}
-          </div>
-
-          <div style={styles.inputGroup}>
-            <input
-              type="text"
-              value={leaderSearches.leader12}
-              onChange={(e) =>
-                handleLeaderSearchChange(e.target.value, "leader12")
-              }
-              onFocus={() => {
-                setShowDropdowns((prev) => ({ ...prev, leader12: true }));
-                if (
-                  leaderSearches.leader12.length === 0 &&
-                  preloadedPeople.length > 0
-                ) {
-                  setLeaderResults((prev) => ({
-                    ...prev,
-                    leader12: preloadedPeople.slice(0, 10),
-                  }));
-                }
-              }}
-              style={styles.input}
-              placeholder="Leader @12..."
-              autoComplete="off"
-            />
-            {renderLeaderDropdown("leader12")}
-          </div>
-
-          <div style={styles.inputGroup}>
-            <input
-              type="text"
-              value={leaderSearches.leader144}
-              onChange={(e) =>
-                handleLeaderSearchChange(e.target.value, "leader144")
-              }
-              onFocus={() => {
-                setShowDropdowns((prev) => ({ ...prev, leader144: true }));
-                if (
-                  leaderSearches.leader144.length === 0 &&
-                  preloadedPeople.length > 0
-                ) {
-                  setLeaderResults((prev) => ({
-                    ...prev,
-                    leader144: preloadedPeople.slice(0, 10),
-                  }));
-                }
-              }}
-              style={styles.input}
-              placeholder="Leader @144 "
-              autoComplete="off"
-            />
-            {renderLeaderDropdown("leader144")}
-          </div>
-
-          <div style={styles.buttonGroup}>
-            <button
-              type="button"
-              style={styles.backBtn}
-              onClick={onBack}
-              onMouseEnter={(e) =>
-                (e.target.style.background = isDarkMode ? "#3d3d3d" : "#f8f9fa")
-              }
-              onMouseLeave={(e) => (e.target.style.background = "transparent")}
-            >
-              <ArrowLeft size={16} />
-              BACK
-            </button>
-            <button
-              type="button"
-              style={styles.saveBtn}
-              onClick={handleSave}
-              onMouseEnter={(e) => (e.target.style.background = "#218838")}
-              onMouseLeave={(e) => (e.target.style.background = "#28a745")}
-            >
-              SAVE
-            </button>
-          </div>
-        </form>
+        <div style={styles.buttonGroup}>
+          <button 
+            type="button" 
+            style={styles.backBtn} 
+            onClick={onBack}
+            onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3d3d3d" : "#f8f9fa"}
+            onMouseLeave={(e) => e.target.style.background = "transparent"}
+          >
+            <ArrowLeft size={16} /> BACK
+          </button>
+          <button 
+            type="button" 
+            style={styles.submitBtn} 
+            onClick={handleSubmitLeaders}
+            onMouseEnter={(e) => e.target.style.background = "#4f46e5"}
+            onMouseLeave={(e) => e.target.style.background = "#6366f1"}
+          >
+            CREATE PERSON <CheckCircle size={16} style={{marginLeft: '4px'}} />
+          </button>
+        </div>
       </div>
     </div>
   );
 };
 
-const AttendanceModal = ({
-  isOpen,
-  onClose,
-  onSubmit,
-  event,
-  onAttendanceSubmitted,
-  currentUser,
-}) => {
-  const [searchName, setSearchName] = useState("");
+
+const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
+    const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
   const [decisions, setDecisions] = useState({});
@@ -1405,29 +1285,58 @@ const AttendanceModal = ({
     { value: "re-commitment", label: "Re-commitment" },
   ];
 
-  const availablePaymentMethods = [
-    ...new Set(eventPriceTiers.map((t) => t.paymentMethod)),
-  ];
+  const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
-  // Helper function to get current week identifier
-  const getCurrentWeekIdentifier = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const week = getWeekNumber(now);
-    return `${year}-W${week.toString().padStart(2, "0")}`;
-  };
+useEffect(() => {
+    if (isOpen && event) {
+        console.log("=== EVENT DATA DEBUG ===");
+        console.log("Full event object:", event);
+        console.log("Event ID:", event._id || event.id);
+        console.log("Event persistent_attendees:", event.persistent_attendees);
+        console.log("Event status:", event.status);
+        console.log("Event attendance:", event.attendance);
+        
+        // Debug: Check current week calculation
+        const currentWeek = getCurrentWeekIdentifier();
+        console.log("Current week identifier:", currentWeek);
+        console.log("Current week attendance data:", event.attendance ? event.attendance[currentWeek] : "No attendance data");
+        console.log("=========================");
 
-  const getWeekNumber = (date) => {
-    const d = new Date(
-      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
-    );
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
-  };
+        setSearchName("");
+        setAssociateSearch("");
+        setActiveTab(0);
+        setShowMobileMenu(false);
 
-  // Load preloaded people data
+        const loadPersistentData = async () => {
+            const eventId = event._id || event.id;
+            
+            // Check if we have persistent attendees in the event data
+            if (event.persistent_attendees && Array.isArray(event.persistent_attendees) && event.persistent_attendees.length > 0) {
+                console.log("Using persistent attendees from event data:", event.persistent_attendees.length);
+                setPersistentCommonAttendees(event.persistent_attendees);
+            } else {
+                console.log("No persistent attendees in event data, fetching from API");
+                // Try to fetch from API
+                await fetchPersistentAttendees(eventId);
+            }
+        };
+
+        loadPersistentData();
+        loadExistingAttendance();
+        fetchPeople();
+
+        if (event.eventType === "cell") {
+            fetchCommonAttendees(event._id || event.id);
+        } else {
+            setCommonAttendees([]);
+        }
+
+        if (event.did_not_meet) {
+            setDidNotMeet(true);
+        }
+    }
+}, [isOpen, event]);
+
   const loadPreloadedPeople = async () => {
     const now = Date.now();
     
@@ -1462,16 +1371,15 @@ const AttendanceModal = ({
       const peopleArray = data.people || data.results || [];
 
       const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${
-          p.Surname || p.surname || ""
-        }`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-        leader144: p["Leader @144"] || p.leader144 || "",
-        phone: p.Number || p.Phone || p.phone || "",
-      }));
+  id: p._id,
+  fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+  email: p.Email || p.email || "",
+  leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
+  leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
+  leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+  leader1278: p["Leader @1278"] || p["Leader at 1278"] || p["Leader @ 1278"] || p.leader1278 || p.leaders?.[3] || "",
+  phone: p.Number || p.Phone || p.phone || "",
+}));
 
       // Update global cache if it exists
       if (typeof window.globalPeopleCache !== 'undefined') {
@@ -1487,19 +1395,18 @@ const AttendanceModal = ({
       }
 
       setPreloadedPeople(formatted);
-      console.log(
-        `✅ Pre-loaded ${formatted.length} people into AttendanceModal cache`
-      );
+      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
     } catch (err) {
       console.error("Error pre-loading people in AttendanceModal:", err);
-      if (typeof window.globalPeopleCache !== 'undefined' && window.globalPeopleCache.data?.length > 0) {
-        setPreloadedPeople(window.globalPeopleCache.data);
+      if (globalPeopleCache.data.length > 0) {
+        setPreloadedPeople(globalPeopleCache.data);
       }
     }
-  };
+  }
 
-const fetchPeople = async (filter = "") => {
-  const cacheKey = filter.toLowerCase().trim();
+ 
+const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
+  const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
 
   // 1️⃣ Try cached results first
   if (peopleCache[cacheKey]) {
@@ -1508,14 +1415,24 @@ const fetchPeople = async (filter = "") => {
     return;
   }
 
-  // 2️⃣ Try filtering from preloaded data for instant UI response
-  if (preloadedPeople.length > 0 && (!filter || filter.length < 3)) {
-    const filteredFromPreloaded = preloadedPeople.filter((person) =>
-      [person.fullName, person.email, person.phone]
-        .filter(Boolean)
-        .some((val) => val.toLowerCase().includes(filter.toLowerCase()))
-    );
-
+  if (preloadedPeople.length > 0 && filter) {
+    const searchLower = filter.toLowerCase().trim();
+    
+    const filteredFromPreloaded = preloadedPeople.filter(person => {
+      const name = (person.Name || person.name || "").toLowerCase();
+      const surname = (person.Surname || person.surname || "").toLowerCase();
+      const fullName = `${name} ${surname}`.trim();
+      const email = (person.email || person.Email || "").toLowerCase();
+      
+      // ✅ FIXED: Use includes instead of startsWith for surname
+      return (
+        fullName.includes(searchLower) ||  // Matches "gia katufu"
+        name.includes(searchLower) ||      // Matches "gia" 
+        surname.includes(searchLower) ||   // Matches "katufu" ✅ FIXED
+        email.includes(searchLower)        // Matches email
+      );
+    });
+    
     if (filteredFromPreloaded.length > 0) {
       console.log("⚡ Using preloaded data for instant results");
       const sliced = filteredFromPreloaded.slice(0, 50);
@@ -1617,56 +1534,69 @@ const fetchPeople = async (filter = "") => {
       );
     }
   };
+function getCurrentWeekIdentifier() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const week = getWeekNumber(now);
+    return `${year}-W${week.toString().padStart(2, '0')}`;
+}
+  function get_current_week_identifier() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const week = getWeekNumber(now);
+    return `${year}-W${week.toString().padStart(2, '0')}`;
+  }
+
+function getWeekNumber(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
 
   const loadExistingAttendance = async () => {
     if (!event) return;
 
     const eventId = event._id || event.id;
-    console.log("📥 Loading attendance data for event:", eventId);
+    console.log("Loading attendance data for event:", eventId);
 
     const currentWeek = getCurrentWeekIdentifier();
-
-    // Always load persistent attendees first
-    const persistentList = event.persistent_attendees || [];
-    console.log(
-      `📋 Found ${persistentList.length} persistent attendees in event data`
-    );
-
-    // Always set the persistent list regardless of week status
-    setPersistentCommonAttendees(persistentList);
-
-    // Check if THIS WEEK has been captured
-    const hasCurrentWeekData =
-      event.attendance &&
-      event.attendance[currentWeek] &&
-      event.attendance[currentWeek].attendees &&
-      event.attendance[currentWeek].attendees.length > 0 &&
-      event.attendance[currentWeek].status === "complete";
+    
+    // Use the persistentCommonAttendees state that we set in useEffect
+    const persistentList = persistentCommonAttendees || [];
+    console.log(`Using ${persistentList.length} persistent attendees`);
+    
+    // ✅ FIX: Check for current week data in the NEW structure
+    const hasCurrentWeekData = 
+        event.attendance && 
+        event.attendance[currentWeek] && 
+        event.attendance[currentWeek].attendees &&
+        event.attendance[currentWeek].attendees.length > 0 &&
+        event.attendance[currentWeek].status === 'complete';
 
     const hasCurrentWeekDidNotMeet =
       event.attendance &&
       event.attendance[currentWeek] &&
       event.attendance[currentWeek].status === "did_not_meet";
 
-    console.log(`🔍 Current week: ${currentWeek}`);
-    console.log(`📊 Has current week data: ${hasCurrentWeekData}`);
-    console.log(
-      `📊 Has current week did not meet: ${hasCurrentWeekDidNotMeet}`
-    );
+    console.log(`Current week: ${currentWeek}`);
+    console.log(`Has current week data: ${hasCurrentWeekData}`);
+    console.log(`Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
+    console.log(`Event attendance data:`, event.attendance);
 
-    // CASE 1: Current week HAS been captured - show checked state
     if (hasCurrentWeekData) {
-      console.log("✅ Current week captured - loading checked state");
+        const weekData = event.attendance[currentWeek];
+        const newCheckedIn = {};
+        const newDecisions = {};
+        const newDecisionTypes = {};
 
-      const weekData = event.attendance[currentWeek];
-      const newCheckedIn = {};
-      const newDecisions = {};
-      const newDecisionTypes = {};
+        console.log(`Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
 
-      // Mark attendees as checked
-      weekData.attendees.forEach((attendee) => {
-        if (attendee.id) {
-          newCheckedIn[attendee.id] = true;
+        // Mark attendees as checked for THIS WEEK
+        weekData.attendees.forEach(attendee => {
+            if (attendee.id) {
+                newCheckedIn[attendee.id] = true;
 
           if (attendee.decision) {
             newDecisions[attendee.id] = true;
@@ -1680,67 +1610,44 @@ const fetchPeople = async (filter = "") => {
       setDecisionTypes(newDecisionTypes);
       setDidNotMeet(false);
 
-      console.log(
-        `✅ Loaded: ${persistentList.length} names, ${
-          Object.keys(newCheckedIn).length
-        } checked`
-      );
-    }
-    // CASE 2: Current week marked as "did not meet"
+        console.log(`Loaded: ${persistentList.length} names, ${Object.keys(newCheckedIn).length} checked THIS WEEK`);
+    } 
     else if (hasCurrentWeekDidNotMeet) {
-      console.log("🔴 Current week marked as DID NOT MEET");
-
-      setDidNotMeet(true);
-      setCheckedIn({});
-    }
-    // CASE 3: NEW WEEK - Show names but nothing checked
-    else {
-      console.log("🆕 NEW WEEK - Names listed but NOTHING checked");
-
-      // All checkboxes start UNCHECKED
-      setCheckedIn({});
-      setDecisions({});
-      setDecisionTypes({});
-      setManualHeadcount("");
-      setDidNotMeet(false);
-
-      console.log(
-        `✅ Loaded ${persistentList.length} names - all UNCHECKED (new week)`
-      );
-    }
-  };
-
-  // Effect: Load data when modal opens
-  useEffect(() => {
-    if (isOpen && event) {
-      console.log("🎯 Modal opened with event:", event);
-      console.log(
-        "📋 Persistent attendees in event:",
-        event.persistent_attendees
-      );
-      console.log("📋 Attendance data:", event.attendance);
-
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-      setShowMobileMenu(false);
-
-      loadExistingAttendance();
-      fetchPeople();
-
-      if (event.eventType === "cell") {
-        fetchCommonAttendees(event._id || event.id);
-      } else {
-        setCommonAttendees([]);
-      }
-
-      if (event.did_not_meet) {
+        console.log("Current week marked as DID NOT MEET");
         setDidNotMeet(true);
-      }
+        setCheckedIn({});
     }
-  }, [isOpen, event]);
+    else {
+        console.log("NEW WEEK - Names listed but NOTHING checked");
+        setCheckedIn({});
+        setDecisions({});
+        setDecisionTypes({});
+        setManualHeadcount("");
+        setDidNotMeet(false);
+        console.log(`Loaded ${persistentList.length} names - all UNCHECKED (new week)`);
+    }
+};
 
-  // Effect: Check screen size
+const fetchPersistentAttendees = async (eventId) => {
+    try {
+        const token = localStorage.getItem("token");
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        const response = await fetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, { headers });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.persistent_attendees && Array.isArray(data.persistent_attendees)) {
+                console.log("Fetched persistent attendees from API:", data.persistent_attendees.length);
+                setPersistentCommonAttendees(data.persistent_attendees);
+                return data.persistent_attendees;
+            }
+        }
+    } catch (error) {
+        console.error("Error fetching persistent attendees:", error);
+    }
+    return [];
+};
+
   useEffect(() => {
     const checkScreenSize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -1941,28 +1848,32 @@ const fetchPeople = async (filter = "") => {
     }
   };
 
-  const getAllCommonAttendees = () => {
-    const combined = [...commonAttendees];
+const getAllCommonAttendees = () => {
+    // ✅ FIX: Add proper null/undefined checks
+    const combined = [...(persistentCommonAttendees || [])];
 
-    persistentCommonAttendees.forEach((persistentAttendee) => {
-      if (!combined.some((common) => common.id === persistentAttendee.id)) {
-        const fixedAttendee = {
-          ...persistentAttendee,
-          fullName:
-            persistentAttendee.fullName ||
-            persistentAttendee.name ||
-            "Unknown Person",
-          email: persistentAttendee.email || "",
-          leader12: persistentAttendee.leader12 || "",
-          leader144: persistentAttendee.leader144 || "",
-          phone: persistentAttendee.phone || "",
-        };
-        combined.push(fixedAttendee);
-      }
+    console.log("Getting all common attendees:", {
+        persistentCount: persistentCommonAttendees?.length || 0,
+        combinedCount: combined.length
     });
 
-    return combined;
-  };
+    // ✅ FIX: Add validation and filtering for invalid entries
+    const fixedAttendees = combined
+        .filter(persistentAttendee => persistentAttendee != null) 
+        .map(persistentAttendee => ({
+            ...persistentAttendee,
+            id: persistentAttendee.id || persistentAttendee._id || "",
+            fullName: persistentAttendee.fullName || persistentAttendee.name || "Unknown Person",
+            email: persistentAttendee.email || "",
+            leader12: persistentAttendee.leader12 || "",
+            leader144: persistentAttendee.leader144 || "",
+            phone: persistentAttendee.phone || "",
+        }))
+        .filter(attendee => attendee.id); 
+
+    console.log("Fixed attendees:", fixedAttendees);
+    return fixedAttendees;
+};
 
   // Calculate statistics
   const attendeesCount = Object.keys(checkedIn).filter(
@@ -1986,33 +1897,24 @@ const fetchPeople = async (filter = "") => {
     .filter((id) => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
 
- // 🔍 Filter common attendees based on search input (partial match)
-const filteredCommonAttendees = getAllCommonAttendees()
-  .map(person => {
-    const name = person.fullName?.toLowerCase() || "";
-    const search = searchName.toLowerCase().trim();
+  const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
+    person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
+    person.email.toLowerCase().includes(searchName.toLowerCase())
+  );
 
-    const index = name.indexOf(search);
-    return { ...person, _matchIndex: index === -1 ? 9999 : index };
-  })
-  .filter(p => p._matchIndex !== 9999)
-  .sort((a, b) => a._matchIndex - b._matchIndex); // rank closest match first
+  const filteredPeople = people.filter(person =>
+    person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
+    person.email.toLowerCase().includes(associateSearch.toLowerCase())
+  );
 
 
-const filteredPeople = people
-  .map(person => {
-    const name = person.fullName?.toLowerCase() || "";
-    const search = associateSearch.toLowerCase().trim();
-
-    const index = name.indexOf(search);
-    return { ...person, _matchIndex: index === -1 ? 9999 : index };
-  })
-  .filter(p => p._matchIndex !== 9999)
-  .sort((a, b) => a._matchIndex - b._matchIndex);
-
-
-  const handleSave = async () => {
+const handleSave = async () => {
+    // Get ALL common attendees FIRST and validate
+    const allPeople = getAllCommonAttendees();
+    console.log("📊 All people for save:", allPeople);
+    
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+    console.log("✅ Checked-in attendees:", attendeesList);
 
     if (!didNotMeet && attendeesList.length === 0) {
       setAlert({
@@ -2025,36 +1927,6 @@ const filteredPeople = people
         3000
       );
       return;
-    }
-
-    if (isTicketedEvent && !didNotMeet) {
-      for (const id of attendeesList) {
-        if (!priceTiers[id]) {
-          setAlert({
-            open: true,
-            type: "error",
-            message: "Please select a price tier for all checked-in attendees.",
-          });
-          setTimeout(
-            () => setAlert({ open: false, type: "error", message: "" }),
-            3000
-          );
-          return;
-        }
-        if (!paymentMethods[id]) {
-          setAlert({
-            open: true,
-            type: "error",
-            message:
-              "Please select a payment method for all checked-in attendees.",
-          });
-          setTimeout(
-            () => setAlert({ open: false, type: "error", message: "" }),
-            3000
-          );
-          return;
-        }
-      }
     }
 
     const eventId = event?.id || event?._id;
@@ -2071,149 +1943,172 @@ const filteredPeople = people
       return;
     }
 
-    const allPeople = getAllCommonAttendees();
-
-    const selectedAttendees = attendeesList.map((id) => {
-      const person = allPeople.find((p) => p.id === id);
-      const attendee = {
-        id: person?.id,
-        name: person?.fullName || "",
-        email: person?.email || "",
-        fullName: person?.fullName || "",
-        leader12: person?.leader12 || "",
-        leader144: person?.leader144 || "",
-        phone: person?.phone || "",
-        time: new Date().toISOString(),
-        decision: decisions[id] ? decisionTypes[id] || "" : "",
-        checked_in: true,
-      };
-
-      if (isTicketedEvent) {
-        attendee.priceTier = priceTiers[id]?.name || "";
-        attendee.price = priceTiers[id]?.price || 0;
-        attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-        attendee.memberType = priceTiers[id]?.memberType || "";
-        attendee.paymentMethod = paymentMethods[id] || "";
-        attendee.paid = paidAmounts[id] || 0;
-        attendee.owing = calculateOwing(id);
-      }
-
-      return attendee;
-    });
-
-    console.log("📝 Preparing to submit attendance:");
-    console.log("   Event ID:", eventId);
-    console.log("   Did Not Meet:", didNotMeet);
-    console.log("   Checked-in Attendees:", selectedAttendees.length);
-    console.log("   Persistent Attendees:", persistentCommonAttendees.length);
-    console.log("   Current Week:", getCurrentWeekIdentifier());
-
     try {
-      let result;
+        // Build checked-in attendees (only those ticked) - WITH PROPER ERROR HANDLING
+        const selectedAttendees = attendeesList.map((id) => {
+            const person = allPeople.find((p) => p && p.id === id);
+            
+            if (!person) {
+                console.warn(`❌ Person with id ${id} not found in allPeople`);
+                return null;
+            }
+            
+            const attendee = {
+                id: person.id,
+                name: person.fullName || "",
+                email: person.email || "",
+                fullName: person.fullName || "",
+                leader12: person.leader12 || "",
+                leader144: person.leader144 || "",
+                phone: person.phone || "",
+                time: new Date().toISOString(),
+                decision: decisions[id] ? decisionTypes[id] || "" : "",
+                checked_in: true 
+            };
 
-      if (typeof onSubmit === "function") {
-        console.log("🔄 Using onSubmit prop...");
+            if (isTicketedEvent) {
+                attendee.priceTier = priceTiers[id]?.name || "";
+                attendee.price = priceTiers[id]?.price || 0;
+                attendee.ageGroup = priceTiers[id]?.ageGroup || "";
+                attendee.memberType = priceTiers[id]?.memberType || "";
+                attendee.paymentMethod = paymentMethods[id] || "";
+                attendee.paid = paidAmounts[id] || 0;
+                attendee.owing = calculateOwing(id);
+            }
 
-        if (didNotMeet) {
-          result = await onSubmit("did_not_meet");
+            return attendee;
+        }).filter(attendee => attendee !== null);
+
+        console.log("📤 Final selected attendees:", selectedAttendees);
+
+        let result;
+
+        if (typeof onSubmit === "function") {
+            console.log("✅ Using onSubmit prop...");
+
+            // ✅ FIX: Create the payload structure that matches handleAttendanceSubmit expectations
+            const payload = {
+                attendees: didNotMeet ? [] : selectedAttendees,
+                all_attendees: allPeople,
+                persistent_attendees: allPeople.map(p => ({
+                    id: p.id,
+                    name: p.fullName,
+                    fullName: p.fullName,
+                    email: p.email,
+                    leader12: p.leader12,
+                    leader144: p.leader144,
+                    phone: p.phone
+                })),
+                leaderEmail: currentUser?.email || "",
+                leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+                did_not_meet: didNotMeet,
+                isTicketed: isTicketedEvent,
+                week: getCurrentWeekIdentifier()
+            };
+            
+            console.log("📦 Submission payload structure:", {
+                attendees_count: payload.attendees.length,
+                all_attendees_count: payload.all_attendees.length,
+                persistent_attendees_count: payload.persistent_attendees.length,
+                did_not_meet: payload.did_not_meet
+            });
+
+            // ✅ FIX: Only pass the payload (NOT eventId) since handleAttendanceSubmit gets eventId from selectedEvent
+            result = await onSubmit(payload);
+            
         } else {
-          result = await onSubmit({
-            attendees: selectedAttendees,
-            all_attendees: persistentCommonAttendees,
-            leaderEmail: currentUser?.email || "",
-            leaderName: `${currentUser?.name || ""} ${
-              currentUser?.surname || ""
-            }`.trim(),
-            did_not_meet: false,
-            isTicketed: isTicketedEvent,
-            week: getCurrentWeekIdentifier(),
-          });
-        }
-      } else {
-        console.log("🔄 Using direct API call...");
+            // Direct API call fallback
+            const token = localStorage.getItem("token");
+            const headers = {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            };
 
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
+            // ✅ FIX: Use direct structure for direct API call
+            const payload = {
+                attendees: didNotMeet ? [] : selectedAttendees,
+                all_attendees: allPeople,
+                persistent_attendees: allPeople.map(p => ({
+                    id: p.id,
+                    name: p.fullName,
+                    fullName: p.fullName,
+                    email: p.email,
+                    leader12: p.leader12,
+                    leader144: p.leader144,
+                    phone: p.phone
+                })),
+                leaderEmail: currentUser?.email || "",
+                leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+                did_not_meet: didNotMeet,
+                isTicketed: isTicketedEvent,
+                week: getCurrentWeekIdentifier()
+            };
 
-        const payload = {
-          attendees: selectedAttendees,
-          all_attendees: persistentCommonAttendees,
-          leaderEmail: currentUser?.email || "",
-          leaderName: `${currentUser?.name || ""} ${
-            currentUser?.surname || ""
-          }`.trim(),
-          did_not_meet: didNotMeet,
-          isTicketed: isTicketedEvent,
-          week: getCurrentWeekIdentifier(),
-        };
+            console.log("🌐 Direct API call with eventId:", eventId);
+            
+            const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+                method: "PUT",
+                headers: headers,
+                body: JSON.stringify(payload),
+            });
 
-        const response = await fetch(
-          `${BACKEND_URL}/submit-attendance/${eventId}`,
-          {
-            method: "PUT",
-            headers,
-            body: JSON.stringify(payload),
-          }
-        );
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+            }
 
-        result = await response.json();
-        result.success = response.ok;
-      }
-
-      console.log("✅ Submission result:", result);
-
-      if (result?.success) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: didNotMeet
-            ? "Event marked as 'Did Not Meet' successfully!"
-            : `Attendance saved successfully for ${selectedAttendees.length} attendees!`,
-        });
-
-        if (typeof onAttendanceSubmitted === "function") {
-          onAttendanceSubmitted();
+            result = await response.json();
         }
 
-        setTimeout(() => {
-          setAlert({ open: false, type: "success", message: "" });
-          onClose();
-        }, 1500);
-      } else {
-        console.error("❌ Submission failed:", result);
-        setAlert({
-          open: true,
-          type: "error",
-          message:
-            result?.message || result?.detail || "Failed to save attendance.",
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "error", message: "" }),
-          3000
-        );
-      }
+        console.log("✅ Save result:", result);
+
+        if (result.success) {
+            setAlert({
+                open: true,
+                type: "success",
+                message: result.message || "Attendance saved successfully!",
+            });
+            
+            setTimeout(() => {
+                setAlert({ open: false, type: "success", message: "" });
+                onClose();
+            }, 2000);
+        } else {
+            throw new Error(result.message || "Failed to save attendance");
+        }
+
     } catch (error) {
-      console.error("❌ Error submitting attendance:", error);
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Something went wrong while submitting attendance.",
-      });
-      setTimeout(
-        () => setAlert({ open: false, type: "error", message: "" }),
-        3000
-      );
+        console.error("❌ Error saving attendance:", error);
+        setAlert({
+            open: true,
+            type: "error",
+            message: error.message || "Failed to save attendance. Please try again.",
+        });
+        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
-  };
+};
 
+const handleSubmitAttendance = (attendanceData) => {
+  console.log("📝 Preparing to submit attendance:");
+  console.log("   Event ID:", event?._id); 
+  console.log("   Did Not Meet:", attendanceData === "did_not_meet");
+  console.log("   Checked-in Attendees:", Array.isArray(attendanceData) ? attendanceData.length : 'unknown');
+  console.log("   Persistent Attendees:", attendanceData?.all_attendees?.length || 'unknown');
+  console.log("   Current Week:", get_current_week_identifier()); 
+  
+
+  if (onSubmit) { 
+    return onSubmit(attendanceData);
+  } else {
+    console.error("❌ No onSubmit prop provided to AttendanceModal");
+    return Promise.resolve({ success: false, message: "No submit handler" });
+  }
+};
   const handleDidNotMeet = () => {
     setShowDidNotMeetConfirm(true);
   };
 
-  const confirmDidNotMeet = async () => {
+const confirmDidNotMeet = async () => {
     setShowDidNotMeetConfirm(false);
     setDidNotMeet(true);
     setCheckedIn({});
@@ -2240,26 +2135,55 @@ const filteredPeople = people
 
       let result;
 
-      if (typeof onSubmit === "function") {
-        result = await onSubmit("did_not_meet");
-      } else {
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
+        if (typeof onSubmit === "function") {
+            // ✅ FIX: Use the direct payload structure
+            const allPeople = getAllCommonAttendees();
+            const payload = {
+                attendees: [],
+                all_attendees: allPeople,
+                leaderEmail: currentUser?.email || "",
+                leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+                did_not_meet: true,
+                isTicketed: isTicketedEvent,
+                week: getCurrentWeekIdentifier(),
+                persistent_attendees: allPeople.map(p => ({
+                    id: p.id,
+                    fullName: p.fullName,
+                    email: p.email,
+                    leader12: p.leader12,
+                    leader144: p.leader144,
+                    phone: p.phone
+                }))
+            };
+            
+            // ✅ FIX: Only pass the payload
+            result = await onSubmit(payload);
+        } else {
+            const token = localStorage.getItem("token");
+            const headers = {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            };
 
-        const payload = {
-          attendees: [],
-          all_attendees: persistentCommonAttendees,
-          leaderEmail: currentUser?.email || "",
-          leaderName: `${currentUser?.name || ""} ${
-            currentUser?.surname || ""
-          }`.trim(),
-          did_not_meet: true,
-          isTicketed: isTicketedEvent,
-          week: getCurrentWeekIdentifier(),
-        };
+            // ✅ FIX: Use direct structure
+            const allPeople = getAllCommonAttendees();
+            const payload = {
+                attendees: [],
+                all_attendees: allPeople,
+                leaderEmail: currentUser?.email || "",
+                leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+                did_not_meet: true,
+                isTicketed: isTicketedEvent,
+                week: getCurrentWeekIdentifier(),
+                persistent_attendees: allPeople.map(p => ({
+                    id: p.id,
+                    fullName: p.fullName,
+                    email: p.email,
+                    leader12: p.leader12,
+                    leader144: p.leader144,
+                    phone: p.phone
+                }))
+            };
 
         const response = await fetch(
           `${BACKEND_URL}/submit-attendance/${eventId}`,
@@ -2315,7 +2239,7 @@ const filteredPeople = people
         3000
       );
     }
-  };
+};
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);

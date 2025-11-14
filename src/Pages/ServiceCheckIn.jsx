@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -60,21 +60,29 @@ function ServiceCheckIn() {
     return stored ? JSON.parse(stored) : [];
   });
 
-  // Removed localStorage caching for events
+  // Initialize currentEventId with localStorage persistence
+  const [currentEventId, setCurrentEventId] = useState(() => {
+    const stored = localStorage.getItem("currentEventId");
+    return stored || "";
+  });
+
+  // Initialize event-specific data with localStorage persistence
+  const [eventCheckIns, setEventCheckIns] = useState(() => {
+    const stored = localStorage.getItem("eventCheckIns");
+    return stored ? JSON.parse(stored) : {};
+  });
+
+  const [eventNewPeople, setEventNewPeople] = useState(() => {
+    const stored = localStorage.getItem("eventNewPeople");
+    return stored ? JSON.parse(stored) : {};
+  });
+
+  const [eventConsolidations, setEventConsolidations] = useState(() => {
+    const stored = localStorage.getItem("eventConsolidations");
+    return stored ? JSON.parse(stored) : {};
+  });
+
   const [events, setEvents] = useState([]);
-
-  // Removed localStorage caching for currentEventId
-  const [currentEventId, setCurrentEventId] = useState("");
-
-  // Removed localStorage caching for eventCheckIns
-  const [eventCheckIns, setEventCheckIns] = useState({});
-
-  // Removed localStorage caching for eventNewPeople
-  const [eventNewPeople, setEventNewPeople] = useState({});
-
-  // Removed localStorage caching for eventConsolidations
-  const [eventConsolidations, setEventConsolidations] = useState({});
-
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -132,6 +140,8 @@ function ServiceCheckIn() {
 
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
+  // Ref to mark when a deliberate close flow is in progress from this component
+  const closingRef = useRef(false);
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
   const isLgDown = useMediaQuery(theme.breakpoints.down("lg"));
@@ -148,6 +158,28 @@ function ServiceCheckIn() {
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
+
+  // Persist currentEventId to localStorage
+  useEffect(() => {
+    if (currentEventId) {
+      localStorage.setItem("currentEventId", currentEventId);
+    } else {
+      localStorage.removeItem("currentEventId");
+    }
+  }, [currentEventId]);
+
+  // Persist event-specific data to localStorage
+  useEffect(() => {
+    localStorage.setItem("eventCheckIns", JSON.stringify(eventCheckIns));
+  }, [eventCheckIns]);
+
+  useEffect(() => {
+    localStorage.setItem("eventNewPeople", JSON.stringify(eventNewPeople));
+  }, [eventNewPeople]);
+
+  useEffect(() => {
+    localStorage.setItem("eventConsolidations", JSON.stringify(eventConsolidations));
+  }, [eventConsolidations]);
 
   // Debug useEffect
   useEffect(() => {
@@ -255,8 +287,53 @@ function ServiceCheckIn() {
     }
   };
 
+  // Enhanced event status checking with better debugging
+  const checkEventStatus = async (eventId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${BASE_URL}/events/${eventId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        timeout: 5000
+      });
+      
+      const eventData = response.data;
+      console.log("🔍 Current event status from API:", {
+        id: eventData?._id || eventData?.id,
+        name: eventData?.eventName || eventData?.name,
+        status: eventData?.status,
+        rawStatus: eventData?.status,
+        isGlobal: eventData?.isGlobal,
+        eventType: eventData?.eventType
+      });
+      
+      return eventData;
+    } catch (error) {
+      console.error("Error checking event status:", error);
+      
+      if (error.response) {
+        console.error("Status check failed - Server response:", error.response.status, error.response.data);
+      } else if (error.request) {
+        console.error("Status check failed - No response received");
+      } else {
+        console.error("Status check failed - Error:", error.message);
+      }
+      
+      return null;
+    }
+  };
+
+  // Enhanced event filtering with better debugging
   const getFilteredEvents = () => {
-    console.log('📋 All available events:', events);
+    console.log('📋 All available events for filtering:', events.map(e => ({
+      id: e.id,
+      name: e.eventName,
+      status: e.status,
+      rawStatus: e.status,
+      isGlobal: e.isGlobal,
+      eventType: e.eventType
+    })));
     
     const filteredEvents = events.filter(event => {
       // More flexible filtering for global events
@@ -265,32 +342,37 @@ function ServiceCheckIn() {
                       event.eventType === "Event" ||
                       event.eventType?.toLowerCase().includes("event");
       
-      const isOpen = event.status?.toLowerCase() === 'open' || event.status?.toLowerCase() === "incomplete";
+      // Enhanced status checking - show ALL events EXCEPT "closed" ones
+      const eventStatus = event.status?.toLowerCase() || '';
+      const isNotClosed = eventStatus !== 'closed'; // Show all except explicitly closed
 
-      console.log(`🔍 Event kerr: ${event.eventName}`, {
+      const shouldInclude = isGlobal && isNotClosed;
+
+      console.log(`🔍 Event filtering: "${event.eventName}"`, {
         id: event.id,
         isGlobal,
-        isOpen,
+        eventStatus,
+        isNotClosed,
+        shouldInclude,
         eventType: event.eventType,
-        status: event.status,
-        isGlobalFlag: event.isGlobal
+        rawStatus: event.status
       });
 
-      return isGlobal && isOpen;
+      return shouldInclude;
     });
 
-    console.log('✅ Filtered Global Events:', filteredEvents.map(e => ({
+    console.log('✅ Final filtered events:', filteredEvents.map(e => ({
       id: e.id,
       name: e.eventName,
-      type: e.eventType,
-      status: e.status
+      status: e.status,
+      rawStatus: e.status
     })));
     return filteredEvents;
   };
 
   const getClosedEvents = () => {
     return events.filter(event => {
-      const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'incomplete';
+      const isClosed = event.status?.toLowerCase() === 'closed';
       const isGlobal = event.eventType === "Global Events";
       const isNotCell = event.eventType?.toLowerCase() !== 'cell';
 
@@ -298,27 +380,13 @@ function ServiceCheckIn() {
     });
   };
 
-  useEffect(() => {
-    if (events.length > 0 && !currentEventId) {
-      const filteredEvents = getFilteredEvents();
-      if (filteredEvents.length > 0) {
-        const firstEventId = filteredEvents[0].id;
-        // Only update if different from current
-        if (firstEventId !== currentEventId) {
-          setCurrentEventId(firstEventId);
-          console.log('✅ Auto-selected first event:', firstEventId);
-        }
-      }
-    }
-  }, [events, currentEventId]);
-
   const loadEventCheckIns = async () => {
     if (!currentEventId) return;
 
     try {
       console.log('🔄 Loading check-ins for event:', currentEventId);
       const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/events/${currentEventId}/checkins`, {
+      const response = await axios.get(`${BASE_URL}/checkins/${currentEventId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         }
@@ -376,10 +444,13 @@ function ServiceCheckIn() {
       console.log('✅ Final checked-in IDs:', checkedInIds);
 
       if (checkedInIds.length > 0) {
-        setEventCheckIns((prev) => ({
-          ...prev,
-          [currentEventId]: [...new Set([...(prev[currentEventId] || []), ...checkedInIds])]
-        }));
+        setEventCheckIns((prev) => {
+          const newCheckIns = {
+            ...prev,
+            [currentEventId]: [...new Set([...(prev[currentEventId] || []), ...checkedInIds])]
+          };
+          return newCheckIns;
+        });
         toast.success(`Loaded ${checkedInIds.length} previously checked-in attendees`);
       } else {
         console.log('ℹ️ No previously checked-in attendees found');
@@ -388,19 +459,35 @@ function ServiceCheckIn() {
       console.error('❌ Error loading event check-ins:', error);
       const storedCheckIns = eventCheckIns[currentEventId] || [];
       if (storedCheckIns.length > 0) {
-        console.log('🔄 Using stored check-ins from state');
+        console.log('🔄 Using stored check-ins from localStorage');
       }
     }
   };
 
+  // Fetch event-specific data when currentEventId changes
   useEffect(() => {
-    if (currentEventId && attendees.length > 0) {
-      console.log('🎯 Event changed or attendees loaded, loading check-ins...');
+    if (currentEventId) {
+      console.log('🔄 Event changed, fetching fresh data:', currentEventId);
       loadEventCheckIns();
+      fetchConsolidatedPeople();
     }
-  }, [currentEventId, attendees]);
+  }, [currentEventId]);
 
+  // Auto-select first event only if no event is selected
+  useEffect(() => {
+    if (events.length > 0 && !currentEventId) {
+      const filteredEvents = getFilteredEvents();
+      if (filteredEvents.length > 0) {
+        const firstEventId = filteredEvents[0].id;
+        setCurrentEventId(firstEventId);
+        console.log('✅ Auto-selected first event:', firstEventId);
+      }
+    }
+  }, [events]);
+
+  // Enhanced event closing with comprehensive debugging
   const handleSaveAndCloseEvent = async () => {
+    console.log("🔄 ===== STARTING EVENT CLOSURE PROCESS =====");
     console.log("🔄 Saving and closing event:", currentEventId);
     
     if (!currentEventId) {
@@ -419,45 +506,200 @@ function ServiceCheckIn() {
     }
 
     setIsClosingEvent(true);
+    // mark that a deliberate close flow is in progress from this component
+    closingRef.current = true;
     try {
       const token = localStorage.getItem("token");
 
-      // Use "closed" status consistently
-      await axios.put(
-        `${BASE_URL}/events/${currentEventId}`,
-        { status: "closed" }, // Use "closed" instead of "incomplete"
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
+      console.log("📡 Making API call to close event:", {
+        eventId: currentEventId,
+        currentStatus: currentEvent.status,
+        updatingTo: "closed"
+      });
+
+      // Check status before closing
+      console.log("📋 Status BEFORE closing:");
+      const statusBefore = await checkEventStatus(currentEventId);
+      console.log("📋 Status BEFORE closing (server):", statusBefore?.status, statusBefore);
+
+      // Try PATCH first, then PUT as fallback
+      let response;
+      try {
+        console.log("🔄 Attempting PATCH request...");
+        // mark that this request originates from this component so interceptors can distinguish it
+        response = await axios.patch(
+          `${BASE_URL}/events/${currentEventId}`,
+          { status: "closed" },
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'X-Closing-From-ServiceCheckIn': '1'
+            },
+            timeout: 10000
           }
-        }
-      );
+        );
+        console.log("✅ PATCH API Response:", response.data);
+      } catch (patchError) {
+        console.log("🔄 PATCH failed, trying PUT...", patchError.message);
+        response = await axios.put(
+          `${BASE_URL}/events/${currentEventId}`,
+          { status: "closed" },
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'X-Closing-From-ServiceCheckIn': '1'
+            },
+            timeout: 10000
+          }
+        );
+        console.log("✅ PUT API Response:", response.data);
+      }
 
-      // Update local state with consistent status
-      setEvents(prev => prev.map(event =>
-        event.id === currentEventId
-          ? { ...event, status: "closed" }
-          : event
-      ));
+      // Force refresh events from server to get actual status
+      console.log("🔄 Refreshing events from server...");
+      await fetchEvents();
 
-      toast.success(`Event "${currentEvent.eventName}" closed successfully!`);
+      // Wait a moment for the backend to process, then verify
+      console.log("🔄 Waiting for backend processing...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log("📋 Verifying event status AFTER closing:");
+      const statusAfter = await checkEventStatus(currentEventId);
+      
+      if (statusAfter && statusAfter.status === "closed") {
+        console.log("✅ SUCCESS: Event confirmed as closed in database");
+        
+        // Update local state with the actual status from the server
+        setEvents(prev => prev.map(event =>
+          event.id === currentEventId
+            ? { ...event, status: "closed" }
+            : event
+        ));
 
-      // Don't clear currentEventId immediately - let user see the success message
-      setTimeout(() => {
+        toast.success(`Event "${currentEvent.eventName}" closed successfully!`);
+
+        // Clear event-specific data from localStorage
+        clearEventData(currentEventId);
+        
+        // Clear selection
         setCurrentEventId("");
-      }, 2000);
+        
+        // Force refresh to ensure UI updates
+        setTimeout(() => {
+          fetchEvents();
+        }, 500);
+        
+      } else {
+        console.warn("⚠️ WARNING: Event may not be properly closed in database");
+        console.log("Status after verification:", statusAfter);
+        
+        if (statusAfter) {
+          console.log("❌ Database status:", statusAfter.status, "Expected: closed");
+        }
+        
+        toast.warning("Event closed locally but please verify database status");
+        
+        // Still update local state to reflect the attempted closure
+        setEvents(prev => prev.map(event =>
+          event.id === currentEventId
+            ? { ...event, status: "closed" }
+            : event
+        ));
+      }
 
     } catch (error) {
-      console.error("Error closing event:", error);
-      if (error.response?.status === 404) {
-        toast.error("Event not found on server");
+      console.error("❌ ERROR in event closure process:", error);
+      
+      if (error.response) {
+        console.error("Server response:", error.response.data);
+        toast.error(`Server error: ${error.response.status} - ${error.response.data?.message || 'Unknown error'}`);
+      } else if (error.request) {
+        console.error("No response received:", error.request);
+        toast.error("No response from server - event may not be closed");
       } else {
-        toast.error("Failed to close event");
+        toast.error(`Error: ${error.message}`);
       }
+      
+      toast.error("Event may still be open in the database. Please check.");
     } finally {
+      console.log("🔄 ===== EVENT CLOSURE PROCESS COMPLETED =====");
       setIsClosingEvent(false);
+      // reset the deliberate-close flag
+      closingRef.current = false;
     }
   };
+
+  // Function to clear event-specific data
+  const clearEventData = (eventId) => {
+    setEventCheckIns(prev => {
+      const newCheckIns = { ...prev };
+      delete newCheckIns[eventId];
+      return newCheckIns;
+    });
+    
+    setEventNewPeople(prev => {
+      const newNewPeople = { ...prev };
+      delete newNewPeople[eventId];
+      return newNewPeople;
+    });
+    
+    setEventConsolidations(prev => {
+      const newConsolidations = { ...prev };
+      delete newConsolidations[eventId];
+      return newConsolidations;
+    });
+  };
+
+  // Register axios interceptors to help detect unexpected event updates
+  useEffect(() => {
+    const reqId = axios.interceptors.request.use((req) => {
+      try {
+        const url = req.url || '';
+        const method = (req.method || '').toLowerCase();
+        if (/\/events\//i.test(url) && /(patch|put)/.test(method)) {
+          console.log('🔁 Axios request ->', { method, url, headers: req.headers });
+          // warn if a close/update is attempted without the explicit header or without our deliberate flag
+          const flagged = req.headers && (req.headers['X-Closing-From-ServiceCheckIn'] || req.headers['x-closing-from-servicecheckin']);
+          if (!flagged && !closingRef.current) {
+            console.warn('⚠️ Event update request sent but not initiated from ServiceCheckIn.close flow', { method, url, headers: req.headers });
+          }
+        }
+      } catch (e) {
+        console.error('Interceptor request logging error', e);
+      }
+      return req;
+    }, (err) => Promise.reject(err));
+
+    const resId = axios.interceptors.response.use((res) => {
+      try {
+        const url = res.config?.url || '';
+        const method = (res.config?.method || '').toLowerCase();
+        if (/\/events\//i.test(url) && /(patch|put)/.test(method)) {
+          console.log('🔁 Axios response <-', { method, url, status: res.status, data: res.data });
+        }
+      } catch (e) {
+        console.error('Interceptor response logging error', e);
+      }
+      return res;
+    }, (err) => {
+      try {
+        const cfg = err.config || {};
+        if (cfg.url && /\/events\//i.test(cfg.url) && /(patch|put)/.test((cfg.method||'').toLowerCase())) {
+          console.error('🔁 Axios response error <-', { method: cfg.method, url: cfg.url, error: err.message, response: err.response?.data });
+        }
+      } catch(e) {
+        console.error('Interceptor response error logging failure', e);
+      }
+      return Promise.reject(err);
+    });
+
+    return () => {
+      axios.interceptors.request.eject(reqId);
+      axios.interceptors.response.eject(resId);
+    };
+  }, []);
 
   const handleViewEventDetails = async (eventId) => {
     try {
@@ -465,7 +707,7 @@ function ServiceCheckIn() {
       if (!event) return;
 
       const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/events/${eventId}/checkins`, {
+      const response = await axios.get(`${BASE_URL}/checkins/${eventId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         }
@@ -558,7 +800,6 @@ function ServiceCheckIn() {
     }
   }, [consolidationOpen]);
 
-  // FIXED: Properly defined fetchEvents function
   const fetchEvents = async () => {
     setIsLoadingEvents(true);
     try {
@@ -578,7 +819,7 @@ function ServiceCheckIn() {
 
       const data = await response.json();
 
-      console.log('📋 Global events data:', data);
+      console.log('📋 Global events data (RAW):', JSON.stringify(data, null, 2));
 
       const eventsData = data.events || data.results || [];
       
@@ -586,14 +827,17 @@ function ServiceCheckIn() {
         id: e._id || e.id,
         name: e.eventName,
         status: e.status,
-        isGlobal: e.isGlobal
+        Status: e.Status,
+        isGlobal: e.isGlobal,
+        eventType: e.eventType,
+        rawEvent: e
       })));
 
       const transformedEvents = eventsData.map(event => ({
         id: event._id || event.id,
         eventName: event.eventName || event.name || "Unnamed Event",
-        status: event.status || "incomplete",
-        isGlobal: event.isGlobal || true,
+        status: (event.status || event.Status || "open").toLowerCase(),
+        isGlobal: event.isGlobal !== false,
         isTicketed: event.isTicketed || false,
         date: event.date || event.createdAt || event.created_at,
         eventType: event.eventType || "Global Events"
@@ -601,6 +845,25 @@ function ServiceCheckIn() {
 
       console.log('🎯 Transformed global events for dropdown:', transformedEvents);
       setEvents(transformedEvents);
+
+      // If we have local unsaved activity for the current event (check-ins, new people, consolidations)
+      // don't show it as closed in the UI even if the server reports it closed. This avoids
+      // the UX issue where navigating away after checking people in makes the event appear closed.
+      if (currentEventId) {
+        const hasLocalActivity =
+          (eventCheckIns[currentEventId] && eventCheckIns[currentEventId].length > 0) ||
+          (eventNewPeople[currentEventId] && eventNewPeople[currentEventId].length > 0) ||
+          (eventConsolidations[currentEventId] && eventConsolidations[currentEventId] > 0) ||
+          consolidatedPeople.some((p) => p.event_id === currentEventId) ||
+          firstTimeAddedIds.some((id) => (eventNewPeople[currentEventId] || []).includes(id));
+
+        if (hasLocalActivity) {
+          setEvents((prev) => prev.map((ev) => ev.id === currentEventId && ev.status === 'closed'
+            ? { ...ev, status: 'open' }
+            : ev
+          ));
+        }
+      }
 
     } catch (err) {
       console.error('❌ Error fetching global events:', err);
@@ -610,7 +873,7 @@ function ServiceCheckIn() {
     }
   };
 
-  // FIXED: Proper useEffect for initial data loading - ALWAYS fetch events
+  // Initial data loading
   useEffect(() => {
     console.log('🚀 Component mounted - fetching events and people...');
     
@@ -626,16 +889,16 @@ function ServiceCheckIn() {
     } else {
       fetchAllPeople();
     }
-  }, []); // Empty dependency array - runs once on mount
+  }, []);
 
-  // Only keep attendees in localStorage, remove events caching
+  // Only keep attendees in localStorage
   useEffect(() => {
     localStorage.setItem("attendees", JSON.stringify(attendees));
   }, [attendees]);
 
   const getAttendeesWithPresentStatus = () => {
     const currentEventCheckIns = eventCheckIns[currentEventId] || [];
-    console.log('📊 Current event check-ins:', currentEventCheckIns);
+    console.log('📊 Current event check-ins from localStorage:', currentEventCheckIns);
 
     return attendees.map((attendee) => ({
       ...attendee,
@@ -743,6 +1006,11 @@ function ServiceCheckIn() {
 
   const handleFinishConsolidation = async (task) => {
     console.log("🎯 Consolidation task completed:", task);
+    console.log("🔍 Task details:", {
+      isConsolidationOnly: task.isConsolidationOnly,
+      recipientName: task.recipientName,
+      shouldNotCheckIn: true // Explicitly state this
+    });
 
     if (currentEventId) {
       try {
@@ -766,18 +1034,25 @@ function ServiceCheckIn() {
           decision_date: new Date().toISOString(),
           status: "Open",
           is_new: true,
-          event_id: currentEventId
+          event_id: currentEventId,
+          // EXPLICITLY mark that this person is NOT checked in
+          is_checked_in: false
         };
 
-        console.log("✅ New consolidated person with decision type:", newConsolidatedPerson.decision_type);
+        console.log("✅ New consolidated person (NOT checked in):", newConsolidatedPerson);
 
+        // IMPORTANT: Only update consolidated people, NOT check-ins
         setConsolidatedPeople(prev => [...prev, newConsolidatedPerson]);
 
-        setEventConsolidations((prev) => ({
-          ...prev,
-          [currentEventId]: (prev[currentEventId] || 0) + 1,
-        }));
+        setEventConsolidations((prev) => {
+          const newConsolidations = {
+            ...prev,
+            [currentEventId]: (prev[currentEventId] || 0) + 1,
+          };
+          return newConsolidations;
+        });
 
+        // Refresh consolidated list without affecting check-ins
         setTimeout(async () => {
           await fetchConsolidatedPeople();
         }, 1000);
@@ -841,10 +1116,13 @@ function ServiceCheckIn() {
       setFirstTimeAddedIds((prev) => [...prev, newPersonId]);
 
       if (currentEventId) {
-        setEventNewPeople((prev) => ({
-          ...prev,
-          [currentEventId]: [...(prev[currentEventId] || []), newPersonId],
-        }));
+        setEventNewPeople((prev) => {
+          const newEventNewPeople = {
+            ...prev,
+            [currentEventId]: [...(prev[currentEventId] || []), newPersonId],
+          };
+          return newEventNewPeople;
+        });
       }
 
       setPage(0);
@@ -892,20 +1170,26 @@ function ServiceCheckIn() {
           name: attendee.name,
         });
         toast.success(res.data?.message || "Checked in");
-        setEventCheckIns((prev) => ({
-          ...prev,
-          [currentEventId]: [...(prev[currentEventId] || []), attendee._id],
-        }));
+        setEventCheckIns((prev) => {
+          const newCheckIns = {
+            ...prev,
+            [currentEventId]: [...(prev[currentEventId] || []), attendee._id],
+          };
+          return newCheckIns;
+        });
       } else {
         const res = await axios.post(`${BASE_URL}/uncapture`, {
           event_id: currentEventId,
           name: attendee.name,
         });
         toast.info(res.data?.message || "Uncaptured");
-        setEventCheckIns((prev) => ({
-          ...prev,
-          [currentEventId]: (prev[currentEventId] || []).filter((id) => id !== attendee._id),
-        }));
+        setEventCheckIns((prev) => {
+          const newCheckIns = {
+            ...prev,
+            [currentEventId]: (prev[currentEventId] || []).filter((id) => id !== attendee._id),
+          };
+          return newCheckIns;
+        });
       }
     } catch (err) {
       console.error(err);
@@ -914,6 +1198,36 @@ function ServiceCheckIn() {
   };
 
   const attendeesWithStatus = getAttendeesWithPresentStatus();
+
+  // Build dropdown list: include filtered open global events plus the currently selected event
+  // (so the Select doesn't complain when the current event is temporarily marked closed on the server)
+  const menuEvents = (() => {
+    try {
+      const filtered = getFilteredEvents();
+      const list = [...filtered];
+      if (currentEventId && !list.some((ev) => ev.id === currentEventId)) {
+        const currentEventFromAll = events.find((ev) => ev.id === currentEventId);
+        if (currentEventFromAll) {
+          // If local activity exists, keep it displayed as open in the menu
+          const hasLocalActivity =
+            (eventCheckIns[currentEventId] && eventCheckIns[currentEventId].length > 0) ||
+            (eventNewPeople[currentEventId] && eventNewPeople[currentEventId].length > 0) ||
+            (eventConsolidations[currentEventId] && eventConsolidations[currentEventId] > 0) ||
+            consolidatedPeople.some((p) => p.event_id === currentEventId) ||
+            firstTimeAddedIds.some((id) => (eventNewPeople[currentEventId] || []).includes(id));
+
+          const displayEvent = { ...currentEventFromAll };
+          if (hasLocalActivity && displayEvent.status === 'closed') displayEvent.status = 'open';
+          // Put selected event at top so user sees it's still selected
+          list.unshift(displayEvent);
+        }
+      }
+      return list;
+    } catch (e) {
+      console.error('Error building menuEvents', e);
+      return getFilteredEvents();
+    }
+  })();
 
   const newPeopleForEvent = currentEventId && eventNewPeople[currentEventId]
     ? attendeesWithStatus.filter(a => eventNewPeople[currentEventId].includes(a._id))
@@ -985,6 +1299,25 @@ function ServiceCheckIn() {
     console.log("🔍 DEBUG: Consolidated People Count:", consolidatedPeople.length);
     console.log("🔍 DEBUG: Consolidated People Data:", consolidatedPeople);
   }, [currentEventId, consolidatedPeople]);
+
+  // Keep event status open in UI if we have local unsaved activity for it.
+  useEffect(() => {
+    if (!currentEventId) return;
+
+    const hasLocalActivity =
+      (eventCheckIns[currentEventId] && eventCheckIns[currentEventId].length > 0) ||
+      (eventNewPeople[currentEventId] && eventNewPeople[currentEventId].length > 0) ||
+      (eventConsolidations[currentEventId] && eventConsolidations[currentEventId] > 0) ||
+      consolidatedPeople.some((p) => p.event_id === currentEventId) ||
+      firstTimeAddedIds.some((id) => (eventNewPeople[currentEventId] || []).includes(id));
+
+    if (hasLocalActivity) {
+      setEvents((prev) => prev.map((ev) => ev.id === currentEventId && ev.status === 'closed'
+        ? { ...ev, status: 'open' }
+        : ev
+      ));
+    }
+  }, [currentEventId, eventCheckIns, eventNewPeople, eventConsolidations, consolidatedPeople, firstTimeAddedIds]);
 
   const handleAddPersonClick = () => {
     if (!currentEventId) {
@@ -1487,7 +1820,7 @@ function ServiceCheckIn() {
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: 8, minHeight: "100vh" }}>
       <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
 
-      {/* Stats Cards - FIXED: All cards now have the same hover behavior */}
+      {/* Stats Cards */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
         <Grid item xs={6} sm={6} md={3}>
           <Paper
@@ -1631,14 +1964,14 @@ function ServiceCheckIn() {
               </Typography>
             </MenuItem>
             
-            {getFilteredEvents().map((ev) => (
+            {menuEvents.map((ev) => (
               <MenuItem key={ev.id} value={ev.id}>
                 <Typography variant="body2" fontWeight="medium">
                   {ev.eventName}
                 </Typography>
               </MenuItem>
             ))}
-            {getFilteredEvents().length === 0 && events.length > 0 && (
+            {menuEvents.length === 0 && events.length > 0 && (
               <MenuItem disabled>
                 <Typography variant="body2" color="text.secondary" fontStyle="italic">
                   No open global events
@@ -1698,31 +2031,31 @@ function ServiceCheckIn() {
                 </span>
               </Tooltip>
 
-            <Tooltip title={currentEventId ? "Save and Close Event" : "Please select an event first"}>
-  <span>
-    <Button
-      variant="contained"
-      startIcon={isClosingEvent ? <CloseIcon /> : <SaveIcon />}
-      onClick={handleSaveAndCloseEvent}
-      disabled={!currentEventId || isClosingEvent}
-      sx={{
-        minWidth: 'auto',
-        px: 2,
-        opacity: currentEventId ? 1 : 0.5,
-        cursor: currentEventId ? "pointer" : "not-allowed",
-        transition: "all 0.2s",
-        backgroundColor: theme.palette.warning.main,
-        "&:hover": currentEventId ? { 
-          transform: "translateY(-2px)",
-          boxShadow: 4,
-          backgroundColor: theme.palette.warning.dark,
-        } : {},
-      }}
-    >
-      {isClosingEvent ? "Closing..." : "Save"}
-    </Button>
-  </span>
-</Tooltip>
+              <Tooltip title={currentEventId ? "Save and Close Event" : "Please select an event first"}>
+                <span>
+                  <Button
+                    variant="contained"
+                    startIcon={isClosingEvent ? <CloseIcon /> : <SaveIcon />}
+                    onClick={handleSaveAndCloseEvent}
+                    disabled={!currentEventId || isClosingEvent}
+                    sx={{
+                      minWidth: 'auto',
+                      px: 2,
+                      opacity: currentEventId ? 1 : 0.5,
+                      cursor: currentEventId ? "pointer" : "not-allowed",
+                      transition: "all 0.2s",
+                      backgroundColor: theme.palette.warning.main,
+                      "&:hover": currentEventId ? { 
+                        transform: "translateY(-2px)",
+                        boxShadow: 4,
+                        backgroundColor: theme.palette.warning.dark,
+                      } : {},
+                    }}
+                  >
+                    {isClosingEvent ? "Closing..." : "Save"}
+                  </Button>
+                </span>
+              </Tooltip>
             </Stack>
           </Stack>
         </Grid>
