@@ -466,7 +466,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
         taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
           name: `${person.Name} ${person.Surname || ""}`.trim(),
-          Number: person.Phone || person.Number || "",
+          phone: person.Phone || person.Number || "",
           email: person.Email || "",
         },
         followup_date: new Date(taskData.dueDate).toISOString(),
@@ -1090,6 +1090,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
               name="taskType"
               value={taskData.taskType}
               onChange={handleChange}
+              required
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -1217,6 +1218,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
                 fetchAssigned(value);
               }}
               autoComplete="off"
+              disabled
               required
               style={{
                 width: '100%',
