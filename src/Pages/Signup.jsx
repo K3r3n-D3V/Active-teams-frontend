@@ -541,27 +541,83 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 }}
               />
             </Box>
-            <TextField
-              label="Leader"
-              name="leader"
-              value={form.leader}
-              onChange={handleChange}
-              error={!!errors.leader}
-              helperText={errors.leader}
-              fullWidth
+            <Autocomplete
+              freeSolo
+              options={autocompleteOptions}
+              getOptionLabel={(option) =>
+                typeof option === "string" ? option : option.label
+              }
+              value={
+                autocompleteOptions.find(
+                  (option) => option.label === form.leader
+                ) || form.leader
+              }
+              onChange={(event, newValue) => {
+                const leaderValue = newValue ? newValue.label : "";
+                setForm((prev) => ({ ...prev, leader: leaderValue }));
+
+                if (errors.leader) {
+                  setErrors((prev) => ({ ...prev, leader: "" }));
+                }
+              }}
+              onInputChange={(event, value) => setSearchQuery(value)}
+              filterOptions={(x) => x}
+              loading={cacheLoading}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Leader"
+                  name="leader"
+                  error={!!errors.leader}
+                  helperText={
+                    errors.leader ||
+                    "Start typing to search through all people..."
+                  }
+                  fullWidth
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {cacheLoading ? (
+                          <CircularProgress color="inherit" size={20} />
+                        ) : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 3,
+                      "& fieldset": {
+                        borderColor: errors.leader
+                          ? theme.palette.error.main
+                          : undefined,
+                      },
+                    },
+                    "& .MuiFormHelperText-root": {
+                      color: errors.leader
+                        ? theme.palette.error.main
+                        : theme.palette.text.secondary,
+                      mx: 0,
+                    },
+                  }}
+                />
+              )}
+              renderOption={(props, option) => (
+                <li {...props} key={option.key || option._id}>
+                  <Box>
+                    <Typography variant="body1">{option.label}</Typography>
+                    {option.Email && (
+                      <Typography variant="caption" color="text.secondary">
+                        {option.Email}
+                      </Typography>
+                    )}
+                  </Box>
+                </li>
+              )}
               sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: 3,
-                  "& fieldset": {
-                    borderColor: errors.leader
-                      ? theme.palette.error.main
-                      : undefined,
-                  },
-                },
-                "& .MuiFormHelperText-root": {
-                  color: errors.leader
-                    ? theme.palette.error.main
-                    : theme.palette.text.secondary,
+                "& .MuiAutocomplete-inputRoot": {
+                  paddingRight: "9px !important",
                 },
               }}
             />
