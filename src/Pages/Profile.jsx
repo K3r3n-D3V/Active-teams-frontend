@@ -323,6 +323,7 @@ export default function Profile() {
       address: profile?.home_address || "",
       phone: profile?.phone_number || "",
       invitedBy: profile?.invited_by || "",
+      leader: profile?.leader || "",
       gender: normalizeGender(profile?.gender || ""),
       currentPassword: "",
       newPassword: "",
