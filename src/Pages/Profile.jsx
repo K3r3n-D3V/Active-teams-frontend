@@ -182,10 +182,31 @@ export default function Profile() {
   const { userProfile, setUserProfile, setProfilePic, profilePic } =
     useContext(UserContext);
 
-  // Check user role permissions
-  const userRole = userProfile?.role?.toLowerCase() || "";
-  const canEditProfile = userRole === "admin" || userRole === "leader";
+  // FIXED: Better role checking logic
+  const checkIfCanEdit = (profile) => {
+    if (!profile?.role) {
+      console.log("❌ No role found, defaulting to regular user");
+      return false;
+    }
+    
+    const roleStr = String(profile.role).toLowerCase().trim();
+    console.log("🔍 Checking role:", roleStr);
+    
+    const isAdmin = roleStr === "admin" || roleStr.includes("admin");
+    const isLeader = roleStr === "leader" || roleStr.includes("leader");
+    
+    console.log("👤 Role check - Admin:", isAdmin, "Leader:", isLeader);
+    return isAdmin || isLeader;
+  };
+
+  const canEditProfile = checkIfCanEdit(userProfile);
   const isRegularUser = !canEditProfile;
+
+  // Get display role
+  const getUserRole = () => {
+    if (!userProfile?.role) return "User";
+    return String(userProfile.role).charAt(0).toUpperCase() + String(userProfile.role).slice(1).toLowerCase();
+  };
 
   const fileInputRef = useRef(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -258,10 +279,9 @@ export default function Profile() {
     return () => clearInterval(t);
   }, []);
 
-  // Load profile data - FIXED: Only load once on component mount
+  // Load profile data
   useEffect(() => {
     const loadProfile = async () => {
-      // Prevent reloading if we already have data
       if (hasProfileLoaded) {
         console.log("🔄 Profile already loaded, skipping...");
         setLoadingProfile(false);
@@ -283,6 +303,9 @@ export default function Profile() {
         const serverProfile = await fetchUserProfile();
         
         if (serverProfile) {
+          console.log("📥 Received profile data:", serverProfile);
+          console.log("👤 User role from server:", serverProfile.role);
+          
           setUserProfile(serverProfile);
           updateFormWithProfile(serverProfile);
           
@@ -298,6 +321,7 @@ export default function Profile() {
           setHasProfileLoaded(true);
           
           console.log("✅ Profile loaded successfully");
+          console.log("✅ Can edit profile:", checkIfCanEdit(serverProfile));
         }
       } catch (error) {
         console.error("❌ Failed to load profile:", error);
@@ -314,7 +338,7 @@ export default function Profile() {
     loadProfile();
   }, [setUserProfile, setProfilePic, hasProfileLoaded]);
 
-  // Update form with profile data - FIXED: Better state management
+  // Update form with profile data
   const updateFormWithProfile = useCallback((profile) => {
     const formData = {
       name: profile?.name || "",
@@ -335,14 +359,12 @@ export default function Profile() {
     console.log("📝 Form updated with profile data:", formData);
   }, []);
 
-  // Track changes - FIXED: Better change detection
+  // Track changes
   useEffect(() => {
     const changed = Object.keys(form).some((key) => {
-      // For password fields, consider changed if any password field has value
       if (["currentPassword", "newPassword", "confirmPassword"].includes(key)) {
         return form.newPassword !== "" || form.confirmPassword !== "" || form.currentPassword !== "";
       }
-      // For other fields, compare with original
       return form[key] !== originalForm[key];
     });
     setHasChanges(changed);
@@ -371,7 +393,7 @@ export default function Profile() {
       }
     }
     
-    // Phone validation (optional) - VERY RELAXED
+    // Phone validation (optional)
     if (form.phone && form.phone.trim() && canEditProfile) {
       const hasNumbers = /\d/.test(form.phone);
       if (!hasNumbers) {
@@ -424,6 +446,7 @@ export default function Profile() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log("🔄 Form submission started");
+    console.log("👤 Can edit profile:", canEditProfile);
 
     if (!validate()) {
       console.log("❌ Form validation failed:", errors);
@@ -431,16 +454,17 @@ export default function Profile() {
     }
 
     try {
-      // Handle password change if requested
       const hasPasswordChange = form.newPassword && form.confirmPassword && form.currentPassword;
       
-      // Handle profile updates (only for admin/leader)
       const hasProfileChanges = canEditProfile && Object.keys(form).some((key) => {
         if (["currentPassword", "newPassword", "confirmPassword"].includes(key)) {
           return false;
         }
         return form[key] !== originalForm[key];
       });
+
+      console.log("🔍 Has profile changes:", hasProfileChanges);
+      console.log("🔍 Has password change:", hasPasswordChange);
 
       if (hasProfileChanges) {
         try {
@@ -455,14 +479,13 @@ export default function Profile() {
             gender: form.gender,
           };
 
+          console.log("📤 Updating profile with:", profileData);
           await updateUserProfile(profileData);
           
-          // Update context and local storage
           const updatedProfile = { ...userProfile, ...profileData };
           setUserProfile(updatedProfile);
           localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
           
-          // Update original form
           setOriginalForm({ ...form });
           
           setSnackbar({
@@ -477,7 +500,7 @@ export default function Profile() {
             message: `Profile update failed: ${profileError.message}`,
             severity: "error",
           });
-          return; // Don't proceed to password change if profile update failed
+          return;
         }
       }
       
@@ -490,7 +513,6 @@ export default function Profile() {
             severity: "success",
           });
           
-          // Clear password fields
           setForm(prev => ({
             ...prev,
             currentPassword: "",
@@ -498,7 +520,6 @@ export default function Profile() {
             confirmPassword: ""
           }));
           
-          // Update original form to reflect password clear
           setOriginalForm(prev => ({
             ...prev,
             currentPassword: "",
@@ -620,28 +641,6 @@ export default function Profile() {
     },
   };
 
-  // Test API connection
-  const testConnection = async () => {
-    setTestingAPI(true);
-    try {
-      const result = await testProfileAPI();
-      setSnackbar({
-        open: true,
-        message: "API connection successful!",
-        severity: "success",
-      });
-      console.log("✅ API Test Result:", result);
-    } catch (error) {
-      setSnackbar({
-        open: true,
-        message: `API connection failed: ${error.message}`,
-        severity: "error",
-      });
-    } finally {
-      setTestingAPI(false);
-    }
-  };
-
   // Skeleton loading component
   const ProfileSkeleton = () => (
     <Box sx={{ minHeight: "100vh", bgcolor: isDark ? "#0a0a0a" : "#f8f9fa", pb: 4 }}>
@@ -716,22 +715,20 @@ export default function Profile() {
               {form.name} {form.surname}
             </Typography>
             {/* Role Badge */}
-            {canEditProfile && (
-              <Typography variant="body2" sx={{ 
-                display: "inline-block",
-                px: 2, 
-                py: 0.5, 
-                borderRadius: 2,
-                bgcolor: currentCarouselItem.color + "20",
-                color: currentCarouselItem.color,
-                fontWeight: 600,
-                textTransform: "uppercase",
-                fontSize: "0.75rem",
-                letterSpacing: 1
-              }}>
-                {userRole}
-              </Typography>
-            )}
+            <Typography variant="body2" sx={{ 
+              display: "inline-block",
+              px: 2, 
+              py: 0.5, 
+              borderRadius: 2,
+              bgcolor: canEditProfile ? currentCarouselItem.color + "20" : isDark ? "#333333" : "#e0e0e0",
+              color: canEditProfile ? currentCarouselItem.color : isDark ? "#999999" : "#666666",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              fontSize: "0.75rem",
+              letterSpacing: 1
+            }}>
+              {getUserRole()}
+            </Typography>
           </Box>
         </Box>
       </Box>
@@ -744,6 +741,13 @@ export default function Profile() {
             {isRegularUser && (
               <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
                 Your profile information is managed by church administrators. You can only change your password.
+              </Alert>
+            )}
+
+            {/* Debug info - remove in production */}
+            {canEditProfile && (
+              <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>
+                You have {getUserRole()} privileges and can edit all profile fields.
               </Alert>
             )}
 
