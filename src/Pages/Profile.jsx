@@ -230,9 +230,6 @@ export default function Profile() {
     { value: "", label: "Select Gender" },
     { value: "Male", label: "Male" },
     { value: "Female", label: "Female" },
-    // Handle lowercase values from database
-    // { value: "male", label: "Male" },
-    // { value: "female", label: "Female" },
   ];
 
   // Normalize gender value for display
@@ -310,7 +307,7 @@ export default function Profile() {
     };
 
     loadProfile();
-  }, [setUserProfile, setProfilePic, hasProfileLoaded]); // Added hasProfileLoaded to dependencies
+  }, [setUserProfile, setProfilePic, hasProfileLoaded]);
 
   // Update form with profile data - FIXED: Better state management
   const updateFormWithProfile = useCallback((profile) => {
@@ -349,104 +346,60 @@ export default function Profile() {
   const togglePasswordVisibility = (field) =>
     setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
 
-  // const validate = () => {
-  //   const n = {};
-    
-  //   // Required fields
-  //   if (!form.name.trim()) n.name = "Name is required";
-  //   if (!form.surname.trim()) n.surname = "Surname is required";
-  //   if (!form.email.trim()) n.email = "Email is required";
-  //   else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
-    
-  //   // Date validation
-  //   if (form.dob) {
-  //     const dobDate = new Date(form.dob);
-  //     const today = new Date();
-  //     if (dobDate > today) {
-  //       n.dob = "Date of birth cannot be in the future";
-  //     }
-  //   }
-    
-  //   // Phone validation (optional)
-  //   if (form.phone && !/^[\+]?[1-9][\d]{0,15}$/.test(form.phone.replace(/[\s\-\(\)]/g, ''))) {
-  //     n.phone = "Please enter a valid phone number";
-  //   }
-    
-  //   // Password validation (only if changing password)
-  //   if (form.newPassword || form.confirmPassword || form.currentPassword) {
-  //     if (!form.currentPassword.trim()) {
-  //       n.currentPassword = "Current password is required to change password";
-  //     }
-  //     if (form.newPassword && form.newPassword.length < 8) {
-  //       n.newPassword = "New password must be at least 8 characters long";
-  //     }
-  //     if (form.newPassword !== form.confirmPassword) {
-  //       n.confirmPassword = "Passwords do not match";
-  //     }
-  //     if (form.newPassword && !form.confirmPassword) {
-  //       n.confirmPassword = "Please confirm your new password";
-  //     }
-  //   }
-    
-  //   setErrors(n);
-  //   return Object.keys(n).length === 0;
-  // };
-
   const validate = () => {
-  const n = {};
-  
-  // Required fields
-  if (!form.name.trim()) n.name = "Name is required";
-  if (!form.surname.trim()) n.surname = "Surname is required";
-  if (!form.email.trim()) n.email = "Email is required";
-  else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
-  
-  // Date validation
-  if (form.dob) {
-    const dobDate = new Date(form.dob);
-    const today = new Date();
-    if (dobDate > today) {
-      n.dob = "Date of birth cannot be in the future";
-    }
-  }
-  
-  // Phone validation (optional) - VERY RELAXED
-  if (form.phone && form.phone.trim()) {
-    // Just check if there are at least some numbers
-    const hasNumbers = /\d/.test(form.phone);
-    if (!hasNumbers) {
-      n.phone = "Phone number should contain numbers";
+    const n = {};
+    
+    // Required fields - only validate if trying to change them (which they can't now)
+    // Keep basic validation in case of admin features later
+    if (!form.name.trim()) n.name = "Name is required";
+    if (!form.surname.trim()) n.surname = "Surname is required";
+    if (!form.email.trim()) n.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
+    
+    // Date validation
+    if (form.dob) {
+      const dobDate = new Date(form.dob);
+      const today = new Date();
+      if (dobDate > today) {
+        n.dob = "Date of birth cannot be in the future";
+      }
     }
     
-    // Optional: Very basic length check
-    const cleaned = form.phone.replace(/\D/g, '');
-    if (cleaned.length < 7) {
-      n.phone = "Phone number seems too short";
+    // Phone validation (optional) - VERY RELAXED
+    if (form.phone && form.phone.trim()) {
+      const hasNumbers = /\d/.test(form.phone);
+      if (!hasNumbers) {
+        n.phone = "Phone number should contain numbers";
+      }
+      
+      const cleaned = form.phone.replace(/\D/g, '');
+      if (cleaned.length < 7) {
+        n.phone = "Phone number seems too short";
+      }
+      if (cleaned.length > 15) {
+        n.phone = "Phone number seems too long";
+      }
     }
-    if (cleaned.length > 15) {
-      n.phone = "Phone number seems too long";
+    
+    // Password validation (only if changing password)
+    if (form.newPassword || form.confirmPassword || form.currentPassword) {
+      if (!form.currentPassword.trim()) {
+        n.currentPassword = "Current password is required to change password";
+      }
+      if (form.newPassword && form.newPassword.length < 8) {
+        n.newPassword = "New password must be at least 8 characters long";
+      }
+      if (form.newPassword !== form.confirmPassword) {
+        n.confirmPassword = "Passwords do not match";
+      }
+      if (form.newPassword && !form.confirmPassword) {
+        n.confirmPassword = "Please confirm your new password";
+      }
     }
-  }
-  
-  // Password validation (only if changing password)
-  if (form.newPassword || form.confirmPassword || form.currentPassword) {
-    if (!form.currentPassword.trim()) {
-      n.currentPassword = "Current password is required to change password";
-    }
-    if (form.newPassword && form.newPassword.length < 8) {
-      n.newPassword = "New password must be at least 8 characters long";
-    }
-    if (form.newPassword !== form.confirmPassword) {
-      n.confirmPassword = "Passwords do not match";
-    }
-    if (form.newPassword && !form.confirmPassword) {
-      n.confirmPassword = "Please confirm your new password";
-    }
-  }
-  
-  setErrors(n);
-  return Object.keys(n).length === 0;
-};
+    
+    setErrors(n);
+    return Object.keys(n).length === 0;
+  };
 
   const handleChange = (field) => (e) => {
     const value = e.target.value;
@@ -471,28 +424,7 @@ export default function Profile() {
       return;
     }
 
-    // Prepare payload for backend
-    const payload = {
-      name: form.name,
-      surname: form.surname,
-      date_of_birth: form.dob,
-      email: form.email,
-      home_address: form.address,
-      phone_number: form.phone,
-      invited_by: form.invitedBy,
-      gender: form.gender,
-    };
-
-    console.log("📤 Sending payload to backend:", payload);
-
     try {
-      const updated = await updateUserProfile(payload);
-
-      const updatedUserProfile = {
-        ...updated,
-        _id: updated.id || updated._id,
-      };
-
       // Handle password change if requested
       const hasPasswordChange = form.newPassword && form.confirmPassword && form.currentPassword;
       
@@ -501,7 +433,7 @@ export default function Profile() {
           await updatePassword(form.currentPassword, form.newPassword);
           setSnackbar({
             open: true,
-            message: "Profile and password updated successfully!",
+            message: "Password updated successfully!",
             severity: "success",
           });
           
@@ -524,39 +456,19 @@ export default function Profile() {
           console.error("❌ Password update failed:", passwordError);
           setSnackbar({
             open: true,
-            message: `Profile updated but password change failed: ${passwordError.message}`,
-            severity: "warning",
+            message: `Password change failed: ${passwordError.message}`,
+            severity: "error",
           });
         }
-      } else {
-        setSnackbar({
-          open: true,
-          message: "Profile updated successfully",
-          severity: "success",
-        });
       }
 
-      // Update context and local storage
-      setUserProfile(updatedUserProfile);
-      localStorage.setItem("userProfile", JSON.stringify(updatedUserProfile));
-
-      setEditMode(false);
-      
-      // Update original form with the new data - FIXED: This prevents reset issues
-      setOriginalForm({
-        ...form,
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: ""
-      });
-
-      console.log("✅ Profile update completed successfully");
+      console.log("✅ Password update completed successfully");
 
     } catch (err) {
-      console.error("❌ Profile update failed:", err);
+      console.error("❌ Update failed:", err);
       setSnackbar({
         open: true,
-        message: `Failed to update profile: ${err.message}`,
+        message: `Failed to update: ${err.message}`,
         severity: "error",
       });
     }
@@ -680,7 +592,6 @@ export default function Profile() {
   // Skeleton loading component
   const ProfileSkeleton = () => (
     <Box sx={{ minHeight: "100vh", bgcolor: isDark ? "#0a0a0a" : "#f8f9fa", pb: 4 }}>
-      {/* Skeleton content remains the same as before */}
       <Box sx={{ position: "relative", minHeight: "30vh", background: isDark ? `linear-gradient(135deg, ${currentCarouselItem.color}15 0%, ${currentCarouselItem.color}25 100%)` : `linear-gradient(135deg, ${currentCarouselItem.color}10 0%, ${currentCarouselItem.color}20 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pt: 6, pb: 12 }}>
         <Skeleton variant="text" width="60%" height={60} sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', borderRadius: 2 }} />
       </Box>
@@ -767,7 +678,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Name
                   </Typography>
-                  <TextField value={form.name || ""} onChange={handleChange("name")} fullWidth disabled={!editMode} error={!!errors.name} helperText={errors.name} sx={commonFieldSx} />
+                  <TextField value={form.name || ""} onChange={handleChange("name")} fullWidth disabled={true} error={!!errors.name} helperText={errors.name} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Surname */}
@@ -775,7 +686,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Surname
                   </Typography>
-                  <TextField value={form.surname || ""} onChange={handleChange("surname")} fullWidth disabled={!editMode} error={!!errors.surname} helperText={errors.surname} sx={commonFieldSx} />
+                  <TextField value={form.surname || ""} onChange={handleChange("surname")} fullWidth disabled={true} error={!!errors.surname} helperText={errors.surname} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Date of Birth */}
@@ -783,7 +694,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Date Of Birth
                   </Typography>
-                  <TextField value={form.dob || ""} onChange={handleChange("dob")} fullWidth type="date" disabled={!editMode} error={!!errors.dob} helperText={errors.dob} InputLabelProps={{ shrink: true }} sx={commonFieldSx} />
+                  <TextField value={form.dob || ""} onChange={handleChange("dob")} fullWidth type="date" disabled={true} error={!!errors.dob} helperText={errors.dob} InputLabelProps={{ shrink: true }} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Email */}
@@ -791,7 +702,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Email Address
                   </Typography>
-                  <TextField value={form.email || ""} onChange={handleChange("email")} fullWidth disabled={!editMode} error={!!errors.email} helperText={errors.email} sx={commonFieldSx} />
+                  <TextField value={form.email || ""} onChange={handleChange("email")} fullWidth disabled={true} error={!!errors.email} helperText={errors.email} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Home Address */}
@@ -799,7 +710,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Home Address
                   </Typography>
-                  <TextField value={form.address || ""} onChange={handleChange("address")} fullWidth disabled={!editMode} sx={commonFieldSx} />
+                  <TextField value={form.address || ""} onChange={handleChange("address")} fullWidth disabled={true} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Phone Number */}
@@ -807,7 +718,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Phone Number
                   </Typography>
-                  <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth disabled={!editMode} error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
+                  <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth disabled={true} error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Invited By */}
@@ -815,7 +726,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Invited By
                   </Typography>
-                  <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={!editMode} sx={commonFieldSx} />
+                  <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={true} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Gender */}
@@ -823,7 +734,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Gender
                   </Typography>
-                  <TextField select value={form.gender || ""} onChange={handleChange("gender")} fullWidth disabled={!editMode} sx={commonFieldSx}>
+                  <TextField select value={form.gender || ""} onChange={handleChange("gender")} fullWidth disabled={true} sx={commonFieldSx}>
                     {genderOptions.map((option) => (
                       <MenuItem key={option.value} value={option.value}>
                         {option.label}
@@ -834,57 +745,44 @@ export default function Profile() {
               </Grid>
 
               {/* Password Section */}
-              {editMode && (
-                <>
-                  <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: isDark ? "#ffffff" : "#000000", }}>
-                    Change Password (Optional)
-                  </Typography>
+              <>
+                <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
+                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: isDark ? "#ffffff" : "#000000", }}>
+                  Change Password (Optional)
+                </Typography>
 
-                  <Grid container spacing={3}>
-                    {/* Current Password */}
-                    <Grid item xs={12}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                        Current Password
-                      </Typography>
-                      <TextField value={form.currentPassword || ""} onChange={handleChange("currentPassword")} type={showPassword.current ? "text" : "password"} fullWidth error={!!errors.currentPassword} helperText={errors.currentPassword} autoComplete="current-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.current ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
-                    </Grid>
-
-                    {/* New Password */}
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                        New Password
-                      </Typography>
-                      <TextField value={form.newPassword || ""} onChange={handleChange("newPassword")} type={showPassword.new ? "text" : "password"} fullWidth error={!!errors.newPassword} helperText={errors.newPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.new ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
-                    </Grid>
-
-                    {/* Confirm New Password */}
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                        Confirm New Password
-                      </Typography>
-                      <TextField value={form.confirmPassword || ""} onChange={handleChange("confirmPassword")} type={showPassword.confirm ? "text" : "password"} fullWidth error={!!errors.confirmPassword} helperText={errors.confirmPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.confirm ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
-                    </Grid>
+                <Grid container spacing={3}>
+                  {/* Current Password */}
+                  <Grid item xs={12}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                      Current Password
+                    </Typography>
+                    <TextField value={form.currentPassword || ""} onChange={handleChange("currentPassword")} type={showPassword.current ? "text" : "password"} fullWidth error={!!errors.currentPassword} helperText={errors.currentPassword} autoComplete="current-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.current ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
                   </Grid>
-                </>
-              )}
+
+                  {/* New Password */}
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                      New Password
+                    </Typography>
+                    <TextField value={form.newPassword || ""} onChange={handleChange("newPassword")} type={showPassword.new ? "text" : "password"} fullWidth error={!!errors.newPassword} helperText={errors.newPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.new ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
+                  </Grid>
+
+                  {/* Confirm New Password */}
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                      Confirm New Password
+                    </Typography>
+                    <TextField value={form.confirmPassword || ""} onChange={handleChange("confirmPassword")} type={showPassword.confirm ? "text" : "password"} fullWidth error={!!errors.confirmPassword} helperText={errors.confirmPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.confirm ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
+                  </Grid>
+                </Grid>
+              </>
 
               {/* Action Buttons */}
               <Box sx={{ mt: 4, display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap", }}>
-                {!editMode ? (
-                  <Button variant="contained" startIcon={<Edit />} onClick={() => setEditMode(true)} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
-                    Edit Profile
-                  </Button>
-                ) : (
-                  <>
-                    <Button variant="outlined" startIcon={<Cancel />} onClick={handleCancel} sx={{ borderColor: isDark ? "#666666" : "#cccccc", color: isDark ? "#cccccc" : "#666666", "&:hover": { borderColor: isDark ? "#888888" : "#999999", bgcolor: isDark ? "#222222" : "#f5f5f5", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
-                      Save Changes
-                    </Button>
-                  </>
-                )}
+                <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
+                  Update Password
+                </Button>
               </Box>
             </Box>
           </CardContent>
