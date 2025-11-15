@@ -1,10 +1,19 @@
-import React, { useState, useEffect } from "react";
-import { ArrowLeft, UserPlus, Search, CheckCircle, ChevronDown , X, Menu} from "lucide-react"; 
+import { useState, useEffect } from "react";
+import {
+  ArrowLeft,
+  UserPlus,
+  Search,
+  CheckCircle,
+  ChevronDown,
+  X,
+  Menu,
+} from "lucide-react";
+import { useTheme } from "@mui/material/styles";
 
 let globalPeopleCache = {
   data: [],
   timestamp: null,
-  expiry: 5 * 60 * 1000 
+  expiry: 5 * 60 * 1000,
 };
 
 const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
@@ -41,141 +50,136 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     }
   }, [isOpen]);
   
-const loadPreloadedPeople = async () => {
-  const now = Date.now();
-  if (globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
-      (now - globalPeopleCache.timestamp) < globalPeopleCache.expiry) {
-    console.log("Using cached people data in AddPersonToEvents");
-    setPreloadedPeople(globalPeopleCache.data);
-    return;
-  }
-
-  try {
-    console.log("Fetching fresh people data for AddPersonToEvents cache");
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
-
-    const params = new URLSearchParams();
-    params.append("perPage", "500");
-    params.append("page", "1");
-
-    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+  const loadPreloadedPeople = async (forceRefresh = false) => {
+    const now = Date.now();
     
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    
-    const data = await res.json();
-    const peopleArray = data.people || data.results || [];
-
-    // ✅ CORRECTED: Fixed leader field mapping with Leader @1728
-    const formatted = peopleArray.map((p) => {
-      console.log("Person leader data for mapping:", {
-        id: p._id,
-        name: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        // Check all possible leader field names
-        leaderAt1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1,
-        leaderAt12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12,
-        leaderAt144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144,
-        leaderAt1728: p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728,
-        leadersArray: p.leaders
-      });
-
-   
-      const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
-      const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
-      const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-      const leader1728 = p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
-
-      return {
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: leader1, 
-        leader12: leader12, 
-        leader144: leader144, 
-        leader1728: leader1728, 
-        phone: p.Number || p.Phone || p.phone || "",
-      };
-    });
-
-    // Update global cache
-    globalPeopleCache = {
-      data: formatted,
-      timestamp: now,
-      expiry: 5 * 60 * 1000
-    };
-
-    setPreloadedPeople(formatted);
-    console.log(`Pre-loaded ${formatted.length} people into AddPersonToEvents cache`);
-  } catch (err) {
-    console.error("Error pre-loading people in AddPersonToEvents:", err);
-    if (globalPeopleCache.data.length > 0) {
+    if (!forceRefresh && globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
+        (now - globalPeopleCache.timestamp) < globalPeopleCache.expiry) {
+      console.log("Using cached people data in AddPersonToEvents");
       setPreloadedPeople(globalPeopleCache.data);
+      return;
     }
-  }
-};
 
-  const fetchInviters = async (searchTerm) => {
-  if (!searchTerm || searchTerm.length < 1) {
-    setInviterResults([]);
-    return;
-  }
-
-  try {
-    setLoadingInviters(true);
-    
-    // Use preloaded data first for instant results
-    const filteredFromCache = preloadedPeople.filter(person =>
-      person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      person.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    if (filteredFromCache.length > 0) {
-      setInviterResults(filteredFromCache.slice(0, 20));
-    } else {
-      // Fallback to API if no cached results
+    try {
+      console.log("Fetching fresh people data for AddPersonToEvents cache");
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("name", searchTerm);
-      params.append("perPage", "20");
+      params.append("perPage", "1000");
+      params.append("page", "1");
+      params.append("sortBy", "updatedAt");
+      params.append("sortOrder", "desc");
+
+      if (forceRefresh) {
+        params.append("_t", now.toString());
+      }
 
       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+      
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      
       const data = await res.json();
       const peopleArray = data.people || data.results || [];
 
-      // ✅ CORRECTED: Fixed leader field mapping with Leader @1728
+      console.log(`Fetched ${peopleArray.length} people from server`);
+
       const formatted = peopleArray.map((p) => {
-        // CORRECT MAPPING:
+        // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
         const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
         const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
         const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-        const leader1728 = p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+        const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
 
         return {
           id: p._id,
           fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
           email: p.Email || p.email || "",
-          leader1: leader1,        // Vicky
-          leader12: leader12,      // Sash
-          leader144: leader144,    // Keren
-          leader1728: leader1728,  // Leader @1728
+          leader1: leader1, 
+          leader12: leader12, 
+          leader144: leader144, 
+          leader1728: leader1728, 
           phone: p.Number || p.Phone || p.phone || "",
+          rawData: p
         };
       });
 
-      setInviterResults(formatted);
-      
-      console.log("Inviter search results for '" + searchTerm + "':", formatted);
-    }
-  } catch (err) {
-    console.error("Error fetching inviters:", err);
-  } finally {
-    setLoadingInviters(false);
-  }
-};
+      globalPeopleCache = {
+        data: formatted,
+        timestamp: now,
+        expiry: 2 * 60 * 1000
+      };
 
-  // Debounced search with immediate cache lookup
+      setPreloadedPeople(formatted);
+      console.log(`Pre-loaded ${formatted.length} people into AddPersonToEvents cache`);
+      
+      const recentPeople = formatted.slice(0, 5);
+      console.log("Most recent people in cache:", recentPeople);
+    } catch (err) {
+      console.error("Error pre-loading people in AddPersonToEvents:", err);
+      if (globalPeopleCache.data.length > 0) {
+        setPreloadedPeople(globalPeopleCache.data);
+      }
+    }
+  };
+
+  const fetchInviters = async (searchTerm) => {
+    if (!searchTerm || searchTerm.length < 1) {
+      setInviterResults([]);
+      return;
+    }
+
+    try {
+      setLoadingInviters(true);
+      
+      const filteredFromCache = preloadedPeople.filter(person =>
+        person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        person.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
+      if (filteredFromCache.length > 0) {
+        setInviterResults(filteredFromCache.slice(0, 20));
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const params = new URLSearchParams();
+        params.append("name", searchTerm);
+        params.append("perPage", "20");
+
+        const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const data = await res.json();
+        const peopleArray = data.people || data.results || [];
+
+        // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
+        const formatted = peopleArray.map((p) => {
+          const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
+          const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
+          const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
+          const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+
+          return {
+            id: p._id,
+            fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+            email: p.Email || p.email || "",
+            leader1: leader1,
+            leader12: leader12,
+            leader144: leader144,
+            leader1728: leader1728,
+            phone: p.Number || p.Phone || p.phone || "",
+          };
+        });
+
+        setInviterResults(formatted);
+        console.log("Inviter search results for '" + searchTerm + "':", formatted);
+      }
+    } catch (err) {
+      console.error("Error fetching inviters:", err);
+    } finally {
+      setLoadingInviters(false);
+    }
+  };
+
   useEffect(() => {
     const delay = setTimeout(() => {
       if (inviterSearch.length >= 1) {
@@ -188,67 +192,80 @@ const loadPreloadedPeople = async () => {
     return () => clearTimeout(delay);
   }, [inviterSearch]);
 
-
-
   const handleInviterSelect = (person) => {
-  console.log("=== handleInviterSelect DEBUG ===");
-  console.log("Selected inviter:", person.fullName);
-  
-  setFormData({ ...formData, invitedBy: person.fullName });
-  setInviterSearch(person.fullName);
-  setShowInviterDropdown(false);
-  setTouched({ ...touched, invitedBy: true });
+    console.log("Selected inviter:", person.fullName); 
+    setFormData({ ...formData, invitedBy: person.fullName });
+    setInviterSearch(person.fullName);
+    setShowInviterDropdown(false);
+    setTouched({ ...touched, invitedBy: true });
 
-  const normalizedFull = (person.fullName || "").trim().toLowerCase();
-  const leader144Raw = (person.leader144 || "").trim();
-  const leader12Raw = (person.leader12 || "").trim();
+    const normalizedFull = (person.fullName || "").trim().toLowerCase();
+    const leader1Raw = (person.leader1 || "").trim().toLowerCase(); 
+    const leader12Raw = (person.leader12 || "").trim().toLowerCase(); 
+    const leader144Raw = (person.leader144 || "").trim().toLowerCase();
+    const leader1728Raw = (person.leader1728 || "").trim().toLowerCase();
 
-  console.log("Leadership analysis:", {
-    leader144: person.leader144,
-    leader12: person.leader12,
-    normalizedFull,
-    leader144Raw,
-    leader12Raw
-  });
+    console.log("Leadership analysis:", {
+      inviterName: normalizedFull,
+      leader1: person.leader1,
+      leader12: person.leader12,
+      leader144: person.leader144,
+      leader1728: person.leader1728,
+    });
 
-  let leadersToFill;
+    let leadersToFill;
 
-  // ✅ FIX APPLIED: Priority check is now Leader @12, then Leader @144.
-  // This ensures that an empty Leader @144 field doesn't prematurely categorize
-  // a person as Leader @144 when they should be Leader @12.
+    const isLeader144 = leader12Raw && !leader144Raw && !leader1728Raw;
 
-  // 1. Check if they ARE their own Leader @12 OR have NO Leader @12 → Leader @12
-  if (leader12Raw.toLowerCase() === normalizedFull || !leader12Raw) {
-    leadersToFill = {
-      leader1: person.leader1 || "",
-      leader12: person.fullName || "", // They ARE Leader @12
-      leader144: person.leader144 || "" // Keep existing Leader @144 (or empty)
-    };
-    console.log("✅ CASE 1 (NEW): Inviter IS Leader @12 (Highest Priority)");
-  }
-  // 2. Check if they ARE their own Leader @144 OR have NO Leader @144 → Leader @144
-  else if (leader144Raw.toLowerCase() === normalizedFull || !leader144Raw) {
-    leadersToFill = {
-      leader1: person.leader1 || "",
-      leader12: person.leader12 || "", // Keep existing Leader @12 (or empty)
-      leader144: person.fullName || "" // They ARE Leader @144
-    };
-    console.log("✅ CASE 2 (NEW): Inviter IS Leader @144 (Secondary Priority)");
-  }
-  // 3. Regular person - they have leaders at both levels
-  else {
-    leadersToFill = {
-      leader1: person.leader1 || "",
-      leader12: person.leader12 || "",
-      leader144: person.leader144 || ""
-    };
-    console.log("✅ CASE 3 (NEW): Inviter is NOT a leader");
-  }
+const isLeader12 = leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
 
-  setAutoFilledLeaders(leadersToFill);
-  console.log("Final auto-filled leaders:", leadersToFill);
-};
-  
+// 3. Leader @1: Has their own name as L@1 OR all leadership fields empty
+const isLeader1 = (leader1Raw === normalizedFull) || (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
+
+console.log("Leadership detection:", {
+  isLeader144, 
+  isLeader12,
+  isLeader1,
+  isSelfL1: leader1Raw === normalizedFull
+});
+
+if (isLeader144) {
+  leadersToFill = {
+    leader1: person.leader1 || "",
+    leader12: person.leader12 || "",
+    leader144: person.fullName || "", 
+  };
+  console.log("DETECTED: Leader @144 - Empty L@144 field with filled L@12");
+}
+else if (isLeader12) {
+  leadersToFill = {
+    leader1: person.leader1 || "",
+    leader12: person.fullName || "", 
+    leader144: "", 
+  };
+  console.log("DETECTED: Leader @12 - Empty L@12 field with filled L@1");
+}
+else if (isLeader1) {
+  leadersToFill = {
+    leader1: person.fullName || "", 
+    leader12: "", 
+    leader144: "", 
+  };
+  console.log("DETECTED: Leader @1 - All leadership fields empty");
+}
+
+else {
+  leadersToFill = {
+    leader1: person.leader1 || "",
+    leader12: person.leader12 || "",
+    leader144: person.leader144 || "",
+  };
+  console.log("REGULAR: Person has complete leadership chain");
+}
+
+    setAutoFilledLeaders(leadersToFill);
+    console.log("Final auto-filled leaders:", leadersToFill);
+  };
 
   const isFieldEmpty = (fieldName) => {
     const value = fieldName === 'invitedBy' ? inviterSearch : formData[fieldName];
@@ -285,7 +302,6 @@ const loadPreloadedPeople = async () => {
       return false;
     }
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       setAlert({
@@ -307,33 +323,31 @@ const loadPreloadedPeople = async () => {
   };
 
   const handleSubmit = async (leaderInfo) => {
-  try {
-    const token = localStorage.getItem("token");
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
+    try {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
 
-    // Update to include Leader @1728 in the leaders array
-    const personData = {
-      name: formData.name.trim(),
-      // 🐛 FIX: Corrected typo from formData.eventsurname to formData.surname
-      surname: formData.surname.trim(), 
-      email: formData.email.toLowerCase().trim(),
-      number: formData.mobile || "",
-      address: formData.address || "",
-      gender: formData.gender || "",
-      dob: formData.dob || "",
-      invitedBy: formData.invitedBy || "",
-      leaders: [
-        leaderInfo.leader1 || "",     
-        leaderInfo.leader12 || "",    
-        leaderInfo.leader144 || "",   
-        leaderInfo.leader1728 || ""  
-      ],
-      stage: "Win",
-    };
-      console.log("📤 Sending person data to backend:", personData);
+      const personData = {
+        name: formData.name.trim(),
+        surname: formData.surname.trim(), 
+        email: formData.email.toLowerCase().trim(),
+        number: formData.mobile || "",
+        address: formData.address || "",
+        gender: formData.gender || "",
+        dob: formData.dob || "",
+        invitedBy: formData.invitedBy || "",
+        leaders: [
+          leaderInfo.leader1 || "",     
+          leaderInfo.leader12 || "",    
+          leaderInfo.leader144 || "",   
+          "" // Leader @1728 is always empty for now
+        ],
+        stage: "Win",
+      };
+      console.log("Sending person data to backend:", personData);
 
       const response = await fetch(`${BACKEND_URL}/people`, {
         method: "POST",
@@ -343,9 +357,8 @@ const loadPreloadedPeople = async () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Person created successfully:", data);
+        console.log("Person created successfully:", data);
 
-        // Invalidate cache since we added a new person
         globalPeopleCache = {
           data: [],
           timestamp: null,
@@ -363,6 +376,7 @@ const loadPreloadedPeople = async () => {
         }
 
         setTimeout(() => {
+          loadPreloadedPeople(true);
           onClose();
           setFormData({
             invitedBy: "",
@@ -387,7 +401,7 @@ const loadPreloadedPeople = async () => {
         }, 1500);
       } else {
         const error = await response.json();
-        console.error("❌ Add person error - FULL DETAILS:", {
+        console.error("Add person error - FULL DETAILS:", {
           status: response.status,
           statusText: response.statusText,
           error: error,
@@ -418,7 +432,7 @@ const loadPreloadedPeople = async () => {
         setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
       }
     } catch (error) {
-      console.error("❌ Network error adding person:", error);
+      console.error("Network error adding person:", error);
       setAlert({
         open: true,
         type: "error",
@@ -454,10 +468,13 @@ const loadPreloadedPeople = async () => {
 
   if (!isOpen) return null;
 
-  // Get current theme from localStorage or default to light
   const getCurrentTheme = () => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') || 'light';
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) return savedTheme;
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
     }
     return 'light';
   };
@@ -465,7 +482,6 @@ const loadPreloadedPeople = async () => {
   const currentTheme = getCurrentTheme();
   const isDarkMode = currentTheme === 'dark';
 
-  // Theme-aware styles
   const styles = {
     overlay: {
       position: "fixed",
@@ -652,7 +668,6 @@ const loadPreloadedPeople = async () => {
                 }}
                 onFocus={() => {
                   setShowInviterDropdown(true);
-                  // Show recent people when focused
                   if (inviterSearch.length === 0 && preloadedPeople.length > 0) {
                     setInviterResults(preloadedPeople.slice(0, 10));
                   }
@@ -864,11 +879,11 @@ const loadPreloadedPeople = async () => {
   );
 };
 
-const LeaderSelectionModal = ({ isOpen, onBack, onSubmit,  preloadedPeople = [], autoFilledLeaders }) => {
+const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
-    leader144: "" // Optional - can be empty if inviter doesn't have one
+    leader144: ""
   });
 
   const [leaderSearches, setLeaderSearches] = useState({
@@ -886,55 +901,46 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit,  preloadedPeople = []
   const [showDropdowns, setShowDropdowns] = useState({
     leader1: false,
     leader12: false,
-    leader144: false,
+    leader144: false
   });
 
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
- // In LeaderSelectionModal useEffect
-useEffect(() => {
-  if (isOpen && autoFilledLeaders) {
-    console.log("Auto-filling ALL leaders in LeaderSelectionModal:", autoFilledLeaders);
-    
-    // Use ALL the auto-filled leaders including Leader @144
-    const filledLeaders = {
-      leader1: autoFilledLeaders.leader1 || "",
-      leader12: autoFilledLeaders.leader12 || "",
-      leader144: autoFilledLeaders.leader144 || "" // This should contain "Keeren" if she's Leader @144
-    };
-    
-    setLeaderData(filledLeaders);
-    setLeaderSearches(filledLeaders);
-    
-    console.log("All leaders auto-filled in modal:", filledLeaders);
-  }
-}, [isOpen, autoFilledLeaders]);
+  useEffect(() => {
+    if (isOpen && autoFilledLeaders) {
+      const filledLeaders = {
+        leader1: autoFilledLeaders.leader1 || "",
+        leader12: autoFilledLeaders.leader12 || "",
+        leader144: autoFilledLeaders.leader144 || ""
+      };
+      
+      setLeaderData(filledLeaders);
+      setLeaderSearches(filledLeaders);
+    }
+  }, [isOpen, autoFilledLeaders]);
 
   const fetchLeaders = async (searchTerm, leaderField) => {
     if (!searchTerm || searchTerm.length < 1) {
-      setLeaderResults(prev => ({ ...prev, [leaderField]: [] }));
+      setLeaderResults((prev) => ({ ...prev, [leaderField]: [] }));
       return;
     }
 
     try {
       setLoadingLeaders(true);
-      
-      // First try to find in preloaded data for instant results
-      const filteredFromCache = preloadedPeople.filter(person =>
-        person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        person.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        person[leaderField]?.toLowerCase().includes(searchTerm.toLowerCase())
+      const filteredFromCache = preloadedPeople.filter(
+        (person) =>
+          person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          person.email.toLowerCase().includes(searchTerm.toLowerCase())
       );
 
       if (filteredFromCache.length > 0) {
-        setLeaderResults(prev => ({ 
-          ...prev, 
-          [leaderField]: filteredFromCache.slice(0, 15) 
+        setLeaderResults((prev) => ({
+          ...prev,
+          [leaderField]: filteredFromCache.slice(0, 15),
         }));
       } else {
-        // Fallback to API search
         const token = localStorage.getItem("token");
         const headers = { Authorization: `Bearer ${token}` };
 
@@ -946,21 +952,24 @@ useEffect(() => {
         const data = await res.json();
         const peopleArray = data.people || data.results || [];
 
-       const formatted = peopleArray.map((p) => ({
-          id: p._id,
-          fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-          email: p.Email || p.email || "",
-          leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
-          leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
-          leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
-          // FIX: Completing the truncated line and using consistent key/index (assuming 1728)
-          leader1728: p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || p.leaders?.[3] || "", 
-        }));
+        const formatted = peopleArray.map((p) => {
+          const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
+          const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
+          const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
+          const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+
+          return {
+            id: p._id,
+            fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+            email: p.Email || p.email || "",
+            leader1: leader1,
+            leader12: leader12,
+            leader144: leader144,
+            leader1728: leader1728,
+          };
+        });
         
-        setLeaderResults(prev => ({ 
-          ...prev, 
-          [leaderField]: formatted 
-        }));
+        setLeaderResults(prev => ({ ...prev, [leaderField]: formatted }));
       }
     } catch (err) {
       console.error(`Error fetching leaders for ${leaderField}:`, err);
@@ -969,7 +978,6 @@ useEffect(() => {
     }
   };
 
-  // Debounced search for leaders (similar to inviter search, but per field)
   useEffect(() => {
     const delays = {};
     
@@ -980,7 +988,6 @@ useEffect(() => {
           fetchLeaders(searchTerm, field);
         }, 150);
       } else {
-        // Clear results if search term is empty
         setLeaderResults(prev => ({ ...prev, [field]: [] }));
       }
     });
@@ -988,7 +995,7 @@ useEffect(() => {
     return () => {
       Object.values(delays).forEach(clearTimeout);
     };
-  }, [leaderSearches, preloadedPeople]); // Depend on preloadedPeople to enable cache search
+  }, [leaderSearches, preloadedPeople]);
 
   const handleLeaderSelect = (person, field) => {
     setLeaderData(prev => ({ ...prev, [field]: person.fullName }));
@@ -999,23 +1006,43 @@ useEffect(() => {
   const handleSearchChange = (e, field) => {
     const value = e.target.value;
     setLeaderSearches(prev => ({ ...prev, [field]: value }));
-    // Immediately show dropdown on change/focus
     setShowDropdowns(prev => ({ ...prev, [field]: true }));
   };
 
+  const handleClearField = (field) => {
+    setLeaderData(prev => ({ ...prev, [field]: "" }));
+    setLeaderSearches(prev => ({ ...prev, [field]: "" }));
+  };
+
   const handleSubmitLeaders = () => {
-    // Collect final leader data, including a placeholder for leader1728 (which is not edited here)
     const finalLeaderInfo = {
       leader1: leaderData.leader1 || "",
       leader12: leaderData.leader12 || "",
       leader144: leaderData.leader144 || "",
-      leader1728: "" // Placeholder, assuming this is manually added or derived elsewhere if needed
+      leader1728: ""
     };
     onSubmit(finalLeaderInfo);
   };
 
-  const getCurrentTheme = () => localStorage.getItem('theme') || 'light';
-  const isDarkMode = getCurrentTheme() === 'dark';
+  const getCurrentTheme = () => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) return savedTheme;
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
+    }
+    return 'light';
+  };
+
+  const currentTheme = getCurrentTheme();
+  const isDarkMode = currentTheme === 'dark';
+
+  const leaderLabels = {
+    leader1: "Leader @1",
+    leader12: "Leader @12", 
+    leader144: "Leader @144"
+  };
 
   const styles = {
     overlay: {
@@ -1024,69 +1051,79 @@ useEffect(() => {
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0,0,0,0.7)",
+      background: isDarkMode ? "rgba(0,0,0,0.8)" : "rgba(0,0,0,0.6)",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
       zIndex: 10002,
-      padding: "10px",
+      padding: "20px",
+      backdropFilter: "blur(8px)",
     },
     modal: {
       background: isDarkMode ? "#1e1e1e" : "#fff",
       borderRadius: "12px",
       width: "100%",
       maxWidth: "500px",
-      maxHeight: "90vh",
+      maxHeight: "80vh",
       overflowY: "auto",
-      padding: "30px",
+      padding: "24px",
       color: isDarkMode ? "#fff" : "#333",
-      boxShadow: "0 8px 25px rgba(0,0,0,0.3)",
-      animation: 'fadeIn 0.3s ease-out'
+      boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
     },
     title: {
-      fontSize: "clamp(22px, 5vw, 28px)",
-      fontWeight: "700",
-      marginBottom: "10px",
+      fontSize: "22px",
+      fontWeight: "600",
+      marginBottom: "8px",
       textAlign: "center",
-      color: "#6366f1",
+      color: isDarkMode ? "#fff" : "#333",
     },
     subtitle: {
-      fontSize: "15px",
-      fontWeight: "500",
-      marginBottom: "30px",
+      fontSize: "14px",
+      marginBottom: "24px",
       textAlign: "center",
-      color: isDarkMode ? "#ccc" : "#555",
+      color: isDarkMode ? "#ccc" : "#666",
     },
     leaderGroup: {
       display: "flex",
       flexDirection: "column",
-      gap: "20px",
-      marginBottom: "30px",
+      gap: "16px",
+      marginBottom: "24px",
     },
     inputGroup: {
       position: "relative",
-      display: "flex",
-      flexDirection: "column",
-      gap: "6px",
     },
     label: {
       fontSize: "14px",
-      fontWeight: "600",
-      color: isDarkMode ? "#ccc" : "#444",
+      fontWeight: "500",
+      marginBottom: "6px",
+      color: isDarkMode ? "#ccc" : "#555",
+      display: "block",
+    },
+    inputContainer: {
+      position: "relative",
       display: "flex",
       alignItems: "center",
-      gap: "8px",
     },
     input: {
-      padding: "12px",
-      fontSize: "16px",
+      padding: "12px 40px 12px 12px",
+      fontSize: "14px",
       borderRadius: "8px",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
       outline: "none",
       width: "100%",
       boxSizing: "border-box",
       background: isDarkMode ? "#2a2a2a" : "#fff",
-      color: isDarkMode ? "#ffffff" : "#333",
+      color: isDarkMode ? "#fff" : "#333",
+    },
+    clearButton: {
+      position: "absolute",
+      right: "8px",
+      background: "none",
+      border: "none",
+      color: isDarkMode ? "#999" : "#999",
+      cursor: "pointer",
+      padding: "4px",
+      borderRadius: "4px",
     },
     dropdown: {
       position: "absolute",
@@ -1095,64 +1132,57 @@ useEffect(() => {
       right: 0,
       marginTop: "4px",
       background: isDarkMode ? "#2a2a2a" : "#fff",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1003,
-      maxHeight: "150px",
+      maxHeight: "160px",
       overflowY: "auto",
     },
     dropdownItem: {
       padding: "10px 12px",
       cursor: "pointer",
       borderBottom: `1px solid ${isDarkMode ? "#3a3a3a" : "#f0f0f0"}`,
-      transition: "background 0.2s",
-      color: isDarkMode ? "#ffffff" : "#333",
-      fontSize: "15px"
+      color: isDarkMode ? "#fff" : "#333",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      fontSize: "14px",
     },
     dropdownEmpty: {
-      padding: "10px 12px",
-      color: isDarkMode ? "#aaa" : "#999",
+      padding: "12px",
+      color: isDarkMode ? "#999" : "#999",
       textAlign: "center",
       fontSize: "14px",
     },
     buttonGroup: {
       display: "flex",
       gap: "12px",
-      marginTop: "20px",
-      justifyContent: "space-between",
+      marginTop: "16px",
     },
     backBtn: {
       background: "transparent",
       border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
       color: isDarkMode ? "#ccc" : "#666",
-      padding: "12px 16px",
-      borderRadius: "6px",
+      padding: "12px 20px",
+      borderRadius: "8px",
       cursor: "pointer",
-      fontSize: "16px",
+      fontSize: "14px",
       fontWeight: "500",
       flex: 1,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: '8px',
-      transition: "all 0.2s ease",
+      gap: '6px',
     },
     submitBtn: {
       background: "#6366f1",
       color: "#fff",
       border: "none",
-      padding: "12px 16px",
-      borderRadius: "6px",
+      padding: "12px 20px",
+      borderRadius: "8px",
       cursor: "pointer",
-      fontSize: "16px",
-      fontWeight: "600",
-      flex: 1.5,
-      transition: "all 0.2s ease",
-    },
-    '@keyframes fadeIn': {
-      from: { opacity: 0, transform: 'translateY(-20px)' },
-      to: { opacity: 1, transform: 'translateY(0)' }
+      fontSize: "14px",
+      fontWeight: "500",
+      flex: 1,
     }
   };
 
@@ -1161,42 +1191,69 @@ useEffect(() => {
   return (
     <div style={styles.overlay}>
       <div style={styles.modal}>
-        <h2 style={styles.title}> Leadership</h2>
-      
+       <h2 style={styles.title}>Set Leadership</h2>
 
         <div style={styles.leaderGroup}>
           {['leader1', 'leader12', 'leader144'].map((field) => (
             <div key={field} style={styles.inputGroup}>
-             
-              <input
-                type="text"
-                value={leaderSearches[field]}
-                onChange={(e) => handleSearchChange(e, field)}
-                onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
-                onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
-                style={styles.input}
-                placeholder={`Search for ${field.replace('leader', 'Leader @')}...`}
-                autoComplete="off"
-              />
-              {showDropdowns[field] && leaderSearches[field].length > 0 && (
-                <div style={styles.dropdown}>
-                  {loadingLeaders && <div style={styles.dropdownEmpty}>Searching...</div>}
-                  {!loadingLeaders && leaderResults[field].length === 0 && (
-                    <div style={styles.dropdownEmpty}>No leaders found</div>
-                  )}
-                  {!loadingLeaders && leaderResults[field].map((person) => (
-                    <div
-                      key={person.id}
-                      style={styles.dropdownItem}
-                      onClick={() => handleLeaderSelect(person, field)}
-                      onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
-                      onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
-                    >
-                      {person.fullName}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <label style={styles.label}>{leaderLabels[field]}</label>
+              
+              <div style={styles.inputContainer}>
+                <input
+                  type="text"
+                  value={leaderSearches[field]}
+                  onChange={(e) => handleSearchChange(e, field)}
+                  onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
+                  onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
+                  style={styles.input}
+                  placeholder={`Type to search...`}
+                  autoComplete="off"
+                />
+                
+                {leaderSearches[field] && (
+                  <button 
+                    type="button" 
+                    style={styles.clearButton}
+                    onClick={() => handleClearField(field)}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+                
+                {showDropdowns[field] && leaderSearches[field].length > 0 && (
+                  <div style={styles.dropdown}>
+                    {loadingLeaders && (
+                      <div style={styles.dropdownEmpty}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                          <div style={{ 
+                            width: '14px', 
+                            height: '14px', 
+                            border: `2px solid ${isDarkMode ? '#555' : '#ddd'}`,
+                            borderTop: `2px solid #6366f1`,
+                            borderRadius: '50%',
+                            animation: 'spin 1s linear infinite'
+                          }} />
+                          Searching...
+                        </div>
+                      </div>
+                    )}
+                    {!loadingLeaders && leaderResults[field].length === 0 && (
+                      <div style={styles.dropdownEmpty}>No results found</div>
+                    )}
+                    {!loadingLeaders && leaderResults[field].map((person) => (
+                      <div
+                        key={person.id}
+                        style={styles.dropdownItem}
+                        onClick={() => handleLeaderSelect(person, field)}
+                        onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f5f5f5"}
+                        onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
+                      >
+                        {person.fullName}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -1204,27 +1261,34 @@ useEffect(() => {
         <div style={styles.buttonGroup}>
           <button 
             type="button" 
-            style={styles.backBtn} 
+            style={styles.backBtn}
             onClick={onBack}
-            onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3d3d3d" : "#f8f9fa"}
-            onMouseLeave={(e) => e.target.style.background = "transparent"}
           >
-            <ArrowLeft size={16} /> BACK
+            <ArrowLeft size={16} /> 
+            Back
           </button>
           <button 
             type="button" 
-            style={styles.submitBtn} 
+            style={styles.submitBtn}
             onClick={handleSubmitLeaders}
-            onMouseEnter={(e) => e.target.style.background = "#4f46e5"}
-            onMouseLeave={(e) => e.target.style.background = "#6366f1"}
           >
-            CREATE PERSON <CheckCircle size={16} style={{marginLeft: '4px'}} />
+            Create Person
           </button>
         </div>
       </div>
+
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </div>
   );
 };
+
 
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
@@ -1243,16 +1307,16 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [commonAttendees, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+  const [alert, setAlert] = useState({
+    open: false,
+    type: "success",
+    message: "",
+  });
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [leader1Filter, setLeader1Filter] = useState("");
-  const [leader12Filter, setLeader12Filter] = useState("");
-  const [leader144Filter, setLeader144Filter] = useState("");
-  const [leader1728Filter, setLeader1728Filter] = useState("");
   const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
   const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
   const [peopleCache, setPeopleCache] = useState({});
@@ -1262,7 +1326,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
   const isTicketedEvent = event?.isTicketed || false;
   const eventPriceTiers = event?.priceTiers || [];
+  const theme = useTheme();
 
+  const isDarkMode = theme.palette.mode === "dark";
   const decisionOptions = [
     { value: "first-time", label: "First-time commitment" },
     { value: "re-commitment", label: "Re-commitment" },
@@ -1322,10 +1388,16 @@ useEffect(() => {
 
   const loadPreloadedPeople = async () => {
     const now = Date.now();
-    if (globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
-        (now - globalPeopleCache.timestamp) < globalPeopleCache.expiry) {
+    
+    // Check if global cache exists and is valid
+    if (
+      typeof window.globalPeopleCache !== 'undefined' &&
+      window.globalPeopleCache.data?.length > 0 &&
+      window.globalPeopleCache.timestamp &&
+      now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
+    ) {
       console.log("📦 Using cached people data in AttendanceModal");
-      setPreloadedPeople(globalPeopleCache.data);
+      setPreloadedPeople(window.globalPeopleCache.data);
       return;
     }
 
@@ -1338,10 +1410,12 @@ useEffect(() => {
       params.append("perPage", "100");
       params.append("page", "1");
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-      
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
+        headers,
+      });
+
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      
+
       const data = await res.json();
       const peopleArray = data.people || data.results || [];
 
@@ -1356,12 +1430,18 @@ useEffect(() => {
   phone: p.Number || p.Phone || p.phone || "",
 }));
 
-      // Update global cache
-      globalPeopleCache = {
-        data: formatted,
-        timestamp: now,
-        expiry: 5 * 60 * 1000
-      };
+      // Update global cache if it exists
+      if (typeof window.globalPeopleCache !== 'undefined') {
+        window.globalPeopleCache.data = formatted;
+        window.globalPeopleCache.timestamp = now;
+        window.globalPeopleCache.expiry = 5 * 60 * 1000;
+      } else {
+        window.globalPeopleCache = {
+          data: formatted,
+          timestamp: now,
+          expiry: 5 * 60 * 1000,
+        };
+      }
 
       setPreloadedPeople(formatted);
       console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
@@ -1377,7 +1457,7 @@ useEffect(() => {
 const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
   const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
 
-  // Check cache first
+  // 1️⃣ Try cached results first
   if (peopleCache[cacheKey]) {
     console.log("📦 Using cached results for:", cacheKey);
     setPeople(peopleCache[cacheKey]);
@@ -1403,120 +1483,89 @@ const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 =
     });
     
     if (filteredFromPreloaded.length > 0) {
-      console.log(`⚡ Found ${filteredFromPreloaded.length} matches in preloaded data`);
-      setPeople(filteredFromPreloaded.slice(0, 50));
-      setPeopleCache(prev => ({
-        ...prev,
-        [cacheKey]: filteredFromPreloaded.slice(0, 50)
-      }));
+      console.log("⚡ Using preloaded data for instant results");
+      const sliced = filteredFromPreloaded.slice(0, 50);
+      setPeople(sliced);
+      setPeopleCache((prev) => ({ ...prev, [cacheKey]: sliced }));
       return;
     }
   }
 
-  // Fallback to API if no cached/preloaded results
+  // 3️⃣ Otherwise, fetch from API
   try {
     setLoading(true);
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
-
     const params = new URLSearchParams();
 
-    if (filter && filter.trim().length > 0) {
-      params.append("name", filter.trim());
-    }
-
-    // Leader filters
-    const leaderFilters = [];
-    if (leader1 && leader1.trim().length > 0) leaderFilters.push(leader1.trim());
-    if (leader12 && leader12.trim().length > 0) leaderFilters.push(leader12.trim());
-    if (leader144 && leader144.trim().length > 0) leaderFilters.push(leader144.trim());
-    if (leader1728 && leader1728.trim().length > 0) leaderFilters.push(leader1728.trim());
-
-    if (leaderFilters.length > 0) {
-      params.append("leaders", leaderFilters.join(","));
-    }
+    // 🔍 Backend already supports partial regex match, so we just send `name`
+   if (filter && filter.trim().length > 0) {
+  params.append("name", filter.toLowerCase().trim());
+}
 
     params.append("perPage", "50");
     params.append("page", "1");
 
     console.log("🔍 Fetching people with params:", params.toString());
 
-    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
+      headers,
+    });
 
     if (!res.ok) {
       throw new Error(`HTTP error! status: ${res.status}`);
     }
 
     const data = await res.json();
-    const peopleArray = data.people || data.results || [];
+    const peopleArray = data.results || data.people || [];
 
-    console.log(`✅ API returned ${peopleArray.length} people`);
+    console.log(`✅ Found ${peopleArray.length} people`);
 
-    // Enhanced client-side filtering
-    let filtered = peopleArray;
-    
-    if (filter && filter.trim().length > 0) {
-      const searchLower = filter.toLowerCase().trim();
-      
-      filtered = peopleArray.filter((p) => {
-        const name = (p.Name || p.name || "").toLowerCase();
-        const surname = (p.Surname || p.surname || "").toLowerCase();
-        const fullName = `${name} ${surname}`.trim();
-        const email = (p.Email || p.email || "").toLowerCase();
-        
-        // ✅ FIXED: Use includes instead of startsWith for surname
-        return (
-          fullName.includes(searchLower) ||
-          name.includes(searchLower) ||
-          surname.includes(searchLower) || // ✅ FIXED
-          email.includes(searchLower)
-        );
-      });
-      
-      console.log(`✅ Client-side filtered to ${filtered.length} matches`);
-    }
-
-    const formatted = filtered.map((p) => ({
+    // 🧩 Normalize backend fields
+    const formatted = peopleArray.map((p) => ({
       id: p._id,
-      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-      email: p.Email || p.email || "",
-      leader1: p["Leader @1"] || p.leader1 || "",
-      leader12: p["Leader @12"] || p.leader12 || "",
-      leader144: p["Leader @144"] || p.leader144 || "",
-      leader1728: p["Leader @1728"] || p.leader1728 || "",
-      phone: p.Number || p.Phone || p.phone || "",
+      fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+      email: p.Email || "",
+      leader1: p["Leader @1"] || "",
+      leader12: p["Leader @12"] || "",
+      leader144: p["Leader @144"] || "",
+      leader1728: p["Leader @1728"] || "",
+      phone: p.Number || "",
     }));
 
-    setPeopleCache(prev => ({
-      ...prev,
-      [cacheKey]: formatted
-    }));
-
+    // 💾 Cache and update state
+    setPeopleCache((prev) => ({ ...prev, [cacheKey]: formatted }));
     setPeople(formatted);
   } catch (err) {
-    console.error("Error fetching people:", err);
+    console.error("❌ Error fetching people:", err);
     setPeople([]);
   } finally {
     setLoading(false);
   }
 };
 
+
   const fetchCommonAttendees = async (cellId) => {
     try {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      const res = await fetch(`${BACKEND_URL}/events/cell/${cellId}/common-attendees`, { headers });
+      const res = await fetch(
+        `${BACKEND_URL}/events/cell/${cellId}/common-attendees`,
+        { headers }
+      );
       const data = await res.json();
       const attendeesArray = data.common_attendees || [];
 
       const formatted = attendeesArray.map((p) => ({
         id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        fullName: `${p.Name || p.name || ""} ${
+          p.Surname || p.surname || ""
+        }`.trim(),
         email: p.Email || p.email || "",
         leader12: p["Leader @12"] || p.leader12 || "",
         leader144: p["Leader @144"] || p.leader144 || "",
-        phone: p.Number || p.Phone || p.phone || "", 
+        phone: p.Number || p.Phone || p.phone || "",
       }));
 
       setCommonAttendees(formatted);
@@ -1528,7 +1577,10 @@ const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 =
   const savePersistentCommonAttendees = (attendees) => {
     if (event) {
       const eventId = event._id || event.id;
-      localStorage.setItem(`commonAttendees_${eventId}`, JSON.stringify(attendees));
+      localStorage.setItem(
+        `commonAttendees_${eventId}`,
+        JSON.stringify(attendees)
+      );
     }
   };
 function getCurrentWeekIdentifier() {
@@ -1552,7 +1604,7 @@ function getWeekNumber(date) {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-const loadExistingAttendance = async () => {
+  const loadExistingAttendance = async () => {
     if (!event) return;
 
     const eventId = event._id || event.id;
@@ -1572,10 +1624,10 @@ const loadExistingAttendance = async () => {
         event.attendance[currentWeek].attendees.length > 0 &&
         event.attendance[currentWeek].status === 'complete';
 
-    const hasCurrentWeekDidNotMeet = 
-        event.attendance && 
-        event.attendance[currentWeek] && 
-        event.attendance[currentWeek].status === 'did_not_meet';
+    const hasCurrentWeekDidNotMeet =
+      event.attendance &&
+      event.attendance[currentWeek] &&
+      event.attendance[currentWeek].status === "did_not_meet";
 
     console.log(`Current week: ${currentWeek}`);
     console.log(`Has current week data: ${hasCurrentWeekData}`);
@@ -1595,17 +1647,17 @@ const loadExistingAttendance = async () => {
             if (attendee.id) {
                 newCheckedIn[attendee.id] = true;
 
-                if (attendee.decision) {
-                    newDecisions[attendee.id] = true;
-                    newDecisionTypes[attendee.id] = attendee.decision;
-                }
-            }
-        });
+          if (attendee.decision) {
+            newDecisions[attendee.id] = true;
+            newDecisionTypes[attendee.id] = attendee.decision;
+          }
+        }
+      });
 
-        setCheckedIn(newCheckedIn);
-        setDecisions(newDecisions);
-        setDecisionTypes(newDecisionTypes);
-        setDidNotMeet(false);
+      setCheckedIn(newCheckedIn);
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+      setDidNotMeet(false);
 
         console.log(`Loaded: ${persistentList.length} names, ${Object.keys(newCheckedIn).length} checked THIS WEEK`);
     } 
@@ -1651,14 +1703,17 @@ const fetchPersistentAttendees = async (eventId) => {
     };
 
     checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-    return () => window.removeEventListener('resize', checkScreenSize);
+    window.addEventListener("resize", checkScreenSize);
+    return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
+  // Effect: Load persistent attendees from localStorage
   useEffect(() => {
     if (event) {
       const eventId = event._id || event.id;
-      const storedAttendees = localStorage.getItem(`commonAttendees_${eventId}`);
+      const storedAttendees = localStorage.getItem(
+        `commonAttendees_${eventId}`
+      );
       if (storedAttendees) {
         try {
           setPersistentCommonAttendees(JSON.parse(storedAttendees));
@@ -1669,30 +1724,35 @@ const fetchPersistentAttendees = async (eventId) => {
     }
   }, [event]);
 
+  // Effect: Load preloaded people when modal opens
   useEffect(() => {
     if (isOpen) {
       loadPreloadedPeople();
     }
   }, [isOpen]);
 
+  // Effect: Search people in associate tab with debounce
   useEffect(() => {
     const delay = setTimeout(() => {
       if (isOpen && activeTab === 1) {
         // Use cached/preloaded data for faster response
         if (associateSearch.length < 3 && preloadedPeople.length > 0) {
-          const filtered = preloadedPeople.filter(person =>
-            person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
-            person.email.toLowerCase().includes(associateSearch.toLowerCase())
+          const filtered = preloadedPeople.filter(
+            (person) =>
+              person.fullName
+                .toLowerCase()
+                .includes(associateSearch.toLowerCase()) ||
+              person.email.toLowerCase().includes(associateSearch.toLowerCase())
           );
           setPeople(filtered.slice(0, 50));
         } else {
-          fetchPeople(associateSearch, leader1Filter, leader12Filter, leader144Filter, leader1728Filter);
+          fetchPeople(associateSearch);
         }
       }
-    }, 100);
-    
+    }, 300);
+
     return () => clearTimeout(delay);
-  }, [associateSearch, isOpen, activeTab, leader1Filter, leader12Filter, leader144Filter, leader1728Filter, preloadedPeople]);
+  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
   const handleCheckIn = (id, name) => {
     setCheckedIn((prev) => {
@@ -1704,14 +1764,20 @@ const fetchPersistentAttendees = async (eventId) => {
           type: "success",
           message: `${name} has been checked in`,
         });
-        setTimeout(() => setAlert({ open: false, type: "success", message: "" }), 3000);
+        setTimeout(
+          () => setAlert({ open: false, type: "success", message: "" }),
+          3000
+        );
       } else {
         setAlert({
           open: true,
           type: "warning",
           message: `You have unchecked ${name}`,
         });
-        setTimeout(() => setAlert({ open: false, type: "warning", message: "" }), 3000);
+        setTimeout(
+          () => setAlert({ open: false, type: "warning", message: "" }),
+          3000
+        );
 
         setDecisions((prev) => ({ ...prev, [id]: false }));
         setDecisionTypes((prev) => {
@@ -1760,7 +1826,7 @@ const fetchPersistentAttendees = async (eventId) => {
         price: parseFloat(selectedTier.price),
         ageGroup: selectedTier.ageGroup,
         memberType: selectedTier.memberType,
-      }
+      },
     }));
     setOpenPriceTierDropdown(null);
   };
@@ -1768,7 +1834,7 @@ const fetchPersistentAttendees = async (eventId) => {
   const handlePaymentMethodSelect = (id, method) => {
     setPaymentMethods((prev) => ({
       ...prev,
-      [id]: method
+      [id]: method,
     }));
     setOpenPaymentDropdown(null);
   };
@@ -1777,7 +1843,7 @@ const fetchPersistentAttendees = async (eventId) => {
     const numValue = parseFloat(value) || 0;
     setPaidAmounts((prev) => ({
       ...prev,
-      [id]: numValue
+      [id]: numValue,
     }));
   };
 
@@ -1788,11 +1854,19 @@ const fetchPersistentAttendees = async (eventId) => {
   };
 
   const handleAssociatePerson = (person) => {
-    const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
+    const isAlreadyAdded = persistentCommonAttendees.some(
+      (p) => p.id === person.id
+    );
 
     if (isAlreadyAdded) {
-      if (window.confirm(`Are you sure you want to remove ${person.fullName} from common attendees?`)) {
-        const updatedAttendees = persistentCommonAttendees.filter(p => p.id !== person.id);
+      if (
+        window.confirm(
+          `Are you sure you want to remove ${person.fullName} from common attendees?`
+        )
+      ) {
+        const updatedAttendees = persistentCommonAttendees.filter(
+          (p) => p.id !== person.id
+        );
         setPersistentCommonAttendees(updatedAttendees);
         savePersistentCommonAttendees(updatedAttendees);
 
@@ -1801,7 +1875,10 @@ const fetchPersistentAttendees = async (eventId) => {
           type: "warning",
           message: `You have removed ${person.fullName} from common attendees`,
         });
-        setTimeout(() => setAlert({ open: false, type: "warning", message: "" }), 3000);
+        setTimeout(
+          () => setAlert({ open: false, type: "warning", message: "" }),
+          3000
+        );
       }
     } else {
       const updatedAttendees = [...persistentCommonAttendees, person];
@@ -1813,7 +1890,10 @@ const fetchPersistentAttendees = async (eventId) => {
         type: "success",
         message: `${person.fullName} added to common attendees`,
       });
-      setTimeout(() => setAlert({ open: false, type: "success", message: "" }), 3000);
+      setTimeout(
+        () => setAlert({ open: false, type: "success", message: "" }),
+        3000
+      );
     }
   };
 
@@ -1845,14 +1925,25 @@ const getAllCommonAttendees = () => {
 };
 
   // Calculate statistics
-  const attendeesCount = Object.keys(checkedIn).filter(id => checkedIn[id]).length;
-  const decisionsCount = Object.keys(decisions).filter(id => decisions[id]).length;
-  const firstTimeCount = Object.values(decisionTypes).filter(type => type === "first-time").length;
-  const reCommitmentCount = Object.values(decisionTypes).filter(type => type === "re-commitment").length;
-  
-  const totalPaid = Object.values(paidAmounts).reduce((sum, amount) => sum + amount, 0);
+  const attendeesCount = Object.keys(checkedIn).filter(
+    (id) => checkedIn[id]
+  ).length;
+  const decisionsCount = Object.keys(decisions).filter(
+    (id) => decisions[id]
+  ).length;
+  const firstTimeCount = Object.values(decisionTypes).filter(
+    (type) => type === "first-time"
+  ).length;
+  const reCommitmentCount = Object.values(decisionTypes).filter(
+    (type) => type === "re-commitment"
+  ).length;
+
+  const totalPaid = Object.values(paidAmounts).reduce(
+    (sum, amount) => sum + amount,
+    0
+  );
   const totalOwing = Object.keys(checkedIn)
-    .filter(id => checkedIn[id])
+    .filter((id) => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
 
   const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
@@ -1875,24 +1966,30 @@ const handleSave = async () => {
     console.log("✅ Checked-in attendees:", attendeesList);
 
     if (!didNotMeet && attendeesList.length === 0) {
-        setAlert({
-            open: true,
-            type: "error",
-            message: "Please check in at least one attendee before saving.",
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-        return;
+      setAlert({
+        open: true,
+        type: "error",
+        message: "Please check in at least one attendee before saving.",
+      });
+      setTimeout(
+        () => setAlert({ open: false, type: "error", message: "" }),
+        3000
+      );
+      return;
     }
 
     const eventId = event?.id || event?._id;
     if (!eventId) {
-        setAlert({
-            open: true,
-            type: "error",
-            message: "Event ID is missing, cannot submit attendance.",
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-        return;
+      setAlert({
+        open: true,
+        type: "error",
+        message: "Event ID is missing, cannot submit attendance.",
+      });
+      setTimeout(
+        () => setAlert({ open: false, type: "error", message: "" }),
+        3000
+      );
+      return;
     }
 
     try {
@@ -2071,18 +2168,21 @@ const confirmDidNotMeet = async () => {
     setPaidAmounts({});
 
     try {
-        const eventId = event?.id || event?._id;
-        if (!eventId) {
-            setAlert({
-                open: true,
-                type: "error",
-                message: "Event ID is missing, cannot submit attendance.",
-            });
-            setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-            return;
-        }
+      const eventId = event?.id || event?._id;
+      if (!eventId) {
+        setAlert({
+          open: true,
+          type: "error",
+          message: "Event ID is missing, cannot submit attendance.",
+        });
+        setTimeout(
+          () => setAlert({ open: false, type: "error", message: "" }),
+          3000
+        );
+        return;
+      }
 
-        let result;
+      let result;
 
         if (typeof onSubmit === "function") {
             // ✅ FIX: Use the direct payload structure
@@ -2134,47 +2234,59 @@ const confirmDidNotMeet = async () => {
                 }))
             };
 
-            const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-                method: "PUT",
-                headers,
-                body: JSON.stringify(payload),
-            });
+        const response = await fetch(
+          `${BACKEND_URL}/submit-attendance/${eventId}`,
+          {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(payload),
+          }
+        );
 
-            result = await response.json();
-            result.success = response.ok;
-        }
+        result = await response.json();
+        result.success = response.ok;
+      }
 
-        if (result?.success) {
-            setAlert({
-                open: true,
-                type: "success",
-                message: "Event marked as 'Did Not Meet' successfully!",
-            });
-
-            if (typeof onAttendanceSubmitted === "function") {
-                onAttendanceSubmitted();
-            }
-
-            setTimeout(() => {
-                setAlert({ open: false, type: "success", message: "" });
-                onClose();
-            }, 1500);
-        } else {
-            setAlert({
-                open: true,
-                type: "error",
-                message: result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.",
-            });
-            setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
-        }
-    } catch (error) {
-        console.error("❌ Error marking event as 'Did Not Meet':", error);
+      if (result?.success) {
         setAlert({
-            open: true,
-            type: "error",
-            message: "Something went wrong while marking event as 'Did Not Meet'.",
+          open: true,
+          type: "success",
+          message: "Event marked as 'Did Not Meet' successfully!",
         });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+
+        if (typeof onAttendanceSubmitted === "function") {
+          onAttendanceSubmitted();
+        }
+
+        setTimeout(() => {
+          setAlert({ open: false, type: "success", message: "" });
+          onClose();
+        }, 1500);
+      } else {
+        setAlert({
+          open: true,
+          type: "error",
+          message:
+            result?.message ||
+            result?.detail ||
+            "Failed to mark event as 'Did Not Meet'.",
+        });
+        setTimeout(
+          () => setAlert({ open: false, type: "error", message: "" }),
+          3000
+        );
+      }
+    } catch (error) {
+      console.error("❌ Error marking event as 'Did Not Meet':", error);
+      setAlert({
+        open: true,
+        type: "error",
+        message: "Something went wrong while marking event as 'Did Not Meet'.",
+      });
+      setTimeout(
+        () => setAlert({ open: false, type: "error", message: "" }),
+        3000
+      );
     }
 };
 
@@ -2186,11 +2298,10 @@ const confirmDidNotMeet = async () => {
     console.log("✅ New person added:", newPerson);
 
     // Invalidate cache since we added a new person
-    globalPeopleCache = {
-      data: [],
-      timestamp: null,
-      expiry: 5 * 60 * 1000
-    };
+    if (typeof window.globalPeopleCache !== 'undefined') {
+      window.globalPeopleCache.data = [];
+      window.globalPeopleCache.timestamp = null;
+    }
 
     // Refresh the people list and preloaded data
     fetchPeople();
@@ -2210,546 +2321,17 @@ const confirmDidNotMeet = async () => {
       type: "success",
       message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
     });
-    setTimeout(() => setAlert({ open: false, type: "success", message: "" }), 3000);
-  };
-
-  // Styles definition
-  const styles = {
-    overlay: {
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: "rgba(0,0,0,0.5)",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      zIndex: 9999,
-      padding: "10px",
-    },
-    modal: {
-      position: "relative",
-      background: "#fff",
-      padding: "0",
-      borderRadius: "12px",
-      width: "100%",
-      maxWidth: "1200px",
-      maxHeight: "90vh",
-      display: "flex",
-      flexDirection: "column",
-      boxSizing: "border-box",
-    },
-    header: {
-      padding: "clamp(15px, 3vw, 20px) clamp(20px, 3vw, 30px)",
-      borderBottom: "1px solid #e0e0e0",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      flexWrap: "wrap",
-      gap: "10px",
-    },
-    title: {
-      fontSize: "clamp(18px, 4vw, 24px)",
-      fontWeight: "600",
-      margin: 0,
-      color: "#333",
-      display: "flex",
-      alignItems: "center",
-      gap: "12px",
-      flexWrap: "wrap",
-    },
-    ticketBadge: {
-      background: "#ffc107",
-      color: "#000",
-      padding: "4px 12px",
-      borderRadius: "12px",
-      fontSize: "12px",
-      fontWeight: "600",
-      textTransform: "uppercase",
-    },
-    addPersonBtn: {
-      background: "#2563eb",
-      color: "#fff",
-      border: "none",
-      padding: "10px 16px",
-      borderRadius: "8px",
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      gap: "8px",
-      fontSize: "14px",
-      fontWeight: "500",
-      whiteSpace: "nowrap",
-    },
-    tabsContainer: {
-      borderBottom: "1px solid #e0e0e0",
-      padding: "0 clamp(15px, 3vw, 30px)",
-      display: "flex",
-      gap: "0",
-      position: "relative",
-    },
-    mobileMenuButton: {
-      background: "none",
-      border: "none",
-      padding: "12px",
-      cursor: "pointer",
-      color: "#6366f1",
-      display: isMobile ? "flex" : "none",
-      alignItems: "center",
-    },
-    tab: {
-      padding: "clamp(12px, 2vw, 16px) clamp(15px, 2vw, 24px)",
-      fontSize: "14px",
-      fontWeight: "600",
-      background: "none",
-      border: "none",
-      borderBottom: "3px solid transparent",
-      cursor: "pointer",
-      color: "#999",
-      transition: "all 0.2s",
-      whiteSpace: "nowrap",
-      flex: isMobile ? "1" : "none",
-    },
-    tabActive: {
-      color: "#6366f1",
-      borderBottom: "3px solid #6366f1",
-    },
-    contentArea: {
-      flex: 1,
-      overflowY: "auto",
-      padding: "clamp(15px, 3vw, 20px) clamp(15px, 3vw, 30px)",
-    },
-    searchBox: {
-      position: "relative",
-      marginBottom: "20px",
-    },
-    searchIcon: {
-      position: "absolute",
-      left: "15px",
-      top: "50%",
-      transform: "translateY(-50%)",
-      color: "#999",
-    },
-    input: {
-      width: "100%",
-      padding: "12px 12px 12px 45px",
-      fontSize: "16px",
-      borderRadius: "8px",
-      border: "1px solid #ddd",
-      backgroundColor: "#fff",
-      color: "#333",
-      outline: "none",
-      boxSizing: "border-box",
-    },
-    tableContainer: {
-      overflowX: "auto",
-      marginBottom: "20px",
-      WebkitOverflowScrolling: "touch",
-    },
-    table: {
-      width: "100%",
-      borderCollapse: "collapse",
-      minWidth: isMobile ? "600px" : "auto",
-    },
-    th: {
-      textAlign: "left",
-      padding: "12px 8px",
-      borderBottom: "2px solid #e0e0e0",
-      fontSize: "13px",
-      color: "#666",
-      fontWeight: "600",
-      textTransform: "uppercase",
-      whiteSpace: "nowrap",
-    },
-    td: {
-      padding: "12px 8px",
-      borderBottom: "1px solid #f0f0f0",
-      fontSize: "14px",
-      color: "#333",
-      whiteSpace: "nowrap",
-    },
-    radioCell: {
-      textAlign: "center",
-    },
-    radioButton: {
-      width: "20px",
-      height: "20px",
-      borderRadius: "50%",
-      border: "2px solid #6366f1",
-      background: "#fff",
-      cursor: "pointer",
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      transition: "all 0.2s",
-    },
-    radioButtonChecked: {
-      background: "#28a745",
-      border: "2px solid #28a745",
-    },
-    radioButtonInner: {
-      color: "#fff",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    decisionDropdown: {
-      position: "relative",
-      display: "inline-block",
-    },
-    decisionButton: {
-      display: "flex",
-      alignItems: "center",
-      gap: "8px",
-      padding: "8px 12px",
-      background: "#f8f9fa",
-      border: "1px solid #ddd",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "14px",
-      color: "#333",
-      minWidth: isMobile ? "140px" : "180px",
-      justifyContent: "space-between",
-    },
-    decisionMenu: {
-      position: "absolute",
-      top: "100%",
-      left: "0",
-      marginTop: "4px",
-      background: "#fff",
-      border: "1px solid #ddd",
-      borderRadius: "6px",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-      zIndex: 10000,
-      minWidth: isMobile ? "140px" : "200px",
-      maxHeight: "300px",
-      overflowY: "auto",
-    },
-    decisionMenuItem: {
-      padding: "10px 12px",
-      cursor: "pointer",
-      fontSize: "14px",
-      color: "#333",
-      transition: "background 0.2s",
-    },
-    priceTierButton: {
-      display: "flex",
-      alignItems: "center",
-      gap: "8px",
-      padding: "8px 12px",
-      background: "#fff3cd",
-      border: "1px solid #ffc107",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "14px",
-      color: "#856404",
-      minWidth: isMobile ? "160px" : "200px",
-      justifyContent: "space-between",
-      fontWeight: "500",
-    },
-    paymentButton: {
-      display: "flex",
-      alignItems: "center",
-      gap: "8px",
-      padding: "8px 12px",
-      background: "#d1ecf1",
-      border: "1px solid #17a2b8",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "14px",
-      color: "#0c5460",
-      minWidth: isMobile ? "120px" : "150px",
-      justifyContent: "space-between",
-      fontWeight: "500",
-    },
-    priceInput: {
-      padding: "8px 12px",
-      fontSize: "14px",
-      borderRadius: "6px",
-      border: "1px solid #ddd",
-      backgroundColor: "#f8f9fa",
-      color: "#666",
-      width: isMobile ? "80px" : "100px",
-      textAlign: "right",
-    },
-    paidInput: {
-      padding: "8px 12px",
-      fontSize: "14px",
-      borderRadius: "6px",
-      border: "1px solid #28a745",
-      backgroundColor: "#fff",
-      color: "#333",
-      width: isMobile ? "80px" : "100px",
-      textAlign: "right",
-    },
-    owingText: {
-      padding: "8px 12px",
-      fontSize: "14px",
-      fontWeight: "600",
-      textAlign: "right",
-    },
-    owingPositive: {
-      color: "#28a745",
-    },
-    owingNegative: {
-      color: "#dc3545",
-    },
-    statsContainer: {
-      display: "flex",
-      gap: "15px",
-      marginBottom: "20px",
-      flexWrap: "wrap",
-    },
-    statBox: {
-      flex: "1 1 calc(25% - 15px)",
-      background: "#f8f9fa",
-      padding: "clamp(15px, 2vw, 20px)",
-      borderRadius: "8px",
-      textAlign: "center",
-      position: "relative",
-      minWidth: "120px",
-    },
-    statBoxInput: {
-      flex: "1 1 calc(25% - 15px)",
-      background: "#f8f9fa",
-      padding: "clamp(15px, 2vw, 20px)",
-      borderRadius: "8px",
-      textAlign: "center",
-      position: "relative",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      minWidth: "120px",
-    },
-    headcountInput: {
-      fontSize: "clamp(24px, 4vw, 36px)",
-      fontWeight: "700",
-      color: "#17a2b8",
-      marginBottom: "8px",
-      border: "none",
-      borderRadius: "8px",
-      padding: "4px 12px",
-      width: "100px",
-      textAlign: "center",
-      background: "transparent",
-      outline: "none",
-    },
-    statNumber: {
-      fontSize: "clamp(24px, 4vw, 36px)",
-      fontWeight: "700",
-      color: "#28a745",
-      marginBottom: "8px",
-    },
-    statLabel: {
-      fontSize: "13px",
-      color: "#666",
-      textTransform: "uppercase",
-      fontWeight: "600",
-    },
-    decisionBreakdown: {
-      fontSize: "14px",
-      color: "#666",
-      marginTop: "8px",
-      display: "flex",
-      flexDirection: "column",
-      gap: "4px",
-    },
-    footer: {
-      padding: "clamp(15px, 3vw, 20px) clamp(15px, 3vw, 30px)",
-      borderTop: "1px solid #e0e0e0",
-      display: "flex",
-      justifyContent: "space-between",
-      gap: "12px",
-      flexWrap: "wrap",
-    },
-    closeBtn: {
-      background: "transparent",
-      border: "1px solid #ddd",
-      color: "#666",
-      padding: "12px 20px",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "16px",
-      fontWeight: "500",
-      flex: isMobile ? "1 1 100%" : "none",
-      minWidth: "120px",
-    },
-    didNotMeetBtn: {
-      background: "#dc3545",
-      color: "#fff",
-      border: "none",
-      padding: "12px 20px",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "16px",
-      fontWeight: "500",
-      flex: isMobile ? "1 1 100%" : "none",
-      minWidth: "140px",
-    },
-    saveBtn: {
-      background: "#28a745",
-      color: "#fff",
-      border: "none",
-      padding: "12px 20px",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "16px",
-      fontWeight: "500",
-      flex: isMobile ? "1 1 100%" : "none",
-      minWidth: "120px",
-    },
-    persistentBadge: {
-      background: "#6366f1",
-      color: "#fff",
-      padding: "2px 8px",
-      borderRadius: "4px",
-      fontSize: "10px",
-      fontWeight: "600",
-      marginLeft: "8px",
-    },
-    iconButton: {
-      background: "none",
-      border: "none",
-      cursor: "pointer",
-      padding: "4px",
-      borderRadius: "4px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    mobileAttendeeCard: {
-      background: "#fff",
-      border: "1px solid #e0e0e0",
-      borderRadius: "8px",
-      padding: "16px",
-      marginBottom: "12px",
-    },
-    mobileCardRow: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      gap: "12px",
-    },
-    mobileCardInfo: {
-      flex: 1,
-    },
-    mobileCardName: {
-      fontWeight: "600",
-      fontSize: "16px",
-      color: "#333",
-      marginBottom: "4px",
-      display: "flex",
-      alignItems: "center",
-      flexWrap: "wrap",
-    },
-    mobileCardEmail: {
-      fontSize: "14px",
-      color: "#666",
-      marginBottom: "4px",
-    },
-    confirmOverlay: {
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: "rgba(0,0,0,0.5)",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      zIndex: 10002,
-      padding: "20px",
-    },
-    confirmModal: {
-      background: "#fff",
-      borderRadius: "12px",
-      padding: "24px",
-      maxWidth: "400px",
-      width: "100%",
-    },
-    confirmHeader: {
-      marginBottom: "16px",
-    },
-    confirmTitle: {
-      fontSize: "18px",
-      fontWeight: "600",
-      color: "#333",
-      margin: 0,
-    },
-    confirmBody: {
-      marginBottom: "24px",
-      textAlign: "center",
-    },
-    confirmIcon: {
-      marginBottom: "16px",
-      display: "flex",
-      justifyContent: "center",
-    },
-    confirmMessage: {
-      fontSize: "16px",
-      color: "#333",
-      margin: "0 0 8px 0",
-    },
-    confirmSubMessage: {
-      fontSize: "14px",
-      color: "#666",
-      margin: 0,
-    },
-    confirmFooter: {
-      display: "flex",
-      gap: "12px",
-      justifyContent: "flex-end",
-    },
-    confirmCancelBtn: {
-      background: "transparent",
-      border: "1px solid #ddd",
-      color: "#666",
-      padding: "10px 16px",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "14px",
-      fontWeight: "500",
-    },
-    confirmProceedBtn: {
-      background: "#dc3545",
-      color: "#fff",
-      border: "none",
-      padding: "10px 16px",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "14px",
-      fontWeight: "500",
-    },
-    alert: {
-      position: "fixed",
-      top: "20px",
-      left: "50%",
-      transform: "translateX(-50%)",
-      padding: "16px 24px",
-      borderRadius: "8px",
-      color: "#fff",
-      fontSize: "15px",
-      fontWeight: "500",
-      zIndex: 10001,
-      display: "flex",
-      alignItems: "center",
-      gap: "8px",
-      maxWidth: "90vw",
-      textAlign: "center",
-    },
-    alertSuccess: {
-      background: "#28a745",
-    },
-    alertError: {
-      background: "#dc3545",
-    },
+    setTimeout(
+      () => setAlert({ open: false, type: "success", message: "" }),
+      3000
+    );
   };
 
   // Mobile attendee card renderer
   const renderMobileAttendeeCard = (person) => {
-    const isPersistent = persistentCommonAttendees.some(p => p.id === person.id);
+    const isPersistent = persistentCommonAttendees.some(
+      (p) => p.id === person.id
+    );
     const isCheckedIn = checkedIn[person.id];
 
     return (
@@ -2758,15 +2340,17 @@ const confirmDidNotMeet = async () => {
           <div style={styles.mobileCardInfo}>
             <div style={styles.mobileCardName}>
               {person.fullName}
-              {isPersistent && <span style={styles.persistentBadge}>ADDED</span>}
+              {isPersistent && (
+                <span style={styles.persistentBadge}>ADDED</span>
+              )}
             </div>
             <div style={styles.mobileCardEmail}>{person.email}</div>
             {!isTicketedEvent && (
               <>
-                <div style={{ fontSize: "12px", color: "#666" }}>
+                <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
                   Leader @12: {person.leader12}
                 </div>
-                <div style={{ fontSize: "12px", color: "#666" }}>
+                <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
                   Phone: {person.phone}
                 </div>
               </>
@@ -2779,27 +2363,35 @@ const confirmDidNotMeet = async () => {
             }}
             onClick={() => handleCheckIn(person.id, person.fullName)}
           >
-            {isCheckedIn && (
-              <span style={styles.radioButtonInner}>✓</span>
-            )}
+            {isCheckedIn && <span style={styles.radioButtonInner}>✓</span>}
           </button>
         </div>
 
         {isCheckedIn && isTicketedEvent && (
-          <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
-            {/* Price Tier Selection */}
+          <div
+            style={{
+              marginTop: "12px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
             <div style={styles.inputGroup}>
               <label style={styles.label}>Price Tier</label>
               <div style={styles.decisionDropdown}>
                 <button
                   style={styles.priceTierButton}
-                  onClick={() => setOpenPriceTierDropdown(
-                    openPriceTierDropdown === person.id ? null : person.id
-                  )}
+                  onClick={() =>
+                    setOpenPriceTierDropdown(
+                      openPriceTierDropdown === person.id ? null : person.id
+                    )
+                  }
                 >
                   <span>
                     {priceTiers[person.id]
-                      ? `${priceTiers[person.id].name} (R${priceTiers[person.id].price.toFixed(2)})`
+                      ? `${priceTiers[person.id].name} (R${priceTiers[
+                          person.id
+                        ].price.toFixed(2)})`
                       : "Select Price Tier"}
                   </span>
                   <ChevronDown size={16} />
@@ -2811,16 +2403,30 @@ const confirmDidNotMeet = async () => {
                         <div
                           key={index}
                           style={styles.decisionMenuItem}
-                          onClick={() => handlePriceTierSelect(person.id, index)}
+                          onClick={() =>
+                            handlePriceTierSelect(person.id, index)
+                          }
+                          onMouseEnter={(e) =>
+                            (e.target.style.background = theme.palette.action.hover)
+                          }
+                          onMouseLeave={(e) =>
+                            (e.target.style.background = "transparent")
+                          }
                         >
                           {tier.name} - R{parseFloat(tier.price).toFixed(2)}
-                          <div style={{ fontSize: "12px", color: "#666" }}>
+                          <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
                             {tier.ageGroup} • {tier.memberType}
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div style={{ padding: "12px", textAlign: "center", color: "#999" }}>
+                      <div
+                        style={{
+                          padding: "12px",
+                          textAlign: "center",
+                          color: theme.palette.text.disabled,
+                        }}
+                      >
                         No price tiers available
                       </div>
                     )}
@@ -2829,19 +2435,18 @@ const confirmDidNotMeet = async () => {
               </div>
             </div>
 
-            {/* Payment Method */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>Payment Method</label>
               <div style={styles.decisionDropdown}>
                 <button
                   style={styles.paymentButton}
-                  onClick={() => setOpenPaymentDropdown(
-                    openPaymentDropdown === person.id ? null : person.id
-                  )}
+                  onClick={() =>
+                    setOpenPaymentDropdown(
+                      openPaymentDropdown === person.id ? null : person.id
+                    )
+                  }
                 >
-                  <span>
-                    {paymentMethods[person.id] || "Select Payment"}
-                  </span>
+                  <span>{paymentMethods[person.id] || "Select Payment"}</span>
                   <ChevronDown size={16} />
                 </button>
                 {openPaymentDropdown === person.id && (
@@ -2850,7 +2455,15 @@ const confirmDidNotMeet = async () => {
                       <div
                         key={index}
                         style={styles.decisionMenuItem}
-                        onClick={() => handlePaymentMethodSelect(person.id, method)}
+                        onClick={() =>
+                          handlePaymentMethodSelect(person.id, method)
+                        }
+                        onMouseEnter={(e) =>
+                          (e.target.style.background = theme.palette.action.hover)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.target.style.background = "transparent")
+                        }
                       >
                         {method}
                       </div>
@@ -2860,8 +2473,13 @@ const confirmDidNotMeet = async () => {
               </div>
             </div>
 
-            {/* Payment Details */}
-            <div style={{ display: "flex", gap: "8px", justifyContent: "space-between" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                justifyContent: "space-between",
+              }}
+            >
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Price</label>
                 <span style={styles.priceInput}>
@@ -2875,7 +2493,9 @@ const confirmDidNotMeet = async () => {
                   step="0.01"
                   min="0"
                   value={paidAmounts[person.id] || ""}
-                  onChange={(e) => handlePaidAmountChange(person.id, e.target.value)}
+                  onChange={(e) =>
+                    handlePaidAmountChange(person.id, e.target.value)
+                  }
                   placeholder="0.00"
                   style={styles.paidInput}
                 />
@@ -2885,7 +2505,9 @@ const confirmDidNotMeet = async () => {
                 <span
                   style={{
                     ...styles.owingText,
-                    ...(calculateOwing(person.id) === 0 ? styles.owingPositive : styles.owingNegative),
+                    ...(calculateOwing(person.id) === 0
+                      ? styles.owingPositive
+                      : styles.owingNegative),
                   }}
                 >
                   R{calculateOwing(person.id).toFixed(2)}
@@ -2902,15 +2524,17 @@ const confirmDidNotMeet = async () => {
               <div style={styles.decisionDropdown}>
                 <button
                   style={styles.decisionButton}
-                  onClick={() => setOpenDecisionDropdown(
-                    openDecisionDropdown === person.id ? null : person.id
-                  )}
+                  onClick={() =>
+                    setOpenDecisionDropdown(
+                      openDecisionDropdown === person.id ? null : person.id
+                    )
+                  }
                 >
                   <span>
                     {decisionTypes[person.id]
                       ? decisionOptions.find(
-                        (opt) => opt.value === decisionTypes[person.id]
-                      )?.label
+                          (opt) => opt.value === decisionTypes[person.id]
+                        )?.label
                       : "Select Decision"}
                   </span>
                   <ChevronDown size={16} />
@@ -2921,7 +2545,15 @@ const confirmDidNotMeet = async () => {
                       <div
                         key={option.value}
                         style={styles.decisionMenuItem}
-                        onClick={() => handleDecisionTypeSelect(person.id, option.value)}
+                        onClick={() =>
+                          handleDecisionTypeSelect(person.id, option.value)
+                        }
+                        onMouseEnter={(e) =>
+                          (e.target.style.background = theme.palette.action.hover)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.target.style.background = "transparent")
+                        }
                       >
                         {option.label}
                       </div>
@@ -2936,53 +2568,559 @@ const confirmDidNotMeet = async () => {
     );
   };
 
+  // Theme-aware styles
+  const styles = {
+    overlay: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: isDarkMode ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.45)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 9999,
+      padding: 10,
+    },
+    modal: {
+      position: "relative",
+      background: theme.palette.background.paper,
+      padding: 0,
+      borderRadius: 12,
+      width: "100%",
+      maxWidth: 1200,
+      maxHeight: "90vh",
+      display: "flex",
+      flexDirection: "column",
+      boxSizing: "border-box",
+      border: `1px solid ${theme.palette.divider}`,
+      color: theme.palette.text.primary,
+    },
+    header: {
+      padding: "clamp(12px, 2.5vw, 20px) clamp(16px, 3vw, 30px)",
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 10,
+      background: theme.palette.background.default,
+    },
+    title: {
+      fontSize: "clamp(18px, 4vw, 24px)",
+      fontWeight: 600,
+      margin: 0,
+      color: theme.palette.text.primary,
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      flexWrap: "wrap",
+    },
+    ticketBadge: {
+      background: theme.palette.warning.main,
+      color: theme.palette.warning.contrastText || "#000",
+      padding: "4px 12px",
+      borderRadius: 12,
+      fontSize: 12,
+      fontWeight: 600,
+      textTransform: "uppercase",
+    },
+    addPersonBtn: {
+      background: theme.palette.primary.main,
+      color: theme.palette.primary.contrastText,
+      border: "none",
+      padding: "8px 14px",
+      borderRadius: 8,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      fontSize: 14,
+      fontWeight: 500,
+      whiteSpace: "nowrap",
+    },
+    tabsContainer: {
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      padding: "0 clamp(12px, 3vw, 30px)",
+      display: "flex",
+      gap: 0,
+      position: "relative",
+    },
+    mobileMenuButton: {
+      background: "none",
+      border: "none",
+      padding: 12,
+      cursor: "pointer",
+      color: theme.palette.primary.main,
+      display: isMobile ? "flex" : "none",
+      alignItems: "center",
+    },
+    tab: {
+      padding: "clamp(10px, 2vw, 16px) clamp(12px, 2vw, 24px)",
+      fontSize: 14,
+      fontWeight: 600,
+      background: "none",
+      border: "none",
+      borderBottom: "3px solid transparent",
+      cursor: "pointer",
+      color: theme.palette.text.secondary,
+      transition: "all 0.2s",
+      whiteSpace: "nowrap",
+      flex: isMobile ? "1" : "none",
+    },
+    tabActive: {
+      color: theme.palette.primary.main,
+      borderBottom: `3px solid ${theme.palette.primary.main}`,
+    },
+    contentArea: {
+      flex: 1,
+      overflowY: "auto",
+      padding: "clamp(12px, 3vw, 20px) clamp(12px, 3vw, 30px)",
+    },
+    searchBox: { position: "relative", marginBottom: 16 },
+    searchIcon: {
+      position: "absolute",
+      left: 12,
+      top: "50%",
+      transform: "translateY(-50%)",
+      color: theme.palette.text.secondary,
+    },
+    input: {
+      width: "100%",
+      padding: "10px 10px 10px 40px",
+      fontSize: 15,
+      borderRadius: 8,
+      border: `1px solid ${theme.palette.divider}`,
+      backgroundColor: theme.palette.background.default,
+      color: theme.palette.text.primary,
+      outline: "none",
+      boxSizing: "border-box",
+    },
+    tableContainer: {
+      overflowX: "auto",
+      marginBottom: 16,
+      WebkitOverflowScrolling: "touch",
+    },
+    table: {
+      width: "100%",
+      borderCollapse: "collapse",
+      minWidth: isMobile ? 600 : "auto",
+    },
+    th: {
+      textAlign: "left",
+      padding: "10px 8px",
+      borderBottom: `2px solid ${theme.palette.divider}`,
+      fontSize: 13,
+      color: theme.palette.text.secondary,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      whiteSpace: "nowrap",
+    },
+    td: {
+      padding: "10px 8px",
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      fontSize: 14,
+      color: theme.palette.text.primary,
+      whiteSpace: "nowrap",
+    },
+    radioCell: { textAlign: "center" },
+    radioButton: {
+      width: 20,
+      height: 20,
+      borderRadius: "50%",
+      border: `2px solid ${theme.palette.primary.main}`,
+      background: theme.palette.background.paper,
+      cursor: "pointer",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      transition: "all 0.2s",
+    },
+    radioButtonChecked: {
+      background: theme.palette.success.main,
+      border: `2px solid ${theme.palette.success.main}`,
+    },
+    radioButtonInner: {
+      color: "#fff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    decisionDropdown: { position: "relative", display: "inline-block" },
+    decisionButton: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "8px 12px",
+      background: theme.palette.action.hover,
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: 14,
+      color: theme.palette.text.primary,
+      minWidth: isMobile ? 140 : 180,
+      justifyContent: "space-between",
+    },
+    decisionMenu: {
+      position: "absolute",
+      top: "100%",
+      left: "0",
+      marginTop: 4,
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 6,
+      boxShadow: theme.shadows[4],
+      zIndex: 10000,
+      minWidth: isMobile ? 140 : 200,
+      maxHeight: 300,
+      overflowY: "auto",
+    },
+    decisionMenuItem: {
+      padding: "10px 12px",
+      cursor: "pointer",
+      fontSize: 14,
+      color: theme.palette.text.primary,
+      transition: "background 0.15s",
+    },
+    priceTierButton: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "8px 12px",
+      background: theme.palette.warning.light,
+      border: `1px solid ${theme.palette.warning.main}`,
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: 14,
+      color: theme.palette.warning.dark,
+      minWidth: isMobile ? 160 : 200,
+      justifyContent: "space-between",
+      fontWeight: 500,
+    },
+    paymentButton: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "8px 12px",
+      background: theme.palette.info.light,
+      border: `1px solid ${theme.palette.info.main}`,
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: 14,
+      color: theme.palette.info.dark,
+      minWidth: isMobile ? 120 : 150,
+      justifyContent: "space-between",
+      fontWeight: 500,
+    },
+    priceInput: {
+      padding: "8px 12px",
+      fontSize: 14,
+      borderRadius: 6,
+      border: `1px solid ${theme.palette.divider}`,
+      backgroundColor: theme.palette.background.default,
+      color: theme.palette.text.secondary,
+      width: isMobile ? 80 : 100,
+      textAlign: "right",
+    },
+    paidInput: {
+      padding: "8px 12px",
+      fontSize: 14,
+      borderRadius: 6,
+      border: `1px solid ${theme.palette.success.main}`,
+      backgroundColor: theme.palette.background.paper,
+      color: theme.palette.text.primary,
+      width: isMobile ? 80 : 100,
+      textAlign: "right",
+    },
+    owingText: {
+      padding: "8px 12px",
+      fontSize: 14,
+      fontWeight: 600,
+      textAlign: "right",
+    },
+    owingPositive: { color: theme.palette.success.main },
+    owingNegative: { color: theme.palette.error.main },
+    statsContainer: {
+      display: "flex",
+      gap: 12,
+      marginBottom: 16,
+      flexWrap: "wrap",
+    },
+    statBox: {
+      flex: "1 1 calc(25% - 15px)",
+      background: theme.palette.background.default,
+      padding: "clamp(12px, 2vw, 18px)",
+      borderRadius: 8,
+      textAlign: "center",
+      position: "relative",
+      minWidth: 120,
+    },
+    statBoxInput: {
+      flex: "1 1 calc(25% - 15px)",
+      background: theme.palette.background.default,
+      padding: "clamp(12px, 2vw, 18px)",
+      borderRadius: 8,
+      textAlign: "center",
+      position: "relative",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: 120,
+    },
+    headcountInput: {
+      fontSize: "clamp(20px, 3.5vw, 32px)",
+      fontWeight: 700,
+      color: theme.palette.info.main,
+      marginBottom: 8,
+      border: "none",
+      borderRadius: 8,
+      padding: "4px 12px",
+      width: 100,
+      textAlign: "center",
+      background: "transparent",
+      outline: "none",
+    },
+    statNumber: {
+      fontSize: "clamp(20px, 3.5vw, 32px)",
+      fontWeight: 700,
+      color: theme.palette.success.main,
+      marginBottom: 8,
+    },
+    statLabel: {
+      fontSize: 13,
+      color: theme.palette.text.secondary,
+      textTransform: "uppercase",
+      fontWeight: 600,
+    },
+    decisionBreakdown: {
+      fontSize: 14,
+      color: theme.palette.text.secondary,
+      marginTop: 8,
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    },
+    footer: {
+      padding: "clamp(12px, 3vw, 20px)",
+      borderTop: `1px solid ${theme.palette.divider}`,
+      display: "flex",
+      justifyContent: "space-between",
+      gap: 12,
+      flexWrap: "wrap",
+    },
+    closeBtn: {
+      background: "transparent",
+      border: `1px solid ${theme.palette.divider}`,
+      color: theme.palette.text.primary,
+      padding: "12px 20px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: 16,
+      fontWeight: 500,
+      flex: isMobile ? "1 1 100%" : "none",
+      minWidth: 120,
+    },
+    didNotMeetBtn: {
+      background: theme.palette.error.main,
+      color: theme.palette.error.contrastText || "#fff",
+      border: "none",
+      padding: "12px 20px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: 16,
+      fontWeight: 500,
+      flex: isMobile ? "1 1 100%" : "none",
+      minWidth: 140,
+    },
+    saveBtn: {
+      background: theme.palette.success.main,
+      color: theme.palette.success.contrastText || "#fff",
+      border: "none",
+      padding: "12px 20px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: 16,
+      fontWeight: 500,
+      flex: isMobile ? "1 1 100%" : "none",
+      minWidth: 120,
+    },
+    persistentBadge: {
+      background: theme.palette.primary.main,
+      color: theme.palette.primary.contrastText || "#fff",
+      padding: "2px 8px",
+      borderRadius: 4,
+      fontSize: 10,
+      fontWeight: 600,
+      marginLeft: 8,
+    },
+    iconButton: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      padding: 4,
+      borderRadius: 4,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: theme.palette.text.primary,
+    },
+    mobileAttendeeCard: {
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 12,
+    },
+    mobileCardRow: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 12,
+    },
+    mobileCardInfo: { flex: 1 },
+    mobileCardName: {
+      fontWeight: 600,
+      fontSize: 16,
+      color: theme.palette.text.primary,
+      marginBottom: 4,
+      display: "flex",
+      alignItems: "center",
+      flexWrap: "wrap",
+    },
+    mobileCardEmail: {
+      fontSize: 14,
+      color: theme.palette.text.secondary,
+      marginBottom: 4,
+    },
+    confirmOverlay: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: isDarkMode ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.45)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10002,
+      padding: 20,
+    },
+    confirmModal: {
+      background: theme.palette.background.paper,
+      borderRadius: 12,
+      padding: 24,
+      maxWidth: 400,
+      width: "100%",
+      border: `1px solid ${theme.palette.divider}`,
+    },
+    confirmHeader: {
+      marginBottom: 16,
+    },
+    confirmTitle: {
+      fontSize: 18,
+      fontWeight: 600,
+      color: theme.palette.text.primary,
+      margin: 0,
+    },
+    confirmBody: {
+      marginBottom: 20,
+      textAlign: "center",
+    },
+    confirmIcon: {
+      marginBottom: 12,
+      display: "flex",
+      justifyContent: "center",
+    },
+    confirmMessage: {
+      fontSize: 16,
+      color: theme.palette.text.primary,
+      marginBottom: 8,
+    },
+    confirmSubMessage: {
+      fontSize: 14,
+      color: theme.palette.text.secondary,
+      margin: 0,
+    },
+    confirmFooter: {
+      display: "flex",
+      gap: 12,
+      justifyContent: "flex-end",
+    },
+    confirmCancelBtn: {
+      background: "transparent",
+      border: `1px solid ${theme.palette.divider}`,
+      color: theme.palette.text.primary,
+      padding: "10px 20px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: 14,
+      fontWeight: 500,
+    },
+    confirmProceedBtn: {
+      background: theme.palette.error.main,
+      color: theme.palette.error.contrastText || "#fff",
+      border: "none",
+      padding: "10px 20px",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: 14,
+      fontWeight: 500,
+    },
+    alert: {
+      position: "fixed",
+      top: "20px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      padding: "12px 18px",
+      borderRadius: 8,
+      color: "#fff",
+      fontSize: 14,
+      fontWeight: 500,
+      zIndex: 10001,
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      maxWidth: "90vw",
+      textAlign: "center",
+    },
+    alertSuccess: { background: theme.palette.success.main },
+    alertError: { background: theme.palette.error.main },
+    alertWarning: { background: theme.palette.warning.main },
+    inputGroup: {
+      marginBottom: 8,
+    },
+    label: {
+      fontSize: 12,
+      color: theme.palette.text.secondary,
+      marginBottom: 4,
+      display: "block",
+      fontWeight: 600,
+    },
+  };
+
   if (!isOpen) return null;
 
   return (
     <>
       <div style={styles.overlay}>
         <div style={styles.modal}>
-          // ...existing code...
-    
-     <div style={styles.header}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <h2 style={styles.title}>ATTENDANCE</h2>
-
-          {/* Event metadata badges (reflects fields stored in DB) */}
-          {event?.isTicketed && (
-            <span style={styles.ticketBadge}>💰 Ticketed Event</span>
-          )}
-          {event?.isGlobal && (
-            <span style={{
-              ...styles.ticketBadge,
-              background: "#17a2b8",
-              color: "#fff"
-            }}>🌍 Global Event</span>
-          )}
-          {event?.hasPersonSteps && (
-            <span style={{
-              ...styles.ticketBadge,
-              background: "#6f42c1",
-              color: "#fff"
-            }}>👥 Personal Steps</span>
-          )}
-
-          {/* priceTiers quick info */}
-          {Array.isArray(event?.priceTiers) && event.priceTiers.length > 0 && (
-            <div style={{ fontSize: 13, color: "#666", marginLeft: 6 }}>
-              {event.priceTiers.length} price tier(s)
-            </div>
-          )}
-        </div>
-
-        <button
-          style={styles.addPersonBtn}
-          onClick={() => setShowAddPersonModal(true)}
-        >
-          <UserPlus size={18} />
-          Add New Person
-        </button>
-      </div>
+          <div style={styles.header}>
+            <h2 style={styles.title}>
+              ATTENDANCE
+              {isTicketedEvent && (
+                <span style={styles.ticketBadge}>Ticketed Event</span>
+              )}
+            </h2>
+            <button
+              style={styles.addPersonBtn}
+              onClick={() => setShowAddPersonModal(true)}
+            >
+              <UserPlus size={18} />
+              Add New Person
+            </button>
+          </div>
 
           <div style={styles.tabsContainer}>
             {isMobile && (
@@ -2998,19 +3136,20 @@ const confirmDidNotMeet = async () => {
                 <button
                   style={{
                     ...styles.tab,
-                    ...(activeTab === 0 ? styles.tabActive : {})
+                    ...(activeTab === 0 ? styles.tabActive : {}),
                   }}
                   onClick={() => setActiveTab(0)}
                 >
-CAPTURE ATTENDEES                </button>
+                  CAPTURE ATTENDEES
+                </button>
                 <button
                   style={{
                     ...styles.tab,
-                    ...(activeTab === 1 ? styles.tabActive : {})
+                    ...(activeTab === 1 ? styles.tabActive : {}),
                   }}
                   onClick={() => setActiveTab(1)}
                 >
-                  ASSOCIATE PERSON 
+                  ASSOCIATE PERSON
                 </button>
               </>
             )}
@@ -3038,7 +3177,13 @@ CAPTURE ATTENDEES                </button>
                       </div>
                     )}
                     {!loading && filteredCommonAttendees.length === 0 && (
-                      <div style={{ textAlign: "center", padding: "20px", color: "#666" }}>
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "20px",
+                          color: "#666",
+                        }}
+                      >
                         No attendees found.
                       </div>
                     )}
@@ -3058,44 +3203,70 @@ CAPTURE ATTENDEES                </button>
                               <th style={styles.th}>Attendees Number</th>
                             </>
                           )}
-                          <th style={{ ...styles.th, textAlign: "center" }}>Check In</th>
+                          <th style={{ ...styles.th, textAlign: "center" }}>
+                            Check In
+                          </th>
                           {isTicketedEvent && (
                             <>
-                              <th style={{ ...styles.th, textAlign: "center" }}>Price Tier</th>
-                              <th style={{ ...styles.th, textAlign: "center" }}>Payment Method</th>
-                              <th style={{ ...styles.th, textAlign: "right" }}>Price</th>
-                              <th style={{ ...styles.th, textAlign: "right" }}>Paid</th>
-                              <th style={{ ...styles.th, textAlign: "right" }}>Owing</th>
+                              <th style={{ ...styles.th, textAlign: "center" }}>
+                                Price Tier
+                              </th>
+                              <th style={{ ...styles.th, textAlign: "center" }}>
+                                Payment Method
+                              </th>
+                              <th style={{ ...styles.th, textAlign: "right" }}>
+                                Price
+                              </th>
+                              <th style={{ ...styles.th, textAlign: "right" }}>
+                                Paid
+                              </th>
+                              <th style={{ ...styles.th, textAlign: "right" }}>
+                                Owing
+                              </th>
                             </>
                           )}
                           {!isTicketedEvent && (
-                            <th style={{ ...styles.th, textAlign: "center" }}>Decision</th>
+                            <th style={{ ...styles.th, textAlign: "center" }}>
+                              Decision
+                            </th>
                           )}
                         </tr>
                       </thead>
                       <tbody>
                         {loading && (
                           <tr>
-                            <td colSpan={isTicketedEvent ? "8" : "7"} style={{ ...styles.td, textAlign: "center" }}>
+                            <td
+                              colSpan={isTicketedEvent ? "8" : "7"}
+                              style={{ ...styles.td, textAlign: "center" }}
+                            >
                               Loading...
                             </td>
                           </tr>
                         )}
                         {!loading && filteredCommonAttendees.length === 0 && (
                           <tr>
-                            <td colSpan={isTicketedEvent ? "8" : "7"} style={{ ...styles.td, textAlign: "center" }}>
+                            <td
+                              colSpan={isTicketedEvent ? "8" : "7"}
+                              style={{ ...styles.td, textAlign: "center" }}
+                            >
                               No attendees found.
                             </td>
                           </tr>
                         )}
                         {filteredCommonAttendees.map((person) => {
-                          const isPersistent = persistentCommonAttendees.some(p => p.id === person.id);
+                          const isPersistent = persistentCommonAttendees.some(
+                            (p) => p.id === person.id
+                          );
 
                           return (
                             <tr key={person.id}>
                               <td style={styles.td}>
                                 {person.fullName}
-                                {isPersistent && <span style={styles.persistentBadge}>ADDED</span>}
+                                {isPersistent && (
+                                  <span style={styles.persistentBadge}>
+                                    ADDED
+                                  </span>
+                                )}
                               </td>
                               <td style={styles.td}>{person.email}</td>
                               {!isTicketedEvent && (
@@ -3109,63 +3280,116 @@ CAPTURE ATTENDEES                </button>
                                 <button
                                   style={{
                                     ...styles.radioButton,
-                                    ...(checkedIn[person.id] ? styles.radioButtonChecked : {}),
+                                    ...(checkedIn[person.id]
+                                      ? styles.radioButtonChecked
+                                      : {}),
                                   }}
-                                  onClick={() => handleCheckIn(person.id, person.fullName)}
+                                  onClick={() =>
+                                    handleCheckIn(person.id, person.fullName)
+                                  }
                                 >
                                   {checkedIn[person.id] && (
-                                    <span style={styles.radioButtonInner}>✓</span>
+                                    <span style={styles.radioButtonInner}>
+                                      ✓
+                                    </span>
                                   )}
                                 </button>
                               </td>
 
                               {isTicketedEvent && (
                                 <>
-                                  <td style={{ ...styles.td, ...styles.radioCell }}>
+                                  <td
+                                    style={{
+                                      ...styles.td,
+                                      ...styles.radioCell,
+                                    }}
+                                  >
                                     {checkedIn[person.id] ? (
-                                      <div style={{ ...styles.decisionDropdown, position: 'relative', zIndex: openPriceTierDropdown === person.id ? 10001 : 1 }}>
+                                      <div
+                                        style={{
+                                          ...styles.decisionDropdown,
+                                          position: "relative",
+                                          zIndex:
+                                            openPriceTierDropdown === person.id
+                                              ? 10001
+                                              : 1,
+                                        }}
+                                      >
                                         <button
                                           style={styles.priceTierButton}
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setOpenPriceTierDropdown(
-                                              openPriceTierDropdown === person.id ? null : person.id
+                                              openPriceTierDropdown ===
+                                                person.id
+                                                ? null
+                                                : person.id
                                             );
                                           }}
                                         >
                                           <span>
                                             {priceTiers[person.id]
-                                              ? `${priceTiers[person.id].name} (R${priceTiers[person.id].price.toFixed(2)})`
+                                              ? `${
+                                                  priceTiers[person.id].name
+                                                } (R${priceTiers[
+                                                  person.id
+                                                ].price.toFixed(2)})`
                                               : "Select Price Tier"}
                                           </span>
                                           <ChevronDown size={16} />
                                         </button>
-                                        {openPriceTierDropdown === person.id && (
+                                        {openPriceTierDropdown ===
+                                          person.id && (
                                           <div style={styles.decisionMenu}>
-                                            {eventPriceTiers && eventPriceTiers.length > 0 ? (
-                                              eventPriceTiers.map((tier, index) => (
-                                                <div
-                                                  key={index}
-                                                  style={styles.decisionMenuItem}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handlePriceTierSelect(person.id, index);
-                                                  }}
-                                                  onMouseEnter={(e) =>
-                                                    (e.target.style.background = "#f0f0f0")
-                                                  }
-                                                  onMouseLeave={(e) =>
-                                                    (e.target.style.background = "transparent")
-                                                  }
-                                                >
-                                                  {tier.name} - R{parseFloat(tier.price).toFixed(2)}
-                                                  <div style={{ fontSize: "12px", color: "#666" }}>
-                                                    {tier.ageGroup} • {tier.memberType}
+                                            {eventPriceTiers &&
+                                            eventPriceTiers.length > 0 ? (
+                                              eventPriceTiers.map(
+                                                (tier, index) => (
+                                                  <div
+                                                    key={index}
+                                                    style={
+                                                      styles.decisionMenuItem
+                                                    }
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handlePriceTierSelect(
+                                                        person.id,
+                                                        index
+                                                      );
+                                                    }}
+                                                    onMouseEnter={(e) =>
+                                                      (e.target.style.background =
+                                                        "#f0f0f0")
+                                                    }
+                                                    onMouseLeave={(e) =>
+                                                      (e.target.style.background =
+                                                        "transparent")
+                                                    }
+                                                  >
+                                                    {tier.name} - R
+                                                    {parseFloat(
+                                                      tier.price
+                                                    ).toFixed(2)}
+                                                    <div
+                                                      style={{
+                                                        fontSize: "12px",
+                                                        color: "#666",
+                                                      }}
+                                                    >
+                                                      {tier.ageGroup} •{" "}
+                                                      {tier.memberType}
+                                                    </div>
                                                   </div>
-                                                </div>
-                                              ))
+                                                )
+                                              )
                                             ) : (
-                                              <div style={{ padding: "12px", textAlign: "center", color: "#999" }}>
+                                              <div
+                                                style={{
+                                                  padding: "12px",
+                                                  textAlign: "center",
+                                                  color: "#999",
+                                                }}
+                                              >
                                                 No price tiers available
                                               </div>
                                             )}
@@ -3184,41 +3408,58 @@ CAPTURE ATTENDEES                </button>
                                     )}
                                   </td>
 
-                                  <td style={{ ...styles.td, ...styles.radioCell }}>
+                                  <td
+                                    style={{
+                                      ...styles.td,
+                                      ...styles.radioCell,
+                                    }}
+                                  >
                                     {checkedIn[person.id] ? (
                                       <div style={styles.decisionDropdown}>
                                         <button
                                           style={styles.paymentButton}
                                           onClick={() =>
                                             setOpenPaymentDropdown(
-                                              openPaymentDropdown === person.id ? null : person.id
+                                              openPaymentDropdown === person.id
+                                                ? null
+                                                : person.id
                                             )
                                           }
                                         >
                                           <span>
-                                            {paymentMethods[person.id] || "Select Payment"}
+                                            {paymentMethods[person.id] ||
+                                              "Select Payment"}
                                           </span>
                                           <ChevronDown size={16} />
                                         </button>
                                         {openPaymentDropdown === person.id && (
                                           <div style={styles.decisionMenu}>
-                                            {availablePaymentMethods.map((method, index) => (
-                                              <div
-                                                key={index}
-                                                style={styles.decisionMenuItem}
-                                                onClick={() =>
-                                                  handlePaymentMethodSelect(person.id, method)
-                                                }
-                                                onMouseEnter={(e) =>
-                                                  (e.target.style.background = "#f0f0f0")
-                                                }
-                                                onMouseLeave={(e) =>
-                                                  (e.target.style.background = "transparent")
-                                                }
-                                              >
-                                                {method}
-                                              </div>
-                                            ))}
+                                            {availablePaymentMethods.map(
+                                              (method, index) => (
+                                                <div
+                                                  key={index}
+                                                  style={
+                                                    styles.decisionMenuItem
+                                                  }
+                                                  onClick={() =>
+                                                    handlePaymentMethodSelect(
+                                                      person.id,
+                                                      method
+                                                    )
+                                                  }
+                                                  onMouseEnter={(e) =>
+                                                    (e.target.style.background =
+                                                      "#f0f0f0")
+                                                  }
+                                                  onMouseLeave={(e) =>
+                                                    (e.target.style.background =
+                                                      "transparent")
+                                                  }
+                                                >
+                                                  {method}
+                                                </div>
+                                              )
+                                            )}
                                           </div>
                                         )}
                                       </div>
@@ -3234,17 +3475,23 @@ CAPTURE ATTENDEES                </button>
                                     )}
                                   </td>
 
-                                  <td style={{ ...styles.td, textAlign: "right" }}>
-                                    {checkedIn[person.id] && priceTiers[person.id] ? (
+                                  <td
+                                    style={{ ...styles.td, textAlign: "right" }}
+                                  >
+                                    {checkedIn[person.id] &&
+                                    priceTiers[person.id] ? (
                                       <span style={styles.priceInput}>
-                                        R{priceTiers[person.id].price.toFixed(2)}
+                                        R
+                                        {priceTiers[person.id].price.toFixed(2)}
                                       </span>
                                     ) : (
                                       <span style={{ color: "#ccc" }}>-</span>
                                     )}
                                   </td>
 
-                                  <td style={{ ...styles.td, textAlign: "right" }}>
+                                  <td
+                                    style={{ ...styles.td, textAlign: "right" }}
+                                  >
                                     {checkedIn[person.id] ? (
                                       <input
                                         type="number"
@@ -3252,7 +3499,10 @@ CAPTURE ATTENDEES                </button>
                                         min="0"
                                         value={paidAmounts[person.id] || ""}
                                         onChange={(e) =>
-                                          handlePaidAmountChange(person.id, e.target.value)
+                                          handlePaidAmountChange(
+                                            person.id,
+                                            e.target.value
+                                          )
                                         }
                                         placeholder="0.00"
                                         style={styles.paidInput}
@@ -3262,8 +3512,11 @@ CAPTURE ATTENDEES                </button>
                                     )}
                                   </td>
 
-                                  <td style={{ ...styles.td, textAlign: "right" }}>
-                                    {checkedIn[person.id] && priceTiers[person.id] ? (
+                                  <td
+                                    style={{ ...styles.td, textAlign: "right" }}
+                                  >
+                                    {checkedIn[person.id] &&
+                                    priceTiers[person.id] ? (
                                       <span
                                         style={{
                                           ...styles.owingText,
@@ -3282,22 +3535,28 @@ CAPTURE ATTENDEES                </button>
                               )}
 
                               {!isTicketedEvent && (
-                                <td style={{ ...styles.td, ...styles.radioCell }}>
+                                <td
+                                  style={{ ...styles.td, ...styles.radioCell }}
+                                >
                                   {checkedIn[person.id] ? (
                                     <div style={styles.decisionDropdown}>
                                       <button
                                         style={styles.decisionButton}
                                         onClick={() =>
                                           setOpenDecisionDropdown(
-                                            openDecisionDropdown === person.id ? null : person.id
+                                            openDecisionDropdown === person.id
+                                              ? null
+                                              : person.id
                                           )
                                         }
                                       >
                                         <span>
                                           {decisionTypes[person.id]
                                             ? decisionOptions.find(
-                                              (opt) => opt.value === decisionTypes[person.id]
-                                            )?.label
+                                                (opt) =>
+                                                  opt.value ===
+                                                  decisionTypes[person.id]
+                                              )?.label
                                             : "Select Decision"}
                                         </span>
                                         <ChevronDown size={16} />
@@ -3309,13 +3568,18 @@ CAPTURE ATTENDEES                </button>
                                               key={option.value}
                                               style={styles.decisionMenuItem}
                                               onClick={() =>
-                                                handleDecisionTypeSelect(person.id, option.value)
+                                                handleDecisionTypeSelect(
+                                                  person.id,
+                                                  option.value
+                                                )
                                               }
                                               onMouseEnter={(e) =>
-                                                (e.target.style.background = "#f0f0f0")
+                                                (e.target.style.background =
+                                                  "#f0f0f0")
                                               }
                                               onMouseLeave={(e) =>
-                                                (e.target.style.background = "transparent")
+                                                (e.target.style.background =
+                                                  "transparent")
                                               }
                                             >
                                               {option.label}
@@ -3389,10 +3653,12 @@ CAPTURE ATTENDEES                </button>
                         <div style={styles.statLabel}>Total Paid</div>
                       </div>
                       <div style={styles.statBox}>
-                        <div style={{
-                          ...styles.statNumber,
-                          color: totalOwing === 0 ? "#28a745" : "#dc3545"
-                        }}>
+                        <div
+                          style={{
+                            ...styles.statNumber,
+                            color: totalOwing === 0 ? "#28a745" : "#dc3545",
+                          }}
+                        >
                           R{totalOwing.toFixed(2)}
                         </div>
                         <div style={styles.statLabel}>Total Owing</div>
@@ -3424,12 +3690,20 @@ CAPTURE ATTENDEES                </button>
                       </div>
                     )}
                     {!loading && filteredPeople.length === 0 && (
-                      <div style={{ textAlign: "center", padding: "20px", color: "#666" }}>
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "20px",
+                          color: "#666",
+                        }}
+                      >
                         No people found.
                       </div>
                     )}
                     {filteredPeople.map((person) => {
-                      const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
+                      const isAlreadyAdded = persistentCommonAttendees.some(
+                        (p) => p.id === person.id
+                      );
 
                       return (
                         <div key={person.id} style={styles.mobileAttendeeCard}>
@@ -3437,9 +3711,15 @@ CAPTURE ATTENDEES                </button>
                             <div style={styles.mobileCardInfo}>
                               <div style={styles.mobileCardName}>
                                 {person.fullName}
-                                {isAlreadyAdded && <span style={styles.persistentBadge}>ADDED</span>}
+                                {isAlreadyAdded && (
+                                  <span style={styles.persistentBadge}>
+                                    ADDED
+                                  </span>
+                                )}
                               </div>
-                              <div style={styles.mobileCardEmail}>{person.email}</div>
+                              <div style={styles.mobileCardEmail}>
+                                {person.email}
+                              </div>
                               <div style={{ fontSize: "12px", color: "#666" }}>
                                 Leader @12: {person.leader12}
                               </div>
@@ -3454,9 +3734,17 @@ CAPTURE ATTENDEES                </button>
                                 cursor: "pointer",
                               }}
                               onClick={() => handleAssociatePerson(person)}
-                              title={isAlreadyAdded ? "Remove from common attendees" : "Add to common attendees"}
+                              title={
+                                isAlreadyAdded
+                                  ? "Remove from common attendees"
+                                  : "Add to common attendees"
+                              }
                             >
-                              {isAlreadyAdded ? <X size={20} /> : <UserPlus size={20} />}
+                              {isAlreadyAdded ? (
+                                <X size={20} />
+                              ) : (
+                                <UserPlus size={20} />
+                              )}
                             </button>
                           </div>
                         </div>
@@ -3473,32 +3761,46 @@ CAPTURE ATTENDEES                </button>
                           <th style={styles.th}>Leader @12</th>
                           <th style={styles.th}>Leader @144</th>
                           <th style={styles.th}>Phone</th>
-                          <th style={{ ...styles.th, textAlign: "center" }}>Add</th>
+                          <th style={{ ...styles.th, textAlign: "center" }}>
+                            Add
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {loading && (
                           <tr>
-                            <td colSpan="6" style={{ ...styles.td, textAlign: "center" }}>
+                            <td
+                              colSpan="6"
+                              style={{ ...styles.td, textAlign: "center" }}
+                            >
                               Loading...
                             </td>
                           </tr>
                         )}
                         {!loading && filteredPeople.length === 0 && (
                           <tr>
-                            <td colSpan="6" style={{ ...styles.td, textAlign: "center" }}>
+                            <td
+                              colSpan="6"
+                              style={{ ...styles.td, textAlign: "center" }}
+                            >
                               No people found.
                             </td>
                           </tr>
                         )}
                         {filteredPeople.map((person) => {
-                          const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
+                          const isAlreadyAdded = persistentCommonAttendees.some(
+                            (p) => p.id === person.id
+                          );
 
                           return (
                             <tr key={person.id}>
                               <td style={styles.td}>
                                 {person.fullName}
-                                {isAlreadyAdded && <span style={styles.persistentBadge}>ADDED</span>}
+                                {isAlreadyAdded && (
+                                  <span style={styles.persistentBadge}>
+                                    ADDED
+                                  </span>
+                                )}
                               </td>
                               <td style={styles.td}>{person.email}</td>
                               <td style={styles.td}>{person.leader12}</td>
@@ -3509,7 +3811,9 @@ CAPTURE ATTENDEES                </button>
                                   style={{
                                     ...styles.iconButton,
                                     opacity: isAlreadyAdded ? 0.3 : 1,
-                                    cursor: isAlreadyAdded ? "not-allowed" : "pointer",
+                                    cursor: isAlreadyAdded
+                                      ? "not-allowed"
+                                      : "pointer",
                                   }}
                                   onClick={() => handleAssociatePerson(person)}
                                   disabled={isAlreadyAdded}
@@ -3532,17 +3836,18 @@ CAPTURE ATTENDEES                </button>
             <button style={styles.closeBtn} onClick={onClose}>
               CLOSE
             </button>
-            <div style={{ display: "flex", gap: "12px", flex: isMobile ? "1 1 100%" : "none", flexWrap: isMobile ? "wrap" : "nowrap" }}>
-              <button
-                style={styles.didNotMeetBtn}
-                onClick={handleDidNotMeet}
-              >
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                flex: isMobile ? "1 1 100%" : "none",
+                flexWrap: isMobile ? "wrap" : "nowrap",
+              }}
+            >
+              <button style={styles.didNotMeetBtn} onClick={handleDidNotMeet}>
                 DID NOT MEET
               </button>
-              <button
-                style={styles.saveBtn}
-                onClick={handleSave}
-              >
+              <button style={styles.saveBtn} onClick={handleSave}>
                 SAVE
               </button>
             </div>
@@ -3561,10 +3866,12 @@ CAPTURE ATTENDEES                </button>
                 <X size={32} color="#dc3545" />
               </div>
               <p style={styles.confirmMessage}>
-                Are you sure you want to mark this event as <strong>'Did Not Meet'</strong>?
+                Are you sure you want to mark this event as{" "}
+                <strong>'Did Not Meet'</strong>?
               </p>
               <p style={styles.confirmSubMessage}>
-                This will clear all current attendance data and cannot be undone.
+                This will clear all current attendance data and cannot be
+                undone.
               </p>
             </div>
             <div style={styles.confirmFooter}>
@@ -3589,7 +3896,9 @@ CAPTURE ATTENDEES                </button>
         <div
           style={{
             ...styles.alert,
-            ...(alert.type === "success" ? styles.alertSuccess : styles.alertError),
+            ...(alert.type === "success"
+              ? styles.alertSuccess
+              : styles.alertError),
           }}
         >
           {alert.type === "success" ? (
