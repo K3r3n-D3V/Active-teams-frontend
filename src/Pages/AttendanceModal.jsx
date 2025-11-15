@@ -471,7 +471,7 @@ const loadPreloadedPeople = async () => {
   };
 
   const currentTheme = getCurrentTheme();
-  const isDarkMode = currentTheme === 'dark';
+
 
   // Theme-aware styles
   const styles = {
@@ -897,8 +897,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit,  preloadedPeople = []
     leader144: false,
   });
 
-  const theme = useTheme();
-  const isDarkMode = theme.palette.mode === "dark";
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
@@ -1030,7 +1028,8 @@ useEffect(() => {
   };
 
   const getCurrentTheme = () => localStorage.getItem('theme') || 'light';
-  const isDarkMode = getCurrentTheme() === 'dark';
+  const currentTheme = getCurrentTheme();
+  const isDarkMode = currentTheme === 'dark';
 
   const styles = {
     overlay: {
@@ -1056,7 +1055,6 @@ useEffect(() => {
       padding: "30px",
       color: isDarkMode ? "#fff" : "#333",
       boxShadow: "0 8px 25px rgba(0,0,0,0.3)",
-      animation: 'fadeIn 0.3s ease-out'
     },
     title: {
       fontSize: "clamp(22px, 5vw, 28px)",
@@ -1164,10 +1162,6 @@ useEffect(() => {
       fontWeight: "600",
       flex: 1.5,
       transition: "all 0.2s ease",
-    },
-    '@keyframes fadeIn': {
-      from: { opacity: 0, transform: 'translateY(-20px)' },
-      to: { opacity: 1, transform: 'translateY(0)' }
     }
   };
 
