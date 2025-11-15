@@ -182,6 +182,79 @@ export default function Profile() {
   const { userProfile, setUserProfile, setProfilePic, profilePic } =
     useContext(UserContext);
 
+  // CRITICAL FIX: Store the logged-in user's role separately and NEVER let it change
+  const [loggedInUserRole, setLoggedInUserRole] = useState(() => {
+    // Get from localStorage on mount - this is the logged-in user's role
+    const storedProfile = localStorage.getItem("userProfile");
+    if (storedProfile) {
+      try {
+        const parsed = JSON.parse(storedProfile);
+        const role = parsed.role || "user";
+        console.log("🔐 Initial logged-in user role:", role);
+        return role;
+      } catch (e) {
+        console.error("Failed to parse stored profile:", e);
+      }
+    }
+    return "user";
+  });
+
+  // Enhanced role checking logic to handle multiple roles
+  // CRITICAL: Use loggedInUserRole instead of userProfile.role
+  const checkIfCanEdit = useCallback((roleToCheck) => {
+    if (!roleToCheck) {
+      console.log("❌ No role found, defaulting to regular user");
+      return false;
+    }
+    
+    const roleStr = String(roleToCheck).toLowerCase().trim();
+    console.log("🔍 Checking role:", roleStr);
+    
+    // Split roles by common separators (slash, comma, space, pipe)
+    const roles = roleStr
+      .split(/[\/,\s|]+/)
+      .map(r => r.trim())
+      .filter(r => r.length > 0);
+    
+    console.log("👤 Parsed roles:", roles);
+    
+    // Check if ANY role is admin or leader
+    const hasAdminRole = roles.some(role => role === "admin");
+    const hasLeaderRole = roles.some(role => role === "leader");
+    const canEdit = hasAdminRole || hasLeaderRole;
+    
+    console.log("👤 Has Admin:", hasAdminRole, "| Has Leader:", hasLeaderRole, "| Can Edit:", canEdit);
+    
+    return canEdit;
+  }, []);
+
+  // CRITICAL: Always use loggedInUserRole for permission checks
+  const canEditProfile = checkIfCanEdit(loggedInUserRole);
+  const isRegularUser = !canEditProfile;
+
+  // Get display role with proper formatting for multiple roles
+  const getUserRole = useCallback(() => {
+    if (!loggedInUserRole) return "User";
+    
+    const roleStr = String(loggedInUserRole).trim();
+    
+    // Split by common separators (slash, comma, space, pipe)
+    const roles = roleStr
+      .split(/[\/,\s|]+/)
+      .map(role => role.trim())
+      .filter(role => role.length > 0)
+      .map(role => role.charAt(0).toUpperCase() + role.slice(1).toLowerCase());
+    
+    // Remove duplicates
+    const uniqueRoles = [...new Set(roles)];
+    
+    // If no valid roles found, return "User"
+    if (uniqueRoles.length === 0) return "User";
+    
+    // Join multiple roles with " / "
+    return uniqueRoles.join(" / ");
+  }, [loggedInUserRole]);
+
   const fileInputRef = useRef(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -230,9 +303,6 @@ export default function Profile() {
     { value: "", label: "Select Gender" },
     { value: "Male", label: "Male" },
     { value: "Female", label: "Female" },
-    // Handle lowercase values from database
-    // { value: "male", label: "Male" },
-    // { value: "female", label: "Female" },
   ];
 
   // Normalize gender value for display
@@ -256,10 +326,9 @@ export default function Profile() {
     return () => clearInterval(t);
   }, []);
 
-  // Load profile data - FIXED: Only load once on component mount
+  // Load profile data
   useEffect(() => {
     const loadProfile = async () => {
-      // Prevent reloading if we already have data
       if (hasProfileLoaded) {
         console.log("🔄 Profile already loaded, skipping...");
         setLoadingProfile(false);
@@ -281,6 +350,15 @@ export default function Profile() {
         const serverProfile = await fetchUserProfile();
         
         if (serverProfile) {
+          console.log("📥 Received profile data:", serverProfile);
+          console.log("👤 User role from server:", serverProfile.role);
+          
+          // CRITICAL: Store the logged-in user's role and NEVER change it
+          if (serverProfile.role) {
+            setLoggedInUserRole(serverProfile.role);
+            console.log("🔐 Logged-in user role set to:", serverProfile.role);
+          }
+          
           setUserProfile(serverProfile);
           updateFormWithProfile(serverProfile);
           
@@ -290,12 +368,13 @@ export default function Profile() {
             setProfilePic(pic);
           }
           
-          // Cache data
+          // Cache data - but we'll always use loggedInUserRole for permissions
           localStorage.setItem("userProfile", JSON.stringify(serverProfile));
           localStorage.setItem("profileLoaded", "true");
           setHasProfileLoaded(true);
           
           console.log("✅ Profile loaded successfully");
+          console.log("✅ Can edit profile:", checkIfCanEdit(serverProfile.role));
         }
       } catch (error) {
         console.error("❌ Failed to load profile:", error);
@@ -310,9 +389,9 @@ export default function Profile() {
     };
 
     loadProfile();
-  }, [setUserProfile, setProfilePic, hasProfileLoaded]); // Added hasProfileLoaded to dependencies
+  }, [setUserProfile, setProfilePic, hasProfileLoaded, checkIfCanEdit]);
 
-  // Update form with profile data - FIXED: Better state management
+  // Update form with profile data
   const updateFormWithProfile = useCallback((profile) => {
     const formData = {
       name: profile?.name || "",
@@ -333,14 +412,12 @@ export default function Profile() {
     console.log("📝 Form updated with profile data:", formData);
   }, []);
 
-  // Track changes - FIXED: Better change detection
+  // Track changes
   useEffect(() => {
     const changed = Object.keys(form).some((key) => {
-      // For password fields, consider changed if any password field has value
       if (["currentPassword", "newPassword", "confirmPassword"].includes(key)) {
         return form.newPassword !== "" || form.confirmPassword !== "" || form.currentPassword !== "";
       }
-      // For other fields, compare with original
       return form[key] !== originalForm[key];
     });
     setHasChanges(changed);
@@ -349,104 +426,61 @@ export default function Profile() {
   const togglePasswordVisibility = (field) =>
     setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
 
-  // const validate = () => {
-  //   const n = {};
-    
-  //   // Required fields
-  //   if (!form.name.trim()) n.name = "Name is required";
-  //   if (!form.surname.trim()) n.surname = "Surname is required";
-  //   if (!form.email.trim()) n.email = "Email is required";
-  //   else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
-    
-  //   // Date validation
-  //   if (form.dob) {
-  //     const dobDate = new Date(form.dob);
-  //     const today = new Date();
-  //     if (dobDate > today) {
-  //       n.dob = "Date of birth cannot be in the future";
-  //     }
-  //   }
-    
-  //   // Phone validation (optional)
-  //   if (form.phone && !/^[\+]?[1-9][\d]{0,15}$/.test(form.phone.replace(/[\s\-\(\)]/g, ''))) {
-  //     n.phone = "Please enter a valid phone number";
-  //   }
-    
-  //   // Password validation (only if changing password)
-  //   if (form.newPassword || form.confirmPassword || form.currentPassword) {
-  //     if (!form.currentPassword.trim()) {
-  //       n.currentPassword = "Current password is required to change password";
-  //     }
-  //     if (form.newPassword && form.newPassword.length < 8) {
-  //       n.newPassword = "New password must be at least 8 characters long";
-  //     }
-  //     if (form.newPassword !== form.confirmPassword) {
-  //       n.confirmPassword = "Passwords do not match";
-  //     }
-  //     if (form.newPassword && !form.confirmPassword) {
-  //       n.confirmPassword = "Please confirm your new password";
-  //     }
-  //   }
-    
-  //   setErrors(n);
-  //   return Object.keys(n).length === 0;
-  // };
-
   const validate = () => {
-  const n = {};
-  
-  // Required fields
-  if (!form.name.trim()) n.name = "Name is required";
-  if (!form.surname.trim()) n.surname = "Surname is required";
-  if (!form.email.trim()) n.email = "Email is required";
-  else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
-  
-  // Date validation
-  if (form.dob) {
-    const dobDate = new Date(form.dob);
-    const today = new Date();
-    if (dobDate > today) {
-      n.dob = "Date of birth cannot be in the future";
-    }
-  }
-  
-  // Phone validation (optional) - VERY RELAXED
-  if (form.phone && form.phone.trim()) {
-    // Just check if there are at least some numbers
-    const hasNumbers = /\d/.test(form.phone);
-    if (!hasNumbers) {
-      n.phone = "Phone number should contain numbers";
+    const n = {};
+    
+    // Required fields - only validate if user can edit them
+    if (canEditProfile) {
+      if (!form.name.trim()) n.name = "Name is required";
+      if (!form.surname.trim()) n.surname = "Surname is required";
+      if (!form.email.trim()) n.email = "Email is required";
+      else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
     }
     
-    // Optional: Very basic length check
-    const cleaned = form.phone.replace(/\D/g, '');
-    if (cleaned.length < 7) {
-      n.phone = "Phone number seems too short";
+    // Date validation
+    if (form.dob && canEditProfile) {
+      const dobDate = new Date(form.dob);
+      const today = new Date();
+      if (dobDate > today) {
+        n.dob = "Date of birth cannot be in the future";
+      }
     }
-    if (cleaned.length > 15) {
-      n.phone = "Phone number seems too long";
+    
+    // Phone validation (optional)
+    if (form.phone && form.phone.trim() && canEditProfile) {
+      const hasNumbers = /\d/.test(form.phone);
+      if (!hasNumbers) {
+        n.phone = "Phone number should contain numbers";
+      }
+      
+      const cleaned = form.phone.replace(/\D/g, '');
+      if (cleaned.length < 7) {
+        n.phone = "Phone number seems too short";
+      }
+      if (cleaned.length > 15) {
+        n.phone = "Phone number seems too long";
+      }
     }
-  }
-  
-  // Password validation (only if changing password)
-  if (form.newPassword || form.confirmPassword || form.currentPassword) {
-    if (!form.currentPassword.trim()) {
-      n.currentPassword = "Current password is required to change password";
+    
+    // Password validation (only if changing password)
+    if (form.newPassword || form.confirmPassword || form.currentPassword) {
+      if (!form.currentPassword.trim()) {
+        n.currentPassword = "Current password is required to change password";
+      }
+      if (form.newPassword && form.newPassword.length < 8) {
+        n.newPassword = "New password must be at least 8 characters long";
+      }
+      if (form.newPassword !== form.confirmPassword) {
+        n.confirmPassword = "Passwords do not match";
+      }
+      if (form.newPassword && !form.confirmPassword) {
+        n.confirmPassword = "Please confirm your new password";
+      }
     }
-    if (form.newPassword && form.newPassword.length < 8) {
-      n.newPassword = "New password must be at least 8 characters long";
-    }
-    if (form.newPassword !== form.confirmPassword) {
-      n.confirmPassword = "Passwords do not match";
-    }
-    if (form.newPassword && !form.confirmPassword) {
-      n.confirmPassword = "Please confirm your new password";
-    }
-  }
-  
-  setErrors(n);
-  return Object.keys(n).length === 0;
-};
+    
+    setErrors(n);
+    return Object.keys(n).length === 0;
+  };
 
   const handleChange = (field) => (e) => {
     const value = e.target.value;
@@ -465,47 +499,74 @@ export default function Profile() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log("🔄 Form submission started");
+    console.log("👤 Can edit profile:", canEditProfile);
+    console.log("🔐 Logged-in user role:", loggedInUserRole);
 
     if (!validate()) {
       console.log("❌ Form validation failed:", errors);
       return;
     }
 
-    // Prepare payload for backend
-    const payload = {
-      name: form.name,
-      surname: form.surname,
-      date_of_birth: form.dob,
-      email: form.email,
-      home_address: form.address,
-      phone_number: form.phone,
-      invited_by: form.invitedBy,
-      gender: form.gender,
-    };
-
-    console.log("📤 Sending payload to backend:", payload);
-
     try {
-      const updated = await updateUserProfile(payload);
-
-      const updatedUserProfile = {
-        ...updated,
-        _id: updated.id || updated._id,
-      };
-
-      // Handle password change if requested
       const hasPasswordChange = form.newPassword && form.confirmPassword && form.currentPassword;
+      
+      const hasProfileChanges = canEditProfile && Object.keys(form).some((key) => {
+        if (["currentPassword", "newPassword", "confirmPassword"].includes(key)) {
+          return false;
+        }
+        return form[key] !== originalForm[key];
+      });
+
+      console.log("🔍 Has profile changes:", hasProfileChanges);
+      console.log("🔍 Has password change:", hasPasswordChange);
+
+      if (hasProfileChanges) {
+        try {
+          const profileData = {
+            name: form.name,
+            surname: form.surname,
+            date_of_birth: form.dob,
+            email: form.email,
+            home_address: form.address,
+            phone_number: form.phone,
+            invited_by: form.invitedBy,
+            gender: form.gender,
+          };
+
+          console.log("📤 Updating profile with:", profileData);
+          await updateUserProfile(profileData);
+          
+          const updatedProfile = { ...userProfile, ...profileData };
+          setUserProfile(updatedProfile);
+          localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
+          
+          setOriginalForm({ ...form });
+          
+          setSnackbar({
+            open: true,
+            message: "Profile updated successfully!",
+            severity: "success",
+          });
+        } catch (profileError) {
+          console.error("❌ Profile update failed:", profileError);
+          setSnackbar({
+            open: true,
+            message: `Profile update failed: ${profileError.message}`,
+            severity: "error",
+          });
+          return;
+        }
+      }
       
       if (hasPasswordChange) {
         try {
           await updatePassword(form.currentPassword, form.newPassword);
           setSnackbar({
             open: true,
-            message: "Profile and password updated successfully!",
+            message: hasProfileChanges ? "Profile and password updated successfully!" : "Password updated successfully!",
             severity: "success",
           });
           
-          // Clear password fields
           setForm(prev => ({
             ...prev,
             currentPassword: "",
@@ -513,7 +574,6 @@ export default function Profile() {
             confirmPassword: ""
           }));
           
-          // Update original form to reflect password clear
           setOriginalForm(prev => ({
             ...prev,
             currentPassword: "",
@@ -524,39 +584,19 @@ export default function Profile() {
           console.error("❌ Password update failed:", passwordError);
           setSnackbar({
             open: true,
-            message: `Profile updated but password change failed: ${passwordError.message}`,
-            severity: "warning",
+            message: `Password change failed: ${passwordError.message}`,
+            severity: "error",
           });
         }
-      } else {
-        setSnackbar({
-          open: true,
-          message: "Profile updated successfully",
-          severity: "success",
-        });
       }
 
-      // Update context and local storage
-      setUserProfile(updatedUserProfile);
-      localStorage.setItem("userProfile", JSON.stringify(updatedUserProfile));
-
-      setEditMode(false);
-      
-      // Update original form with the new data - FIXED: This prevents reset issues
-      setOriginalForm({
-        ...form,
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: ""
-      });
-
-      console.log("✅ Profile update completed successfully");
+      console.log("✅ Update completed successfully");
 
     } catch (err) {
-      console.error("❌ Profile update failed:", err);
+      console.error("❌ Update failed:", err);
       setSnackbar({
         open: true,
-        message: `Failed to update profile: ${err.message}`,
+        message: `Failed to update: ${err.message}`,
         severity: "error",
       });
     }
@@ -655,32 +695,9 @@ export default function Profile() {
     },
   };
 
-  // Test API connection
-  const testConnection = async () => {
-    setTestingAPI(true);
-    try {
-      const result = await testProfileAPI();
-      setSnackbar({
-        open: true,
-        message: "API connection successful!",
-        severity: "success",
-      });
-      console.log("✅ API Test Result:", result);
-    } catch (error) {
-      setSnackbar({
-        open: true,
-        message: `API connection failed: ${error.message}`,
-        severity: "error",
-      });
-    } finally {
-      setTestingAPI(false);
-    }
-  };
-
   // Skeleton loading component
   const ProfileSkeleton = () => (
     <Box sx={{ minHeight: "100vh", bgcolor: isDark ? "#0a0a0a" : "#f8f9fa", pb: 4 }}>
-      {/* Skeleton content remains the same as before */}
       <Box sx={{ position: "relative", minHeight: "30vh", background: isDark ? `linear-gradient(135deg, ${currentCarouselItem.color}15 0%, ${currentCarouselItem.color}25 100%)` : `linear-gradient(135deg, ${currentCarouselItem.color}10 0%, ${currentCarouselItem.color}20 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pt: 6, pb: 12 }}>
         <Skeleton variant="text" width="60%" height={60} sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', borderRadius: 2 }} />
       </Box>
@@ -751,6 +768,21 @@ export default function Profile() {
             <Typography variant="h4" sx={{ fontWeight: 700, color: isDark ? "#ffffff" : "#000000", mb: 1, fontSize: { xs: "1.5rem", sm: "2rem", md: "2.25rem" }, }}>
               {form.name} {form.surname}
             </Typography>
+            {/* Role Badge */}
+            <Typography variant="body2" sx={{ 
+              display: "inline-block",
+              px: 2, 
+              py: 0.5, 
+              borderRadius: 2,
+              bgcolor: canEditProfile ? currentCarouselItem.color + "20" : isDark ? "#333333" : "#e0e0e0",
+              color: canEditProfile ? currentCarouselItem.color : isDark ? "#999999" : "#666666",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              fontSize: "0.75rem",
+              letterSpacing: 1
+            }}>
+              {getUserRole()}
+            </Typography>
           </Box>
         </Box>
       </Box>
@@ -759,6 +791,20 @@ export default function Profile() {
       <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
         <Card sx={{ bgcolor: isDark ? "#111111" : "#ffffff", borderRadius: 3, boxShadow: isDark ? "0 8px 32px rgba(255,255,255,0.02)" : "0 8px 32px rgba(0,0,0,0.08)", border: `1px solid ${isDark ? "#222222" : "#e0e0e0"}`, }}>
           <CardContent sx={{ p: { xs: 3, sm: 4 }, pt: 4 }}>
+            {/* Info Banner for Regular Users */}
+            {isRegularUser && (
+              <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+                Your profile information is managed by church administrators. You can only change your password.
+              </Alert>
+            )}
+
+            {/* Debug info - remove in production */}
+            {canEditProfile && (
+              <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>
+                You have {getUserRole()} privileges and can edit all profile fields.
+              </Alert>
+            )}
+
             <Box component="form" onSubmit={handleSubmit}>
               {/* Personal Information Fields */}
               <Grid container spacing={3}>
@@ -767,7 +813,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Name
                   </Typography>
-                  <TextField value={form.name || ""} onChange={handleChange("name")} fullWidth disabled={!editMode} error={!!errors.name} helperText={errors.name} sx={commonFieldSx} />
+                  <TextField value={form.name || ""} onChange={handleChange("name")} fullWidth disabled={!canEditProfile} error={!!errors.name} helperText={errors.name} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Surname */}
@@ -775,7 +821,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Surname
                   </Typography>
-                  <TextField value={form.surname || ""} onChange={handleChange("surname")} fullWidth disabled={!editMode} error={!!errors.surname} helperText={errors.surname} sx={commonFieldSx} />
+                  <TextField value={form.surname || ""} onChange={handleChange("surname")} fullWidth disabled={!canEditProfile} error={!!errors.surname} helperText={errors.surname} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Date of Birth */}
@@ -783,7 +829,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Date Of Birth
                   </Typography>
-                  <TextField value={form.dob || ""} onChange={handleChange("dob")} fullWidth type="date" disabled={!editMode} error={!!errors.dob} helperText={errors.dob} InputLabelProps={{ shrink: true }} sx={commonFieldSx} />
+                  <TextField value={form.dob || ""} onChange={handleChange("dob")} fullWidth type="date" disabled={!canEditProfile} error={!!errors.dob} helperText={errors.dob} InputLabelProps={{ shrink: true }} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Email */}
@@ -791,7 +837,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Email Address
                   </Typography>
-                  <TextField value={form.email || ""} onChange={handleChange("email")} fullWidth disabled={!editMode} error={!!errors.email} helperText={errors.email} sx={commonFieldSx} />
+                  <TextField value={form.email || ""} onChange={handleChange("email")} fullWidth disabled={!canEditProfile} error={!!errors.email} helperText={errors.email} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Home Address */}
@@ -799,7 +845,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Home Address
                   </Typography>
-                  <TextField value={form.address || ""} onChange={handleChange("address")} fullWidth disabled={!editMode} sx={commonFieldSx} />
+                  <TextField value={form.address || ""} onChange={handleChange("address")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Phone Number */}
@@ -807,7 +853,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Phone Number
                   </Typography>
-                  <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth disabled={!editMode} error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
+                  <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth disabled={!canEditProfile} error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Invited By */}
@@ -815,7 +861,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Invited By
                   </Typography>
-                  <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={!editMode} sx={commonFieldSx} />
+                  <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Gender */}
@@ -823,7 +869,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Gender
                   </Typography>
-                  <TextField select value={form.gender || ""} onChange={handleChange("gender")} fullWidth disabled={!editMode} sx={commonFieldSx}>
+                  <TextField select value={form.gender || ""} onChange={handleChange("gender")} fullWidth disabled={!canEditProfile} sx={commonFieldSx}>
                     {genderOptions.map((option) => (
                       <MenuItem key={option.value} value={option.value}>
                         {option.label}
@@ -834,57 +880,44 @@ export default function Profile() {
               </Grid>
 
               {/* Password Section */}
-              {editMode && (
-                <>
-                  <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: isDark ? "#ffffff" : "#000000", }}>
-                    Change Password (Optional)
-                  </Typography>
+              <>
+                <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
+                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: isDark ? "#ffffff" : "#000000", }}>
+                  Change Password (Optional)
+                </Typography>
 
-                  <Grid container spacing={3}>
-                    {/* Current Password */}
-                    <Grid item xs={12}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                        Current Password
-                      </Typography>
-                      <TextField value={form.currentPassword || ""} onChange={handleChange("currentPassword")} type={showPassword.current ? "text" : "password"} fullWidth error={!!errors.currentPassword} helperText={errors.currentPassword} autoComplete="current-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.current ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
-                    </Grid>
-
-                    {/* New Password */}
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                        New Password
-                      </Typography>
-                      <TextField value={form.newPassword || ""} onChange={handleChange("newPassword")} type={showPassword.new ? "text" : "password"} fullWidth error={!!errors.newPassword} helperText={errors.newPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.new ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
-                    </Grid>
-
-                    {/* Confirm New Password */}
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                        Confirm New Password
-                      </Typography>
-                      <TextField value={form.confirmPassword || ""} onChange={handleChange("confirmPassword")} type={showPassword.confirm ? "text" : "password"} fullWidth error={!!errors.confirmPassword} helperText={errors.confirmPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.confirm ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
-                    </Grid>
+                <Grid container spacing={3}>
+                  {/* Current Password */}
+                  <Grid item xs={12}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                      Current Password
+                    </Typography>
+                    <TextField value={form.currentPassword || ""} onChange={handleChange("currentPassword")} type={showPassword.current ? "text" : "password"} fullWidth error={!!errors.currentPassword} helperText={errors.currentPassword} autoComplete="current-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.current ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
                   </Grid>
-                </>
-              )}
+
+                  {/* New Password */}
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                      New Password
+                    </Typography>
+                    <TextField value={form.newPassword || ""} onChange={handleChange("newPassword")} type={showPassword.new ? "text" : "password"} fullWidth error={!!errors.newPassword} helperText={errors.newPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.new ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
+                  </Grid>
+
+                  {/* Confirm New Password */}
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                      Confirm New Password
+                    </Typography>
+                    <TextField value={form.confirmPassword || ""} onChange={handleChange("confirmPassword")} type={showPassword.confirm ? "text" : "password"} fullWidth error={!!errors.confirmPassword} helperText={errors.confirmPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.confirm ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
+                  </Grid>
+                </Grid>
+              </>
 
               {/* Action Buttons */}
               <Box sx={{ mt: 4, display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap", }}>
-                {!editMode ? (
-                  <Button variant="contained" startIcon={<Edit />} onClick={() => setEditMode(true)} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
-                    Edit Profile
-                  </Button>
-                ) : (
-                  <>
-                    <Button variant="outlined" startIcon={<Cancel />} onClick={handleCancel} sx={{ borderColor: isDark ? "#666666" : "#cccccc", color: isDark ? "#cccccc" : "#666666", "&:hover": { borderColor: isDark ? "#888888" : "#999999", bgcolor: isDark ? "#222222" : "#f5f5f5", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
-                      Save Changes
-                    </Button>
-                  </>
-                )}
+                <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
+                  {canEditProfile ? "Save Changes" : "Update Password"}
+                </Button>
               </Box>
             </Box>
           </CardContent>

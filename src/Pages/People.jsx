@@ -313,7 +313,7 @@ export const PeopleSection = () => {
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [viewMode, setViewMode] = useState('grid');
-  const [viewFilter, setViewFilter] = useState('all'); // 'all' or 'myPeople'
+  const [viewFilter, setViewFilter] = useState('myPeople'); // 'all' or 'myPeople'
   const [gridPage, setGridPage] = useState(1);
   const ITEMS_PER_PAGE = 100;
   const isFetchingRef = useRef(false);
