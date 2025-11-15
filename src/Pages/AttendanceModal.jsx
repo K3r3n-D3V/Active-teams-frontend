@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import {
   ArrowLeft,
   UserPlus,
- Search,
- CheckCircle,
+  Search,
+  CheckCircle,
   ChevronDown,
   X,
   Menu,
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
+
 let globalPeopleCache = {
   data: [],
   timestamp: null,
@@ -49,141 +50,136 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     }
   }, [isOpen]);
   
-const loadPreloadedPeople = async () => {
-  const now = Date.now();
-  if (globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
-      (now - globalPeopleCache.timestamp) < globalPeopleCache.expiry) {
-    console.log("Using cached people data in AddPersonToEvents");
-    setPreloadedPeople(globalPeopleCache.data);
-    return;
-  }
-
-  try {
-    console.log("Fetching fresh people data for AddPersonToEvents cache");
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
-
-    const params = new URLSearchParams();
-    params.append("perPage", "500");
-    params.append("page", "1");
-
-    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+  const loadPreloadedPeople = async (forceRefresh = false) => {
+    const now = Date.now();
     
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    
-    const data = await res.json();
-    const peopleArray = data.people || data.results || [];
-
-    // ✅ CORRECTED: Fixed leader field mapping with Leader @1728
-    const formatted = peopleArray.map((p) => {
-      console.log("Person leader data for mapping:", {
-        id: p._id,
-        name: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        // Check all possible leader field names
-        leaderAt1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1,
-        leaderAt12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12,
-        leaderAt144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144,
-        leaderAt1728: p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728,
-        leadersArray: p.leaders
-      });
-
-   
-      const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
-      const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
-      const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-      const leader1728 = p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
-
-      return {
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: leader1, 
-        leader12: leader12, 
-        leader144: leader144, 
-        leader1728: leader1728, 
-        phone: p.Number || p.Phone || p.phone || "",
-      };
-    });
-
-    // Update global cache
-    globalPeopleCache = {
-      data: formatted,
-      timestamp: now,
-      expiry: 5 * 60 * 1000
-    };
-
-    setPreloadedPeople(formatted);
-    console.log(`Pre-loaded ${formatted.length} people into AddPersonToEvents cache`);
-  } catch (err) {
-    console.error("Error pre-loading people in AddPersonToEvents:", err);
-    if (globalPeopleCache.data.length > 0) {
+    if (!forceRefresh && globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp && 
+        (now - globalPeopleCache.timestamp) < globalPeopleCache.expiry) {
+      console.log("Using cached people data in AddPersonToEvents");
       setPreloadedPeople(globalPeopleCache.data);
+      return;
     }
-  }
-};
 
-  const fetchInviters = async (searchTerm) => {
-  if (!searchTerm || searchTerm.length < 1) {
-    setInviterResults([]);
-    return;
-  }
-
-  try {
-    setLoadingInviters(true);
-    
-    // Use preloaded data first for instant results
-    const filteredFromCache = preloadedPeople.filter(person =>
-      person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      person.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    if (filteredFromCache.length > 0) {
-      setInviterResults(filteredFromCache.slice(0, 20));
-    } else {
-      // Fallback to API if no cached results
+    try {
+      console.log("Fetching fresh people data for AddPersonToEvents cache");
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("name", searchTerm);
-      params.append("perPage", "20");
+      params.append("perPage", "1000");
+      params.append("page", "1");
+      params.append("sortBy", "updatedAt");
+      params.append("sortOrder", "desc");
+
+      if (forceRefresh) {
+        params.append("_t", now.toString());
+      }
 
       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+      
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      
       const data = await res.json();
       const peopleArray = data.people || data.results || [];
 
-      // ✅ CORRECTED: Fixed leader field mapping with Leader @1728
+      console.log(`Fetched ${peopleArray.length} people from server`);
+
       const formatted = peopleArray.map((p) => {
-        // CORRECT MAPPING:
+        // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
         const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
         const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
         const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-        const leader1728 = p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+        const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
 
         return {
           id: p._id,
           fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
           email: p.Email || p.email || "",
-          leader1: leader1,        // Vicky
-          leader12: leader12,      // Sash
-          leader144: leader144,    // Keren
-          leader1728: leader1728,  // Leader @1728
+          leader1: leader1, 
+          leader12: leader12, 
+          leader144: leader144, 
+          leader1728: leader1728, 
           phone: p.Number || p.Phone || p.phone || "",
+          rawData: p
         };
       });
 
-      setInviterResults(formatted);
-      
-      console.log("Inviter search results for '" + searchTerm + "':", formatted);
-    }
-  } catch (err) {
-    console.error("Error fetching inviters:", err);
-  } finally {
-    setLoadingInviters(false);
-  }
-};
+      globalPeopleCache = {
+        data: formatted,
+        timestamp: now,
+        expiry: 2 * 60 * 1000
+      };
 
-  // Debounced search with immediate cache lookup
+      setPreloadedPeople(formatted);
+      console.log(`Pre-loaded ${formatted.length} people into AddPersonToEvents cache`);
+      
+      const recentPeople = formatted.slice(0, 5);
+      console.log("Most recent people in cache:", recentPeople);
+    } catch (err) {
+      console.error("Error pre-loading people in AddPersonToEvents:", err);
+      if (globalPeopleCache.data.length > 0) {
+        setPreloadedPeople(globalPeopleCache.data);
+      }
+    }
+  };
+
+  const fetchInviters = async (searchTerm) => {
+    if (!searchTerm || searchTerm.length < 1) {
+      setInviterResults([]);
+      return;
+    }
+
+    try {
+      setLoadingInviters(true);
+      
+      const filteredFromCache = preloadedPeople.filter(person =>
+        person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        person.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
+      if (filteredFromCache.length > 0) {
+        setInviterResults(filteredFromCache.slice(0, 20));
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const params = new URLSearchParams();
+        params.append("name", searchTerm);
+        params.append("perPage", "20");
+
+        const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const data = await res.json();
+        const peopleArray = data.people || data.results || [];
+
+        // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
+        const formatted = peopleArray.map((p) => {
+          const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
+          const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
+          const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
+          const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+
+          return {
+            id: p._id,
+            fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+            email: p.Email || p.email || "",
+            leader1: leader1,
+            leader12: leader12,
+            leader144: leader144,
+            leader1728: leader1728,
+            phone: p.Number || p.Phone || p.phone || "",
+          };
+        });
+
+        setInviterResults(formatted);
+        console.log("Inviter search results for '" + searchTerm + "':", formatted);
+      }
+    } catch (err) {
+      console.error("Error fetching inviters:", err);
+    } finally {
+      setLoadingInviters(false);
+    }
+  };
+
   useEffect(() => {
     const delay = setTimeout(() => {
       if (inviterSearch.length >= 1) {
@@ -196,67 +192,80 @@ const loadPreloadedPeople = async () => {
     return () => clearTimeout(delay);
   }, [inviterSearch]);
 
-
-
   const handleInviterSelect = (person) => {
-  console.log("=== handleInviterSelect DEBUG ===");
-  console.log("Selected inviter:", person.fullName);
-  
-  setFormData({ ...formData, invitedBy: person.fullName });
-  setInviterSearch(person.fullName);
-  setShowInviterDropdown(false);
-  setTouched({ ...touched, invitedBy: true });
+    console.log("Selected inviter:", person.fullName); 
+    setFormData({ ...formData, invitedBy: person.fullName });
+    setInviterSearch(person.fullName);
+    setShowInviterDropdown(false);
+    setTouched({ ...touched, invitedBy: true });
 
-  const normalizedFull = (person.fullName || "").trim().toLowerCase();
-  const leader144Raw = (person.leader144 || "").trim();
-  const leader12Raw = (person.leader12 || "").trim();
+    const normalizedFull = (person.fullName || "").trim().toLowerCase();
+    const leader1Raw = (person.leader1 || "").trim().toLowerCase(); 
+    const leader12Raw = (person.leader12 || "").trim().toLowerCase(); 
+    const leader144Raw = (person.leader144 || "").trim().toLowerCase();
+    const leader1728Raw = (person.leader1728 || "").trim().toLowerCase();
 
-  console.log("Leadership analysis:", {
-    leader144: person.leader144,
-    leader12: person.leader12,
-    normalizedFull,
-    leader144Raw,
-    leader12Raw
-  });
+    console.log("Leadership analysis:", {
+      inviterName: normalizedFull,
+      leader1: person.leader1,
+      leader12: person.leader12,
+      leader144: person.leader144,
+      leader1728: person.leader1728,
+    });
 
-  let leadersToFill;
+    let leadersToFill;
 
-  // ✅ FIX APPLIED: Priority check is now Leader @12, then Leader @144.
-  // This ensures that an empty Leader @144 field doesn't prematurely categorize
-  // a person as Leader @144 when they should be Leader @12.
+    const isLeader144 = leader12Raw && !leader144Raw && !leader1728Raw;
 
-  // 1. Check if they ARE their own Leader @12 OR have NO Leader @12 → Leader @12
-  if (leader12Raw.toLowerCase() === normalizedFull || !leader12Raw) {
-    leadersToFill = {
-      leader1: person.leader1 || "",
-      leader12: person.fullName || "", // They ARE Leader @12
-      leader144: person.leader144 || "" // Keep existing Leader @144 (or empty)
-    };
-    console.log("✅ CASE 1 (NEW): Inviter IS Leader @12 (Highest Priority)");
-  }
-  // 2. Check if they ARE their own Leader @144 OR have NO Leader @144 → Leader @144
-  else if (leader144Raw.toLowerCase() === normalizedFull || !leader144Raw) {
-    leadersToFill = {
-      leader1: person.leader1 || "",
-      leader12: person.leader12 || "", // Keep existing Leader @12 (or empty)
-      leader144: person.fullName || "" // They ARE Leader @144
-    };
-    console.log("✅ CASE 2 (NEW): Inviter IS Leader @144 (Secondary Priority)");
-  }
-  // 3. Regular person - they have leaders at both levels
-  else {
-    leadersToFill = {
-      leader1: person.leader1 || "",
-      leader12: person.leader12 || "",
-      leader144: person.leader144 || ""
-    };
-    console.log("✅ CASE 3 (NEW): Inviter is NOT a leader");
-  }
+const isLeader12 = leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
 
-  setAutoFilledLeaders(leadersToFill);
-  console.log("Final auto-filled leaders:", leadersToFill);
-};
-  
+// 3. Leader @1: Has their own name as L@1 OR all leadership fields empty
+const isLeader1 = (leader1Raw === normalizedFull) || (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
+
+console.log("Leadership detection:", {
+  isLeader144, 
+  isLeader12,
+  isLeader1,
+  isSelfL1: leader1Raw === normalizedFull
+});
+
+if (isLeader144) {
+  leadersToFill = {
+    leader1: person.leader1 || "",
+    leader12: person.leader12 || "",
+    leader144: person.fullName || "", 
+  };
+  console.log("DETECTED: Leader @144 - Empty L@144 field with filled L@12");
+}
+else if (isLeader12) {
+  leadersToFill = {
+    leader1: person.leader1 || "",
+    leader12: person.fullName || "", 
+    leader144: "", 
+  };
+  console.log("DETECTED: Leader @12 - Empty L@12 field with filled L@1");
+}
+else if (isLeader1) {
+  leadersToFill = {
+    leader1: person.fullName || "", 
+    leader12: "", 
+    leader144: "", 
+  };
+  console.log("DETECTED: Leader @1 - All leadership fields empty");
+}
+
+else {
+  leadersToFill = {
+    leader1: person.leader1 || "",
+    leader12: person.leader12 || "",
+    leader144: person.leader144 || "",
+  };
+  console.log("REGULAR: Person has complete leadership chain");
+}
+
+    setAutoFilledLeaders(leadersToFill);
+    console.log("Final auto-filled leaders:", leadersToFill);
+  };
 
   const isFieldEmpty = (fieldName) => {
     const value = fieldName === 'invitedBy' ? inviterSearch : formData[fieldName];
@@ -293,7 +302,6 @@ const loadPreloadedPeople = async () => {
       return false;
     }
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       setAlert({
@@ -315,33 +323,31 @@ const loadPreloadedPeople = async () => {
   };
 
   const handleSubmit = async (leaderInfo) => {
-  try {
-    const token = localStorage.getItem("token");
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
+    try {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
 
-    // Update to include Leader @1728 in the leaders array
-    const personData = {
-      name: formData.name.trim(),
-      // 🐛 FIX: Corrected typo from formData.eventsurname to formData.surname
-      surname: formData.surname.trim(), 
-      email: formData.email.toLowerCase().trim(),
-      number: formData.mobile || "",
-      address: formData.address || "",
-      gender: formData.gender || "",
-      dob: formData.dob || "",
-      invitedBy: formData.invitedBy || "",
-      leaders: [
-        leaderInfo.leader1 || "",     
-        leaderInfo.leader12 || "",    
-        leaderInfo.leader144 || "",   
-        leaderInfo.leader1728 || ""  
-      ],
-      stage: "Win",
-    };
-      console.log("📤 Sending person data to backend:", personData);
+      const personData = {
+        name: formData.name.trim(),
+        surname: formData.surname.trim(), 
+        email: formData.email.toLowerCase().trim(),
+        number: formData.mobile || "",
+        address: formData.address || "",
+        gender: formData.gender || "",
+        dob: formData.dob || "",
+        invitedBy: formData.invitedBy || "",
+        leaders: [
+          leaderInfo.leader1 || "",     
+          leaderInfo.leader12 || "",    
+          leaderInfo.leader144 || "",   
+          "" // Leader @1728 is always empty for now
+        ],
+        stage: "Win",
+      };
+      console.log("Sending person data to backend:", personData);
 
       const response = await fetch(`${BACKEND_URL}/people`, {
         method: "POST",
@@ -351,9 +357,8 @@ const loadPreloadedPeople = async () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Person created successfully:", data);
+        console.log("Person created successfully:", data);
 
-        // Invalidate cache since we added a new person
         globalPeopleCache = {
           data: [],
           timestamp: null,
@@ -371,6 +376,7 @@ const loadPreloadedPeople = async () => {
         }
 
         setTimeout(() => {
+          loadPreloadedPeople(true);
           onClose();
           setFormData({
             invitedBy: "",
@@ -395,7 +401,7 @@ const loadPreloadedPeople = async () => {
         }, 1500);
       } else {
         const error = await response.json();
-        console.error("❌ Add person error - FULL DETAILS:", {
+        console.error("Add person error - FULL DETAILS:", {
           status: response.status,
           statusText: response.statusText,
           error: error,
@@ -426,7 +432,7 @@ const loadPreloadedPeople = async () => {
         setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
       }
     } catch (error) {
-      console.error("❌ Network error adding person:", error);
+      console.error("Network error adding person:", error);
       setAlert({
         open: true,
         type: "error",
@@ -462,18 +468,20 @@ const loadPreloadedPeople = async () => {
 
   if (!isOpen) return null;
 
-  // Get current theme from localStorage or default to light
   const getCurrentTheme = () => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') || 'light';
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) return savedTheme;
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
     }
     return 'light';
   };
 
   const currentTheme = getCurrentTheme();
+  const isDarkMode = currentTheme === 'dark';
 
-
-  // Theme-aware styles
   const styles = {
     overlay: {
       position: "fixed",
@@ -660,7 +668,6 @@ const loadPreloadedPeople = async () => {
                 }}
                 onFocus={() => {
                   setShowInviterDropdown(true);
-                  // Show recent people when focused
                   if (inviterSearch.length === 0 && preloadedPeople.length > 0) {
                     setInviterResults(preloadedPeople.slice(0, 10));
                   }
@@ -872,53 +879,47 @@ const loadPreloadedPeople = async () => {
   );
 };
 
-const LeaderSelectionModal = ({ isOpen, onBack, onSubmit,  preloadedPeople = [], autoFilledLeaders }) => {
+const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
-    leader144: "", // Optional - can be empty if inviter doesn't have one
+    leader144: ""
   });
 
   const [leaderSearches, setLeaderSearches] = useState({
     leader1: "",
     leader12: "",
-    leader144: "",
+    leader144: ""
   });
 
   const [leaderResults, setLeaderResults] = useState({
     leader1: [],
     leader12: [],
-    leader144: [],
+    leader144: []
   });
 
   const [showDropdowns, setShowDropdowns] = useState({
     leader1: false,
     leader12: false,
-    leader144: false,
+    leader144: false
   });
 
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
- // In LeaderSelectionModal useEffect
-useEffect(() => {
-  if (isOpen && autoFilledLeaders) {
-    console.log("Auto-filling ALL leaders in LeaderSelectionModal:", autoFilledLeaders);
-    
-    // Use ALL the auto-filled leaders including Leader @144
-    const filledLeaders = {
-      leader1: autoFilledLeaders.leader1 || "",
-      leader12: autoFilledLeaders.leader12 || "",
-      leader144: autoFilledLeaders.leader144 || "" // This should contain "Keeren" if she's Leader @144
-    };
-    
-    setLeaderData(filledLeaders);
-    setLeaderSearches(filledLeaders);
-    
-    console.log("All leaders auto-filled in modal:", filledLeaders);
-  }
-}, [isOpen, autoFilledLeaders]);
+  useEffect(() => {
+    if (isOpen && autoFilledLeaders) {
+      const filledLeaders = {
+        leader1: autoFilledLeaders.leader1 || "",
+        leader12: autoFilledLeaders.leader12 || "",
+        leader144: autoFilledLeaders.leader144 || ""
+      };
+      
+      setLeaderData(filledLeaders);
+      setLeaderSearches(filledLeaders);
+    }
+  }, [isOpen, autoFilledLeaders]);
 
   const fetchLeaders = async (searchTerm, leaderField) => {
     if (!searchTerm || searchTerm.length < 1) {
@@ -928,13 +929,10 @@ useEffect(() => {
 
     try {
       setLoadingLeaders(true);
-
-      // First try to find in preloaded data for instant results
       const filteredFromCache = preloadedPeople.filter(
         (person) =>
           person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          person.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          person[leaderField]?.toLowerCase().includes(searchTerm.toLowerCase())
+          person.email.toLowerCase().includes(searchTerm.toLowerCase())
       );
 
       if (filteredFromCache.length > 0) {
@@ -943,7 +941,6 @@ useEffect(() => {
           [leaderField]: filteredFromCache.slice(0, 15),
         }));
       } else {
-        // Fallback to API search
         const token = localStorage.getItem("token");
         const headers = { Authorization: `Bearer ${token}` };
 
@@ -951,29 +948,28 @@ useEffect(() => {
         params.append("name", searchTerm);
         params.append("perPage", "15");
 
-        const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
-          headers,
-        });
+        const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
         const data = await res.json();
         const peopleArray = data.people || data.results || [];
 
-       const formatted = peopleArray.map((p) => ({
-          id: p._id,
-          fullName: `${p.Name || p.name || ""} ${
-            p.Surname || p.surname || ""
-          }`.trim(),
-          email: p.Email || p.email || "",
-          leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
-          leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
-          leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
-          // FIX: Completing the truncated line and using consistent key/index (assuming 1728)
-          leader1728: p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || p.leaders?.[3] || "", 
-        }));
+        const formatted = peopleArray.map((p) => {
+          const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
+          const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
+          const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
+          const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+
+          return {
+            id: p._id,
+            fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+            email: p.Email || p.email || "",
+            leader1: leader1,
+            leader12: leader12,
+            leader144: leader144,
+            leader1728: leader1728,
+          };
+        });
         
-        setLeaderResults(prev => ({ 
-          ...prev, 
-          [leaderField]: formatted 
-        }));
+        setLeaderResults(prev => ({ ...prev, [leaderField]: formatted }));
       }
     } catch (err) {
       console.error(`Error fetching leaders for ${leaderField}:`, err);
@@ -982,7 +978,6 @@ useEffect(() => {
     }
   };
 
-  // Debounced search for leaders (similar to inviter search, but per field)
   useEffect(() => {
     const delays = {};
     
@@ -993,7 +988,6 @@ useEffect(() => {
           fetchLeaders(searchTerm, field);
         }, 150);
       } else {
-        // Clear results if search term is empty
         setLeaderResults(prev => ({ ...prev, [field]: [] }));
       }
     });
@@ -1001,7 +995,7 @@ useEffect(() => {
     return () => {
       Object.values(delays).forEach(clearTimeout);
     };
-  }, [leaderSearches, preloadedPeople]); // Depend on preloadedPeople to enable cache search
+  }, [leaderSearches, preloadedPeople]);
 
   const handleLeaderSelect = (person, field) => {
     setLeaderData(prev => ({ ...prev, [field]: person.fullName }));
@@ -1012,24 +1006,43 @@ useEffect(() => {
   const handleSearchChange = (e, field) => {
     const value = e.target.value;
     setLeaderSearches(prev => ({ ...prev, [field]: value }));
-    // Immediately show dropdown on change/focus
     setShowDropdowns(prev => ({ ...prev, [field]: true }));
   };
 
+  const handleClearField = (field) => {
+    setLeaderData(prev => ({ ...prev, [field]: "" }));
+    setLeaderSearches(prev => ({ ...prev, [field]: "" }));
+  };
+
   const handleSubmitLeaders = () => {
-    // Collect final leader data, including a placeholder for leader1728 (which is not edited here)
     const finalLeaderInfo = {
       leader1: leaderData.leader1 || "",
       leader12: leaderData.leader12 || "",
       leader144: leaderData.leader144 || "",
-      leader1728: "" // Placeholder, assuming this is manually added or derived elsewhere if needed
+      leader1728: ""
     };
     onSubmit(finalLeaderInfo);
   };
 
-  const getCurrentTheme = () => localStorage.getItem('theme') || 'light';
+  const getCurrentTheme = () => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) return savedTheme;
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
+    }
+    return 'light';
+  };
+
   const currentTheme = getCurrentTheme();
   const isDarkMode = currentTheme === 'dark';
+
+  const leaderLabels = {
+    leader1: "Leader @1",
+    leader12: "Leader @12", 
+    leader144: "Leader @144"
+  };
 
   const styles = {
     overlay: {
@@ -1038,68 +1051,79 @@ useEffect(() => {
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0,0,0,0.7)",
+      background: isDarkMode ? "rgba(0,0,0,0.8)" : "rgba(0,0,0,0.6)",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
       zIndex: 10002,
-      padding: "10px",
+      padding: "20px",
+      backdropFilter: "blur(8px)",
     },
     modal: {
       background: isDarkMode ? "#1e1e1e" : "#fff",
       borderRadius: "12px",
       width: "100%",
       maxWidth: "500px",
-      maxHeight: "90vh",
+      maxHeight: "80vh",
       overflowY: "auto",
-      padding: "30px",
+      padding: "24px",
       color: isDarkMode ? "#fff" : "#333",
-      boxShadow: "0 8px 25px rgba(0,0,0,0.3)",
+      boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
     },
     title: {
-      fontSize: "clamp(22px, 5vw, 28px)",
-      fontWeight: "700",
-      marginBottom: "10px",
+      fontSize: "22px",
+      fontWeight: "600",
+      marginBottom: "8px",
       textAlign: "center",
-      color: "#6366f1",
+      color: isDarkMode ? "#fff" : "#333",
     },
     subtitle: {
-      fontSize: "15px",
-      fontWeight: "500",
-      marginBottom: "30px",
+      fontSize: "14px",
+      marginBottom: "24px",
       textAlign: "center",
-      color: isDarkMode ? "#ccc" : "#555",
+      color: isDarkMode ? "#ccc" : "#666",
     },
     leaderGroup: {
       display: "flex",
       flexDirection: "column",
-      gap: "20px",
-      marginBottom: "30px",
+      gap: "16px",
+      marginBottom: "24px",
     },
     inputGroup: {
       position: "relative",
-      display: "flex",
-      flexDirection: "column",
-      gap: "6px",
     },
     label: {
       fontSize: "14px",
-      fontWeight: "600",
-      color: isDarkMode ? "#ccc" : "#444",
+      fontWeight: "500",
+      marginBottom: "6px",
+      color: isDarkMode ? "#ccc" : "#555",
+      display: "block",
+    },
+    inputContainer: {
+      position: "relative",
       display: "flex",
       alignItems: "center",
-      gap: "8px",
     },
     input: {
-      padding: "12px",
-      fontSize: "16px",
+      padding: "12px 40px 12px 12px",
+      fontSize: "14px",
       borderRadius: "8px",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
       outline: "none",
       width: "100%",
       boxSizing: "border-box",
       background: isDarkMode ? "#2a2a2a" : "#fff",
-      color: isDarkMode ? "#ffffff" : "#333",
+      color: isDarkMode ? "#fff" : "#333",
+    },
+    clearButton: {
+      position: "absolute",
+      right: "8px",
+      background: "none",
+      border: "none",
+      color: isDarkMode ? "#999" : "#999",
+      cursor: "pointer",
+      padding: "4px",
+      borderRadius: "4px",
     },
     dropdown: {
       position: "absolute",
@@ -1108,60 +1132,57 @@ useEffect(() => {
       right: 0,
       marginTop: "4px",
       background: isDarkMode ? "#2a2a2a" : "#fff",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1003,
-      maxHeight: "150px",
+      maxHeight: "160px",
       overflowY: "auto",
     },
     dropdownItem: {
       padding: "10px 12px",
       cursor: "pointer",
       borderBottom: `1px solid ${isDarkMode ? "#3a3a3a" : "#f0f0f0"}`,
-      transition: "background 0.2s",
-      color: isDarkMode ? "#ffffff" : "#333",
-      fontSize: "15px"
+      color: isDarkMode ? "#fff" : "#333",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      fontSize: "14px",
     },
     dropdownEmpty: {
-      padding: "10px 12px",
-      color: isDarkMode ? "#aaa" : "#999",
+      padding: "12px",
+      color: isDarkMode ? "#999" : "#999",
       textAlign: "center",
       fontSize: "14px",
     },
     buttonGroup: {
       display: "flex",
       gap: "12px",
-      marginTop: "20px",
-      justifyContent: "space-between",
+      marginTop: "16px",
     },
     backBtn: {
       background: "transparent",
       border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
       color: isDarkMode ? "#ccc" : "#666",
-      padding: "12px 16px",
-      borderRadius: "6px",
+      padding: "12px 20px",
+      borderRadius: "8px",
       cursor: "pointer",
-      fontSize: "16px",
+      fontSize: "14px",
       fontWeight: "500",
       flex: 1,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: '8px',
-      transition: "all 0.2s ease",
+      gap: '6px',
     },
     submitBtn: {
       background: "#6366f1",
       color: "#fff",
       border: "none",
-      padding: "12px 16px",
-      borderRadius: "6px",
+      padding: "12px 20px",
+      borderRadius: "8px",
       cursor: "pointer",
-      fontSize: "16px",
-      fontWeight: "600",
-      flex: 1.5,
-      transition: "all 0.2s ease",
+      fontSize: "14px",
+      fontWeight: "500",
+      flex: 1,
     }
   };
 
@@ -1170,42 +1191,69 @@ useEffect(() => {
   return (
     <div style={styles.overlay}>
       <div style={styles.modal}>
-        <h2 style={styles.title}> Leadership</h2>
-      
+       <h2 style={styles.title}>Set Leadership</h2>
 
         <div style={styles.leaderGroup}>
           {['leader1', 'leader12', 'leader144'].map((field) => (
             <div key={field} style={styles.inputGroup}>
-             
-              <input
-                type="text"
-                value={leaderSearches[field]}
-                onChange={(e) => handleSearchChange(e, field)}
-                onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
-                onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
-                style={styles.input}
-                placeholder={`Search for ${field.replace('leader', 'Leader @')}...`}
-                autoComplete="off"
-              />
-              {showDropdowns[field] && leaderSearches[field].length > 0 && (
-                <div style={styles.dropdown}>
-                  {loadingLeaders && <div style={styles.dropdownEmpty}>Searching...</div>}
-                  {!loadingLeaders && leaderResults[field].length === 0 && (
-                    <div style={styles.dropdownEmpty}>No leaders found</div>
-                  )}
-                  {!loadingLeaders && leaderResults[field].map((person) => (
-                    <div
-                      key={person.id}
-                      style={styles.dropdownItem}
-                      onClick={() => handleLeaderSelect(person, field)}
-                      onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
-                      onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
-                    >
-                      {person.fullName}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <label style={styles.label}>{leaderLabels[field]}</label>
+              
+              <div style={styles.inputContainer}>
+                <input
+                  type="text"
+                  value={leaderSearches[field]}
+                  onChange={(e) => handleSearchChange(e, field)}
+                  onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
+                  onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
+                  style={styles.input}
+                  placeholder={`Type to search...`}
+                  autoComplete="off"
+                />
+                
+                {leaderSearches[field] && (
+                  <button 
+                    type="button" 
+                    style={styles.clearButton}
+                    onClick={() => handleClearField(field)}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+                
+                {showDropdowns[field] && leaderSearches[field].length > 0 && (
+                  <div style={styles.dropdown}>
+                    {loadingLeaders && (
+                      <div style={styles.dropdownEmpty}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                          <div style={{ 
+                            width: '14px', 
+                            height: '14px', 
+                            border: `2px solid ${isDarkMode ? '#555' : '#ddd'}`,
+                            borderTop: `2px solid #6366f1`,
+                            borderRadius: '50%',
+                            animation: 'spin 1s linear infinite'
+                          }} />
+                          Searching...
+                        </div>
+                      </div>
+                    )}
+                    {!loadingLeaders && leaderResults[field].length === 0 && (
+                      <div style={styles.dropdownEmpty}>No results found</div>
+                    )}
+                    {!loadingLeaders && leaderResults[field].map((person) => (
+                      <div
+                        key={person.id}
+                        style={styles.dropdownItem}
+                        onClick={() => handleLeaderSelect(person, field)}
+                        onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f5f5f5"}
+                        onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
+                      >
+                        {person.fullName}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -1213,27 +1261,34 @@ useEffect(() => {
         <div style={styles.buttonGroup}>
           <button 
             type="button" 
-            style={styles.backBtn} 
+            style={styles.backBtn}
             onClick={onBack}
-            onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3d3d3d" : "#f8f9fa"}
-            onMouseLeave={(e) => e.target.style.background = "transparent"}
           >
-            <ArrowLeft size={16} /> BACK
+            <ArrowLeft size={16} /> 
+            Back
           </button>
           <button 
             type="button" 
-            style={styles.submitBtn} 
+            style={styles.submitBtn}
             onClick={handleSubmitLeaders}
-            onMouseEnter={(e) => e.target.style.background = "#4f46e5"}
-            onMouseLeave={(e) => e.target.style.background = "#6366f1"}
           >
-            CREATE PERSON <CheckCircle size={16} style={{marginLeft: '4px'}} />
+            Create Person
           </button>
         </div>
       </div>
+
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </div>
   );
 };
+
 
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
