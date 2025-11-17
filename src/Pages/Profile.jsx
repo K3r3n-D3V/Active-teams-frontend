@@ -821,6 +821,25 @@ export default function Profile() {
                   <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={!editMode} sx={commonFieldSx} />
                 </Grid>
 
+                {/* Leader */}
+                <Grid item xs={12} sm={6}>
+                  <Typography
+                  variant="body2"
+                  sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}
+                  >
+                    Leader
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    placeholder="Who is your leader?"
+                    value={form.leader}
+                    onChange={handleChange("leader")}
+                    disabled={!editMode}
+                    sx={commonFieldSx}
+                  />
+                </Grid>
+
+
                 {/* Gender */}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
