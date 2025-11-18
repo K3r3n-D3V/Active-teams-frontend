@@ -51,6 +51,7 @@ import MergeIcon from "@mui/icons-material/Merge";
 import EventHistory from "../components/EventHistory";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -201,57 +202,91 @@ function ServiceCheckIn() {
           ? resData.events
           : [];
 
-  const fetchAllPeople = async () => {
-    setIsLoadingPeople(true);
-    try {
-      let allPeople = [];
-      let page = 1;
-      const perPage = 50;
-      const maxInitialPages = 2;
-      let total = Infinity;
+const fetchAllPeople = async () => {
+  setIsLoadingPeople(true);
+  try {
+    console.log('🔄 Fetching people data from cache endpoint...');
+    
+    const response = await axios.get(`${BASE_URL}/cache/people`);
+    
+    if (response.data.success && response.data.cached_data) {
+      const cachedPeople = response.data.cached_data;
+      
+      console.log(`✅ Cache response:`, {
+        source: response.data.source,
+        totalPeople: cachedPeople.length,
+        isComplete: response.data.is_complete,
+        loadProgress: response.data.load_progress
+      });
 
-      while (allPeople.length < total && page <= maxInitialPages) {
-        const res = await axios.get(
-          `${BASE_URL}/people?page=${page}&perPage=${perPage}`
-        );
-        const results = toArray(res.data);
-        const peoplePage = results.map((p) => ({
-          _id: p._id || p.id || `${p.Email || p.Name || ""}-${page}`,
-          name: p.Name || p.name || "",
-          surname: p.Surname || p.surname || "",
-          email: p.Email || p.email || "",
-          phone: p.Number || p.Phone || p.phone || "",
-          leader1: p["Leader @1"] || p.leader1 || "",
-          leader12: p["Leader @12"] || p.leader12 || "",
-          leader144: p["Leader @144"] || p.leader144 || "",
-        }));
+      // Transform cache data to match your expected format
+      const formattedPeople = cachedPeople.map((person) => ({
+        _id: person._id || person.id || `temp-${Math.random()}`,
+        name: person.Name || person.name || "",
+        surname: person.Surname || person.surname || "",
+        email: person.Email || person.email || "",
+        phone: person.Number || person.Phone || person.phone || "",
+        leader1: person["Leader @1"] || person.leader1 || "",
+        leader12: person["Leader @12"] || person.leader12 || "",
+        leader144: person["Leader @144"] || person.leader144 || "",
+        // Add fullName for better searching
+        fullName: person.FullName || `${person.Name || ''} ${person.Surname || ''}`.trim()
+      }));
 
-        allPeople = allPeople.concat(peoplePage);
-        total =
-          typeof res.data?.total === "number"
-            ? res.data.total
-            : allPeople.length;
-
-        if (results.length === 0) break;
-        page += 1;
-      }
-
-      setAttendees(allPeople);
+      console.log(`✅ Loaded ${formattedPeople.length} people from cache`);
+      setAttendees(formattedPeople);
+      localStorage.setItem("attendees", JSON.stringify(formattedPeople));
+      localStorage.setItem("attendeesCacheTimestamp", Date.now().toString());
       localStorage.setItem("serviceCheckInDataLoaded", "true");
       setHasDataLoaded(true);
 
-      if (allPeople.length < total) {
-        setTimeout(() => {
-          fetchRemainingPeople(page, perPage, total, allPeople);
-        }, 1000);
+      // Show progress if cache is still loading
+      if (!response.data.is_complete && response.data.load_progress < 100) {
+        console.log(`🔄 Cache background loading: ${response.data.load_progress}% complete`);
+        toast.info(`People data loading... ${response.data.load_progress}% complete`);
+      } else if (response.data.is_complete) {
+        console.log('✅ Cache loading complete');
       }
-    } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.detail || err.message);
-    } finally {
-      setIsLoadingPeople(false);
+
+    } else {
+      throw new Error('Cache endpoint returned no data');
     }
-  };
+  } catch (err) {
+    console.error('❌ Error fetching from cache:', err);
+    
+    // Fallback to ultra-fast endpoint
+    try {
+      console.log('🔄 Falling back to ultra-fast endpoint...');
+      const ultraResponse = await axios.get(`${BASE_URL}/people/ultra-fast`);
+      
+      if (ultraResponse.data.success && ultraResponse.data.results) {
+        const people = ultraResponse.data.results.map((p) => ({
+          _id: p._id || p.key || `temp-${Math.random()}`,
+          name: p.Name || "",
+          surname: p.Surname || "",
+          email: p.Email || "",
+          phone: p.Number || "",
+          leader1: p["Leader @1"] || "",
+          leader12: p["Leader @12"] || "",
+          leader144: p["Leader @144"] || "",
+          fullName: `${p.Name || ''} ${p.Surname || ''}`.trim()
+        }));
+        
+        console.log(`✅ Loaded ${people.length} people from ultra-fast endpoint`);
+        setAttendees(people);
+        localStorage.setItem("attendees", JSON.stringify(people));
+        localStorage.setItem("attendeesCacheTimestamp", Date.now().toString());
+        localStorage.setItem("serviceCheckInDataLoaded", "true");
+        setHasDataLoaded(true);
+      }
+    } catch (fallbackError) {
+      console.error('❌ All data loading methods failed:', fallbackError);
+      toast.error("Failed to load people data. Please refresh the page.");
+    }
+  } finally {
+    setIsLoadingPeople(false);
+  }
+};
 
   const fetchRemainingPeople = async (startPage, perPage, total, currentPeople) => {
     try {
@@ -873,23 +908,38 @@ function ServiceCheckIn() {
     }
   };
 
-  // Initial data loading
-  useEffect(() => {
-    console.log('🚀 Component mounted - fetching events and people...');
-    
-    // Always fetch events on component mount
-    fetchEvents();
-    
-    const dataLoaded = localStorage.getItem("serviceCheckInDataLoaded") === "true";
-    const hasCachedPeople = localStorage.getItem("attendees");
+// Initial data loading
+useEffect(() => {
+  console.log('🚀 Service Check-In mounted - fetching events and people...');
+  
+  // Always fetch events on component mount
+  fetchEvents();
+  
+  const dataLoaded = localStorage.getItem("serviceCheckInDataLoaded") === "true";
+  const cachedPeople = localStorage.getItem("attendees");
+  const cacheTimestamp = localStorage.getItem("attendeesCacheTimestamp");
+  const now = Date.now();
+  const oneHour = 60 * 60 * 1000;
 
-    if (dataLoaded && hasCachedPeople) {
-      setHasDataLoaded(true);
-      setIsLoadingPeople(false);
-    } else {
+  if (dataLoaded && cachedPeople) {
+    const peopleData = JSON.parse(cachedPeople);
+    console.log(`✅ Using cached people data: ${peopleData.length} people`);
+    setAttendees(peopleData);
+    setHasDataLoaded(true);
+    setIsLoadingPeople(false);
+    
+    // Refresh cache if it's stale (older than 1 hour)
+    if (!cacheTimestamp || (now - parseInt(cacheTimestamp)) > oneHour) {
+      console.log('🔄 Cache is stale, refreshing in background...');
       fetchAllPeople();
+    } else {
+      console.log('✅ Cache is fresh, using local data');
     }
-  }, []);
+  } else {
+    console.log('🔄 No cache found, loading people from server...');
+    fetchAllPeople();
+  }
+}, []);
 
   // Only keep attendees in localStorage
   useEffect(() => {
@@ -1235,25 +1285,29 @@ function ServiceCheckIn() {
 
   const consolidationsForEvent = currentEventId ? consolidatedPeople.length : 0;
 
-  const filteredAttendees = attendeesWithStatus.filter((a) => {
-    const lc = search.toLowerCase();
-    const bag = [
-      a.name,
-      a.surname,
-      a.email,
-      a.phone,
-      a.leader1,
-      a.leader12,
-      a.leader144,
-      firstTimeAddedIds.includes(a._id) ? "first time" : "",
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return bag.includes(lc);
-  });
+const filteredAttendees = attendeesWithStatus.filter((a) => {
+  if (!search) return true;
+  
+  const lc = search.toLowerCase();
+  const searchString = `
+    ${a.name || ''} 
+    ${a.surname || ''} 
+    ${a.email || ''} 
+    ${a.phone || ''} 
+    ${a.leader1 || ''} 
+    ${a.leader12 || ''} 
+    ${a.leader144 || ''}
+    ${firstTimeAddedIds.includes(a._id) ? "first time" : ""}
+  `.toLowerCase();
+  
+  return searchString.includes(lc);
+});
 
-  const paginatedAttendees = filteredAttendees.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+// Pagination remains the same - it's just for display
+const paginatedAttendees = filteredAttendees.slice(
+  page * rowsPerPage, 
+  page * rowsPerPage + rowsPerPage
+);
   const presentCount = attendeesWithStatus.filter((a) => a.present).length;
 
   const modalBaseList = attendeesWithStatus.filter((a) => a.present);
@@ -1812,9 +1866,9 @@ function ServiceCheckIn() {
     </Box>
   );
 
-  if (!hasDataLoaded && (isLoadingPeople || isLoadingEvents)) {
-    return <SkeletonLoader />;
-  }
+if ((!hasDataLoaded && isLoadingPeople) || (attendees.length === 0 && isLoadingPeople)) {
+  return <SkeletonLoader />;
+}
 
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: 8, minHeight: "100vh" }}>
@@ -2030,6 +2084,31 @@ function ServiceCheckIn() {
                   />
                 </span>
               </Tooltip>
+                  {/* Add refresh button */}
+    <Tooltip title="Refresh People Data">
+      <IconButton 
+        onClick={async () => {
+          try {
+            setIsLoadingPeople(true);
+            await axios.post(`${BASE_URL}/cache/people/refresh`);
+            toast.success("Refreshing people data...");
+            // Reload after a short delay to allow cache refresh
+            setTimeout(() => {
+              fetchAllPeople();
+            }, 1000);
+          } catch (error) {
+            console.error('Refresh failed:', error);
+            toast.error("Failed to refresh data");
+          } finally {
+            setIsLoadingPeople(false);
+          }
+        }}
+        color="primary"
+        disabled={isLoadingPeople}
+      >
+        <RefreshIcon />
+      </IconButton>
+    </Tooltip>
 
               <Tooltip title={currentEventId ? "Save and Close Event" : "Please select an event first"}>
                 <span>
@@ -2105,29 +2184,30 @@ function ServiceCheckIn() {
             </Box>
           ) : (
             <Box>
-              <Paper variant="outlined" sx={{ height: 600, boxShadow: 3 }}>
-                <DataGrid
-                  rows={filteredAttendees}
-                  columns={mainColumns}
-                  pageSizeOptions={[25, 50, 100]}
-                  slots={{ toolbar: GridToolbar }}
-                  slotProps={{
-                    toolbar: {
-                      showQuickFilter: true,
-                      quickFilterProps: { debounceMs: 500 },
-                    },
-                  }}
-                  disableRowSelectionOnClick
-                  initialState={{
-                    pagination: { paginationModel: { pageSize: 100 } },
-                  }}
-                  sx={{
-                    '& .MuiDataGrid-row:hover': {
-                      backgroundColor: theme.palette.action.hover,
-                    },
-                  }}
-                />
-              </Paper>
+<Paper variant="outlined" sx={{ height: 600, boxShadow: 3 }}>
+  <DataGrid
+    rows={filteredAttendees}
+    columns={mainColumns}
+    pageSizeOptions={[25, 50, 100]}
+    slots={{ toolbar: GridToolbar }}
+    slotProps={{
+      toolbar: {
+        showQuickFilter: true,
+        quickFilterProps: { debounceMs: 500 },
+      },
+    }}
+    disableRowSelectionOnClick
+    initialState={{
+      pagination: { paginationModel: { pageSize: 100 } },
+    }}
+    getRowId={(row) => row._id} // ← ADD THIS LINE
+    sx={{
+      '& .MuiDataGrid-row:hover': {
+        backgroundColor: theme.palette.action.hover,
+      },
+    }}
+  />
+</Paper>
             </Box>
           )
         )}
