@@ -552,16 +552,6 @@ const MobileEventCard = ({
         <span style={styles.mobileCardValue}>{event.leader12 || 'N/A'}</span>
       </div>
 
-      {/* ✅ FIXED: Only show if we have the currentUserLeaderAt1 value */}
-      {isLeaderAt12 && currentUserLeaderAt1 && event.leader12 !== currentUserLeaderAt1 && (
-        <div style={styles.mobileCardRow}>
-          <span style={styles.mobileCardLabel}>Type:</span>
-          <span style={{ ...styles.mobileCardValue, color: '#007bff', fontWeight: 'bold' }}>
-            Subordinate Cell
-          </span>
-        </div>
-      )}
-
       <div style={styles.mobileActions}>
         <Tooltip title={`View Attendance (${attendeesCount} people)`}>
           <IconButton onClick={() => onOpenAttendance(event)} size="small" sx={{ color: theme.palette.primary.main }}>
@@ -659,13 +649,12 @@ const Events = () => {
   const [isLeaderAt12, setIsLeaderAt12] = useState(false);
 
   const initialViewFilter = useMemo(() => {
-    // ✅ FIXED: Leader at 12 should start with "VIEW ALL" not "personal"
     if (isLeaderAt12) {
-      return 'all'; // Leader at 12 should see VIEW ALL by default
+      return 'all'; 
     } else if (isRegularUser || isRegistrant) {
-      return 'personal'; // Regular users and registrants always see personal view
+      return 'personal'; 
     } else if (isAdmin) {
-      return 'all'; // Admin can toggle between views
+      return 'all'; 
     }
     return 'all';
   }, [userRole, isLeaderAt12, isRegularUser, isRegistrant]);
