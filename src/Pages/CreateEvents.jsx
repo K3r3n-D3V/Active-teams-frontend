@@ -95,24 +95,32 @@ const CreateEvents = ({
   ];
 
   useEffect(() => {
-    if (selectedEventTypeObj) {
-      setEventTypeFlags({
-        isGlobal: !!selectedEventTypeObj.isGlobal,
-        isTicketed: !!selectedEventTypeObj.isTicketed,
-        hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
-      });
+  if (selectedEventTypeObj) {
+    console.log('Selected Event Type Obj:', selectedEventTypeObj); // Add this for debugging
+    
+    setEventTypeFlags({
+      isGlobal: !!selectedEventTypeObj.isGlobal,
+      isTicketed: !!selectedEventTypeObj.isTicketed,
+      hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps, // Make sure this is set
+    });
 
-      setFormData((prev) => ({
-        ...prev,
-        eventType: selectedEventTypeObj.name || prev.eventType,
-      }));
-    } else if (selectedEventType) {
-      setFormData((prev) => ({
-        ...prev,
-        eventType: selectedEventType,
-      }));
-    }
-  }, [selectedEventTypeObj, selectedEventType]);
+    setFormData((prev) => ({
+      ...prev,
+      eventType: selectedEventTypeObj.name || prev.eventType,
+    }));
+  } else if (selectedEventType) {
+    setFormData((prev) => ({
+      ...prev,
+      eventType: selectedEventType,
+    }));
+  }
+}, [selectedEventTypeObj, selectedEventType]);
+
+// Add this useEffect to debug
+useEffect(() => {
+  console.log('Current eventTypeFlags:', eventTypeFlags);
+  console.log('Should show leader fields:', hasPersonSteps && !isGlobalEvent);
+}, [eventTypeFlags, hasPersonSteps, isGlobalEvent]);
 
   useEffect(() => {
     if (isTicketedEvent && priceTiers.length === 0) {

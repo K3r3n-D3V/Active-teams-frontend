@@ -619,7 +619,7 @@ const Events = () => {
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
-  const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
+  // const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState('all');
@@ -2857,94 +2857,64 @@ const allTypes = useMemo(() => {
       if (type === "all") return "all";
       return typeof type === "string" ? type : type.name || String(type);
     };
+  
+const handleEventTypeClick = (typeValue) => {
+  console.log("Event type clicked:", typeValue);
 
-    const handleEventTypeClick = (typeValue) => {
-      console.log("🎯 Event type clicked:", typeValue);
+  // Always update the filter first
+  setSelectedEventTypeFilter(typeValue);
+  setCurrentPage(1);
 
-      // ✅ Always update the filter first
-      setSelectedEventTypeFilter(typeValue);
-      setCurrentPage(1);
+  // CRITICAL FIX: Find and set the full event type object
+  if (typeValue !== 'all') {
+    const selectedTypeObj = eventTypes.find(
+      type => type.name === typeValue || type._id === typeValue
+    );
+    console.log("Selected Event Type Object:", selectedTypeObj);
+    if (setSelectedEventTypeObj) {
+      setSelectedEventTypeObj(selectedTypeObj);
+    }
+  } else {
+    if (setSelectedEventTypeObj) {
+      setSelectedEventTypeObj(null);
+    }
+  }
 
-      // ✅ Build proper API parameters
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now() // Cache buster
-      };
+  // Build proper API parameters
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE,
+    _t: Date.now() // Cache buster
+  };
 
-      // ✅ CRITICAL: Use the correct event_type parameter
-      if (typeValue === "all") {
-        fetchParams.event_type = "CELLS";
-      } else {
-        fetchParams.event_type = typeValue; // This should be "Conferencetestt"
-      }
+  // CRITICAL: Use the correct event_type parameter
+  if (typeValue === "all") {
+    fetchParams.event_type = "CELLS";
+  } else {
+    fetchParams.event_type = typeValue;
+  }
 
-      // Add other filters
-      if (selectedStatus !== 'all') {
-        fetchParams.status = selectedStatus;
-      }
+  // Add other filters
+  if (selectedStatus !== 'all') {
+    fetchParams.status = selectedStatus;
+  }
 
-      if (searchQuery.trim()) {
-        fetchParams.search = searchQuery.trim();
-      }
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
 
-      console.log("🎯 Fetching events with params:", fetchParams);
+  console.log("Fetching events with params:", fetchParams);
 
-      // ✅ Force fetch immediately
-      fetchEvents(fetchParams, true);
+  // Force fetch immediately
+  fetchEvents(fetchParams, true);
 
-      // Auto-collapse on mobile after selection
-      if (isMobileView) {
-        setIsCollapsed(true);
-      }
-    };
+  // Auto-collapse on mobile after selection
+  if (isMobileView) {
+    setIsCollapsed(true);
+  }
+};
 
-    // Add this function to test the API directly
-    const testEventTypeAPI = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        console.log("🧪 TESTING EVENT TYPE API DIRECTLY for:", selectedEventTypeFilter);
-
-        const testParams = {
-          event_type: selectedEventTypeFilter,
-          limit: 50,
-          page: 1
-        };
-
-        console.log("🧪 API CALL DETAILS:", {
-          url: `${BACKEND_URL}/events/other`,
-          params: testParams
-        });
-
-        const response = await axios.get(`${BACKEND_URL}/events/other`, {
-          headers: { Authorization: `Bearer ${token}` },
-          params: testParams
-        });
-
-        console.log("🧪 DIRECT EVENT TYPE API TEST RESULTS:", {
-          eventTypeRequested: selectedEventTypeFilter,
-          totalEvents: response.data.total_events,
-          eventsFound: response.data.events?.length,
-          events: response.data.events?.map(e => ({
-            name: e.eventName,
-            eventType: e.eventType,
-            eventTypeName: e.eventTypeName,
-            eventTypeId: e.eventTypeId,
-            id: e._id
-          }))
-        });
-
-        return response.data;
-      } catch (error) {
-        console.error("🧪 DIRECT EVENT TYPE API TEST FAILED:", error);
-        if (error.response) {
-          console.error("🧪 Error response:", error.response.data);
-        }
-      }
-    };
-
-    // Also add this function to check ALL events
     const checkAllEvents = async () => {
       try {
         const token = localStorage.getItem("token");
