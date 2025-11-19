@@ -435,7 +435,7 @@ const formatDate = (date) => {
   }).replace(/\//g, ' - ');
 };
 
-const generateDynamicColumns = (events) => {
+const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
   if (!events || events.length === 0) return [];
 
   const sampleEvent = events[0];
@@ -447,7 +447,7 @@ const generateDynamicColumns = (events) => {
       'persistent_attendees', 'uuid', 'did_not_meet', 'status', 'is_recurring',
       'week_identifier', 'attendees', '_id', 'isoverdue', 'attendance', 'location',
       'eventtype', 'event_type', 'eventtypes', 'status', 'displaydate', 'originatedid',
-      'leader12', 'leader@12', 'leader at 12', 'original_event_id'
+      'leader12', 'leader@12', 'leader at 12', 'original_event_id', '_is_overdue'
     ];
 
     const exactMatch = excludedFields.includes(key);
@@ -467,7 +467,56 @@ const generateDynamicColumns = (events) => {
     return !shouldExclude;
   });
 
-  return filteredFields.map((key) => ({
+  const columns = [];
+
+  // Add Status column for all event types
+  columns.push({
+    field: 'overdue',
+    headerName: 'Status',
+    flex: 0.8,
+    minWidth: 100,
+    renderCell: (params) => {
+      const isOverdueEvent = isOverdue(params.row);
+      const status = params.row.status || 'incomplete';
+      
+      // Only show OVERDUE for Cells
+      if (isOverdueEvent && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
+        return (
+          <Box
+            sx={{
+              color: '#dc3545',
+              fontSize: '0.8rem',
+              fontWeight: 'bold',
+              whiteSpace: 'nowrap',
+              textAlign: 'center',
+              width: '100%',
+            }}
+          >
+            OVERDUE
+          </Box>
+        );
+      }
+      
+      // For other event types or non-overdue cells, show regular status
+      return (
+        <Box
+          sx={{
+            color: status === 'complete' ? '#28a745' : status === 'did_not_meet' ? '#dc3545' : '#6c757d',
+            fontWeight: '500',
+            fontSize: '0.8rem',
+            textTransform: 'capitalize',
+            textAlign: 'center',
+            width: '100%',
+          }}
+        >
+          {status.replace('_', ' ')}
+        </Box>
+      );
+    },
+  });
+
+  // Add other filtered fields
+  columns.push(...filteredFields.map((key) => ({
     field: key,
     headerName: key
       .replace(/_/g, ' ')
@@ -494,7 +543,9 @@ const generateDynamicColumns = (events) => {
         </Box>
       );
     },
-  }));
+  })));
+
+  return columns;
 }
 
 const MobileEventCard = ({
@@ -650,11 +701,11 @@ const Events = () => {
 
   const initialViewFilter = useMemo(() => {
     if (isLeaderAt12) {
-      return 'all'; 
+      return 'all';
     } else if (isRegularUser || isRegistrant) {
-      return 'personal'; 
+      return 'personal';
     } else if (isAdmin) {
-      return 'all'; 
+      return 'all';
     }
     return 'all';
   }, [userRole, isLeaderAt12, isRegularUser, isRegistrant]);
@@ -814,227 +865,227 @@ const Events = () => {
     checkLeaderAt12Status();
   }, [BACKEND_URL]);
 
-const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
-  console.log("fetchEvents - START", {
-    filters,
-    forceRefresh,
-    isLeaderAt12,
-    isAdmin,
-    isRegistrant,
-    viewFilter,
-    currentUserLeaderAt1
-  });
-
-  // Log current user details
-  const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
-  console.log("Current User Making Request:", {
-    email: userProfile.email,
-    name: userProfile.name,
-    role: userProfile.role
-  });
-
-  setLoading(true);
-  setIsLoading(true);
-
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setSnackbar({ open: true, message: "Please log in again", severity: "error" });
-      setTimeout(() => window.location.href = '/login', 2000);
-      setEvents([]);
-      setFilteredEvents([]);
-      setLoading(false);
-      setIsLoading(false);
-      return;
-    }
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-
-    const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
-
-    const params = {
-      page: filters.page !== undefined ? filters.page : currentPage,
-      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-      status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
-      search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
-      start_date: startDateParam,
-      ...filters
-    };
-
-    // FIXED: Determine if this is a Cell request or Event Type request
-    const isCellRequest = params.event_type === 'CELLS' || params.event_type === 'all' || !params.event_type;
-    const isEventTypeRequest = !isCellRequest;
-
-    console.log("Request Type:", {
-      isCellRequest,
-      isEventTypeRequest,
-      event_type: params.event_type
+  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
+    console.log("fetchEvents - START", {
+      filters,
+      forceRefresh,
+      isLeaderAt12,
+      isAdmin,
+      isRegistrant,
+      viewFilter,
+      currentUserLeaderAt1
     });
 
-    // FIXED: Simplified logic - Event types should NEVER have personal/leader filters
-    if (isEventTypeRequest) {
-      console.log("EVENT TYPE MODE - Removing all personal/leader filters");
-      // Remove ALL role-based filters for event types
-      delete params.personal;
-      delete params.leader_at_12_view;
-      delete params.show_personal_cells;
-      delete params.show_all_authorized;
-      delete params.include_subordinate_cells;
-      delete params.leader_at_1_identifier;
-    } else {
-      // Cell request - apply role-based logic
-      console.log("CELL MODE - Applying role-based filters");
-      
-      if (isRegistrant || isRegularUser) {
-        params.personal = true;
-      } else if (isLeaderAt12) {
-        params.leader_at_12_view = true;
-        params.include_subordinate_cells = true;
-
-        if (currentUserLeaderAt1) {
-          params.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === 'personal') {
-          params.show_personal_cells = true;
-          params.personal = true;
-        } else {
-          params.show_all_authorized = true;
-          params.include_subordinate_cells = true;
-        }
-      }
-    }
-
-    // Determine which endpoint to use
-    let endpoint;
-    if (isCellRequest) {
-      endpoint = `${BACKEND_URL}/events/cells`;
-      console.log("Using CELLS endpoint");
-    } else {
-      endpoint = `${BACKEND_URL}/events/other`;
-      console.log("Using OTHER EVENTS endpoint for event type:", params.event_type);
-    }
-
-    // Clean up undefined parameters
-    Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
-
-    console.log('Final API call details:', { 
-      endpoint, 
-      params: JSON.stringify(params, null, 2),
-      userRole: userProfile.role
+    // Log current user details
+    const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+    console.log("Current User Making Request:", {
+      email: userProfile.email,
+      name: userProfile.name,
+      role: userProfile.role
     });
 
-    const cacheKey = getCacheKey({ ...params, userRole, endpoint });
+    setLoading(true);
+    setIsLoading(true);
 
-    if (!forceRefresh) {
-      const cachedData = getCachedData(cacheKey);
-      if (cachedData) {
-        console.log("Using cached data");
-        setEvents(cachedData.events);
-        setFilteredEvents(cachedData.events);
-        setTotalEvents(cachedData.total_events);
-        setTotalPages(cachedData.total_pages);
-        if (filters.page !== undefined) setCurrentPage(filters.page);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+        setTimeout(() => window.location.href = '/login', 2000);
+        setEvents([]);
+        setFilteredEvents([]);
         setLoading(false);
         setIsLoading(false);
         return;
       }
-    }
 
-    console.log("Making fresh API call");
-    const response = await axios.get(endpoint, {
-      headers,
-      params,
-      timeout: 60000
-    });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
 
-    const responseData = response.data;
-    const newEvents = responseData.events || responseData.results || [];
+      const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
-    console.log('BACKEND RESPONSE:');
-    console.log('Total events:', responseData.total_events);
-    console.log('Events found:', newEvents.length);
+      const params = {
+        page: filters.page !== undefined ? filters.page : currentPage,
+        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+        status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
+        search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
+        start_date: startDateParam,
+        ...filters
+      };
 
-    if (newEvents.length > 0) {
-      console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
-        name: e.eventName,
-        type: e.eventType,
-        typeName: e.eventTypeName,
-        id: e._id
-      })));
-    } else {
-      console.log('No events returned');
-      
-      // Debug for empty results
+      // FIXED: Determine if this is a Cell request or Event Type request
+      const isCellRequest = params.event_type === 'CELLS' || params.event_type === 'all' || !params.event_type;
+      const isEventTypeRequest = !isCellRequest;
+
+      console.log("Request Type:", {
+        isCellRequest,
+        isEventTypeRequest,
+        event_type: params.event_type
+      });
+
+      // FIXED: Simplified logic - Event types should NEVER have personal/leader filters
       if (isEventTypeRequest) {
-        console.log('Empty results for event type:', params.event_type);
-        console.log('Possible reasons:');
-        console.log('   - No events exist for this event type');
-        console.log('   - Events exist but have different eventType values');
-        console.log('   - Backend filtering issue');
+        console.log("EVENT TYPE MODE - Removing all personal/leader filters");
+        // Remove ALL role-based filters for event types
+        delete params.personal;
+        delete params.leader_at_12_view;
+        delete params.show_personal_cells;
+        delete params.show_all_authorized;
+        delete params.include_subordinate_cells;
+        delete params.leader_at_1_identifier;
+      } else {
+        // Cell request - apply role-based logic
+        console.log("CELL MODE - Applying role-based filters");
+
+        if (isRegistrant || isRegularUser) {
+          params.personal = true;
+        } else if (isLeaderAt12) {
+          params.leader_at_12_view = true;
+          params.include_subordinate_cells = true;
+
+          if (currentUserLeaderAt1) {
+            params.leader_at_1_identifier = currentUserLeaderAt1;
+          }
+
+          if (viewFilter === 'personal') {
+            params.show_personal_cells = true;
+            params.personal = true;
+          } else {
+            params.show_all_authorized = true;
+            params.include_subordinate_cells = true;
+          }
+        }
       }
+
+      // Determine which endpoint to use
+      let endpoint;
+      if (isCellRequest) {
+        endpoint = `${BACKEND_URL}/events/cells`;
+        console.log("Using CELLS endpoint");
+      } else {
+        endpoint = `${BACKEND_URL}/events/other`;
+        console.log("Using OTHER EVENTS endpoint for event type:", params.event_type);
+      }
+
+      // Clean up undefined parameters
+      Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
+
+      console.log('Final API call details:', {
+        endpoint,
+        params: JSON.stringify(params, null, 2),
+        userRole: userProfile.role
+      });
+
+      const cacheKey = getCacheKey({ ...params, userRole, endpoint });
+
+      if (!forceRefresh) {
+        const cachedData = getCachedData(cacheKey);
+        if (cachedData) {
+          console.log("Using cached data");
+          setEvents(cachedData.events);
+          setFilteredEvents(cachedData.events);
+          setTotalEvents(cachedData.total_events);
+          setTotalPages(cachedData.total_pages);
+          if (filters.page !== undefined) setCurrentPage(filters.page);
+          setLoading(false);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      console.log("Making fresh API call");
+      const response = await axios.get(endpoint, {
+        headers,
+        params,
+        timeout: 60000
+      });
+
+      const responseData = response.data;
+      const newEvents = responseData.events || responseData.results || [];
+
+      console.log('BACKEND RESPONSE:');
+      console.log('Total events:', responseData.total_events);
+      console.log('Events found:', newEvents.length);
+
+      if (newEvents.length > 0) {
+        console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
+          name: e.eventName,
+          type: e.eventType,
+          typeName: e.eventTypeName,
+          id: e._id
+        })));
+      } else {
+        console.log('No events returned');
+
+        // Debug for empty results
+        if (isEventTypeRequest) {
+          console.log('Empty results for event type:', params.event_type);
+          console.log('Possible reasons:');
+          console.log('   - No events exist for this event type');
+          console.log('   - Events exist but have different eventType values');
+          console.log('   - Backend filtering issue');
+        }
+      }
+
+      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+
+      setCachedData(cacheKey, {
+        events: newEvents,
+        total_events: totalEventsCount,
+        total_pages: totalPagesCount
+      });
+
+      setEvents(newEvents);
+      setFilteredEvents(newEvents);
+      setTotalEvents(totalEventsCount);
+      setTotalPages(totalPagesCount);
+      if (filters.page !== undefined) setCurrentPage(filters.page);
+
+      console.log("fetchEvents - COMPLETE");
+
+    } catch (err) {
+      console.error("Error fetching events:", err);
+      if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+        setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
+      } else if (err.response?.status === 401) {
+        setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+        localStorage.removeItem("token");
+        localStorage.removeItem("userProfile");
+        setTimeout(() => window.location.href = '/login', 2000);
+      } else {
+        const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
+        setSnackbar({ open: true, message: `Error loading events: ${errorMessage}`, severity: "error" });
+      }
+      setEvents([]);
+      setFilteredEvents([]);
+      setTotalEvents(0);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+      setIsLoading(false);
     }
-
-    const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-    const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
-
-    setCachedData(cacheKey, {
-      events: newEvents,
-      total_events: totalEventsCount,
-      total_pages: totalPagesCount
-    });
-
-    setEvents(newEvents);
-    setFilteredEvents(newEvents);
-    setTotalEvents(totalEventsCount);
-    setTotalPages(totalPagesCount);
-    if (filters.page !== undefined) setCurrentPage(filters.page);
-
-    console.log("fetchEvents - COMPLETE");
-
-  } catch (err) {
-    console.error("Error fetching events:", err);
-    if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-      setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
-    } else if (err.response?.status === 401) {
-      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
-      localStorage.removeItem("token");
-      localStorage.removeItem("userProfile");
-      setTimeout(() => window.location.href = '/login', 2000);
-    } else {
-      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
-      setSnackbar({ open: true, message: `Error loading events: ${errorMessage}`, severity: "error" });
-    }
-    setEvents([]);
-    setFilteredEvents([]);
-    setTotalEvents(0);
-    setTotalPages(1);
-  } finally {
-    setLoading(false);
-    setIsLoading(false);
-  }
-}, [
-  currentPage,
-  rowsPerPage,
-  selectedStatus,
-  selectedEventTypeFilter,
-  searchQuery,
-  viewFilter,
-  userRole,
-  isLeaderAt12,
-  isAdmin,
-  isRegistrant,
-  currentUserLeaderAt1,
-  getCacheKey,
-  getCachedData,
-  setCachedData,
-  BACKEND_URL,
-  DEFAULT_API_START_DATE,
-  setSnackbar
-]);
+  }, [
+    currentPage,
+    rowsPerPage,
+    selectedStatus,
+    selectedEventTypeFilter,
+    searchQuery,
+    viewFilter,
+    userRole,
+    isLeaderAt12,
+    isAdmin,
+    isRegistrant,
+    currentUserLeaderAt1,
+    getCacheKey,
+    getCachedData,
+    setCachedData,
+    BACKEND_URL,
+    DEFAULT_API_START_DATE,
+    setSnackbar
+  ]);
 
   const fetchEventTypes = useCallback(async () => {
     try {
@@ -2157,35 +2208,35 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false) => {
 
 
   // Add this useEffect to automatically set Leader at 12 to VIEW ALL on initial load
-useEffect(() => {
-  if (isLeaderAt12 && viewFilter === 'personal') {
-    console.log("🔄 Auto-switching Leader at 12 to VIEW ALL mode on initial load");
-    setViewFilter('all');
-    
-    // Force refresh with VIEW ALL params
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage,
-      start_date: DEFAULT_API_START_DATE,
-      event_type: "CELLS"
-    };
+  useEffect(() => {
+    if (isLeaderAt12 && viewFilter === 'personal') {
+      console.log("🔄 Auto-switching Leader at 12 to VIEW ALL mode on initial load");
+      setViewFilter('all');
 
-    if (isLeaderAt12) {
-      fetchParams.leader_at_12_view = true;
-      fetchParams.include_subordinate_cells = true;
-      fetchParams.show_all_authorized = true;
+      // Force refresh with VIEW ALL params
+      const fetchParams = {
+        page: 1,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        event_type: "CELLS"
+      };
 
-      if (currentUserLeaderAt1) {
-        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+      if (isLeaderAt12) {
+        fetchParams.leader_at_12_view = true;
+        fetchParams.include_subordinate_cells = true;
+        fetchParams.show_all_authorized = true;
+
+        if (currentUserLeaderAt1) {
+          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+        }
       }
-    }
 
-    // Small delay to ensure state is updated
-    setTimeout(() => {
-      fetchEvents(fetchParams, true);
-    }, 100);
-  }
-}, [isLeaderAt12]); // Only depend on isLeaderAt12, not viewFilter
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        fetchEvents(fetchParams, true);
+      }, 100);
+    }
+  }, [isLeaderAt12]); // Only depend on isLeaderAt12, not viewFilter
 
 
   useEffect(() => {
@@ -2208,26 +2259,24 @@ useEffect(() => {
     checkAuth();
   }, []);
 
+const isOverdue = useCallback((event) => {
+  const did_not_meet = event.did_not_meet || false;
+  const hasAttendees = event.attendees && event.attendees.length > 0;
+  const status = (event.status || event.Status || '').toLowerCase().trim();
+  const isMissedRecurrent = event.is_recurring && event.recurrent_status === 'missed';
 
+  if (hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || did_not_meet || isMissedRecurrent) {
+    return false;
+  }
+  if (!event?.date) return false;
+  const eventDate = new Date(event.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  eventDate.setHours(0, 0, 0, 0);
 
-  // Utility Functions
-  const isOverdue = useCallback((event) => {
-    const did_not_meet = event.did_not_meet || false;
-    const hasAttendees = event.attendees && event.attendees.length > 0;
-    const status = (event.status || event.Status || '').toLowerCase().trim();
-    const isMissedRecurrent = event.is_recurring && event.recurrent_status === 'missed';
+  return eventDate < today;
+}, []);
 
-    if (hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || did_not_meet || isMissedRecurrent) {
-      return false;
-    }
-    if (!event?.date) return false;
-    const eventDate = new Date(event.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
-
-    return eventDate < today;
-  }, []);
 
   // Add this useEffect to track filter changes
   useEffect(() => {
@@ -2245,7 +2294,6 @@ useEffect(() => {
       let response;
       const oldName = editingEventType?.name;
 
-      console.log("💾 STARTING Event Type Save:", { oldName, newData: eventTypeData, eventTypeId });
 
       if (eventTypeId) {
         if (!oldName) {
@@ -2272,43 +2320,32 @@ useEffect(() => {
 
       console.log("✅ Event type saved successfully:", result);
 
-      // ✅ CRITICAL FIX: Close modal first to avoid state conflicts
       setEventTypesModalOpen(false);
       setEditingEventType(null);
 
-      // ✅ IMMEDIATELY update the filter if we were viewing the old event type
       if (selectedEventTypeFilter === oldName) {
         console.log(`🔄 Immediately updating filter from '${oldName}' to '${newName}'`);
         setSelectedEventTypeFilter(newName);
       }
 
-      // ✅ Force refresh event types
       await fetchEventTypes();
 
-      // ✅ Clear all caches aggressively
       clearCache();
       const cacheKeys = Object.keys(localStorage).filter(key =>
         key.includes('cache') || key.includes('events_cache')
       );
       cacheKeys.forEach(key => localStorage.removeItem(key));
 
-      // ✅ Reset to page 1
       setCurrentPage(1);
-
-      // ✅ Wait a moment for state to update
       await new Promise(resolve => setTimeout(resolve, 500));
-
-      // ✅ FORCE REFRESH with the correct event type
       const refreshParams = {
         page: 1,
         limit: rowsPerPage,
         start_date: DEFAULT_API_START_DATE,
         _t: Date.now(),
-        // ✅ ALWAYS use the new event type name for the fetch
         event_type: newName
       };
 
-      // Add other current filters
       if (selectedStatus !== 'all') {
         refreshParams.status = selectedStatus;
       }
@@ -2319,12 +2356,10 @@ useEffect(() => {
 
       console.log("🔍 Force refreshing events with:", refreshParams);
 
-      // ✅ Force the fetch
       await fetchEvents(refreshParams, true);
 
-      // ✅ Double-check after a delay
       setTimeout(async () => {
-        console.log("🔄 Double-checking events are loaded...");
+        // console.log("🔄 Double- events are loaded...");
         await fetchEvents(refreshParams, true);
       }, 1000);
 
@@ -2394,104 +2429,104 @@ useEffect(() => {
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
 
-useEffect(() => {
-  // Don't fetch if we're still initializing
-  if (eventTypes.length === 0) {
-    return;
-  }
-
-  const fetchParams = {
-    page: currentPage,
-    limit: rowsPerPage,
-    status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    search: searchQuery.trim() || undefined,
-    start_date: DEFAULT_API_START_DATE
-  };
-
-  // FIXED: Proper endpoint determination
-  let endpointType = "cells";
-  
-  if (selectedEventTypeFilter === 'all') {
-    fetchParams.event_type = "CELLS";
-    endpointType = "cells";
-  } else if (selectedEventTypeFilter === 'CELLS') {
-    fetchParams.event_type = "CELLS";
-    endpointType = "cells";
-  } else {
-    // For any other event type, use the other events endpoint
-    fetchParams.event_type = selectedEventTypeFilter;
-    endpointType = "other";
-  }
-
-  console.log("Endpoint Selection:", {
-    selectedEventTypeFilter,
-    endpointType,
-    finalEventType: fetchParams.event_type
-  });
-
-  // FIXED: Clean role-based logic - ONLY apply to cells
-  if (endpointType === "cells") {
-    // Cells endpoint logic
-    if (isAdmin) {
-      if (viewFilter === 'personal') {
-        fetchParams.personal = true;
-      }
-    } else if (isRegistrant || isRegularUser) {
-      fetchParams.personal = true;
-    } else if (isLeaderAt12) {
-      fetchParams.leader_at_12_view = true;
-      fetchParams.include_subordinate_cells = true;
-
-      if (currentUserLeaderAt1) {
-        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-      }
-
-      if (viewFilter === 'personal') {
-        fetchParams.show_personal_cells = true;
-        fetchParams.personal = true;
-      } else {
-        fetchParams.show_all_authorized = true;
-        fetchParams.include_subordinate_cells = true;
-      }
+  useEffect(() => {
+    // Don't fetch if we're still initializing
+    if (eventTypes.length === 0) {
+      return;
     }
-  } else {
-    // Other events endpoint - NO personal filtering for any role
-    console.log("Loading event type data for:", selectedEventTypeFilter);
-    
-    // Remove all personal and leader-specific filters for event types
-    delete fetchParams.personal;
-    delete fetchParams.leader_at_12_view;
-    delete fetchParams.show_personal_cells;
-    delete fetchParams.show_all_authorized;
-    delete fetchParams.include_subordinate_cells;
-    delete fetchParams.leader_at_1_identifier;
-    
-    console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
-  }
 
-  // Remove undefined values
-  Object.keys(fetchParams).forEach(key =>
-    fetchParams[key] === undefined && delete fetchParams[key]
-  );
+    const fetchParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      search: searchQuery.trim() || undefined,
+      start_date: DEFAULT_API_START_DATE
+    };
 
-  console.log("FINAL API call params:", fetchParams);
-  fetchEvents(fetchParams, true);
-}, [
-  selectedEventTypeFilter,
-  selectedStatus,
-  viewFilter,
-  currentPage,
-  rowsPerPage,
-  searchQuery,
-  eventTypes.length,
-  isLeaderAt12,
-  isAdmin,
-  isRegularUser,
-  isRegistrant,
-  currentUserLeaderAt1,
-  fetchEvents,
-  DEFAULT_API_START_DATE
-]);
+    // FIXED: Proper endpoint determination
+    let endpointType = "cells";
+
+    if (selectedEventTypeFilter === 'all') {
+      fetchParams.event_type = "CELLS";
+      endpointType = "cells";
+    } else if (selectedEventTypeFilter === 'CELLS') {
+      fetchParams.event_type = "CELLS";
+      endpointType = "cells";
+    } else {
+      // For any other event type, use the other events endpoint
+      fetchParams.event_type = selectedEventTypeFilter;
+      endpointType = "other";
+    }
+
+    console.log("Endpoint Selection:", {
+      selectedEventTypeFilter,
+      endpointType,
+      finalEventType: fetchParams.event_type
+    });
+
+    // FIXED: Clean role-based logic - ONLY apply to cells
+    if (endpointType === "cells") {
+      // Cells endpoint logic
+      if (isAdmin) {
+        if (viewFilter === 'personal') {
+          fetchParams.personal = true;
+        }
+      } else if (isRegistrant || isRegularUser) {
+        fetchParams.personal = true;
+      } else if (isLeaderAt12) {
+        fetchParams.leader_at_12_view = true;
+        fetchParams.include_subordinate_cells = true;
+
+        if (currentUserLeaderAt1) {
+          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+        }
+
+        if (viewFilter === 'personal') {
+          fetchParams.show_personal_cells = true;
+          fetchParams.personal = true;
+        } else {
+          fetchParams.show_all_authorized = true;
+          fetchParams.include_subordinate_cells = true;
+        }
+      }
+    } else {
+      // Other events endpoint - NO personal filtering for any role
+      console.log("Loading event type data for:", selectedEventTypeFilter);
+
+      // Remove all personal and leader-specific filters for event types
+      delete fetchParams.personal;
+      delete fetchParams.leader_at_12_view;
+      delete fetchParams.show_personal_cells;
+      delete fetchParams.show_all_authorized;
+      delete fetchParams.include_subordinate_cells;
+      delete fetchParams.leader_at_1_identifier;
+
+      console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
+    }
+
+    // Remove undefined values
+    Object.keys(fetchParams).forEach(key =>
+      fetchParams[key] === undefined && delete fetchParams[key]
+    );
+
+    console.log("FINAL API call params:", fetchParams);
+    fetchEvents(fetchParams, true);
+  }, [
+    selectedEventTypeFilter,
+    selectedStatus,
+    viewFilter,
+    currentPage,
+    rowsPerPage,
+    searchQuery,
+    eventTypes.length,
+    isLeaderAt12,
+    isAdmin,
+    isRegularUser,
+    isRegistrant,
+    currentUserLeaderAt1,
+    fetchEvents,
+    DEFAULT_API_START_DATE
+  ]);
 
   useEffect(() => {
     console.log("🔍 LEADER AT 12 DEBUG:", {
@@ -2547,154 +2582,154 @@ useEffect(() => {
     shouldShowToggle: (isAdmin || isLeaderAt12) && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')
   });
 
-const ViewFilterButtons = () => {
-   const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus)) && 
-    (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
+  const ViewFilterButtons = () => {
+    const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus)) &&
+      (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
 
-  if (isRegularUser || isRegistrant) {
-    return null;
-  }
+    if (isRegularUser || isRegistrant) {
+      return null;
+    }
 
-  if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all' && selectedEventTypeFilter !== 'CELLS') {
-    return null;
-  }
+    if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all' && selectedEventTypeFilter !== 'CELLS') {
+      return null;
+    }
 
-  if (!shouldShowToggle) {
-    return null;
-  }
+    if (!shouldShowToggle) {
+      return null;
+    }
 
- 
-const handleViewFilterChange = (newViewFilter) => {
-  console.log("🔄 View filter changing:", {
-    from: viewFilter,
-    to: newViewFilter,
-    isLeaderAt12,
-    isAdmin,
-    currentUserLeaderAt1,
-    currentUser: currentUser 
-  });
 
-  setViewFilter(newViewFilter);
-  setCurrentPage(1);
+    const handleViewFilterChange = (newViewFilter) => {
+      console.log("🔄 View filter changing:", {
+        from: viewFilter,
+        to: newViewFilter,
+        isLeaderAt12,
+        isAdmin,
+        currentUserLeaderAt1,
+        currentUser: currentUser
+      });
 
-  const fetchParams = {
-    page: 1,
-    limit: rowsPerPage,
-    start_date: DEFAULT_API_START_DATE,
-    event_type: "CELLS",
-    _t: Date.now() // Cache buster
-  };
+      setViewFilter(newViewFilter);
+      setCurrentPage(1);
 
-  if (selectedStatus !== 'all') {
-    fetchParams.status = selectedStatus;
-  }
-  if (searchQuery.trim()) {
-    fetchParams.search = searchQuery.trim();
-  }
+      const fetchParams = {
+        page: 1,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        event_type: "CELLS",
+        _t: Date.now() // Cache buster
+      };
 
-  if (isAdmin) {
-    if (newViewFilter === 'personal') {
-      fetchParams.personal = true;
-      if (currentUser?.email) {
-        fetchParams.user_email = currentUser.email;
+      if (selectedStatus !== 'all') {
+        fetchParams.status = selectedStatus;
       }
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
-      delete fetchParams.leader_at_1_identifier;
-      console.log("🔍 Admin PERSONAL MODE: Showing admin's own cells only", {
-        personal: true,
-        user_email: currentUser?.email,
-        removed_leader_params: true
-      });
-    } else {
-      delete fetchParams.personal;
-      delete fetchParams.user_email;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
-      delete fetchParams.leader_at_1_identifier;
-      console.log("🔍 Admin ALL MODE: Showing ALL cells (everyone's cells)", {
-        personal: false,
-        removed_all_filters: true
-      });
-    }
-  }
-  // Only apply Leader at 12 logic if NOT an Admin
-  else if (isLeaderAt12) {
-    fetchParams.leader_at_12_view = true;
-    
-    if (currentUserLeaderAt1) {
-      fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-    }
+      if (searchQuery.trim()) {
+        fetchParams.search = searchQuery.trim();
+      }
 
-    if (newViewFilter === 'personal') {
-      // LEADER AT 12 PERSONAL: Only show personal cells
-      fetchParams.show_personal_cells = true;
-      fetchParams.personal = true;
-      // Remove conflicting params
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
-      console.log("🎯 Leader at 12 PERSONAL MODE: Showing PERSONAL cells only");
-    } else {
-      // LEADER AT 12 VIEW ALL: Show all authorized cells
-      fetchParams.show_all_authorized = true;
-      fetchParams.include_subordinate_cells = true;
-      // Remove conflicting params
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.personal;
-      console.log("🎯 Leader at 12 VIEW ALL MODE: Showing ALL authorized cells (own + subordinates)");
-    }
-  }
+      if (isAdmin) {
+        if (newViewFilter === 'personal') {
+          fetchParams.personal = true;
+          if (currentUser?.email) {
+            fetchParams.user_email = currentUser.email;
+          }
+          delete fetchParams.leader_at_12_view;
+          delete fetchParams.show_personal_cells;
+          delete fetchParams.show_all_authorized;
+          delete fetchParams.include_subordinate_cells;
+          delete fetchParams.leader_at_1_identifier;
+          console.log("🔍 Admin PERSONAL MODE: Showing admin's own cells only", {
+            personal: true,
+            user_email: currentUser?.email,
+            removed_leader_params: true
+          });
+        } else {
+          delete fetchParams.personal;
+          delete fetchParams.user_email;
+          delete fetchParams.leader_at_12_view;
+          delete fetchParams.show_personal_cells;
+          delete fetchParams.show_all_authorized;
+          delete fetchParams.include_subordinate_cells;
+          delete fetchParams.leader_at_1_identifier;
+          console.log("🔍 Admin ALL MODE: Showing ALL cells (everyone's cells)", {
+            personal: false,
+            removed_all_filters: true
+          });
+        }
+      }
+      // Only apply Leader at 12 logic if NOT an Admin
+      else if (isLeaderAt12) {
+        fetchParams.leader_at_12_view = true;
 
-  console.log("🔍 Final API call params:", JSON.stringify(fetchParams, null, 2));
-  fetchEvents(fetchParams, true);
-};
+        if (currentUserLeaderAt1) {
+          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+        }
 
-  const getAllLabel = () => {
-    if (isAdmin) return " VIEW ALL";
-    if (isLeaderAt12) return "VIEW ALL";
-    return "ALL";
+        if (newViewFilter === 'personal') {
+          // LEADER AT 12 PERSONAL: Only show personal cells
+          fetchParams.show_personal_cells = true;
+          fetchParams.personal = true;
+          // Remove conflicting params
+          delete fetchParams.show_all_authorized;
+          delete fetchParams.include_subordinate_cells;
+          console.log("🎯 Leader at 12 PERSONAL MODE: Showing PERSONAL cells only");
+        } else {
+          // LEADER AT 12 VIEW ALL: Show all authorized cells
+          fetchParams.show_all_authorized = true;
+          fetchParams.include_subordinate_cells = true;
+          // Remove conflicting params
+          delete fetchParams.show_personal_cells;
+          delete fetchParams.personal;
+          console.log("🎯 Leader at 12 VIEW ALL MODE: Showing ALL authorized cells (own + subordinates)");
+        }
+      }
+
+      console.log("🔍 Final API call params:", JSON.stringify(fetchParams, null, 2));
+      fetchEvents(fetchParams, true);
+    };
+
+    const getAllLabel = () => {
+      if (isAdmin) return " VIEW ALL";
+      if (isLeaderAt12) return "VIEW ALL";
+      return "ALL";
+    };
+
+    const getPersonalLabel = () => {
+      if (isAdmin) return "PERSONAL";
+      if (isLeaderAt12) return "PERSONAL";
+      return "PERSONAL";
+    };
+
+    return (
+      <div style={styles.viewFilterContainer}>
+        <span style={styles.viewFilterLabel}>View:</span>
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="all"
+            checked={viewFilter === 'all'}
+            onChange={(e) => handleViewFilterChange(e.target.value)}
+          />
+          <span style={styles.viewFilterText}>
+            {getAllLabel()}
+          </span>
+        </label>
+        <label style={styles.viewFilterRadio}>
+          <input
+            type="radio"
+            name="viewFilter"
+            value="personal"
+            checked={viewFilter === 'personal'}
+            onChange={(e) => handleViewFilterChange(e.target.value)}
+          />
+          <span style={styles.viewFilterText}>
+            {getPersonalLabel()}
+          </span>
+        </label>
+      </div>
+    );
   };
-
-  const getPersonalLabel = () => {
-    if (isAdmin) return "PERSONAL";
-    if (isLeaderAt12) return "PERSONAL";
-    return "PERSONAL";
-  };
-
-  return (
-    <div style={styles.viewFilterContainer}>
-      <span style={styles.viewFilterLabel}>View:</span>
-      <label style={styles.viewFilterRadio}>
-        <input
-          type="radio"
-          name="viewFilter"
-          value="all"
-          checked={viewFilter === 'all'}
-          onChange={(e) => handleViewFilterChange(e.target.value)}
-        />
-        <span style={styles.viewFilterText}>
-          {getAllLabel()}
-        </span>
-      </label>
-      <label style={styles.viewFilterRadio}>
-        <input
-          type="radio"
-          name="viewFilter"
-          value="personal"
-          checked={viewFilter === 'personal'}
-          onChange={(e) => handleViewFilterChange(e.target.value)}
-        />
-        <span style={styles.viewFilterText}>
-          {getPersonalLabel()}
-        </span>
-      </label>
-    </div>
-  );
-};
 
   const EventTypeSelector = ({
     eventTypes,
@@ -2811,39 +2846,39 @@ const handleViewFilterChange = (newViewFilter) => {
       },
     };
 
-const allTypes = useMemo(() => {
-  const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
+    const allTypes = useMemo(() => {
+      const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
 
-  // ✅ FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
-  if (isAdmin) {
-    // Admin sees everything
-    const adminTypes = ["all"];
-    availableTypes.forEach(type => {
-      adminTypes.push(type);
-    });
-    return adminTypes;
-  } else if (isRegistrant) {
-    // ✅ FIXED: Registrant sees all event types including Cells (priority over Leader at 12)
-    const registrantTypes = ["all"];
-    availableTypes.forEach(type => {
-      registrantTypes.push(type);
-    });
-    console.log("🎯 Registrant event types:", registrantTypes);
-    return registrantTypes;
-  } else if (isLeaderAt12) {
-    // Leader at 12 sees ALL event types (Cells + other events)
-    const leaderTypes = ["all"];
-    availableTypes.forEach(type => {
-      leaderTypes.push(type);
-    });
-    return leaderTypes;
-  } else if (isRegularUser) {
-    // Regular users ONLY see "Cells" - no other event types
-    return ["all"]; // Only "all" which shows Cells
-  } else {
-    return ["all"];
-  }
-}, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser]);
+      // ✅ FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
+      if (isAdmin) {
+        // Admin sees everything
+        const adminTypes = ["all"];
+        availableTypes.forEach(type => {
+          adminTypes.push(type);
+        });
+        return adminTypes;
+      } else if (isRegistrant) {
+        // ✅ FIXED: Registrant sees all event types including Cells (priority over Leader at 12)
+        const registrantTypes = ["all"];
+        availableTypes.forEach(type => {
+          registrantTypes.push(type);
+        });
+        console.log("🎯 Registrant event types:", registrantTypes);
+        return registrantTypes;
+      } else if (isLeaderAt12) {
+        // Leader at 12 sees ALL event types (Cells + other events)
+        const leaderTypes = ["all"];
+        availableTypes.forEach(type => {
+          leaderTypes.push(type);
+        });
+        return leaderTypes;
+      } else if (isRegularUser) {
+        // Regular users ONLY see "Cells" - no other event types
+        return ["all"]; // Only "all" which shows Cells
+      } else {
+        return ["all"];
+      }
+    }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser]);
 
     const getDisplayName = (type) => {
       if (!type) return "";
@@ -2857,63 +2892,63 @@ const allTypes = useMemo(() => {
       if (type === "all") return "all";
       return typeof type === "string" ? type : type.name || String(type);
     };
-  
-const handleEventTypeClick = (typeValue) => {
-  console.log("Event type clicked:", typeValue);
 
-  // Always update the filter first
-  setSelectedEventTypeFilter(typeValue);
-  setCurrentPage(1);
+    const handleEventTypeClick = (typeValue) => {
+      console.log("Event type clicked:", typeValue);
 
-  // CRITICAL FIX: Find and set the full event type object
-  if (typeValue !== 'all') {
-    const selectedTypeObj = eventTypes.find(
-      type => type.name === typeValue || type._id === typeValue
-    );
-    console.log("Selected Event Type Object:", selectedTypeObj);
-    if (setSelectedEventTypeObj) {
-      setSelectedEventTypeObj(selectedTypeObj);
-    }
-  } else {
-    if (setSelectedEventTypeObj) {
-      setSelectedEventTypeObj(null);
-    }
-  }
+      // Always update the filter first
+      setSelectedEventTypeFilter(typeValue);
+      setCurrentPage(1);
 
-  // Build proper API parameters
-  const fetchParams = {
-    page: 1,
-    limit: rowsPerPage,
-    start_date: DEFAULT_API_START_DATE,
-    _t: Date.now() // Cache buster
-  };
+      // CRITICAL FIX: Find and set the full event type object
+      if (typeValue !== 'all') {
+        const selectedTypeObj = eventTypes.find(
+          type => type.name === typeValue || type._id === typeValue
+        );
+        console.log("Selected Event Type Object:", selectedTypeObj);
+        if (setSelectedEventTypeObj) {
+          setSelectedEventTypeObj(selectedTypeObj);
+        }
+      } else {
+        if (setSelectedEventTypeObj) {
+          setSelectedEventTypeObj(null);
+        }
+      }
 
-  // CRITICAL: Use the correct event_type parameter
-  if (typeValue === "all") {
-    fetchParams.event_type = "CELLS";
-  } else {
-    fetchParams.event_type = typeValue;
-  }
+      // Build proper API parameters
+      const fetchParams = {
+        page: 1,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        _t: Date.now() // Cache buster
+      };
 
-  // Add other filters
-  if (selectedStatus !== 'all') {
-    fetchParams.status = selectedStatus;
-  }
+      // CRITICAL: Use the correct event_type parameter
+      if (typeValue === "all") {
+        fetchParams.event_type = "CELLS";
+      } else {
+        fetchParams.event_type = typeValue;
+      }
 
-  if (searchQuery.trim()) {
-    fetchParams.search = searchQuery.trim();
-  }
+      // Add other filters
+      if (selectedStatus !== 'all') {
+        fetchParams.status = selectedStatus;
+      }
 
-  console.log("Fetching events with params:", fetchParams);
+      if (searchQuery.trim()) {
+        fetchParams.search = searchQuery.trim();
+      }
 
-  // Force fetch immediately
-  fetchEvents(fetchParams, true);
+      console.log("Fetching events with params:", fetchParams);
 
-  // Auto-collapse on mobile after selection
-  if (isMobileView) {
-    setIsCollapsed(true);
-  }
-};
+      // Force fetch immediately
+      fetchEvents(fetchParams, true);
+
+      // Auto-collapse on mobile after selection
+      if (isMobileView) {
+        setIsCollapsed(true);
+      }
+    };
 
     const checkAllEvents = async () => {
       try {
@@ -2984,11 +3019,11 @@ const handleEventTypeClick = (typeValue) => {
       handleMenuClose();
     };
 
-   const shouldShowSelector = isAdmin || isRegistrant || isLeaderAt12 || isRegularUser;
+    const shouldShowSelector = isAdmin || isRegistrant || isLeaderAt12 || isRegularUser;
 
-if (!shouldShowSelector) {
-  return null;
-}
+    if (!shouldShowSelector) {
+      return null;
+    }
 
     useEffect(() => {
       if (isMobileView) {
@@ -3423,51 +3458,52 @@ if (!shouldShowSelector) {
                       id: event._id || idx,
                       ...event,
                     }))}
-                    columns={[
-                      ...generateDynamicColumns(paginatedEvents),
-                      {
-                        field: 'actions',
-                        headerName: 'Actions',
-                        sortable: false,
-                        flex: 1,
-                        minWidth: 200,
-                        renderCell: (params) => (
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Tooltip title="Capture Attendance" arrow>
-                              <IconButton
-                                onClick={() => handleCaptureClick(params.row)}
-                                size="small"
-                                sx={{
-                                  backgroundColor: '#007bff',
-                                  color: '#fff',
-                                  '&:hover': { backgroundColor: '#0056b3' },
-                                }}
-                              >
-                                <CheckBoxIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Edit Event" arrow>
-                              <IconButton
-                                onClick={() => handleEditEvent(params.row)}
-                                size="small"
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            {isAdmin && (
-                              <Tooltip title="Delete Event" arrow>
-                                <IconButton
-                                  onClick={() => handleDeleteEvent(params.row)}
-                                  size="small"
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Box>
-                        ),
-                      },
-                    ]}
+
+columns={[
+  ...generateDynamicColumns(paginatedEvents, isOverdue, selectedEventTypeFilter),
+  {
+    field: 'actions',
+    headerName: 'Actions',
+    sortable: false,
+    flex: 1,
+    minWidth: 200,
+    renderCell: (params) => (
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        <Tooltip title="Capture Attendance" arrow>
+          <IconButton
+            onClick={() => handleCaptureClick(params.row)}
+            size="small"
+            sx={{
+              backgroundColor: '#007bff',
+              color: '#fff',
+              '&:hover': { backgroundColor: '#0056b3' },
+            }}
+          >
+            <CheckBoxIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Edit Event" arrow>
+          <IconButton
+            onClick={() => handleEditEvent(params.row)}
+            size="small"
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        {isAdmin && (
+          <Tooltip title="Delete Event" arrow>
+            <IconButton
+              onClick={() => handleDeleteEvent(params.row)}
+              size="small"
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+    ),
+  },
+]}
                     disableRowSelectionOnClick
                     hideFooterPagination
                     hideFooter
