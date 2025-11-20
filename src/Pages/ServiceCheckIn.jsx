@@ -1728,22 +1728,6 @@ const consolidationsForEvent = currentEventId
               </span>
             </Tooltip>
             <Stack direction="row" spacing={2} alignItems="center">
-              <Tooltip title={currentEventId ? "Refresh All Data" : "Please select an event first"}>
-                <span>
-                  <IconButton 
-                    onClick={handleFullRefresh}
-                    color="primary"
-                    disabled={!currentEventId || isRefreshing}
-                    sx={{
-                      opacity: currentEventId ? 1 : 0.5,
-                      cursor: currentEventId ? "pointer" : "not-allowed",
-                    }}
-                  >
-                    <RefreshIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-
               <Tooltip title={currentEventId ? "Consolidation" : "Please select an event first"}>
                 <span>
                   <EmojiPeopleIcon
@@ -1783,6 +1767,21 @@ const consolidationsForEvent = currentEventId
                   >
                     {isClosingEvent ? "Closing..." : "Save"}
                   </Button>
+                </span>
+              </Tooltip>
+                            <Tooltip title={currentEventId ? "Refresh All Data" : "Please select an event first"}>
+                <span>
+                  <IconButton 
+                    onClick={handleFullRefresh}
+                    color="primary"
+                    disabled={!currentEventId || isRefreshing}
+                    sx={{
+                      opacity: currentEventId ? 1 : 0.5,
+                      cursor: currentEventId ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    <RefreshIcon />
+                  </IconButton>
                 </span>
               </Tooltip>
             </Stack>
