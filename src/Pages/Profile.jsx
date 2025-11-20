@@ -794,7 +794,7 @@ export default function Profile() {
             {/* Info Banner for Regular Users */}
             {isRegularUser && (
               <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-                Your profile information is managed by church administrators. You can only change your password.
+                Your profile information is managed by church administrators. You can only change your email, number and  password.
               </Alert>
             )}
 
