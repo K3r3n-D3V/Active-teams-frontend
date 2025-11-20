@@ -452,11 +452,8 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       }}
     >
       <DialogTitle sx={{ pb: 1 }}>
-        <Typography variant="h6" component="div">
+        <Typography variant="h5" component="div">
           Consolidation Assignment
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Assign follow-up task for new converts (Does NOT check people in)
         </Typography>
       </DialogTitle>
       
@@ -467,11 +464,11 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           </Alert>
         )}
 
-        <Alert severity="info" sx={{ mb: 2 }}>
+        {/* <Alert severity="info" sx={{ mb: 2 }}>
           <Typography variant="body2">
             <strong>Note:</strong> This creates a consolidation task only. It does NOT mark the person as checked in to the event.
           </Typography>
-        </Alert>
+        </Alert> */}
 
         <TextField
           label="Task Type"

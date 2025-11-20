@@ -245,7 +245,7 @@ setConsolidatedPeople(realTimeData.consolidations?.filter(cons =>
     await loadEventCheckIns();
     await fetchConsolidatedPeople();
     await fetchAllPeople();
-    toast.success("Data refreshed with fallback method!");
+    toast.success("Data refreshed");
   } finally {
     setIsRefreshing(false);
   }
