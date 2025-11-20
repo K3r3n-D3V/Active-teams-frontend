@@ -794,7 +794,7 @@ export default function Profile() {
             {/* Info Banner for Regular Users */}
             {isRegularUser && (
               <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-                Your profile information is managed by church administrators. You can only change your password.
+                Your profile information is managed by church administrators. You can only change your email, number and  password.
               </Alert>
             )}
 
@@ -837,7 +837,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Email Address
                   </Typography>
-                  <TextField value={form.email || ""} onChange={handleChange("email")} fullWidth disabled={!canEditProfile} error={!!errors.email} helperText={errors.email} sx={commonFieldSx} />
+                  <TextField value={form.email || ""} onChange={handleChange("email")} fullWidth error={!!errors.email} helperText={errors.email} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Home Address */}
@@ -853,7 +853,7 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Phone Number
                   </Typography>
-                  <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth disabled={!canEditProfile} error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
+                  <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
                 </Grid>
 
                 {/* Invited By */}

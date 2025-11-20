@@ -712,7 +712,7 @@ const StatsDashboard = () => {
     >
       <Avatar
         sx={{
-          bgcolor: type === 'cells' ? 'warning.main' : 'secondary.main',
+          bgcolor: type === 'cells' ? 'error.main' : 'secondary.main',
           mr: 2,
           width: getResponsiveValue(32, 40, 48, 48, 48),
           height: getResponsiveValue(32, 40, 48, 48, 48)
@@ -738,7 +738,7 @@ const StatsDashboard = () => {
           <Chip
             size="small"
             label={item.status}
-            color={item.status === 'completed' ? 'success' : 'warning'}
+            color={item.status === 'completed' ? 'success' : 'error'}
             sx={{ mt: 0.5 }}
           />
         )}
@@ -964,7 +964,7 @@ const StatsDashboard = () => {
                 <Chip
                   size="small"
                   label={cell.status || 'incomplete'}
-                  color="warning"
+                  color="error"
                   sx={{ mt: 0.5 }}
                 />
               </Card>
@@ -995,7 +995,7 @@ const StatsDashboard = () => {
                       <Chip 
                         size="small" 
                         label={cell.status || 'incomplete'} 
-                        color="warning"
+                        color="error"
                       />
                     </TableCell>
                   </TableRow>
@@ -1126,7 +1126,7 @@ const StatsDashboard = () => {
               value={overview?.outstanding_cells || 0}
               subtitle="Need completion"
               icon={<CellTower />}
-              color="warning"
+              color="error"
             />
           )}
         </Grid>
@@ -1190,7 +1190,7 @@ const StatsDashboard = () => {
                   </Typography>
                   <Chip 
                     label={overdueCells.length} 
-                    color="warning" 
+                    color="error" 
                     variant="outlined"
                   />
                 </>
@@ -1353,7 +1353,7 @@ const StatsDashboard = () => {
                             <Chip
                               size="small"
                               label={event.status || 'incomplete'}
-                              color={event.status === 'completed' ? 'success' : 'warning'}
+                              color={event.status === 'completed' ? 'success' : 'error'}
                               sx={{ mt: 0.5 }}
                             />
                           </Card>
