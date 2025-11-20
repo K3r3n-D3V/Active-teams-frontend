@@ -3023,6 +3023,7 @@ const confirmDidNotMeet = async () => {
       fontWeight: 600,
       color: theme.palette.text.primary,
       margin: 0,
+          textAlign: 'center',
     },
     confirmBody: {
       marginBottom: 20,

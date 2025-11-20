@@ -9,8 +9,13 @@ import {
   Typography,
   useTheme,
   IconButton,
+  Card,
+  CardContent,
 } from "@mui/material";
 import CloseIcon from '@mui/icons-material/Close';
+import CategoryIcon from '@mui/icons-material/Category';
+import DescriptionIcon from '@mui/icons-material/Description';
+
 const EventTypesModal = ({
   open,
   onClose,
@@ -32,12 +37,11 @@ const EventTypesModal = ({
   const nameInputRef = useRef(null);
   const isDarkMode = theme.palette.mode === "dark";
 
-  // theme-aware dark/light styles
   const darkModeStyles = {
     modalBg: isDarkMode ? theme.palette.background.paper : "#fff",
     modalBorder: isDarkMode ? `1px solid ${theme.palette.divider}` : "1px solid rgba(0,0,0,0.08)",
-    headerBg: isDarkMode ? theme.palette.background.default : theme.palette.primary.main,
-    headerColor: isDarkMode ? theme.palette.text.primary : theme.palette.primary.contrastText,
+    headerBg: isDarkMode ? theme.palette.background.default : "#f8f9fa",
+    headerColor: theme.palette.text.primary,
     textColor: theme.palette.text.primary,
     input: {
       "& .MuiOutlinedInput-root": {
@@ -65,7 +69,30 @@ const EventTypesModal = ({
     },
   };
 
-  // ✅ Validation
+  useEffect(() => {
+    if (open && selectedEventType) {
+      setFormData({
+        name: selectedEventType.name || "",
+        description: selectedEventType.description || "",
+        isTicketed: !!selectedEventType.isTicketed,
+        isGlobal: !!selectedEventType.isGlobal,
+        hasPersonSteps: !!selectedEventType.hasPersonSteps,
+      });
+    } else if (open && !selectedEventType) {
+      resetForm();
+    }
+  }, [selectedEventType, open]);
+
+  useEffect(() => {
+    if (open && nameInputRef.current) {
+      setTimeout(() => {
+        if (nameInputRef.current) {
+          nameInputRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [open]);
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -89,10 +116,14 @@ const EventTypesModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ Input & checkbox handlers
   const handleCheckboxChange = (name) => (event) => {
     const { checked } = event.target;
+    
     setFormData((prev) => ({ ...prev, [name]: checked }));
+
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
   };
 
   const handleInputChange = (e) => {
@@ -104,11 +135,9 @@ const EventTypesModal = ({
     }
   };
 
-  // live character counts for helper text
   const nameCharCount = formData.name ? formData.name.length : 0;
   const descCharCount = formData.description ? formData.description.length : 0;
 
-  // handle Enter key on the name field: submit on Enter (no Shift), allow Shift+Enter for newline in multiline fields
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -116,7 +145,6 @@ const EventTypesModal = ({
     }
   };
 
-  // ✅ Reset form
   const resetForm = () => {
     setFormData({
       name: "",
@@ -128,14 +156,15 @@ const EventTypesModal = ({
     setErrors({});
   };
 
-  // ✅ Submit handler
   const handleSubmit = async () => {
     if (!validateForm() || loading) return;
 
     setLoading(true);
     try {
+      const eventTypeName = formData.name.trim();
+      
       const eventTypeData = {
-        name: formData.name.trim(),
+        name: eventTypeName,
         description: formData.description.trim(),
         isTicketed: formData.isTicketed,
         isGlobal: formData.isGlobal,
@@ -143,81 +172,60 @@ const EventTypesModal = ({
       };
 
       let result;
-      if (selectedEventType && selectedEventType.name) {
-        result = await onSubmit(eventTypeData, selectedEventType.name);
+      if (selectedEventType && (selectedEventType.name || selectedEventType._id)) {
+        result = await onSubmit(eventTypeData, selectedEventType._id || selectedEventType.name);
       } else {
         result = await onSubmit(eventTypeData);
       }
 
-      // ✅ Pass selected event type object to parent
       if (setSelectedEventTypeObj) {
-        setSelectedEventTypeObj({
+        const completeEventType = {
           ...eventTypeData,
-          _id: selectedEventType?._id || result?._id,
-        });
+          name: eventTypeName,
+          _id: selectedEventType?._id || result?._id || result?.id,
+        };
+        
+        setSelectedEventTypeObj(completeEventType);
       }
 
       resetForm();
       onClose();
       return result;
     } catch (error) {
-      console.error("Error saving event type:", error);
+      if (error.response?.data?.detail) {
+        setErrors({ submit: error.response.data.detail });
+      } else {
+        setErrors({ submit: "Failed to save event type. Please try again." });
+      }
+      
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Prefill on edit or reset on close
-  useEffect(() => {
-    if (selectedEventType && open) {
-      setFormData({
-        name: selectedEventType.name || "",
-        description: selectedEventType.description || "",
-        isTicketed: !!selectedEventType.isTicketed,
-        isGlobal: !!selectedEventType.isGlobal,
-        hasPersonSteps: !!selectedEventType.hasPersonSteps,
-      });
-    } else if (!open) {
-      resetForm();
-    }
-  }, [selectedEventType, open]);
-
-  // ✅ Focus input when opening
-  useEffect(() => {
-    if (open && nameInputRef.current) {
-      setTimeout(() => nameInputRef.current.focus(), 100);
-    }
-  }, [open]);
-
-  // ✅ Close handler (prevents closing while saving)
   const handleClose = () => {
-    if (loading) return; // don't allow closing while submitting
+    if (loading) return;
     resetForm();
-    if (typeof setSelectedEventTypeObj === "function") {
-      setSelectedEventTypeObj(null);
-    }
+    
     if (typeof onClose === "function") onClose();
   };
 
-  // responsive helpers (smaller devices)
-  const { breakpoints } = theme;
-
-   return (
-     <Modal
-       open={open}
-       onClose={handleClose}
-       sx={{
-         display: "flex",
-         alignItems: "center",
-         justifyContent: "center",
-         padding: "20px",
-       }}
-     >
-       <Box
-         sx={{
-          width: { xs: "95%", sm: "85%", md: "700px" },
-          maxWidth: "700px",
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+      }}
+    >
+      <Box
+        sx={{
+          width: { xs: "95%", sm: "85%", md: "600px" },
+          maxWidth: "600px",
           bgcolor: darkModeStyles.modalBg,
           color: darkModeStyles.textColor,
           borderRadius: 2,
@@ -227,153 +235,206 @@ const EventTypesModal = ({
           display: "flex",
           flexDirection: "column",
           border: darkModeStyles.modalBorder,
-         }}
-       >
-         {/* Header */}
-         <Box
-           sx={{
-             backgroundColor: darkModeStyles.headerBg,
-             color: darkModeStyles.headerColor,
-             padding: { xs: "12px 16px", sm: "16px 20px", md: "20px 24px" },
-             display: "flex",
-             justifyContent: "space-between",
-             alignItems: "center",
-           }}
-         >
-           <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
-             {selectedEventType ? "Edit Event Type" : "Create New Event Type"}
-           </Typography>
-           <IconButton
-             onClick={handleClose}
-             disabled={loading}
-             sx={{
-               color: 'primary.contrastText',
-               '&:hover': {
-                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
-               },
-             }}
-           >
-             <CloseIcon />
-           </IconButton>
-         </Box>
- 
-         {/* Content */}
-         <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
-           {/* Event Type Name */}
-           <TextField
-             inputRef={nameInputRef}
-             label="Event Type Name"
-             name="name"
-             fullWidth
-             value={formData.name}
-             onChange={handleInputChange}
-             onKeyPress={handleKeyPress}
-             error={!!errors.name}
-             helperText={
-               errors.name || 
-               `${nameCharCount}/50 characters` +
-               (nameCharCount > 45 ? " (approaching limit)" : "")
-             }
-             placeholder="Enter event type name..."
-             disabled={loading}
-             sx={{ mb: 3, ...darkModeStyles.input }}
-           />
- 
-           {/* Checkboxes */}
-           <Box
-             sx={{
-               display: "flex",
-               flexWrap: "wrap",
-               gap: { xs: 1, sm: 2 },
-               alignItems: "center",
-               mb: 3,
-             }}
-           >
-             <FormControlLabel
-               control={
-                 <Checkbox
-                   name="isTicketed"
-                   checked={formData.isTicketed}
-                   onChange={handleCheckboxChange("isTicketed")}
-                   color="primary"
-                   disabled={loading}
-                 />
-               }
-               label="Ticketed Event"
-               sx={{ color: darkModeStyles.formControlLabel.color }}
-             />
-             <FormControlLabel
-               control={
-                 <Checkbox
-                   name="isGlobal"
-                   checked={formData.isGlobal}
-                   onChange={handleCheckboxChange("isGlobal")}
-                   color="primary"
-                   disabled={loading}
-                 />
-               }
-               label="Global Event"
-               sx={{ color: darkModeStyles.formControlLabel.color }}
-             />
-             <FormControlLabel
-               control={
-                 <Checkbox
-                   name="hasPersonSteps"
-                   checked={formData.hasPersonSteps}
-                   onChange={handleCheckboxChange("hasPersonSteps")}
-                   color="primary"
-                   disabled={loading}
-                 />
-               }
-               label="Personal Steps Event"
-               sx={{ color: darkModeStyles.formControlLabel.color }}
-             />
-           </Box>
- 
-           {/* Description */}
-           <TextField
-             label="Event Description"
-             name="description"
-             fullWidth
-             multiline
-             rows={4}
-             value={formData.description}
-             onChange={handleInputChange}
-             error={!!errors.description}
-             helperText={
-               errors.description || 
-               `${descCharCount}/500 characters` +
-               (descCharCount > 450 ? " (approaching limit)" : "") +
-               " - Describe the purpose and details of this event type"
-             }
-             placeholder="Enter a detailed description of this event type..."
-             disabled={loading}
-             sx={{ mb: 3, ...darkModeStyles.input }}
-           />
- 
-           {/* Buttons - responsive: stack on xs */}
-           <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mt: 3, flexDirection: { xs: "column-reverse", sm: "row" } }}>
-             <Button
-               variant="outlined"
-               onClick={handleClose}
-               disabled={loading}
-               sx={{ width: { xs: "100%", sm: "auto" }, flex: 1 }}
-             >
-               Cancel
-             </Button>
-             <Button
-               variant="contained"
-               onClick={handleSubmit}
-               disabled={loading}
-               sx={{ width: { xs: "100%", sm: "auto" }, flex: 1 }}
-             >
-               {loading ? "Saving..." : selectedEventType ? "Update" : "Create"}
-             </Button>
-           </Box>
-         </Box>
-       </Box>
-     </Modal>
-   );
- };
- 
- export default EventTypesModal;
+        }}
+      >
+        {/* Header */}
+        <Box
+          sx={{
+            backgroundColor: darkModeStyles.headerBg,
+            color: darkModeStyles.headerColor,
+            padding: { xs: "16px 20px", sm: "20px 24px" },
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            borderBottom: `1px solid ${theme.palette.divider}`,
+          }}
+        >
+          <CategoryIcon color="primary" />
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="h5" component="h2" sx={{ fontWeight: "600", fontSize: "1.25rem" }}>
+              {selectedEventType ? "Edit Event Type" : "Create Event Type"}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+              {selectedEventType ? "Update existing event type details" : "Define a new type of event"}
+            </Typography>
+          </Box>
+          <IconButton
+            onClick={handleClose}
+            disabled={loading}
+            sx={{
+              color: 'text.secondary',
+              '&:hover': {
+                backgroundColor: 'action.hover',
+              },
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
+
+        {/* Content */}
+        <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
+          <Card variant="outlined" sx={{ mb: 3 }}>
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: "600", mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CategoryIcon fontSize="small" />
+                Basic Information
+              </Typography>
+              
+              <TextField
+                inputRef={nameInputRef}
+                label="Event Type Name"
+                name="name"
+                fullWidth
+                value={formData.name}
+                onChange={handleInputChange}
+                onKeyPress={handleKeyPress}
+                error={!!errors.name}
+                helperText={
+                  errors.name || 
+                  `${nameCharCount}/50 characters` +
+                  (nameCharCount > 45 ? " (approaching limit)" : "")
+                }
+                placeholder="e.g., Cell Group, Conference, Workshop, Training"
+                disabled={loading}
+                sx={{ mb: 3, ...darkModeStyles.input }}
+              />
+
+              <TextField
+                label="Event Description"
+                name="description"
+                fullWidth
+                multiline
+                rows={3}
+                value={formData.description}
+                onChange={handleInputChange}
+                error={!!errors.description}
+                helperText={
+                  errors.description || 
+                  `${descCharCount}/500 characters` +
+                  (descCharCount > 450 ? " (approaching limit)" : "")
+                }
+                placeholder="Describe the purpose and characteristics of this event type..."
+                disabled={loading}
+                sx={{ ...darkModeStyles.input }}
+              />
+            </CardContent>
+          </Card>
+
+          <Card variant="outlined">
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: "600", mb: 2 }}>
+                Event Type Settings
+              </Typography>
+
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                }}
+              >
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      name="isTicketed"
+                      checked={formData.isTicketed}
+                      onChange={handleCheckboxChange("isTicketed")}
+                      color="primary"
+                      disabled={loading}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="500">
+                        Ticketed Event
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                        Enable ticket pricing and payment options for this event type
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
+                />
+
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      name="isGlobal"
+                      checked={formData.isGlobal}
+                      onChange={handleCheckboxChange("isGlobal")}
+                      color="primary"
+                      disabled={loading}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="500">
+                        Global Event
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                        Organization-wide events visible to all members
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
+                />
+
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      name="hasPersonSteps"
+                      checked={formData.hasPersonSteps}
+                      onChange={handleCheckboxChange("hasPersonSteps")}
+                      color="primary"
+                      disabled={loading}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="500">
+                        Personal Steps Event
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                        Include leader assignment and personal progression tracking (recurring events)
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
+                />
+              </Box>
+
+              {errors.submit && (
+                <Typography variant="body2" sx={{ color: 'error.main', mt: 2 }}>
+                  {errors.submit}
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Buttons */}
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 4 }}>
+            <Button
+              variant="outlined"
+              onClick={handleClose}
+              disabled={loading}
+              sx={{ minWidth: '100px' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSubmit}
+              disabled={loading}
+              sx={{ minWidth: '120px' }}
+            >
+              {loading ? "Saving..." : selectedEventType ? "Update" : "Create"}
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+    </Modal>
+  );
+};
+
+export default EventTypesModal;
