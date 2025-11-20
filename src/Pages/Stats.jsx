@@ -1024,6 +1024,160 @@ const StatsDashboard = () => {
       </DialogActions>
     </Dialog>
   );
+  // Modal for viewing all tasks
+const ViewAllTasksModal = () => (
+  <Dialog 
+    open={viewAllTasksModalOpen} 
+    onClose={() => setViewAllTasksModalOpen(false)}
+    maxWidth="lg"
+    fullWidth
+    PaperProps={{
+      sx: {
+        boxShadow: 6,
+        ...(isSmDown && {
+          margin: 2,
+          maxHeight: '80vh',
+          width: 'calc(100% - 32px)',
+        })
+      }
+    }}
+  >
+    <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between">
+        <Typography variant={getResponsiveValue("h6", "h6", "h5", "h5", "h5")} fontWeight="bold">
+          All Tasks ({allTasks.length})
+        </Typography>
+        <IconButton onClick={() => setViewAllTasksModalOpen(false)} size="small">
+          <Close />
+        </IconButton>
+      </Box>
+    </DialogTitle>
+    
+    <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
+      {isSmDown ? (
+        // Mobile: Card layout
+        <Box>
+          {allTasks.length === 0 ? (
+            <Box textAlign="center" py={4}>
+              <CheckCircle color="success" sx={{ fontSize: 48, mb: 2 }} />
+              <Typography variant="h6" color="textSecondary">
+                No tasks found!
+              </Typography>
+            </Box>
+          ) : (
+            allTasks.map((task, index) => (
+              <Card key={task._id || index} variant="outlined" sx={{ mb: 1.5, p: 2, boxShadow: 2 }}>
+                <Box display="flex" alignItems="center" gap={2} mb={1}>
+                  <Avatar sx={{ bgcolor: 'secondary.main' }}>
+                    <Task />
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle1" fontWeight="medium">
+                      {task.name || task.title || 'Untitled Task'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Type: {task.taskType || 'General'}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap mt={1}>
+                  {task.assignedfor && (
+                    <Chip 
+                      size="small" 
+                      label={`Assigned to: ${task.assignedfor}`}
+                      color="info"
+                      variant="outlined"
+                    />
+                  )}
+                  {task.contactperson && (
+                    <Chip 
+                      size="small" 
+                      label={task.contactperson}
+                      color="primary"
+                      variant="outlined"
+                    />
+                  )}
+                  <Chip
+                    size="small"
+                    label={task.status || 'pending'}
+                    color={task.status === 'completed' ? 'success' : 'warning'}
+                  />
+                </Stack>
+
+                {task.followup_date && (
+                  <Typography variant="caption" color="text.secondary" display="block" mt={1}>
+                    Follow-up: {formatDate(task.followup_date)}
+                  </Typography>
+                )}
+              </Card>
+            ))
+          )}
+        </Box>
+      ) : (
+        // Desktop: Table layout
+        <TableContainer component={Paper} sx={{ maxHeight: 500 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell><strong>Task Name</strong></TableCell>
+                <TableCell><strong>Type</strong></TableCell>
+                <TableCell><strong>Assigned To</strong></TableCell>
+                <TableCell><strong>Contact</strong></TableCell>
+                <TableCell><strong>Follow-up</strong></TableCell>
+                <TableCell><strong>Status</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {allTasks.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                    <CheckCircle color="success" sx={{ fontSize: 48, mb: 2, display: 'block', mx: 'auto' }} />
+                    <Typography variant="h6" color="textSecondary">
+                      No tasks found!
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                allTasks.map((task, index) => (
+                  <TableRow key={task._id || index} hover>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="medium">
+                        {task.name || task.title || 'Untitled'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{task.taskType || '-'}</TableCell>
+                    <TableCell>{task.assignedfor || '-'}</TableCell>
+                    <TableCell>{task.contactperson || '-'}</TableCell>
+                    <TableCell>
+                      {task.followup_date ? formatDate(task.followup_date) : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        size="small" 
+                        label={task.status || 'pending'} 
+                        color={task.status === 'completed' ? 'success' : 'warning'}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </DialogContent>
+
+    <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+      <Button 
+        onClick={() => setViewAllTasksModalOpen(false)} 
+        size={isSmDown ? "small" : "medium"}
+      >
+        Close
+      </Button>
+    </DialogActions>
+  </Dialog>
+);
 
   // Error state
   if (stats.error) {
@@ -1296,7 +1450,6 @@ const StatsDashboard = () => {
             </Box>
           </Paper>
         )}
-
         {activeTab === 2 && (
           <Paper variant="outlined" sx={{ boxShadow: 3, p: isSmDown ? 1 : 2, height: '100%' }}>
             {stats.loading ? (
@@ -1378,6 +1531,7 @@ const StatsDashboard = () => {
       {/* Modals */}
       <CreateEventModal />
       <ViewAllCellsModal />
+      <ViewAllTasksModal />
 
       {/* Snackbar for notifications */}
       <Snackbar
