@@ -378,7 +378,7 @@ if (formData.date) {
   // Fallback: if no date but has recurring days, use first recurring day
   dayValue = formData.recurringDays[0];
 } else {
-  // Final fallback
+ 
   dayValue = "One-time";
 }
 

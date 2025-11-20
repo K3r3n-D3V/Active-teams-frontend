@@ -52,11 +52,10 @@ const CreateEventModal = ({ open, onClose, user }) => {
     }
   };
 
-  const handleEventTypeSelect = (eventType) => {
-    setSelectedEventType(eventType.name);
-    setSelectedEventTypeObj(eventType);
-    setShowEventForm(true);
-  };
+const handleEventTypeSelect = (eventType) => {
+  setSelectedEventType(eventType);
+  setSelectedEventTypeObj(null);
+};
 
   const handleCreateNewEventType = () => {
     setEventTypeModalOpen(true);
@@ -66,32 +65,34 @@ const CreateEventModal = ({ open, onClose, user }) => {
     setEventTypeModalOpen(false);
   };
 
-  const handleEventTypeSubmit = async (eventTypeData) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${BACKEND_URL}/event-types`, {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(eventTypeData),
-      });
+const handleEventTypeSubmit = async (eventTypeData) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${BACKEND_URL}/event-types`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(eventTypeData),
+    });
 
-      if (response.ok) {
-        const newEventType = await response.json();
-        await fetchEventTypes();
-        setSelectedEventType(newEventType.name);
-        setSelectedEventTypeObj(newEventType);
-        setShowEventForm(true);
-        setEventTypeModalOpen(false);
-        return newEventType;
-      }
-    } catch (error) {
-      console.error('Error creating event type:', error);
-      throw error;
+    if (response.ok) {
+      const newEventType = await response.json();
+      await fetchEventTypes();
+      
+      setSelectedEventTypeFilter(newEventType.name);
+      setSelectedEventTypeObj(newEventType);
+      
+      setShowEventForm(true);
+      setEventTypeModalOpen(false);
+      return newEventType;
     }
-  };
+  } catch (error) {
+    console.error('Error creating event type:', error);
+    throw error;
+  }
+};
 
   const handleModalClose = () => {
     setSelectedEventType(null);
@@ -206,7 +207,7 @@ const CreateEventModal = ({ open, onClose, user }) => {
               onClose={handleEventCreateSuccess}
               eventTypes={eventTypes}
               selectedEventType={selectedEventType}
-              selectedEventTypeObj={selectedEventTypeObj}
+               selectedEventTypeObj={selectedEventTypeObj}
             />
           )}
         </DialogContent>
