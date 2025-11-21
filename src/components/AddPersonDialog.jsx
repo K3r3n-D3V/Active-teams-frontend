@@ -87,6 +87,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   });
   const [showLeaderFields, setShowLeaderFields] = useState(false);
 
+  // Reset form when dialog closes
   useEffect(() => {
     if (!open) {
       setIsSubmitting(false);
@@ -101,11 +102,38 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     }
   }, [open]);
 
-  // Check if any leader field has data to determine whether to show the section
+  // Initialize form with person data when opening in edit mode
   useEffect(() => {
-    const hasLeaderData = formData.leader1 || formData.leader12 || formData.leader144;
-    setShowLeaderFields(hasLeaderData);
-  }, [formData.leader1, formData.leader12, formData.leader144]);
+    if (open && isEdit && formData) {
+      // Check if any leader field has data to determine whether to show the section
+      const hasLeaderData = formData.leader1 || formData.leader12 || formData.leader144;
+      setShowLeaderFields(hasLeaderData);
+      
+      // Ensure all fields are properly set from formData
+      const updatedFormData = {
+        ...initialFormState,
+        ...formData,
+        // Map backend field names to form field names if needed
+        name: formData.name || formData.Name || "",
+        surname: formData.surname || formData.Surname || "",
+        dob: formData.dob || formData.DOB || formData.dateOfBirth || "",
+        address: formData.address || formData.Address || formData.homeAddress || "",
+        email: formData.email || formData.Email || "",
+        number: formData.number || formData.Number || formData.phone || formData.Phone || "",
+        gender: formData.gender || formData.Gender || "",
+        invitedBy: formData.invitedBy || formData.InvitedBy || "",
+        leader1: formData.leader1 || formData["Leader @1"] || "",
+        leader12: formData.leader12 || formData["Leader @12"] || "",
+        leader144: formData.leader144 || formData["Leader @144"] || "",
+        stage: formData.stage || formData.Stage || "Win",
+      };
+      
+      // Only update if there are actual changes to avoid infinite loops
+      if (JSON.stringify(updatedFormData) !== JSON.stringify(formData)) {
+        setFormData(updatedFormData);
+      }
+    }
+  }, [open, isEdit, formData, setFormData]);
 
   const peopleOptions = useMemo(() => {
     return peopleList.map(person => {
@@ -217,6 +245,8 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   }, []);
 
   const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
+    const currentValue = formData[name] || "";
+    
     return (
       <Autocomplete
         freeSolo
@@ -229,9 +259,9 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         filterOptions={filterOptions}
         value={
           peopleOptions.find(option => 
-            option.label === formData[name]
+            option.label === currentValue
           ) || 
-          (formData[name] ? { label: formData[name] } : null)
+          (currentValue ? { label: currentValue } : null)
         }
         onChange={(e, newValue) => {
           if (isInvite) {
@@ -281,6 +311,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
   const renderTextField = (name, label, options = {}) => {
     const { select, selectOptions, type, required, helperText } = options;
+    const currentValue = formData[name] || "";
 
     return (
       <TextField
@@ -291,12 +322,12 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         type={type || "text"}
         select={select}
         disabled={isSubmitting}
-        value={formData[name] || ""}
+        value={currentValue}
         onChange={handleInputChange}
         error={!!errors[name]}
         helperText={errors[name] || helperText}
         InputLabelProps={{ 
-          shrink: type === "date" || Boolean(formData[name])
+          shrink: type === "date" || Boolean(currentValue)
         }}
         sx={uniformInputSx}
       >
@@ -359,7 +390,9 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         onSave(res.data);
       }
 
-      setFormData(initialFormState);
+      if (!isEdit) {
+        setFormData(initialFormState);
+      }
       onClose();
     } catch (err) {
       const msg = err.response?.data?.detail || "An error occurred";
@@ -371,7 +404,9 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
   const handleClose = () => {
     if (isSubmitting) return;
-    setFormData(initialFormState);
+    if (!isEdit) {
+      setFormData(initialFormState);
+    }
     onClose();
   };
 
@@ -494,7 +529,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           disabled={!isFormValid() || isLoadingPeople}
           sx={{ minWidth: 100 }}
         >
-          Save
+          {isEdit ? "Update" : "Save"}
         </LoadingButton>
       </DialogActions>
     </Dialog>

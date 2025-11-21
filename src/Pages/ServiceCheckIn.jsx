@@ -343,7 +343,7 @@ useEffect(() => {
                       event.eventType === "Event" ||
                       event.eventType?.toLowerCase().includes("event");
       const eventStatus = event.status?.toLowerCase() || '';
-      const isNotClosed = eventStatus !== 'closed';
+      const isNotClosed = eventStatus !== 'complete';
       return isGlobal && isNotClosed;
     });
     return filteredEvents;
