@@ -77,7 +77,7 @@ function ServiceCheckIn() {
   });
 
   const [eventConsolidations, setEventConsolidations] = useState({});
-
+  const [eventSearch, setEventSearch] = useState("");
   const [events, setEvents] = useState([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -177,7 +177,8 @@ function ServiceCheckIn() {
     }
   };
 
-// Enhanced refresh function with real-time data
+
+// Enhanced refresh function with real-time data and historical data
 const handleFullRefresh = async () => {
   if (!currentEventId) {
     toast.error("Please select an event first");
@@ -189,7 +190,7 @@ const handleFullRefresh = async () => {
     console.log("🔄 Performing full refresh with real-time data for event:", currentEventId);
     const token = localStorage.getItem("token");
     
-    // Use the real-time endpoint instead of multiple API calls
+    // Use the real-time endpoint for current event data
     const realTimeResponse = await axios.get(`${BASE_URL}/service-checkin/real-time-data`, {
       headers: { 'Authorization': `Bearer ${token}` },
       params: { event_id: currentEventId }
@@ -200,7 +201,7 @@ const handleFullRefresh = async () => {
       
       console.log('✅ Real-time data received:', realTimeData);
 
-      // Update all states with fresh data
+      // Update all states with fresh data for current event
       setEventCheckIns(prev => ({
         ...prev,
         [currentEventId]: realTimeData.present_attendees.map(attendee => attendee._id || attendee.id)
@@ -222,15 +223,18 @@ const handleFullRefresh = async () => {
       }));
 
       // Update consolidated people list
-      // setConsolidatedPeople(realTimeData.consolidations || []);
-setConsolidatedPeople(realTimeData.consolidations?.filter(cons => 
-  cons.event_id === currentEventId
-) || []);
+      setConsolidatedPeople(realTimeData.consolidations?.filter(cons => 
+        cons.event_id === currentEventId
+      ) || []);
 
-  console.log('🔄 Real-time consolidation data:', {
-  consolidation_count: realTimeData.consolidation_count,
-  consolidations_length: realTimeData.consolidations?.length
-});
+      console.log('🔄 Real-time consolidation data:', {
+        consolidation_count: realTimeData.consolidation_count,
+        consolidations_length: realTimeData.consolidations?.length
+      });
+      
+      // ✅ NEW: Refresh events data to get updated closed events for Event History
+      await fetchEvents();
+      
       toast.success(`Refresh complete! ${realTimeData.present_count} present, ${realTimeData.new_people_count} new people, ${realTimeData.consolidation_count} consolidations`);
     } else {
       throw new Error('Real-time endpoint returned unsuccessful response');
@@ -241,7 +245,7 @@ setConsolidatedPeople(realTimeData.consolidations?.filter(cons =>
     
     // Fallback to original refresh method if real-time fails
     console.log("🔄 Falling back to original refresh method...");
-    await fetchEvents();
+    await fetchEvents(); // This will refresh events data including closed events
     await loadEventCheckIns();
     await fetchConsolidatedPeople();
     await fetchAllPeople();
@@ -251,16 +255,16 @@ setConsolidatedPeople(realTimeData.consolidations?.filter(cons =>
   }
 };
 
-useEffect(() => {
-  // Reset consolidation data when event changes
-  if (currentEventId) {
-    setConsolidatedPeople([]);
-    setEventConsolidations(prev => ({
-      ...prev,
-      [currentEventId]: 0
-    }));
-  }
-}, [currentEventId]);
+  useEffect(() => {
+    // Reset consolidation data when event changes
+    if (currentEventId) {
+      setConsolidatedPeople([]);
+      setEventConsolidations(prev => ({
+        ...prev,
+        [currentEventId]: 0
+      }));
+    }
+  }, [currentEventId]);
 
   // Utility functions
   const toArray = (resData) =>
@@ -336,18 +340,19 @@ useEffect(() => {
     }
   };
 
-  const getFilteredEvents = () => {
-    const filteredEvents = events.filter(event => {
-      const isGlobal = event.isGlobal === true || 
-                      event.eventType === "Global Events" || 
-                      event.eventType === "Event" ||
-                      event.eventType?.toLowerCase().includes("event");
-      const eventStatus = event.status?.toLowerCase() || '';
-      const isNotClosed = eventStatus !== 'complete';
-      return isGlobal && isNotClosed;
-    });
-    return filteredEvents;
-  };
+const getFilteredEvents = () => {
+  const filteredEvents = events.filter(event => {
+    const isGlobal = event.isGlobal === true || 
+                    event.eventType === "Global Events" || 
+                    event.eventType === "Event" ||
+                    event.eventType?.toLowerCase().includes("event");
+    const eventStatus = event.status?.toLowerCase() || '';
+    // ✅ FIX: Check for both 'complete' and 'closed' status
+    const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
+    return isGlobal && isNotClosed;
+  });
+  return filteredEvents;
+};
 
   const getClosedEvents = () => {
     return events.filter(event => {
@@ -357,6 +362,36 @@ useEffect(() => {
       return isClosed && isGlobal && isNotCell;
     });
   };
+
+const getFilteredClosedEvents = () => {
+  const closedEvents = events.filter(event => {
+    const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'complete';
+    const isGlobal = event.eventType === "Global Events" || event.isGlobal === true;
+    const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+    
+    console.log(`🔍 Event Filter: ${event.eventName}`, {
+      isClosed,
+      isGlobal,
+      isNotCell,
+      status: event.status,
+      eventType: event.eventType
+    });
+    
+    return isClosed && isGlobal && isNotCell;
+  });
+  
+  // Apply search filter
+  if (!eventSearch.trim()) {
+    return closedEvents;
+  }
+  
+  const searchTerm = eventSearch.toLowerCase();
+  return closedEvents.filter(event => 
+    event.eventName?.toLowerCase().includes(searchTerm) ||
+    event.date?.toLowerCase().includes(searchTerm) ||
+    event.status?.toLowerCase().includes(searchTerm)
+  );
+};
 
   const loadEventCheckIns = async () => {
     if (!currentEventId) return;
@@ -408,253 +443,190 @@ useEffect(() => {
     }
   };
 
-const fetchEvents = async () => {
-  setIsLoadingEvents(true);
-  try {
-    const token = localStorage.getItem('token');
-    console.log('🔄 Fetching events...');
-    
-    const response = await fetch(`${BASE_URL}/events/global`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('📋 RAW Global events response:', data); // 👈 ADD THIS LINE
-    
-    const eventsData = data.events || [];
-    console.log('✅ Processed events:', eventsData);
-
-    const transformedEvents = eventsData.map(event => ({
-      id: event._id || event.id,
-      eventName: event.eventName || "Unnamed Event",
-      status: (event.status || "open").toLowerCase(),
-      isGlobal: event.isGlobal !== false,
-      isTicketed: event.isTicketed || false,
-      date: event.date || event.createdAt,
-      eventType: event.eventType || "Global Events"
-    }));
-
-    console.log('🎯 Final transformed events:', transformedEvents);
-    setEvents(transformedEvents);
-
-  } catch (err) {
-    console.error('❌ Error fetching global events:', err);
-    toast.error("Failed to fetch events. Please try again.");
-  } finally {
-    setIsLoadingEvents(false);
-  }
-};
-
-  // const fetchConsolidatedPeople = async () => {
-  //   if (!currentEventId) {
-  //     setConsolidatedPeople([]);
-  //     return;
-  //   }
-
-  //   setIsLoadingConsolidated(true);
-  //   try {
-  //     const token = localStorage.getItem("token");
-  //     let consolidatedData = [];
-
-  //     try {
-  //       const response = await axios.get(`${BASE_URL}/consolidations`, {
-  //         headers: { 'Authorization': `Bearer ${token}` },
-  //         params: { event_id: currentEventId }
-  //       });
-  //       if (response.data && response.data.consolidations) {
-  //         consolidatedData = response.data.consolidations;
-  //       }
-  //     } catch (error) {
-  //       console.log("Consolidations endpoint failed:", error.message);
-  //     }
-
-  //     if (consolidatedData.length === 0) {
-  //       try {
-  //         const tasksResponse = await axios.get(`${BASE_URL}/tasks`, {
-  //           headers: { 'Authorization': `Bearer ${token}` },
-  //           params: { taskType: "consolidation", event_id: currentEventId }
-  //         });
-  //         if (tasksResponse.data && Array.isArray(tasksResponse.data.tasks)) {
-  //           consolidatedData = tasksResponse.data.tasks.map(task => ({
-  //             _id: task._id,
-  //             name: task.contacted_person?.name || task.person_name || task.recipient_name,
-  //             surname: "",
-  //             email: task.contacted_person?.email || task.person_email || task.recipient_email,
-  //             phone: task.contacted_person?.phone || task.person_phone || task.recipient_phone,
-  //             assigned_to: task.assignedfor || task.assignedTo,
-  //             decision_type: task.decision_type || task.consolidation_type || "Commitment",
-  //             consolidation_type: task.consolidation_type || task.decision_type,
-  //             decision_date: task.followup_date || task.decision_date,
-  //             status: task.status,
-  //             task_id: task._id,
-  //             is_from_task: true,
-  //             event_id: task.event_id || currentEventId
-  //           }));
-  //         }
-  //       } catch (error) {
-  //         console.log("Tasks endpoint failed:", error.message);
-  //       }
-  //     }
-
-  //     const filteredConsolidations = consolidatedData.filter(consolidation => 
-  //       consolidation.event_id === currentEventId || !consolidation.event_id
-  //     );
-  //     setConsolidatedPeople(filteredConsolidations);
-  //   } catch (error) {
-  //     console.error("💥 Error fetching consolidated people:", error);
-  //     setConsolidatedPeople([]);
-  //   } finally {
-  //     setIsLoadingConsolidated(false);
-  //   }
-  // };
-const fetchConsolidatedPeople = async () => {
-  if (!currentEventId) {
-    setConsolidatedPeople([]);
-    return;
-  }
-
-  setIsLoadingConsolidated(true);
-  try {
-    const token = localStorage.getItem("token");
-    let consolidatedData = [];
-
+  const fetchEvents = async () => {
+    setIsLoadingEvents(true);
     try {
-      const response = await axios.get(`${BASE_URL}/consolidations`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        params: { event_id: currentEventId }
-      });
-      if (response.data && response.data.consolidations) {
-        consolidatedData = response.data.consolidations;
-      }
-    } catch (error) {
-      console.log("Consolidations endpoint failed:", error.message);
-    }
-
-    if (consolidatedData.length === 0) {
-      try {
-        const tasksResponse = await axios.get(`${BASE_URL}/tasks`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          params: { taskType: "consolidation", event_id: currentEventId }
-        });
-        if (tasksResponse.data && Array.isArray(tasksResponse.data.tasks)) {
-          consolidatedData = tasksResponse.data.tasks.map(task => ({
-            _id: task._id,
-            name: task.contacted_person?.name || task.person_name || task.recipient_name,
-            surname: "",
-            email: task.contacted_person?.email || task.person_email || task.recipient_email,
-            phone: task.contacted_person?.phone || task.person_phone || task.recipient_phone,
-            assigned_to: task.assignedfor || task.assignedTo,
-            decision_type: task.decision_type || task.consolidation_type || "Commitment",
-            consolidation_type: task.consolidation_type || task.decision_type,
-            decision_date: task.followup_date || task.decision_date,
-            status: task.status,
-            task_id: task._id,
-            is_from_task: true,
-            event_id: task.event_id || currentEventId
-          }));
+      const token = localStorage.getItem('token');
+      console.log('🔄 Fetching events...');
+      
+      const response = await fetch(`${BASE_URL}/events/global`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      } catch (error) {
-        console.log("Tasks endpoint failed:", error.message);
-      }
-    }
+      });
 
-    // STRICT FILTERING - Only include consolidations for current event
-    const filteredConsolidations = consolidatedData.filter(consolidation => 
-      consolidation.event_id === currentEventId
-    );
-    
-    console.log(`✅ Filtered consolidations for event ${currentEventId}:`, filteredConsolidations.length);
-    setConsolidatedPeople(filteredConsolidations);
-  } catch (error) {
-    console.error("💥 Error fetching consolidated people:", error);
-    setConsolidatedPeople([]);
-  } finally {
-    setIsLoadingConsolidated(false);
-  }
-};
-
-  // Event handlers
-  const handleSaveAndCloseEvent = async () => {
-    if (!currentEventId) {
-      toast.error("Please select an event first");
-      return;
-    }
-
-    const currentEvent = events.find(event => event.id === currentEventId);
-    if (!currentEvent) {
-      toast.error("Selected event not found");
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    setIsClosingEvent(true);
-    closingRef.current = true;
-    try {
-      const token = localStorage.getItem("token");
-      let response;
-      
-      try {
-        response = await axios.patch(
-          `${BASE_URL}/events/${currentEventId}`,
-          { status: "closed" },
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'X-Closing-From-ServiceCheckIn': '1'
-            },
-            timeout: 10000
-          }
-        );
-      } catch (patchError) {
-        response = await axios.put(
-          `${BASE_URL}/events/${currentEventId}`,
-          { status: "closed" },
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'X-Closing-From-ServiceCheckIn': '1'
-            },
-            timeout: 10000
-          }
-        );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      await fetchEvents();
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const data = await response.json();
+      console.log('📋 RAW Global events response:', data);
       
-      setEvents(prev => prev.map(event =>
-        event.id === currentEventId ? { ...event, status: "closed" } : event
-      ));
+      const eventsData = data.events || [];
+      console.log('✅ Processed events:', eventsData);
 
-      toast.success(`Event "${currentEvent.eventName}" closed successfully!`);
-      clearEventData(currentEventId);
-      setCurrentEventId("");
-      
-      setTimeout(() => {
-        fetchEvents();
-      }, 500);
-      
-    } catch (error) {
-      console.error("❌ ERROR in event closure process:", error);
-      toast.error("Event may still be open in the database. Please check.");
+      const transformedEvents = eventsData.map(event => ({
+        id: event._id || event.id,
+        eventName: event.eventName || "Unnamed Event",
+        status: (event.status || "open").toLowerCase(),
+        isGlobal: event.isGlobal !== false,
+        isTicketed: event.isTicketed || false,
+        date: event.date || event.createdAt,
+        eventType: event.eventType || "Global Events"
+      }));
+
+      console.log('🎯 Final transformed events:', transformedEvents);
+      setEvents(transformedEvents);
+
+    } catch (err) {
+      console.error('❌ Error fetching global events:', err);
+      toast.error("Failed to fetch events. Please try again.");
     } finally {
-      setIsClosingEvent(false);
-      closingRef.current = false;
+      setIsLoadingEvents(false);
     }
   };
 
+  const fetchConsolidatedPeople = async () => {
+    if (!currentEventId) {
+      setConsolidatedPeople([]);
+      return;
+    }
+
+    setIsLoadingConsolidated(true);
+    try {
+      const token = localStorage.getItem("token");
+      let consolidatedData = [];
+
+      try {
+        const response = await axios.get(`${BASE_URL}/consolidations`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          params: { event_id: currentEventId }
+        });
+        if (response.data && response.data.consolidations) {
+          consolidatedData = response.data.consolidations;
+        }
+      } catch (error) {
+        console.log("Consolidations endpoint failed:", error.message);
+      }
+
+      if (consolidatedData.length === 0) {
+        try {
+          const tasksResponse = await axios.get(`${BASE_URL}/tasks`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            params: { taskType: "consolidation", event_id: currentEventId }
+          });
+          if (tasksResponse.data && Array.isArray(tasksResponse.data.tasks)) {
+            consolidatedData = tasksResponse.data.tasks.map(task => ({
+              _id: task._id,
+              name: task.contacted_person?.name || task.person_name || task.recipient_name,
+              surname: "",
+              email: task.contacted_person?.email || task.person_email || task.recipient_email,
+              phone: task.contacted_person?.phone || task.person_phone || task.recipient_phone,
+              assigned_to: task.assignedfor || task.assignedTo,
+              decision_type: task.decision_type || task.consolidation_type || "Commitment",
+              consolidation_type: task.consolidation_type || task.decision_type,
+              decision_date: task.followup_date || task.decision_date,
+              status: task.status,
+              task_id: task._id,
+              is_from_task: true,
+              event_id: task.event_id || currentEventId
+            }));
+          }
+        } catch (error) {
+          console.log("Tasks endpoint failed:", error.message);
+        }
+      }
+
+      // STRICT FILTERING - Only include consolidations for current event
+      const filteredConsolidations = consolidatedData.filter(consolidation => 
+        consolidation.event_id === currentEventId
+      );
+      
+      console.log(`✅ Filtered consolidations for event ${currentEventId}:`, filteredConsolidations.length);
+      setConsolidatedPeople(filteredConsolidations);
+    } catch (error) {
+      console.error("💥 Error fetching consolidated people:", error);
+      setConsolidatedPeople([]);
+    } finally {
+      setIsLoadingConsolidated(false);
+    }
+  };
+
+const handleSaveAndCloseEvent = async () => {
+  if (!currentEventId) {
+    toast.error("Please select an event first");
+    return;
+  }
+
+  const currentEvent = events.find(event => event.id === currentEventId);
+  if (!currentEvent) {
+    toast.error("Selected event not found");
+    return;
+  }
+
+  if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  setIsClosingEvent(true);
+  closingRef.current = true;
+  try {
+    const token = localStorage.getItem("token");
+    let response;
+    
+    try {
+      // ✅ FIX: Use "complete" status instead of "closed"
+      response = await axios.patch(
+        `${BASE_URL}/events/${currentEventId}`,
+        { status: "complete" }, // Changed from "closed" to "complete"
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-Closing-From-ServiceCheckIn': '1'
+          },
+          timeout: 10000
+        }
+      );
+    } catch (patchError) {
+      // ✅ FIX: Use "complete" status instead of "closed"
+      response = await axios.put(
+        `${BASE_URL}/events/${currentEventId}`,
+        { status: "complete" }, // Changed from "closed" to "complete"
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-Closing-From-ServiceCheckIn': '1'
+          },
+          timeout: 10000
+        }
+      );
+    }
+
+    // ✅ FIX: Update events state with "complete" status
+    setEvents(prev => prev.map(event =>
+      event.id === currentEventId ? { ...event, status: "complete" } : event
+    ));
+
+    toast.success(`Event "${currentEvent.eventName}" closed successfully!`);
+    clearEventData(currentEventId);
+    setCurrentEventId("");
+    
+    // Force refresh events data to ensure consistency
+    setTimeout(() => {
+      fetchEvents();
+    }, 500);
+    
+  } catch (error) {
+    console.error("❌ ERROR in event closure process:", error);
+    toast.error("Event may still be open in the database. Please check.");
+  } finally {
+    setIsClosingEvent(false);
+    closingRef.current = false;
+  }
+};
   const clearEventData = (eventId) => {
     setEventCheckIns(prev => {
       const newCheckIns = { ...prev };
@@ -860,31 +832,34 @@ const fetchConsolidatedPeople = async () => {
     }));
   };
 
-  const menuEvents = (() => {
-    try {
-      const filtered = getFilteredEvents();
-      const list = [...filtered];
-      if (currentEventId && !list.some((ev) => ev.id === currentEventId)) {
-        const currentEventFromAll = events.find((ev) => ev.id === currentEventId);
-        if (currentEventFromAll) {
-          const hasLocalActivity =
-            (eventCheckIns[currentEventId] && eventCheckIns[currentEventId].length > 0) ||
-            (eventNewPeople[currentEventId] && eventNewPeople[currentEventId].length > 0) ||
-            (eventConsolidations[currentEventId] && eventConsolidations[currentEventId] > 0) ||
-            consolidatedPeople.some((p) => p.event_id === currentEventId) ||
-            firstTimeAddedIds.some((id) => (eventNewPeople[currentEventId] || []).includes(id));
+const menuEvents = (() => {
+  try {
+    const filtered = getFilteredEvents();
+    const list = [...filtered];
+    if (currentEventId && !list.some((ev) => ev.id === currentEventId)) {
+      const currentEventFromAll = events.find((ev) => ev.id === currentEventId);
+      if (currentEventFromAll) {
+        const hasLocalActivity =
+          (eventCheckIns[currentEventId] && eventCheckIns[currentEventId].length > 0) ||
+          (eventNewPeople[currentEventId] && eventNewPeople[currentEventId].length > 0) ||
+          (eventConsolidations[currentEventId] && eventConsolidations[currentEventId] > 0) ||
+          consolidatedPeople.some((p) => p.event_id === currentEventId) ||
+          firstTimeAddedIds.some((id) => (eventNewPeople[currentEventId] || []).includes(id));
 
-          const displayEvent = { ...currentEventFromAll };
-          if (hasLocalActivity && displayEvent.status === 'closed') displayEvent.status = 'open';
-          list.unshift(displayEvent);
+        const displayEvent = { ...currentEventFromAll };
+        // ✅ FIX: Check for both 'complete' and 'closed' status
+        if (hasLocalActivity && (displayEvent.status === 'complete' || displayEvent.status === 'closed')) {
+          displayEvent.status = 'open';
         }
+        list.unshift(displayEvent);
       }
-      return list;
-    } catch (e) {
-      console.error('Error building menuEvents', e);
-      return getFilteredEvents();
     }
-  })();
+    return list;
+  } catch (e) {
+    console.error('Error building menuEvents', e);
+    return getFilteredEvents();
+  }
+})();
 
   // Define mainColumns for DataGrid
   const mainColumns = [
@@ -935,33 +910,33 @@ const fetchConsolidatedPeople = async () => {
     }
   ];
 
-// Add these missing event handlers
-const handleViewEventDetails = (event, data) => {
-  setEventHistoryDetails({
-    open: true,
-    event: event,
-    type: 'attendance',
-    data: data || []
-  });
-};
+  // Add these missing event handlers
+  const handleViewEventDetails = (event, data) => {
+    setEventHistoryDetails({
+      open: true,
+      event: event,
+      type: 'attendance',
+      data: data || []
+    });
+  };
 
-const handleViewNewPeople = (event, data) => {
-  setEventHistoryDetails({
-    open: true,
-    event: event,
-    type: 'newPeople',
-    data: data || []
-  });
-};
+  const handleViewNewPeople = (event, data) => {
+    setEventHistoryDetails({
+      open: true,
+      event: event,
+      type: 'newPeople',
+      data: data || []
+    });
+  };
 
-const handleViewConsolidated = (event, data) => {
-  setEventHistoryDetails({
-    open: true,
-    event: event,
-    type: 'consolidated',
-    data: data || []
-  });
-};
+  const handleViewConsolidated = (event, data) => {
+    setEventHistoryDetails({
+      open: true,
+      event: event,
+      type: 'consolidated',
+      data: data || []
+    });
+  };
 
   // Component definitions
   const AttendeeCard = ({ attendee, showNumber, index }) => (
@@ -1386,21 +1361,21 @@ const handleViewConsolidated = (event, data) => {
     </Box>
   );
 
-// Replace your current data processing section with this:
-const attendeesWithStatus = getAttendeesWithPresentStatus();
+  // Replace your current data processing section with this:
+  const attendeesWithStatus = getAttendeesWithPresentStatus();
 
-// Use real-time data if available, otherwise calculate locally
-const presentCount = currentEventId 
-  ? (eventCheckIns[currentEventId] || []).length 
-  : attendeesWithStatus.filter((a) => a.present).length;
+  // Use real-time data if available, otherwise calculate locally
+  const presentCount = currentEventId 
+    ? (eventCheckIns[currentEventId] || []).length 
+    : attendeesWithStatus.filter((a) => a.present).length;
 
-const newPeopleForEvent = currentEventId && eventNewPeople[currentEventId]
-  ? attendeesWithStatus.filter(a => eventNewPeople[currentEventId].includes(a._id))
-  : [];
+  const newPeopleForEvent = currentEventId && eventNewPeople[currentEventId]
+    ? attendeesWithStatus.filter(a => eventNewPeople[currentEventId].includes(a._id))
+    : [];
 
-const consolidationsForEvent = currentEventId 
-  ? (eventConsolidations[currentEventId] || consolidatedPeople.length)
-  : 0;
+  const consolidationsForEvent = currentEventId 
+    ? (eventConsolidations[currentEventId] || consolidatedPeople.length)
+    : 0;
 
   const filteredAttendees = attendeesWithStatus.filter((a) => {
     if (!search) return true;
@@ -1524,16 +1499,26 @@ const consolidationsForEvent = currentEventId
   }, [attendees]);
 
   useEffect(() => {
-  console.log('🔍 DEBUG Consolidation Data:', {
-    currentEventId,
-    eventConsolidations: eventConsolidations[currentEventId],
-    consolidatedPeopleCount: consolidatedPeople.length,
-    consolidatedPeople: consolidatedPeople,
-    localStorageData: localStorage.getItem("eventConsolidations")
+    console.log('🔍 DEBUG Consolidation Data:', {
+      currentEventId,
+      eventConsolidations: eventConsolidations[currentEventId],
+      consolidatedPeopleCount: consolidatedPeople.length,
+      consolidatedPeople: consolidatedPeople,
+      localStorageData: localStorage.getItem("eventConsolidations")
+    });
+  }, [currentEventId, eventConsolidations, consolidatedPeople]);
+
+  // Update debug effect to track both statuses
+useEffect(() => {
+  console.log("🔍 DEBUG Events State:", {
+    totalEvents: events.length,
+    openEvents: events.filter(e => e.status !== 'complete' && e.status !== 'closed').length,
+    closedEvents: events.filter(e => e.status === 'complete' || e.status === 'closed').length,
+    completeEvents: events.filter(e => e.status === 'complete').length,
+    closedStatusEvents: events.filter(e => e.status === 'closed').length,
+    events: events.map(e => ({ name: e.eventName, status: e.status, id: e.id }))
   });
-}, [currentEventId, eventConsolidations, consolidatedPeople]);
-
-
+}, [events]);
   // Render
   if ((!hasDataLoaded && isLoadingPeople) || (attendees.length === 0 && isLoadingPeople)) {
     return <SkeletonLoader />;
@@ -1700,16 +1685,32 @@ const consolidationsForEvent = currentEventId
             )}
           </Select>
         </Grid>
+        
+        {/* UPDATED: Conditional Search Field */}
         <Grid item xs={12} sm={6} md={5}>
-          <TextField
-            size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-            placeholder="Search attendees..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            fullWidth
-            sx={{ boxShadow: 2 }}
-          />
+          {activeTab === 0 ? (
+            // Search for attendees (original behavior)
+            <TextField
+              size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+              placeholder="Search attendees..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+              fullWidth
+              sx={{ boxShadow: 2 }}
+            />
+          ) : (
+            // Search for events (new behavior for Event History tab)
+            <TextField
+              size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+              placeholder="Search events..."
+              value={eventSearch}
+              onChange={(e) => setEventSearch(e.target.value)}
+              fullWidth
+              sx={{ boxShadow: 2 }}
+            />
+          )}
         </Grid>
+        
         <Grid item xs={12} md={3}>
           <Stack direction="row" spacing={2} justifyContent={isMdDown ? "center" : "flex-end"}>
             <Tooltip title={currentEventId ? "Add Person" : "Please select an event first"}>
@@ -1769,7 +1770,7 @@ const consolidationsForEvent = currentEventId
                   </Button>
                 </span>
               </Tooltip>
-                            <Tooltip title={currentEventId ? "Refresh All Data" : "Please select an event first"}>
+              <Tooltip title={currentEventId ? "Refresh All Data" : "Please select an event first"}>
                 <span>
                   <IconButton 
                     onClick={handleFullRefresh}
@@ -1867,7 +1868,7 @@ const consolidationsForEvent = currentEventId
               onViewDetails={handleViewEventDetails}
               onViewNewPeople={handleViewNewPeople}
               onViewConverts={handleViewConsolidated}
-              events={getClosedEvents()}
+              events={getFilteredClosedEvents()}
             />
           </Box>
         )}
@@ -2300,25 +2301,16 @@ const consolidationsForEvent = currentEventId
         </DialogActions>
       </Dialog>
 
-      {/* <ConsolidationModal
+      <ConsolidationModal
         open={consolidationOpen}
         onClose={() => setConsolidationOpen(false)}
         attendeesWithStatus={attendeesWithStatus}
         onFinish={handleFinishConsolidation}
-        consolidatedPeople={consolidatedPeople}
+        consolidatedPeople={consolidatedPeople.filter(person => 
+          person.event_id === currentEventId
+        )}
         currentEventId={currentEventId}
-      /> */}
-
-    <ConsolidationModal
-  open={consolidationOpen}
-  onClose={() => setConsolidationOpen(false)}
-  attendeesWithStatus={attendeesWithStatus}
-  onFinish={handleFinishConsolidation}
-  consolidatedPeople={consolidatedPeople.filter(person => 
-    person.event_id === currentEventId
-  )}
-  currentEventId={currentEventId}
-/>
+      />
     </Box>
   );
 }
