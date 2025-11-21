@@ -26,7 +26,8 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  useMediaQuery
+  useMediaQuery,
+  Skeleton
 } from "@mui/material";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import GroupIcon from "@mui/icons-material/Group";
@@ -63,6 +64,63 @@ const toArray = (resData) =>
         ? resData.events
         : [];
 
+// Skeleton Loader Components
+const DataGridSkeleton = () => (
+  <Paper variant="outlined" sx={{ height: 600, width: '100%', p: 2 }}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Skeleton variant="text" width={200} height={40} />
+      <Skeleton variant="rectangular" width={120} height={40} />
+    </Box>
+    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+      {[1, 2, 3, 4].map((item) => (
+        <Skeleton key={item} variant="text" width={100} height={40} />
+      ))}
+    </Box>
+    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((row) => (
+      <Box key={row} sx={{ display: 'flex', gap: 1, mb: 1 }}>
+        {[1, 2, 3, 4, 5, 6, 7].map((col) => (
+          <Skeleton 
+            key={col} 
+            variant="rectangular" 
+            width={col === 1 ? 200 : col === 7 ? 80 : 100} 
+            height={40} 
+            sx={{ flex: col === 1 ? 2 : 1 }}
+          />
+        ))}
+      </Box>
+    ))}
+  </Paper>
+);
+
+const MobileCardSkeleton = () => (
+  <Card variant="outlined" sx={{ mb: 2 }}>
+    <CardContent>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+        <Box flex={1}>
+          <Skeleton variant="text" width="80%" height={24} />
+          <Skeleton variant="text" width="60%" height={20} />
+          <Skeleton variant="rectangular" width={80} height={24} sx={{ mt: 1, borderRadius: 1 }} />
+        </Box>
+      </Box>
+      <Divider sx={{ my: 2 }} />
+      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+        {[1, 2, 3].map((item) => (
+          <Skeleton key={item} variant="rectangular" width={100} height={32} sx={{ borderRadius: 16 }} />
+        ))}
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+        {[1, 2, 3].map((item) => (
+          <Skeleton key={item} variant="circular" width={40} height={40} />
+        ))}
+      </Box>
+    </CardContent>
+  </Card>
+);
+
+// Create a ref to track if data has been loaded
+let eventsDataLoaded = false;
+let cachedEventsData = [];
+
 function EventHistory({ 
   onViewDetails,
   onViewNewPeople,
@@ -73,10 +131,10 @@ function EventHistory({
   const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!eventsDataLoaded);
   const [error, setError] = useState(null);
-  const [localEvents, setLocalEvents] = useState([]);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [localEvents, setLocalEvents] = useState(eventsDataLoaded ? cachedEventsData : []);
+  const [hasFetched, setHasFetched] = useState(eventsDataLoaded);
   
   // Dialog states
   const [detailsDialog, setDetailsDialog] = useState({ open: false, event: null });
@@ -88,149 +146,178 @@ function EventHistory({
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [search, setSearch] = useState("");
 
-  const displayEvents = events.length > 0 ? events : localEvents;
-
-
-const fetchEvents = async () => {
-  if (events.length > 0) return;
-
-  try {
-    setLoading(true);
-    setError(null);
-    setHasFetched(true);
-    
-    const token = localStorage.getItem('token');
-    
-    if (!API_URL) {
-      throw new Error('API URL is not configured');
-    }
-
-    if (!token) {
-      throw new Error('Authentication token not found. Please log in again.');
-    }
-    
-    const response = await fetch(`${API_URL}/events/global`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (response.status === 401) {
-      throw new Error('Authentication failed. Your session may have expired. Please log in again.');
-    }
-
-    if (response.status === 403) {
-      throw new Error('Access denied. You do not have permission to view events.');
-    }
-
-    if (!response.ok) {
-      throw new Error(`Failed to load events (Error ${response.status}). Please try again.`);
-    }
-
-    const data = await response.json();
-    
-    console.log('📋 Raw events data for history:', data);
-
-    // Handle different response structures using toArray
-    const eventsData = toArray(data);
-    
-    console.log('🔍 All events from API:', eventsData);
-
-    // ✅ FIXED: Transform the data to match what the frontend expects
-    const transformedEvents = eventsData.map(event => ({
-      id: event._id || event.id,
-      eventName: event.eventName || event.name || "Unnamed Event",
-      status: event.status || "incomplete",
-      isGlobal: event.isGlobal || true,
-      isTicketed: event.isTicketed || false,
-      date: event.date || event.createdAt || event.created_at,
-      eventType: event.eventType || "Global Events",
-      
-      // ✅ FIXED: Use the correct data from backend
-      total_attendance: event.total_attendance || event.attendees?.length || 0,
-      attendees: event.attendees || [],
-      did_not_meet: event.did_not_meet || false,
-      
-      // ✅ FIXED: Use the enhanced data from backend
-      newPeople: event.newPeople || [], // This comes from get_new_people_for_event
-      consolidations: event.consolidations || [], // This comes from get_consolidations_for_event
-      summary: event.summary || {} // This comes from get_event_summary_stats
-    }));
-    
-    setLocalEvents(transformedEvents);
-    console.log(`🎯 Final events to display: ${transformedEvents.length}`, transformedEvents);
-
-  } catch (err) {
-    console.error('Error fetching events:', err);
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
-
-  // Check localStorage for cached events on component mount
-  useEffect(() => {
-    const cachedEvents = localStorage.getItem("events");
-    if (cachedEvents && !events.length) {
-      try {
-        const parsedEvents = JSON.parse(cachedEvents);
-        if (parsedEvents.length > 0) {
-          setLocalEvents(parsedEvents);
-          setHasFetched(true);
-        }
-      } catch (error) {
-        console.error('Error parsing cached events:', error);
-      }
-    }
-  }, [events.length]);
-
-const getEventStats = (event) => {
-  // ✅ FIXED: Use the data from the enhanced backend response
-  const attendance = event.total_attendance || event.attendees?.length || 0;
-  
-  // Use newPeople array length from backend
-  const newPeople = event.newPeople?.length || event.summary?.new_people || 0;
-  
-  // Use consolidations array length from backend  
-  const consolidated = event.consolidations?.length || event.summary?.total_decisions || 0;
-
-  return {
-    attendance,
-    newPeople,
-    consolidated
+  // Filter events to only show complete ones
+  const getCompleteEvents = (eventsList) => {
+    return eventsList.filter(event => event.status === 'complete');
   };
-};
 
-const handleViewDetails = (eventId) => {
-  const event = displayEvents.find(e => e.id === eventId);
-  if (onViewDetails) {
-    onViewDetails(eventId);
-  } else {
-    // ✅ Show the attendees that were captured in that event
-    setDetailsDialog({ open: true, event });
-  }
-};
+  const displayEvents = events.length > 0 ? getCompleteEvents(events) : getCompleteEvents(localEvents);
 
-const handleViewNewPeople = (eventId) => {
-  const event = displayEvents.find(e => e.id === eventId);
-  if (onViewNewPeople) {
-    onViewNewPeople(eventId);
-  } else {
-    // ✅ Show the new people for this event
-    setNewPeopleDialog({ open: true, event });
-  }
-};
+  const fetchEvents = async () => {
+    if (events.length > 0) return;
 
-const handleViewConverts = (eventId) => {
-  const event = displayEvents.find(e => e.id === eventId);
-  if (onViewConverts) {
-    onViewConverts(eventId);
-  } else {
-    // ✅ Show the consolidations/decisions for this event
-    setConvertsDialog({ open: true, event });
-  }
-};
+    try {
+      setLoading(true);
+      setError(null);
+      setHasFetched(true);
+      
+      const token = localStorage.getItem('token');
+      
+      if (!API_URL) {
+        throw new Error('API URL is not configured');
+      }
+
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+      
+      const response = await fetch(`${API_URL}/events/global`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.status === 401) {
+        throw new Error('Authentication failed. Your session may have expired. Please log in again.');
+      }
+
+      if (response.status === 403) {
+        throw new Error('Access denied. You do not have permission to view events.');
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to load events (Error ${response.status}). Please try again.`);
+      }
+
+      const data = await response.json();
+      
+      console.log('📋 Raw events data for history:', data);
+
+      // Handle different response structures using toArray
+      const eventsData = toArray(data);
+      
+      console.log('🔍 All events from API:', eventsData);
+
+      // ✅ FIXED: Transform the data to match what the frontend expects
+      const transformedEvents = eventsData.map(event => ({
+        id: event._id || event.id,
+        eventName: event.eventName || event.name || "Unnamed Event",
+        status: event.status || "incomplete",
+        isGlobal: event.isGlobal || true,
+        isTicketed: event.isTicketed || false,
+        date: event.date || event.createdAt || event.created_at,
+        eventType: event.eventType || "Global Events",
+        
+        // ✅ FIXED: Use the correct data from backend
+        total_attendance: event.total_attendance || event.attendees?.length || 0,
+        attendees: event.attendees || [],
+        did_not_meet: event.did_not_meet || false,
+        
+        // ✅ FIXED: Use the enhanced data from backend
+        newPeople: event.newPeople || [], // This comes from get_new_people_for_event
+        consolidations: event.consolidations || [], // This comes from get_consolidations_for_event
+        summary: event.summary || {} // This comes from get_event_summary_stats
+      }));
+      
+      // Cache the data globally
+      cachedEventsData = transformedEvents;
+      eventsDataLoaded = true;
+      
+      setLocalEvents(transformedEvents);
+      console.log(`🎯 Final events to display: ${transformedEvents.length}`, transformedEvents);
+
+    } catch (err) {
+      console.error('Error fetching events:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load events only once when component mounts for the first time
+  useEffect(() => {
+    const loadEvents = async () => {
+      // If data is already loaded globally, use cached data and don't fetch
+      if (eventsDataLoaded) {
+        setLocalEvents(cachedEventsData);
+        setHasFetched(true);
+        setLoading(false);
+        return;
+      }
+
+      // Check localStorage for cached events first
+      const cachedEvents = localStorage.getItem("events");
+      if (cachedEvents && !events.length) {
+        try {
+          const parsedEvents = JSON.parse(cachedEvents);
+          if (parsedEvents.length > 0) {
+            // Cache the data globally
+            cachedEventsData = parsedEvents;
+            eventsDataLoaded = true;
+            
+            setLocalEvents(parsedEvents);
+            setHasFetched(true);
+            setLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Error parsing cached events:', error);
+        }
+      }
+      
+      // If no cached events or events prop provided, fetch from API
+      await fetchEvents();
+    };
+
+    loadEvents();
+  }, []); // Empty dependency array - runs only once on mount
+
+  const handleRefresh = async () => {
+    // Force refresh by resetting the global cache
+    eventsDataLoaded = false;
+    cachedEventsData = [];
+    await fetchEvents();
+  };
+
+  const getEventStats = (event) => {
+    const attendance = event.total_attendance || event.attendees?.length || 0;
+    const newPeople = event.newPeople?.length || event.summary?.new_people || 0;
+    const consolidated = event.consolidations?.length || event.summary?.total_decisions || 0;
+
+    return {
+      attendance,
+      newPeople,
+      consolidated
+    };
+  };
+
+  const handleViewDetails = (eventId) => {
+    const event = displayEvents.find(e => e.id === eventId);
+    if (onViewDetails) {
+      onViewDetails(eventId);
+    } else {
+      setDetailsDialog({ open: true, event });
+    }
+  };
+
+  const handleViewNewPeople = (eventId) => {
+    const event = displayEvents.find(e => e.id === eventId);
+    if (onViewNewPeople) {
+      onViewNewPeople(eventId);
+    } else {
+      setNewPeopleDialog({ open: true, event });
+    }
+  };
+
+  const handleViewConverts = (eventId) => {
+    const event = displayEvents.find(e => e.id === eventId);
+    if (onViewConverts) {
+      onViewConverts(eventId);
+    } else {
+      setConvertsDialog({ open: true, event });
+    }
+  };
 
   const rows = displayEvents.map((event) => {
     const stats = getEventStats(event);
@@ -518,10 +605,36 @@ const handleViewConverts = (eventId) => {
     );
   };
 
-  if (loading) {
+  // Show skeleton loader only on initial load
+  if (loading && !eventsDataLoaded) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
-        <Typography>Loading events...</Typography>
+      <Box sx={{ width: '100%', height: '100%' }}>
+        {/* Search bar skeleton for mobile */}
+        {isMdDown && (
+          <Skeleton 
+            variant="rectangular" 
+            width="100%" 
+            height={56} 
+            sx={{ mb: 2, borderRadius: 1 }}
+          />
+        )}
+        
+        {isMdDown ? (
+          // Mobile/Tablet Skeleton
+          <Box>
+            <Box sx={{ maxHeight: 500, overflow: 'hidden' }}>
+              {[1, 2, 3, 4, 5].map((item) => (
+                <MobileCardSkeleton key={item} />
+              ))}
+            </Box>
+            <Box sx={{ mt: 1 }}>
+              <Skeleton variant="rectangular" width="100%" height={52} sx={{ borderRadius: 1 }} />
+            </Box>
+          </Box>
+        ) : (
+          // Desktop Skeleton
+          <DataGridSkeleton />
+        )}
       </Box>
     );
   }
@@ -533,7 +646,7 @@ const handleViewConverts = (eventId) => {
           severity="error" 
           sx={{ m: 2, boxShadow: 2 }}
           action={
-            <Button color="inherit" size="small" onClick={fetchEvents} startIcon={<RefreshIcon />}>
+            <Button color="inherit" size="small" onClick={handleRefresh} startIcon={<RefreshIcon />}>
               Retry
             </Button>
           }
@@ -551,7 +664,7 @@ const handleViewConverts = (eventId) => {
           severity="error" 
           sx={{ mb: 2 }}
           action={
-            <Button color="inherit" size="small" onClick={fetchEvents} startIcon={<RefreshIcon />}>
+            <Button color="inherit" size="small" onClick={handleRefresh} startIcon={<RefreshIcon />}>
               Retry
             </Button>
           }
@@ -582,26 +695,22 @@ const handleViewConverts = (eventId) => {
           }}
         >
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            {loading ? 'Loading events...' : hasFetched ? 'No Events Found' : 'Event History'}
+            {hasFetched ? 'No Complete Events Found' : 'Event History'}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {loading 
-              ? 'Please wait while we fetch your events...'
-              : hasFetched 
-                ? 'Global events will appear here once they are created.'
-                : 'Click the button below to load your event history.'
+            {hasFetched 
+              ? 'Only completed events will appear here. Mark events as complete to see them in history.'
+              : 'Click the button below to load your event history.'
             }
           </Typography>
-          {!loading && (
-            <Button 
-              variant="contained" 
-              onClick={fetchEvents}
-              startIcon={<RefreshIcon />}
-              sx={{ mt: 2, boxShadow: 1 }}
-            >
-              {hasFetched ? 'Refresh Events' : 'Load Events'}
-            </Button>
-          )}
+          <Button 
+            variant="contained" 
+            onClick={handleRefresh}
+            startIcon={<RefreshIcon />}
+            sx={{ mt: 2, boxShadow: 1 }}
+          >
+            {hasFetched ? 'Refresh Events' : 'Load Events'}
+          </Button>
         </Paper>
       ) : isMdDown ? (
         // Mobile/Tablet View - Cards
@@ -646,7 +755,7 @@ const handleViewConverts = (eventId) => {
           <DataGrid
             rows={filteredRows}
             columns={columns}
-            loading={loading}
+            loading={loading && !eventsDataLoaded}
             pageSizeOptions={[10, 25, 50, 100]}
             slots={{ toolbar: GridToolbar }}
             slotProps={{
