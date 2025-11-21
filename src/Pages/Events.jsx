@@ -3775,7 +3775,7 @@ const debugEventTypes = async () => {
     onClose={handleCloseEventTypesModal}
     onSubmit={handleSaveEventType}
     selectedEventType={editingEventType} 
-   setSelectedEventTypeObj={setSelectedEventTypeObj} 
+   setSelectedEventTypeObj={setEditingEventType} 
   />
 )}
       {createEventModalOpen && (
