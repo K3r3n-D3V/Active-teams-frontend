@@ -7,7 +7,7 @@ import { UserContext } from '../contexts/UserContext';
 import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
-  TextField, InputAdornment, Button, Snackbar, Alert, Skeleton, ToggleButton, 
+  TextField, InputAdornment, Button, Snackbar, Alert, Skeleton, ToggleButton,
   ToggleButtonGroup, Tooltip, Pagination, CircularProgress, LinearProgress
 } from '@mui/material';
 import {
@@ -171,7 +171,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isMedium = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-  
+
   const handleDragEnd = async (result) => {
     if (!result.destination) return;
 
@@ -179,13 +179,13 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
     const newStage = destination.droppableId;
-    
+
     const originalPerson = allPeople.find(p => String(p._id) === String(draggableId));
     if (!originalPerson) return;
 
     const updatePeopleStage = (peopleArray) => {
-      return peopleArray.map(p => 
-        String(p._id) === String(draggableId) 
+      return peopleArray.map(p =>
+        String(p._id) === String(draggableId)
           ? { ...p, Stage: newStage }
           : p
       );
@@ -195,7 +195,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
 
     try {
       const personToUpdate = allPeople.find(p => String(p._id) === String(draggableId));
-      
+
       const response = await axios.patch(`${BACKEND_URL}/people/${draggableId}`, {
         Name: personToUpdate.name,
         Surname: personToUpdate.surname,
@@ -216,7 +216,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
 
       const updateWithTimestamp = (peopleArray) => {
         return peopleArray.map(p =>
-          String(p._id) === String(draggableId) 
+          String(p._id) === String(draggableId)
             ? { ...p, Stage: newStage, lastUpdated: response.data.UpdatedAt || new Date().toISOString() }
             : p
         );
@@ -233,11 +233,11 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
 
     } catch (err) {
       console.error("Failed to update Stage:", err.response?.data || err.message);
-      
-      setAllPeople(prev => prev.map(p => 
+
+      setAllPeople(prev => prev.map(p =>
         String(p._id) === String(draggableId) ? originalPerson : p
       ));
-      
+
       alert(`Failed to update stage: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
     }
   };
@@ -345,11 +345,11 @@ export const PeopleSection = () => {
 
     isFetchingRef.current = true;
     setLoading(true);
-    
+
     try {
-      const res = await axios.get(`${BACKEND_URL}/people`, { 
+      const res = await axios.get(`${BACKEND_URL}/people`, {
         params: { perPage: 0 },
-        timeout: 80000 
+        timeout: 80000
       });
       const rawPeople = res.data?.results || [];
 
@@ -376,7 +376,7 @@ export const PeopleSection = () => {
       globalPeopleCache = mapped;
       globalCacheTimestamp = Date.now();
       setAllPeople(mapped);
-      
+
       console.log(`Data fetched and cached successfully: ${mapped.length} people`);
     } catch (err) {
       console.error('Fetch error:', err);
@@ -394,60 +394,73 @@ export const PeopleSection = () => {
     if (!searchValue.trim()) return peopleList;
 
     const searchLower = searchValue.toLowerCase().trim();
-    
+
     return peopleList.filter(person => {
       switch (field) {
         case 'name':
-          // Exact match for name, surname, or full name
+          // Partial match for name, surname, or full name
           const fullName = `${person.name} ${person.surname}`.toLowerCase();
           const nameLower = person.name.toLowerCase();
           const surnameLower = person.surname.toLowerCase();
-          
-          return nameLower === searchLower || 
-                 surnameLower === searchLower || 
-                 fullName === searchLower;
+
+          return nameLower.includes(searchLower) ||
+            surnameLower.includes(searchLower) ||
+            fullName.includes(searchLower);
         case 'email':
-          return person.email.toLowerCase() === searchLower;
+          return person.email.toLowerCase().includes(searchLower);
         case 'phone':
-          return person.phone === searchValue.trim();
+          return person.phone.includes(searchValue.trim());
         case 'location':
-          return person.location.toLowerCase() === searchLower;
+          return person.location.toLowerCase().includes(searchLower);
         case 'leaders':
-          return person.leaders.leader1.toLowerCase() === searchLower ||
-                 person.leaders.leader12.toLowerCase() === searchLower ||
-                 person.leaders.leader144.toLowerCase() === searchLower ||
-                 person.leaders.leader1728.toLowerCase() === searchLower;
-        default:
-          return person.name.toLowerCase() === searchLower;
+          // Match if search term appears in any leader field (name, surname, or full name)
+          const leader1Lower = person.leaders.leader1.toLowerCase();
+          const leader12Lower = person.leaders.leader12.toLowerCase();
+          const leader144Lower = person.leaders.leader144.toLowerCase();
+          const leader1728Lower = person.leaders.leader1728.toLowerCase();
+
+          // Check if search matches full name, or just first/last name parts
+          const matchesLeader = (leaderName) => {
+            if (!leaderName) return false;
+            const parts = leaderName.split(' ');
+            // Match full name, first name, or last name
+            return leaderName === searchLower ||
+              parts.some(part => part === searchLower);
+          };
+
+          return matchesLeader(leader1Lower) ||
+            matchesLeader(leader12Lower) ||
+            matchesLeader(leader144Lower) ||
+            matchesLeader(leader1728Lower);
       }
     });
   }, []);
 
   const filterMyPeople = useCallback((peopleList) => {
     if (!currentUserName) return peopleList;
-    
+
     const userName = currentUserName.toLowerCase().trim();
-    
+
     return peopleList.filter(person => {
       // Check if current user is listed as any of their leaders
       return person.leaders.leader1.toLowerCase() === userName ||
-             person.leaders.leader12.toLowerCase() === userName ||
-             person.leaders.leader144.toLowerCase() === userName ||
-             person.leaders.leader1728.toLowerCase() === userName;
+        person.leaders.leader12.toLowerCase() === userName ||
+        person.leaders.leader144.toLowerCase() === userName ||
+        person.leaders.leader1728.toLowerCase() === userName;
     });
   }, [currentUserName]);
 
   const filteredPeople = useMemo(() => {
     let result = allPeople;
-    
+
     // Apply view filter first
     if (viewFilter === 'myPeople') {
       result = filterMyPeople(result);
     }
-    
+
     // Then apply search
     result = searchPeople(result, searchTerm, searchField);
-    
+
     return result;
   }, [allPeople, searchTerm, searchField, viewFilter, searchPeople, filterMyPeople]);
 
@@ -455,7 +468,7 @@ export const PeopleSection = () => {
     if (viewMode === 'list' || searchTerm.trim()) {
       return filteredPeople;
     }
-    
+
     const startIndex = (gridPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     return filteredPeople.slice(startIndex, endIndex);
@@ -470,7 +483,7 @@ export const PeopleSection = () => {
     if (globalPeopleCache && allPeople.length === 0) {
       setAllPeople(globalPeopleCache);
     }
-    
+
     fetchAllPeople(false);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -490,9 +503,9 @@ export const PeopleSection = () => {
 
   const updatePersonInCache = useCallback((personId, updates) => {
     setAllPeople(prev => {
-      const updated = prev.map(person => 
-        String(person._id) === String(personId) 
-          ? { ...person, ...updates } 
+      const updated = prev.map(person =>
+        String(person._id) === String(personId)
+          ? { ...person, ...updates }
           : person
       );
       globalPeopleCache = updated;
@@ -524,7 +537,7 @@ export const PeopleSection = () => {
 
   const handleEditPerson = (person) => {
     setEditingPerson(person);
-    
+
     let formattedDob = '';
     if (person.dob) {
       try {
@@ -536,7 +549,7 @@ export const PeopleSection = () => {
         console.error('Error formatting DOB:', e);
       }
     }
-    
+
     setFormData({
       name: person.name || '',
       surname: person.surname || '',
@@ -544,7 +557,7 @@ export const PeopleSection = () => {
       address: person.location || '',
       email: person.email || '',
       number: person.phone || '',
-     invitedBy: person.leaders?.leader1 || person.invitedBy || '',
+      invitedBy: person.leaders?.leader1 || person.invitedBy || '',
       gender: person.gender || '',
       leader12: person.leaders?.leader12 || '',
       leader144: person.leaders?.leader144 || '',
@@ -599,10 +612,10 @@ export const PeopleSection = () => {
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
       {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999 }} />}
-      
+
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, mb: 1 }}>
         <Typography variant="h6">
-          {viewFilter === 'myPeople' ? 'My People' : 'All People'} 
+          {viewFilter === 'myPeople' ? 'My People' : 'All People'}
           {isSearching && ` (${filteredPeople.length} results)`}
           {loading && <CircularProgress size={16} sx={{ ml: 2 }} />}
         </Typography>
@@ -626,7 +639,7 @@ export const PeopleSection = () => {
               </ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
-          
+
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -644,10 +657,10 @@ export const PeopleSection = () => {
               </ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
-          
-          <Button 
-            variant="outlined" 
-            size="small" 
+
+          <Button
+            variant="outlined"
+            size="small"
             onClick={handleRefresh}
             disabled={loading}
           >
@@ -685,7 +698,7 @@ export const PeopleSection = () => {
           <MenuItem value="leaders">Leaders</MenuItem>
         </TextField>
       </Box>
- <Box sx={{ position: 'relative' }}>
+      <Box sx={{ position: 'relative' }}>
         {viewMode === 'grid' ? (
           <>
             <DragDropBoard
@@ -715,12 +728,12 @@ export const PeopleSection = () => {
               allPeople={allPeople}
               setAllPeople={setAllPeople}
             />
-            
+
             {!isSearching && totalPages > 1 && (
               <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-                <Pagination 
-                  count={totalPages} 
-                  page={gridPage} 
+                <Pagination
+                  count={totalPages}
+                  page={gridPage}
                   onChange={(e, page) => setGridPage(page)}
                   color="primary"
                   size="large"
