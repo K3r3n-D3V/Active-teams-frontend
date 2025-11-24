@@ -2138,7 +2138,7 @@ const handleSave = async () => {
 };
 
 const handleSubmitAttendance = (attendanceData) => {
-  console.log("📝 Preparing to submit attendance:");
+  console.log("Preparing to submit attendance:");
   console.log("   Event ID:", event?._id); 
   console.log("   Did Not Meet:", attendanceData === "did_not_meet");
   console.log("   Checked-in Attendees:", Array.isArray(attendanceData) ? attendanceData.length : 'unknown');
@@ -2295,7 +2295,7 @@ const confirmDidNotMeet = async () => {
   };
 
   const handlePersonAdded = (newPerson) => {
-    console.log("✅ New person added:", newPerson);
+    console.log(" New person added:", newPerson);
 
     // Invalidate cache since we added a new person
     if (typeof window.globalPeopleCache !== 'undefined') {
