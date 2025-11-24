@@ -1725,15 +1725,29 @@ const handleAttendanceSubmit = useCallback(async (data) => {
     setEditModalOpen(true);
   }, []);
 
+
   const handleDeleteEvent = useCallback(async (event) => {
+    console.log(" [handleDeleteEvent] Attempting to delete event:", {
+      name: event.eventName,
+      _id: event._id,
+      UUID: event.UUID,
+      id: event.id,
+      allKeys: Object.keys(event)
+    });
+
     if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
       try {
         const token = localStorage.getItem("token");
-        const response = await axios.delete(`${BACKEND_URL}/events/${event._id}`, {
+        const eventIdToDelete = event._id || event.id;
+        
+        console.log(` Sending DELETE request for ID: ${eventIdToDelete}`);
+        
+        const response = await axios.delete(`${BACKEND_URL}/events/${eventIdToDelete}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
         if (response.status === 200) {
+          console.log(" Event deleted successfully");
           fetchEvents();
           setSnackbar({
             open: true,
@@ -1742,7 +1756,11 @@ const handleAttendanceSubmit = useCallback(async (data) => {
           });
         }
       } catch (error) {
-        console.error("Error deleting event:", error);
+        console.error("❌ Error deleting event:", {
+          error: error.message,
+          status: error.response?.status,
+          data: error.response?.data
+        });
         setSnackbar({
           open: true,
           message: "Failed to delete event",
@@ -2659,7 +2677,7 @@ const debugEventTypes = async () => {
 
   const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
     const statuses = [
-      { value: 'incomplete', label: 'Incomplete', style: styles.statusBadgeIncomplete },
+      { value: 'open', label: 'open', style: styles.statusBadgeIncomplete },
       { value: 'complete', label: 'Complete', style: styles.statusBadgeComplete },
       { value: 'did_not_meet', label: 'Did Not Meet', style: styles.statusBadgeDidNotMeet }
     ];
