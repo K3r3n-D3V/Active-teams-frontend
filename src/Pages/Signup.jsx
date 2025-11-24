@@ -520,9 +520,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
               fullWidth
               InputProps={{
                 endAdornment: (
-                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
-                    {showPassword ? <Visibility /> : <VisibilityOff />}
-                  </IconButton>
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                      {showPassword ? <Visibility /> : <VisibilityOff />}
+                    </IconButton>
+                  </InputAdornment>
                 ),
               }}
               sx={{
@@ -549,9 +551,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
               fullWidth
               InputProps={{
                 endAdornment: (
-                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
-                    {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
-                  </IconButton>
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                      {showPassword ? <Visibility /> : <VisibilityOff />}
+                    </IconButton>
+                  </InputAdornment>
                 ),
               }}
               sx={{
