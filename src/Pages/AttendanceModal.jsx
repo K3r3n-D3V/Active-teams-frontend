@@ -9,6 +9,8 @@ import {
   Menu,
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
+import AddPersonDialog from "../components/AddPersonDialog.jsx";
+
 
 let globalPeopleCache = {
   data: [],
@@ -17,6 +19,9 @@ let globalPeopleCache = {
 };
 
 const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
+
+  const theme = useTheme();
+
   const [formData, setFormData] = useState({
     invitedBy: "",
     name: "",
@@ -497,20 +502,20 @@ else {
       padding: "10px",
     },
     modal: {
-      background: isDarkMode ? "#1e1e1e" : "#fff",
+      background: theme.palette.background.paper,
       borderRadius: "12px",
       width: "100%",
       maxWidth: "600px",
       maxHeight: "90vh",
       overflowY: "auto",
       padding: "20px",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
     },
     title: {
       fontSize: "clamp(20px, 4vw, 24px)",
       fontWeight: "600",
       marginBottom: "20px",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
       textAlign: "center",
     },
     form: {
@@ -527,7 +532,7 @@ else {
     label: {
       fontSize: "14px",
       fontWeight: "500",
-      color: isDarkMode ? "#ccc" : "#555",
+      color: theme.palette.text.primary,
       display: "flex",
       alignItems: "center",
       gap: "8px",
@@ -545,8 +550,8 @@ else {
       outline: "none",
       width: "100%",
       boxSizing: "border-box",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
-      color: isDarkMode ? "#ffffff" : "#333",
+      background: theme.palette.background.default,
+      color: theme.palette.text.primary,
     },
     inputError: {
       padding: "12px",
@@ -599,7 +604,7 @@ else {
       alignItems: "center",
       gap: "8px",
       cursor: "pointer",
-      color: isDarkMode ? "#ccc" : "#555",
+      color: theme.palette.text.primary,
     },
     buttonGroup: {
       display: "flex",
@@ -610,8 +615,8 @@ else {
     closeBtn: {
       flex: "1 1 120px",
       background: "transparent",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
-      color: isDarkMode ? "#ccc" : "#666",
+      border: `1px solid ${theme.palette.divider}`,
+      color: theme.palette.text.primary,
       padding: "12px 16px",
       borderRadius: "6px",
       cursor: "pointer",
@@ -622,7 +627,7 @@ else {
     },
     nextBtn: {
       flex: "1 1 120px",
-      background: "#6366f1",
+      background: theme.palette.primary.main,
       color: "#fff",
       border: "none",
       padding: "12px 16px",
@@ -637,244 +642,7 @@ else {
 
   return (
     <>
-      <div style={styles.overlay}>
-        <div style={styles.modal}>
-          <h2 style={styles.title}>Create New Person</h2>
-          <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '20px',
-              marginBottom: '20px',
-              borderBottom: `1px solid ${isDarkMode ? "#444" : "#e0e0e0"}`,
-              paddingBottom: '10px'
-            }}>
-              <div style={{ fontWeight: '600', color: isDarkMode ? "#ccc" : "#333" }}>NEW PERSON INFO</div>
-              <div style={{ fontWeight: '600', color: isDarkMode ? "#ccc" : "#333" }}>LEADER INFO</div>
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Invited By
-                {showError('invitedBy') && <span style={styles.required}>Required</span>}
-              </label>
-              <input
-                type="text"
-                value={inviterSearch}
-                onChange={(e) => {
-                  setInviterSearch(e.target.value);
-                  setShowInviterDropdown(true);
-                  setTouched({ ...touched, invitedBy: true });
-                }}
-                onFocus={() => {
-                  setShowInviterDropdown(true);
-                  if (inviterSearch.length === 0 && preloadedPeople.length > 0) {
-                    setInviterResults(preloadedPeople.slice(0, 10));
-                  }
-                }}
-                onBlur={() => setTouched({ ...touched, invitedBy: true })}
-                style={showError('invitedBy') ? styles.inputError : styles.input}
-                placeholder="Start typing to search..."
-                autoComplete="off"
-              />
-              {showInviterDropdown && (
-                <div style={styles.dropdown}>
-                  {loadingInviters && (
-                    <div style={styles.dropdownEmpty}>Loading...</div>
-                  )}
-                  {!loadingInviters && inviterResults.length === 0 && inviterSearch.length >= 1 && (
-                    <div style={styles.dropdownEmpty}>No people found</div>
-                  )}
-                  {!loadingInviters && inviterSearch.length === 0 && (
-                    <div style={styles.dropdownEmpty}>Type to search people...</div>
-                  )}
-                  {!loadingInviters && inviterResults.map((person) => (
-                    <div
-                      key={person.id}
-                      style={styles.dropdownItem}
-                      onClick={() => handleInviterSelect(person)}
-                      onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
-                      onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
-                    >
-                      <div style={{ fontWeight: "500" }}>{person.fullName}</div>
-                      <div style={{ fontSize: "12px", color: isDarkMode ? "#999" : "#666" }}>
-                        {person.email}
-                        {person.leader1 && <span> • L@1: {person.leader1}</span>}
-                        {person.leader12 && <span> • L@12: {person.leader12}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Name
-                {showError('name') && <span style={styles.required}>Required</span>}
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                onBlur={() => setTouched({ ...touched, name: true })}
-                style={showError('name') ? styles.inputError : styles.input}
-              />
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Surname
-                {showError('surname') && <span style={styles.required}>Required</span>}
-              </label>
-              <input
-                type="text"
-                value={formData.surname}
-                onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
-                onBlur={() => setTouched({ ...touched, surname: true })}
-                style={showError('surname') ? styles.inputError : styles.input}
-              />
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Gender</label>
-              <div style={styles.radioGroup}>
-                <label style={styles.radioLabel}>
-                  <input
-                    type="radio"
-                    name="gender"
-                    value="Male"
-                    checked={formData.gender === "Male"}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  />
-                  Male
-                </label>
-                <label style={styles.radioLabel}>
-                  <input
-                    type="radio"
-                    name="gender"
-                    value="Female"
-                    checked={formData.gender === "Female"}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  />
-                  Female
-                </label>
-              </div>
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Email Address
-                {showError('email') && <span style={styles.required}>Required</span>}
-              </label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                onBlur={() => setTouched({ ...touched, email: true })}
-                style={showError('email') ? styles.inputError : styles.input}
-              />
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Mobile Number
-                {showError('mobile') && <span style={styles.required}>Required</span>}
-              </label>
-              <input
-                type="tel"
-                value={formData.mobile}
-                onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                onBlur={() => setTouched({ ...touched, mobile: true })}
-                style={showError('mobile') ? styles.inputError : styles.input}
-              />
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Date Of Birth
-                {showError('dob') && <span style={styles.required}>Required</span>}
-              </label>
-              <input
-                type="date"
-                value={formData.dob}
-                onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                onBlur={() => setTouched({ ...touched, dob: true })}
-                style={showError('dob') ? styles.inputError : styles.input}
-              />
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>
-                Home Address
-                {showError('address') && <span style={styles.required}>Required</span>}
-              </label>
-              <input
-                type="text"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                onBlur={() => setTouched({ ...touched, address: true })}
-                style={showError('address') ? styles.inputError : styles.input}
-              />
-            </div>
-
-            <div style={styles.buttonGroup}>
-              <button 
-                type="button" 
-                style={styles.closeBtn} 
-                onClick={handleClose}
-                onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3d3d3d" : "#f8f9fa"}
-                onMouseLeave={(e) => e.target.style.background = "transparent"}
-              >
-                CANCEL
-              </button>
-              <button 
-                type="button" 
-                style={styles.nextBtn} 
-                onClick={handleNext}
-                onMouseEnter={(e) => e.target.style.background = "#4f46e5"}
-                onMouseLeave={(e) => e.target.style.background = "#6366f1"}
-              >
-                NEXT
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      {showLeaderModal && (
-        <LeaderSelectionModal
-          isOpen={showLeaderModal}
-          onClose={() => setShowLeaderModal(false)}
-          onBack={() => setShowLeaderModal(false)}
-          onSubmit={handleSubmit}
-          personData={formData}
-          preloadedPeople={preloadedPeople}
-          autoFilledLeaders={autoFilledLeaders}
-        />
-      )}
-
-      {alert.open && (
-        <div
-          style={{
-            position: "fixed",
-            top: "20px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: "16px 24px",
-            borderRadius: "8px",
-            color: "#fff",
-            fontSize: "15px",
-            fontWeight: "500",
-            zIndex: 10001,
-            background: alert.type === "success" ? "#28a745" : "#dc3545",
-            maxWidth: "90vw",
-            textAlign: "center",
-          }}
-        >
-          {alert.message}
-        </div>
-      )}
+     <AddPersonDialog/>
     </>
   );
 };
@@ -907,6 +675,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
+  const theme = useTheme();
 
   useEffect(() => {
     if (isOpen && autoFilledLeaders) {
@@ -1075,13 +844,13 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       fontWeight: "600",
       marginBottom: "8px",
       textAlign: "center",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
     },
     subtitle: {
       fontSize: "14px",
       marginBottom: "24px",
       textAlign: "center",
-      color: isDarkMode ? "#ccc" : "#666",
+      color: theme.palette.text.secondary,
     },
     leaderGroup: {
       display: "flex",
@@ -2698,9 +2467,12 @@ const confirmDidNotMeet = async () => {
       boxSizing: "border-box",
     },
     tableContainer: {
-      overflowX: "auto",
+      // overflowX: "auto",
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
+      // overflowY: "hidden",
+      // border: "2px solid red",
+      paddingBottom: 8,
     },
     table: {
       width: "100%",
@@ -2775,6 +2547,7 @@ const confirmDidNotMeet = async () => {
       minWidth: isMobile ? 140 : 200,
       maxHeight: 300,
       overflowY: "auto",
+      // border: "2px solid blue",
     },
     decisionMenuItem: {
       padding: "10px 12px",
@@ -2783,6 +2556,8 @@ const confirmDidNotMeet = async () => {
       color: theme.palette.text.primary,
       transition: "background 0.15s",
     },
+
+    
     priceTierButton: {
       display: "flex",
       alignItems: "center",
@@ -3575,8 +3350,8 @@ const confirmDidNotMeet = async () => {
                                                 )
                                               }
                                               onMouseEnter={(e) =>
-                                                (e.target.style.background =
-                                                  "#f0f0f0")
+                                                (e.currentTarget.style.background =
+                                                  theme.palette.action.hover)
                                               }
                                               onMouseLeave={(e) =>
                                                 (e.target.style.background =
@@ -3835,6 +3610,7 @@ const confirmDidNotMeet = async () => {
 
           <div style={styles.footer}>
             <button style={styles.closeBtn} onClick={onClose}>
+
               CLOSE
             </button>
             <div
