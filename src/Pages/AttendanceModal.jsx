@@ -640,11 +640,25 @@ else {
     },
   };
 
-  return (
-    <>
-     <AddPersonDialog/>
-    </>
-  );
+ return (
+  <>
+    <AddPersonDialog
+      open={isOpen}
+      onClose={handleClose}
+      onSave={(personData) => {
+        // Handle the saved person data
+        console.log("Person saved:", personData);
+        if (typeof onPersonAdded === "function") {
+          onPersonAdded(personData);
+        }
+        handleClose();
+      }}
+      formData={formData}
+      setFormData={setFormData}
+      isEdit={false}
+    />
+  </>
+);
 };
 
 const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
@@ -1057,8 +1071,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
     </div>
   );
 };
-
-
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
     const [searchName, setSearchName] = useState("");
