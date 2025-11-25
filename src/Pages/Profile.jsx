@@ -270,6 +270,12 @@ export default function Profile() {
   const [hasChanges, setHasChanges] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   
+  //initializing leaders
+  const [leaders,setLeaders] = useState({
+    leaderAt1:"",
+    leaderAt12:"",
+    leaderAt144:"",
+  })
   // Initialize form with empty values to prevent undefined errors
   const [form, setForm] = useState({
     name: "",
@@ -279,6 +285,7 @@ export default function Profile() {
     address: "",
     phone: "",
     invitedBy: "",
+    leaderAt1: "",
     gender: "",
     currentPassword: "",
     newPassword: "",
@@ -401,11 +408,15 @@ export default function Profile() {
       address: profile?.home_address || "",
       phone: profile?.phone_number || "",
       invitedBy: profile?.invited_by || "",
+      leaderAt1:profile?.leaderAt1 || "",
       gender: normalizeGender(profile?.gender || ""),
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
     };
+
+    //setting leaders state to localstorage leaders field which was set upon login
+    setLeaders(JSON.parse(localStorage.getItem("leaders")))
 
     setForm(formData);
     setOriginalForm(formData);
@@ -601,6 +612,7 @@ export default function Profile() {
       });
     }
   };
+  
 
   const onFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -733,6 +745,7 @@ export default function Profile() {
   if (loadingProfile && !hasProfileLoaded) {
     return <ProfileSkeleton />;
   }
+  console.log(form)
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: isDark ? "#0a0a0a" : "#f8f9fa", pb: 4 }}>
@@ -831,6 +844,19 @@ export default function Profile() {
                   </Typography>
                   <TextField value={form.dob || ""} onChange={handleChange("dob")} fullWidth type="date" disabled={!canEditProfile} error={!!errors.dob} helperText={errors.dob} InputLabelProps={{ shrink: true }} sx={commonFieldSx} />
                 </Grid>
+                 {/* Gender */}
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                    Gender
+                  </Typography>
+                  <TextField select value={form.gender || ""} onChange={handleChange("gender")} fullWidth disabled={!canEditProfile} sx={commonFieldSx}>
+                    {genderOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
 
                 {/* Email */}
                 <Grid item xs={12} sm={6}>
@@ -856,6 +882,8 @@ export default function Profile() {
                   <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
                 </Grid>
 
+
+               
                 {/* Invited By */}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
@@ -863,21 +891,35 @@ export default function Profile() {
                   </Typography>
                   <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
                 </Grid>
+             
 
-                {/* Gender */}
+                {/* Leader@1 By */}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                    Gender
+                    Leader@1
                   </Typography>
-                  <TextField select value={form.gender || ""} onChange={handleChange("gender")} fullWidth disabled={!canEditProfile} sx={commonFieldSx}>
-                    {genderOptions.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                  <TextField value={leaders.leaderAt1|| ""} onChange={handleChange("leader@1")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
                 </Grid>
+
+                 <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                    Leader@12
+                  </Typography>
+                  <TextField value={leaders.leaderAt12|| ""} onChange={handleChange("leader@12")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
+                </Grid>
+                 <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                    Leader@144
+                  </Typography>
+                  <TextField value={leaders.leaderAt144|| ""} onChange={handleChange("leader@144")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
+                </Grid>
+
+
               </Grid>
+
+              
+
+              
 
               {/* Password Section */}
               <>
