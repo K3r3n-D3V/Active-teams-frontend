@@ -2836,6 +2836,7 @@ const debugEventTypes = async () => {
     }
 
     console.log("🔍 Fetching events with params:", fetchParams);
+    console.log("🔍 Fetching events with params:", fetchParams)
     fetchEvents(fetchParams, true);
   };
 
