@@ -423,7 +423,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       handleClose();
     } catch (err) {
       console.error("Error updating task:", err.message);
-      alert("Failed to update task: " + err.message);
+      toast.error("Failed to update task: " + err.message);
     }
   };
 
@@ -484,7 +484,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
-        toast.success(`Task for ${person.Name} ${person.Surname} updated successfully!`);
+        toast.info(`Task for ${person.Name} ${person.Surname} updated successfully!`);
 ;
       } else {
         await createTask(taskPayload);
@@ -495,7 +495,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       handleClose();
     } catch (err) {
       console.error("Error adding task:", err.message);
-      alert("Failed to create task: " + err.message);
+      toast.error("Failed to create task: " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -699,7 +699,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
     console.log("Download successful!");
   } catch (error) {
     console.error("Error downloading Excel file:", error);
-    alert("Error creating Excel file: " + error.message);
+    toast.error("Error creating Excel file: " + error.message);
   }
 };
 
@@ -907,7 +907,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
               <div
                 style={{ cursor: 'pointer' }}
                 onClick={() => {
-                  alert(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.Number || task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
+                  toast.success(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.Number || task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
                 }}
               >
                 <p style={{ 

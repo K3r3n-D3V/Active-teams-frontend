@@ -9,7 +9,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Skeleton from "@mui/material/Skeleton";
 import Snackbar from "@mui/material/Snackbar";
-import Alert from "@mui/material/Alert";
+// import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
 import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment } from "@mui/material";
 import { DataGrid, GridToolbar } from '@mui/x-data-grid';
@@ -30,6 +30,8 @@ import Eventsfilter from "./AddPersonToEvents";
 import CreateEvents from "./CreateEvents";
 import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const styles = {
   container: {
@@ -331,7 +333,7 @@ const fabStyles = {
     width: "24px",
     height: "24px",
     borderRadius: "50%",
-    backgroundColor: "#007bff",
+    // backgroundColor: "#007bff",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -699,7 +701,7 @@ const Events = () => {
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredRow, setHoveredRow] = useState(null);
-  const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -900,7 +902,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
   try {
     const token = localStorage.getItem("token");
     if (!token) {
-      setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+      toast.error("Please log in again");
       setTimeout(() => window.location.href = '/login', 2000);
       setEvents([]);
       setFilteredEvents([]);
@@ -1061,15 +1063,15 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
   } catch (err) {
     console.error("Error fetching events:", err);
     if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-      setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
+     toast.warning("Request timeout. Please refresh and try again.");
     } else if (err.response?.status === 401) {
-      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+      toast.error("Session expired. Logging out...");;
       localStorage.removeItem("token");
       localStorage.removeItem("userProfile");
       setTimeout(() => window.location.href = '/login', 2000);
     } else {
       const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
-      setSnackbar({ open: true, message: `Error loading events: ${errorMessage}`, severity: "error" });
+      toast.error(`Error loading events: ${errorMessage}`);
     }
     setEvents([]);
     setFilteredEvents([]);
@@ -1098,8 +1100,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
   getCachedData,
   setCachedData,
   BACKEND_URL,
-  DEFAULT_API_START_DATE,
-  setSnackbar
+  DEFAULT_API_START_DATE
 ]);
 
 
@@ -1543,13 +1544,12 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       setAttendanceModalOpen(false);
       setSelectedEvent(null);
 
-      setSnackbar({
-        open: true,
-        message: payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
+     toast.success(
+  payload.did_not_meet
+    ? `${eventName} marked as 'Did Not Meet'.`
+    : `Successfully captured attendance for ${eventName}`
+);
+     
 
       return { success: true, message: "Attendance submitted successfully" };
     } catch (error) {
@@ -1565,11 +1565,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
         }
       }
 
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
+      toast.error(`Error loading events: ${errorMessage}`);
 
       return { success: false, message: errorMessage };
     }
@@ -1612,11 +1608,8 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
         eventToEdit,
         availableKeys: Object.keys(event)
       });
-      setSnackbar({
-        open: true,
-        message: "Cannot edit event: Missing identifier. Please refresh and try again.",
-        severity: "error",
-      });
+      toast.error("Cannot edit event: Missing identifier. Please refresh and try again.");
+      
       return;
     }
 
@@ -1642,19 +1635,13 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
 
         if (response.status === 200) {
           fetchEvents();
-          setSnackbar({
-            open: true,
-            message: "Event deleted successfully",
-            severity: "success",
-          });
+          toast.success("Event deleted successfully!");
+         
         }
       } catch (error) {
         console.error("Error deleting event:", error);
-        setSnackbar({
-          open: true,
-          message: "Failed to delete event",
-          severity: "error",
-        });
+        
+        toast.error("Failed to delete event");
       }
     }
   }, [BACKEND_URL, fetchEvents]);
@@ -1795,12 +1782,8 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
         console.log("🔄 Double-checking with second refresh...");
         await fetchEvents(refreshParams, true);
       }, 1000);
-
-      setSnackbar({
-        open: true,
-        message: "Event updated successfully!",
-        severity: "success",
-      });
+toast.success("Event updated successfully!");
+      
 
       return { success: true, event: updatedEvent };
 
@@ -1814,11 +1797,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
 
       const errorMessage = error.message || String(error) || "Failed to update event";
 
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
+     toast.error("Failed to update event");
 
       throw new Error(errorMessage);
     }
@@ -1937,11 +1916,8 @@ const handleEditType = useCallback(async (type) => {
 
   } catch (error) {
     console.error("Error preparing event type for editing:", error);
-    setSnackbar({
-      open: true,
-      message: "Error loading event type data",
-      severity: "error",
-    });
+    
+    toast.error("Error loading event type data");
   }
 }, [eventTypes, closeTypeMenu]);
 
@@ -2000,11 +1976,8 @@ const handleDeleteType = useCallback(async () => {
       setSelectedEventTypeObj(null);
     }
 
-    setSnackbar({
-      open: true,
-      message: response.data.message || `Event type "${typeName}" deleted successfully`,
-      severity: "success",
-    });
+    
+    toast.success(response.data.message || `Event type "${typeName}" deleted successfully`);
 
   } catch (error) {
     console.error("❌ Error deleting event type:", error);
@@ -2022,11 +1995,7 @@ const handleDeleteType = useCallback(async () => {
 
     setConfirmDeleteOpen(false);
 
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: "error",
-    });
+   toast.error("Session expired.");
   }
 }, [
   BACKEND_URL, 
@@ -2137,7 +2106,7 @@ const handleDeleteType = useCallback(async () => {
           const { hasCell, canAccessEvents } = response.data;
 
           if (!canAccessEvents || !hasCell) {
-            alert("You must have a cell to access the Events page");
+            toast.warning("You must have a cell to access the Events page");
             window.location.href = "/dashboard";
             return;
           }
@@ -2145,7 +2114,7 @@ const handleDeleteType = useCallback(async () => {
           console.log("✅ User has cell - access granted");
         } catch (error) {
           console.error("Error checking cell status:", error);
-          alert("Unable to verify access. Please contact support.");
+        toast.error("Unable to verify access. Please contact support.");
           window.location.href = "/dashboard";
           return;
         }
@@ -2155,7 +2124,7 @@ const handleDeleteType = useCallback(async () => {
       const hasAccess = isAdmin || isLeaderAt12 || isRegistrant || isLeader144or1728 || isUser;
 
       if (!hasAccess) {
-        alert("You must be a leader to access the Events page");
+        toast.warning("You must be a leader to access the Events page");
         window.location.href = "/dashboard";
       } else {
         console.log("✅ Access granted:", {
@@ -2265,11 +2234,8 @@ const handleDeleteType = useCallback(async () => {
       const userProfile = localStorage.getItem("userProfile");
 
       if (!token || !userProfile) {
-        setSnackbar({
-          open: true,
-          message: "Please log in to continue",
-          severity: "warning",
-        });
+        
+        toast.warning("Please log in to continue.");
         setTimeout(() => {
           window.location.href = '/login';
         }, 1500);
@@ -2352,20 +2318,14 @@ const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null
       setSelectedEventTypeFilter(newName);
     }
 
-    setSnackbar({
-      open: true,
-      message: `Event type ${eventTypeId ? 'updated' : 'created'} successfully!`,
-      severity: "success",
-    });
+   
+    toast.success(`Event type ${eventTypeId ? 'updated' : 'created'} successfully!`);
 
     return result;
   } catch (error) {
     console.error(`❌ Error ${eventTypeId ? 'updating' : 'creating'} event type:`, error);
-    setSnackbar({
-      open: true,
-      message: error.response?.data?.detail || error.message || `Failed to ${eventTypeId ? 'update' : 'create'} event type`,
-      severity: "error",
-    });
+   
+    toast.error(`Failed to ${eventTypeId ? 'update' : 'create'} event type`);
     throw error;
   }
 }, [
@@ -3701,7 +3661,7 @@ const debugEventTypes = async () => {
               aria-label="Create Event Type"
             >
               <Typography sx={fabStyles.fabMenuLabel}>Create Event Type</Typography>
-              <Box sx={fabStyles.fabMenuIcon}>📋</Box>
+              <Box sx={fabStyles.fabMenuIcon}></Box>
             </Box>
 
             <Box
@@ -3715,7 +3675,7 @@ const debugEventTypes = async () => {
               aria-label="Create Event"
             >
               <Typography sx={fabStyles.fabMenuLabel}>Create Event</Typography>
-              <Box sx={fabStyles.fabMenuIcon}>📅</Box>
+              <Box sx={fabStyles.fabMenuIcon}></Box>
             </Box>
           </Box>
 
@@ -3866,38 +3826,16 @@ const debugEventTypes = async () => {
           </Button>
         </DialogActions>
       </Dialog>
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        sx={{
-          '& .MuiSnackbar-root': {
-            top: '80px', // Adjust this value to position below your header
-          },
-          '& .MuiAlert-root': {
-            fontSize: '1rem',
-            fontWeight: '500',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          }
-        }}
-      >
-        <Alert
-          severity={snackbar.severity}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          sx={{
-            width: '100%',
-            fontSize: '1rem',
-            fontWeight: '500',
-          }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+     <ToastContainer
+  position="top-right"
+  autoClose={5000}
+  hideProgressBar={false}
+  newestOnTop={true}
+  closeOnClick
+  pauseOnHover
+  theme={isDarkMode ? "dark" : "light"}
+  style={{ marginTop: "80px" }} // Adjust based on your header height
+/>
     </Box>
   );
 };

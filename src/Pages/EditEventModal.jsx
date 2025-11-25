@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { toast } from "react-toastify";
 import { useTheme } from "@mui/material/styles";
 
 // small helper hook for responsiveness
@@ -33,7 +34,8 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     _id: ""
   });
   const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+
 
   useEffect(() => {
     if (event && isOpen) {
@@ -58,11 +60,12 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       // ✅ CRITICAL: Ensure at least ONE identifier exists
       if (!eventUUID && !eventId) {
         console.error('❌ CRITICAL: No identifier found in event object!', event);
-        setAlert({
-          open: true,
-          type: "error",
-          message: "Cannot edit event: No identifier found. Please refresh and try again.",
-        });
+        // setAlert({
+        //   open: true,
+        //   type: "error",
+        //   message: "Cannot edit event: No identifier found. Please refresh and try again.",
+        // });
+        toast.error("Cannot edit event: No identifier found. Please refresh and try again.");
         return;
       }
 
@@ -116,23 +119,25 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       console.error('❌ No event identifier found. FormData:', formData);
       console.error('❌ Original event:', event);
       
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Cannot save: Missing event identifier. Please close and try again.",
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Cannot save: Missing event identifier. Please close and try again.",
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+      toast.error("Cannot save: Missing event identifier. Please close and try again.");
       return;
     }
 
     // ✅ Validate required fields
     if (!formData.eventName?.trim() || !formData.date) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Please fill in event name and date",
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Please fill in event name and date",
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+      toast.error("Please fill in event name and date");
       return;
     }
 
@@ -175,21 +180,24 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       console.log('✅ Save result:', result);
       
       if (result && (result.success || result.event)) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: "Event updated successfully! Refreshing...",
-        });
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: "Event updated successfully! Refreshing...",
+        // });
+        // toast.success("Event updated successfully! Refreshing...");
         
         // ✅ CRITICAL: Close modal after short delay and force refresh
-        setTimeout(() => {
-          setAlert({ open: false, type: "success", message: "" });
-          setLoading(false);
-          // Call onClose with explicit true parameter
-          if (typeof onClose === 'function') {
-            onClose(true);
-          }
-        }, 800);
+        // setTimeout(() => {
+        //   // setAlert({ open: false, type: "success", message: "" });
+        //   // setLoading(false);
+        // toast.success("Event updated successfully! Refreshing...");
+
+        //   // Call onClose with explicit true parameter
+        //   if (typeof onClose === 'function') {
+        //     onClose(true);
+        //   }
+        // }, 800);
       } else {
         throw new Error(result?.message || "Update failed - no confirmation received");
       }
@@ -210,12 +218,13 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         errorMessage = error.response.data.message;
       }
       
-      setAlert({
-        open: true,
-        type: "error",
-        message: errorMessage,
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: errorMessage,
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -350,25 +359,25 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       fontSize: isSmall ? 12 : 12,
       color: theme.palette.text.secondary,
     },
-    alert: {
-      position: "fixed",
-      top: "20px",
-      left: "50%",
-      transform: "translateX(-50%)",
-      padding: "12px 20px",
-      borderRadius: "6px",
-      color: "#fff",
-      fontSize: "14px",
-      fontWeight: "500",
-      zIndex: 10001,
-    },
-    alertSuccess: {
-      background: "#10b981",
-    },
-    alertError: {
-      background: "#ef4444",
-    },
-  };
+    // alert: {
+    //   position: "fixed",
+    //   top: "20px",
+    //   left: "50%",
+    //   transform: "translateX(-50%)",
+    //   padding: "12px 20px",
+    //   borderRadius: "6px",
+    //   color: "#fff",
+    //   fontSize: "14px",
+    //   fontWeight: "500",
+    //   zIndex: 10001,
+    // },
+  //   alertSuccess: {
+  //     background: "#10b981",
+  //   },
+  //   alertError: {
+  //     background: "#ef4444",
+  //   },
+   };
 
   const hasIdentifier = !!(formData._id || formData.UUID);
 
@@ -542,16 +551,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       </div>
 
       {/* Alert Messages */}
-      {alert.open && (
-        <div
-          style={{
-            ...styles.alert,
-            ...(alert.type === "success" ? styles.alertSuccess : styles.alertError),
-          }}
-        >
-          {alert.message}
-        </div>
-      )}
+     
     </div>
   );
 };

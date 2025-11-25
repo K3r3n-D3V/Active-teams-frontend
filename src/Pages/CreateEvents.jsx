@@ -9,11 +9,8 @@ import {
   FormControlLabel,
   Box,
   InputAdornment,
-  Snackbar,
-  Alert,
   Typography,
   useTheme,
-  Autocomplete,
   IconButton,
 } from "@mui/material";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
@@ -23,6 +20,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "react-toastify";
 
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -56,10 +54,6 @@ const CreateEvents = ({
     eventTypeFlags;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successAlert, setSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorAlert, setErrorAlert] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
   const [peopleData, setPeopleData] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
@@ -230,8 +224,7 @@ const fetchPeople = async (filter = "") => {
 
       } catch (err) {
         console.error("Failed to fetch event:", err);
-        setErrorMessage("Failed to load event data. Please try again.");
-        setErrorAlert(true);
+        toast.error("Failed to load event data. Please try again.");
       }
     };
 
@@ -362,8 +355,7 @@ const getDayFromDate = (dateString) => {
       const eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
 
       if (!eventTypeToSend) {
-        setErrorMessage("Event type is required");
-        setErrorAlert(true);
+        toast.error("Event type is required");
         setIsSubmitting(false);
         return;
       }
@@ -449,10 +441,9 @@ if (formData.date) {
 
       console.log("Response:", response.data);
 
-      setSuccessMessage(
+      toast.success(
         eventId ? "Event updated successfully!" : "Event created successfully!"
       );
-      setSuccessAlert(true);
 
       if (!eventId) resetForm();
 
@@ -498,8 +489,7 @@ if (formData.date) {
         errorMsg = err.message;
       }
 
-      setErrorMessage(errorMsg);
-      setErrorAlert(true);
+      toast.error(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -1130,42 +1120,6 @@ if (formData.date) {
               </Button>
             </Box>
           </form>
-
-          <Snackbar
-            open={successAlert}
-            autoHideDuration={3000}
-            onClose={() => setSuccessAlert(false)}
-            anchorOrigin={{ vertical: "top", horizontal: "center" }}
-          >
-            <Alert
-              severity="success"
-              variant="filled"
-              sx={{
-                bgcolor: "#4caf50",
-                color: "#ffffff",
-              }}
-            >
-              {successMessage}
-            </Alert>
-          </Snackbar>
-
-          <Snackbar
-            open={errorAlert}
-            autoHideDuration={3000}
-            onClose={() => setErrorAlert(false)}
-            anchorOrigin={{ vertical: "top", horizontal: "center" }}
-          >
-            <Alert
-              severity="error"
-              variant="filled"
-              sx={{
-                bgcolor: "#f44336",
-                color: "#ffffff",
-              }}
-            >
-              {errorMessage}
-            </Alert>
-          </Snackbar>
         </CardContent>
       </Card>
     </Box>
