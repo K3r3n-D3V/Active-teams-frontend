@@ -39,6 +39,8 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
+import Collapse from '@mui/material/Collapse';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import {
   People,
   CellTower,
@@ -54,7 +56,7 @@ import {
   ChevronRight,
   Save,
   CheckCircle,
-  Event,
+  Event
 } from '@mui/icons-material';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -79,20 +81,13 @@ class EventCalculationService {
     return hasAttendees || status === 'completed' || status === 'closed' || did_not_meet;
   }
 
-  static getOverdueCells(events) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return events.filter(event => {
-      if (!this.isCellEvent(event)) return false;
-      if (this.isEventCompleted(event)) return false;
-      if (!event.date) return false;
-
-      const eventDate = new Date(event.date);
-      eventDate.setHours(0, 0, 0, 0);
-      return eventDate < today;
-    });
-  }
+ static getOverdueCells(events) {
+  return events.filter(event => {
+    if (!this.isCellEvent(event)) return false;
+    const status = (event.status || '').toString().toLowerCase().trim();
+    return status === 'overdue' || status === 'incomplete';
+  });
+}
 }
 
 const StatsDashboard = () => {
@@ -130,6 +125,7 @@ const StatsDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [expandedUsers, setExpandedUsers] = useState([]); 
 
   const [newEventData, setNewEventData] = useState({
     eventName: '',
@@ -149,114 +145,148 @@ const StatsDashboard = () => {
   const [viewAllTasksModalOpen, setViewAllTasksModalOpen] = useState(false);
   const [viewPeopleTasksModalOpen, setViewPeopleTasksModalOpen] = useState(false);
 
-  // ==================== FETCH STATS — FULLY WORKING WITH PAGINATION ====================
 const fetchStats = async () => {
   try {
     setRefreshing(true);
     setStats(prev => ({ ...prev, loading: true, error: null }));
 
     const token = localStorage.getItem("token");
-    if (!token) throw new Error("Authentication required");
+    if (!token) throw new Error("Please log in again");
 
-    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
 
-    const FIXED_START_DATE = '2025-10-27';  // Your ministry launch date
+    const FIXED_START_DATE = '2025-10-27';
 
-    // 1. FETCH ALL CELL EVENTS SINCE LAUNCH (with pagination)
+    // ==================== 1. FETCH ALL CELLS ====================
     let allCellEvents = [];
     let page = 1;
-    let hasMore = true;
-
-    while (hasMore) {
+    while (true) {
       const res = await fetch(
         `${BACKEND_URL}/events/cells?page=${page}&limit=100&start_date=${FIXED_START_DATE}`,
         { headers }
       );
-
-      if (!res.ok) {
-        const error = await res.text();
-        throw new Error(`Failed to fetch cells (page ${page}): ${res.status} ${error}`);
-      }
-
+      if (!res.ok) throw new Error(`Page ${page} failed: ${res.status}`);
       const data = await res.json();
       const events = data.events || data.data || [];
-
-      allCellEvents = [...allCellEvents, ...events];
-
-      // Stop if we got less than 100 → no more pages
-      hasMore = events.length === 100;
+      allCellEvents.push(...events);
+      if (events.length < 100) break;
       page++;
     }
 
-    console.log(`Successfully loaded ${allCellEvents.length} cell events since 27 Oct 2025`);
+    const overdueOrIncompleteCells = allCellEvents.filter(event => {
+      const status = (event.status || '').toString().toLowerCase().trim();
+      return status === 'overdue' || status === 'incomplete';
+    });
 
-    // 2. Fetch Tasks
+    // ==================== 2. FETCH ALL TASKS ====================
     let allTasks = [];
     try {
       const tasksRes = await fetch(`${BACKEND_URL}/tasks`, { headers });
-      if (tasksRes.ok) {
-        const data = await tasksRes.json();
-        allTasks = data.tasks || data.results || data.data || [];
-      }
-    } catch (e) { console.warn("Tasks fetch failed:", e); }
+      if (!tasksRes.ok) throw new Error(`Tasks fetch failed: ${tasksRes.status}`);
+      const data = await tasksRes.json();
+      console.log("Raw /tasks response:", data);
 
-    const incompleteTasks = allTasks.filter(t =>
-      !['completed', 'closed', 'done', 'cancelled'].includes((t.status || '').toLowerCase().trim())
-    );
+      if (Array.isArray(data)) allTasks = data;
+      else if (data.tasks) allTasks = data.tasks;
+      else if (data.results) allTasks = data.results;
+      else if (data.data) allTasks = data.data;
+      else if (data.items) allTasks = data.items;
+      else console.error("Unknown tasks format:", data);
 
-    // 3. People with Task Progress
-    let peopleWithTasks = [];
-    let recentPeopleCount = Math.max(1, Math.floor(allCellEvents.length * 0.12));
+      console.log(`Loaded ${allTasks.length} tasks`);
+    } catch (e) {
+      console.error("Tasks fetch failed:", e);
+    }
 
+    // ==================== 3. FETCH ALL USERS — MUST BE BEFORE TASK GROUPING ====================
+    let allPeople = [];
+    let recentPeopleCount = 0;
     try {
-      const peopleRes = await fetch(`${BACKEND_URL}/tasks`, { headers });
-      if (peopleRes.ok) {
-        const data = await peopleRes.json();
-        const people = data.people || data.results || data.data || [];
-        recentPeopleCount = people.length;
+      const peopleRes = await fetch(`${BACKEND_URL}/api/users`, { headers });
+      if (!peopleRes.ok) throw new Error("Failed to fetch users");
+      const data = await peopleRes.json();
+      allPeople = data.users || data.data || data.results || [];
+      recentPeopleCount = allPeople.length;
+      console.log(`Fetched ${allPeople.length} users`);
+    } catch (e) {
+      console.error("Users fetch failed:", e);
+      allPeople = [];
+    }
 
-        peopleWithTasks = people.map(p => {
-          const completed = p.completedTasks || 0;
-          const expected = (p.role || '').toLowerCase().includes('leader') || (p.role || '').toLowerCase().includes('admin')
-            ? 70 : 45;
-          const isBehind = completed < expected;
-          return {
-            ...p,
-            completedTasks: completed,
-            expectedTasks: expected,
-            isBehind,
-            tasksDifference: expected - completed
-          };
-        }).sort((a, b) => b.tasksDifference - a.tasksDifference);
-      }
-    } catch (e) { console.warn("People fetch failed:", e); }
+    // ==================== 4. NOW GROUP TASKS BY USER (safe because allPeople exists) ====================
+    const getUserId = (assignedTo) => {
+      if (!assignedTo) return null;
+      if (typeof assignedTo === 'string') return assignedTo;
+      if (assignedTo._id) return assignedTo._id.toString();
+      if (assignedTo.id) return assignedTo.id.toString();
+      return assignedTo.toString?.() || null;
+    };
 
-    // 4. Calculate Metrics
-    const overdueCells = EventCalculationService.getOverdueCells(allCellEvents);
-    const totalAttendance = allCellEvents.reduce((sum, e) => sum + (e.attendees?.length || 0), 0);
-    const daysSinceLaunch = Math.floor((new Date() - new Date(FIXED_START_DATE)) / (1000 * 60 * 60 * 24));
+    const taskMap = {};
+    allTasks.forEach(task => {
+      const userId = getUserId(task.assignedTo);
+      if (!userId) return;
+      if (!taskMap[userId]) taskMap[userId] = [];
+      taskMap[userId].push(task);
+    });
+
+    const sortedUserTaskGroups = allPeople.map(person => {
+      const userIdStr = person._id?.toString();
+      const tasks = userIdStr ? (taskMap[userIdStr] || []) : [];
+      const totalCount = tasks.length;
+      const incompleteCount = tasks.filter(t =>
+        !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())
+      ).length;
+      const completedCount = totalCount - incompleteCount;
+
+      return {
+        user: {
+          ...person,
+          fullName: person.fullName ||
+            `${person.name || ''} ${person.surname || ''}`.trim() ||
+            person.email?.split('@')[0] || 'Unknown'
+        },
+        tasks,
+        totalCount,
+        incompleteCount,
+        completedCount
+      };
+    }).sort((a, b) => {
+      if (b.incompleteCount !== a.incompleteCount) return b.incompleteCount - a.incompleteCount;
+      if (b.totalCount !== a.totalCount) return b.totalCount - a.totalCount;
+      return a.user.fullName.localeCompare(b.user.fullName);
+    });
+
+    // ==================== 5. FINAL STATS ====================
+    const totalAttendance = overdueOrIncompleteCells.reduce((sum, e) => sum + (e.attendees?.length || 0), 0);
 
     const overviewData = {
       total_attendance: totalAttendance,
-      outstanding_cells: overdueCells.length,
-      outstanding_tasks: incompleteTasks.length,
+      outstanding_cells: overdueOrIncompleteCells.length,
+      outstanding_tasks: allTasks.filter(t =>
+        !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())
+      ).length,
       recent_people: recentPeopleCount,
-      people_behind: peopleWithTasks.filter(p => p.isBehind).length,
-      events_count: allCellEvents.length,
-      days_since_launch: daysSinceLaunch
+      people_behind: sortedUserTaskGroups.filter(g => g.incompleteCount > 0).length,
+      events_count: overdueOrIncompleteCells.length,
     };
 
     setStats({
       overview: overviewData,
-      events: allCellEvents,
-      overdueCells,
+      events: overdueOrIncompleteCells,
+      overdueCells: overdueOrIncompleteCells,
       recentPeople: recentPeopleCount,
       allTasks,
-      incompleteTasks,
-      peopleWithTasks,
+      peopleWithTasks: allPeople,
+      groupedTasks: sortedUserTaskGroups,
       loading: false,
       error: null
     });
+
+    console.log("DASHBOARD LOADED:", { users: allPeople.length, tasks: allTasks.length });
 
   } catch (err) {
     console.error("Fetch error:", err);
@@ -608,10 +638,9 @@ const fetchStats = async () => {
 
   const ViewAllTasksModal = () => (
     <Dialog open={viewAllTasksModalOpen} onClose={() => setViewAllTasksModalOpen(false)} maxWidth="lg" fullWidth>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        All Tasks ({stats.allTasks.length})
-        <IconButton onClick={() => setViewAllTasksModalOpen(false)}><Close /></IconButton>
-      </DialogTitle>
+      <Typography variant="h6" gutterBottom mb={3}>
+        Disciples & Tasks ({stats.groupedTasks?.length || 0} with tasks • {stats.allTasks?.length || 0} total)
+      </Typography>
       <DialogContent dividers>
         <TableContainer component={Paper}>
           <Table stickyHeader size="small">
@@ -719,9 +748,163 @@ const fetchStats = async () => {
 
         {activeTab === 1 && (
           <Paper sx={{ p: 3 }}>
-            <Box display="flex" justifyContent="space-between" mb={2}><Typography variant="h6">All Tasks</Typography><Chip label={stats.allTasks.length} /></Box>
-            {stats.allTasks.slice(0, 5).map((t, i) => <OutstandingItem key={i} item={t} type="tasks" />)}
-            {stats.allTasks.length > 5 && <Button onClick={() => setViewAllTasksModalOpen(true)} startIcon={<Visibility />}>View All</Button>}
+            <Typography variant="h6" gutterBottom mb={3}>
+              All Tasks by Person ({stats.allTasks?.length || 0} total)
+            </Typography>
+
+            {stats.groupedTasks?.length > 0 ? (
+              <Stack spacing={3}>
+                {stats.groupedTasks.map(({ user, tasks, totalCount, incompleteCount, completedCount }) => {
+                  const fullName =
+                    user.fullName ||
+                    `${user.name || ''} ${user.surname || ''}`.trim() ||
+                    user.email?.split('@')[0] ||
+                    'Unknown User';
+
+                  const isExpanded = expandedUsers.includes(user.email || fullName);
+
+                  return (
+                    <Box
+                      key={user.email || fullName}
+                      sx={{
+                        borderRadius: 3,
+                        backgroundColor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        boxShadow: 3,
+                        overflow: 'hidden',
+                        transition: 'all 0.2s',
+                        '&:hover': { boxShadow: 6 },
+                      }}
+                    >
+                      {/* Clickable Header */}
+                      <Box
+                        sx={{
+                          p: 3,
+                          cursor: 'pointer',
+                          backgroundColor: incompleteCount > 0 ? 'error.50' : 'transparent',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                        }}
+                        onClick={() =>
+                          setExpandedUsers(prev =>
+                            prev.includes(user.email || fullName)
+                              ? prev.filter(e => e !== (user.email || fullName))
+                              : [...prev, (user.email || fullName)]
+                          )
+                        }
+                      >
+                        <Box display="flex" alignItems="center" justifyContent="space-between">
+                          <Box display="flex" alignItems="center" gap={2.5}>
+                            <Avatar
+                              sx={{
+                                bgcolor: 'primary.main',
+                                width: 56,
+                                height: 56,
+                                fontSize: '1.5rem',
+                                fontWeight: 'bold',
+                              }}
+                            >
+                              {fullName.charAt(0).toUpperCase()}
+                            </Avatar>
+
+                            <Box>
+                              <Typography variant="h6" fontWeight="bold">
+                                {fullName}
+                              </Typography>
+                             <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
+  {totalCount} task{totalCount !== 1 ? 's' : ''} assigned → {' '}
+  <Box component="span" color="success.main" fontWeight="bold">
+    {completedCount} completed
+  </Box>{' '}
+  {incompleteCount > 0 && (
+    <>• <Box component="span" color="error.main" fontWeight="bold">{incompleteCount} behind</Box></>
+  )}
+  {incompleteCount === 0 && totalCount > 0 && (
+    <Box component="span" color="success.main" fontWeight="bold"> — ALL DONE!</Box>
+  )}
+</Typography>
+                            </Box>
+                          </Box>
+
+                          <Box display="flex" alignItems="center" gap={2}>
+                            {incompleteCount > 0 && (
+                              <Chip
+                                label={`${incompleteCount} behind`}
+                                color="error"
+                                size="medium"
+                                sx={{ fontWeight: 'bold', px: 2, height: 36 }}
+                              />
+                            )}
+                            <IconButton size="small">
+                              <ExpandMore
+                                sx={{
+                                  transition: 'transform 0.2s ease',
+                                  transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                }}
+                              />
+                            </IconButton>
+                          </Box>
+                        </Box>
+                      </Box>
+
+                      {/* Collapsible Task List */}
+                      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                        <Box sx={{ px: 3, pb: 3, pt: 1, backgroundColor: 'grey.50' }}>
+                          <Divider sx={{ mb: 2 }} />
+                          {tasks.length === 0 ? (
+                            <Typography color="text.secondary" fontStyle="italic">
+                              No tasks assigned
+                            </Typography>
+                          ) : (
+                            <Stack spacing={1.5}>
+                              {tasks.map(task => (
+                                <Box
+                                  key={task._id}
+                                  sx={{
+                                    p: 2,
+                                    borderRadius: 2,
+                                    backgroundColor: 'background.paper',
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <Box>
+                                    <Typography variant="body2" fontWeight="medium">
+                                      {task.name || task.taskType || 'Untitled Task'}
+                                    </Typography>
+                                    {task.contacted_person?.name && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        Contact: {task.contacted_person.name}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                  <Chip
+                                    label={task.status || 'Pending'}
+                                    size="small"
+                                    color={
+                                      ['completed', 'done'].includes(task.status?.toLowerCase())
+                                        ? 'success'
+                                        : task.status?.toLowerCase() === 'overdue'
+                                        ? 'error'
+                                        : 'warning'
+                                    }
+                                  />
+                                </Box>
+                              ))}
+                            </Stack>
+                          )}
+                        </Box>
+                      </Collapse>
+                    </Box>
+                  );
+                })}
+              </Stack>
+            ) : (
+              <Alert severity="info">No tasks assigned to anyone yet.</Alert>
+            )}
           </Paper>
         )}
 
