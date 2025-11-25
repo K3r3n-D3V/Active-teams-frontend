@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import {
   Avatar,
   IconButton,
@@ -19,9 +19,33 @@ export default function TopbarProfile() {
   const location = useLocation();
   const theme = useTheme();
   const { user, logout, isAuthenticated } = useContext(AuthContext);
-  const { profilePic } = useContext(UserContext);
+  const { profilePic, loadUserProfile } = useContext(UserContext);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const open = Boolean(anchorEl);
+
+  // Load user profile on mount and when user changes
+  useEffect(() => {
+    const initializeProfile = async () => {
+      if (isAuthenticated && user) {
+        setIsLoading(true);
+        try {
+          // If UserContext has a loadUserProfile function, call it
+          if (loadUserProfile) {
+            await loadUserProfile();
+          }
+        } catch (error) {
+          console.error("Error loading user profile:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        setIsLoading(false);
+      }
+    };
+
+    initializeProfile();
+  }, [user, isAuthenticated, loadUserProfile]);
 
   // Get display name
   const getDisplayName = () => {
@@ -96,7 +120,7 @@ export default function TopbarProfile() {
         >
           <Avatar
             alt={displayName}
-            src={profilePic} // Now uses profilePic from UserContext
+            src={!isLoading && profilePic ? profilePic : undefined}
             sx={{
               width: 40,
               height: 40,
@@ -109,8 +133,8 @@ export default function TopbarProfile() {
               transition: 'all 0.2s ease-in-out',
             }}
           >
-            {/* Show initials only for default avatars */}
-            {showInitials && initials}
+            {/* Show initials only for default avatars or while loading */}
+            {(showInitials || isLoading) && initials}
           </Avatar>
         </IconButton>
       </Tooltip>
