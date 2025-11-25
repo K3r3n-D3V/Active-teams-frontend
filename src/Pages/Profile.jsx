@@ -898,20 +898,20 @@ export default function Profile() {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Leader@1
                   </Typography>
-                  <TextField value={leaders.leaderAt1|| ""} onChange={handleChange("leader@1")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
+                  <TextField value={leaders.leaderAt1|| ""} onChange={handleChange("leader@1")} fullWidth disabled={true} sx={commonFieldSx} />
                 </Grid>
 
                  <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Leader@12
                   </Typography>
-                  <TextField value={leaders.leaderAt12|| ""} onChange={handleChange("leader@12")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
+                  <TextField value={leaders.leaderAt12|| ""} onChange={handleChange("leader@12")} fullWidth disabled={true} sx={commonFieldSx} />
                 </Grid>
                  <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Leader@144
                   </Typography>
-                  <TextField value={leaders.leaderAt144|| ""} onChange={handleChange("leader@144")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
+                  <TextField value={leaders.leaderAt144|| ""} onChange={handleChange("leader@144")} fullWidth disabled={true} sx={commonFieldSx} />
                 </Grid>
 
 
