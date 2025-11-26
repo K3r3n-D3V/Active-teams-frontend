@@ -2726,7 +2726,7 @@ const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => 
 
 
 const handleViewFilterChange = (newViewFilter) => {
-  console.log("🔄 View filter changing:", {
+  console.log("View filter changing:", {
     from: viewFilter,
     to: newViewFilter,
     isLeaderAt12,
@@ -2743,7 +2743,7 @@ const handleViewFilterChange = (newViewFilter) => {
     limit: rowsPerPage,
     start_date: DEFAULT_API_START_DATE,
     event_type: "CELLS",
-    _t: Date.now() // Cache buster
+    _t: Date.now()
   };
 
   if (selectedStatus !== 'all') {
@@ -2753,17 +2753,19 @@ const handleViewFilterChange = (newViewFilter) => {
     fetchParams.search = searchQuery.trim();
   }
 
+  // FIXED: Clean logic for Admin vs Leader at 12
   if (isAdmin) {
     if (newViewFilter === 'personal') {
       fetchParams.personal = true;
-      // 🔥 CRITICAL: Remove all Leader at 12 params for admin personal view
-      console.log("🔍 Admin PERSONAL MODE: Showing admin's own cells only");
+      console.log("Admin PERSONAL MODE: Showing admin's own cells only");
     } else {
       // Admin VIEW ALL mode - no personal filter
-      console.log("🔍 Admin ALL MODE: Showing ALL cells");
+      console.log("Admin ALL MODE: Showing ALL cells");
+      // Remove any personal filters
+      delete fetchParams.personal;
     }
   }
-  // Only apply Leader at 12 logic if NOT an Admin
+  // FIXED: Leader at 12 logic - CLEAN separation
   else if (isLeaderAt12) {
     fetchParams.leader_at_12_view = true;
 
@@ -2773,17 +2775,19 @@ const handleViewFilterChange = (newViewFilter) => {
 
     if (newViewFilter === 'personal') {
       // LEADER AT 12 PERSONAL: Only show personal cells
-      fetchParams.show_personal_cells = true;
       fetchParams.personal = true;
-      console.log(" Leader at 12 PERSONAL MODE: Showing PERSONAL cells only");
+      console.log("Leader at 12 PERSONAL MODE: Showing PERSONAL cells only");
     } else {
-      fetchParams.show_all_authorized = true;
+      // LEADER AT 12 VIEW ALL: Show ALL disciples' cells
       fetchParams.include_subordinate_cells = true;
-      console.log(" Leader at 12 VIEW ALL MODE: Showing ALL authorized cells");
+      console.log("Leader at 12 VIEW ALL MODE: Showing ALL disciples' cells");
+      
+      delete fetchParams.personal;
+      delete fetchParams.show_personal_cells;
     }
   }
 
-  console.log(" Final API call params:", JSON.stringify(fetchParams, null, 2));
+  console.log("Final API call params:", JSON.stringify(fetchParams, null, 2));
   fetchEvents(fetchParams, true);
 };
 

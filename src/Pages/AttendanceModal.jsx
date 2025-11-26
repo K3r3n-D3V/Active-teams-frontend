@@ -1602,76 +1602,72 @@ function getWeekNumber(date) {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-  const loadExistingAttendance = async () => {
+const loadExistingAttendance = async () => {
     if (!event) return;
 
     const eventId = event._id || event.id;
-    console.log("Loading attendance data for event:", eventId);
+    console.log("🔄 Loading attendance data for event:", eventId);
 
     const currentWeek = getCurrentWeekIdentifier();
     
-    // Use the persistentCommonAttendees state that we set in useEffect
-    const persistentList = persistentCommonAttendees || [];
-    console.log(`Using ${persistentList.length} persistent attendees`);
-    
-    // ✅ FIX: Check for current week data in the NEW structure
+    // ✅ ALWAYS start with empty state for new week
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setManualHeadcount("");
+    setDidNotMeet(false);
+
+    console.log(`🆕 NEW WEEK - ${persistentCommonAttendees?.length || 0} names loaded - ALL UNCHECKED`);
+
+    // ✅ Only load existing ticks if this week already has attendance data WITH CHECKED-IN ATTENDEES
     const hasCurrentWeekData = 
         event.attendance && 
         event.attendance[currentWeek] && 
-        event.attendance[currentWeek].attendees &&
-        event.attendance[currentWeek].attendees.length > 0 &&
-        event.attendance[currentWeek].status === 'complete';
+        event.attendance[currentWeek].attendees;
 
     const hasCurrentWeekDidNotMeet =
-      event.attendance &&
-      event.attendance[currentWeek] &&
-      event.attendance[currentWeek].status === "did_not_meet";
+        event.attendance &&
+        event.attendance[currentWeek] &&
+        event.attendance[currentWeek].status === "did_not_meet";
 
-    console.log(`Current week: ${currentWeek}`);
-    console.log(`Has current week data: ${hasCurrentWeekData}`);
-    console.log(`Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
-    console.log(`Event attendance data:`, event.attendance);
+    console.log(`📅 Current week: ${currentWeek}`);
+    console.log(`✅ Has current week data: ${hasCurrentWeekData}`);
+    console.log(`❌ Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
 
-    if (hasCurrentWeekData) {
+    if (hasCurrentWeekData && !hasCurrentWeekDidNotMeet) {
         const weekData = event.attendance[currentWeek];
         const newCheckedIn = {};
         const newDecisions = {};
         const newDecisionTypes = {};
 
-        console.log(`Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
+        console.log(`👥 Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
 
-        // Mark attendees as checked for THIS WEEK
+        // ✅ CRITICAL FIX: Only mark as checked if they were explicitly checked last time
         weekData.attendees.forEach(attendee => {
-            if (attendee.id) {
+            if (attendee.id && attendee.checked_in) { // ✅ ADD THIS CHECK
                 newCheckedIn[attendee.id] = true;
 
-          if (attendee.decision) {
-            newDecisions[attendee.id] = true;
-            newDecisionTypes[attendee.id] = attendee.decision;
-          }
-        }
-      });
+                if (attendee.decision) {
+                    newDecisions[attendee.id] = true;
+                    newDecisionTypes[attendee.id] = attendee.decision;
+                }
+            }
+        });
 
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-      setDidNotMeet(false);
-
-        console.log(`Loaded: ${persistentList.length} names, ${Object.keys(newCheckedIn).length} checked THIS WEEK`);
+        setCheckedIn(newCheckedIn);
+        setDecisions(newDecisions);
+        setDecisionTypes(newDecisionTypes);
+        
+        console.log(` Loaded: ${Object.keys(newCheckedIn).length} CHECKED attendees for THIS WEEK`);
     } 
     else if (hasCurrentWeekDidNotMeet) {
-        console.log("Current week marked as DID NOT MEET");
+        console.log(" Current week marked as DID NOT MEET");
         setDidNotMeet(true);
         setCheckedIn({});
     }
     else {
-        console.log("NEW WEEK - Names listed but NOTHING checked");
-        setCheckedIn({});
-        setDecisions({});
-        setDecisionTypes({});
-        setManualHeadcount("");
-        setDidNotMeet(false);
-        console.log(`Loaded ${persistentList.length} names - all UNCHECKED (new week)`);
+        console.log(" NEW WEEK - Names listed but NOTHING checked");
+        console.log(` Loaded ${persistentCommonAttendees?.length || 0} names - all UNCHECKED (new week)`);
     }
 };
 
