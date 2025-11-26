@@ -88,29 +88,58 @@ const CreateEvents = ({
     "Sunday",
   ];
 
-  useEffect(() => {
+useEffect(() => {
+  console.log('🔍 CreateEvents - Received props:', {
+    selectedEventTypeObj,
+    selectedEventType,
+    eventTypes
+  });
+
   if (selectedEventTypeObj) {
-    console.log('Selected Event Type Obj:', selectedEventTypeObj); // Add this for debugging
+    console.log('🔍 Setting from selectedEventTypeObj:', selectedEventTypeObj);
     
     setEventTypeFlags({
       isGlobal: !!selectedEventTypeObj.isGlobal,
       isTicketed: !!selectedEventTypeObj.isTicketed,
-      hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps, // Make sure this is set
+      hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
     });
 
     setFormData((prev) => ({
       ...prev,
-      eventType: selectedEventTypeObj.name || prev.eventType,
+      eventType: selectedEventTypeObj.name || selectedEventTypeObj.displayName || prev.eventType,
     }));
   } else if (selectedEventType) {
-    setFormData((prev) => ({
-      ...prev,
-      eventType: selectedEventType,
-    }));
+    console.log('🔍 Setting from selectedEventType:', selectedEventType);
+    
+    // Try to find the full event type object from eventTypes
+    const foundEventType = eventTypes.find(et => 
+      et.name === selectedEventType || 
+      et.displayName === selectedEventType ||
+      et._id === selectedEventType
+    );
+    
+    if (foundEventType) {
+      console.log('🔍 Found event type in eventTypes:', foundEventType);
+      setEventTypeFlags({
+        isGlobal: !!foundEventType.isGlobal,
+        isTicketed: !!foundEventType.isTicketed,
+        hasPersonSteps: !!foundEventType.hasPersonSteps,
+      });
+      
+      setFormData((prev) => ({
+        ...prev,
+        eventType: foundEventType.name || foundEventType.displayName || selectedEventType,
+      }));
+    } else {
+      console.log('🔍 Using raw selectedEventType:', selectedEventType);
+      setFormData((prev) => ({
+        ...prev,
+        eventType: selectedEventType,
+      }));
+    }
   }
-}, [selectedEventTypeObj, selectedEventType]);
+}, [selectedEventTypeObj, selectedEventType, eventTypes]);
 
-// Add this useEffect to debug
 useEffect(() => {
   console.log('Current eventTypeFlags:', eventTypeFlags);
   console.log('Should show leader fields:', hasPersonSteps && !isGlobalEvent);
@@ -676,15 +705,16 @@ if (formData.date) {
           )}
 
           <form onSubmit={handleSubmit}>
-            <TextField
-              label="Event Type *"
-              value={formData.eventType}
-              fullWidth
-              size="small"
-              sx={{ mb: 3, ...darkModeStyles.textField }}
-              InputProps={{ readOnly: true }}
-              disabled
-            />
+           <TextField
+  label="Event Type *"
+  value={formData.eventType || selectedEventTypeObj?.name || selectedEventType || ""}
+  fullWidth
+  size="small"
+  sx={{ mb: 3, ...darkModeStyles.textField }}
+  InputProps={{ readOnly: true }}
+  disabled
+  helperText={selectedEventTypeObj ? `Type: ${selectedEventTypeObj.isGlobal ? 'Global' : 'Local'} ${selectedEventTypeObj.isTicketed ? '| Ticketed' : ''} ${selectedEventTypeObj.hasPersonSteps ? '| Personal Steps' : ''}` : "Event type details"}
+/>
 
             <TextField
               label="Event Name *"
