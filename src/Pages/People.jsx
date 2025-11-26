@@ -1,4 +1,4 @@
-// People.jsx (Exact match search + View filter)
+// People.jsx (Optimized search with debouncing)
 import React, { useState, useEffect, useMemo, useCallback, useRef, useContext } from 'react';
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import axios from 'axios';
@@ -303,6 +303,7 @@ export const PeopleSection = () => {
   const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('name');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
@@ -317,8 +318,26 @@ export const PeopleSection = () => {
   const [gridPage, setGridPage] = useState(1);
   const ITEMS_PER_PAGE = 100;
   const isFetchingRef = useRef(false);
+  const searchDebounceRef = useRef(null);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+  // Debounce search input
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300); // 300ms debounce
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [searchTerm]);
 
   // Get current user's full name from context
   const currentUserName = useMemo(() => {
@@ -326,7 +345,7 @@ export const PeopleSection = () => {
       return `${userProfile.name} ${userProfile.surname}`.trim();
     }
     if (user?.email) {
-      return user.email; // Fallback to email if name not available
+      return user.email;
     }
     return '';
   }, [userProfile, user]);
@@ -390,6 +409,7 @@ export const PeopleSection = () => {
     }
   }, [BACKEND_URL]);
 
+  // Optimized search function
   const searchPeople = useCallback((peopleList, searchValue, field) => {
     if (!searchValue.trim()) return peopleList;
 
@@ -397,33 +417,30 @@ export const PeopleSection = () => {
 
     return peopleList.filter(person => {
       switch (field) {
-        case 'name':
-          // Partial match for name, surname, or full name
-          const fullName = `${person.name} ${person.surname}`.toLowerCase();
+        case 'name': {
           const nameLower = person.name.toLowerCase();
           const surnameLower = person.surname.toLowerCase();
-
+          const fullName = `${nameLower} ${surnameLower}`;
+          
           return nameLower.includes(searchLower) ||
             surnameLower.includes(searchLower) ||
             fullName.includes(searchLower);
+        }
         case 'email':
           return person.email.toLowerCase().includes(searchLower);
         case 'phone':
           return person.phone.includes(searchValue.trim());
         case 'location':
           return person.location.toLowerCase().includes(searchLower);
-        case 'leaders':
-          // Match if search term appears in any leader field (name, surname, or full name)
+        case 'leaders': {
           const leader1Lower = person.leaders.leader1.toLowerCase();
           const leader12Lower = person.leaders.leader12.toLowerCase();
           const leader144Lower = person.leaders.leader144.toLowerCase();
           const leader1728Lower = person.leaders.leader1728.toLowerCase();
 
-          // Check if search matches full name, or just first/last name parts
           const matchesLeader = (leaderName) => {
             if (!leaderName) return false;
             const parts = leaderName.split(' ');
-            // Match full name, first name, or last name
             return leaderName === searchLower ||
               parts.some(part => part === searchLower);
           };
@@ -432,6 +449,9 @@ export const PeopleSection = () => {
             matchesLeader(leader12Lower) ||
             matchesLeader(leader144Lower) ||
             matchesLeader(leader1728Lower);
+        }
+        default:
+          return true;
       }
     });
   }, []);
@@ -442,7 +462,6 @@ export const PeopleSection = () => {
     const userName = currentUserName.toLowerCase().trim();
 
     return peopleList.filter(person => {
-      // Check if current user is listed as any of their leaders
       return person.leaders.leader1.toLowerCase() === userName ||
         person.leaders.leader12.toLowerCase() === userName ||
         person.leaders.leader144.toLowerCase() === userName ||
@@ -450,34 +469,33 @@ export const PeopleSection = () => {
     });
   }, [currentUserName]);
 
+  // Use debounced search term
   const filteredPeople = useMemo(() => {
     let result = allPeople;
 
-    // Apply view filter first
     if (viewFilter === 'myPeople') {
       result = filterMyPeople(result);
     }
 
-    // Then apply search
-    result = searchPeople(result, searchTerm, searchField);
+    result = searchPeople(result, debouncedSearchTerm, searchField);
 
     return result;
-  }, [allPeople, searchTerm, searchField, viewFilter, searchPeople, filterMyPeople]);
+  }, [allPeople, debouncedSearchTerm, searchField, viewFilter, searchPeople, filterMyPeople]);
 
   const paginatedPeople = useMemo(() => {
-    if (viewMode === 'list' || searchTerm.trim()) {
+    if (viewMode === 'list' || debouncedSearchTerm.trim()) {
       return filteredPeople;
     }
 
     const startIndex = (gridPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     return filteredPeople.slice(startIndex, endIndex);
-  }, [filteredPeople, gridPage, viewMode, searchTerm]);
+  }, [filteredPeople, gridPage, viewMode, debouncedSearchTerm]);
 
   const totalPages = useMemo(() => {
-    if (viewMode === 'list' || searchTerm.trim()) return 1;
+    if (viewMode === 'list' || debouncedSearchTerm.trim()) return 1;
     return Math.ceil(filteredPeople.length / ITEMS_PER_PAGE);
-  }, [filteredPeople.length, viewMode, searchTerm]);
+  }, [filteredPeople.length, viewMode, debouncedSearchTerm]);
 
   useEffect(() => {
     if (globalPeopleCache && allPeople.length === 0) {
@@ -489,7 +507,7 @@ export const PeopleSection = () => {
 
   useEffect(() => {
     setGridPage(1);
-  }, [searchTerm, searchField, viewFilter]);
+  }, [debouncedSearchTerm, searchField, viewFilter]);
 
   const handleRefresh = () => {
     fetchAllPeople(true);
@@ -607,7 +625,7 @@ export const PeopleSection = () => {
     });
   };
 
-  const isSearching = searchTerm.trim().length > 0;
+  const isSearching = debouncedSearchTerm.trim().length > 0;
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
@@ -672,7 +690,7 @@ export const PeopleSection = () => {
       <Box sx={{ display: 'flex', gap: 2, mb: 2, px: 1 }}>
         <TextField
           size="small"
-          placeholder="Search (exact match)..."
+          placeholder="Search..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
