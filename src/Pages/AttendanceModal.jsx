@@ -1745,7 +1745,7 @@ const fetchPersistentAttendees = async (eventId) => {
       const newState = { ...prev, [id]: !prev[id] };
 
       if (newState[id]) {
-       toast.success(`${name} has been checked in`);
+      //  toast.success(`${name} has been checked in`);
         // setAlert({
         //   open: true,
         //   type: "success",
@@ -1765,7 +1765,7 @@ const fetchPersistentAttendees = async (eventId) => {
         //   () => setAlert({ open: false, type: "warning", message: "" }),
         //   3000
         // );
-        toast.warning(`You have unchecked ${name}`);
+        // toast.warning(`You have unchecked ${name}`);
 
         setDecisions((prev) => ({ ...prev, [id]: false }));
         setDecisionTypes((prev) => {
@@ -2114,7 +2114,7 @@ const handleSave = async () => {
             //     setAlert({ open: false, type: "success", message: "" });
             //     onClose();
             // }, 2000);
-            toast.success("Attendance saved successfully!");
+            // toast.success("Attendance saved successfully!");
         } else {
             throw new Error(result.message || "Failed to save attendance");
         }
