@@ -2114,7 +2114,7 @@ const handleSave = async () => {
             //     setAlert({ open: false, type: "success", message: "" });
             //     onClose();
             // }, 2000);
-            toast.success(result.message || "Attendance saved successfully!");
+            toast.success("Attendance saved successfully!");
         } else {
             throw new Error(result.message || "Failed to save attendance");
         }
