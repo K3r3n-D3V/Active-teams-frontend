@@ -1289,8 +1289,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   );
 };
 
-
-
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
     const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
@@ -1604,76 +1602,72 @@ function getWeekNumber(date) {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-  const loadExistingAttendance = async () => {
+const loadExistingAttendance = async () => {
     if (!event) return;
 
     const eventId = event._id || event.id;
-    console.log("Loading attendance data for event:", eventId);
+    console.log("🔄 Loading attendance data for event:", eventId);
 
     const currentWeek = getCurrentWeekIdentifier();
     
-    // Use the persistentCommonAttendees state that we set in useEffect
-    const persistentList = persistentCommonAttendees || [];
-    console.log(`Using ${persistentList.length} persistent attendees`);
-    
-    // ✅ FIX: Check for current week data in the NEW structure
+    // ✅ ALWAYS start with empty state for new week
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setManualHeadcount("");
+    setDidNotMeet(false);
+
+    console.log(`🆕 NEW WEEK - ${persistentCommonAttendees?.length || 0} names loaded - ALL UNCHECKED`);
+
+    // ✅ Only load existing ticks if this week already has attendance data WITH CHECKED-IN ATTENDEES
     const hasCurrentWeekData = 
         event.attendance && 
         event.attendance[currentWeek] && 
-        event.attendance[currentWeek].attendees &&
-        event.attendance[currentWeek].attendees.length > 0 &&
-        event.attendance[currentWeek].status === 'complete';
+        event.attendance[currentWeek].attendees;
 
     const hasCurrentWeekDidNotMeet =
-      event.attendance &&
-      event.attendance[currentWeek] &&
-      event.attendance[currentWeek].status === "did_not_meet";
+        event.attendance &&
+        event.attendance[currentWeek] &&
+        event.attendance[currentWeek].status === "did_not_meet";
 
-    console.log(`Current week: ${currentWeek}`);
-    console.log(`Has current week data: ${hasCurrentWeekData}`);
-    console.log(`Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
-    console.log(`Event attendance data:`, event.attendance);
+    console.log(`📅 Current week: ${currentWeek}`);
+    console.log(`✅ Has current week data: ${hasCurrentWeekData}`);
+    console.log(`❌ Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
 
-    if (hasCurrentWeekData) {
+    if (hasCurrentWeekData && !hasCurrentWeekDidNotMeet) {
         const weekData = event.attendance[currentWeek];
         const newCheckedIn = {};
         const newDecisions = {};
         const newDecisionTypes = {};
 
-        console.log(`Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
+        console.log(`👥 Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
 
-        // Mark attendees as checked for THIS WEEK
+        // ✅ CRITICAL FIX: Only mark as checked if they were explicitly checked last time
         weekData.attendees.forEach(attendee => {
-            if (attendee.id) {
+            if (attendee.id && attendee.checked_in) { // ✅ ADD THIS CHECK
                 newCheckedIn[attendee.id] = true;
 
-          if (attendee.decision) {
-            newDecisions[attendee.id] = true;
-            newDecisionTypes[attendee.id] = attendee.decision;
-          }
-        }
-      });
+                if (attendee.decision) {
+                    newDecisions[attendee.id] = true;
+                    newDecisionTypes[attendee.id] = attendee.decision;
+                }
+            }
+        });
 
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-      setDidNotMeet(false);
-
-        console.log(`Loaded: ${persistentList.length} names, ${Object.keys(newCheckedIn).length} checked THIS WEEK`);
+        setCheckedIn(newCheckedIn);
+        setDecisions(newDecisions);
+        setDecisionTypes(newDecisionTypes);
+        
+        console.log(` Loaded: ${Object.keys(newCheckedIn).length} CHECKED attendees for THIS WEEK`);
     } 
     else if (hasCurrentWeekDidNotMeet) {
-        console.log("Current week marked as DID NOT MEET");
+        console.log(" Current week marked as DID NOT MEET");
         setDidNotMeet(true);
         setCheckedIn({});
     }
     else {
-        console.log("NEW WEEK - Names listed but NOTHING checked");
-        setCheckedIn({});
-        setDecisions({});
-        setDecisionTypes({});
-        setManualHeadcount("");
-        setDidNotMeet(false);
-        console.log(`Loaded ${persistentList.length} names - all UNCHECKED (new week)`);
+        console.log(" NEW WEEK - Names listed but NOTHING checked");
+        console.log(` Loaded ${persistentCommonAttendees?.length || 0} names - all UNCHECKED (new week)`);
     }
 };
 
@@ -1958,7 +1952,6 @@ const getAllCommonAttendees = () => {
 
 
 const handleSave = async () => {
-    // Get ALL common attendees FIRST and validate
     const allPeople = getAllCommonAttendees();
     console.log("📊 All people for save:", allPeople);
     
@@ -2035,7 +2028,6 @@ const handleSave = async () => {
         if (typeof onSubmit === "function") {
             console.log("✅ Using onSubmit prop...");
 
-            // ✅ FIX: Create the payload structure that matches handleAttendanceSubmit expectations
             const payload = {
                 attendees: didNotMeet ? [] : selectedAttendees,
                 all_attendees: allPeople,
@@ -2062,7 +2054,6 @@ const handleSave = async () => {
                 did_not_meet: payload.did_not_meet
             });
 
-            // ✅ FIX: Only pass the payload (NOT eventId) since handleAttendanceSubmit gets eventId from selectedEvent
             result = await onSubmit(payload);
             
         } else {
@@ -2166,7 +2157,6 @@ const confirmDidNotMeet = async () => {
     setPriceTiers({});
     setPaymentMethods({});
     setPaidAmounts({});
-
     try {
       const eventId = event?.id || event?._id;
       if (!eventId) {
@@ -2181,83 +2171,79 @@ const confirmDidNotMeet = async () => {
         );
         return;
       }
-
+      
       let result;
-
-        if (typeof onSubmit === "function") {
-            // ✅ FIX: Use the direct payload structure
-            const allPeople = getAllCommonAttendees();
-            const payload = {
-                attendees: [],
-                all_attendees: allPeople,
-                leaderEmail: currentUser?.email || "",
-                leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-                did_not_meet: true,
-                isTicketed: isTicketedEvent,
-                week: getCurrentWeekIdentifier(),
-                persistent_attendees: allPeople.map(p => ({
-                    id: p.id,
-                    fullName: p.fullName,
-                    email: p.email,
-                    leader12: p.leader12,
-                    leader144: p.leader144,
-                    phone: p.phone
-                }))
-            };
-            
-            // ✅ FIX: Only pass the payload
-            result = await onSubmit(payload);
-        } else {
-            const token = localStorage.getItem("token");
-            const headers = {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            };
-
-            // ✅ FIX: Use direct structure
-            const allPeople = getAllCommonAttendees();
-            const payload = {
-                attendees: [],
-                all_attendees: allPeople,
-                leaderEmail: currentUser?.email || "",
-                leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-                did_not_meet: true,
-                isTicketed: isTicketedEvent,
-                week: getCurrentWeekIdentifier(),
-                persistent_attendees: allPeople.map(p => ({
-                    id: p.id,
-                    fullName: p.fullName,
-                    email: p.email,
-                    leader12: p.leader12,
-                    leader144: p.leader144,
-                    phone: p.phone
-                }))
-            };
-
-        const response = await fetch(
-          `${BACKEND_URL}/submit-attendance/${eventId}`,
-          {
-            method: "PUT",
-            headers,
-            body: JSON.stringify(payload),
-          }
-        );
-
-        result = await response.json();
-        result.success = response.ok;
+      if (typeof onSubmit === "function") {
+          const allPeople = getAllCommonAttendees();
+          const payload = {
+              attendees: [],
+              all_attendees: allPeople,
+              leaderEmail: currentUser?.email || "",
+              leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+              did_not_meet: true,
+              isTicketed: isTicketedEvent,
+              week: getCurrentWeekIdentifier(),
+              persistent_attendees: allPeople.map(p => ({
+                  id: p.id,
+                  fullName: p.fullName,
+                  email: p.email,
+                  leader12: p.leader12,
+                  leader144: p.leader144,
+                  phone: p.phone
+              }))
+          };
+          
+          result = await onSubmit(payload);
+      } else {
+          const token = localStorage.getItem("token");
+          const headers = {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+          };
+          
+          const allPeople = getAllCommonAttendees();
+          const payload = {
+              attendees: [],
+              all_attendees: allPeople,
+              leaderEmail: currentUser?.email || "",
+              leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+              did_not_meet: true,
+              isTicketed: isTicketedEvent,
+              week: getCurrentWeekIdentifier(),
+              persistent_attendees: allPeople.map(p => ({
+                  id: p.id,
+                  fullName: p.fullName,
+                  email: p.email,
+                  leader12: p.leader12,
+                  leader144: p.leader144,
+                  phone: p.phone
+              }))
+          };
+          
+          const response = await fetch(
+            `${BACKEND_URL}/submit-attendance/${eventId}`,
+            {
+              method: "PUT",
+              headers,
+              body: JSON.stringify(payload),
+            }
+          );
+          result = await response.json();
+          result.success = response.ok;
       }
-
+      
       if (result?.success) {
         setAlert({
           open: true,
           type: "success",
           message: "Event marked as 'Did Not Meet' successfully!",
         });
-
+        
+        // 🔥 CRITICAL: Call the refresh function
         if (typeof onAttendanceSubmitted === "function") {
           onAttendanceSubmitted();
         }
-
+        
         setTimeout(() => {
           setAlert({ open: false, type: "success", message: "" });
           onClose();
@@ -2295,27 +2281,22 @@ const confirmDidNotMeet = async () => {
   };
 
   const handlePersonAdded = (newPerson) => {
-    console.log("✅ New person added:", newPerson);
+    console.log(" New person added:", newPerson);
 
-    // Invalidate cache since we added a new person
     if (typeof window.globalPeopleCache !== 'undefined') {
       window.globalPeopleCache.data = [];
       window.globalPeopleCache.timestamp = null;
     }
 
-    // Refresh the people list and preloaded data
     fetchPeople();
     loadPreloadedPeople();
 
-    // If this is a cell event, refresh common attendees
     if (event && event.eventType === "cell") {
       fetchCommonAttendees(event._id || event.id);
     }
 
-    // Close the add person modal
     setShowAddPersonModal(false);
 
-    // Show success message
     setAlert({
       open: true,
       type: "success",

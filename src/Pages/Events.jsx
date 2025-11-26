@@ -422,8 +422,6 @@ const getEventTypeStyles = (isDarkMode, theme, isMobileView) => ({
   },
 });
 
-
-
 const formatDate = (date) => {
   if (!date) return "Not set";
   const dateObj = new Date(date);
@@ -775,12 +773,12 @@ const Events = () => {
     }
   }, []);
 
-  const clearCache = useCallback(() => {
-    cacheRef.current.data.clear();
-    cacheRef.current.timestamp.clear();
-  }, []);
+ const clearCache = useCallback(() => {
+  cacheRef.current.data.clear();
+  cacheRef.current.timestamp.clear();
+  console.log(" Cache cleared");
+}, []);
 
-  // Calculate pagination values
   const paginatedEvents = useMemo(() => events, [events]);
   const startIndex = useMemo(() => {
     return totalEvents > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
@@ -918,14 +916,18 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
 
     const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
+    // 🔥 CRITICAL FIX: Only include status if explicitly provided in filters
     const params = {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-      status: filters.status !== undefined ? filters.status : (selectedStatus !== 'all' ? selectedStatus : undefined),
-      search: filters.search !== undefined ? filters.search : (searchQuery.trim() || undefined),
       start_date: startDateParam,
-      ...filters
+      ...filters  // Let filters override everything
     };
+
+    // Remove status if it's not explicitly provided
+    if (!filters.status && params.status) {
+      delete params.status;
+    }
 
     // FIXED: Determine if this is a Cell request or Event Type request
     const isCellRequest = params.event_type === 'CELLS' || params.event_type === 'all' || !params.event_type;
@@ -934,7 +936,8 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
     console.log("Request Type:", {
       isCellRequest,
       isEventTypeRequest,
-      event_type: params.event_type
+      event_type: params.event_type,
+      status: params.status // Log the actual status being sent
     });
 
     if (isEventTypeRequest) {
@@ -945,6 +948,11 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       delete params.show_all_authorized;
       delete params.include_subordinate_cells;
       delete params.leader_at_1_identifier;
+      
+      // 🔥 CRITICAL FIX: For event types, also remove status unless explicitly filtered
+      if (!filters.status) {
+        delete params.status;
+      }
     } else {
       // Cell request - apply role-based logic
       console.log("CELL MODE - Applying role-based filters");
@@ -985,7 +993,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
     console.log('Final API call details:', {
       endpoint,
       params: JSON.stringify(params, null, 2),
-        userRole: userRole
+      userRole: userRole
     });
 
     const cacheKey = getCacheKey({ ...params, userRole, endpoint });
@@ -1026,6 +1034,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
         name: e.eventName,
         type: e.eventType,
         typeName: e.eventTypeName,
+        status: e.status, // 🔥 CRITICAL: Log the status
         id: e._id
       })));
     } else {
@@ -1102,8 +1111,56 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
   setSnackbar
 ]);
 
+const handleStatusFilterChange = useCallback((newStatus) => {
+  console.log("🎯 Status filter changing to:", newStatus);
+  
+  setSelectedStatus(newStatus);
+  setCurrentPage(1);
 
-  // In Events.jsx - Update the fetchEventTypes function
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
+
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    status: newStatus !== 'all' ? newStatus : undefined, // Send undefined for 'all'
+    start_date: DEFAULT_API_START_DATE,
+    _t: Date.now(), // Cache buster
+    ...(searchQuery.trim() && { search: searchQuery.trim() }),
+    ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
+    ...(shouldApplyPersonalFilter && { personal: true }),
+    // Leader at 12 params
+    ...(isLeaderAt12 && {
+      leader_at_12_view: true,
+      include_subordinate_cells: true,
+      ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
+      ...(viewFilter === 'personal' ? 
+        { show_personal_cells: true, personal: true } : 
+        { show_all_authorized: true }
+      )
+    })
+  };
+
+  // For 'all' status, we want to show incomplete events by default
+  if (newStatus === 'all') {
+    delete fetchParams.status; // Let backend handle default
+  }
+
+  console.log("🔄 Fetching with status params:", fetchParams);
+  fetchEvents(fetchParams, true, true);
+}, [
+  viewFilter,
+  userRole,
+  rowsPerPage,
+  searchQuery,
+  selectedEventTypeFilter,
+  isLeaderAt12,
+  currentUserLeaderAt1,
+  fetchEvents,
+  DEFAULT_API_START_DATE
+]);
+
   const fetchEventTypes = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
@@ -1462,134 +1519,139 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
   }, [viewFilter, userRole, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
 
 
-  const handleAttendanceSubmit = useCallback(async (data) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      const eventId = selectedEvent._id;
-      const eventName = selectedEvent.eventName || 'Event';
+const handleAttendanceSubmit = useCallback(async (data) => {
+  try {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+    const eventId = selectedEvent._id;
+    const eventName = selectedEvent.eventName || 'Event';
 
-      const leaderEmail = currentUser?.email || '';
-      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
+    const leaderEmail = currentUser?.email || '';
+    const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
 
-      let payload;
+    let payload;
 
-      if (data === "did_not_meet") {
-        payload = {
-          attendees: [],
-          all_attendees: [],
-          leaderEmail,
-          leaderName,
-          did_not_meet: true,
-        };
-      } else if (Array.isArray(data)) {
-        payload = {
-          attendees: data,
-          all_attendees: data,
-          leaderEmail,
-          leaderName,
-          did_not_meet: false,
-        };
-      } else {
-        payload = {
-          ...data,
-          leaderEmail,
-          leaderName,
-        };
-      }
-
-      console.log("Sending payload to backend:", JSON.stringify(payload, null, 2));
-
-      const response = await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        payload,
-        { headers }
-      );
-
-      console.log("Attendance submitted successfully, refreshing events...");
-
-      // Pass current filters to fetchEvents
-      const refreshParams = {
-        page: currentPage,
-        limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        search: searchQuery.trim() || undefined,
-        start_date: DEFAULT_API_START_DATE,
-        event_type: selectedEventTypeFilter === 'all' ? "CELLS" : selectedEventTypeFilter
+    if (data === "did_not_meet") {
+      payload = {
+        attendees: [],
+        all_attendees: [],
+        leaderEmail,
+        leaderName,
+        did_not_meet: true,
       };
-
-      // Add Leader at 12 params if needed
-      if (isLeaderAt12 && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
-        refreshParams.leader_at_12_view = true;
-        refreshParams.include_subordinate_cells = true;
-
-        if (currentUserLeaderAt1) {
-          refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === 'personal') {
-          refreshParams.show_personal_cells = true;
-          refreshParams.personal = true;
-        } else {
-          refreshParams.show_all_authorized = true;
-        }
-      }
-
-      console.log("Refreshing with params:", refreshParams);
-
-      // Force refresh with current filters
-      await fetchEvents(refreshParams, true);
-
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-
-      setSnackbar({
-        open: true,
-        message: payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
-
-      return { success: true, message: "Attendance submitted successfully" };
-    } catch (error) {
-      console.error("Error in handleAttendanceSubmit:", error);
-      const errData = error.response?.data;
-      let errorMessage = error.message;
-
-      if (errData) {
-        if (Array.isArray(errData?.errors)) {
-          errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
-        } else {
-          errorMessage = errData.detail || errData.message || JSON.stringify(errData);
-        }
-      }
-
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
-
-      return { success: false, message: errorMessage };
+    } else if (Array.isArray(data)) {
+      payload = {
+        attendees: data,
+        all_attendees: data,
+        leaderEmail,
+        leaderName,
+        did_not_meet: false,
+      };
+    } else {
+      payload = {
+        ...data,
+        leaderEmail,
+        leaderName,
+      };
     }
-  }, [
-    selectedEvent,
-    currentUser,
-    BACKEND_URL,
-    fetchEvents,
-    currentPage,
-    rowsPerPage,
-    selectedStatus,
-    searchQuery,
-    selectedEventTypeFilter,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    viewFilter,
-    DEFAULT_API_START_DATE
-  ]);
 
+    console.log("Sending payload to backend:", JSON.stringify(payload, null, 2));
 
+    const response = await axios.put(
+      `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+      payload,
+      { headers }
+    );
+
+    console.log("✅ Attendance submitted successfully");
+
+    clearCache();
+    
+    // Close modal immediately
+    setAttendanceModalOpen(false);
+    setSelectedEvent(null);
+
+    setSnackbar({
+      open: true,
+      message: payload.did_not_meet
+        ? `${eventName} marked as 'Did Not Meet'.`
+        : `Successfully captured attendance for ${eventName}`,
+      severity: "success",
+    });
+
+    setTimeout(async () => {
+      try {
+        const shouldApplyPersonalFilter =
+          viewFilter === 'personal' &&
+          (userRole === "admin" || userRole === "leader at 12");
+
+        const refreshParams = {
+          page: 1, 
+          limit: rowsPerPage,
+          start_date: DEFAULT_API_START_DATE,
+          _t: Date.now(), 
+         
+          ...(selectedStatus && selectedStatus !== 'all' && { status: selectedStatus }),
+          ...(searchQuery.trim() && { search: searchQuery.trim() }),
+          ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
+          ...(shouldApplyPersonalFilter && { personal: true }),
+          ...(isLeaderAt12 && {
+            leader_at_12_view: true,
+            include_subordinate_cells: true,
+            ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
+            ...(viewFilter === 'personal' ? 
+              { show_personal_cells: true, personal: true } : 
+              { show_all_authorized: true }
+            )
+          })
+        };
+
+        console.log("🔄 Refreshing events after attendance WITH status filter:", refreshParams);
+        await fetchEvents(refreshParams, true, true);
+
+      } catch (refreshError) {
+        console.error(" Error refreshing events:", refreshError);
+      }
+    }, 1000);
+
+    return { success: true, message: "Attendance submitted successfully" };
+  } catch (error) {
+    console.error(" Error in handleAttendanceSubmit:", error);
+    const errData = error.response?.data;
+    let errorMessage = error.message;
+
+    if (errData) {
+      if (Array.isArray(errData?.errors)) {
+        errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+      } else {
+        errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+      }
+    }
+
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: "error",
+    });
+
+    return { success: false, message: errorMessage };
+  }
+}, [
+  selectedEvent,
+  currentUser,
+  BACKEND_URL,
+  clearCache,
+  fetchEvents,
+  rowsPerPage,
+  searchQuery,
+  selectedEventTypeFilter,
+  selectedStatus, 
+  isLeaderAt12,
+  currentUserLeaderAt1,
+  viewFilter,
+  userRole,
+  DEFAULT_API_START_DATE
+]);
 
   const handleEditEvent = useCallback((event) => {
     console.log("📝 [handleEditEvent] Opening edit modal for event:", {
@@ -2066,46 +2128,52 @@ const handleDeleteType = useCallback(async () => {
     return status;
   };
 
+const handleSearchChange = useCallback((e) => {
+  const value = e.target.value;
+  setSearchQuery(value);
 
-  const handleSearchChange = useCallback((e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
+  if (searchTimeoutRef.current) {
+    clearTimeout(searchTimeoutRef.current);
+  }
 
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+  searchTimeoutRef.current = setTimeout(() => {
+    const trimmedSearch = value.trim();
+    console.log("🔍 Executing search for:", trimmedSearch);
+
+    let shouldApplyPersonalFilter = undefined;
+    if (userRole === "admin" || userRole === "leader at 12") {
+      shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
     }
 
-    searchTimeoutRef.current = setTimeout(() => {
-      const trimmedSearch = value.trim();
+    setCurrentPage(1);
+    clearCache();
 
-      let shouldApplyPersonalFilter = undefined;
-      if (userRole === "admin" || userRole === "leader at 12") {
-        shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
-      }
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now(), // Cache buster
+      // Include search parameter
+      ...(trimmedSearch && { search: trimmedSearch }),
+      ...(shouldApplyPersonalFilter && { personal: true }),
+    };
 
-      setCurrentPage(1);
-      clearCache();
+    // Determine event_type for endpoint selection
+    if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+      fetchParams.event_type = selectedEventTypeFilter;
+    } else {
+      fetchParams.event_type = "CELLS";
+    }
 
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        search: trimmedSearch || undefined,
-        personal: shouldApplyPersonalFilter,
-        start_date: DEFAULT_API_START_DATE
-      };
+    if (selectedStatus && selectedStatus !== 'all') {
+      fetchParams.status = selectedStatus;
+    }
 
-      // Determine event_type for endpoint selection
-      if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-        fetchParams.event_type = selectedEventTypeFilter;
-      } else {
-        fetchParams.event_type = "CELLS";
-      }
-
-      console.log("Search fetching with params:", fetchParams);
-      fetchEvents(fetchParams, true);
-    }, 800); // Increased delay for better performance
-  }, [userRole, viewFilter, clearCache, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
+    console.log("🔍 Search fetching with params:", fetchParams);
+    fetchEvents(fetchParams, true);
+  }, 800);
+}, 
+[userRole, viewFilter, clearCache, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -2178,30 +2246,31 @@ const handleDeleteType = useCallback(async () => {
     }
   }, [eventTypes.length, selectedEventTypeFilter]);
 
-  // ✅ AUTO-REFRESH when event type filter changes
-  useEffect(() => {
-    if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-      console.log("🔄 Event type filter changed, auto-refreshing:", selectedEventTypeFilter);
+useEffect(() => {
+  if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+    console.log("🔄 Event type filter changed, auto-refreshing:", selectedEventTypeFilter);
 
-      const refreshParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        event_type: selectedEventTypeFilter,
-        _t: Date.now()
-      };
+    const refreshParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      event_type: selectedEventTypeFilter,
+      _t: Date.now()
+    };
 
-      if (selectedStatus !== 'all') refreshParams.status = selectedStatus;
-      if (searchQuery.trim()) refreshParams.search = searchQuery.trim();
-
-      // Small delay to ensure state is updated
-      const timer = setTimeout(() => {
-        fetchEvents(refreshParams, true);
-      }, 200);
-
-      return () => clearTimeout(timer);
+    if (selectedStatus && selectedStatus !== 'all') {
+      refreshParams.status = selectedStatus;
     }
-  }, [selectedEventTypeFilter]); // Only depend on selectedEventTypeFilter
+    
+    if (searchQuery.trim()) refreshParams.search = searchQuery.trim();
+
+    const timer = setTimeout(() => {
+      fetchEvents(refreshParams, true);
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }
+}, [selectedEventTypeFilter]);
 
   useEffect(() => {
     console.log("🔍 [CURRENT STATE DEBUG]", {
@@ -2448,104 +2517,99 @@ const debugEventTypes = async () => {
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
 
-  useEffect(() => {
-    // Don't fetch if we're still initializing
-    if (eventTypes.length === 0) {
-      return;
-    }
+useEffect(() => {
+  // Don't fetch if we're still initializing
+  if (eventTypes.length === 0) {
+    return;
+  }
 
-    const fetchParams = {
-      page: currentPage,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      search: searchQuery.trim() || undefined,
-      start_date: DEFAULT_API_START_DATE
-    };
+  const fetchParams = {
+    page: currentPage,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE
+  };
 
-    // FIXED: Proper endpoint determination
-    let endpointType = "cells";
+  if (selectedStatus && selectedStatus !== 'all') {
+    fetchParams.status = selectedStatus;
+  }
 
-    if (selectedEventTypeFilter === 'all') {
-      fetchParams.event_type = "CELLS";
-      endpointType = "cells";
-    } else if (selectedEventTypeFilter === 'CELLS') {
-      fetchParams.event_type = "CELLS";
-      endpointType = "cells";
-    } else {
-      // For any other event type, use the other events endpoint
-      fetchParams.event_type = selectedEventTypeFilter;
-      endpointType = "other";
-    }
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
 
-    console.log("Endpoint Selection:", {
-      selectedEventTypeFilter,
-      endpointType,
-      finalEventType: fetchParams.event_type
-    });
+  let endpointType = "cells";
 
-    // FIXED: Clean role-based logic - ONLY apply to cells
-    if (endpointType === "cells") {
-      // Cells endpoint logic
-      if (isAdmin) {
-        if (viewFilter === 'personal') {
-          fetchParams.personal = true;
-        }
-      } else if (isRegistrant || isRegularUser) {
+  if (selectedEventTypeFilter === 'all') {
+    fetchParams.event_type = "CELLS";
+    endpointType = "cells";
+  } else if (selectedEventTypeFilter === 'CELLS') {
+    fetchParams.event_type = "CELLS";
+    endpointType = "cells";
+  } else {
+    fetchParams.event_type = selectedEventTypeFilter;
+    endpointType = "other";
+  }
+
+  console.log("🔍 Fetching with status filter:", selectedStatus, fetchParams);
+
+  if (endpointType === "cells") {
+    if (isAdmin) {
+      if (viewFilter === 'personal') {
         fetchParams.personal = true;
-      } else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
-        fetchParams.include_subordinate_cells = true;
-
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === 'personal') {
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          fetchParams.show_all_authorized = true;
-          fetchParams.include_subordinate_cells = true;
-        }
       }
-    } else {
-      // Other events endpoint - NO personal filtering for any role
-      console.log("Loading event type data for:", selectedEventTypeFilter);
+    } else if (isRegistrant || isRegularUser) {
+      fetchParams.personal = true;
+    } else if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
 
-      // Remove all personal and leader-specific filters for event types
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
-      delete fetchParams.leader_at_1_identifier;
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+      }
 
-      console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
+      if (viewFilter === 'personal') {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+        fetchParams.include_subordinate_cells = true;
+      }
     }
+  } else {
+    console.log("Loading event type data for:", selectedEventTypeFilter);
 
-    // Remove undefined values
-    Object.keys(fetchParams).forEach(key =>
-      fetchParams[key] === undefined && delete fetchParams[key]
-    );
+    delete fetchParams.personal;
+    delete fetchParams.leader_at_12_view;
+    delete fetchParams.show_personal_cells;
+    delete fetchParams.show_all_authorized;
+    delete fetchParams.include_subordinate_cells;
+    delete fetchParams.leader_at_1_identifier;
 
-    console.log("FINAL API call params:", fetchParams);
-    fetchEvents(fetchParams, true);
-  }, [
-    selectedEventTypeFilter,
-    selectedStatus,
-    viewFilter,
-    currentPage,
-    rowsPerPage,
-    searchQuery,
-    eventTypes.length,
-    isLeaderAt12,
-    isAdmin,
-    isRegularUser,
-    isRegistrant,
-    currentUserLeaderAt1,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
+    console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
+  }
+
+  Object.keys(fetchParams).forEach(key =>
+    fetchParams[key] === undefined && delete fetchParams[key]
+  );
+
+  console.log("FINAL API call params:", fetchParams);
+  fetchEvents(fetchParams, true);
+}, [
+  selectedEventTypeFilter,
+  selectedStatus, 
+  viewFilter,
+  currentPage,
+  rowsPerPage,
+  searchQuery,
+  eventTypes.length,
+  isLeaderAt12,
+  isAdmin,
+  isRegularUser,
+  isRegistrant,
+  currentUserLeaderAt1,
+  fetchEvents,
+  DEFAULT_API_START_DATE
+]);
 
   useEffect(() => {
     console.log("🔍 LEADER AT 12 DEBUG:", {
@@ -2564,34 +2628,77 @@ const debugEventTypes = async () => {
   }, [isLeaderAt12, currentUserLeaderAt1, viewFilter, selectedEventTypeFilter, events]);
 
 
-  const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
-    const statuses = [
-      { value: 'incomplete', label: 'Incomplete', style: styles.statusBadgeIncomplete },
-      { value: 'complete', label: 'Complete', style: styles.statusBadgeComplete },
-      { value: 'did_not_meet', label: 'Did Not Meet', style: styles.statusBadgeDidNotMeet }
-    ];
+const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
+  const statuses = [
+    { value: 'incomplete', label: 'INCOMPLETE', style: styles.statusBadgeIncomplete },
+    { value: 'complete', label: 'COMPLETE', style: styles.statusBadgeComplete },
+    { value: 'did_not_meet', label: 'DID NOT MEET', style: styles.statusBadgeDidNotMeet }
+  ];
 
-    return (
-      <div style={styles.statusBadgeContainer}>
-        {statuses.map(status => (
-          <button
-            key={status.value}
-            style={{
-              ...styles.statusBadge,
-              ...status.style,
-              ...(selectedStatus === status.value ? styles.statusBadgeActive : {})
-            }}
-            onClick={() => {
-              setSelectedStatus(status.value);
-              setCurrentPage(1);
-            }}
-          >
-            {status.label}
-          </button>
-        ))}
-      </div>
-    );
+  const handleStatusClick = (statusValue) => {
+    console.log("🎯 Status badge clicked:", statusValue);
+    setSelectedStatus(statusValue);
+    setCurrentPage(1);
+
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now(),
+      ...(searchQuery.trim() && { search: searchQuery.trim() }),
+      ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
+      ...(shouldApplyPersonalFilter && { personal: true }),
+    };
+
+    // 🔥 CRITICAL: Always send status parameter when filtering (except for 'all')
+    if (statusValue && statusValue !== 'all') {
+      fetchParams.status = statusValue;
+    }
+
+    // Leader at 12 params for cells
+    if (isLeaderAt12 && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
+
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+      }
+
+      if (viewFilter === 'personal') {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+      }
+    }
+
+    console.log("🔄 Fetching with status:", statusValue, fetchParams);
+    fetchEvents(fetchParams, true, true);
   };
+
+  return (
+    <div style={styles.statusBadgeContainer}>
+      {statuses.map(status => (
+        <button
+          key={status.value}
+          style={{
+            ...styles.statusBadge,
+            ...status.style,
+            ...(selectedStatus === status.value ? styles.statusBadgeActive : {})
+          }}
+          onClick={() => handleStatusClick(status.value)}
+        >
+          {status.label}
+        </button>
+      ))}
+    </div>
+  );
+};
+
 
   console.log("🔍 DEBUG User Role:", {
     userRole: userRole,
@@ -2618,94 +2725,71 @@ const debugEventTypes = async () => {
     }
 
 
-    const handleViewFilterChange = (newViewFilter) => {
-      console.log("🔄 View filter changing:", {
-        from: viewFilter,
-        to: newViewFilter,
-        isLeaderAt12,
-        isAdmin,
-        currentUserLeaderAt1,
-        currentUser: currentUser
-      });
+const handleViewFilterChange = (newViewFilter) => {
+  console.log("View filter changing:", {
+    from: viewFilter,
+    to: newViewFilter,
+    isLeaderAt12,
+    isAdmin,
+    currentUserLeaderAt1,
+    currentUser: currentUser
+  });
 
-      setViewFilter(newViewFilter);
-      setCurrentPage(1);
+  setViewFilter(newViewFilter);
+  setCurrentPage(1);
 
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        event_type: "CELLS",
-        _t: Date.now() // Cache buster
-      };
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE,
+    event_type: "CELLS",
+    _t: Date.now()
+  };
 
-      if (selectedStatus !== 'all') {
-        fetchParams.status = selectedStatus;
-      }
-      if (searchQuery.trim()) {
-        fetchParams.search = searchQuery.trim();
-      }
+  if (selectedStatus !== 'all') {
+    fetchParams.status = selectedStatus;
+  }
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
 
-      if (isAdmin) {
-        if (newViewFilter === 'personal') {
-          fetchParams.personal = true;
-          if (currentUser?.email) {
-            fetchParams.user_email = currentUser.email;
-          }
-          delete fetchParams.leader_at_12_view;
-          delete fetchParams.show_personal_cells;
-          delete fetchParams.show_all_authorized;
-          delete fetchParams.include_subordinate_cells;
-          delete fetchParams.leader_at_1_identifier;
-          console.log("🔍 Admin PERSONAL MODE: Showing admin's own cells only", {
-            personal: true,
-            user_email: currentUser?.email,
-            removed_leader_params: true
-          });
-        } else {
-          delete fetchParams.personal;
-          delete fetchParams.user_email;
-          delete fetchParams.leader_at_12_view;
-          delete fetchParams.show_personal_cells;
-          delete fetchParams.show_all_authorized;
-          delete fetchParams.include_subordinate_cells;
-          delete fetchParams.leader_at_1_identifier;
-          console.log("🔍 Admin ALL MODE: Showing ALL cells (everyone's cells)", {
-            personal: false,
-            removed_all_filters: true
-          });
-        }
-      }
-      // Only apply Leader at 12 logic if NOT an Admin
-      else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
+  // FIXED: Clean logic for Admin vs Leader at 12
+  if (isAdmin) {
+    if (newViewFilter === 'personal') {
+      fetchParams.personal = true;
+      console.log("Admin PERSONAL MODE: Showing admin's own cells only");
+    } else {
+      // Admin VIEW ALL mode - no personal filter
+      console.log("Admin ALL MODE: Showing ALL cells");
+      // Remove any personal filters
+      delete fetchParams.personal;
+    }
+  }
+  // FIXED: Leader at 12 logic - CLEAN separation
+  else if (isLeaderAt12) {
+    fetchParams.leader_at_12_view = true;
 
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
+    if (currentUserLeaderAt1) {
+      fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+    }
 
-        if (newViewFilter === 'personal') {
-          // LEADER AT 12 PERSONAL: Only show personal cells
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-          // Remove conflicting params
-          delete fetchParams.show_all_authorized;
-          delete fetchParams.include_subordinate_cells;
-          console.log("🎯 Leader at 12 PERSONAL MODE: Showing PERSONAL cells only");
-        } else {
-          // LEADER AT 12 VIEW ALL: Show all authorized cells
-          fetchParams.show_all_authorized = true;
-          fetchParams.include_subordinate_cells = true;
-          // Remove conflicting params
-          delete fetchParams.show_personal_cells;
-          delete fetchParams.personal;
-          console.log("🎯 Leader at 12 VIEW ALL MODE: Showing ALL authorized cells (own + subordinates)");
-        }
-      }
+    if (newViewFilter === 'personal') {
+      // LEADER AT 12 PERSONAL: Only show personal cells
+      fetchParams.personal = true;
+      console.log("Leader at 12 PERSONAL MODE: Showing PERSONAL cells only");
+    } else {
+      // LEADER AT 12 VIEW ALL: Show ALL disciples' cells
+      fetchParams.include_subordinate_cells = true;
+      console.log("Leader at 12 VIEW ALL MODE: Showing ALL disciples' cells");
+      
+      delete fetchParams.personal;
+      delete fetchParams.show_personal_cells;
+    }
+  }
 
-      console.log("🔍 Final API call params:", JSON.stringify(fetchParams, null, 2));
-      fetchEvents(fetchParams, true);
-    };
+  console.log("Final API call params:", JSON.stringify(fetchParams, null, 2));
+  fetchEvents(fetchParams, true);
+};
 
     const getAllLabel = () => {
       if (isAdmin) return " VIEW ALL";
