@@ -640,28 +640,248 @@ else {
     },
   };
 
- return (
-  <>
-    <AddPersonDialog
-      open={isOpen}
-      onClose={handleClose}
-      sx={{'& .MuiDialog-root': {
-      zIndex: 9999
-    }}}
-      onSave={(personData) => {
-        // Handle the saved person data
-        console.log("Person saved:", personData);
-        if (typeof onPersonAdded === "function") {
-          onPersonAdded(personData);
-        }
-        handleClose();
-      }}
-      formData={formData}
-      setFormData={setFormData}
-      isEdit={false}
-    />
-  </>
-);
+  return (
+    <>
+         <div style={styles.overlay}>
+        <div style={styles.modal}>
+          <h2 style={styles.title}>Create New Person</h2>
+          <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '20px',
+              marginBottom: '20px',
+              borderBottom: `1px solid ${isDarkMode ? "#444" : "#e0e0e0"}`,
+              paddingBottom: '10px'
+            }}>
+              <div style={{ fontWeight: '600', color: isDarkMode ? "#ccc" : "#333" }}>NEW PERSON INFO</div>
+              <div style={{ fontWeight: '600', color: isDarkMode ? "#ccc" : "#333" }}>LEADER INFO</div>
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>
+                Invited By
+                {showError('invitedBy') && <span style={styles.required}>Required</span>}
+              </label>
+              <input
+                type="text"
+                value={inviterSearch}
+                onChange={(e) => {
+                  setInviterSearch(e.target.value);
+                  setShowInviterDropdown(true);
+                  setTouched({ ...touched, invitedBy: true });
+                }}
+                onFocus={() => {
+                  setShowInviterDropdown(true);
+                  if (inviterSearch.length === 0 && preloadedPeople.length > 0) {
+                    setInviterResults(preloadedPeople.slice(0, 10));
+                  }
+                }}
+                onBlur={() => setTouched({ ...touched, invitedBy: true })}
+                style={showError('invitedBy') ? styles.inputError : styles.input}
+                placeholder="Start typing to search..."
+                autoComplete="off"
+              />
+              {showInviterDropdown && (
+                <div style={styles.dropdown}>
+                  {loadingInviters && (
+                    <div style={styles.dropdownEmpty}>Loading...</div>
+                  )}
+                  {!loadingInviters && inviterResults.length === 0 && inviterSearch.length >= 1 && (
+                    <div style={styles.dropdownEmpty}>No people found</div>
+                  )}
+                  {!loadingInviters && inviterSearch.length === 0 && (
+                    <div style={styles.dropdownEmpty}>Type to search people...</div>
+                  )}
+                  {!loadingInviters && inviterResults.map((person) => (
+                    <div
+                      key={person.id}
+                      style={styles.dropdownItem}
+                      onClick={() => handleInviterSelect(person)}
+                      onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
+                      onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
+                    >
+                      <div style={{ fontWeight: "500" }}>{person.fullName}</div>
+                      <div style={{ fontSize: "12px", color: isDarkMode ? "#999" : "#666" }}>
+                        {person.email}
+                        {person.leader1 && <span> • L@1: {person.leader1}</span>}
+                        {person.leader12 && <span> • L@12: {person.leader12}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>
+                Name
+                {showError('name') && <span style={styles.required}>Required</span>}
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onBlur={() => setTouched({ ...touched, name: true })}
+                style={showError('name') ? styles.inputError : styles.input}
+              />
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>
+                Surname
+                {showError('surname') && <span style={styles.required}>Required</span>}
+              </label>
+              <input
+                type="text"
+                value={formData.surname}
+                onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
+                onBlur={() => setTouched({ ...touched, surname: true })}
+                style={showError('surname') ? styles.inputError : styles.input}
+              />
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>Gender</label>
+              <div style={styles.radioGroup}>
+                <label style={styles.radioLabel}>
+                  <input
+                    type="radio"
+                    name="gender"
+                    value="Male"
+                    checked={formData.gender === "Male"}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                  />
+                  Male
+                </label>
+                <label style={styles.radioLabel}>
+                  <input
+                    type="radio"
+                    name="gender"
+                    value="Female"
+                    checked={formData.gender === "Female"}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                  />
+                  Female
+                </label>
+              </div>
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>
+                Email Address
+                {showError('email') && <span style={styles.required}>Required</span>}
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onBlur={() => setTouched({ ...touched, email: true })}
+                style={showError('email') ? styles.inputError : styles.input}
+              />
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>
+                Mobile Number
+                {showError('mobile') && <span style={styles.required}>Required</span>}
+              </label>
+              <input
+                type="tel"
+                value={formData.mobile}
+                onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                onBlur={() => setTouched({ ...touched, mobile: true })}
+                style={showError('mobile') ? styles.inputError : styles.input}
+              />
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>
+                Date Of Birth
+                {showError('dob') && <span style={styles.required}>Required</span>}
+              </label>
+              <input
+                type="date"
+                value={formData.dob}
+                onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                onBlur={() => setTouched({ ...touched, dob: true })}
+                style={showError('dob') ? styles.inputError : styles.input}
+              />
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>
+                Home Address
+                {showError('address') && <span style={styles.required}>Required</span>}
+              </label>
+              <input
+                type="text"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                onBlur={() => setTouched({ ...touched, address: true })}
+                style={showError('address') ? styles.inputError : styles.input}
+              />
+            </div>
+
+            <div style={styles.buttonGroup}>
+              <button 
+                type="button" 
+                style={styles.closeBtn} 
+                onClick={handleClose}
+                onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#a70000ff" : "#f8f9fa"}
+                onMouseLeave={(e) => e.target.style.background = "transparent"}
+              >
+                CANCEL
+              </button>
+              <button 
+                type="button" 
+                style={styles.nextBtn} 
+                onClick={handleNext}
+                onMouseEnter={(e) => e.target.style.background = "#4f46e5"}
+                onMouseLeave={(e) => e.target.style.background = "#6366f1"}
+              >
+                NEXT
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {showLeaderModal && (
+        <LeaderSelectionModal
+          isOpen={showLeaderModal}
+          onClose={() => setShowLeaderModal(false)}
+          onBack={() => setShowLeaderModal(false)}
+          onSubmit={handleSubmit}
+          personData={formData}
+          preloadedPeople={preloadedPeople}
+          autoFilledLeaders={autoFilledLeaders}
+        />
+      )}
+
+      {alert.open && (
+        <div
+          style={{
+            position: "fixed",
+            top: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            padding: "16px 24px",
+            borderRadius: "8px",
+            color: "#fff",
+            fontSize: "15px",
+            fontWeight: "500",
+            zIndex: 10001,
+            background: alert.type === "success" ? "#28a745" : "#dc3545",
+            maxWidth: "90vw",
+            textAlign: "center",
+          }}
+        >
+          {alert.message}
+        </div>
+      )}
+    </>
+  );
 };
 
 const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
@@ -986,17 +1206,17 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
               
               <div style={styles.inputContainer}>
                 <input
-                  type="text"
+                  // type="text"
                   value={leaderSearches[field]}
-                  onChange={(e) => handleSearchChange(e, field)}
-                  onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
+                  // onChange={(e) => handleSearchChange(e, field)}
+                  // onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
                   onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
                   style={styles.input}
                   placeholder={`Type to search...`}
                   autoComplete="off"
                 />
                 
-                {leaderSearches[field] && (
+                {/* {leaderSearches[field] && (
                   <button 
                     type="button" 
                     style={styles.clearButton}
@@ -1004,9 +1224,9 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
                   >
                     <X size={14} />
                   </button>
-                )}
+                )} */}
                 
-                {showDropdowns[field] && leaderSearches[field].length > 0 && (
+                {/* {showDropdowns[field] && leaderSearches[field].length > 0 && (
                   <div style={styles.dropdown}>
                     {loadingLeaders && (
                       <div style={styles.dropdownEmpty}>
@@ -1038,7 +1258,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
                       </div>
                     ))}
                   </div>
-                )}
+                )} */}
               </div>
             </div>
           ))}
@@ -1074,6 +1294,8 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
     </div>
   );
 };
+
+
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
     const [searchName, setSearchName] = useState("");
@@ -2364,7 +2586,7 @@ const confirmDidNotMeet = async () => {
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      // zIndex: 9999,
+      zIndex: 9999,
       padding: 10,
     },
     modal: {
