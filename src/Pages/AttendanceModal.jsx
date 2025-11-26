@@ -645,6 +645,9 @@ else {
     <AddPersonDialog
       open={isOpen}
       onClose={handleClose}
+      sx={{'& .MuiDialog-root': {
+      zIndex: 9999
+    }}}
       onSave={(personData) => {
         // Handle the saved person data
         console.log("Person saved:", personData);
@@ -2361,7 +2364,7 @@ const confirmDidNotMeet = async () => {
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      zIndex: 9999,
+      // zIndex: 9999,
       padding: 10,
     },
     modal: {
