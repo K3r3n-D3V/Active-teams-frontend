@@ -416,7 +416,7 @@ export default function Profile() {
     };
 
     //setting leaders state to localstorage leaders field which was set upon login
-    setLeaders(JSON.parse(localStorage.getItem("leaders")))
+    setLeaders(JSON.parse(localStorage.getItem("leaders")) || {})
 
     setForm(formData);
     setOriginalForm(formData);
