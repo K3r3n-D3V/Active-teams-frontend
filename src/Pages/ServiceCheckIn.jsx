@@ -479,74 +479,63 @@ function ServiceCheckIn() {
   };
 
   // Event management
-  const handleSaveAndCloseEvent = async () => {
-    if (!currentEventId) {
-      toast.error("Please select an event first");
-      return;
+const handleSaveAndCloseEvent = async () => {
+  if (!currentEventId) {
+    toast.error("Please select an event first");
+    return;
+  }
+
+  const currentEvent = events.find(event => event.id === currentEventId);
+  if (!currentEvent) {
+    toast.error("Selected event not found");
+    return;
+  }
+
+  if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  setIsClosingEvent(true);
+  try {
+    const token = localStorage.getItem("token");
+    
+    // Try PATCH first
+    const response = await fetch(`${BASE_URL}/events/${currentEventId}`, {
+      method: "PATCH",
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: "complete"
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const currentEvent = events.find(event => event.id === currentEventId);
-    if (!currentEvent) {
-      toast.error("Selected event not found");
-      return;
-    }
+    const result = await response.json();
+    
+    setEvents(prev => prev.map(event =>
+      event.id === currentEventId ? { ...event, status: "complete" } : event
+    ));
 
-    if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    setIsClosingEvent(true);
-    try {
-      const token = localStorage.getItem("token");
-      let response;
-      
-      try {
-        response = await axios.patch(
-          `${BASE_URL}/events/${currentEventId}`,
-          { status: "complete" },
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'X-Closing-From-ServiceCheckIn': '1'
-            },
-            timeout: 10000
-          }
-        );
-      } catch (patchError) {
-        response = await axios.put(
-          `${BASE_URL}/events/${currentEventId}`,
-          { status: "complete" },
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'X-Closing-From-ServiceCheckIn': '1'
-            },
-            timeout: 10000
-          }
-        );
-      }
-
-      setEvents(prev => prev.map(event =>
-        event.id === currentEventId ? { ...event, status: "complete" } : event
-      ));
-
-      toast.success(`Event "${currentEvent.eventName}" closed successfully!`);
-      setRealTimeData(null);
-      setCurrentEventId("");
-      
-      setTimeout(() => {
-        fetchEvents();
-      }, 500);
-      
-    } catch (error) {
-      console.error("❌ ERROR in event closure process:", error);
-      toast.error("Event may still be open in the database. Please check.");
-    } finally {
-      setIsClosingEvent(false);
-    }
-  };
+    toast.success(result.message || `Event "${currentEvent.eventName}" closed successfully!`);
+    setRealTimeData(null);
+    setCurrentEventId("");
+    
+    setTimeout(() => {
+      fetchEvents();
+    }, 500);
+    
+  } catch (error) {
+    console.error("❌ ERROR in event closure process:", error);
+    toast.error("Event may still be open in the database. Please check.");
+  } finally {
+    setIsClosingEvent(false);
+  }
+};
 
   // UI Handlers
   const handleConsolidationClick = () => {
