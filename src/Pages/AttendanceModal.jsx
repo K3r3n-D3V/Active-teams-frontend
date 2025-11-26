@@ -828,7 +828,7 @@ else {
                 type="button" 
                 style={styles.closeBtn} 
                 onClick={handleClose}
-                onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#a70000ff" : "#f8f9fa"}
+                onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
                 onMouseLeave={(e) => e.target.style.background = "transparent"}
               >
                 CANCEL
