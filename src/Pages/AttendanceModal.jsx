@@ -2243,11 +2243,12 @@ const confirmDidNotMeet = async () => {
       }
 
       if (result?.success) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: "Event marked as 'Did Not Meet' successfully!",
-        });
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: "Event marked as 'Did Not Meet' successfully!",
+        // });
+        toast.alert("Event marked as 'Did Not Meet' successfully!")
 
         if (typeof onAttendanceSubmitted === "function") {
           onAttendanceSubmitted();
@@ -2283,7 +2284,7 @@ const confirmDidNotMeet = async () => {
       //   () => setAlert({ open: false, type: "error", message: "" }),
       //   3000
       // );
-      toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+      // toast.error("Something went wrong while marking event as 'Did Not Meet'.");
     }
 };
 
