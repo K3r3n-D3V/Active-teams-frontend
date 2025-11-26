@@ -9,6 +9,8 @@ import {
   Menu,
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
+import AddPersonDialog from "../components/AddPersonDialog.jsx";
+
 
 let globalPeopleCache = {
   data: [],
@@ -17,6 +19,9 @@ let globalPeopleCache = {
 };
 
 const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
+
+  const theme = useTheme();
+
   const [formData, setFormData] = useState({
     invitedBy: "",
     name: "",
@@ -497,20 +502,20 @@ else {
       padding: "10px",
     },
     modal: {
-      background: isDarkMode ? "#1e1e1e" : "#fff",
+      background: theme.palette.background.paper,
       borderRadius: "12px",
       width: "100%",
       maxWidth: "600px",
       maxHeight: "90vh",
       overflowY: "auto",
       padding: "20px",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
     },
     title: {
       fontSize: "clamp(20px, 4vw, 24px)",
       fontWeight: "600",
       marginBottom: "20px",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
       textAlign: "center",
     },
     form: {
@@ -527,7 +532,7 @@ else {
     label: {
       fontSize: "14px",
       fontWeight: "500",
-      color: isDarkMode ? "#ccc" : "#555",
+      color: theme.palette.text.primary,
       display: "flex",
       alignItems: "center",
       gap: "8px",
@@ -545,8 +550,8 @@ else {
       outline: "none",
       width: "100%",
       boxSizing: "border-box",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
-      color: isDarkMode ? "#ffffff" : "#333",
+      background: theme.palette.background.default,
+      color: theme.palette.text.primary,
     },
     inputError: {
       padding: "12px",
@@ -599,7 +604,7 @@ else {
       alignItems: "center",
       gap: "8px",
       cursor: "pointer",
-      color: isDarkMode ? "#ccc" : "#555",
+      color: theme.palette.text.primary,
     },
     buttonGroup: {
       display: "flex",
@@ -610,8 +615,8 @@ else {
     closeBtn: {
       flex: "1 1 120px",
       background: "transparent",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
-      color: isDarkMode ? "#ccc" : "#666",
+      border: `1px solid ${theme.palette.divider}`,
+      color: theme.palette.text.primary,
       padding: "12px 16px",
       borderRadius: "6px",
       cursor: "pointer",
@@ -622,7 +627,7 @@ else {
     },
     nextBtn: {
       flex: "1 1 120px",
-      background: "#6366f1",
+      background: theme.palette.primary.main,
       color: "#fff",
       border: "none",
       padding: "12px 16px",
@@ -637,7 +642,7 @@ else {
 
   return (
     <>
-      <div style={styles.overlay}>
+         <div style={styles.overlay}>
         <div style={styles.modal}>
           <h2 style={styles.title}>Create New Person</h2>
           <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
@@ -823,7 +828,7 @@ else {
                 type="button" 
                 style={styles.closeBtn} 
                 onClick={handleClose}
-                onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3d3d3d" : "#f8f9fa"}
+                onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
                 onMouseLeave={(e) => e.target.style.background = "transparent"}
               >
                 CANCEL
@@ -907,6 +912,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
+  const theme = useTheme();
 
   useEffect(() => {
     if (isOpen && autoFilledLeaders) {
@@ -1075,13 +1081,13 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       fontWeight: "600",
       marginBottom: "8px",
       textAlign: "center",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
     },
     subtitle: {
       fontSize: "14px",
       marginBottom: "24px",
       textAlign: "center",
-      color: isDarkMode ? "#ccc" : "#666",
+      color: theme.palette.text.secondary,
     },
     leaderGroup: {
       display: "flex",
@@ -1200,17 +1206,17 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
               
               <div style={styles.inputContainer}>
                 <input
-                  type="text"
+                  // type="text"
                   value={leaderSearches[field]}
-                  onChange={(e) => handleSearchChange(e, field)}
-                  onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
+                  // onChange={(e) => handleSearchChange(e, field)}
+                  // onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
                   onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
                   style={styles.input}
                   placeholder={`Type to search...`}
                   autoComplete="off"
                 />
                 
-                {leaderSearches[field] && (
+                {/* {leaderSearches[field] && (
                   <button 
                     type="button" 
                     style={styles.clearButton}
@@ -1218,9 +1224,9 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
                   >
                     <X size={14} />
                   </button>
-                )}
+                )} */}
                 
-                {showDropdowns[field] && leaderSearches[field].length > 0 && (
+                {/* {showDropdowns[field] && leaderSearches[field].length > 0 && (
                   <div style={styles.dropdown}>
                     {loadingLeaders && (
                       <div style={styles.dropdownEmpty}>
@@ -1252,7 +1258,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
                       </div>
                     ))}
                   </div>
-                )}
+                )} */}
               </div>
             </div>
           ))}
@@ -2679,9 +2685,12 @@ const confirmDidNotMeet = async () => {
       boxSizing: "border-box",
     },
     tableContainer: {
-      overflowX: "auto",
+      // overflowX: "auto",
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
+      // overflowY: "hidden",
+      // border: "2px solid red",
+      paddingBottom: 8,
     },
     table: {
       width: "100%",
@@ -2756,6 +2765,7 @@ const confirmDidNotMeet = async () => {
       minWidth: isMobile ? 140 : 200,
       maxHeight: 300,
       overflowY: "auto",
+      // border: "2px solid blue",
     },
     decisionMenuItem: {
       padding: "10px 12px",
@@ -2764,6 +2774,8 @@ const confirmDidNotMeet = async () => {
       color: theme.palette.text.primary,
       transition: "background 0.15s",
     },
+
+    
     priceTierButton: {
       display: "flex",
       alignItems: "center",
@@ -3556,8 +3568,8 @@ const confirmDidNotMeet = async () => {
                                                 )
                                               }
                                               onMouseEnter={(e) =>
-                                                (e.target.style.background =
-                                                  "#f0f0f0")
+                                                (e.currentTarget.style.background =
+                                                  theme.palette.action.hover)
                                               }
                                               onMouseLeave={(e) =>
                                                 (e.target.style.background =
@@ -3816,6 +3828,7 @@ const confirmDidNotMeet = async () => {
 
           <div style={styles.footer}>
             <button style={styles.closeBtn} onClick={onClose}>
+
               CLOSE
             </button>
             <div
