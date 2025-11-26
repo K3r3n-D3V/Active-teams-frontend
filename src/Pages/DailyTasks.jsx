@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import * as XLSX from 'xlsx';
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -175,13 +177,14 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       setTaskTypes(Array.isArray(data) ? data : data.taskTypes || []);
     } catch (err) {
       console.error("Error fetching task types:", err.message);
-      alert(err.message)
+      toast.error(err.message);
     }
   };
 
   const createTaskType = async () => {
     if (!newTaskTypeName.trim()) {
-      alert("Please enter a task type name");
+     toast.warning("Please enter a task type name");
+;
       return;
     }
 
@@ -210,7 +213,8 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       setIsAddTypeModalOpen(false);
     } catch (err) {
       console.error("Error creating task type:", err.message);
-      alert("Failed to create task type: " + err.message);
+      toast.error("Failed to create task type: " + err.message);
+;
     } finally {
       setAddingTaskType(false);
     }
@@ -244,7 +248,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       setTasks(normalizedTasks);
     } catch (err) {
       console.error("Error fetching user tasks:", err.message);
-      alert(err.message);
+      toast.error(err.message);;
     } finally {
       setLoading(false);
     }
@@ -288,7 +292,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       setSearchResults(filtered);
     } catch (err) {
       console.error("Error fetching people:", err);
-      alert(err.message);
+      toast.error(err.message);;
       setSearchResults([]);
     }
   };
@@ -304,7 +308,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       setAssignedResults(data.results || []);
     } catch (err) {
       console.error("Error fetching assigned people:", err);
-      alert(err.message);
+      toast.error(err.message);;
     }
   };
 
@@ -419,13 +423,14 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
       handleClose();
     } catch (err) {
       console.error("Error updating task:", err.message);
-      alert("Failed to update task: " + err.message);
+      toast.error("Failed to update task: " + err.message);
     }
   };
 
   const handleEdit = (task) => {
     if (task.status?.toLowerCase() === "completed") {
-      alert("This task has been marked as completed and cannot be edited.");
+      toast.info("This task has been marked as completed and cannot be edited.");
+;
       return;
     }
 
@@ -479,16 +484,18 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
-        alert(`Task for ${person.Name} ${person.Surname} has been successfully updated!`);
+        toast.info(`Task for ${person.Name} ${person.Surname} updated successfully!`);
+;
       } else {
         await createTask(taskPayload);
-        alert(`You have successfully captured ${person.Name} ${person.Surname}`);
+        // toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
+;
       }
 
       handleClose();
     } catch (err) {
       console.error("Error adding task:", err.message);
-      alert("Failed to create task: " + err.message);
+      toast.error("Failed to create task: " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -545,7 +552,8 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
  const downloadFilteredTasks = () => {
   try {
     if (!filteredTasks || filteredTasks.length === 0) {
-      alert("No data to download.");
+      toast.info("No data to download.");
+;
       return;
     }
 
@@ -691,7 +699,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
     console.log("Download successful!");
   } catch (error) {
     console.error("Error downloading Excel file:", error);
-    alert("Error creating Excel file: " + error.message);
+    toast.error("Error creating Excel file: " + error.message);
   }
 };
 
@@ -899,7 +907,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
               <div
                 style={{ cursor: 'pointer' }}
                 onClick={() => {
-                  alert(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.Number || task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
+                  toast.success(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.Number || task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
                 }}
               >
                 <p style={{ 
@@ -1377,6 +1385,16 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
           </div>
         </form>
       </Modal>
+      <ToastContainer
+  position="top-right"
+  autoClose={3000}
+  hideProgressBar={false}
+  newestOnTop={true}
+  closeOnClick
+  pauseOnHover
+  theme={isDarkMode ? "dark" : "light"}
+/>
+
     </div>
   );
 }

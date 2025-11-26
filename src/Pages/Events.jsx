@@ -9,7 +9,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Skeleton from "@mui/material/Skeleton";
 import Snackbar from "@mui/material/Snackbar";
-import Alert from "@mui/material/Alert";
+// import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
 import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment } from "@mui/material";
 import { DataGrid, GridToolbar } from '@mui/x-data-grid';
@@ -30,6 +30,8 @@ import Eventsfilter from "./AddPersonToEvents";
 import CreateEvents from "./CreateEvents";
 import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const styles = {
   container: {
@@ -331,7 +333,7 @@ const fabStyles = {
     width: "24px",
     height: "24px",
     borderRadius: "50%",
-    backgroundColor: "#007bff",
+    // backgroundColor: "#007bff",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -697,7 +699,7 @@ const Events = () => {
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredRow, setHoveredRow] = useState(null);
-  const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -898,7 +900,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
   try {
     const token = localStorage.getItem("token");
     if (!token) {
-      setSnackbar({ open: true, message: "Please log in again", severity: "error" });
+      toast.error("Please log in again");
       setTimeout(() => window.location.href = '/login', 2000);
       setEvents([]);
       setFilteredEvents([]);
@@ -1070,15 +1072,15 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
   } catch (err) {
     console.error("Error fetching events:", err);
     if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-      setSnackbar({ open: true, severity: "warning", message: "Request timeout. Please refresh and try again." });
+     toast.warning("Request timeout. Please refresh and try again.");
     } else if (err.response?.status === 401) {
-      setSnackbar({ open: true, message: "Session expired. Logging out...", severity: "error" });
+      toast.error("Session expired. Logging out...");;
       localStorage.removeItem("token");
       localStorage.removeItem("userProfile");
       setTimeout(() => window.location.href = '/login', 2000);
     } else {
       const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
-      setSnackbar({ open: true, message: `Error loading events: ${errorMessage}`, severity: "error" });
+      toast.error(`Error loading events: ${errorMessage}`);
     }
     setEvents([]);
     setFilteredEvents([]);
@@ -1107,8 +1109,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
   getCachedData,
   setCachedData,
   BACKEND_URL,
-  DEFAULT_API_START_DATE,
-  setSnackbar
+  DEFAULT_API_START_DATE
 ]);
 
 const handleStatusFilterChange = useCallback((newStatus) => {
@@ -1579,46 +1580,64 @@ const handleAttendanceSubmit = useCallback(async (data) => {
       severity: "success",
     });
 
-    setTimeout(async () => {
-      try {
-        const shouldApplyPersonalFilter =
-          viewFilter === 'personal' &&
-          (userRole === "admin" || userRole === "leader at 12");
+    // Show toast immediately
+    toast.success(
+      payload.did_not_meet
+        ? `${eventName} marked as 'Did Not Meet'.`
+        : `Successfully captured attendance for ${eventName}`
+    );
 
-        const refreshParams = {
-          page: 1, 
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now(), 
-         
-          ...(selectedStatus && selectedStatus !== 'all' && { status: selectedStatus }),
-          ...(searchQuery.trim() && { search: searchQuery.trim() }),
-          ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
-          ...(shouldApplyPersonalFilter && { personal: true }),
-          ...(isLeaderAt12 && {
-            leader_at_12_view: true,
-            include_subordinate_cells: true,
-            ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
-            ...(viewFilter === 'personal' ? 
-              { show_personal_cells: true, personal: true } : 
-              { show_all_authorized: true }
-            )
-          })
-        };
+    // Refresh events after a delay
+    setTimeout(() => {
+      (async () => {
+        try {
+          const shouldApplyPersonalFilter =
+            viewFilter === 'personal' &&
+            (userRole === "admin" || userRole === "leader at 12");
 
-        console.log("🔄 Refreshing events after attendance WITH status filter:", refreshParams);
-        await fetchEvents(refreshParams, true, true);
+          const refreshParams = {
+            page: 1,
+            limit: rowsPerPage,
+            start_date: DEFAULT_API_START_DATE,
+            _t: Date.now(),
+            ...(searchQuery.trim() && { search: searchQuery.trim() }),
+            ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
+            ...(selectedStatus !== 'all' && { status: selectedStatus }),
+            ...(shouldApplyPersonalFilter && { personal: true }),
+            ...(isLeaderAt12 && {
+              leader_at_12_view: true,
+              include_subordinate_cells: true,
+              ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
+              ...(viewFilter === 'personal' ? 
+                { show_personal_cells: true, personal: true } : 
+                { show_all_authorized: true }
+              )
+            })
+          };
 
-      } catch (refreshError) {
-        console.error(" Error refreshing events:", refreshError);
-      }
+          console.log("🔄 Refreshing events after attendance WITH status filter:", refreshParams);
+          await fetchEvents(refreshParams, true, true);
+
+        } catch (refreshError) {
+          console.error("Error refreshing events:", refreshError);
+          toast.error("Failed to refresh events list");
+        }
+      })();
     }, 1000);
 
     return { success: true, message: "Attendance submitted successfully" };
+
   } catch (error) {
-    console.error(" Error in handleAttendanceSubmit:", error);
-    const errData = error.response?.data;
-    let errorMessage = error.message;
+    console.error("Error submitting attendance:", error);
+    
+    let errorMessage = "Failed to submit attendance";
+    let errData;
+
+    try {
+      errData = error.response?.data;
+    } catch (e) {
+      console.error("Error parsing error response:", e);
+    }
 
     if (errData) {
       if (Array.isArray(errData?.errors)) {
@@ -1626,13 +1645,19 @@ const handleAttendanceSubmit = useCallback(async (data) => {
       } else {
         errorMessage = errData.detail || errData.message || JSON.stringify(errData);
       }
+    } else if (error.message) {
+      errorMessage = error.message;
     }
+
+    console.error("Error details:", errorMessage);
 
     setSnackbar({
       open: true,
       message: errorMessage,
       severity: "error",
     });
+
+    toast.error(`Error: ${errorMessage}`);
 
     return { success: false, message: errorMessage };
   }
@@ -1674,11 +1699,8 @@ const handleAttendanceSubmit = useCallback(async (data) => {
         eventToEdit,
         availableKeys: Object.keys(event)
       });
-      setSnackbar({
-        open: true,
-        message: "Cannot edit event: Missing identifier. Please refresh and try again.",
-        severity: "error",
-      });
+      toast.error("Cannot edit event: Missing identifier. Please refresh and try again.");
+      
       return;
     }
 
@@ -1704,19 +1726,13 @@ const handleAttendanceSubmit = useCallback(async (data) => {
 
         if (response.status === 200) {
           fetchEvents();
-          setSnackbar({
-            open: true,
-            message: "Event deleted successfully",
-            severity: "success",
-          });
+          toast.success("Event deleted successfully!");
+         
         }
       } catch (error) {
         console.error("Error deleting event:", error);
-        setSnackbar({
-          open: true,
-          message: "Failed to delete event",
-          severity: "error",
-        });
+        
+        toast.error("Failed to delete event");
       }
     }
   }, [BACKEND_URL, fetchEvents]);
@@ -1857,12 +1873,8 @@ const handleAttendanceSubmit = useCallback(async (data) => {
         console.log("🔄 Double-checking with second refresh...");
         await fetchEvents(refreshParams, true);
       }, 1000);
-
-      setSnackbar({
-        open: true,
-        message: "Event updated successfully!",
-        severity: "success",
-      });
+toast.success("Event updated successfully!");
+      
 
       return { success: true, event: updatedEvent };
 
@@ -1876,11 +1888,7 @@ const handleAttendanceSubmit = useCallback(async (data) => {
 
       const errorMessage = error.message || String(error) || "Failed to update event";
 
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
+     toast.error("Failed to update event");
 
       throw new Error(errorMessage);
     }
@@ -1999,11 +2007,8 @@ const handleEditType = useCallback(async (type) => {
 
   } catch (error) {
     console.error("Error preparing event type for editing:", error);
-    setSnackbar({
-      open: true,
-      message: "Error loading event type data",
-      severity: "error",
-    });
+    
+    toast.error("Error loading event type data");
   }
 }, [eventTypes, closeTypeMenu]);
 
@@ -2062,11 +2067,8 @@ const handleDeleteType = useCallback(async () => {
       setSelectedEventTypeObj(null);
     }
 
-    setSnackbar({
-      open: true,
-      message: response.data.message || `Event type "${typeName}" deleted successfully`,
-      severity: "success",
-    });
+    
+    toast.success(response.data.message || `Event type "${typeName}" deleted successfully`);
 
   } catch (error) {
     console.error("❌ Error deleting event type:", error);
@@ -2084,11 +2086,7 @@ const handleDeleteType = useCallback(async () => {
 
     setConfirmDeleteOpen(false);
 
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: "error",
-    });
+   toast.error("Session expired.");
   }
 }, [
   BACKEND_URL, 
@@ -2205,7 +2203,7 @@ const handleSearchChange = useCallback((e) => {
           const { hasCell, canAccessEvents } = response.data;
 
           if (!canAccessEvents || !hasCell) {
-            alert("You must have a cell to access the Events page");
+            toast.warning("You must have a cell to access the Events page");
             window.location.href = "/dashboard";
             return;
           }
@@ -2213,7 +2211,7 @@ const handleSearchChange = useCallback((e) => {
           console.log("✅ User has cell - access granted");
         } catch (error) {
           console.error("Error checking cell status:", error);
-          alert("Unable to verify access. Please contact support.");
+        toast.error("Unable to verify access. Please contact support.");
           window.location.href = "/dashboard";
           return;
         }
@@ -2223,7 +2221,7 @@ const handleSearchChange = useCallback((e) => {
       const hasAccess = isAdmin || isLeaderAt12 || isRegistrant || isLeader144or1728 || isUser;
 
       if (!hasAccess) {
-        alert("You must be a leader to access the Events page");
+        toast.warning("You must be a leader to access the Events page");
         window.location.href = "/dashboard";
       } else {
         console.log("✅ Access granted:", {
@@ -2334,11 +2332,8 @@ useEffect(() => {
       const userProfile = localStorage.getItem("userProfile");
 
       if (!token || !userProfile) {
-        setSnackbar({
-          open: true,
-          message: "Please log in to continue",
-          severity: "warning",
-        });
+        
+        toast.warning("Please log in to continue.");
         setTimeout(() => {
           window.location.href = '/login';
         }, 1500);
@@ -2376,65 +2371,92 @@ useEffect(() => {
     });
   }, [selectedEventTypeFilter, events, eventTypes]);
 
+
+   
 const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null) => {
   try {
     const token = localStorage.getItem("token");
-    let response;
+    if (!token) {
+      throw new Error("No authentication token found");
+    }
+
     const oldName = editingEventType?.name;
+    console.log("💾 Saving event type:", { 
+      eventTypeData, 
+      eventTypeId, 
+      oldName,
+      editingEventType 
+    });
 
-    console.log("💾 Saving event type:", { eventTypeData, eventTypeId, oldName });
+    let url, method;
 
-    if (eventTypeId) {
-      if (!oldName) {
+    if (eventTypeId || editingEventType) {
+      // Editing existing event type - use the OLD name for the URL
+      const identifier = oldName;
+      if (!identifier) {
         throw new Error("Cannot update: original event type name not found");
       }
 
-      console.log(`🔄 Updating event type from '${oldName}' to '${eventTypeData.name}'`);
-
-      response = await axios.put(
-        `${BACKEND_URL}/event-types/${encodeURIComponent(oldName)}`,
-        eventTypeData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      console.log(`🔄 Updating event type from '${identifier}' to '${eventTypeData.name}'`);
+      
+      // URL encode the OLD name for the endpoint
+      const encodedName = encodeURIComponent(identifier);
+      url = `${BACKEND_URL}/event-types/${encodedName}`;
+      method = 'PUT';
+      
+      console.log("🔍 Update URL:", url);
     } else {
-      response = await axios.post(
-        `${BACKEND_URL}/event-types`,
-        eventTypeData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // Creating new event type
+      url = `${BACKEND_URL}/event-types`;
+      method = 'POST';
+      console.log("🔍 Create URL:", url);
     }
 
-    const result = response.data;
-    const newName = result.name;
+    const response = await fetch(url, {
+      method: method,
+      headers: { 
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}` 
+      },
+      body: JSON.stringify(eventTypeData)
+    });
 
+    console.log("🔍 Response status:", response.status, response.statusText);
+
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { detail: `HTTP ${response.status}: ${response.statusText}` };
+      }
+      
+      console.error("❌ Server error:", errorData);
+      throw new Error(errorData.detail || `Failed to save event type: ${response.status}`);
+    }
+
+    const result = await response.json();
     console.log("✅ Event type saved successfully:", result);
 
+    // Close modal and reset state
     setEventTypesModalOpen(false);
-    
-    // ✅ FIXED: Clear editing state immediately
     setEditingEventType(null);
 
+    // Refresh event types list
     await fetchEventTypes();
 
-    if (selectedEventTypeFilter === oldName) {
-      console.log(`🔄 Updating filter from '${oldName}' to '${newName}'`);
-      setSelectedEventTypeFilter(newName);
+    // Update filter if name changed
+    if (oldName && selectedEventTypeFilter === oldName && result.name !== oldName) {
+      console.log(`🔄 Updating filter from '${oldName}' to '${result.name}'`);
+      setSelectedEventTypeFilter(result.name);
     }
 
-    setSnackbar({
-      open: true,
-      message: `Event type ${eventTypeId ? 'updated' : 'created'} successfully!`,
-      severity: "success",
-    });
-
+    toast.success(`Event type ${eventTypeId ? 'updated' : 'created'} successfully!`);
     return result;
+
   } catch (error) {
-    console.error(`❌ Error ${eventTypeId ? 'updating' : 'creating'} event type:`, error);
-    setSnackbar({
-      open: true,
-      message: error.response?.data?.detail || error.message || `Failed to ${eventTypeId ? 'update' : 'create'} event type`,
-      severity: "error",
-    });
+    console.error(`❌ Error saving event type:`, error);
+    toast.error(`Failed to save event type: ${error.message}`);
     throw error;
   }
 }, [
@@ -2443,31 +2465,102 @@ const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null
   fetchEventTypes, 
   selectedEventTypeFilter
 ]);
-   
-const debugEventTypes = async () => {
+
+const handleCreateEventType = async (eventTypeData) => {
   try {
+    console.log("🎯 Creating event type:", eventTypeData);
+    
     const token = localStorage.getItem("token");
     const response = await fetch(`${BACKEND_URL}/event-types`, {
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify(eventTypeData),
     });
-    
+
     if (response.ok) {
-      const allEventTypes = await response.json();
-      console.log("🔍 ALL EVENT TYPES FROM BACKEND:", allEventTypes);
+      const newEventType = await response.json();
+      console.log("✅ Event type created successfully:", newEventType);
       
-      // Check if "CELLS" event type exists
-      const cellsEventType = allEventTypes.find(et => 
-        et.name && et.name.toUpperCase() === "CELLS"
-      );
-      console.log("🔍 CELLS EVENT TYPE EXISTS:", cellsEventType);
+      // Refresh event types list
+      await fetchEventTypes();
+      
+      // Show success message
+      toast.success('Event type created successfully!');
+      
+      return newEventType;
+    } else {
+      const errorData = await response.json();
+      console.error(" Failed to create event type:", errorData);
+      toast.error(`Error: ${errorData.detail || 'Failed to create event type'}`);
+      throw new Error(errorData.detail || 'Failed to create event type');
     }
   } catch (error) {
-    console.error("Error debugging event types:", error);
+    console.error(" Error creating event type:", error);
+    toast.error(`Error: ${error.message}`);
+    throw error;
   }
 };
 
+const handleUpdateEventType = async (eventTypeData, eventTypeIdentifier) => {
+  try {
+    console.log("🎯 Updating event type:", { eventTypeData, eventTypeIdentifier });
+    
+    // Use the original name from the editing event type, not the new name
+    const originalEventType = editingEventType || eventTypes.find(et => 
+      et._id === eventTypeIdentifier || et.name === eventTypeIdentifier
+    );
+    
+    if (!originalEventType) {
+      throw new Error("Could not find original event type data");
+    }
+    
+    const originalName = originalEventType.name;
+    console.log("🔍 Original event type name:", originalName);
+    
+    const token = localStorage.getItem("token");
+    
+    // URL encode the ORIGINAL event type name for the API endpoint
+    const encodedName = encodeURIComponent(originalName);
+    const response = await fetch(`${BACKEND_URL}/event-types/${encodedName}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(eventTypeData),
+    });
+
+    if (response.ok) {
+      const updatedEventType = await response.json();
+      console.log("✅ Event type updated successfully:", updatedEventType);
+      
+      // Refresh event types list
+      await fetchEventTypes();
+      
+      // Update the selected filter if the name changed
+      if (selectedEventTypeFilter === originalName && eventTypeData.name !== originalName) {
+        setSelectedEventTypeFilter(eventTypeData.name);
+      }
+      
+      // Show success message
+      toast.success('Event type updated successfully!');
+      
+      return updatedEventType;
+    } else {
+      const errorData = await response.json();
+      console.error("Failed to update event type:", errorData);
+      toast.error(`Error: ${errorData.detail || 'Failed to update event type'}`);
+      throw new Error(errorData.detail || 'Failed to update event type');
+    }
+  } catch (error) {
+    console.error(" Error updating event type:", error);
+    toast.error(`Error: ${error.message}`);
+    throw error;
+  }
+};
 
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
@@ -2870,9 +2963,9 @@ const handleViewFilterChange = (newViewFilter) => {
     console.log("🎯 Event type clicked:", typeValue);
     
     setSelectedEventTypeFilter(typeValue);
+    setSelectedEventTypeObj(selectedTypeObj);
     setCurrentPage(1);
     
-    // Prepare fetch parameters
     const fetchParams = {
       page: 1,
       limit: rowsPerPage,
@@ -2881,17 +2974,14 @@ const handleViewFilterChange = (newViewFilter) => {
       _t: Date.now() // Cache buster
     };
 
-    // Add status filter if applicable
     if (selectedStatus !== 'all') {
       fetchParams.status = selectedStatus;
     }
 
-    // Add search filter if applicable
     if (searchQuery.trim()) {
       fetchParams.search = searchQuery.trim();
     }
 
-    // Apply role-based filters for Cells only
     if (typeValue === 'all' || typeValue === 'CELLS') {
       if (isAdmin) {
         if (viewFilter === 'personal') {
@@ -3785,7 +3875,7 @@ const handleViewFilterChange = (newViewFilter) => {
               aria-label="Create Event Type"
             >
               <Typography sx={fabStyles.fabMenuLabel}>Create Event Type</Typography>
-              <Box sx={fabStyles.fabMenuIcon}>📋</Box>
+              <Box sx={fabStyles.fabMenuIcon}></Box>
             </Box>
 
             <Box
@@ -3799,7 +3889,7 @@ const handleViewFilterChange = (newViewFilter) => {
               aria-label="Create Event"
             >
               <Typography sx={fabStyles.fabMenuLabel}>Create Event</Typography>
-              <Box sx={fabStyles.fabMenuIcon}>📅</Box>
+              <Box sx={fabStyles.fabMenuIcon}></Box>
             </Box>
           </Box>
 
@@ -3830,7 +3920,6 @@ const handleViewFilterChange = (newViewFilter) => {
         </Box>
       )}
 
-      {/* ... The rest of your Modals (Eventsfilter, AttendanceModal, EventTypesModal, createEventModalOpen, EditEventModal, Snackbar) ... */}
       <Eventsfilter
         open={showFilter}
         onClose={() => setShowFilter(false)}
@@ -3852,15 +3941,16 @@ const handleViewFilterChange = (newViewFilter) => {
           currentUser={currentUser}
         />
       )}
-     {isAdmin && (
+    {isAdmin && (
   <EventTypesModal
     key={editingEventType?._id || "create"} 
     open={eventTypesModalOpen}
     onClose={handleCloseEventTypesModal}
     onSubmit={handleSaveEventType}
     selectedEventType={editingEventType} 
-   setSelectedEventTypeObj={setSelectedEventTypeObj} 
+    setSelectedEventTypeObj={setSelectedEventTypeObj} 
   />
+
 )}
       {createEventModalOpen && (
         <Box
@@ -3950,38 +4040,16 @@ const handleViewFilterChange = (newViewFilter) => {
           </Button>
         </DialogActions>
       </Dialog>
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        sx={{
-          '& .MuiSnackbar-root': {
-            top: '80px', // Adjust this value to position below your header
-          },
-          '& .MuiAlert-root': {
-            fontSize: '1rem',
-            fontWeight: '500',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          }
-        }}
-      >
-        <Alert
-          severity={snackbar.severity}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          sx={{
-            width: '100%',
-            fontSize: '1rem',
-            fontWeight: '500',
-          }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+     <ToastContainer
+  position="top-right"
+  autoClose={5000}
+  hideProgressBar={false}
+  newestOnTop={true}
+  closeOnClick
+  pauseOnHover
+  theme={isDarkMode ? "dark" : "light"}
+  style={{ marginTop: "80px" }} // Adjust based on your header height
+/>
     </Box>
   );
 };

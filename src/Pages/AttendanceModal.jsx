@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-toastify";
 import {
   ArrowLeft,
   UserPlus,
@@ -32,7 +33,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     dob: "",
     address: "",
   });
-  const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
   const [inviterSearch, setInviterSearch] = useState("");
   const [inviterResults, setInviterResults] = useState([]);
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
@@ -298,23 +299,25 @@ else {
       .map(([key]) => key);
 
     if (missingFields.length > 0) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: `Please fill in all required fields: ${missingFields.join(', ')}`,
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+     toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: `Please fill in all required fields: ${missingFields.join(', ')}`,
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Please enter a valid email address",
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+     toast.error("Please enter a valid email address");
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Please enter a valid email address",
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
       return false;
     }
 
@@ -370,11 +373,12 @@ else {
           expiry: 5 * 60 * 1000
         };
 
-        setAlert({
-          open: true,
-          type: "success",
-          message: "Person added successfully!",
-        });
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: "Person added successfully!",
+        // })
+        toast.success("Person added successfully!");;
 
         if (typeof onPersonAdded === "function") {
           onPersonAdded(data.person || data);
@@ -429,21 +433,23 @@ else {
           errorMessage = error.message;
         }
 
-        setAlert({
-          open: true,
-          type: "error",
-          message: errorMessage,
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
+        // setAlert({
+        //   open: true,
+        //   type: "error",
+        //   message: errorMessage,
+        // });
+        // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
+      toast.error(errorMessage);
       }
     } catch (error) {
       console.error("Network error adding person:", error);
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Network error: Could not connect to server",
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+     toast.error("Network error: Could not connect to server");
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Network error: Could not connect to server",
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
   };
 
@@ -859,27 +865,7 @@ else {
         />
       )}
 
-      {alert.open && (
-        <div
-          style={{
-            position: "fixed",
-            top: "20px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: "16px 24px",
-            borderRadius: "8px",
-            color: "#fff",
-            fontSize: "15px",
-            fontWeight: "500",
-            zIndex: 10001,
-            background: alert.type === "success" ? "#28a745" : "#dc3545",
-            maxWidth: "90vw",
-            textAlign: "center",
-          }}
-        >
-          {alert.message}
-        </div>
-      )}
+    
     </>
   );
 };
@@ -1295,6 +1281,8 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   );
 };
 
+// import { toast } from "react-toastify";
+
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
     const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
@@ -1311,11 +1299,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [commonAttendees, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState({
-    open: false,
-    type: "success",
-    message: "",
-  });
+  // const [alert, setAlert] = useState({
+  //   open: false,
+  //   type: "success",
+  //   message: "",
+  // });
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
@@ -1759,25 +1747,27 @@ const fetchPersistentAttendees = async (eventId) => {
       const newState = { ...prev, [id]: !prev[id] };
 
       if (newState[id]) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: `${name} has been checked in`,
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "success", message: "" }),
-          3000
-        );
+      //  toast.success(`${name} has been checked in`);
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: `${name} has been checked in`,
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "success", message: "" }),
+        //   3000
+        // );
       } else {
-        setAlert({
-          open: true,
-          type: "warning",
-          message: `You have unchecked ${name}`,
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "warning", message: "" }),
-          3000
-        );
+        // setAlert({
+        //   open: true,
+        //   type: "warning",
+        //   message: `You have unchecked ${name}`,
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "warning", message: "" }),
+        //   3000
+        // );
+        // toast.warning(`You have unchecked ${name}`);
 
         setDecisions((prev) => ({ ...prev, [id]: false }));
         setDecisionTypes((prev) => {
@@ -1870,30 +1860,32 @@ const fetchPersistentAttendees = async (eventId) => {
         setPersistentCommonAttendees(updatedAttendees);
         savePersistentCommonAttendees(updatedAttendees);
 
-        setAlert({
-          open: true,
-          type: "warning",
-          message: `You have removed ${person.fullName} from common attendees`,
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "warning", message: "" }),
-          3000
-        );
+        // setAlert({
+        //   open: true,
+        //   type: "warning",
+        //   message: `You have removed ${person.fullName} from common attendees`,
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "warning", message: "" }),
+        //   3000
+        // );
+         toast.warning(`You have removed ${person.fullName} from common attendees`);
       }
     } else {
       const updatedAttendees = [...persistentCommonAttendees, person];
       setPersistentCommonAttendees(updatedAttendees);
       savePersistentCommonAttendees(updatedAttendees);
 
-      setAlert({
-        open: true,
-        type: "success",
-        message: `${person.fullName} added to common attendees`,
-      });
-      setTimeout(
-        () => setAlert({ open: false, type: "success", message: "" }),
-        3000
-      );
+      // setAlert({
+      //   open: true,
+      //   type: "success",
+      //   message: `${person.fullName} added to common attendees`,
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "success", message: "" }),
+      //   3000
+      // );
+      toast.success(`${person.fullName} added to common attendees`);
     }
   };
 
@@ -1965,29 +1957,31 @@ const handleSave = async () => {
     console.log("✅ Checked-in attendees:", attendeesList);
 
     if (!didNotMeet && attendeesList.length === 0) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Please check in at least one attendee before saving.",
-      });
-      setTimeout(
-        () => setAlert({ open: false, type: "error", message: "" }),
-        3000
-      );
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Please check in at least one attendee before saving.",
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "error", message: "" }),
+      //   3000
+      // );
+      toast.error("Please check in at least one attendee before saving.");
       return;
     }
 
     const eventId = event?.id || event?._id;
     if (!eventId) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Event ID is missing, cannot submit attendance.",
-      });
-      setTimeout(
-        () => setAlert({ open: false, type: "error", message: "" }),
-        3000
-      );
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Event ID is missing, cannot submit attendance.",
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "error", message: "" }),
+      //   3000
+      // );
+       toast.error("Event ID is missing, cannot submit attendance.");
       return;
     }
 
@@ -2109,28 +2103,30 @@ const handleSave = async () => {
         console.log("✅ Save result:", result);
 
         if (result.success) {
-            setAlert({
-                open: true,
-                type: "success",
-                message: result.message || "Attendance saved successfully!",
-            });
+            // setAlert({
+            //     open: true,
+            //     type: "success",
+            //     message: result.message || "Attendance saved successfully!",
+            // });
             
-            setTimeout(() => {
-                setAlert({ open: false, type: "success", message: "" });
-                onClose();
-            }, 2000);
+            // setTimeout(() => {
+            //     setAlert({ open: false, type: "success", message: "" });
+            //     onClose();
+            // }, 2000);
+            // toast.success("Attendance saved successfully!");
         } else {
             throw new Error(result.message || "Failed to save attendance");
         }
 
     } catch (error) {
         console.error("❌ Error saving attendance:", error);
-        setAlert({
-            open: true,
-            type: "error",
-            message: error.message || "Failed to save attendance. Please try again.",
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+       toast.error(error.message || "Failed to save attendance. Please try again.");
+        // setAlert({
+        //     open: true,
+        //     type: "error",
+        //     message: error.message || "Failed to save attendance. Please try again.",
+        // });
+        // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
 };
 
@@ -2166,15 +2162,16 @@ const confirmDidNotMeet = async () => {
     try {
       const eventId = event?.id || event?._id;
       if (!eventId) {
-        setAlert({
-          open: true,
-          type: "error",
-          message: "Event ID is missing, cannot submit attendance.",
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "error", message: "" }),
-          3000
-        );
+        // setAlert({
+        //   open: true,
+        //   type: "error",
+        //   message: "Event ID is missing, cannot submit attendance.",
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "error", message: "" }),
+        //   3000
+        // );
+        toast.error("Event ID is missing, cannot submit attendance");
         return;
       }
       
@@ -2239,46 +2236,48 @@ const confirmDidNotMeet = async () => {
       }
       
       if (result?.success) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: "Event marked as 'Did Not Meet' successfully!",
-        });
-        
-        // 🔥 CRITICAL: Call the refresh function
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: "Event marked as 'Did Not Meet' successfully!",
+        // });
+        toast.alert("Event marked as 'Did Not Meet' successfully!")
+
         if (typeof onAttendanceSubmitted === "function") {
           onAttendanceSubmitted();
         }
-        
-        setTimeout(() => {
-          setAlert({ open: false, type: "success", message: "" });
-          onClose();
-        }, 1500);
+
+        // setTimeout(() => {
+        //   setAlert({ open: false, type: "success", message: "" });
+        //   onClose();
+        // }, 1500);
       } else {
-        setAlert({
-          open: true,
-          type: "error",
-          message:
-            result?.message ||
-            result?.detail ||
-            "Failed to mark event as 'Did Not Meet'.",
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "error", message: "" }),
-          3000
-        );
+        // setAlert({
+        //   open: true,
+        //   type: "error",
+        //   message:
+        //     result?.message ||
+        //     result?.detail ||
+        //     "Failed to mark event as 'Did Not Meet'.",
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "error", message: "" }),
+        //   3000
+        // );
+        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
       }
     } catch (error) {
       console.error("❌ Error marking event as 'Did Not Meet':", error);
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Something went wrong while marking event as 'Did Not Meet'.",
-      });
-      setTimeout(
-        () => setAlert({ open: false, type: "error", message: "" }),
-        3000
-      );
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Something went wrong while marking event as 'Did Not Meet'.",
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "error", message: "" }),
+      //   3000
+      // );
+      // toast.error("Something went wrong while marking event as 'Did Not Meet'.");
     }
 };
 
@@ -2303,15 +2302,17 @@ const confirmDidNotMeet = async () => {
 
     setShowAddPersonModal(false);
 
-    setAlert({
-      open: true,
-      type: "success",
-      message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
-    });
-    setTimeout(
-      () => setAlert({ open: false, type: "success", message: "" }),
-      3000
-    );
+    // Show success message
+    // setAlert({
+    //   open: true,
+    //   type: "success",
+    //   message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
+    // });
+    // setTimeout(
+    //   () => setAlert({ open: false, type: "success", message: "" }),
+    //   3000
+    // );
+    toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
   };
 
   // Mobile attendee card renderer
@@ -3061,30 +3062,30 @@ const confirmDidNotMeet = async () => {
       cursor: "pointer",
       fontSize: 14,
       fontWeight: 500,
-    },
-    alert: {
-      position: "fixed",
-      top: "20px",
-      left: "50%",
-      transform: "translateX(-50%)",
-      padding: "12px 18px",
-      borderRadius: 8,
-      color: "#fff",
-      fontSize: 14,
-      fontWeight: 500,
-      zIndex: 10001,
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      maxWidth: "90vw",
-      textAlign: "center",
-    },
-    alertSuccess: { background: theme.palette.success.main },
-    alertError: { background: theme.palette.error.main },
-    alertWarning: { background: theme.palette.warning.main },
-    inputGroup: {
-      marginBottom: 8,
-    },
+     },
+    // alert: {
+    //   position: "fixed",
+    //   top: "20px",
+    //   left: "50%",
+    //   transform: "translateX(-50%)",
+    //   padding: "12px 18px",
+    //   borderRadius: 8,
+    //   color: "#fff",
+    //   fontSize: 14,
+    //   fontWeight: 500,
+    //   zIndex: 10001,
+    //   display: "flex",
+    //   alignItems: "center",
+    //   gap: 8,
+    //   maxWidth: "90vw",
+    //   textAlign: "center",
+    // },
+    // alertSuccess: { background: theme.palette.success.main },
+    // alertError: { background: theme.palette.error.main },
+    // alertWarning: { background: theme.palette.warning.main },
+    // inputGroup: {
+    //   marginBottom: 8,
+    // },
     label: {
       fontSize: 12,
       color: theme.palette.text.secondary,
@@ -3887,23 +3888,7 @@ const confirmDidNotMeet = async () => {
         </div>
       )}
 
-      {alert.open && (
-        <div
-          style={{
-            ...styles.alert,
-            ...(alert.type === "success"
-              ? styles.alertSuccess
-              : styles.alertError),
-          }}
-        >
-          {alert.type === "success" ? (
-            <CheckCircle size={20} />
-          ) : (
-            <X size={20} />
-          )}
-          <span>{alert.message}</span>
-        </div>
-      )}
+      
 
       <AddPersonToEvents
         isOpen={showAddPersonModal}

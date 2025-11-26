@@ -61,55 +61,47 @@ import {
   ChevronRight,
   Save
 } from '@mui/icons-material';
-
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
 // Centralized Event Calculation Service
 class EventCalculationService {
   static isCellEvent(event) {
     if (!event.eventType) return false;
-    
+   
     const eventType = event.eventType.toLowerCase();
-    return eventType.includes('cell') || 
+    return eventType.includes('cell') ||
            eventType.includes('small group') ||
            eventType.includes('small-group') ||
            eventType.includes('small_groups');
   }
-
   static isEventCompleted(event) {
     const did_not_meet = event.did_not_meet || false;
     const hasAttendees = event.attendees && event.attendees.length > 0;
     const status = (event.status || '').toLowerCase().trim();
-    
-    return hasAttendees || 
-           status === 'completed' || 
-           status === 'closed' || 
+   
+    return hasAttendees ||
+           status === 'completed' ||
+           status === 'closed' ||
            did_not_meet;
   }
-
   static getOverdueCells(events) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     const overdueCells = events.filter(event => {
       if (!this.isCellEvent(event)) return false;
       if (this.isEventCompleted(event)) return false;
       if (!event.date) return false;
-      
+     
       const eventDate = new Date(event.date);
       eventDate.setHours(0, 0, 0, 0);
-      
+     
       return eventDate < today;
     });
-
     return overdueCells;
   }
-
   static getOverdueCount(events) {
     return this.getOverdueCells(events).length;
   }
 }
-
 const StatsDashboard = () => {
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
@@ -117,7 +109,6 @@ const StatsDashboard = () => {
   const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
   const isLgDown = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
-
   // Responsive value helper
   const getResponsiveValue = (xs, sm, md, lg, xl) => {
     if (isXsDown) return xs;
@@ -126,11 +117,9 @@ const StatsDashboard = () => {
     if (isLgDown) return lg;
     return xl;
   };
-
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
-
   const [stats, setStats] = useState({
     overview: null,
     events: [],
@@ -140,10 +129,10 @@ const StatsDashboard = () => {
     loading: true,
     error: null
   });
-  
+ 
   const [period, setPeriod] = useState('weekly');
   const [refreshing, setRefreshing] = useState(false);
-  
+ 
   // Calendar states
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -164,46 +153,55 @@ const StatsDashboard = () => {
     day: ''
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-
   // Modal states for viewing all items
   const [viewAllCellsModalOpen, setViewAllCellsModalOpen] = useState(false);
   const [viewAllTasksModalOpen, setViewAllTasksModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
-
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
   const fetchStats = async () => {
+    const cacheKey = `statsDashboard_${period}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    
+    if (cachedData && !refreshing) {
+      const { data, timestamp } = JSON.parse(cachedData);
+      if (Date.now() - timestamp < CACHE_DURATION) {
+        setStats({
+          ...data,
+          loading: false,
+          error: null
+        });
+        return;
+      }
+    }
+
     try {
       setRefreshing(true);
       setStats(prev => ({ ...prev, loading: true, error: null }));
-
       const token = localStorage.getItem("token");
       if (!token) {
         throw new Error("Authentication required");
       }
-
       const headers = {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       };
-
       // Calculate date range based on period
       const getDateRange = () => {
         const now = new Date();
         const start = new Date();
-        
+       
         if (period === 'weekly') {
           start.setDate(now.getDate() - 7);
         } else {
           start.setDate(now.getDate() - 30);
         }
-        
+       
         return {
           start: start.toISOString().split('T')[0],
           end: now.toISOString().split('T')[0]
         };
       };
-
       const dateRange = getDateRange();
-
       // Use existing endpoints instead of non-existent ones
       // 1. Fetch cell events using your existing /events/cells endpoint
       const cellsParams = {
@@ -211,19 +209,16 @@ const StatsDashboard = () => {
         limit: '100',
         start_date: dateRange.start
       };
-
       const cellsResponse = await fetch(
         `${BACKEND_URL}/events/cells?${new URLSearchParams(cellsParams)}`,
         { headers }
       );
-      
+     
       if (!cellsResponse.ok) {
         throw new Error(`Failed to fetch cells: ${cellsResponse.status}`);
       }
-
       const cellsData = await cellsResponse.json();
       const cellEvents = cellsData.events || [];
-
       // 2. Fetch all tasks using your existing /tasks endpoint
       let allTasks = [];
       try {
@@ -235,7 +230,6 @@ const StatsDashboard = () => {
       } catch (tasksError) {
         console.warn('Error fetching tasks:', tasksError);
       }
-
       // 3. Fetch people count using your existing /people endpoint
       let recentPeopleCount = 0;
       try {
@@ -251,15 +245,13 @@ const StatsDashboard = () => {
         // Fallback: estimate based on events
         recentPeopleCount = Math.floor(cellEvents.length * 0.1);
       }
-
       // Calculate overdue cells using your existing service
       const overdueCells = EventCalculationService.getOverdueCells(cellEvents);
-      
+     
       // Calculate total attendance from cell events
       const totalAttendance = cellEvents.reduce((sum, event) => {
         return sum + (event.attendees?.length || 0);
       }, 0);
-
       const overviewData = {
         total_attendance: totalAttendance,
         outstanding_cells: overdueCells.length,
@@ -267,8 +259,7 @@ const StatsDashboard = () => {
         recent_people: recentPeopleCount,
         events_count: cellEvents.length
       };
-
-      setStats({
+      const newStats = {
         overview: overviewData,
         events: cellEvents,
         overdueCells: overdueCells,
@@ -276,8 +267,12 @@ const StatsDashboard = () => {
         allTasks: allTasks,
         loading: false,
         error: null
-      });
-
+      };
+      setStats(newStats);
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data: newStats,
+        timestamp: Date.now()
+      }));
     } catch (err) {
       console.error('Error fetching stats:', err);
       setStats(prev => ({
@@ -289,15 +284,12 @@ const StatsDashboard = () => {
       setRefreshing(false);
     }
   };
-
   useEffect(() => {
     fetchStats();
   }, [period]);
-
   const handleRefresh = () => {
     fetchStats();
   };
-
   // Calendar and Event Creation Functions
   const getEventsForDate = (date) => {
     return stats.events.filter(event => {
@@ -306,7 +298,6 @@ const StatsDashboard = () => {
       return eventDate === date;
     });
   };
-
   const handleDateSelect = (date) => {
     setSelectedDate(date);
     const eventsOnDate = getEventsForDate(date);
@@ -318,7 +309,6 @@ const StatsDashboard = () => {
       });
     }
   };
-
   const handleCreateEvent = () => {
     const dayOfWeek = new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
     setNewEventData({
@@ -329,7 +319,6 @@ const StatsDashboard = () => {
     });
     setCreateEventModalOpen(true);
   };
-
   const generateUUID = () => {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
       const r = Math.random() * 16 | 0;
@@ -337,19 +326,16 @@ const StatsDashboard = () => {
       return v.toString(16);
     });
   };
-
   const handleSaveEvent = async () => {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
         throw new Error("Authentication required");
       }
-
       const headers = {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       };
-
       const currentUser = JSON.parse(localStorage.getItem("userProfile") || "{}");
       const eventData = {
         ...newEventData,
@@ -360,19 +346,16 @@ const StatsDashboard = () => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-
       const response = await fetch(`${BACKEND_URL}/events`, {
         method: 'POST',
         headers,
         body: JSON.stringify(eventData)
       });
-
       if (!response.ok) {
         throw new Error(`Failed to create event: ${response.status}`);
       }
-
       const result = await response.json();
-      
+     
       setCreateEventModalOpen(false);
       setNewEventData({
         eventName: '',
@@ -389,15 +372,12 @@ const StatsDashboard = () => {
         recurringDay: '',
         day: ''
       });
-
       setSnackbar({
         open: true,
         message: 'Event created successfully!',
         severity: 'success'
       });
-
       fetchStats();
-
     } catch (error) {
       console.error('Error creating event:', error);
       setSnackbar({
@@ -407,7 +387,6 @@ const StatsDashboard = () => {
       });
     }
   };
-
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return 'Not set';
@@ -421,7 +400,6 @@ const StatsDashboard = () => {
       return 'Invalid date';
     }
   };
-
   const formatDisplayDate = (dateString) => {
     if (!dateString) return 'Not set';
     try {
@@ -434,32 +412,28 @@ const StatsDashboard = () => {
       return 'Invalid date';
     }
   };
-
   // Get events count for each day in current month
   const getMonthlyEventCounts = () => {
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
-    
+   
     const monthlyEvents = stats.events.filter(event => {
       if (!event.date) return false;
       const eventDate = new Date(event.date);
       return eventDate.getMonth() === currentMonth && eventDate.getFullYear() === currentYear;
     });
-
     const counts = {};
     monthlyEvents.forEach(event => {
       const date = new Date(event.date).toISOString().split('T')[0];
       counts[date] = (counts[date] || 0) + 1;
     });
-
     return counts;
   };
-
   // Enhanced Calendar Component
   const EnhancedCalendar = () => {
     const eventCounts = getMonthlyEventCounts();
     const today = new Date().toISOString().split('T')[0];
-    
+   
     const goToPreviousMonth = () => {
       setCurrentMonth(prev => {
         const newMonth = new Date(prev);
@@ -467,7 +441,6 @@ const StatsDashboard = () => {
         return newMonth;
       });
     };
-
     const goToNextMonth = () => {
       setCurrentMonth(prev => {
         const newMonth = new Date(prev);
@@ -475,12 +448,10 @@ const StatsDashboard = () => {
         return newMonth;
       });
     };
-
     const goToToday = () => {
       setCurrentMonth(new Date());
       setSelectedDate(new Date().toISOString().split('T')[0]);
     };
-
     const getDaysInMonth = () => {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth();
@@ -488,20 +459,20 @@ const StatsDashboard = () => {
       const lastDay = new Date(year, month + 1, 0);
       const daysInMonth = lastDay.getDate();
       const firstDayOfWeek = firstDay.getDay();
-      
+     
       const days = [];
-      
+     
       for (let i = 0; i < firstDayOfWeek; i++) {
         days.push(null);
       }
-      
+     
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
         const dateString = date.toISOString().split('T')[0];
         const eventCount = eventCounts[dateString] || 0;
         const isSelected = dateString === selectedDate;
         const isToday = dateString === today;
-        
+       
         days.push({
           day,
           date: dateString,
@@ -510,12 +481,10 @@ const StatsDashboard = () => {
           isToday
         });
       }
-      
+     
       return days;
     };
-
     const days = getDaysInMonth();
-
     return (
       <Box>
         {/* Calendar Header */}
@@ -527,9 +496,9 @@ const StatsDashboard = () => {
             <IconButton size="small" onClick={goToPreviousMonth}>
               <ChevronLeft />
             </IconButton>
-            <Button 
-              size="small" 
-              variant="outlined" 
+            <Button
+              size="small"
+              variant="outlined"
               onClick={goToToday}
               sx={{ minWidth: 'auto', px: 1 }}
             >
@@ -540,7 +509,6 @@ const StatsDashboard = () => {
             </IconButton>
           </Box>
         </Box>
-
         {/* Day Headers */}
         <Box
           sx={{
@@ -558,7 +526,6 @@ const StatsDashboard = () => {
             </Box>
           ))}
         </Box>
-
         {/* Calendar Days */}
         <Box
           sx={{
@@ -571,9 +538,7 @@ const StatsDashboard = () => {
             if (!dayInfo) {
               return <Box key={`empty-${index}`} sx={{ p: 1, height: 32 }} />;
             }
-
             const { day, date, eventCount, isSelected, isToday } = dayInfo;
-
             return (
               <Box
                 key={date}
@@ -582,7 +547,7 @@ const StatsDashboard = () => {
                   textAlign: 'center',
                   cursor: 'pointer',
                   borderRadius: 1,
-                  backgroundColor: isSelected ? theme.palette.primary.main : 
+                  backgroundColor: isSelected ? theme.palette.primary.main :
                                   isToday ? theme.palette.action.hover : 'transparent',
                   color: isSelected ? theme.palette.primary.contrastText : 'inherit',
                   border: isToday && !isSelected ? `1px solid ${theme.palette.primary.main}` : '1px solid transparent',
@@ -601,11 +566,11 @@ const StatsDashboard = () => {
                   handleDateSelect(date);
                 }}
               >
-                <Typography 
-                  variant="caption" 
+                <Typography
+                  variant="caption"
                   fontWeight={isToday ? 'bold' : 'normal'}
                   sx={{
-                    color: isSelected ? 'white' : 
+                    color: isSelected ? 'white' :
                            new Date(date) < new Date().setHours(0,0,0,0) ? 'text.secondary' : 'text.primary'
                   }}
                 >
@@ -630,7 +595,6 @@ const StatsDashboard = () => {
       </Box>
     );
   };
-
   // Skeleton Loaders
   const StatCardSkeleton = () => (
     <Paper
@@ -652,7 +616,6 @@ const StatsDashboard = () => {
       <Skeleton variant="text" width="70%" height={getResponsiveValue(16, 18, 20, 22, 24)} sx={{ mx: 'auto', borderRadius: 1 }} />
     </Paper>
   );
-
   // Stats Cards Component - Optimized for mobile
   const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
     <Paper
@@ -672,9 +635,9 @@ const StatsDashboard = () => {
       }}
     >
       <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-        <Avatar sx={{ 
-          bgcolor: `${color}.main`, 
-          width: getResponsiveValue(24, 28, 32, 36, 40), 
+        <Avatar sx={{
+          bgcolor: `${color}.main`,
+          width: getResponsiveValue(24, 28, 32, 36, 40),
           height: getResponsiveValue(24, 28, 32, 36, 40)
         }}>
           {icon}
@@ -693,7 +656,6 @@ const StatsDashboard = () => {
       )}
     </Paper>
   );
-
   // Outstanding Item Component
   const OutstandingItem = ({ item, type, index }) => (
     <Card
@@ -720,12 +682,12 @@ const StatsDashboard = () => {
       >
         {type === 'cells' ? <Warning /> : <Task />}
       </Avatar>
-      
+     
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="subtitle2" fontWeight="medium" noWrap>
           {item.eventName || item.name || item.title || 'Unnamed'}
         </Typography>
-        
+       
         <Typography variant="caption" color="textSecondary" noWrap>
           {type === 'cells' ? (
             <>📅 {formatDate(item.date)} • 👥 {item.eventLeaderName || 'No leader'}</>
@@ -733,7 +695,6 @@ const StatsDashboard = () => {
             <>📝 {item.taskType || 'Task'} • {item.assignedfor || 'Unassigned'}</>
           )}
         </Typography>
-
         {item.status && (
           <Chip
             size="small"
@@ -745,7 +706,6 @@ const StatsDashboard = () => {
       </Box>
     </Card>
   );
-
   // Skeleton for Outstanding Items
   const OutstandingItemSkeleton = () => (
     <Card
@@ -768,11 +728,10 @@ const StatsDashboard = () => {
       </Box>
     </Card>
   );
-
   // Enhanced Create Event Modal
   const CreateEventModal = () => (
-    <Dialog 
-      open={createEventModalOpen} 
+    <Dialog
+      open={createEventModalOpen}
       onClose={() => setCreateEventModalOpen(false)}
       maxWidth="md"
       fullWidth
@@ -810,7 +769,7 @@ const StatsDashboard = () => {
                 size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
               />
             </Grid>
-            
+           
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth size={getResponsiveValue("small", "small", "medium", "medium", "medium")}>
                 <InputLabel>Event Type</InputLabel>
@@ -828,7 +787,6 @@ const StatsDashboard = () => {
                 </Select>
               </FormControl>
             </Grid>
-
             <Grid item xs={12} sm={6}>
               <TextField
                 label="Location"
@@ -838,7 +796,6 @@ const StatsDashboard = () => {
                 size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
               />
             </Grid>
-
             <Grid item xs={12} sm={6}>
               <TextField
                 label="Event Leader Name"
@@ -848,7 +805,6 @@ const StatsDashboard = () => {
                 size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
               />
             </Grid>
-
             <Grid item xs={12} sm={6}>
               <TextField
                 label="Event Leader Email"
@@ -859,11 +815,10 @@ const StatsDashboard = () => {
                 size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
               />
             </Grid>
-
             <Grid item xs={12}>
               <FormControlLabel
                 control={
-                  <Checkbox 
+                  <Checkbox
                     checked={newEventData.isRecurring}
                     onChange={(e) => setNewEventData({...newEventData, isRecurring: e.target.checked})}
                     size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
@@ -872,7 +827,6 @@ const StatsDashboard = () => {
                 label="This is a recurring event"
               />
             </Grid>
-
             <Grid item xs={12} sm={6}>
               <TextField
                 label="Time"
@@ -884,7 +838,6 @@ const StatsDashboard = () => {
                 size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
               />
             </Grid>
-
             <Grid item xs={12}>
               <TextField
                 label="Description"
@@ -900,14 +853,14 @@ const StatsDashboard = () => {
         </Box>
       </DialogContent>
       <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-        <Button 
-          onClick={() => setCreateEventModalOpen(false)} 
+        <Button
+          onClick={() => setCreateEventModalOpen(false)}
           size={isSmDown ? "small" : "medium"}
         >
           Cancel
         </Button>
-        <Button 
-          onClick={handleSaveEvent} 
+        <Button
+          onClick={handleSaveEvent}
           variant="contained"
           disabled={!newEventData.eventName}
           startIcon={<Save />}
@@ -918,11 +871,10 @@ const StatsDashboard = () => {
       </DialogActions>
     </Dialog>
   );
-
   // Modal for viewing all overdue cells
   const ViewAllCellsModal = () => (
-    <Dialog 
-      open={viewAllCellsModalOpen} 
+    <Dialog
+      open={viewAllCellsModalOpen}
       onClose={() => setViewAllCellsModalOpen(false)}
       maxWidth="lg"
       fullWidth
@@ -992,9 +944,9 @@ const StatsDashboard = () => {
                     <TableCell>{cell.eventLeaderName || '-'}</TableCell>
                     <TableCell>{formatDate(cell.date)}</TableCell>
                     <TableCell>
-                      <Chip 
-                        size="small" 
-                        label={cell.status || 'incomplete'} 
+                      <Chip
+                        size="small"
+                        label={cell.status || 'incomplete'}
                         color="error"
                       />
                     </TableCell>
@@ -1004,7 +956,7 @@ const StatsDashboard = () => {
             </Table>
           </TableContainer>
         )}
-        
+       
         {stats.overdueCells.length === 0 && (
           <Box textAlign="center" py={4}>
             <CheckCircle color="success" sx={{ fontSize: 48, mb: 2 }} />
@@ -1015,8 +967,8 @@ const StatsDashboard = () => {
         )}
       </DialogContent>
       <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-        <Button 
-          onClick={() => setViewAllCellsModalOpen(false)} 
+        <Button
+          onClick={() => setViewAllCellsModalOpen(false)}
           size={isSmDown ? "small" : "medium"}
         >
           Close
@@ -1024,12 +976,11 @@ const StatsDashboard = () => {
       </DialogActions>
     </Dialog>
   );
-
   // Error state
   if (stats.error) {
     return (
-      <Box sx={{ 
-        minHeight: '100vh', 
+      <Box sx={{
+        minHeight: '100vh',
         bgcolor: 'background.default',
         display: 'flex',
         justifyContent: 'center',
@@ -1038,8 +989,8 @@ const StatsDashboard = () => {
         mt: 8
       }}>
         <CssBaseline />
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           action={
             <Button color="inherit" size="small" onClick={fetchStats}>
               Retry
@@ -1051,24 +1002,22 @@ const StatsDashboard = () => {
       </Box>
     );
   }
-
   const { overview, events, overdueCells, allTasks } = stats;
   const eventsOnSelectedDate = getEventsForDate(selectedDate);
-
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: 8, minHeight: "100vh" }}>
       <CssBaseline />
-      
+     
       {/* Header with Controls and Stats in one line */}
       <Box sx={{ mb: cardSpacing }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
           <Box sx={{ flex: 1, minWidth: isSmDown ? '100%' : 'auto' }}>
             {/* Empty space on left for balance */}
           </Box>
-          
+         
           <Box display="flex" gap={1} alignItems="center" sx={{ ml: 'auto' }}>
-            <FormControl 
-              size={getResponsiveValue("small", "small", "medium", "medium", "medium")} 
+            <FormControl
+              size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
               sx={{ minWidth: 120 }}
             >
               <InputLabel>Period</InputLabel>
@@ -1082,10 +1031,10 @@ const StatsDashboard = () => {
                 <MenuItem value="monthly">Monthly</MenuItem>
               </Select>
             </FormControl>
-            
+           
             <Tooltip title="Refresh">
-              <IconButton 
-                onClick={handleRefresh} 
+              <IconButton
+                onClick={handleRefresh}
                 disabled={refreshing || stats.loading}
                 color="primary"
                 size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
@@ -1095,12 +1044,11 @@ const StatsDashboard = () => {
             </Tooltip>
           </Box>
         </Box>
-        
+       
         {(refreshing || stats.loading) && (
           <LinearProgress sx={{ mt: 1 }} />
         )}
       </Box>
-
       {/* Main Stats Grid - 2x2 layout on mobile */}
       <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
         <Grid item xs={6} sm={6} md={3}>
@@ -1116,7 +1064,6 @@ const StatsDashboard = () => {
             />
           )}
         </Grid>
-
         <Grid item xs={6} sm={6} md={3}>
           {stats.loading ? (
             <StatCardSkeleton />
@@ -1130,7 +1077,6 @@ const StatsDashboard = () => {
             />
           )}
         </Grid>
-
         <Grid item xs={6} sm={6} md={3}>
           {stats.loading ? (
             <StatCardSkeleton />
@@ -1144,7 +1090,6 @@ const StatsDashboard = () => {
             />
           )}
         </Grid>
-
         <Grid item xs={6} sm={6} md={3}>
           {stats.loading ? (
             <StatCardSkeleton />
@@ -1159,7 +1104,6 @@ const StatsDashboard = () => {
           )}
         </Grid>
       </Grid>
-
       {/* Tabs for Content Sections */}
       <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3 }}>
         <Tabs
@@ -1172,7 +1116,6 @@ const StatsDashboard = () => {
           <Tab label="Calendar" />
         </Tabs>
       </Paper>
-
       {/* Tab Content with consistent height */}
       <Box sx={{ minHeight: '400px' }}>
         {activeTab === 0 && (
@@ -1188,15 +1131,14 @@ const StatsDashboard = () => {
                   <Typography variant={getResponsiveValue("h6", "h6", "h5", "h5", "h5")} fontWeight="bold">
                     Overdue Cells
                   </Typography>
-                  <Chip 
-                    label={overdueCells.length} 
-                    color="error" 
+                  <Chip
+                    label={overdueCells.length}
+                    color="error"
                     variant="outlined"
                   />
                 </>
               )}
             </Box>
-
             <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
               {stats.loading ? (
                 Array.from({ length: 3 }).map((_, index) => (
@@ -1219,10 +1161,10 @@ const StatsDashboard = () => {
                   </Typography>
                 </Box>
               )}
-              
+             
               {!stats.loading && overdueCells.length > 5 && (
                 <Box textAlign="center" mt={2}>
-                  <Button 
+                  <Button
                     variant="outlined"
                     startIcon={<Visibility />}
                     onClick={() => setViewAllCellsModalOpen(true)}
@@ -1235,7 +1177,6 @@ const StatsDashboard = () => {
             </Box>
           </Paper>
         )}
-
         {activeTab === 1 && (
           <Paper variant="outlined" sx={{ boxShadow: 3, p: isSmDown ? 1 : 2, height: '100%' }}>
             <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
@@ -1249,15 +1190,14 @@ const StatsDashboard = () => {
                   <Typography variant={getResponsiveValue("h6", "h6", "h5", "h5", "h5")} fontWeight="bold">
                     All Tasks
                   </Typography>
-                  <Chip 
-                    label={allTasks.length} 
-                    color="secondary" 
+                  <Chip
+                    label={allTasks.length}
+                    color="secondary"
                     variant="outlined"
                   />
                 </>
               )}
             </Box>
-
             <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
               {stats.loading ? (
                 Array.from({ length: 3 }).map((_, index) => (
@@ -1280,10 +1220,10 @@ const StatsDashboard = () => {
                   </Typography>
                 </Box>
               )}
-              
+             
               {!stats.loading && allTasks.length > 5 && (
                 <Box textAlign="center" mt={2}>
-                  <Button 
+                  <Button
                     variant="outlined"
                     startIcon={<Visibility />}
                     onClick={() => setViewAllTasksModalOpen(true)}
@@ -1296,7 +1236,6 @@ const StatsDashboard = () => {
             </Box>
           </Paper>
         )}
-
         {activeTab === 2 && (
           <Paper variant="outlined" sx={{ boxShadow: 3, p: isSmDown ? 1 : 2, height: '100%' }}>
             {stats.loading ? (
@@ -1311,7 +1250,7 @@ const StatsDashboard = () => {
                     Event Calendar
                   </Typography>
                   <Box display="flex" gap={1} alignItems="center">
-                    <Chip 
+                    <Chip
                       icon={<CalendarToday />}
                       label={formatDisplayDate(selectedDate)}
                       variant="outlined"
@@ -1327,19 +1266,17 @@ const StatsDashboard = () => {
                     </Button>
                   </Box>
                 </Box>
-
                 <Box sx={{ display: 'flex', flexDirection: isSmDown ? 'column' : 'row', gap: 3 }}>
                   {/* Enhanced Calendar */}
                   <Box sx={{ flex: 1 }}>
                     <EnhancedCalendar />
                   </Box>
-
                   {/* Events for selected date */}
                   <Box sx={{ flex: 1, minWidth: isSmDown ? '100%' : 300 }}>
                     <Typography variant={getResponsiveValue("body1", "h6", "h6", "h6", "h6")} gutterBottom>
                       Events on {formatDisplayDate(selectedDate)}
                     </Typography>
-                    
+                   
                     <Box sx={{ maxHeight: 250, overflow: 'auto' }}>
                       {eventsOnSelectedDate.length > 0 ? (
                         eventsOnSelectedDate.map((event, index) => (
@@ -1374,11 +1311,9 @@ const StatsDashboard = () => {
           </Paper>
         )}
       </Box>
-
       {/* Modals */}
       <CreateEventModal />
       <ViewAllCellsModal />
-
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
@@ -1386,8 +1321,8 @@ const StatsDashboard = () => {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
-          severity={snackbar.severity} 
+        <Alert
+          severity={snackbar.severity}
           onClose={() => setSnackbar({ ...snackbar, open: false })}
         >
           {snackbar.message}
@@ -1396,5 +1331,4 @@ const StatsDashboard = () => {
     </Box>
   );
 };
-
 export default StatsDashboard;
