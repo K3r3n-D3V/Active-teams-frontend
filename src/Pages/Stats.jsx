@@ -51,10 +51,14 @@ const StatsDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [expandedUsers, setExpandedUsers] = useState([]);
   const [newEventData, setNewEventData] = useState({
-    eventName: '', eventType: 'CELLS', date: '', eventLeaderName: '', eventLeaderEmail: '',
+    eventName: '', eventTypeName: '', date: '', eventLeaderName: '', eventLeaderEmail: '',
     location: '', time: '19:00', description: '', isRecurring: false,
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [eventTypes, setEventTypes] = useState([]);
+  const [eventTypesLoading, setEventTypesLoading] = useState(true);
+
+  const [overdueModalOpen, setOverdueModalOpen] = useState(false);
 
   const getDateRange = () => {
   const now = new Date();
@@ -216,6 +220,39 @@ useEffect(() => {
   fetchStats();
 }, [period]);
 
+useEffect(() => {
+  const fetchEventTypes = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BACKEND_URL}/event-types`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error("Failed to load event types");
+
+      const data = await res.json();
+      // Adjust based on your actual response structure
+      const types = data.eventTypes || data.data || data || [];
+      setEventTypes(types);
+    } catch (err) {
+      console.error("Failed to load event types:", err);
+      // Fallback to default list
+      setEventTypes([
+        { name: "CELLS" },
+        { name: "GLOBAL" },
+        { name: "SERVICE" },
+        { name: "MEETING" },
+        { name: "TRAINING" },
+        { name: "OUTREACH" }
+      ]);
+    } finally {
+      setEventTypesLoading(false);
+    }
+  };
+
+  fetchEventTypes();
+}, []);
+
   useEffect(() => { fetchStats(); }, []);
 
   const toggleExpand = (key) => {
@@ -233,33 +270,58 @@ useEffect(() => {
   };
 
   const handleSaveEvent = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
-      const payload = {
-        ...newEventData,
-        eventLeaderName: newEventData.eventLeaderName || `${user.name || ''} ${user.surname || ''}`.trim(),
-        eventLeaderEmail: newEventData.eventLeaderEmail || user.email,
-        status: 'incomplete',
-        created_at: new Date().toISOString(),
-      };
+  if (!newEventData.eventName.trim()) {
+    setSnackbar({ open: true, message: 'Event Name is required!', severity: 'error' });
+    return;
+  }
 
-      const res = await fetch(`${BACKEND_URL}/events`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+  try {
+    const token = localStorage.getItem("token");
+    const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
 
-      if (!res.ok) throw new Error("Failed to create event");
+    const payload = {
+      eventName: newEventData.eventName.trim(),                    // ← MUST be first & present
+      eventTypeName: newEventData.eventTypeName,
+      date: newEventData.date || selectedDate,                     // ← fallback to selected date
+      time: newEventData.time,
+      location: newEventData.location || null,
+      description: newEventData.description || null,
+      eventLeaderName: newEventData.eventLeaderName || `${user.name || ''} ${user.surname || ''}`.trim() || 'Unknown Leader',
+      eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
+      isRecurring: newEventData.isRecurring,
+      status: 'incomplete',                                         // ← lowercase!
+      created_at: new Date().toISOString(),
+    };
 
-      setCreateEventModalOpen(false);
-      setNewEventData({ eventName: '', eventType: 'CELLS', date: '', eventLeaderName: '', eventLeaderEmail: '', location: '', time: '19:00', description: '', isRecurring: false });
-      setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
-      fetchStats();
-    } catch (err) {
-      setSnackbar({ open: true, message: err.message || 'Failed to create event', severity: 'error' });
+    console.log("Sending payload:", payload); // ← Remove later
+
+    const res = await fetch(`${BACKEND_URL}/events`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail?.[0]?.msg || `HTTP ${res.status}`);
     }
-  };
+
+    setCreateEventModalOpen(false);
+    setNewEventData({
+      eventName: '', eventTypeName: '', date: '', eventLeaderName: '', eventLeaderEmail: '',
+      location: '', time: '19:00', description: '', isRecurring: false,
+    });
+
+    setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
+    fetchStats(); // Refresh dashboard
+  } catch (err) {
+    console.error("Create event failed:", err);
+    setSnackbar({ open: true, message: err.message || 'Failed to create event', severity: 'error' });
+  }
+};
 
   const EnhancedCalendar = () => {
     const eventCounts = {};
@@ -397,7 +459,11 @@ useEffect(() => {
           {stats.loading ? <Skeleton variant="rectangular" height={140} /> : <StatCard title="Total Attendance" value={stats.overview?.total_attendance || 0} icon={<People />} color="primary" />}
         </Grid>
         <Grid item xs={6} md={3}>
-          {stats.loading ? <Skeleton variant="rectangular" height={140} /> : <StatCard title="Overdue Cells" value={stats.overview?.outstanding_cells || 0} icon={<Warning />} color="warning" />}
+          {stats.loading ? <Skeleton variant="rectangular" height={140} /> :
+            <>
+              <StatCard title="Overdue Cells" value={stats.overview?.outstanding_cells || 0} icon={<Warning />} color="warning" />
+            </>
+          }
         </Grid>
         <Grid item xs={6} md={3}>
           {stats.loading ? <Skeleton variant="rectangular" height={140} /> : <StatCard title="Incomplete Tasks" value={stats.overview?.outstanding_tasks || 0} icon={<Task />} color="secondary" />}
@@ -435,6 +501,18 @@ useEffect(() => {
                 </Box>
               </Card>
             ))}
+            <Box textAlign="center" mt={1}>
+                <Button
+                  size="small"
+                  variant="text"
+                  color="warning"
+                  startIcon={<Visibility />}
+                  onClick={() => setOverdueModalOpen(true)}
+                  disabled={(stats.overview?.outstanding_cells || 0) === 0}
+                >
+                  View All
+                </Button>
+              </Box>
           </Paper>
         )}
 
@@ -524,7 +602,7 @@ useEffect(() => {
                 {eventsOnSelectedDate.length > 0 ? eventsOnSelectedDate.map(e => (
                   <Card key={e._id} sx={{ mb: 1, p: 2 }}>
                     <Typography variant="subtitle2">{e.eventName}</Typography>
-                    <Typography variant="caption">{e.eventType} • {e.time}</Typography>
+                    <Typography variant="caption">{e.eventTypeName} • {e.time}</Typography>
                   </Card>
                 )) : <Typography color="textSecondary">No events scheduled</Typography>}
               </Box>
@@ -540,7 +618,6 @@ useEffect(() => {
             <Box display="flex" alignItems="center" gap={1.5}>
               <Box component="span" sx={{ fontSize: 28 }}>Create New Event</Box>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>Create New Event</Typography>
                 <Typography variant="caption" sx={{ opacity: 0.9 }}>{formatDisplayDate(selectedDate)}</Typography>
               </Box>
             </Box>
@@ -552,7 +629,27 @@ useEffect(() => {
             <Typography variant="subtitle2" sx={{ mb: 2, color: 'primary.main', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>EVENT DETAILS</Typography>
             <Grid container spacing={2.5}>
               <Grid item xs={12}><TextField label="Event Name" value={newEventData.eventName} onChange={e => setNewEventData(p => ({ ...p, eventName: e.target.value }))} fullWidth required /></Grid>
-              <Grid item xs={12} sm={6}><FormControl fullWidth><InputLabel>Event Type</InputLabel><Select value={newEventData.eventType} onChange={e => setNewEventData(p => ({ ...p, eventType: e.target.value }))}>{['CELLS', 'GLOBAL', 'SERVICE', 'MEETING', 'TRAINING', 'OUTREACH'].map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}</Select></FormControl></Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth disabled={eventTypesLoading}>
+                  <InputLabel>Event Type</InputLabel>
+                  <Select
+                    value={newEventData.eventTypeName || ''}
+                    onChange={e => setNewEventData(p => ({ ...p, eventTypeName: e.target.value }))}
+                  >
+                    {eventTypesLoading ? (
+                      <MenuItem disabled>Loading event types...</MenuItem>
+                    ) : eventTypes.length > 0 ? (
+                      eventTypes.map((type) => (
+                        <MenuItem key={type._id || type.name} value={type.name}>
+                          {type.name} {type.description && `- ${type.description}`}
+                        </MenuItem>
+                      ))
+                    ) : (
+                      <MenuItem disabled>No event types available</MenuItem>
+                    )}
+                  </Select>
+                </FormControl>
+              </Grid>
               <Grid item xs={12} sm={6}><TextField label="Time" type="time" value={newEventData.time} onChange={e => setNewEventData(p => ({ ...p, time: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
               <Grid item xs={12}><TextField label="Location" value={newEventData.location} onChange={e => setNewEventData(p => ({ ...p, location: e.target.value }))} fullWidth /></Grid>
             </Grid>
@@ -580,9 +677,69 @@ useEffect(() => {
         </DialogActions>
       </Dialog>
 
+      {/* OVERDUE CELLS MODAL */}
+<Dialog open={overdueModalOpen} onClose={() => setOverdueModalOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{
+          background: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
+          color: 'white', p: 3
+        }}>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={2}>
+              <Warning sx={{ fontSize: 32 }} />
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Overdue / Incomplete Cells ({stats.overdueCells.length})
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Cells that need attention
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton onClick={() => setOverdueModalOpen(false)} sx={{ color: 'white' }}>
+              <Close />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent dividers sx={{ p: 3 }}>
+          {stats.overdueCells.length === 0 ? (
+            <Typography color="text.secondary" align="center" py={4}>
+              No overdue cells — great job!
+            </Typography>
+          ) : (
+            <Stack spacing={2}>
+              {stats.overdueCells.map((cell) => (
+                <Card key={cell._id} variant="outlined" sx={{ p: 2, backgroundColor: 'error.50' }}>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Avatar sx={{ bgcolor: 'warning.main' }}><Warning /></Avatar>
+                    <Box flex={1}>
+                      <Typography variant="subtitle1" fontWeight="bold">
+                        {cell.eventName || 'Unnamed Cell'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Leader: {cell.eventLeaderName || 'Not assigned'} • {cell.location || 'No location'}
+                      </Typography>
+                      <Typography variant="caption" color="error" fontWeight="medium">
+                        {formatDate(cell.date)} — {cell.status?.toUpperCase() || 'INCOMPLETE'}
+                      </Typography>
+                    </Box>
+                    <Chip label={cell.attendees?.length || 0} size="small" />
+                  </Box>
+                </Card>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setOverdueModalOpen(false)} variant="outlined">Close</Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
         <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
+
     </Box>
   );
 };
