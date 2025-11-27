@@ -482,7 +482,9 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
         alert(`Task for ${person.Name} ${person.Surname} has been successfully updated!`);
       } else {
         await createTask(taskPayload);
-        alert(`You have successfully captured ${person.Name} ${person.Surname}`);
+        if (taskPayload.status !== "Open"){
+          alert(`You have successfully captured ${person.Name} ${person.Surname}`);
+        }
       }
 
       handleClose();
@@ -695,7 +697,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
   }
 };
 
-  const totalCount = filteredTasks.length;
+  const totalCount = filteredTasks.length ? filteredTasks.status === 'completed' || filteredTasks.status === 'awaiting task' ? filteredTasks.length : filteredTasks.filter(t => t.status === 'completed' || t.status === 'awaiting task').length : 0;
 
   return (
     <div style={{ 
