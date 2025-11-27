@@ -57,6 +57,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('userProfile');
     localStorage.removeItem('userRole');
     localStorage.removeItem('profilePic');
+    localStorage.removeItem('leaders');
     setUser(null);
     setIsAuthenticated(false);
   }, []);
@@ -173,12 +174,13 @@ export const AuthProvider = ({ children }) => {
       console.log('✅ [AuthContext] Login successful, storing data');
       
       // Ensure user has profile picture from multiple sources
-      const userWithAvatar = ensureUserWithAvatar(data.user);
+      const userWithAvatar = ensureUserWithAvatar({...data.user,...data.leaders});
       
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('userId', data.user.id);
       localStorage.setItem('userProfile', JSON.stringify(userWithAvatar));
       localStorage.setItem('userRole', data.user.role);
+      localStorage.setItem('leaders',JSON.stringify(data.leaders));
       
       // Also store profile picture separately for easy access
       if (userWithAvatar.profile_picture) {
