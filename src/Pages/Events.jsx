@@ -25,6 +25,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
+import {  useNavigate } from "react-router-dom";
 
 import Eventsfilter from "./AddPersonToEvents";
 import CreateEvents from "./CreateEvents";
@@ -32,6 +33,7 @@ import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
 
 const styles = {
   container: {
@@ -699,20 +701,20 @@ const Events = () => {
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredRow, setHoveredRow] = useState(null);
-  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
   const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
   const [typeMenuFor, setTypeMenuFor] = useState(null);
-  const [isCheckingLeaderStatus, setIsCheckingLeaderStatus] = useState(true);
+  const [isCheckingLeaderStatus, setIsCheckingLeaderStatus] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [toDeleteType, setToDeleteType] = useState(null);
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
   const [isLeaderAt12, setIsLeaderAt12] = useState(false);
+  const navigate = useNavigate();
 
   const initialViewFilter = useMemo(() => {
     if (isLeaderAt12) {
@@ -817,22 +819,21 @@ const Events = () => {
       verticalAlign: "top",
       color: isDarkMode ? theme.palette.text.primary : '#212529',
     },
-  };
+  }
 
-
-  useEffect(() => {
+useEffect(() => {
     const checkLeaderAt12Status = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) {
-          setIsCheckingLeaderStatus(false);
           return;
         }
 
         const response = await axios.get(
           `${BACKEND_URL}/check-leader-at-12-status`,
           {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: 10000,
           }
         );
 
@@ -841,38 +842,6 @@ const Events = () => {
       } catch (error) {
         console.error("Error checking Leader at 12 status:", error);
         setIsLeaderAt12(false);
-      } finally {
-        setIsCheckingLeaderStatus(false);
-      }
-    };
-
-    checkLeaderAt12Status();
-  }, [BACKEND_URL]);
-
-
-  useEffect(() => {
-    const checkLeaderAt12Status = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          setIsCheckingLeaderStatus(false);
-          return;
-        }
-
-        const response = await axios.get(
-          `${BACKEND_URL}/check-leader-at-12-status`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
-
-        console.log("✅ Leader at 12 status check:", response.data);
-        setIsLeaderAt12(response.data.is_leader_at_12);
-      } catch (error) {
-        console.error("Error checking Leader at 12 status:", error);
-        setIsLeaderAt12(false);
-      } finally {
-        setIsCheckingLeaderStatus(false);
       }
     };
 
@@ -918,20 +887,17 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
 
     const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
-    // 🔥 CRITICAL FIX: Only include status if explicitly provided in filters
     const params = {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
       start_date: startDateParam,
-      ...filters  // Let filters override everything
+      ...filters  
     };
 
-    // Remove status if it's not explicitly provided
     if (!filters.status && params.status) {
       delete params.status;
     }
 
-    // FIXED: Determine if this is a Cell request or Event Type request
     const isCellRequest = params.event_type === 'CELLS' || params.event_type === 'all' || !params.event_type;
     const isEventTypeRequest = !isCellRequest;
 
@@ -939,7 +905,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       isCellRequest,
       isEventTypeRequest,
       event_type: params.event_type,
-      status: params.status // Log the actual status being sent
+      status: params.status 
     });
 
     if (isEventTypeRequest) {
@@ -951,32 +917,31 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       delete params.include_subordinate_cells;
       delete params.leader_at_1_identifier;
       
-      // 🔥 CRITICAL FIX: For event types, also remove status unless explicitly filtered
       if (!filters.status) {
         delete params.status;
       }
     } else {
-      // Cell request - apply role-based logic
       console.log("CELL MODE - Applying role-based filters");
 
-      if (isRegistrant || isRegularUser) {
-        params.personal = true;
-      } else if (isLeaderAt12) {
-        params.leader_at_12_view = true;
-        params.include_subordinate_cells = true;
 
-        if (currentUserLeaderAt1) {
-          params.leader_at_1_identifier = currentUserLeaderAt1;
-        }
+if (isRegistrant || isRegularUser) {
+  params.personal = true;
+} else if (isLeaderAt12) {
+  params.leader_at_12_view = true;
+  params.include_subordinate_cells = true;
 
-        if (viewFilter === 'personal') {
-          params.show_personal_cells = true;
-          params.personal = true;
-        } else {
-          params.show_all_authorized = true;
-          params.include_subordinate_cells = true;
-        }
-      }
+  if (currentUserLeaderAt1) {
+    params.leader_at_1_identifier = currentUserLeaderAt1;
+  }
+
+  if (viewFilter === 'personal') {
+    params.show_personal_cells = true;
+    params.personal = true;
+  } else {
+    params.show_all_authorized = true;
+    params.include_subordinate_cells = true;
+  }
+}
     }
 
     // Determine which endpoint to use
@@ -2173,69 +2138,183 @@ const handleSearchChange = useCallback((e) => {
 }, 
 [userRole, viewFilter, clearCache, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
 
-  useEffect(() => {
-    const checkAccess = async () => {
+ // Replace your checkAccess useEffect in Events.jsx with this fixed version:
+
+useEffect(() => {
+  const checkAccess = async () => {
+    // Wait for auth to initialize
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const token = localStorage.getItem("token");
+    const userProfile = localStorage.getItem("userProfile");
+    
+    console.log("🔐 ACCESS CHECK:", { token: !!token, userProfile: !!userProfile });
+
+    if (!token || !userProfile) {
+      toast.error("Please log in to access events");
+      setTimeout(() => window.location.href = '/login', 2000);  // ✅ Redirect to /login, not /dashboard
+      return;
+    }
+
+    try {
+      const currentUser = JSON.parse(userProfile);
       const userRole = currentUser?.role?.toLowerCase() || "";
       const email = currentUser?.email || "";
-
+      
       console.log("🔐 Checking user access:", { userRole, email });
+
       const isAdmin = userRole === "admin";
       const isLeaderAt12 =
         userRole.includes("leader at 12") ||
         userRole.includes("leader@12") ||
         userRole.includes("leader @12") ||
         userRole.includes("leader at12") ||
-
         userRole === "leader at 12";
       const isRegistrant = userRole === "registrant";
       const isLeader144or1728 =
         userRole.includes("leader at 144") ||
         userRole.includes("leader at 1278") ||
         userRole.includes("leader at 1728");
+      
+      // ✅ IMPROVED: Check if user role includes "leader" in any form
+      const isAnyLeader = 
+        userRole.includes("leader") || 
+        isLeaderAt12 || 
+        isLeader144or1728;
+      
       const isUser = userRole === "user";
 
+      // Special check for regular users
       if (isUser) {
         try {
           const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+            headers: { Authorization: `Bearer ${token}` }
           });
-
+          
           const { hasCell, canAccessEvents } = response.data;
-
+          
+          console.log("🔍 User cell check:", { hasCell, canAccessEvents });
+          
           if (!canAccessEvents || !hasCell) {
             toast.warning("You must have a cell to access the Events page");
-            window.location.href = "/dashboard";
+            // ✅ FIX: Redirect to home instead of /dashboard
+            setTimeout(() => window.location.href = '/', 2000);
             return;
           }
-
+          
           console.log("✅ User has cell - access granted");
         } catch (error) {
-          console.error("Error checking cell status:", error);
-        toast.error("Unable to verify access. Please contact support.");
-          window.location.href = "/dashboard";
+          console.error("❌ Error checking cell status:", error);
+          toast.error("Unable to verify access. Please contact support.");
+          // ✅ FIX: Redirect to home instead of /dashboard
+          setTimeout(() => window.location.href = '/', 2000);
           return;
         }
       }
 
-      // ✅ Existing leader checks
-      const hasAccess = isAdmin || isLeaderAt12 || isRegistrant || isLeader144or1728 || isUser;
+      // ✅ BROADENED ACCESS: Allow all types of leaders
+      const hasAccess = 
+        isAdmin || 
+        isLeaderAt12 || 
+        isRegistrant || 
+        isLeader144or1728 || 
+        isAnyLeader ||  // ✅ This catches any leader role
+        isUser;
 
       if (!hasAccess) {
-        toast.warning("You must be a leader to access the Events page");
-        window.location.href = "/dashboard";
+        console.log("❌ Access denied for role:", userRole);
+        toast.warning("You do not have permission to access the Events page");
+        // ✅ FIX: Redirect to home instead of /dashboard
+        setTimeout(() => window.location.href = '/', 2000);
       } else {
         console.log("✅ Access granted:", {
+          userRole,
           isAdmin,
           isLeaderAt12,
           isRegistrant,
           isLeader144or1728,
+          isAnyLeader,
           isUser
         });
+      }
+    } catch (error) {
+      console.error("❌ Error in access check:", error);
+      toast.error("Error verifying access");
+    }
+  };
+
+  checkAccess();
+}, [currentUser?.email, currentUser?.role, BACKEND_URL]);
+
+
+
+  useEffect(() => {
+    const checkAccess = async () => {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const token = localStorage.getItem("token");
+      const userProfile = localStorage.getItem("userProfile");
+      
+      if (!token || !userProfile) {
+        toast.error("Please log in to access events");
+        setTimeout(() => navigate('/login', { replace: true }), 2000);  // ✅ Better approach
+        return;
+      }
+
+      try {
+        const currentUser = JSON.parse(userProfile);
+        const userRole = currentUser?.role?.toLowerCase() || "";
+        
+        console.log("🔐 Checking user access:", { userRole });
+
+        const isAdmin = userRole === "admin";
+        const isAnyLeader = userRole.includes("leader");  // ✅ Simplified
+        const isRegistrant = userRole === "registrant";
+        const isUser = userRole === "user";
+
+        // Check for regular users
+        if (isUser) {
+          try {
+            const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            if (!response.data.canAccessEvents || !response.data.hasCell) {
+              toast.warning("You must have a cell to access the Events page");
+              setTimeout(() => navigate('/', { replace: true }), 2000);  
+              return;
+            }
+            
+            console.log("✅ User has cell - access granted");
+          } catch (error) {
+            console.error("❌ Error checking cell status:", error);
+            toast.error("Unable to verify access");
+            setTimeout(() => navigate('/', { replace: true }), 2000);  
+            return;
+          }
+        }
+
+        // Check access
+        const hasAccess = isAdmin || isAnyLeader || isRegistrant || isUser;
+
+        if (!hasAccess) {
+          console.log("❌ Access denied for role:", userRole);
+          toast.warning("You do not have permission to access this page");
+          setTimeout(() => navigate('/', { replace: true }), 2000);  // ✅ Navigate to home
+        } else {
+          console.log("✅ Access granted for role:", userRole);
+        }
+      } catch (error) {
+        console.error("❌ Error in access check:", error);
+        toast.error("Error verifying access");
+        setTimeout(() => navigate('/', { replace: true }), 2000);  // ✅ Navigate to home
       }
     };
 
     checkAccess();
-  }, [currentUser?.email, currentUser?.role, BACKEND_URL]);;
+  }, [currentUser?.email, currentUser?.role, BACKEND_URL, navigate]);
+
+
 
   useEffect(() => {
     if (eventTypes.length > 0 && !selectedEventTypeFilter) {
@@ -2645,7 +2724,7 @@ useEffect(() => {
 
   console.log("🔍 Fetching with status filter:", selectedStatus, fetchParams);
 
-  if (endpointType === "cells") {
+if (endpointType === "cells") {
     if (isAdmin) {
       if (viewFilter === 'personal') {
         fetchParams.personal = true;
@@ -2654,20 +2733,22 @@ useEffect(() => {
       fetchParams.personal = true;
     } else if (isLeaderAt12) {
       fetchParams.leader_at_12_view = true;
-      fetchParams.include_subordinate_cells = true;
 
       if (currentUserLeaderAt1) {
         fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
       }
 
       if (viewFilter === 'personal') {
+        // PERSONAL: Only their own cell
         fetchParams.show_personal_cells = true;
         fetchParams.personal = true;
       } else {
+        // VIEW ALL: Only disciples' cells
         fetchParams.show_all_authorized = true;
         fetchParams.include_subordinate_cells = true;
       }
     }
+  
   } else {
     console.log("Loading event type data for:", selectedEventTypeFilter);
 
@@ -2817,16 +2898,8 @@ const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => 
       return null;
     }
 
-
 const handleViewFilterChange = (newViewFilter) => {
-  console.log("View filter changing:", {
-    from: viewFilter,
-    to: newViewFilter,
-    isLeaderAt12,
-    isAdmin,
-    currentUserLeaderAt1,
-    currentUser: currentUser
-  });
+  console.log("View filter changing:", newViewFilter);
 
   setViewFilter(newViewFilter);
   setCurrentPage(1);
@@ -2846,41 +2919,42 @@ const handleViewFilterChange = (newViewFilter) => {
     fetchParams.search = searchQuery.trim();
   }
 
-  // FIXED: Clean logic for Admin vs Leader at 12
+  // ADMIN
   if (isAdmin) {
     if (newViewFilter === 'personal') {
       fetchParams.personal = true;
-      console.log("Admin PERSONAL MODE: Showing admin's own cells only");
+      fetchParams.show_personal_cells = true;
+      // DON'T include show_all_authorized for personal view
     } else {
-      // Admin VIEW ALL mode - no personal filter
-      console.log("Admin ALL MODE: Showing ALL cells");
-      // Remove any personal filters
+      // VIEW ALL for admin - no personal filters
       delete fetchParams.personal;
+      delete fetchParams.show_personal_cells;
     }
   }
-  // FIXED: Leader at 12 logic - CLEAN separation
+  // LEADER AT 12 - FIXED LOGIC
   else if (isLeaderAt12) {
     fetchParams.leader_at_12_view = true;
+    fetchParams.include_subordinate_cells = true;
 
     if (currentUserLeaderAt1) {
       fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
     }
 
     if (newViewFilter === 'personal') {
-      // LEADER AT 12 PERSONAL: Only show personal cells
+      // PERSONAL: ONLY their own cell
       fetchParams.personal = true;
-      console.log("Leader at 12 PERSONAL MODE: Showing PERSONAL cells only");
+      fetchParams.show_personal_cells = true;
+      // CRITICAL: Don't include show_all_authorized for personal view
     } else {
-      // LEADER AT 12 VIEW ALL: Show ALL disciples' cells
-      fetchParams.include_subordinate_cells = true;
-      console.log("Leader at 12 VIEW ALL MODE: Showing ALL disciples' cells");
-      
+      // VIEW ALL: Only disciples' cells
+      fetchParams.show_all_authorized = true;
+      // CRITICAL: Don't include personal flags for view all
       delete fetchParams.personal;
       delete fetchParams.show_personal_cells;
     }
   }
 
-  console.log("Final API call params:", JSON.stringify(fetchParams, null, 2));
+  console.log("Sending params:", fetchParams);
   fetchEvents(fetchParams, true);
 };
 
@@ -2963,7 +3037,7 @@ const handleViewFilterChange = (newViewFilter) => {
     console.log("🎯 Event type clicked:", typeValue);
     
     setSelectedEventTypeFilter(typeValue);
-    setSelectedEventTypeObj(selectedTypeObj);
+    
     setCurrentPage(1);
     
     const fetchParams = {
