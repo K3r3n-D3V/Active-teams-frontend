@@ -81,7 +81,7 @@ const handleEventTypeSubmit = async (eventTypeData) => {
       const newEventType = await response.json();
       await fetchEventTypes();
       
-      setSelectedEventTypeFilter(newEventType.name);
+      setSelectedEventType(newEventType.name);
       setSelectedEventTypeObj(newEventType);
       
       setShowEventForm(true);
@@ -218,7 +218,7 @@ const handleEventTypeSubmit = async (eventTypeData) => {
         onClose={handleEventTypeModalClose}
         onSubmit={handleEventTypeSubmit}
         setSelectedEventTypeObj={setSelectedEventTypeObj}
-        selectedEventType={null}
+        selectedEventType={selectedEventType}
       />
     </>
   );

@@ -156,53 +156,46 @@ const EventTypesModal = ({
     setErrors({});
   };
 
-  const handleSubmit = async () => {
-    if (!validateForm() || loading) return;
+  // ✅ Submit handler
+const handleSubmit = async () => {
+  if (!validateForm() || loading) return;
 
-    setLoading(true);
-    try {
-      const eventTypeName = formData.name.trim();
-      
-      const eventTypeData = {
-        name: eventTypeName,
-        description: formData.description.trim(),
-        isTicketed: formData.isTicketed,
-        isGlobal: formData.isGlobal,
-        hasPersonSteps: formData.hasPersonSteps,
-      };
-
-      let result;
-      if (selectedEventType && (selectedEventType.name || selectedEventType._id)) {
-        result = await onSubmit(eventTypeData, selectedEventType._id || selectedEventType.name);
-      } else {
-        result = await onSubmit(eventTypeData);
-      }
-
-      if (setSelectedEventTypeObj) {
-        const completeEventType = {
-          ...eventTypeData,
-          name: eventTypeName,
-          _id: selectedEventType?._id || result?._id || result?.id,
-        };
-        
-        setSelectedEventTypeObj(completeEventType);
-      }
-
-      resetForm();
-      onClose();
-      return result;
-    } catch (error) {
-      if (error.response?.data?.detail) {
-        setErrors({ submit: error.response.data.detail });
-      } else {
-        setErrors({ submit: "Failed to save event type. Please try again." });
-      }
-      
-      throw error;
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    const eventTypeData = {
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      isTicketed: formData.isTicketed,   // CHECKBOX-DRIVEN
+      isGlobal: formData.isGlobal,       // CHECKBOX-DRIVEN
+      hasPersonSteps: formData.hasPersonSteps, // CHECKBOX-DRIVEN
+    };
+    let result;
+    if (selectedEventType && selectedEventType.name) {
+      result = await onSubmit(eventTypeData, selectedEventType.name);
+    } else {
+      result = await onSubmit(eventTypeData);
     }
-  };
+
+    // ✅ Always pass pure checkbox-driven values to parent component
+    if (setSelectedEventTypeObj) {
+      setSelectedEventTypeObj({
+        ...eventTypeData,
+        _id: selectedEventType?._id || result?._id,
+      });
+      console.log("Event type data", setSelectedEventTypeObj)
+    }
+
+    resetForm();
+    onClose();
+    return result;
+  } catch (error) {
+    console.error("Error saving event type:", error);
+    throw error;
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleClose = () => {
     if (loading) return;
