@@ -55,6 +55,11 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
+// Cache for events data
+let eventsCache = null;
+let eventsCacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 function ServiceCheckIn() {
   // State management
   const [attendees, setAttendees] = useState([]);
@@ -75,7 +80,7 @@ function ServiceCheckIn() {
   const [realTimeData, setRealTimeData] = useState(null);
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
-  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [isLoadingConsolidated, setIsLoadingConsolidated] = useState(false);
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -258,8 +263,19 @@ const fetchAllPeople = async () => {
 
   // Fetch events - with caching to prevent unnecessary reloads
   const fetchEvents = async (forceRefresh = false) => {
-    if (events.length > 0 && !forceRefresh) {
+    // Check cache first
+    const now = Date.now();
+    if (eventsCache && eventsCacheTimestamp && (now - eventsCacheTimestamp) < CACHE_DURATION && !forceRefresh) {
       console.log('📋 Using cached events data');
+      setEvents(eventsCache);
+      
+      // Set current event if not already set
+      if (!currentEventId && eventsCache.length > 0) {
+        const filteredEvents = getFilteredEvents(eventsCache);
+        if (filteredEvents.length > 0) {
+          setCurrentEventId(filteredEvents[0].id);
+        }
+      }
       return;
     }
 
@@ -296,7 +312,20 @@ const fetchAllPeople = async () => {
       }));
 
       console.log('🎯 Final transformed events:', transformedEvents);
+      
+      // Update cache
+      eventsCache = transformedEvents;
+      eventsCacheTimestamp = now;
+      
       setEvents(transformedEvents);
+
+      // Set current event if not already set
+      if (!currentEventId && transformedEvents.length > 0) {
+        const filteredEvents = getFilteredEvents(transformedEvents);
+        if (filteredEvents.length > 0) {
+          setCurrentEventId(filteredEvents[0].id);
+        }
+      }
 
     } catch (err) {
       console.error('❌ Error fetching global events:', err);
@@ -307,8 +336,8 @@ const fetchAllPeople = async () => {
   };
 
   // Event filtering functions - exclude events that didn't meet
-  const getFilteredEvents = () => {
-    const filteredEvents = events.filter(event => {
+  const getFilteredEvents = (eventsList = events) => {
+    const filteredEvents = eventsList.filter(event => {
       const isGlobal = event.isGlobal === true || 
                       event.eventType === "Global Events" || 
                       event.eventType === "Event" ||
@@ -476,7 +505,7 @@ const handleFinishConsolidation = async (task) => {
     const token = localStorage.getItem("token");
     const fullName = task.recipientName || `${task.person_name || ''} ${task.person_surname || ''}`.trim() || 'Unknown Person';
     
-    // Add consolidation using the new endpoint
+    // Add consolidation using the new endpoint - this should NOT add to present attendees
     const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
       event_id: currentEventId,
       person_data: {
@@ -499,7 +528,7 @@ const handleFinishConsolidation = async (task) => {
       setConsolidationOpen(false);
       toast.success(`${fullName} consolidated successfully`);
       
-      // Refresh real-time data
+      // Refresh real-time data to update consolidation count
       const data = await fetchRealTimeEventData(currentEventId);
       if (data) {
         setRealTimeData(data);
@@ -553,6 +582,13 @@ const handleSaveAndCloseEvent = async () => {
     setEvents(prev => prev.map(event =>
       event.id === currentEventId ? { ...event, status: "complete" } : event
     ));
+
+    // Update cache
+    if (eventsCache) {
+      eventsCache = eventsCache.map(event =>
+        event.id === currentEventId ? { ...event, status: "complete" } : event
+      );
+    }
 
     toast.success(result.message || `Event "${currentEvent.eventName}" closed successfully!`);
     setRealTimeData(null);
@@ -748,7 +784,7 @@ const handleSaveAndCloseEvent = async () => {
     consolidatedPage * consolidatedRowsPerPage + consolidatedRowsPerPage
   );
 
-// Replace the mainColumns array with this:
+// DataGrid columns using the same leader field names
 const mainColumns = [
   {
     field: 'name',
@@ -765,7 +801,6 @@ const mainColumns = [
   },
   { field: 'phone', headerName: 'Phone', flex: 1, minWidth: 120 },
   { field: 'email', headerName: 'Email', flex: 1, minWidth: 150 },
-  // { field: 'gender', headerName: 'Gender', flex: 0.7, minWidth: 80 },
   { field: 'leader1', headerName: 'Leader @1', flex: 0.8, minWidth: 100 },
   { field: 'leader12', headerName: 'Leader @12', flex: 0.8, minWidth: 100 },
   { field: 'leader144', headerName: 'Leader @144', flex: 0.8, minWidth: 100 },
@@ -796,7 +831,7 @@ const mainColumns = [
   }
 ];
 
-// StatsCard component definition (make sure this exists)
+// StatsCard component definition
 const StatsCard = ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
   <Paper
     variant="outlined"
@@ -842,58 +877,6 @@ const StatsCard = ({ title, count, icon, color = "primary", onClick, disabled = 
     </Typography>
   </Paper>
 );
-
-// In the return statement, replace the stats cards section with this:
-<Grid container spacing={cardSpacing} mb={cardSpacing}>
-  <Grid item xs={6} sm={6} md={4}>
-    <StatsCard
-      title="Present"
-      count={presentCount}
-      icon={<GroupIcon />}
-      color="primary" // Blue
-      onClick={() => { 
-        if (currentEventId) {
-          setModalOpen(true); 
-          setModalSearch(""); 
-          setModalPage(0); 
-        }
-      }}
-      disabled={!currentEventId}
-    />
-  </Grid>
-  <Grid item xs={6} sm={6} md={4}>
-    <StatsCard
-      title="New People"
-      count={newPeopleCount}
-      icon={<PersonAddAltIcon />}
-      color="success" // Green
-      onClick={() => { 
-        if (currentEventId) {
-          setNewPeopleModalOpen(true); 
-          setNewPeopleSearch(""); 
-          setNewPeoplePage(0); 
-        }
-      }}
-      disabled={!currentEventId}
-    />
-  </Grid>
-  <Grid item xs={6} sm={6} md={4}>
-    <StatsCard
-      title="Consolidated"
-      count={consolidationCount}
-      icon={<MergeIcon />}
-      color="secondary" // Purple
-      onClick={() => { 
-        if (currentEventId) {
-          setConsolidatedModalOpen(true); 
-          setConsolidatedSearch(""); 
-          setConsolidatedPage(0); 
-        }
-      }}
-      disabled={!currentEventId}
-    />
-  </Grid>
-</Grid>
 
 const AttendeeCard = ({ attendee, showNumber, index }) => (
   <Card
@@ -951,74 +934,104 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
     </CardContent>
   </Card>
 );
-  const PresentAttendeeCard = ({ attendee, showNumber, index }) => (
-    <Card
-      variant="outlined"
-      sx={{
-        mb: 1,
-        boxShadow: 2,
-        minHeight: '140px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        "&:last-child": { mb: 0 },
-        border: `2px solid ${theme.palette.primary.main}`,
-        backgroundColor: isDarkMode 
-          ? theme.palette.primary.dark + "1a" 
-          : theme.palette.primary.light + "0a",
-      }}
-    >
-      <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-          <Box flex={1}>
-            <Typography variant="subtitle2" fontWeight={600}>
+
+// Updated PresentAttendeeCard - displays same data as DataGrid
+const PresentAttendeeCard = ({ attendee, showNumber, index }) => (
+  <Card
+    variant="outlined"
+    sx={{
+      mb: 1,
+      boxShadow: 2,
+      minHeight: '80px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      "&:last-child": { mb: 0 },
+      border: `2px solid ${theme.palette.primary.main}`,
+      backgroundColor: isDarkMode 
+        ? theme.palette.primary.dark + "1a" 
+        : theme.palette.primary.light + "0a",
+    }}
+  >
+    <CardContent sx={{ 
+      p: 1.5,
+      flex: 1, 
+      display: 'flex', 
+      flexDirection: 'column',
+      justifyContent: 'center'
+    }}>
+      {/* Main content row - matches DataGrid columns exactly */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'flex-start',
+        width: '100%',
+        gap: 1
+      }}>
+        {/* Left side - Same fields as DataGrid */}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          {/* Name - matches DataGrid name column */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Typography variant="subtitle2" fontWeight={600} noWrap>
               {showNumber && `${index}. `}{attendee.name} {attendee.surname}
             </Typography>
-            {attendee.email && <Typography variant="body2" color="text.secondary">{attendee.email}</Typography>}
-            {attendee.phone && <Typography variant="body2" color="text.secondary">{attendee.phone}</Typography>}
-            {attendee.gender && (
-              <Chip 
-                label={attendee.gender} 
-                size="small" 
-                variant="outlined" 
-                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }} 
-              />
+          </Box>
+          
+          {/* Contact info - matches DataGrid phone and email columns */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1 }}>
+            {attendee.phone && (
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {attendee.phone}
+              </Typography>
+            )}
+            {attendee.email && (
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {attendee.email}
+              </Typography>
             )}
           </Box>
-          <IconButton color="error" size="small" onClick={() => {
-            const originalAttendee = attendees.find(att => att._id === (attendee.id || attendee._id));
-            if (originalAttendee) handleToggleCheckIn(originalAttendee);
-          }}>
-            <CheckCircleOutlineIcon fontSize="small" />
-          </IconButton>
+
+          {/* Leader information - matches DataGrid leader columns exactly */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            {/* Leader @1 - same as DataGrid leader1 column */}
+            {attendee.leader1 && (
+              <Typography variant="caption" color="text.secondary" noWrap>
+                <strong>@1:</strong> {attendee.leader1}
+              </Typography>
+            )}
+            
+            {/* Leader @12 - same as DataGrid leader12 column */}
+            {attendee.leader12 && (
+              <Typography variant="caption" color="text.secondary" noWrap>
+                <strong>@12:</strong> {attendee.leader12}
+              </Typography>
+            )}
+            
+            {/* Leader @144 - same as DataGrid leader144 column */}
+            {attendee.leader144 && (
+              <Typography variant="caption" color="text.secondary" noWrap>
+                <strong>@144:</strong> {attendee.leader144}
+              </Typography>
+            )}
+          </Box>
         </Box>
 
-        {(attendee.leader1 || attendee.leader12 || attendee.leader144 || attendee.occupation || attendee.cellGroup) && (
-          <>
-            <Divider sx={{ my: 1 }} />
-            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
-              {attendee.leader1 && (
-                <Chip label={`@1: ${attendee.leader1}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
-              )}
-              {attendee.leader12 && (
-                <Chip label={`@12: ${attendee.leader12}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
-              )}
-              {attendee.leader144 && (
-                <Chip label={`@144: ${attendee.leader144}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
-              )}
-              {attendee.occupation && (
-                <Chip label={`Work: ${attendee.occupation}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
-              )}
-              {attendee.cellGroup && (
-                <Chip label={`Cell: ${attendee.cellGroup}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
-              )}
-            </Stack>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-
+        {/* Right side - Action button (matches DataGrid actions column) */}
+        <IconButton 
+          color="error" 
+          size="small" 
+          onClick={() => {
+            const originalAttendee = attendees.find(att => att._id === (attendee.id || attendee._id));
+            if (originalAttendee) handleToggleCheckIn(originalAttendee);
+          }}
+          sx={{ flexShrink: 0, mt: 0.5 }}
+        >
+          <CheckCircleOutlineIcon fontSize="small" />
+        </IconButton>
+      </Box>
+    </CardContent>
+  </Card>
+);
   const NewPersonCard = ({ person, showNumber, index }) => (
     <Card
       variant="outlined"
@@ -1474,20 +1487,21 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
     }
   }, [currentEventId]);
 
+  // Initial load - only once with proper loading states
+  const hasInitialized = useRef(false);
+  
   useEffect(() => {
-    if (events.length > 0 && !currentEventId) {
-      const filteredEvents = getFilteredEvents();
-      if (filteredEvents.length > 0) {
-        setCurrentEventId(filteredEvents[0].id);
-      }
+    if (!hasInitialized.current) {
+      console.log('🚀 Service Check-In mounted - fetching fresh data from backend...');
+      hasInitialized.current = true;
+      
+      // Show loading state for events
+      setIsLoadingEvents(true);
+      
+      // Fetch both in parallel but show proper loading states
+      fetchEvents();
+      fetchAllPeople();
     }
-  }, [events]);
-
-  // Initial load - only once
-  useEffect(() => {
-    console.log('🚀 Service Check-In mounted - fetching fresh data from backend...');
-    fetchEvents();
-    fetchAllPeople();
   }, []);
 
   // Render
@@ -1499,60 +1513,61 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: 8, minHeight: "100vh" }}>
       <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
 
-{/* Stats Cards */}
-<Grid container spacing={cardSpacing} mb={cardSpacing}>
-  <Grid item xs={6} sm={6} md={4}>
-    <StatsCard
-      title="Present"
-      count={presentCount}
-      icon={<GroupIcon />}
-      color="primary" // Blue
-      onClick={() => { 
-        if (currentEventId) {
-          setModalOpen(true); 
-          setModalSearch(""); 
-          setModalPage(0); 
-        }
-      }}
-      disabled={!currentEventId}
-    />
-  </Grid>
-  <Grid item xs={6} sm={6} md={4}>
-    <StatsCard
-      title="New People"
-      count={newPeopleCount}
-      icon={<PersonAddAltIcon />}
-      color="success" // Green
-      onClick={() => { 
-        if (currentEventId) {
-          setNewPeopleModalOpen(true); 
-          setNewPeopleSearch(""); 
-          setNewPeoplePage(0); 
-        }
-      }}
-      disabled={!currentEventId}
-    />
-  </Grid>
-  <Grid item xs={6} sm={6} md={4}>
-    <StatsCard
-      title="Consolidated"
-      count={consolidationCount}
-      icon={<MergeIcon />}
-      color="secondary" // Purple
-      onClick={() => { 
-        if (currentEventId) {
-          setConsolidatedModalOpen(true); 
-          setConsolidatedSearch(""); 
-          setConsolidatedPage(0); 
-        }
-      }}
-      disabled={!currentEventId}
-    />
-  </Grid>
-</Grid>
-      {/* Controls */}
+      {/* Stats Cards */}
+      <Grid container spacing={cardSpacing} mb={cardSpacing}>
+        <Grid item xs={6} sm={6} md={4}>
+          <StatsCard
+            title="Present"
+            count={presentCount}
+            icon={<GroupIcon />}
+            color="primary" // Blue
+            onClick={() => { 
+              if (currentEventId) {
+                setModalOpen(true); 
+                setModalSearch(""); 
+                setModalPage(0); 
+              }
+            }}
+            disabled={!currentEventId}
+          />
+        </Grid>
+        <Grid item xs={6} sm={6} md={4}>
+          <StatsCard
+            title="New People"
+            count={newPeopleCount}
+            icon={<PersonAddAltIcon />}
+            color="success" // Green
+            onClick={() => { 
+              if (currentEventId) {
+                setNewPeopleModalOpen(true); 
+                setNewPeopleSearch(""); 
+                setNewPeoplePage(0); 
+              }
+            }}
+            disabled={!currentEventId}
+          />
+        </Grid>
+        <Grid item xs={6} sm={6} md={4}>
+          <StatsCard
+            title="Consolidated"
+            count={consolidationCount}
+            icon={<MergeIcon />}
+            color="secondary" // Purple
+            onClick={() => { 
+              if (currentEventId) {
+                setConsolidatedModalOpen(true); 
+                setConsolidatedSearch(""); 
+                setConsolidatedPage(0); 
+              }
+            }}
+            disabled={!currentEventId}
+          />
+        </Grid>
+      </Grid>
+
+      {/* Controls - Updated for mobile full width */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={isSmDown ? 12 : 6} md={4}>
           <Select
             size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
             value={currentEventId}
@@ -1562,7 +1577,9 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
             sx={{ boxShadow: 2 }}
           >
             <MenuItem value="">
-              <Typography color="text.secondary">Select Global Event</Typography>
+              <Typography color="text.secondary">
+                {isLoadingEvents ? "Loading events..." : "Select Global Event"}
+              </Typography>
             </MenuItem>
             {menuEvents.map((ev) => (
               <MenuItem key={ev.id} value={ev.id}>
@@ -1574,17 +1591,15 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
                 <Typography variant="body2" color="text.secondary" fontStyle="italic">No open global events</Typography>
               </MenuItem>
             )}
-            {events.length === 0 && (
+            {events.length === 0 && !isLoadingEvents && (
               <MenuItem disabled>
-                <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                  {isLoadingEvents ? "Loading events..." : "No events available"}
-                </Typography>
+                <Typography variant="body2" color="text.secondary" fontStyle="italic">No events available</Typography>
               </MenuItem>
             )}
           </Select>
         </Grid>
         
-        <Grid item xs={12} sm={6} md={5}>
+        <Grid item xs={12} sm={isSmDown ? 12 : 6} md={5}>
           {activeTab === 0 ? (
             <TextField
               size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
@@ -1592,7 +1607,7 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(0); }}
               fullWidth
-              sx={{ boxShadow: 2 }}
+              sx={{ boxShadow: 2, mt: isSmDown ? 1 : 0 }}
             />
           ) : (
             <TextField
@@ -1601,13 +1616,18 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
               value={eventSearch}
               onChange={(e) => setEventSearch(e.target.value)}
               fullWidth
-              sx={{ boxShadow: 2 }}
+              sx={{ boxShadow: 2, mt: isSmDown ? 1 : 0 }}
             />
           )}
         </Grid>
         
         <Grid item xs={12} md={3}>
-          <Stack direction="row" spacing={2} justifyContent={isMdDown ? "center" : "flex-end"}>
+          <Stack 
+            direction="row" 
+            spacing={2} 
+            justifyContent={isMdDown ? "center" : "flex-end"}
+            sx={{ mt: isSmDown ? 2 : 0 }}
+          >
             <Tooltip title={currentEventId ? "Add Person" : "Please select an event first"}>
               <span>
                 <PersonAddIcon
@@ -1783,7 +1803,7 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
       {/* Event History Details Modal */}
       <EventHistoryDetailsModal />
 
-      {/* PRESENT Attendees Modal - Fixed: Removed duplicate search field */}
+      {/* PRESENT Attendees Modal - Updated with better spacing and name display */}
       <Dialog
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -1803,7 +1823,11 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
         <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
           Attendees Present: {presentCount}
         </DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
+        <DialogContent dividers sx={{ 
+          maxHeight: isSmDown ? 500 : 600, // Increased height for better visibility
+          overflowY: "auto", 
+          p: isSmDown ? 1 : 2 
+        }}>
           <TextField
             size="small"
             placeholder="Search present attendees..."
@@ -1840,48 +1864,79 @@ const AttendeeCard = ({ attendee, showNumber, index }) => (
                   )}
                 </Box>
               ) : (
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader@1</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader@12</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader@144</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600 }}>Action</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {modalPaginatedAttendees.map((a, idx) => (
-                      <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
-                        <TableCell>{modalPage * modalRowsPerPage + idx + 1}</TableCell>
-                        <TableCell>{a.name} {a.surname}</TableCell>
-                        <TableCell>{a.phone || "—"}</TableCell>
-                        <TableCell>{a.email || "—"}</TableCell>
-                        <TableCell>{a.gender || "—"}</TableCell>
-                        <TableCell>{a.leader1 || "—"}</TableCell>
-                        <TableCell>{a.leader12 || "—"}</TableCell>
-                        <TableCell>{a.leader144 || "—"}</TableCell>
-                        <TableCell align="center">
-                          <IconButton color="error" size="small" onClick={() => {
-                            const attendee = attendees.find(att => att._id === (a.id || a._id));
-                            if (attendee) handleToggleCheckIn(attendee);
-                          }}>
-                            <CheckCircleOutlineIcon />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {modalPaginatedAttendees.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={9} align="center">No matching attendees</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+// In the desktop table view, ensure all leader columns show accurate data:
+<Table size="small" stickyHeader>
+  <TableHead>
+    <TableRow>
+      <TableCell sx={{ fontWeight: 600, width: '40px' }}>#</TableCell>
+      <TableCell sx={{ fontWeight: 600, minWidth: '120px' }}>Name</TableCell>
+      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Phone</TableCell>
+      <TableCell sx={{ fontWeight: 600, minWidth: '130px' }}>Email</TableCell>
+      <TableCell sx={{ fontWeight: 600, width: '60px' }}>Gender</TableCell>
+      <TableCell sx={{ fontWeight: 600, minWidth: '80px' }}>Leader @1</TableCell>
+      <TableCell sx={{ fontWeight: 600, minWidth: '80px' }}>Leader @12</TableCell>
+      <TableCell sx={{ fontWeight: 600, minWidth: '80px' }}>Leader @144</TableCell>
+      <TableCell sx={{ fontWeight: 600, minWidth: '80px' }}>Occupation</TableCell>
+      <TableCell align="center" sx={{ fontWeight: 600, width: '60px' }}>Action</TableCell>
+    </TableRow>
+  </TableHead>
+  <TableBody>
+    {modalPaginatedAttendees.map((a, idx) => (
+      <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
+        <TableCell>{modalPage * modalRowsPerPage + idx + 1}</TableCell>
+        <TableCell>
+          <Typography variant="body2" fontWeight="medium" noWrap>
+            {a.name} {a.surname}
+          </Typography>
+        </TableCell>
+        <TableCell>
+          <Typography variant="body2" noWrap title={a.phone || ""}>
+            {a.phone || "—"}
+          </Typography>
+        </TableCell>
+        <TableCell>
+          <Typography variant="body2" noWrap title={a.email || ""}>
+            {a.email || "—"}
+          </Typography>
+        </TableCell>
+        <TableCell>{a.gender || "—"}</TableCell>
+        <TableCell>
+          <Typography variant="body2" noWrap title={a.leader1 || ""}>
+            {a.leader1 || "—"}
+          </Typography>
+        </TableCell>
+        <TableCell>
+          <Typography variant="body2" noWrap title={a.leader12 || ""}>
+            {a.leader12 || "—"}
+          </Typography>
+        </TableCell>
+        <TableCell>
+          <Typography variant="body2" noWrap title={a.leader144 || ""}>
+            {a.leader144 || "—"}
+          </Typography>
+        </TableCell>
+        <TableCell>
+          <Typography variant="body2" noWrap title={a.occupation || ""}>
+            {a.occupation || "—"}
+          </Typography>
+        </TableCell>
+        <TableCell align="center">
+          <IconButton color="error" size="small" onClick={() => {
+            const attendee = attendees.find(att => att._id === (a.id || a._id));
+            if (attendee) handleToggleCheckIn(attendee);
+          }}>
+            <CheckCircleOutlineIcon />
+          </IconButton>
+        </TableCell>
+      </TableRow>
+    ))}
+    {modalPaginatedAttendees.length === 0 && (
+      <TableRow>
+        <TableCell colSpan={10} align="center">No matching attendees</TableCell>
+      </TableRow>
+    )}
+  </TableBody>
+</Table>
               )}
 
               <Box mt={1}>
