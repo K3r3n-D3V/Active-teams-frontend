@@ -183,71 +183,86 @@ function ServiceCheckIn() {
   };
 
   // Fetch all people for the main database
-  const fetchAllPeople = async () => {
-    setIsLoadingPeople(true);
-    try {
-      console.log('🔄 Fetching fresh people data from backend...');
+const fetchAllPeople = async () => {
+  setIsLoadingPeople(true);
+  try {
+    console.log('🔄 Fetching fresh people data from backend...');
+    
+    // Try ultra-fast endpoint first
+    const ultraResponse = await axios.get(`${BASE_URL}/people/ultra-fast`);
+    if (ultraResponse.data.success && ultraResponse.data.results) {
+      const people = ultraResponse.data.results.map((p) => ({
+        _id: p._id || p.key || `temp-${Math.random()}`,
+        name: p.Name || "",
+        surname: p.Surname || "",
+        email: p.Email || "",
+        phone: p.Number || "",
+        leader1: p["Leader @1"] || "",
+        leader12: p["Leader @12"] || "",
+        leader144: p["Leader @144"] || "",
+        gender: p.Gender || "",
+        address: p.Address || "",
+        birthday: p.Birthday || "",
+        invitedBy: p.InvitedBy || "",
+        stage: p.Stage || "",
+        fullName: `${p.Name || ''} ${p.Surname || ''}`.trim()
+      }));
       
-      // Try ultra-fast endpoint first
-      const ultraResponse = await axios.get(`${BASE_URL}/people/ultra-fast`);
-      if (ultraResponse.data.success && ultraResponse.data.results) {
-        const people = ultraResponse.data.results.map((p) => ({
-          _id: p._id || p.key || `temp-${Math.random()}`,
-          name: p.Name || "",
-          surname: p.Surname || "",
-          email: p.Email || "",
-          phone: p.Number || "",
-          leader1: p["Leader @1"] || "",
-          leader12: p["Leader @12"] || "",
-          leader144: p["Leader @144"] || "",
-          fullName: `${p.Name || ''} ${p.Surname || ''}`.trim()
+      console.log(`✅ Loaded ${people.length} people from ultra-fast endpoint`);
+      setAttendees(people);
+      setHasDataLoaded(true);
+    } else {
+      throw new Error('Ultra-fast endpoint returned no data');
+    }
+  } catch (err) {
+    console.error('❌ Error fetching from ultra-fast endpoint:', err);
+    
+    // Fallback to cache endpoint
+    try {
+      console.log('🔄 Trying cache endpoint as fallback...');
+      const response = await axios.get(`${BASE_URL}/cache/people`);
+      
+      if (response.data.success && response.data.cached_data) {
+        const cachedPeople = response.data.cached_data;
+        const formattedPeople = cachedPeople.map((person) => ({
+          _id: person._id || person.id || `temp-${Math.random()}`,
+          name: person.Name || person.name || "",
+          surname: person.Surname || person.surname || "",
+          email: person.Email || person.email || "",
+          phone: person.Number || person.Phone || person.phone || "",
+          leader1: person["Leader @1"] || person.leader1 || "",
+          leader12: person["Leader @12"] || person.leader12 || "",
+          leader144: person["Leader @144"] || person.leader144 || "",
+          gender: person.Gender || person.gender || "",
+          address: person.Address || person.address || "",
+          birthday: person.Birthday || person.birthday || "",
+          invitedBy: person.InvitedBy || person.invitedBy || "",
+          stage: person.Stage || person.stage || "",
+          fullName: person.FullName || `${person.Name || ''} ${person.Surname || ''}`.trim()
         }));
-        
-        console.log(`✅ Loaded ${people.length} people from ultra-fast endpoint`);
-        setAttendees(people);
+
+        console.log(`✅ Loaded ${formattedPeople.length} people from cache endpoint`);
+        setAttendees(formattedPeople);
         setHasDataLoaded(true);
       } else {
-        throw new Error('Ultra-fast endpoint returned no data');
+        throw new Error('Cache endpoint returned no data');
       }
-    } catch (err) {
-      console.error('❌ Error fetching from ultra-fast endpoint:', err);
-      
-      // Fallback to cache endpoint
-      try {
-        console.log('🔄 Trying cache endpoint as fallback...');
-        const response = await axios.get(`${BASE_URL}/cache/people`);
-        
-        if (response.data.success && response.data.cached_data) {
-          const cachedPeople = response.data.cached_data;
-          const formattedPeople = cachedPeople.map((person) => ({
-            _id: person._id || person.id || `temp-${Math.random()}`,
-            name: person.Name || person.name || "",
-            surname: person.Surname || person.surname || "",
-            email: person.Email || person.email || "",
-            phone: person.Number || person.Phone || person.phone || "",
-            leader1: person["Leader @1"] || person.leader1 || "",
-            leader12: person["Leader @12"] || person.leader12 || "",
-            leader144: person["Leader @144"] || person.leader144 || "",
-            fullName: person.FullName || `${person.Name || ''} ${person.Surname || ''}`.trim()
-          }));
-
-          console.log(`✅ Loaded ${formattedPeople.length} people from cache endpoint`);
-          setAttendees(formattedPeople);
-          setHasDataLoaded(true);
-        } else {
-          throw new Error('Cache endpoint returned no data');
-        }
-      } catch (fallbackError) {
-        console.error('❌ All data loading methods failed:', fallbackError);
-        toast.error("Failed to load people data. Please refresh the page.");
-      }
-    } finally {
-      setIsLoadingPeople(false);
+    } catch (fallbackError) {
+      console.error('❌ All data loading methods failed:', fallbackError);
+      toast.error("Failed to load people data. Please refresh the page.");
     }
-  };
+  } finally {
+    setIsLoadingPeople(false);
+  }
+};
 
-  // Fetch events
-  const fetchEvents = async () => {
+  // Fetch events - with caching to prevent unnecessary reloads
+  const fetchEvents = async (forceRefresh = false) => {
+    if (events.length > 0 && !forceRefresh) {
+      console.log('📋 Using cached events data');
+      return;
+    }
+
     setIsLoadingEvents(true);
     try {
       const token = localStorage.getItem('token');
@@ -291,7 +306,7 @@ function ServiceCheckIn() {
     }
   };
 
-  // Event filtering functions
+  // Event filtering functions - exclude events that didn't meet
   const getFilteredEvents = () => {
     const filteredEvents = events.filter(event => {
       const isGlobal = event.isGlobal === true || 
@@ -300,17 +315,19 @@ function ServiceCheckIn() {
                       event.eventType?.toLowerCase().includes("event");
       const eventStatus = event.status?.toLowerCase() || '';
       const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
-      return isGlobal && isNotClosed;
+      const didMeet = eventStatus !== 'cancelled' && eventStatus !== 'did_not_meet';
+      return isGlobal && isNotClosed && didMeet;
     });
     return filteredEvents;
   };
 
   const getClosedEvents = () => {
     return events.filter(event => {
-      const isClosed = event.status?.toLowerCase() === 'closed';
+      const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'complete';
       const isGlobal = event.eventType === "Global Events";
       const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-      return isClosed && isGlobal && isNotCell;
+      const didMeet = event.status?.toLowerCase() !== 'cancelled' && event.status?.toLowerCase() !== 'did_not_meet';
+      return isClosed && isGlobal && isNotCell && didMeet;
     });
   };
 
@@ -319,8 +336,9 @@ function ServiceCheckIn() {
       const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'complete';
       const isGlobal = event.eventType === "Global Events" || event.isGlobal === true;
       const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      const didMeet = event.status?.toLowerCase() !== 'cancelled' && event.status?.toLowerCase() !== 'did_not_meet';
       
-      return isClosed && isGlobal && isNotCell;
+      return isClosed && isGlobal && isNotCell && didMeet;
     });
     
     // Apply search filter
@@ -336,147 +354,162 @@ function ServiceCheckIn() {
     );
   };
 
-  // Check-in functions using new endpoints
-  const handleToggleCheckIn = async (attendee) => {
-    if (!currentEventId) {
-      toast.error("Please select an event");
-      return;
-    }
+// Replace the handleToggleCheckIn function with this:
+const handleToggleCheckIn = async (attendee) => {
+  if (!currentEventId) {
+    toast.error("Please select an event");
+    return;
+  }
 
-    try {
-      const token = localStorage.getItem("token");
-      const isCurrentlyPresent = realTimeData?.present_attendees?.some(a => 
-        a.id === attendee._id || a._id === attendee._id
-      );
-      
-      if (!isCurrentlyPresent) {
-        // Check in as attendee
-        const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
-          event_id: currentEventId,
-          person_data: {
-            id: attendee._id,
-            name: attendee.name,
-            fullName: `${attendee.name} ${attendee.surname}`,
-            email: attendee.email,
-            phone: attendee.phone,
-            leader12: attendee.leader12
-          },
-          type: "attendee"
-        }, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (response.data.success) {
-          toast.success(response.data.message || "Checked in successfully");
-          // Refresh real-time data
-          await handleFullRefresh();
-        }
-      } else {
-        // Remove from check-in
-        const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          data: {
-            event_id: currentEventId,
-            person_id: attendee._id,
-            type: "attendees"
-          }
-        });
-
-        if (response.data.success) {
-          toast.info(response.data.message || "Removed from check-in");
-          // Refresh real-time data
-          await handleFullRefresh();
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.detail || err.message);
-    }
-  };
-
-  // Add new person function
-  const handlePersonSave = async (responseData) => {
-    if (!currentEventId) {
-      toast.error("Please select an event first before adding people");
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("token");
-      const newPersonData = responseData.person || responseData;
-      
-      // Add as new person to the event
+  try {
+    const token = localStorage.getItem("token");
+    const isCurrentlyPresent = realTimeData?.present_attendees?.some(a => 
+      a.id === attendee._id || a._id === attendee._id
+    );
+    const fullName = `${attendee.name} ${attendee.surname}`.trim();
+    
+    if (!isCurrentlyPresent) {
+      // Check in as attendee
       const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
         event_id: currentEventId,
         person_data: {
-          name: formData.name,
-          surname: formData.surname,
-          email: formData.email,
-          phone: formData.phone,
-          gender: formData.gender,
-          invitedBy: formData.invitedBy
+          id: attendee._id,
+          name: attendee.name,
+          fullName: fullName,
+          email: attendee.email,
+          phone: attendee.phone,
+          leader12: attendee.leader12
         },
-        type: "new_person"
+        type: "attendee"
       }, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (response.data.success) {
-        toast.success(response.data.message || "New person added successfully");
-        setOpenDialog(false);
-        setEditingPerson(null);
-        setFormData({
-          name: "", surname: "", dob: "", homeAddress: "", invitedBy: "",
-          email: "", phone: "", gender: "", leader1: "", leader12: "", leader144: ""
-        });
-        
-        // Refresh real-time data to show the new person
-        await handleFullRefresh();
-      }
-    } catch (error) {
-      console.error('❌ Error adding new person:', error);
-      toast.error(error.response?.data?.detail || "Failed to add person");
-    }
-  };
-
-  // Consolidation function
-  const handleFinishConsolidation = async (task) => {
-    if (!currentEventId) return;
-
-    try {
-      const token = localStorage.getItem("token");
-      
-      // Add consolidation using the new endpoint
-      const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
-        event_id: currentEventId,
-        person_data: {
-          person_name: task.recipientName?.split(' ')[0] || 'Unknown',
-          person_surname: task.recipientName?.split(' ').slice(1).join(' ') || '',
-          person_email: task.recipient_email || '',
-          person_phone: task.recipient_phone || '',
-          decision_type: task.decisionType || task.taskStage || "first_time",
-          decision_display_name: task.decisionType === 'recommitment' ? 'Recommitment' : 'First Time Decision',
-          assigned_to: task.assignedTo,
-          assigned_to_email: task.assignedToEmail,
-          notes: task.notes || ''
-        },
-        type: "consolidation"
-      }, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.data.success) {
-        setConsolidationOpen(false);
-        toast.success(response.data.message || "Consolidation recorded successfully");
-        
+        toast.success(`${fullName} checked in successfully`);
         // Refresh real-time data
-        await handleFullRefresh();
+        const data = await fetchRealTimeEventData(currentEventId);
+        if (data) {
+          setRealTimeData(data);
+        }
       }
-    } catch (error) {
-      console.error("❌ Error recording consolidation:", error);
-      toast.error(error.response?.data?.detail || "Failed to record consolidation");
+    } else {
+      // Remove from check-in
+      const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        data: {
+          event_id: currentEventId,
+          person_id: attendee._id,
+          type: "attendees"
+        }
+      });
+
+      if (response.data.success) {
+        toast.info(`${fullName} removed from check-in`);
+        // Refresh real-time data
+        const data = await fetchRealTimeEventData(currentEventId);
+        if (data) {
+          setRealTimeData(data);
+        }
+      }
     }
-  };
+  } catch (err) {
+    console.error(err);
+    toast.error(err.response?.data?.detail || err.message);
+  }
+};
+
+// Replace the handlePersonSave function with this:
+const handlePersonSave = async (responseData) => {
+  if (!currentEventId) {
+    toast.error("Please select an event first before adding people");
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem("token");
+    const newPersonData = responseData.person || responseData;
+    const fullName = `${formData.name} ${formData.surname}`.trim();
+    
+    // Add as new person to the event
+    const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
+      event_id: currentEventId,
+      person_data: {
+        name: formData.name,
+        surname: formData.surname,
+        email: formData.email,
+        phone: formData.phone,
+        gender: formData.gender,
+        invitedBy: formData.invitedBy
+      },
+      type: "new_person"
+    }, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.data.success) {
+      toast.success(`${fullName} added as new person successfully`);
+      setOpenDialog(false);
+      setEditingPerson(null);
+      setFormData({
+        name: "", surname: "", dob: "", homeAddress: "", invitedBy: "",
+        email: "", phone: "", gender: "", leader1: "", leader12: "", leader144: ""
+      });
+      
+      // Refresh real-time data to show the new person
+      const data = await fetchRealTimeEventData(currentEventId);
+      if (data) {
+        setRealTimeData(data);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error adding new person:', error);
+    toast.error(error.response?.data?.detail || "Failed to add person");
+  }
+};
+
+// Replace the handleFinishConsolidation function with this:
+const handleFinishConsolidation = async (task) => {
+  if (!currentEventId) return;
+
+  try {
+    const token = localStorage.getItem("token");
+    const fullName = task.recipientName || `${task.person_name || ''} ${task.person_surname || ''}`.trim() || 'Unknown Person';
+    
+    // Add consolidation using the new endpoint
+    const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
+      event_id: currentEventId,
+      person_data: {
+        person_name: task.recipientName?.split(' ')[0] || task.person_name || 'Unknown',
+        person_surname: task.recipientName?.split(' ').slice(1).join(' ') || task.person_surname || '',
+        person_email: task.recipient_email || '',
+        person_phone: task.recipient_phone || '',
+        decision_type: task.decisionType || task.taskStage || "first_time",
+        decision_display_name: task.decisionType === 'recommitment' ? 'Recommitment' : 'First Time Decision',
+        assigned_to: task.assignedTo,
+        assigned_to_email: task.assignedToEmail,
+        notes: task.notes || ''
+      },
+      type: "consolidation"
+    }, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.data.success) {
+      setConsolidationOpen(false);
+      toast.success(`${fullName} consolidated successfully`);
+      
+      // Refresh real-time data
+      const data = await fetchRealTimeEventData(currentEventId);
+      if (data) {
+        setRealTimeData(data);
+      }
+    }
+  } catch (error) {
+    console.error("❌ Error recording consolidation:", error);
+    toast.error(error.response?.data?.detail || "Failed to record consolidation");
+  }
+};
 
   // Event management
 const handleSaveAndCloseEvent = async () => {
@@ -526,7 +559,7 @@ const handleSaveAndCloseEvent = async () => {
     setCurrentEventId("");
     
     setTimeout(() => {
-      fetchEvents();
+      fetchEvents(true); // Force refresh events
     }, 500);
     
   } catch (error) {
@@ -551,7 +584,7 @@ const handleSaveAndCloseEvent = async () => {
     setFormData({
       name: person.name || "",
       surname: person.surname || "",
-      dob: person.dob || "",
+      dob: person.dob || person.dateOfBirth || "",
       homeAddress: person.homeAddress || "",
       email: person.email || "",
       phone: person.phone || "",
@@ -660,6 +693,10 @@ const handleSaveAndCloseEvent = async () => {
       ${a.leader1 || ''} 
       ${a.leader12 || ''} 
       ${a.leader144 || ''}
+      ${a.gender || ''}
+      ${a.occupation || ''}
+      ${a.cellGroup || ''}
+      ${a.zone || ''}
     `.toLowerCase();
     return searchString.includes(lc);
   });
@@ -676,7 +713,7 @@ const handleSaveAndCloseEvent = async () => {
 
   const modalFilteredAttendees = presentAttendees.filter((a) => {
     const lc = modalSearch.toLowerCase();
-    const bag = [a.name, a.surname, a.email, a.phone, a.leader1, a.leader12, a.leader144]
+    const bag = [a.name, a.surname, a.email, a.phone, a.leader1, a.leader12, a.leader144, a.gender, a.occupation]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -689,7 +726,7 @@ const handleSaveAndCloseEvent = async () => {
 
   const newPeopleFilteredList = newPeopleList.filter((a) => {
     const lc = newPeopleSearch.toLowerCase();
-    const bag = [a.name, a.surname, a.email, a.phone, a.invitedBy]
+    const bag = [a.name, a.surname, a.email, a.phone, a.invitedBy, a.gender]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -711,64 +748,224 @@ const handleSaveAndCloseEvent = async () => {
     consolidatedPage * consolidatedRowsPerPage + consolidatedRowsPerPage
   );
 
-  // Columns for DataGrid
-  const mainColumns = [
-    {
-      field: 'name',
-      headerName: 'Name',
-      flex: 1,
-      minWidth: 150,
-      renderCell: (params) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-          <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
-            {params.row.name} {params.row.surname}
-          </Typography>
-        </Box>
-      )
-    },
-    { field: 'phone', headerName: 'Phone', flex: 1, minWidth: 120 },
-    { field: 'leader1', headerName: 'Leader @1', flex: 0.8, minWidth: 100 },
-    { field: 'leader12', headerName: 'Leader @12', flex: 0.8, minWidth: 100 },
-    { field: 'leader144', headerName: 'Leader @144', flex: 0.8, minWidth: 100 },
-    {
-      field: 'actions',
-      headerName: 'Actions',
-      width: 150,
-      sortable: false,
-      filterable: false,
-      renderCell: (params) => (
-        <Stack direction="row" spacing={0.5}>
-          <IconButton size="small" color="error" onClick={() => handleDelete(params.row._id)}>
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-          <IconButton size="small" color="primary" onClick={() => handleEditClick(params.row)}>
-            <EditIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="success"
-            disabled={!currentEventId}
-            onClick={() => handleToggleCheckIn(params.row)}
-          >
-            {params.row.present ? <CheckCircleIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
-          </IconButton>
-        </Stack>
-      )
-    }
-  ];
+// Replace the mainColumns array with this:
+const mainColumns = [
+  {
+    field: 'name',
+    headerName: 'Name',
+    flex: 1,
+    minWidth: 150,
+    renderCell: (params) => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+        <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+          {params.row.name} {params.row.surname}
+        </Typography>
+      </Box>
+    )
+  },
+  { field: 'phone', headerName: 'Phone', flex: 1, minWidth: 120 },
+  { field: 'email', headerName: 'Email', flex: 1, minWidth: 150 },
+  // { field: 'gender', headerName: 'Gender', flex: 0.7, minWidth: 80 },
+  { field: 'leader1', headerName: 'Leader @1', flex: 0.8, minWidth: 100 },
+  { field: 'leader12', headerName: 'Leader @12', flex: 0.8, minWidth: 100 },
+  { field: 'leader144', headerName: 'Leader @144', flex: 0.8, minWidth: 100 },
+  {
+    field: 'actions',
+    headerName: 'Actions',
+    width: 150,
+    sortable: false,
+    filterable: false,
+    renderCell: (params) => (
+      <Stack direction="row" spacing={0.5}>
+        <IconButton size="small" color="error" onClick={() => handleDelete(params.row._id)}>
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+        <IconButton size="small" color="primary" onClick={() => handleEditClick(params.row)}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+        <IconButton
+          size="small"
+          color="success"
+          disabled={!currentEventId}
+          onClick={() => handleToggleCheckIn(params.row)}
+        >
+          {params.row.present ? <CheckCircleIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
+        </IconButton>
+      </Stack>
+    )
+  }
+];
 
-  // Component definitions
-  const AttendeeCard = ({ attendee, showNumber, index }) => (
+// StatsCard component definition (make sure this exists)
+const StatsCard = ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
+  <Paper
+    variant="outlined"
+    sx={{
+      p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
+      textAlign: "center",
+      cursor: disabled ? "default" : "pointer",
+      boxShadow: 3,
+      minHeight: '100px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      "&:hover": disabled ? {} : { boxShadow: 6, transform: "translateY(-2px)" },
+      transition: "all 0.2s",
+      opacity: disabled ? 0.6 : 1,
+      backgroundColor: 'background.paper',
+    }}
+    onClick={onClick}
+  >
+    <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
+      {React.cloneElement(icon, { 
+        color: disabled ? "disabled" : color,
+        sx: { fontSize: getResponsiveValue(20, 24, 28, 32, 32) }
+      })}
+      <Typography 
+        variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
+        fontWeight={600} 
+        color={disabled ? "text.disabled" : `${color}.main`}
+      >
+        {count}
+      </Typography>
+    </Stack>
+    <Typography 
+      variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} 
+      color={disabled ? "text.disabled" : `${color}.main`}
+    >
+      {title}
+      {disabled && (
+        <Typography variant="caption" display="block" color="text.disabled">
+          Select event
+        </Typography>
+      )}
+    </Typography>
+  </Paper>
+);
+
+// In the return statement, replace the stats cards section with this:
+<Grid container spacing={cardSpacing} mb={cardSpacing}>
+  <Grid item xs={6} sm={6} md={4}>
+    <StatsCard
+      title="Present"
+      count={presentCount}
+      icon={<GroupIcon />}
+      color="primary" // Blue
+      onClick={() => { 
+        if (currentEventId) {
+          setModalOpen(true); 
+          setModalSearch(""); 
+          setModalPage(0); 
+        }
+      }}
+      disabled={!currentEventId}
+    />
+  </Grid>
+  <Grid item xs={6} sm={6} md={4}>
+    <StatsCard
+      title="New People"
+      count={newPeopleCount}
+      icon={<PersonAddAltIcon />}
+      color="success" // Green
+      onClick={() => { 
+        if (currentEventId) {
+          setNewPeopleModalOpen(true); 
+          setNewPeopleSearch(""); 
+          setNewPeoplePage(0); 
+        }
+      }}
+      disabled={!currentEventId}
+    />
+  </Grid>
+  <Grid item xs={6} sm={6} md={4}>
+    <StatsCard
+      title="Consolidated"
+      count={consolidationCount}
+      icon={<MergeIcon />}
+      color="secondary" // Purple
+      onClick={() => { 
+        if (currentEventId) {
+          setConsolidatedModalOpen(true); 
+          setConsolidatedSearch(""); 
+          setConsolidatedPage(0); 
+        }
+      }}
+      disabled={!currentEventId}
+    />
+  </Grid>
+</Grid>
+
+const AttendeeCard = ({ attendee, showNumber, index }) => (
+  <Card
+    variant="outlined"
+    sx={{
+      mb: 1,
+      boxShadow: 2,
+      minHeight: '120px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      "&:last-child": { mb: 0 },
+      backgroundColor: 'background.paper',
+    }}
+  >
+    <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+        <Box flex={1}>
+          <Typography variant="subtitle2" fontWeight={600}>
+            {showNumber && `${index}. `}{attendee.name} {attendee.surname}
+          </Typography>
+          {attendee.email && <Typography variant="body2" color="text.secondary">{attendee.email}</Typography>}
+          {attendee.phone && <Typography variant="body2" color="text.secondary">{attendee.phone}</Typography>}
+        </Box>
+      </Box>
+
+      <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
+        <IconButton onClick={() => handleEditClick(attendee)} color="primary" size="small">
+          <EditIcon fontSize="small" />
+        </IconButton>
+        <IconButton onClick={() => handleDelete(attendee._id)} color="error" size="small">
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+        <IconButton onClick={() => handleToggleCheckIn(attendee)} color="success" disabled={!currentEventId} size="small">
+          {attendee.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
+        </IconButton>
+      </Stack>
+
+      {(attendee.leader1 || attendee.leader12 || attendee.leader144) && (
+        <>
+          <Divider sx={{ my: 1 }} />
+          <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+            {attendee.leader1 && (
+              <Chip label={`@1: ${attendee.leader1}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+            )}
+            {attendee.leader12 && (
+              <Chip label={`@12: ${attendee.leader12}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+            )}
+            {attendee.leader144 && (
+              <Chip label={`@144: ${attendee.leader144}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+            )}
+          </Stack>
+        </>
+      )}
+    </CardContent>
+  </Card>
+);
+  const PresentAttendeeCard = ({ attendee, showNumber, index }) => (
     <Card
       variant="outlined"
       sx={{
         mb: 1,
         boxShadow: 2,
-        minHeight: '120px',
+        minHeight: '140px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
         "&:last-child": { mb: 0 },
+        border: `2px solid ${theme.palette.primary.main}`,
+        backgroundColor: isDarkMode 
+          ? theme.palette.primary.dark + "1a" 
+          : theme.palette.primary.light + "0a",
       }}
     >
       <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -779,22 +976,24 @@ const handleSaveAndCloseEvent = async () => {
             </Typography>
             {attendee.email && <Typography variant="body2" color="text.secondary">{attendee.email}</Typography>}
             {attendee.phone && <Typography variant="body2" color="text.secondary">{attendee.phone}</Typography>}
+            {attendee.gender && (
+              <Chip 
+                label={attendee.gender} 
+                size="small" 
+                variant="outlined" 
+                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }} 
+              />
+            )}
           </Box>
+          <IconButton color="error" size="small" onClick={() => {
+            const originalAttendee = attendees.find(att => att._id === (attendee.id || attendee._id));
+            if (originalAttendee) handleToggleCheckIn(originalAttendee);
+          }}>
+            <CheckCircleOutlineIcon fontSize="small" />
+          </IconButton>
         </Box>
 
-        <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
-          <IconButton onClick={() => handleEditClick(attendee)} color="primary" size="small">
-            <EditIcon fontSize="small" />
-          </IconButton>
-          <IconButton onClick={() => handleDelete(attendee._id)} color="error" size="small">
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-          <IconButton onClick={() => handleToggleCheckIn(attendee)} color="success" disabled={!currentEventId} size="small">
-            {attendee.present ? <CheckCircleIcon /> : <CheckCircleOutlineIcon />}
-          </IconButton>
-        </Stack>
-
-        {(attendee.leader1 || attendee.leader12 || attendee.leader144) && (
+        {(attendee.leader1 || attendee.leader12 || attendee.leader144 || attendee.occupation || attendee.cellGroup) && (
           <>
             <Divider sx={{ my: 1 }} />
             <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
@@ -806,6 +1005,65 @@ const handleSaveAndCloseEvent = async () => {
               )}
               {attendee.leader144 && (
                 <Chip label={`@144: ${attendee.leader144}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+              {attendee.occupation && (
+                <Chip label={`Work: ${attendee.occupation}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+              {attendee.cellGroup && (
+                <Chip label={`Cell: ${attendee.cellGroup}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+            </Stack>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const NewPersonCard = ({ person, showNumber, index }) => (
+    <Card
+      variant="outlined"
+      sx={{
+        mb: 1,
+        boxShadow: 2,
+        minHeight: '140px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        "&:last-child": { mb: 0 },
+        border: `2px solid ${theme.palette.success.main}`,
+        backgroundColor: isDarkMode 
+          ? theme.palette.success.dark + "1a" 
+          : theme.palette.success.light + "0a",
+      }}
+    >
+      <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <Box flex={1}>
+            <Typography variant="subtitle2" fontWeight={600}>
+              {showNumber && `${index}. `}{person.name} {person.surname}
+            </Typography>
+            {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
+            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+            {person.gender && (
+              <Chip 
+                label={person.gender} 
+                size="small" 
+                variant="outlined" 
+                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }} 
+              />
+            )}
+          </Box>
+        </Box>
+
+        {(person.invitedBy || person.occupation) && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+              {person.invitedBy && (
+                <Chip label={`Invited by: ${person.invitedBy}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+              {person.occupation && (
+                <Chip label={`Work: ${person.occupation}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
               )}
             </Stack>
           </>
@@ -824,13 +1082,15 @@ const handleSaveAndCloseEvent = async () => {
         sx={{
           mb: 1,
           boxShadow: 2,
-          minHeight: '120px',
+          minHeight: '140px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
           "&:last-child": { mb: 0 },
           border: `2px solid ${theme.palette.secondary.main}`,
-          backgroundColor: theme.palette.secondary.light + "0a",
+          backgroundColor: isDarkMode 
+            ? theme.palette.secondary.dark + "1a" 
+            : theme.palette.secondary.light + "0a",
         }}
       >
         <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -859,7 +1119,7 @@ const handleSaveAndCloseEvent = async () => {
             />
           </Stack>
 
-          {(person.created_at || person.decision_type) && (
+          {(person.created_at || person.decision_type || person.notes) && (
             <>
               <Divider sx={{ my: 1 }} />
               <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
@@ -885,6 +1145,16 @@ const handleSaveAndCloseEvent = async () => {
                     sx={{ fontSize: "0.7rem", height: 20 }}
                   />
                 )}
+                {person.notes && (
+                  <Tooltip title={person.notes}>
+                    <Chip
+                      label="Has Notes"
+                      size="small"
+                      variant="outlined"
+                      sx={{ fontSize: "0.7rem", height: 20 }}
+                    />
+                  </Tooltip>
+                )}
               </Stack>
             </>
           )}
@@ -899,7 +1169,7 @@ const handleSaveAndCloseEvent = async () => {
     const [rowsPerPage, setRowsPerPage] = useState(25);
 
     const filteredData = eventHistoryDetails.data.filter(item => {
-      const searchString = `${item.name || ''} ${item.surname || ''} ${item.email || ''} ${item.phone || ''}`.toLowerCase();
+      const searchString = `${item.name || ''} ${item.surname || ''} ${item.email || ''} ${item.phone || ''} ${item.leader1 || ''} ${item.leader12 || ''}`.toLowerCase();
       return searchString.includes(searchTerm.toLowerCase());
     });
 
@@ -958,14 +1228,14 @@ const handleSaveAndCloseEvent = async () => {
           {isSmDown ? (
             <Box>
               {paginatedData.map((item, idx) => (
-                <Card key={item._id || item.id || idx} variant="outlined" sx={{ mb: 1, boxShadow: 2, minHeight: '100px' }}>
+                <Card key={item._id || item.id || idx} variant="outlined" sx={{ mb: 1, boxShadow: 2, minHeight: '120px' }}>
                   <CardContent sx={{ p: 1.5 }}>
                     <Typography variant="subtitle2" fontWeight={600}>
                       {item.name} {item.surname}
                     </Typography>
                     {item.email && <Typography variant="body2" color="text.secondary">{item.email}</Typography>}
                     {item.phone && <Typography variant="body2" color="text.secondary">{item.phone}</Typography>}
-                    {eventHistoryDetails.type === 'consolidated' && (
+                    {eventHistoryDetails.type === 'consolidated' ? (
                       <>
                         <Chip
                           label={item.decision_type || item.consolidation_type || 'Commitment'}
@@ -977,6 +1247,18 @@ const handleSaveAndCloseEvent = async () => {
                           Assigned to: {item.assigned_to || item.assignedTo || 'Not assigned'}
                         </Typography>
                       </>
+                    ) : (
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5} mt={0.5}>
+                        {item.leader1 && (
+                          <Chip label={`@1: ${item.leader1}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                        )}
+                        {item.leader12 && (
+                          <Chip label={`@12: ${item.leader12}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                        )}
+                        {item.leader144 && (
+                          <Chip label={`@144: ${item.leader144}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                        )}
+                      </Stack>
                     )}
                   </CardContent>
                 </Card>
@@ -1000,6 +1282,7 @@ const handleSaveAndCloseEvent = async () => {
                       <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Occupation</TableCell>
                     </>
                   ) : (
                     <>
@@ -1022,6 +1305,7 @@ const handleSaveAndCloseEvent = async () => {
                         <TableCell>{item.leader1 || "—"}</TableCell>
                         <TableCell>{item.leader12 || "—"}</TableCell>
                         <TableCell>{item.leader144 || "—"}</TableCell>
+                        <TableCell>{item.occupation || "—"}</TableCell>
                       </>
                     ) : (
                       <>
@@ -1047,7 +1331,7 @@ const handleSaveAndCloseEvent = async () => {
                 ))}
                 {paginatedData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={eventHistoryDetails.type === 'consolidated' ? 7 : 7} align="center">
+                    <TableCell colSpan={eventHistoryDetails.type === 'consolidated' ? 7 : 8} align="center">
                       No matching data
                     </TableCell>
                   </TableRow>
@@ -1173,7 +1457,7 @@ const handleSaveAndCloseEvent = async () => {
     </Box>
   );
 
-  // Effects
+  // Effects - optimized to prevent unnecessary reloads
   useEffect(() => {
     if (currentEventId) {
       // Fetch real-time data when event changes
@@ -1199,6 +1483,7 @@ const handleSaveAndCloseEvent = async () => {
     }
   }, [events]);
 
+  // Initial load - only once
   useEffect(() => {
     console.log('🚀 Service Check-In mounted - fetching fresh data from backend...');
     fetchEvents();
@@ -1214,130 +1499,57 @@ const handleSaveAndCloseEvent = async () => {
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: 8, minHeight: "100vh" }}>
       <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
 
-      {/* Stats Cards */}
-      <Grid container spacing={cardSpacing} mb={cardSpacing}>
-        <Grid item xs={6} sm={6} md={3}>
-          <Paper
-            variant="outlined"
-            sx={{
-              p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
-              textAlign: "center",
-              cursor: currentEventId ? "pointer" : "default",
-              boxShadow: 3,
-              minHeight: '100px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              "&:hover": currentEventId ? { boxShadow: 6, transform: "translateY(-2px)" } : {},
-              transition: "all 0.2s",
-              opacity: currentEventId ? 1 : 0.6
-            }}
-            onClick={() => { 
-              if (currentEventId) {
-                setModalOpen(true); 
-                setModalSearch(""); 
-                setModalPage(0); 
-              }
-            }}
-          >
-            <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-              <GroupIcon color={currentEventId ? "primary" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={currentEventId ? "primary" : "text.disabled"}>
-                {presentCount}
-              </Typography>
-            </Stack>
-            <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
-              Present
-              {!currentEventId && (
-                <Typography variant="caption" display="block" color="text.disabled">
-                  Select event
-                </Typography>
-              )}
-            </Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={6} sm={6} md={3}>
-          <Paper
-            variant="outlined"
-            sx={{
-              p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
-              textAlign: "center",
-              cursor: currentEventId ? "pointer" : "default",
-              boxShadow: 3,
-              minHeight: '100px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              "&:hover": currentEventId ? { boxShadow: 6, transform: "translateY(-2px)" } : {},
-              transition: "all 0.2s",
-              opacity: currentEventId ? 1 : 0.6
-            }}
-            onClick={() => { 
-              if (currentEventId) {
-                setNewPeopleModalOpen(true); 
-                setNewPeopleSearch(""); 
-                setNewPeoplePage(0); 
-              }
-            }}
-          >
-            <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-              <PersonAddAltIcon color={currentEventId ? "success" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={currentEventId ? "success.main" : "text.disabled"}>
-                {newPeopleCount}
-              </Typography>
-            </Stack>
-            <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
-              New People
-              {!currentEventId && (
-                <Typography variant="caption" display="block" color="text.disabled">
-                  Select event
-                </Typography>
-              )}
-            </Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={6} sm={6} md={3}>
-          <Paper
-            variant="outlined"
-            sx={{
-              p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
-              textAlign: "center",
-              cursor: currentEventId ? "pointer" : "default",
-              boxShadow: 3,
-              minHeight: '100px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              "&:hover": currentEventId ? { boxShadow: 6, transform: "translateY(-2px)" } : {},
-              transition: "all 0.2s",
-              opacity: currentEventId ? 1 : 0.6
-            }}
-            onClick={() => { 
-              if (currentEventId) {
-                setConsolidatedModalOpen(true); 
-                setConsolidatedSearch(""); 
-                setConsolidatedPage(0); 
-              }
-            }}
-          >
-            <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-              <MergeIcon color={currentEventId ? "secondary" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
-              <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={currentEventId ? "secondary.main" : "text.disabled"}>
-                {consolidationCount}
-              </Typography>
-            </Stack>
-            <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
-              Consolidated
-              {!currentEventId && (
-                <Typography variant="caption" display="block" color="text.disabled">
-                  Select event
-                </Typography>
-              )}
-            </Typography>
-          </Paper>
-        </Grid>
-      </Grid>
-
+{/* Stats Cards */}
+<Grid container spacing={cardSpacing} mb={cardSpacing}>
+  <Grid item xs={6} sm={6} md={4}>
+    <StatsCard
+      title="Present"
+      count={presentCount}
+      icon={<GroupIcon />}
+      color="primary" // Blue
+      onClick={() => { 
+        if (currentEventId) {
+          setModalOpen(true); 
+          setModalSearch(""); 
+          setModalPage(0); 
+        }
+      }}
+      disabled={!currentEventId}
+    />
+  </Grid>
+  <Grid item xs={6} sm={6} md={4}>
+    <StatsCard
+      title="New People"
+      count={newPeopleCount}
+      icon={<PersonAddAltIcon />}
+      color="success" // Green
+      onClick={() => { 
+        if (currentEventId) {
+          setNewPeopleModalOpen(true); 
+          setNewPeopleSearch(""); 
+          setNewPeoplePage(0); 
+        }
+      }}
+      disabled={!currentEventId}
+    />
+  </Grid>
+  <Grid item xs={6} sm={6} md={4}>
+    <StatsCard
+      title="Consolidated"
+      count={consolidationCount}
+      icon={<MergeIcon />}
+      color="secondary" // Purple
+      onClick={() => { 
+        if (currentEventId) {
+          setConsolidatedModalOpen(true); 
+          setConsolidatedSearch(""); 
+          setConsolidatedPage(0); 
+        }
+      }}
+      disabled={!currentEventId}
+    />
+  </Grid>
+</Grid>
       {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={6} md={4}>
@@ -1571,7 +1783,7 @@ const handleSaveAndCloseEvent = async () => {
       {/* Event History Details Modal */}
       <EventHistoryDetailsModal />
 
-      {/* PRESENT Attendees Modal */}
+      {/* PRESENT Attendees Modal - Fixed: Removed duplicate search field */}
       <Dialog
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -1589,18 +1801,8 @@ const handleSaveAndCloseEvent = async () => {
         }}
       >
         <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-           Attendees Present: {presentCount}
-         </DialogTitle>
-         <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
-           <TextField
-             size="small"
-             placeholder="Search present attendees..."
-             value={modalSearch}
-             onChange={(e) => { setModalSearch(e.target.value); setModalPage(0); }}
-             fullWidth
-             sx={{ mb: 2, boxShadow: 1 }}
-           />
-        </DialogContent>
+          Attendees Present: {presentCount}
+        </DialogTitle>
         <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
           <TextField
             size="small"
@@ -1611,94 +1813,90 @@ const handleSaveAndCloseEvent = async () => {
             sx={{ mb: 2, boxShadow: 1 }}
           />
 
-          {isSmDown ? (
-            <Box>
-              {modalPaginatedAttendees.map((a, idx) => (
-                <Card key={a.id || a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 }, minHeight: '100px' }}>
-                  <CardContent sx={{ p: 1.5 }}>
-                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                      <Box flex={1}>
-                        <Typography variant="subtitle2" fontWeight={600} sx={{ fontSize: '0.9rem' }}>
-                          {modalPage * modalRowsPerPage + idx + 1}. {a.name} {a.surname}
-                        </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5} mt={0.5}>
-                          {a.leader1 && (
-                            <Chip label={`@1: ${a.leader1}`} size="small" variant="outlined" sx={{ fontSize: "0.6rem", height: 18 }} />
-                          )}
-                          {a.leader12 && (
-                            <Chip label={`@12: ${a.leader12}`} size="small" variant="outlined" sx={{ fontSize: "0.6rem", height: 18 }} />
-                          )}
-                          {a.leader144 && (
-                            <Chip label={`@144: ${a.leader144}`} size="small" variant="outlined" sx={{ fontSize: "0.6rem", height: 18 }} />
-                          )}
-                        </Stack>
-                      </Box>
-                      <IconButton color="error" size="small" onClick={() => {
-                        const attendee = attendees.find(att => att._id === (a.id || a._id));
-                        if (attendee) handleToggleCheckIn(attendee);
-                      }}>
-                        <CheckCircleOutlineIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </CardContent>
-                </Card>
-              ))}
-              {modalPaginatedAttendees.length === 0 && (
-                <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
-                  No matching attendees
-                </Typography>
-              )}
-            </Box>
+          {!currentEventId ? (
+            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+              Please select an event to view present attendees
+            </Typography>
+          ) : presentAttendees.length === 0 ? (
+            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+              No attendees present for this event
+            </Typography>
           ) : (
-            <Table size="small" stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Leader@1</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Leader@12</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Leader@144</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600 }}>Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {modalPaginatedAttendees.map((a, idx) => (
-                  <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
-                    <TableCell>{modalPage * modalRowsPerPage + idx + 1}</TableCell>
-                    <TableCell>{a.name} {a.surname}</TableCell>
-                    <TableCell>{a.leader1 || "—"}</TableCell>
-                    <TableCell>{a.leader12 || "—"}</TableCell>
-                    <TableCell>{a.leader144 || "—"}</TableCell>
-                    <TableCell align="center">
-                      <IconButton color="error" size="small" onClick={() => {
-                        const attendee = attendees.find(att => att._id === (a.id || a._id));
-                        if (attendee) handleToggleCheckIn(attendee);
-                      }}>
-                        <CheckCircleOutlineIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {modalPaginatedAttendees.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center">No matching attendees</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
+            <>
+              {isSmDown ? (
+                <Box>
+                  {modalPaginatedAttendees.map((a, idx) => (
+                    <PresentAttendeeCard 
+                      key={a.id || a._id} 
+                      attendee={a} 
+                      showNumber={true} 
+                      index={modalPage * modalRowsPerPage + idx + 1} 
+                    />
+                  ))}
+                  {modalPaginatedAttendees.length === 0 && (
+                    <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+                      No matching attendees
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Leader@1</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Leader@12</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Leader@144</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 600 }}>Action</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {modalPaginatedAttendees.map((a, idx) => (
+                      <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
+                        <TableCell>{modalPage * modalRowsPerPage + idx + 1}</TableCell>
+                        <TableCell>{a.name} {a.surname}</TableCell>
+                        <TableCell>{a.phone || "—"}</TableCell>
+                        <TableCell>{a.email || "—"}</TableCell>
+                        <TableCell>{a.gender || "—"}</TableCell>
+                        <TableCell>{a.leader1 || "—"}</TableCell>
+                        <TableCell>{a.leader12 || "—"}</TableCell>
+                        <TableCell>{a.leader144 || "—"}</TableCell>
+                        <TableCell align="center">
+                          <IconButton color="error" size="small" onClick={() => {
+                            const attendee = attendees.find(att => att._id === (a.id || a._id));
+                            if (attendee) handleToggleCheckIn(attendee);
+                          }}>
+                            <CheckCircleOutlineIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {modalPaginatedAttendees.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={9} align="center">No matching attendees</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
 
-          <Box mt={1}>
-            <TablePagination
-              component="div"
-              count={modalFilteredAttendees.length}
-              page={modalPage}
-              onPageChange={(e, newPage) => setModalPage(newPage)}
-              rowsPerPage={modalRowsPerPage}
-              onRowsPerPageChange={(e) => { setModalRowsPerPage(parseInt(e.target.value, 10)); setModalPage(0); }}
-              rowsPerPageOptions={[25, 50, 100]}
-            />
-          </Box>
+              <Box mt={1}>
+                <TablePagination
+                  component="div"
+                  count={modalFilteredAttendees.length}
+                  page={modalPage}
+                  onPageChange={(e, newPage) => setModalPage(newPage)}
+                  rowsPerPage={modalRowsPerPage}
+                  onRowsPerPageChange={(e) => { setModalRowsPerPage(parseInt(e.target.value, 10)); setModalPage(0); }}
+                  rowsPerPageOptions={[25, 50, 100]}
+                />
+              </Box>
+            </>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
           <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
@@ -1750,21 +1948,12 @@ const handleSaveAndCloseEvent = async () => {
               {isSmDown ? (
                 <Box>
                   {newPeoplePaginatedList.map((a, idx) => (
-                    <Card key={a.id || a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 }, minHeight: '100px' }}>
-                      <CardContent sx={{ p: 1.5 }}>
-                        <Typography variant="subtitle2" fontWeight={600} sx={{ fontSize: '0.9rem' }}>
-                          {newPeoplePage * newPeopleRowsPerPage + idx + 1}. {a.name} {a.surname}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                          {a.phone || "No phone"}
-                        </Typography>
-                        {a.invitedBy && (
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                            Invited by: {a.invitedBy}
-                          </Typography>
-                        )}
-                      </CardContent>
-                    </Card>
+                    <NewPersonCard 
+                      key={a.id || a._id} 
+                      person={a} 
+                      showNumber={true} 
+                      index={newPeoplePage * newPeopleRowsPerPage + idx + 1} 
+                    />
                   ))}
                   {newPeoplePaginatedList.length === 0 && (
                     <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
@@ -1780,7 +1969,9 @@ const handleSaveAndCloseEvent = async () => {
                       <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Occupation</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -1790,12 +1981,14 @@ const handleSaveAndCloseEvent = async () => {
                         <TableCell>{a.name} {a.surname}</TableCell>
                         <TableCell>{a.phone || "—"}</TableCell>
                         <TableCell>{a.email || "—"}</TableCell>
+                        <TableCell>{a.gender || "—"}</TableCell>
                         <TableCell>{a.invitedBy || "—"}</TableCell>
+                        <TableCell>{a.occupation || "—"}</TableCell>
                       </TableRow>
                     ))}
                     {newPeoplePaginatedList.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} align="center">No matching people</TableCell>
+                        <TableCell colSpan={7} align="center">No matching people</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
