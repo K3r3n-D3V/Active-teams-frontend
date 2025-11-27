@@ -116,15 +116,25 @@ const EventTypesModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleCheckboxChange = (name) => (event) => {
-    const { checked } = event.target;
+ const handleCheckboxChange = (name) => (event) => {
+  const { checked } = event.target;
+  
+  setFormData((prev) => {
+    const newData = { ...prev, [name]: checked };
     
-    setFormData((prev) => ({ ...prev, [name]: checked }));
-
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+    if (name === "isGlobal" && checked) {
+      newData.hasPersonSteps = false;
+    } else if (name === "hasPersonSteps" && checked) {
+      newData.isGlobal = false;
     }
-  };
+    
+    return newData;
+  });
+
+  if (errors[name]) {
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  }
+};
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

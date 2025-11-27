@@ -37,7 +37,6 @@ const CreateEvents = ({
   eventTypes = [],
   selectedEventType,
   selectedEventTypeObj = null,
-  fetchEvents,
 }) => {
   const navigate = useNavigate();
   const { id: eventId } = useParams();
@@ -50,8 +49,7 @@ const CreateEvents = ({
     hasPersonSteps: false,
   });
 
-  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, hasPersonSteps } =
-    eventTypeFlags;
+  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, hasPersonSteps } = eventTypeFlags;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
@@ -88,62 +86,134 @@ const CreateEvents = ({
     "Sunday",
   ];
 
-useEffect(() => {
-  console.log('🔍 CreateEvents - Received props:', {
+ useEffect(() => {
+  console.log('CreateEvents - Props received:', {
     selectedEventTypeObj,
     selectedEventType,
-    eventTypes
+    eventTypes: eventTypes.map(et => ({
+      name: et.name,
+      isGlobal: et.isGlobal,
+      isTicketed: et.isTicketed,
+      hasPersonSteps: et.hasPersonSteps
+    }))
   });
 
-  if (selectedEventTypeObj) {
-    console.log('🔍 Setting from selectedEventTypeObj:', selectedEventTypeObj);
+  const determineEventType = () => {
+    // If we have a selectedEventTypeObj, use its properties
+    if (selectedEventTypeObj) {
+      console.log('Using selectedEventTypeObj:', selectedEventTypeObj);
+      return {
+        eventType: selectedEventTypeObj.name || selectedEventTypeObj.displayName || "",
+        isGlobal: !!selectedEventTypeObj.isGlobal,
+        isTicketed: !!selectedEventTypeObj.isTicketed,
+        hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
+      };
+    }
     
-    setEventTypeFlags({
-      isGlobal: !!selectedEventTypeObj.isGlobal,
-      isTicketed: !!selectedEventTypeObj.isTicketed,
-      hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
-    });
-
-    setFormData((prev) => ({
-      ...prev,
-      eventType: selectedEventTypeObj.name || selectedEventTypeObj.displayName || prev.eventType,
-    }));
-  } else if (selectedEventType) {
-    console.log('🔍 Setting from selectedEventType:', selectedEventType);
-    
-    // Try to find the full event type object from eventTypes
-    const foundEventType = eventTypes.find(et => 
-      et.name === selectedEventType || 
-      et.displayName === selectedEventType ||
-      et._id === selectedEventType
-    );
-    
-    if (foundEventType) {
-      console.log('🔍 Found event type in eventTypes:', foundEventType);
-      setEventTypeFlags({
-        isGlobal: !!foundEventType.isGlobal,
-        isTicketed: !!foundEventType.isTicketed,
-        hasPersonSteps: !!foundEventType.hasPersonSteps,
+    // If we have a selectedEventType string, find the matching object
+    if (selectedEventType) {
+      console.log('Looking for event type:', selectedEventType);
+      
+      // Handle "all" and convert to "CELLS" - FIXED: Always set hasPersonSteps to true for CELLS
+      if (selectedEventType === 'all' || selectedEventType.toUpperCase() === 'ALL CELLS') {
+        console.log('Detected ALL CELLS - converting to CELLS with personal steps');
+        return {
+          eventType: 'CELLS',
+          isGlobal: false,
+          isTicketed: false,
+          hasPersonSteps: true, // FIXED: This was the issue - always true for CELLS
+        };
+      }
+      
+      // Try to find the full event type object
+      const foundEventType = eventTypes.find(et => {
+        const etName = et.name || et.displayName || '';
+        const searchName = selectedEventType;
+        
+        return (
+          etName === searchName ||
+          etName.toLowerCase() === searchName.toLowerCase() ||
+          et._id === searchName ||
+          etName.includes(searchName) ||
+          searchName.includes(etName)
+        );
       });
       
-      setFormData((prev) => ({
-        ...prev,
-        eventType: foundEventType.name || foundEventType.displayName || selectedEventType,
-      }));
-    } else {
-      console.log('🔍 Using raw selectedEventType:', selectedEventType);
-      setFormData((prev) => ({
-        ...prev,
-        eventType: selectedEventType,
-      }));
+      if (foundEventType) {
+        console.log('Found event type:', foundEventType);
+        return {
+          eventType: foundEventType.name || foundEventType.displayName || selectedEventType,
+          isGlobal: !!foundEventType.isGlobal,
+          isTicketed: !!foundEventType.isTicketed,
+          hasPersonSteps: !!foundEventType.hasPersonSteps,
+        };
+      } else {
+        console.log('Event type not found, using defaults');
+        // For CELLS type specifically, set hasPersonSteps to true
+        const isCellsType = selectedEventType.toUpperCase() === 'CELLS';
+        return {
+          eventType: selectedEventType,
+          isGlobal: false,
+          isTicketed: false,
+          hasPersonSteps: isCellsType, // FIXED: Set to true only for CELLS type
+        };
+      }
     }
-  }
+    
+    return {
+      eventType: "",
+      isGlobal: false,
+      isTicketed: false,
+      hasPersonSteps: false,
+    };
+  };
+
+  const { eventType, isGlobal, isTicketed, hasPersonSteps } = determineEventType();
+
+  console.log('Final event type settings:', {
+    eventType,
+    isGlobal,
+    isTicketed,
+    hasPersonSteps
+  });
+
+  setEventTypeFlags({
+    isGlobal,
+    isTicketed,
+    hasPersonSteps,
+  });
+
+  setFormData((prev) => ({
+    ...prev,
+    eventType,
+    ...(prev.hasPersonSteps && !hasPersonSteps ? { 
+      leader1: "",
+      leader12: "" 
+    } : {})
+  }));
+
 }, [selectedEventTypeObj, selectedEventType, eventTypes]);
 
 useEffect(() => {
-  console.log('Current eventTypeFlags:', eventTypeFlags);
-  console.log('Should show leader fields:', hasPersonSteps && !isGlobalEvent);
-}, [eventTypeFlags, hasPersonSteps, isGlobalEvent]);
+  console.log('Leader fields debug:', {
+    hasPersonSteps,
+    isGlobalEvent,
+    shouldShowLeaderFields: hasPersonSteps && !isGlobalEvent,
+    formData: {
+      leader1: formData.leader1,
+      leader12: formData.leader12
+    }
+  });
+}, [hasPersonSteps, isGlobalEvent, formData.leader1, formData.leader12]);
+
+  useEffect(() => {
+    console.log('Price tier debug:', {
+      isTicketedEvent,
+      isGlobalEvent,
+      shouldShowPriceTiers: isTicketedEvent && !isGlobalEvent,
+      priceTiersCount: priceTiers.length
+    });
+  }, [isTicketedEvent, isGlobalEvent, priceTiers]);
 
   useEffect(() => {
     if (isTicketedEvent && priceTiers.length === 0) {
@@ -159,37 +229,36 @@ useEffect(() => {
     }
   }, [isTicketedEvent]);
 
-const fetchPeople = async (filter = "") => {
-  try {
-    setLoadingPeople(true);
-    const params = new URLSearchParams();
-    params.append("perPage", "1000");
-    if (filter) params.append("name", filter); 
+  const fetchPeople = async (filter = "") => {
+    try {
+      setLoadingPeople(true);
+      const params = new URLSearchParams();
+      params.append("perPage", "1000");
+      if (filter) params.append("name", filter);
 
-    const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    const data = await res.json();
-    
-    const peopleArray = data.people || data.results || data || [];
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      
+      const peopleArray = data.people || data.results || data || [];
 
-    const formatted = peopleArray.map((p) => ({
-      id: p._id || p.id || Math.random(),
-      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-      email: p.Email || p.email || "",
-      leader1: p["Leader @1"] || p.leader1 || "",
-      leader12: p["Leader @12"] || p.leader12 || "",
-    }));
+      const formatted = peopleArray.map((p) => ({
+        id: p._id || p.id || Math.random(),
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p.leader1 || "",
+        leader12: p["Leader @12"] || p.leader12 || "",
+      }));
 
-    setPeopleData(formatted);
-    
-  } catch (err) {
-    console.error("Error fetching people:", err);
-    setPeopleData([]);
-  } finally {
-    setLoadingPeople(false);
-  }
-};
-
+      setPeopleData(formatted);
+      
+    } catch (err) {
+      console.error("Error fetching people:", err);
+      setPeopleData([]);
+    } finally {
+      setLoadingPeople(false);
+    }
+  };
 
   useEffect(() => {
     if (!eventId) return;
@@ -338,7 +407,7 @@ const fetchPeople = async (filter = "") => {
         if (!formData.time) newErrors.time = "Time is required";
       }
 
-      if (isTicketedEvent) {
+      if (isTicketedEvent && !isGlobalEvent) {
         if (priceTiers.length === 0) {
           newErrors.priceTiers = "Add at least one price tier for ticketed events";
         } else {
@@ -366,13 +435,13 @@ const fetchPeople = async (filter = "") => {
     return Object.keys(newErrors).length === 0;
   };
 
-const getDayFromDate = (dateString) => {
-  if (!dateString) return "";
-  
-  const date = new Date(dateString);
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return days[date.getDay()];
-};
+  const getDayFromDate = (dateString) => {
+    if (!dateString) return "";
+    
+    const date = new Date(dateString);
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[date.getDay()];
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -381,7 +450,11 @@ const getDayFromDate = (dateString) => {
     setIsSubmitting(true);
 
     try {
-      const eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
+      let eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
+      
+      if (eventTypeToSend === "all" || eventTypeToSend.toLowerCase() === "all cells") {
+        eventTypeToSend = "CELLS";
+      }
 
       if (!eventTypeToSend) {
         toast.error("Event type is required");
@@ -391,37 +464,35 @@ const getDayFromDate = (dateString) => {
 
       console.log('Creating event with type:', eventTypeToSend);
 
-let dayValue = "";
+      let dayValue = "";
 
-if (formData.date) {
-  dayValue = getDayFromDate(formData.date);
-} else if (formData.recurringDays.length > 0) {
-  // Fallback: if no date but has recurring days, use first recurring day
-  dayValue = formData.recurringDays[0];
-} else {
- 
-  dayValue = "One-time";
-}
+      if (formData.date) {
+        dayValue = getDayFromDate(formData.date);
+      } else if (formData.recurringDays.length > 0) {
+        dayValue = formData.recurringDays[0];
+      } else {
+        dayValue = "One-time";
+      }
 
       const payload = {
-  UUID: generateUUID(),
-  eventTypeName: eventTypeToSend,  // Backend expects this field name
-  eventName: formData.eventName,
-  isTicketed: !!isTicketedEvent,
-  isGlobal: !!isGlobalEvent,
-  hasPersonSteps: !!hasPersonSteps,
-  location: formData.location,
-  eventLeader: formData.eventLeader,
-  eventLeaderName: formData.eventLeader,  // Backend uses this
-  eventLeaderEmail: user?.email || "",    // Backend uses this
-  description: formData.description,
-  userEmail: user?.email || "",           // Backend uses this
-  recurring_day: formData.recurringDays,
-  day: dayValue,
-  status: "open",
-  leader1: formData.leader1 || "",
-  leader12: formData.leader12 || "",
-};
+        UUID: generateUUID(),
+        eventTypeName: eventTypeToSend,
+        eventName: formData.eventName,
+        isTicketed: !!isTicketedEvent,
+        isGlobal: !!isGlobalEvent,
+        hasPersonSteps: !!hasPersonSteps,
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        eventLeaderName: formData.eventLeader,
+        eventLeaderEmail: user?.email || "",
+        description: formData.description,
+        userEmail: user?.email || "",
+        recurring_day: formData.recurringDays,
+        day: dayValue,
+        status: "open",
+        leader1: formData.leader1 || "",
+        leader12: formData.leader12 || "",
+      };
 
       if (formData.date && formData.time) {
         const [hoursStr, minutesStr] = formData.time.split(":");
@@ -435,7 +506,7 @@ if (formData.date) {
           .padStart(2, "0")}:00`;
       }
 
-      if (isTicketedEvent) {
+      if (isTicketedEvent && !isGlobalEvent) {
         if (priceTiers.length > 0) {
           payload.priceTiers = priceTiers.map((tier) => ({
             name: tier.name || "",
@@ -705,16 +776,34 @@ if (formData.date) {
           )}
 
           <form onSubmit={handleSubmit}>
-           <TextField
-  label="Event Type *"
-  value={formData.eventType || selectedEventTypeObj?.name || selectedEventType || ""}
-  fullWidth
-  size="small"
-  sx={{ mb: 3, ...darkModeStyles.textField }}
-  InputProps={{ readOnly: true }}
-  disabled
-  helperText={selectedEventTypeObj ? `Type: ${selectedEventTypeObj.isGlobal ? 'Global' : 'Local'} ${selectedEventTypeObj.isTicketed ? '| Ticketed' : ''} ${selectedEventTypeObj.hasPersonSteps ? '| Personal Steps' : ''}` : "Event type details"}
-/>
+            <TextField
+              label="Event Type *"
+              value={
+                (() => {
+                  let displayValue = formData.eventType || selectedEventTypeObj?.name || selectedEventType || "";
+                  if (displayValue === "all" || displayValue.toLowerCase() === "all cells") {
+                    return "CELLS";
+                  }
+                  return displayValue;
+                })()
+              }
+              fullWidth
+              size="small"
+              sx={{ mb: 3, ...darkModeStyles.textField }}
+              InputProps={{ readOnly: true }}
+              disabled
+              helperText={
+                selectedEventTypeObj 
+                  ? `Type: ${selectedEventTypeObj.isGlobal ? 'Global' : 'Local'} ${selectedEventTypeObj.isTicketed ? '| Ticketed' : ''} ${selectedEventTypeObj.hasPersonSteps ? '| Personal Steps' : ''}` 
+                  : hasPersonSteps 
+                    ? "Type: Local | Personal Steps Event (Cell)" 
+                    : isGlobalEvent
+                      ? `Type: Global${isTicketedEvent ? ' | Ticketed' : ''}`
+                      : isTicketedEvent
+                        ? "Type: Local | Ticketed"
+                        : "Event type details"
+              }
+            />
 
             <TextField
               label="Event Name *"
@@ -727,7 +816,7 @@ if (formData.date) {
               helperText={errors.eventName}
             />
 
-            {isTicketedEvent && (
+            {isTicketedEvent && !isGlobalEvent && (
               <Box sx={{ mb: 3 }}>
                 <Box
                   sx={{
@@ -752,7 +841,6 @@ if (formData.date) {
                     Add Price Tier
                   </Button>
                 </Box>
-
                 {errors.priceTiers && (
                   <Typography
                     variant="caption"
@@ -1062,29 +1150,29 @@ if (formData.date) {
                 <TextField
                   label="Leader @1 *"
                   value={formData.leader1 || ""}
+                  onChange={(e) => handleChange("leader1", e.target.value)}
                   fullWidth
                   size="small"
                   sx={{ mb: 2, ...darkModeStyles.textField }}
                   error={!!errors.leader1}
-                  helperText={errors.leader1}
-                  InputProps={{ readOnly: true }}
+                  helperText={errors.leader1 || "Enter the Leader @1 for this cell"}
                 />
 
                 <TextField
                   label="Leader @12 *"
                   value={formData.leader12 || ""}
+                  onChange={(e) => handleChange("leader12", e.target.value)}
                   fullWidth
                   size="small"
                   sx={{ mb: 2, ...darkModeStyles.textField }}
                   error={!!errors.leader12}
-                  helperText={errors.leader12}
-                  InputProps={{ readOnly: true }}
+                  helperText={errors.leader12 || "Enter the Leader @12 for this cell"}
                 />
               </>
             )}
 
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {isTicketedEvent && <Chip label="Ticketed Event" color="warning" size="small" />}
+              {isTicketedEvent && !isGlobalEvent && <Chip label="Ticketed Event" color="warning" size="small" />}
               {isGlobalEvent && <Chip label="Global Event" color="info" size="small" />}
               {hasPersonSteps && !isGlobalEvent && <Chip label="Personal Steps Event" color="secondary" size="small" />}
             </Box>
