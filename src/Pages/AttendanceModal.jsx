@@ -576,8 +576,8 @@ else {
       left: 0,
       right: 0,
       marginTop: "4px",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1000,
@@ -587,17 +587,17 @@ else {
     dropdownItem: {
       padding: "12px",
       cursor: "pointer",
-      borderBottom: `1px solid ${isDarkMode ? "#3a3a3a" : "#f0f0f0"}`,
+      borderBottom: `1px solid ${theme.palette.divider}`,
       transition: "background 0.2s",
-      color: isDarkMode ? "#ffffff" : "#333",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
+      color: theme.palette.text.primary,
+      background: theme.palette.background.default,
     },
     dropdownEmpty: {
       padding: "12px",
-      color: isDarkMode ? "#aaa" : "#999",
+      color: theme.palette.text.secondary,
       textAlign: "center",
       fontSize: "14px",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
+      background: theme.palette.background.default,
     },
     radioGroup: {
       display: "flex",
@@ -704,8 +704,8 @@ else {
                       key={person.id}
                       style={styles.dropdownItem}
                       onClick={() => handleInviterSelect(person)}
-                      onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
-                      onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
+                      onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
+                      onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
                     >
                       <div style={{ fontWeight: "500" }}>{person.fullName}</div>
                       <div style={{ fontSize: "12px", color: isDarkMode ? "#999" : "#666" }}>
@@ -835,7 +835,7 @@ else {
                 style={styles.closeBtn} 
                 onClick={handleClose}
                 onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
-                onMouseLeave={(e) => e.target.style.background = "transparent"}
+                onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
               >
                 CANCEL
               </button>
@@ -843,8 +843,8 @@ else {
                 type="button" 
                 style={styles.nextBtn} 
                 onClick={handleNext}
-                onMouseEnter={(e) => e.target.style.background = "#4f46e5"}
-                onMouseLeave={(e) => e.target.style.background = "#6366f1"}
+                onMouseEnter={(e) => e.target.style.background = theme.palette.primary.dark}
+                onMouseLeave={(e) => e.target.style.background = theme.palette.primary.main}
               >
                 NEXT
               </button>
