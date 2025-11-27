@@ -378,7 +378,7 @@ else {
         //   type: "success",
         //   message: "Person added successfully!",
         // })
-        toast.success("Person added successfully!");;
+        // toast.success("Person added successfully!");;
 
         if (typeof onPersonAdded === "function") {
           onPersonAdded(data.person || data);
