@@ -3997,6 +3997,7 @@ const Events = () => {
             sx={{
               ...fabStyles.fabMenu,
               opacity: fabMenuOpen ? 1 : 0,
+              width: "155px",
               visibility: fabMenuOpen ? 'visible' : 'hidden',
               transform: fabMenuOpen ? 'translateY(0)' : 'translateY(10px)',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',

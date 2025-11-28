@@ -229,37 +229,96 @@ useEffect(() => {
     }
   }, [isTicketedEvent]);
 
-  const fetchPeople = async (filter = "") => {
-    try {
-      setLoadingPeople(true);
-      const params = new URLSearchParams();
-      params.append("perPage", "1000");
-      if (filter) params.append("name", filter);
+  // const fetchPeople = async (filter = "") => {
+  //   try {
+  //     setLoadingPeople(true);
+  //     const params = new URLSearchParams();
+  //     params.append("perPage", "1000");
+  //     if (filter) params.append("name", filter);
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
+  //     const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+  //     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+  //     const data = await res.json();
       
-      const peopleArray = data.people || data.results || data || [];
+  //     const peopleArray = data.people || data.results || data || [];
 
-      const formatted = peopleArray.map((p) => ({
-        id: p._id || p.id || Math.random(),
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-      }));
+  //     const formatted = peopleArray.map((p) => ({
+  //       id: p._id || p.id || Math.random(),
+  //       fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+  //       email: p.Email || p.email || "",
+  //       leader1: p["Leader @1"] || p.leader1 || "",
+  //       leader12: p["Leader @12"] || p.leader12 || "",
+  //     }));
 
-      setPeopleData(formatted);
+  //     setPeopleData(formatted);
       
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      setPeopleData([]);
-    } finally {
-      setLoadingPeople(false);
-    }
-  };
+  //   } catch (err) {
+  //     console.error("Error fetching people:", err);
+  //     setPeopleData([]);
+  //   } finally {
+  //     setLoadingPeople(false);
+  //   }
+  // };
 
+ 
+  const fetchPeople = async (q) => {
+  if (!q.trim()) {
+    setPeopleData([]);
+    return;
+  }
+
+  const parts = q.trim().split(/\s+/);
+  const name = parts[0];
+  const surname = parts.slice(1).join(" ");
+
+  try {
+    setLoadingPeople(true);
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) throw new Error("Failed to fetch people");
+
+    const data = await res.json();
+
+    let filtered = (data?.results || data?.people || []).filter(p =>
+      (p.Name && p.Name.toLowerCase().includes(name.toLowerCase())) &&
+      (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+    );
+
+    // Sort the results
+    filtered.sort((a, b) => {
+      const nameA = (a.Name || "").toLowerCase();
+      const nameB = (b.Name || "").toLowerCase();
+      const surnameA = (a.Surname || "").toLowerCase();
+      const surnameB = (b.Surname || "").toLowerCase();
+
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      if (surnameA < surnameB) return -1;
+      if (surnameA > surnameB) return 1;
+      return 0;
+    });
+
+    // Format the results consistently
+    const formatted = filtered.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+      leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+    }));
+
+    setPeopleData(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    toast.error(err.message);
+    setPeopleData([]);
+  } finally {
+    setLoadingPeople(false);
+  }
+};
   useEffect(() => {
     if (!eventId) return;
 
@@ -1047,7 +1106,7 @@ useEffect(() => {
               }}
             />
 
-            <Box sx={{ mb: 3, position: 'relative' }}>
+            {/* <Box sx={{ mb: 3, position: 'relative' }}>
               <TextField
                 label="Event Leader *"
                 value={formData.eventLeader}
@@ -1143,7 +1202,111 @@ useEffect(() => {
                   Searching...
                 </Typography>
               )}
-            </Box>
+            </Box> */}
+
+            {/* // Replace the existing Event Leader TextField section with this: */}
+<Box sx={{ mb: 3, position: 'relative' }}>
+  <TextField
+    label="Event Leader *"
+    value={formData.eventLeader}
+    onChange={(e) => {
+      handleChange("eventLeader", e.target.value);
+      if (e.target.value.trim().length >= 1) {
+        fetchPeople(e.target.value);
+      } else {
+        setPeopleData([]);
+      }
+    }}
+    onFocus={() => {
+      if (formData.eventLeader.length >= 1) {
+        fetchPeople(formData.eventLeader);
+      }
+    }}
+    onBlur={() => {
+      // Delay hiding dropdown to allow for selection
+      setTimeout(() => setPeopleData([]), 200);
+    }}
+    fullWidth
+    size="small"
+    sx={darkModeStyles.textField}
+    error={!!errors.eventLeader}
+    helperText={errors.eventLeader || "Type name and surname to search..."}
+    InputProps={{
+      startAdornment: (
+        <InputAdornment position="start">
+          <PersonIcon />
+        </InputAdornment>
+      ),
+    }}
+    placeholder="Type name and surname to search..."
+    autoComplete="off"
+  />
+  
+  {peopleData.length > 0 && (
+    <Box sx={{
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      zIndex: 1000,
+      backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
+      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
+      borderRadius: '4px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      maxHeight: '200px',
+      overflowY: 'auto',
+      mt: 0.5,
+    }}>
+      {peopleData.map((person) => (
+        <Box
+          key={person.id || `${person.fullName}-${person.email}`}
+          sx={{
+            padding: '12px',
+            cursor: 'pointer',
+            borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
+            '&:hover': {
+              backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
+            },
+            '&:last-child': {
+              borderBottom: 'none',
+            },
+          }}
+          onClick={() => {
+            const selectedName = person.fullName;
+            
+            if (hasPersonSteps && !isGlobalEvent) {
+              setFormData((prev) => ({
+                ...prev,
+                eventLeader: selectedName,
+                eventName: selectedName,
+                leader1: person.leader1 || "",
+                leader12: person.leader12 || "",
+              }));
+            } else {
+              handleChange("eventLeader", selectedName);
+            }
+            setPeopleData([]);
+          }}
+        >
+          <Typography variant="body1" fontWeight="500">
+            {person.fullName}
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+            {person.email}
+            {person.leader1 && ` • L@1: ${person.leader1}`}
+            {person.leader12 && ` • L@12: ${person.leader12}`}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  )}
+  
+  {loadingPeople && (
+    <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+      Searching...
+    </Typography>
+  )}
+</Box>
 
             {hasPersonSteps && !isGlobalEvent && (
               <>
