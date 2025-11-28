@@ -488,7 +488,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 ;
       } else {
         await createTask(taskPayload);
-        // toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
+        toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
 ;
       }
 
