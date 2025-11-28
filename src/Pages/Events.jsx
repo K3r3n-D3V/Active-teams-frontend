@@ -827,16 +827,19 @@ const Events = () => {
           return;
         }
 
-        const response = await axios.get(
-          `${BACKEND_URL}/check-leader-at-12-status`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            timeout: 10000,
-          }
-        );
+        // const response = await axios.get(
+        //   `${BACKEND_URL}/check-leader-at-12-status`,
+        //   {
+        //     headers: { Authorization: `Bearer ${token}` },
+        //     timeout: 10000,
+        //   }
+        // );
 
-        console.log("Leader at 12 status check:", response.data);
-        setIsLeaderAt12(response.data.is_leader_at_12);
+       console.log("Leader at 12 status check:", JSON.parse(localStorage.getItem("leaders")));
+
+        //setting isLeader at 12 depending on if leader at 12 exists in leaders json stored in local storage
+
+        setIsLeaderAt12(!JSON.parse(localStorage.getItem("leaders")).leaderAt12 || false); 
       } catch (error) {
         console.error("Error checking Leader at 12 status:", error);
         setIsLeaderAt12(false);
@@ -885,12 +888,14 @@ const Events = () => {
 
       const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
-      const params = {
-        page: filters.page !== undefined ? filters.page : currentPage,
-        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        start_date: startDateParam,
-        ...filters
-      };
+     console.log("CURRENT USER",currentUser)
+    const params = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      start_date: startDateParam,
+      ...filters,
+      isLeaderAt12 //sending if leader at 12 to backend
+    };
 
       if (!filters.status && params.status) {
         delete params.status;
@@ -990,9 +995,9 @@ const Events = () => {
       const responseData = response.data;
       const newEvents = responseData.events || responseData.results || [];
 
-      console.log('BACKEND RESPONSE:');
-      console.log('Total events:', responseData.total_events);
-      console.log('Events found:', newEvents.length);
+    console.log('BACKEND RESPONSE:',responseData);
+    console.log('Total events:', responseData.total_events);
+    console.log('Events found:', newEvents.length);
 
       if (newEvents.length > 0) {
         console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
@@ -2941,9 +2946,9 @@ const Events = () => {
   });
 
   const ViewFilterButtons = () => {
-    const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus)) &&
-      (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
-
+    console.log("should show",isAdmin)
+    const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus))  &&
+      (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' );
     if (isRegularUser || isRegistrant) {
       return null;
     }
