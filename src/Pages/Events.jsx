@@ -829,16 +829,19 @@ useEffect(() => {
           return;
         }
 
-        const response = await axios.get(
-          `${BACKEND_URL}/check-leader-at-12-status`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            timeout: 10000,
-          }
-        );
+        // const response = await axios.get(
+        //   `${BACKEND_URL}/check-leader-at-12-status`,
+        //   {
+        //     headers: { Authorization: `Bearer ${token}` },
+        //     timeout: 10000,
+        //   }
+        // );
 
-        console.log("Leader at 12 status check:", response.data);
-        setIsLeaderAt12(response.data.is_leader_at_12);
+       console.log("Leader at 12 status check:", JSON.parse(localStorage.getItem("leaders")));
+
+        //setting isLeader at 12 depending on if leader at 12 exists in leaders json stored in local storage
+
+        setIsLeaderAt12(!JSON.parse(localStorage.getItem("leaders")).leaderAt12 || false); 
       } catch (error) {
         console.error("Error checking Leader at 12 status:", error);
         setIsLeaderAt12(false);
@@ -847,6 +850,7 @@ useEffect(() => {
 
     checkLeaderAt12Status();
   }, [BACKEND_URL]);
+
 
 const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
   console.log("fetchEvents - START", {
@@ -882,16 +886,18 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
 
     const headers = {
       Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     };
 
     const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
+     console.log("CURRENT USER",currentUser)
     const params = {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
       start_date: startDateParam,
-      ...filters  
+      ...filters,
+      isLeaderAt12
     };
 
     if (!filters.status && params.status) {
@@ -992,7 +998,7 @@ if (isRegistrant || isRegularUser) {
     const responseData = response.data;
     const newEvents = responseData.events || responseData.results || [];
 
-    console.log('BACKEND RESPONSE:');
+    console.log('BACKEND RESPONSE:',responseData);
     console.log('Total events:', responseData.total_events);
     console.log('Events found:', newEvents.length);
 
@@ -2883,9 +2889,9 @@ const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => 
   });
 
   const ViewFilterButtons = () => {
-    const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus)) &&
-      (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
-
+    console.log("should show",isAdmin)
+    const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus))  &&
+      (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' );
     if (isRegularUser || isRegistrant) {
       return null;
     }
