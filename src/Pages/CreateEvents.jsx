@@ -484,27 +484,39 @@ useEffect(() => {
 
       console.log("Creating event with type:", eventTypeToSend);
 
-      let dayValue = "";
+     // FIXED DAY LOGIC – fully correct
+let dayValue = "";
 
-      // If multiple days selected → Recurring event
-      if (formData.recurringDays.length > 1) {
-        dayValue = "Recurring";
-      }
+// 1) If event uses person steps → ALWAYS recurring logic
+if (hasPersonSteps) {
+  if (formData.recurringDays.length > 1) {
+    dayValue = "Recurring";
+  } else if (formData.recurringDays.length === 1) {
+    dayValue = formData.recurringDays[0];
+  } else {
+    // person-step event but no days chosen yet
+    dayValue = "";
+  }
+}
 
-      // If exactly 1 recurring day → use that one
-      else if (formData.recurringDays.length === 1) {
-        dayValue = formData.recurringDays[0];
-      }
+// 2) Otherwise → normal event logic
+else {
 
-      // If date exists and no multi-day recurrence
-      else if (formData.date) {
-        dayValue = getDayFromDate(formData.date);
-      }
+  if (formData.recurringDays.length > 1) {
+    dayValue = "Recurring";
+  } 
+  else if (formData.recurringDays.length === 1) {
+    dayValue = formData.recurringDays[0];
+  } 
+  else if (formData.date) {
+    // date exists → derive weekday
+    dayValue = getDayFromDate(formData.date);
+  } 
+  else {
+    dayValue = "One-time";
+  }
 
-      // No date and no recurring → one-time
-      else {
-        dayValue = "One-time";
-      }
+}
 
       const payload = {
         UUID: generateUUID(),
