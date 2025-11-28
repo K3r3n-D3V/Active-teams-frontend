@@ -69,17 +69,17 @@ async function updateUserProfile(data) {
   if (!userId) throw new Error("User ID not found");
 
   try {
-    console.log("🔄 Sending profile update to backend...");
-    console.log("📤 Payload:", data);
-    console.log("👤 User ID:", userId);
+    console.log("Sending profile update to backend...");
+    console.log("Payload:", data);
+    console.log("User ID:", userId);
     
     const api = createAuthenticatedRequest();
     const response = await api.put(`/profile/${userId}`, data);
     
-    console.log("✅ Profile update successful:", response.data);
+    console.log("Profile update successful:", response.data);
     return response.data;
   } catch (error) {
-    console.error("❌ Profile update failed:", error);
+    console.error("Profile update failed:", error);
     
     const errorMessage =
       error.response?.data?.detail ||
@@ -174,7 +174,7 @@ export default function Profile() {
       try {
         const parsed = JSON.parse(storedProfile);
         const role = parsed.role || "user";
-        console.log("🔐 Initial logged-in user role:", role);
+        console.log("Initial logged-in user role:", role);
         return role;
       } catch (e) {
         console.error("Failed to parse stored profile:", e);
@@ -318,7 +318,7 @@ export default function Profile() {
 
     setForm(formData);
     setOriginalForm(formData);
-    console.log("📝 Form updated with profile data:", formData);
+    console.log("Form updated with profile data:", formData);
   }, []);
 
   // FIXED: Load profile data with proper dependency management
@@ -328,18 +328,18 @@ export default function Profile() {
     const loadProfile = async () => {
       try {
         setLoadingProfile(true);
-        console.log("🔄 Loading profile data...");
+        console.log("Loading profile data...");
 
         const serverProfile = await fetchUserProfile();
         
         if (serverProfile && isMounted) {
-          console.log("📥 Received profile data:", serverProfile);
-          console.log("👤 User role from server:", serverProfile.role);
+          console.log("Received profile data:", serverProfile);
+          console.log("User role from server:", serverProfile.role);
           
           // CRITICAL: Store the logged-in user's role and NEVER change it
           if (serverProfile.role) {
             setLoggedInUserRole(serverProfile.role);
-            console.log("🔐 Logged-in user role set to:", serverProfile.role);
+            console.log("Logged-in user role set to:", serverProfile.role);
           }
           
           setUserProfile(serverProfile);
@@ -354,10 +354,10 @@ export default function Profile() {
           // Cache data
           localStorage.setItem("userProfile", JSON.stringify(serverProfile));
           
-          console.log("✅ Profile loaded successfully");
+          console.log("Profile loaded successfully");
         }
       } catch (error) {
-        console.error("❌ Failed to load profile:", error);
+        console.error("Failed to load profile:", error);
         if (isMounted) {
           setSnackbar({
             open: true,
@@ -465,16 +465,16 @@ export default function Profile() {
   const handleCancel = () => {
     setForm({ ...originalForm });
     setErrors({});
-    console.log("❌ Changes cancelled");
+    console.log("Changes cancelled");
   };
 
   // FIXED: Handle submit with proper state updates
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("🔄 Form submission started");
+    console.log("Form submission started");
 
     if (!validate()) {
-      console.log("❌ Form validation failed:", errors);
+      console.log("Form validation failed:", errors);
       return;
     }
 
@@ -508,7 +508,7 @@ export default function Profile() {
             gender: form.gender,
           };
 
-          console.log("📤 Updating profile with:", profileData);
+          console.log("Updating profile with:", profileData);
           await updateUserProfile(profileData);
           
           const updatedProfile = { ...userProfile, ...profileData };
@@ -517,7 +517,7 @@ export default function Profile() {
           
           profileUpdated = true;
         } catch (profileError) {
-          console.error("❌ Profile update failed:", profileError);
+          console.error("Profile update failed:", profileError);
           setSnackbar({
             open: true,
             message: `Profile update failed: ${profileError.message}`,
@@ -541,7 +541,7 @@ export default function Profile() {
             confirmPassword: ""
           }));
         } catch (passwordError) {
-          console.error("❌ Password update failed:", passwordError);
+          console.error("Password update failed:", passwordError);
           setSnackbar({
             open: true,
             message: `Password change failed: ${passwordError.message}`,
@@ -572,10 +572,10 @@ export default function Profile() {
         });
       }
 
-      console.log("✅ Update completed successfully");
+      console.log("Update completed successfully");
 
     } catch (err) {
-      console.error("❌ Update failed:", err);
+      console.error("Update failed:", err);
       setSnackbar({
         open: true,
         message: `Failed to update: ${err.message}`,

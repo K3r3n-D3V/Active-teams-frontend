@@ -109,7 +109,7 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRo
           }}
         >
           <div style={{...modalStyles.optionIcon, ...modalStyles.eventIcon}}>
-            📅
+            
           </div>
           Create Event
         </button>
@@ -129,7 +129,7 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRo
             }}
           >
             <div style={{...modalStyles.optionIcon, ...modalStyles.eventTypeIcon}}>
-              🏷️
+              
             </div>
             Create Event Type
           </button>
