@@ -99,6 +99,11 @@ export default function Sidebar({ mode, setMode }) {
 
   // Filter menu items based on user role AND cell access for events
   const menuItems = allMenuItems.filter(item => {
+    const isLeader = localStorage.getItem("isLeader") === "true" || false
+
+    console.log("had a cell",isLeader)
+    if (item.path === '/events' && !isLeader) {
+       return false}
     if (!item.roles.includes(user?.role)) {
       return false;
     }
