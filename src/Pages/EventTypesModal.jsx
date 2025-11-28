@@ -116,15 +116,25 @@ const EventTypesModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleCheckboxChange = (name) => (event) => {
-    const { checked } = event.target;
+ const handleCheckboxChange = (name) => (event) => {
+  const { checked } = event.target;
+  
+  setFormData((prev) => {
+    const newData = { ...prev, [name]: checked };
     
-    setFormData((prev) => ({ ...prev, [name]: checked }));
-
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+    if (name === "isGlobal" && checked) {
+      newData.hasPersonSteps = false;
+    } else if (name === "hasPersonSteps" && checked) {
+      newData.isGlobal = false;
     }
-  };
+    
+    return newData;
+  });
+
+  if (errors[name]) {
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  }
+};
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -350,7 +360,6 @@ const EventTypesModal = ({
                         Ticketed Event
                       </Typography>
                       <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                        Enable ticket pricing and payment options for this event type
                       </Typography>
                     </Box>
                   }
@@ -372,9 +381,7 @@ const EventTypesModal = ({
                       <Typography variant="subtitle1" fontWeight="500">
                         Global Event
                       </Typography>
-                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                        Organization-wide events visible to all members
-                      </Typography>
+                     
                     </Box>
                   }
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
@@ -394,9 +401,6 @@ const EventTypesModal = ({
                     <Box>
                       <Typography variant="subtitle1" fontWeight="500">
                         Personal Steps Event
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                        Include leader assignment and personal progression tracking (recurring events)
                       </Typography>
                     </Box>
                   }

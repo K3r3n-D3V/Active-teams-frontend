@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-toastify";
 import {
   ArrowLeft,
   UserPlus,
@@ -9,6 +10,8 @@ import {
   Menu,
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
+import AddPersonDialog from "../components/AddPersonDialog.jsx";
+
 
 let globalPeopleCache = {
   data: [],
@@ -17,6 +20,9 @@ let globalPeopleCache = {
 };
 
 const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
+
+  const theme = useTheme();
+
   const [formData, setFormData] = useState({
     invitedBy: "",
     name: "",
@@ -27,7 +33,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     dob: "",
     address: "",
   });
-  const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
   const [inviterSearch, setInviterSearch] = useState("");
   const [inviterResults, setInviterResults] = useState([]);
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
@@ -293,23 +299,25 @@ else {
       .map(([key]) => key);
 
     if (missingFields.length > 0) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: `Please fill in all required fields: ${missingFields.join(', ')}`,
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+     toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: `Please fill in all required fields: ${missingFields.join(', ')}`,
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Please enter a valid email address",
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+     toast.error("Please enter a valid email address");
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Please enter a valid email address",
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
       return false;
     }
 
@@ -365,11 +373,12 @@ else {
           expiry: 5 * 60 * 1000
         };
 
-        setAlert({
-          open: true,
-          type: "success",
-          message: "Person added successfully!",
-        });
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: "Person added successfully!",
+        // })
+        // toast.success("Person added successfully!");;
 
         if (typeof onPersonAdded === "function") {
           onPersonAdded(data.person || data);
@@ -424,21 +433,23 @@ else {
           errorMessage = error.message;
         }
 
-        setAlert({
-          open: true,
-          type: "error",
-          message: errorMessage,
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
+        // setAlert({
+        //   open: true,
+        //   type: "error",
+        //   message: errorMessage,
+        // });
+        // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
+      toast.error(errorMessage);
       }
     } catch (error) {
       console.error("Network error adding person:", error);
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Network error: Could not connect to server",
-      });
-      setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+     toast.error("Network error: Could not connect to server");
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Network error: Could not connect to server",
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
   };
 
@@ -497,20 +508,20 @@ else {
       padding: "10px",
     },
     modal: {
-      background: isDarkMode ? "#1e1e1e" : "#fff",
+      background: theme.palette.background.paper,
       borderRadius: "12px",
       width: "100%",
       maxWidth: "600px",
       maxHeight: "90vh",
       overflowY: "auto",
       padding: "20px",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
     },
     title: {
       fontSize: "clamp(20px, 4vw, 24px)",
       fontWeight: "600",
       marginBottom: "20px",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
       textAlign: "center",
     },
     form: {
@@ -527,7 +538,7 @@ else {
     label: {
       fontSize: "14px",
       fontWeight: "500",
-      color: isDarkMode ? "#ccc" : "#555",
+      color: theme.palette.text.primary,
       display: "flex",
       alignItems: "center",
       gap: "8px",
@@ -545,8 +556,8 @@ else {
       outline: "none",
       width: "100%",
       boxSizing: "border-box",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
-      color: isDarkMode ? "#ffffff" : "#333",
+      background: theme.palette.background.default,
+      color: theme.palette.text.primary,
     },
     inputError: {
       padding: "12px",
@@ -565,8 +576,8 @@ else {
       left: 0,
       right: 0,
       marginTop: "4px",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1000,
@@ -576,17 +587,17 @@ else {
     dropdownItem: {
       padding: "12px",
       cursor: "pointer",
-      borderBottom: `1px solid ${isDarkMode ? "#3a3a3a" : "#f0f0f0"}`,
+      borderBottom: `1px solid ${theme.palette.divider}`,
       transition: "background 0.2s",
-      color: isDarkMode ? "#ffffff" : "#333",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
+      color: theme.palette.text.primary,
+      background: theme.palette.background.default,
     },
     dropdownEmpty: {
       padding: "12px",
-      color: isDarkMode ? "#aaa" : "#999",
+      color: theme.palette.text.secondary,
       textAlign: "center",
       fontSize: "14px",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
+      background: theme.palette.background.default,
     },
     radioGroup: {
       display: "flex",
@@ -599,7 +610,7 @@ else {
       alignItems: "center",
       gap: "8px",
       cursor: "pointer",
-      color: isDarkMode ? "#ccc" : "#555",
+      color: theme.palette.text.primary,
     },
     buttonGroup: {
       display: "flex",
@@ -610,8 +621,8 @@ else {
     closeBtn: {
       flex: "1 1 120px",
       background: "transparent",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
-      color: isDarkMode ? "#ccc" : "#666",
+      border: `1px solid ${theme.palette.divider}`,
+      color: theme.palette.text.primary,
       padding: "12px 16px",
       borderRadius: "6px",
       cursor: "pointer",
@@ -622,7 +633,7 @@ else {
     },
     nextBtn: {
       flex: "1 1 120px",
-      background: "#6366f1",
+      background: theme.palette.primary.main,
       color: "#fff",
       border: "none",
       padding: "12px 16px",
@@ -637,7 +648,7 @@ else {
 
   return (
     <>
-      <div style={styles.overlay}>
+         <div style={styles.overlay}>
         <div style={styles.modal}>
           <h2 style={styles.title}>Create New Person</h2>
           <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
@@ -693,8 +704,8 @@ else {
                       key={person.id}
                       style={styles.dropdownItem}
                       onClick={() => handleInviterSelect(person)}
-                      onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
-                      onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
+                      onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
+                      onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
                     >
                       <div style={{ fontWeight: "500" }}>{person.fullName}</div>
                       <div style={{ fontSize: "12px", color: isDarkMode ? "#999" : "#666" }}>
@@ -823,8 +834,8 @@ else {
                 type="button" 
                 style={styles.closeBtn} 
                 onClick={handleClose}
-                onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3d3d3d" : "#f8f9fa"}
-                onMouseLeave={(e) => e.target.style.background = "transparent"}
+                onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
+                onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
               >
                 CANCEL
               </button>
@@ -832,8 +843,8 @@ else {
                 type="button" 
                 style={styles.nextBtn} 
                 onClick={handleNext}
-                onMouseEnter={(e) => e.target.style.background = "#4f46e5"}
-                onMouseLeave={(e) => e.target.style.background = "#6366f1"}
+                onMouseEnter={(e) => e.target.style.background = theme.palette.primary.dark}
+                onMouseLeave={(e) => e.target.style.background = theme.palette.primary.main}
               >
                 NEXT
               </button>
@@ -854,27 +865,7 @@ else {
         />
       )}
 
-      {alert.open && (
-        <div
-          style={{
-            position: "fixed",
-            top: "20px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: "16px 24px",
-            borderRadius: "8px",
-            color: "#fff",
-            fontSize: "15px",
-            fontWeight: "500",
-            zIndex: 10001,
-            background: alert.type === "success" ? "#28a745" : "#dc3545",
-            maxWidth: "90vw",
-            textAlign: "center",
-          }}
-        >
-          {alert.message}
-        </div>
-      )}
+    
     </>
   );
 };
@@ -907,6 +898,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
+  const theme = useTheme();
 
   useEffect(() => {
     if (isOpen && autoFilledLeaders) {
@@ -1075,13 +1067,13 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       fontWeight: "600",
       marginBottom: "8px",
       textAlign: "center",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
     },
     subtitle: {
       fontSize: "14px",
       marginBottom: "24px",
       textAlign: "center",
-      color: isDarkMode ? "#ccc" : "#666",
+      color: theme.palette.text.secondary,
     },
     leaderGroup: {
       display: "flex",
@@ -1200,17 +1192,17 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
               
               <div style={styles.inputContainer}>
                 <input
-                  type="text"
+                  // type="text"
                   value={leaderSearches[field]}
-                  onChange={(e) => handleSearchChange(e, field)}
-                  onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
+                  // onChange={(e) => handleSearchChange(e, field)}
+                  // onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
                   onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
                   style={styles.input}
                   placeholder={`Type to search...`}
                   autoComplete="off"
                 />
                 
-                {leaderSearches[field] && (
+                {/* {leaderSearches[field] && (
                   <button 
                     type="button" 
                     style={styles.clearButton}
@@ -1218,9 +1210,9 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
                   >
                     <X size={14} />
                   </button>
-                )}
+                )} */}
                 
-                {showDropdowns[field] && leaderSearches[field].length > 0 && (
+                {/* {showDropdowns[field] && leaderSearches[field].length > 0 && (
                   <div style={styles.dropdown}>
                     {loadingLeaders && (
                       <div style={styles.dropdownEmpty}>
@@ -1252,7 +1244,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
                       </div>
                     ))}
                   </div>
-                )}
+                )} */}
               </div>
             </div>
           ))}
@@ -1289,7 +1281,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   );
 };
 
-
+// import { toast } from "react-toastify";
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
     const [searchName, setSearchName] = useState("");
@@ -1307,11 +1299,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [commonAttendees, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState({
-    open: false,
-    type: "success",
-    message: "",
-  });
+  // const [alert, setAlert] = useState({
+  //   open: false,
+  //   type: "success",
+  //   message: "",
+  // });
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
@@ -1386,164 +1378,358 @@ useEffect(() => {
     }
 }, [isOpen, event]);
 
-  const loadPreloadedPeople = async () => {
-    const now = Date.now();
+//   const loadPreloadedPeople = async () => {
+//     const now = Date.now();
     
-    // Check if global cache exists and is valid
-    if (
-      typeof window.globalPeopleCache !== 'undefined' &&
-      window.globalPeopleCache.data?.length > 0 &&
-      window.globalPeopleCache.timestamp &&
-      now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
-    ) {
-      console.log("📦 Using cached people data in AttendanceModal");
-      setPreloadedPeople(window.globalPeopleCache.data);
-      return;
-    }
+//     // Check if global cache exists and is valid
+//     if (
+//       typeof window.globalPeopleCache !== 'undefined' &&
+//       window.globalPeopleCache.data?.length > 0 &&
+//       window.globalPeopleCache.timestamp &&
+//       now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
+//     ) {
+//       console.log("📦 Using cached people data in AttendanceModal");
+//       setPreloadedPeople(window.globalPeopleCache.data);
+//       return;
+//     }
 
-    try {
-      console.log("🔄 Fetching fresh people data for AttendanceModal cache");
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
+//     try {
+//       console.log("🔄 Fetching fresh people data for AttendanceModal cache");
+//       const token = localStorage.getItem("token");
+//       const headers = { Authorization: `Bearer ${token}` };
 
-      const params = new URLSearchParams();
-      params.append("perPage", "100");
-      params.append("page", "1");
+//       const params = new URLSearchParams();
+//       params.append("perPage", "100");
+//       params.append("page", "1");
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
-        headers,
-      });
+//       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
+//         headers,
+//       });
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+//       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
+//       const data = await res.json();
+//       const peopleArray = data.people || data.results || [];
 
-      const formatted = peopleArray.map((p) => ({
-  id: p._id,
-  fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-  email: p.Email || p.email || "",
-  leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
-  leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
-  leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
-  leader1278: p["Leader @1278"] || p["Leader at 1278"] || p["Leader @ 1278"] || p.leader1278 || p.leaders?.[3] || "",
-  phone: p.Number || p.Phone || p.phone || "",
-}));
+//       const formatted = peopleArray.map((p) => ({
+//   id: p._id,
+//   fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+//   email: p.Email || p.email || "",
+//   leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
+//   leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
+//   leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+//   leader1278: p["Leader @1278"] || p["Leader at 1278"] || p["Leader @ 1278"] || p.leader1278 || p.leaders?.[3] || "",
+//   phone: p.Number || p.Phone || p.phone || "",
+// }));
 
-      // Update global cache if it exists
-      if (typeof window.globalPeopleCache !== 'undefined') {
-        window.globalPeopleCache.data = formatted;
-        window.globalPeopleCache.timestamp = now;
-        window.globalPeopleCache.expiry = 5 * 60 * 1000;
-      } else {
-        window.globalPeopleCache = {
-          data: formatted,
-          timestamp: now,
-          expiry: 5 * 60 * 1000,
-        };
-      }
+//       // Update global cache if it exists
+//       if (typeof window.globalPeopleCache !== 'undefined') {
+//         window.globalPeopleCache.data = formatted;
+//         window.globalPeopleCache.timestamp = now;
+//         window.globalPeopleCache.expiry = 5 * 60 * 1000;
+//       } else {
+//         window.globalPeopleCache = {
+//           data: formatted,
+//           timestamp: now,
+//           expiry: 5 * 60 * 1000,
+//         };
+//       }
 
-      setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
-    } catch (err) {
-      console.error("Error pre-loading people in AttendanceModal:", err);
-      if (globalPeopleCache.data.length > 0) {
-        setPreloadedPeople(globalPeopleCache.data);
-      }
-    }
-  }
+//       setPreloadedPeople(formatted);
+//       console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
+//     } catch (err) {
+//       console.error("Error pre-loading people in AttendanceModal:", err);
+//       if (globalPeopleCache.data.length > 0) {
+//         setPreloadedPeople(globalPeopleCache.data);
+//       }
+//     }
+//   }
+
+
 
  
-const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
-  const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
+// const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
+//   const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
 
-  // 1️⃣ Try cached results first
-  if (peopleCache[cacheKey]) {
-    console.log("📦 Using cached results for:", cacheKey);
-    setPeople(peopleCache[cacheKey]);
+//   // 1️⃣ Try cached results first
+//   if (peopleCache[cacheKey]) {
+//     console.log("📦 Using cached results for:", cacheKey);
+//     setPeople(peopleCache[cacheKey]);
+//     return;
+//   }
+
+//   if (preloadedPeople.length > 0 && filter) {
+//     const searchLower = filter.toLowerCase().trim();
+    
+//     const filteredFromPreloaded = preloadedPeople.filter(person => {
+//       const name = (person.Name || person.name || "").toLowerCase();
+//       const surname = (person.Surname || person.surname || "").toLowerCase();
+//       const fullName = `${name} ${surname}`.trim();
+//       const email = (person.email || person.Email || "").toLowerCase();
+      
+//       // ✅ FIXED: Use includes instead of startsWith for surname
+//       return (
+//         fullName.includes(searchLower) ||  // Matches "gia katufu"
+//         name.includes(searchLower) ||      // Matches "gia" 
+//         surname.includes(searchLower) ||   // Matches "katufu" ✅ FIXED
+//         email.includes(searchLower)        // Matches email
+//       );
+//     });
+    
+//     if (filteredFromPreloaded.length > 0) {
+//       console.log("⚡ Using preloaded data for instant results");
+//       const sliced = filteredFromPreloaded.slice(0, 50);
+//       setPeople(sliced);
+//       setPeopleCache((prev) => ({ ...prev, [cacheKey]: sliced }));
+//       return;
+//     }
+//   }
+
+//   // 3️⃣ Otherwise, fetch from API
+//   try {
+//     setLoading(true);
+//     const token = localStorage.getItem("token");
+//     const headers = { Authorization: `Bearer ${token}` };
+//     const params = new URLSearchParams();
+
+//     // 🔍 Backend already supports partial regex match, so we just send `name`
+//    if (filter && filter.trim().length > 0) {
+//   params.append("name", filter.toLowerCase().trim());
+// }
+
+//     params.append("perPage", "50");
+//     params.append("page", "1");
+
+//     console.log("🔍 Fetching people with params:", params.toString());
+
+//     const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
+//       headers,
+//     });
+
+//     if (!res.ok) {
+//       throw new Error(`HTTP error! status: ${res.status}`);
+//     }
+
+//     const data = await res.json();
+//     const peopleArray = data.results || data.people || [];
+
+//     console.log(`✅ Found ${peopleArray.length} people`);
+
+//     // 🧩 Normalize backend fields
+//     const formatted = peopleArray.map((p) => ({
+//       id: p._id,
+//       fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+//       email: p.Email || "",
+//       leader1: p["Leader @1"] || "",
+//       leader12: p["Leader @12"] || "",
+//       leader144: p["Leader @144"] || "",
+//       leader1728: p["Leader @1728"] || "",
+//       phone: p.Number || "",
+//     }));
+
+//     // 💾 Cache and update state
+//     setPeopleCache((prev) => ({ ...prev, [cacheKey]: formatted }));
+//     setPeople(formatted);
+//   } catch (err) {
+//     console.error("❌ Error fetching people:", err);
+//     setPeople([]);
+//   } finally {
+//     setLoading(false);
+//   }
+// };
+
+// const fetchPeople = async (q) => {
+//   if (!q.trim()) {
+//     setPeople([]);
+//     return;
+//   }
+
+//   const parts = q.trim().split(/\s+/);
+//   const name = parts[0];
+//   const surname = parts.slice(1).join(" ");
+
+//   try {
+//     const token = localStorage.getItem("token");
+//     const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+//       headers: { Authorization: `Bearer ${token}` },
+//     });
+
+//     if (!res.ok) throw new Error("Failed to fetch people");
+
+//     const data = await res.json();
+
+//     let filtered = (data?.results || data?.people || []).filter(p =>
+//       p.Name.toLowerCase().includes(name.toLowerCase()) &&
+//       (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+//     );
+
+//     // Sort the results
+//     filtered.sort((a, b) => {
+//       const nameA = (a.Name || "").toLowerCase();
+//       const nameB = (b.Name || "").toLowerCase();
+//       const surnameA = (a.Surname || "").toLowerCase();
+//       const surnameB = (b.Surname || "").toLowerCase();
+
+//       if (nameA < nameB) return -1;
+//       if (nameA > nameB) return 1;
+//       if (surnameA < surnameB) return -1;
+//       if (surnameA > surnameB) return 1;
+//       return 0;
+//     });
+
+//     // Format the results consistently
+//     const formatted = filtered.map((p) => ({
+//       id: p._id,
+//       fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+//       email: p.Email || p.email || "",
+//       leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+//       leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+//       leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
+//       phone: p.Number || p.Phone || p.phone || "",
+//     }));
+
+//     setPeople(formatted);
+//   } catch (err) {
+//     console.error("Error fetching people:", err);
+//     toast.error(err.message);
+//     setPeople([]);
+//   }
+// };
+
+const loadPreloadedPeople = async () => {
+  const now = Date.now();
+  
+  // Check if global cache exists and is valid
+  if (
+    typeof window.globalPeopleCache !== 'undefined' &&
+    window.globalPeopleCache.data?.length > 0 &&
+    window.globalPeopleCache.timestamp &&
+    now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
+  ) {
+    console.log("📦 Using cached people data in AttendanceModal");
+    setPreloadedPeople(window.globalPeopleCache.data);
+    
+    // Auto-populate the people list with preloaded data
+    if (activeTab === 1 && !associateSearch.trim()) {
+      setPeople(window.globalPeopleCache.data.slice(0, 50));
+    }
     return;
   }
 
-  if (preloadedPeople.length > 0 && filter) {
-    const searchLower = filter.toLowerCase().trim();
-    
-    const filteredFromPreloaded = preloadedPeople.filter(person => {
-      const name = (person.Name || person.name || "").toLowerCase();
-      const surname = (person.Surname || person.surname || "").toLowerCase();
-      const fullName = `${name} ${surname}`.trim();
-      const email = (person.email || person.Email || "").toLowerCase();
-      
-      // ✅ FIXED: Use includes instead of startsWith for surname
-      return (
-        fullName.includes(searchLower) ||  // Matches "gia katufu"
-        name.includes(searchLower) ||      // Matches "gia" 
-        surname.includes(searchLower) ||   // Matches "katufu" ✅ FIXED
-        email.includes(searchLower)        // Matches email
-      );
-    });
-    
-    if (filteredFromPreloaded.length > 0) {
-      console.log("⚡ Using preloaded data for instant results");
-      const sliced = filteredFromPreloaded.slice(0, 50);
-      setPeople(sliced);
-      setPeopleCache((prev) => ({ ...prev, [cacheKey]: sliced }));
-      return;
-    }
-  }
-
-  // 3️⃣ Otherwise, fetch from API
   try {
-    setLoading(true);
+    console.log("🔄 Fetching fresh people data for AttendanceModal cache");
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
+
     const params = new URLSearchParams();
-
-    // 🔍 Backend already supports partial regex match, so we just send `name`
-   if (filter && filter.trim().length > 0) {
-  params.append("name", filter.toLowerCase().trim());
-}
-
-    params.append("perPage", "50");
+    params.append("perPage", "100");
     params.append("page", "1");
-
-    console.log("🔍 Fetching people with params:", params.toString());
 
     const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
       headers,
     });
 
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
     const data = await res.json();
-    const peopleArray = data.results || data.people || [];
+    const peopleArray = data.people || data.results || [];
 
-    console.log(`✅ Found ${peopleArray.length} people`);
-
-    // 🧩 Normalize backend fields
     const formatted = peopleArray.map((p) => ({
       id: p._id,
-      fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-      email: p.Email || "",
-      leader1: p["Leader @1"] || "",
-      leader12: p["Leader @12"] || "",
-      leader144: p["Leader @144"] || "",
-      leader1728: p["Leader @1728"] || "",
-      phone: p.Number || "",
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
+      leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
+      leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+      phone: p.Number || p.Phone || p.phone || "",
     }));
 
-    // 💾 Cache and update state
-    setPeopleCache((prev) => ({ ...prev, [cacheKey]: formatted }));
-    setPeople(formatted);
+    // Update global cache
+    window.globalPeopleCache = {
+      data: formatted,
+      timestamp: now,
+      expiry: 5 * 60 * 1000,
+    };
+
+    setPreloadedPeople(formatted);
+    console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
+    
+    // Auto-populate the people list with fresh data
+    if (activeTab === 1 && !associateSearch.trim()) {
+      setPeople(formatted.slice(0, 50));
+    }
   } catch (err) {
-    console.error("❌ Error fetching people:", err);
-    setPeople([]);
-  } finally {
-    setLoading(false);
+    console.error("Error pre-loading people in AttendanceModal:", err);
   }
 };
+const fetchPeople = async (q = "") => {
+  // If no search query, show preloaded people
+  if (!q.trim()) {
+    if (preloadedPeople.length > 0) {
+      console.log("📋 Showing preloaded people list");
+      setPeople(preloadedPeople.slice(0, 50)); // Show first 50 preloaded people
+    } else {
+      setPeople([]);
+    }
+    return;
+  }
 
+  const parts = q.trim().split(/\s+/);
+  const name = parts[0];
+  const surname = parts.slice(1).join(" ");
+
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) throw new Error("Failed to fetch people");
+
+    const data = await res.json();
+
+    let filtered = (data?.results || data?.people || []).filter(p =>
+      p.Name.toLowerCase().includes(name.toLowerCase()) &&
+      (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+    );
+
+    // Sort the results
+    filtered.sort((a, b) => {
+      const nameA = (a.Name || "").toLowerCase();
+      const nameB = (b.Name || "").toLowerCase();
+      const surnameA = (a.Surname || "").toLowerCase();
+      const surnameB = (b.Surname || "").toLowerCase();
+
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      if (surnameA < surnameB) return -1;
+      if (surnameA > surnameB) return 1;
+      return 0;
+    });
+
+    // Format the results consistently
+    const formatted = filtered.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+      leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+      leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
+      phone: p.Number || p.Phone || p.phone || "",
+    }));
+
+    setPeople(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    toast.error(err.message);
+    // Fallback to preloaded people if search fails
+    if (preloadedPeople.length > 0) {
+      setPeople(preloadedPeople.slice(0, 50));
+    } else {
+      setPeople([]);
+    }
+  }
+};
 
   const fetchCommonAttendees = async (cellId) => {
     try {
@@ -1604,76 +1790,72 @@ function getWeekNumber(date) {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-  const loadExistingAttendance = async () => {
+const loadExistingAttendance = async () => {
     if (!event) return;
 
     const eventId = event._id || event.id;
-    console.log("Loading attendance data for event:", eventId);
+    console.log("🔄 Loading attendance data for event:", eventId);
 
     const currentWeek = getCurrentWeekIdentifier();
     
-    // Use the persistentCommonAttendees state that we set in useEffect
-    const persistentList = persistentCommonAttendees || [];
-    console.log(`Using ${persistentList.length} persistent attendees`);
-    
-    // ✅ FIX: Check for current week data in the NEW structure
+    // ✅ ALWAYS start with empty state for new week
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setManualHeadcount("");
+    setDidNotMeet(false);
+
+    console.log(`🆕 NEW WEEK - ${persistentCommonAttendees?.length || 0} names loaded - ALL UNCHECKED`);
+
+    // ✅ Only load existing ticks if this week already has attendance data WITH CHECKED-IN ATTENDEES
     const hasCurrentWeekData = 
         event.attendance && 
         event.attendance[currentWeek] && 
-        event.attendance[currentWeek].attendees &&
-        event.attendance[currentWeek].attendees.length > 0 &&
-        event.attendance[currentWeek].status === 'complete';
+        event.attendance[currentWeek].attendees;
 
     const hasCurrentWeekDidNotMeet =
-      event.attendance &&
-      event.attendance[currentWeek] &&
-      event.attendance[currentWeek].status === "did_not_meet";
+        event.attendance &&
+        event.attendance[currentWeek] &&
+        event.attendance[currentWeek].status === "did_not_meet";
 
-    console.log(`Current week: ${currentWeek}`);
-    console.log(`Has current week data: ${hasCurrentWeekData}`);
-    console.log(`Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
-    console.log(`Event attendance data:`, event.attendance);
+    console.log(`📅 Current week: ${currentWeek}`);
+    console.log(`✅ Has current week data: ${hasCurrentWeekData}`);
+    console.log(`❌ Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
 
-    if (hasCurrentWeekData) {
+    if (hasCurrentWeekData && !hasCurrentWeekDidNotMeet) {
         const weekData = event.attendance[currentWeek];
         const newCheckedIn = {};
         const newDecisions = {};
         const newDecisionTypes = {};
 
-        console.log(`Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
+        console.log(`👥 Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
 
-        // Mark attendees as checked for THIS WEEK
+        // ✅ CRITICAL FIX: Only mark as checked if they were explicitly checked last time
         weekData.attendees.forEach(attendee => {
-            if (attendee.id) {
+            if (attendee.id && attendee.checked_in) { // ✅ ADD THIS CHECK
                 newCheckedIn[attendee.id] = true;
 
-          if (attendee.decision) {
-            newDecisions[attendee.id] = true;
-            newDecisionTypes[attendee.id] = attendee.decision;
-          }
-        }
-      });
+                if (attendee.decision) {
+                    newDecisions[attendee.id] = true;
+                    newDecisionTypes[attendee.id] = attendee.decision;
+                }
+            }
+        });
 
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-      setDidNotMeet(false);
-
-        console.log(`Loaded: ${persistentList.length} names, ${Object.keys(newCheckedIn).length} checked THIS WEEK`);
+        setCheckedIn(newCheckedIn);
+        setDecisions(newDecisions);
+        setDecisionTypes(newDecisionTypes);
+        
+        console.log(` Loaded: ${Object.keys(newCheckedIn).length} CHECKED attendees for THIS WEEK`);
     } 
     else if (hasCurrentWeekDidNotMeet) {
-        console.log("Current week marked as DID NOT MEET");
+        console.log(" Current week marked as DID NOT MEET");
         setDidNotMeet(true);
         setCheckedIn({});
     }
     else {
-        console.log("NEW WEEK - Names listed but NOTHING checked");
-        setCheckedIn({});
-        setDecisions({});
-        setDecisionTypes({});
-        setManualHeadcount("");
-        setDidNotMeet(false);
-        console.log(`Loaded ${persistentList.length} names - all UNCHECKED (new week)`);
+        console.log(" NEW WEEK - Names listed but NOTHING checked");
+        console.log(` Loaded ${persistentCommonAttendees?.length || 0} names - all UNCHECKED (new week)`);
     }
 };
 
@@ -1732,52 +1914,82 @@ const fetchPersistentAttendees = async (eventId) => {
   }, [isOpen]);
 
   // Effect: Search people in associate tab with debounce
-  useEffect(() => {
-    const delay = setTimeout(() => {
-      if (isOpen && activeTab === 1) {
-        // Use cached/preloaded data for faster response
-        if (associateSearch.length < 3 && preloadedPeople.length > 0) {
-          const filtered = preloadedPeople.filter(
-            (person) =>
-              person.fullName
-                .toLowerCase()
-                .includes(associateSearch.toLowerCase()) ||
-              person.email.toLowerCase().includes(associateSearch.toLowerCase())
-          );
-          setPeople(filtered.slice(0, 50));
-        } else {
-          fetchPeople(associateSearch);
-        }
-      }
-    }, 300);
+  // useEffect(() => {
+  //   const delay = setTimeout(() => {
+  //     if (isOpen && activeTab === 1) {
+  //       // Use cached/preloaded data for faster response
+  //       if (associateSearch.length < 3 && preloadedPeople.length > 0) {
+  //         const filtered = preloadedPeople.filter(
+  //           (person) =>
+  //             person.fullName
+  //               .toLowerCase()
+  //               .includes(associateSearch.toLowerCase()) ||
+  //             person.email.toLowerCase().includes(associateSearch.toLowerCase())
+  //         );
+  //         setPeople(filtered.slice(0, 50));
+  //       } else {
+  //         fetchPeople(associateSearch);
+  //       }
+  //     }
+  //   }, 300);
 
-    return () => clearTimeout(delay);
-  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+  //   return () => clearTimeout(delay);
+  // }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+
+  // Replace the existing useEffect for associate search with this:
+// useEffect(() => {
+//   const delay = setTimeout(() => {
+//     if (isOpen && activeTab === 1 && associateSearch.trim()) {
+//       fetchPeople(associateSearch);
+//     } else if (isOpen && activeTab === 1 && !associateSearch.trim()) {
+//       setPeople([]);
+//     }
+//   }, 300);
+
+//   return () => clearTimeout(delay);
+// }, [associateSearch, isOpen, activeTab]);
+// Update the useEffect for associate search
+useEffect(() => {
+  const delay = setTimeout(() => {
+    if (isOpen && activeTab === 1) {
+      if (associateSearch.trim()) {
+        fetchPeople(associateSearch);
+      } else {
+        // Show preloaded list when no search term
+        fetchPeople(""); // This will trigger the preloaded list
+      }
+    }
+  }, 300);
+
+  return () => clearTimeout(delay);
+}, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
   const handleCheckIn = (id, name) => {
     setCheckedIn((prev) => {
       const newState = { ...prev, [id]: !prev[id] };
 
       if (newState[id]) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: `${name} has been checked in`,
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "success", message: "" }),
-          3000
-        );
+      //  toast.success(`${name} has been checked in`);
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: `${name} has been checked in`,
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "success", message: "" }),
+        //   3000
+        // );
       } else {
-        setAlert({
-          open: true,
-          type: "warning",
-          message: `You have unchecked ${name}`,
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "warning", message: "" }),
-          3000
-        );
+        // setAlert({
+        //   open: true,
+        //   type: "warning",
+        //   message: `You have unchecked ${name}`,
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "warning", message: "" }),
+        //   3000
+        // );
+        // toast.warning(`You have unchecked ${name}`);
 
         setDecisions((prev) => ({ ...prev, [id]: false }));
         setDecisionTypes((prev) => {
@@ -1870,30 +2082,32 @@ const fetchPersistentAttendees = async (eventId) => {
         setPersistentCommonAttendees(updatedAttendees);
         savePersistentCommonAttendees(updatedAttendees);
 
-        setAlert({
-          open: true,
-          type: "warning",
-          message: `You have removed ${person.fullName} from common attendees`,
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "warning", message: "" }),
-          3000
-        );
+        // setAlert({
+        //   open: true,
+        //   type: "warning",
+        //   message: `You have removed ${person.fullName} from common attendees`,
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "warning", message: "" }),
+        //   3000
+        // );
+         toast.warning(`You have removed ${person.fullName} from common attendees`);
       }
     } else {
       const updatedAttendees = [...persistentCommonAttendees, person];
       setPersistentCommonAttendees(updatedAttendees);
       savePersistentCommonAttendees(updatedAttendees);
 
-      setAlert({
-        open: true,
-        type: "success",
-        message: `${person.fullName} added to common attendees`,
-      });
-      setTimeout(
-        () => setAlert({ open: false, type: "success", message: "" }),
-        3000
-      );
+      // setAlert({
+      //   open: true,
+      //   type: "success",
+      //   message: `${person.fullName} added to common attendees`,
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "success", message: "" }),
+      //   3000
+      // );
+      toast.success(`${person.fullName} added to common attendees`);
     }
   };
 
@@ -1958,7 +2172,6 @@ const getAllCommonAttendees = () => {
 
 
 const handleSave = async () => {
-    // Get ALL common attendees FIRST and validate
     const allPeople = getAllCommonAttendees();
     console.log("📊 All people for save:", allPeople);
     
@@ -1966,29 +2179,31 @@ const handleSave = async () => {
     console.log("✅ Checked-in attendees:", attendeesList);
 
     if (!didNotMeet && attendeesList.length === 0) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Please check in at least one attendee before saving.",
-      });
-      setTimeout(
-        () => setAlert({ open: false, type: "error", message: "" }),
-        3000
-      );
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Please check in at least one attendee before saving.",
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "error", message: "" }),
+      //   3000
+      // );
+      toast.error("Please check in at least one attendee before saving.");
       return;
     }
 
     const eventId = event?.id || event?._id;
     if (!eventId) {
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Event ID is missing, cannot submit attendance.",
-      });
-      setTimeout(
-        () => setAlert({ open: false, type: "error", message: "" }),
-        3000
-      );
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Event ID is missing, cannot submit attendance.",
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "error", message: "" }),
+      //   3000
+      // );
+       toast.error("Event ID is missing, cannot submit attendance.");
       return;
     }
 
@@ -2035,7 +2250,6 @@ const handleSave = async () => {
         if (typeof onSubmit === "function") {
             console.log("✅ Using onSubmit prop...");
 
-            // ✅ FIX: Create the payload structure that matches handleAttendanceSubmit expectations
             const payload = {
                 attendees: didNotMeet ? [] : selectedAttendees,
                 all_attendees: allPeople,
@@ -2062,7 +2276,6 @@ const handleSave = async () => {
                 did_not_meet: payload.did_not_meet
             });
 
-            // ✅ FIX: Only pass the payload (NOT eventId) since handleAttendanceSubmit gets eventId from selectedEvent
             result = await onSubmit(payload);
             
         } else {
@@ -2112,28 +2325,30 @@ const handleSave = async () => {
         console.log("✅ Save result:", result);
 
         if (result.success) {
-            setAlert({
-                open: true,
-                type: "success",
-                message: result.message || "Attendance saved successfully!",
-            });
+            // setAlert({
+            //     open: true,
+            //     type: "success",
+            //     message: result.message || "Attendance saved successfully!",
+            // });
             
-            setTimeout(() => {
-                setAlert({ open: false, type: "success", message: "" });
-                onClose();
-            }, 2000);
+            // setTimeout(() => {
+            //     setAlert({ open: false, type: "success", message: "" });
+            //     onClose();
+            // }, 2000);
+            // toast.success("Attendance saved successfully!");
         } else {
             throw new Error(result.message || "Failed to save attendance");
         }
 
     } catch (error) {
         console.error("❌ Error saving attendance:", error);
-        setAlert({
-            open: true,
-            type: "error",
-            message: error.message || "Failed to save attendance. Please try again.",
-        });
-        setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+       toast.error(error.message || "Failed to save attendance. Please try again.");
+        // setAlert({
+        //     open: true,
+        //     type: "error",
+        //     message: error.message || "Failed to save attendance. Please try again.",
+        // });
+        // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
 };
 
@@ -2166,127 +2381,125 @@ const confirmDidNotMeet = async () => {
     setPriceTiers({});
     setPaymentMethods({});
     setPaidAmounts({});
-
     try {
       const eventId = event?.id || event?._id;
       if (!eventId) {
-        setAlert({
-          open: true,
-          type: "error",
-          message: "Event ID is missing, cannot submit attendance.",
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "error", message: "" }),
-          3000
-        );
+        // setAlert({
+        //   open: true,
+        //   type: "error",
+        //   message: "Event ID is missing, cannot submit attendance.",
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "error", message: "" }),
+        //   3000
+        // );
+        toast.error("Event ID is missing, cannot submit attendance");
         return;
       }
-
+      
       let result;
-
-        if (typeof onSubmit === "function") {
-            // ✅ FIX: Use the direct payload structure
-            const allPeople = getAllCommonAttendees();
-            const payload = {
-                attendees: [],
-                all_attendees: allPeople,
-                leaderEmail: currentUser?.email || "",
-                leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-                did_not_meet: true,
-                isTicketed: isTicketedEvent,
-                week: getCurrentWeekIdentifier(),
-                persistent_attendees: allPeople.map(p => ({
-                    id: p.id,
-                    fullName: p.fullName,
-                    email: p.email,
-                    leader12: p.leader12,
-                    leader144: p.leader144,
-                    phone: p.phone
-                }))
-            };
-            
-            // ✅ FIX: Only pass the payload
-            result = await onSubmit(payload);
-        } else {
-            const token = localStorage.getItem("token");
-            const headers = {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            };
-
-            // ✅ FIX: Use direct structure
-            const allPeople = getAllCommonAttendees();
-            const payload = {
-                attendees: [],
-                all_attendees: allPeople,
-                leaderEmail: currentUser?.email || "",
-                leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-                did_not_meet: true,
-                isTicketed: isTicketedEvent,
-                week: getCurrentWeekIdentifier(),
-                persistent_attendees: allPeople.map(p => ({
-                    id: p.id,
-                    fullName: p.fullName,
-                    email: p.email,
-                    leader12: p.leader12,
-                    leader144: p.leader144,
-                    phone: p.phone
-                }))
-            };
-
-        const response = await fetch(
-          `${BACKEND_URL}/submit-attendance/${eventId}`,
-          {
-            method: "PUT",
-            headers,
-            body: JSON.stringify(payload),
-          }
-        );
-
-        result = await response.json();
-        result.success = response.ok;
+      if (typeof onSubmit === "function") {
+          const allPeople = getAllCommonAttendees();
+          const payload = {
+              attendees: [],
+              all_attendees: allPeople,
+              leaderEmail: currentUser?.email || "",
+              leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+              did_not_meet: true,
+              isTicketed: isTicketedEvent,
+              week: getCurrentWeekIdentifier(),
+              persistent_attendees: allPeople.map(p => ({
+                  id: p.id,
+                  fullName: p.fullName,
+                  email: p.email,
+                  leader12: p.leader12,
+                  leader144: p.leader144,
+                  phone: p.phone
+              }))
+          };
+          
+          result = await onSubmit(payload);
+      } else {
+          const token = localStorage.getItem("token");
+          const headers = {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+          };
+          
+          const allPeople = getAllCommonAttendees();
+          const payload = {
+              attendees: [],
+              all_attendees: allPeople,
+              leaderEmail: currentUser?.email || "",
+              leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+              did_not_meet: true,
+              isTicketed: isTicketedEvent,
+              week: getCurrentWeekIdentifier(),
+              persistent_attendees: allPeople.map(p => ({
+                  id: p.id,
+                  fullName: p.fullName,
+                  email: p.email,
+                  leader12: p.leader12,
+                  leader144: p.leader144,
+                  phone: p.phone
+              }))
+          };
+          
+          const response = await fetch(
+            `${BACKEND_URL}/submit-attendance/${eventId}`,
+            {
+              method: "PUT",
+              headers,
+              body: JSON.stringify(payload),
+            }
+          );
+          result = await response.json();
+          result.success = response.ok;
       }
-
+      
       if (result?.success) {
-        setAlert({
-          open: true,
-          type: "success",
-          message: "Event marked as 'Did Not Meet' successfully!",
-        });
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: "Event marked as 'Did Not Meet' successfully!",
+        // });
+        toast.alert("Event marked as 'Did Not Meet' successfully!")
 
         if (typeof onAttendanceSubmitted === "function") {
           onAttendanceSubmitted();
         }
 
-        setTimeout(() => {
-          setAlert({ open: false, type: "success", message: "" });
-          onClose();
-        }, 1500);
+        // setTimeout(() => {
+        //   setAlert({ open: false, type: "success", message: "" });
+        //   onClose();
+        // }, 1500);
       } else {
-        setAlert({
-          open: true,
-          type: "error",
-          message:
-            result?.message ||
-            result?.detail ||
-            "Failed to mark event as 'Did Not Meet'.",
-        });
-        setTimeout(
-          () => setAlert({ open: false, type: "error", message: "" }),
-          3000
-        );
+        // setAlert({
+        //   open: true,
+        //   type: "error",
+        //   message:
+        //     result?.message ||
+        //     result?.detail ||
+        //     "Failed to mark event as 'Did Not Meet'.",
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "error", message: "" }),
+        //   3000
+        // );
+        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
       }
     } catch (error) {
       console.error("❌ Error marking event as 'Did Not Meet':", error);
-      setAlert({
-        open: true,
-        type: "error",
-        message: "Something went wrong while marking event as 'Did Not Meet'.",
-      });
-      setTimeout(
-        () => setAlert({ open: false, type: "error", message: "" }),
-        3000
-      );
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Something went wrong while marking event as 'Did Not Meet'.",
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "error", message: "" }),
+      //   3000
+      // );
+      // toast.error("Something went wrong while marking event as 'Did Not Meet'.");
     }
 };
 
@@ -2295,36 +2508,33 @@ const confirmDidNotMeet = async () => {
   };
 
   const handlePersonAdded = (newPerson) => {
-    console.log("✅ New person added:", newPerson);
+    console.log(" New person added:", newPerson);
 
-    // Invalidate cache since we added a new person
     if (typeof window.globalPeopleCache !== 'undefined') {
       window.globalPeopleCache.data = [];
       window.globalPeopleCache.timestamp = null;
     }
 
-    // Refresh the people list and preloaded data
     fetchPeople();
     loadPreloadedPeople();
 
-    // If this is a cell event, refresh common attendees
     if (event && event.eventType === "cell") {
       fetchCommonAttendees(event._id || event.id);
     }
 
-    // Close the add person modal
     setShowAddPersonModal(false);
 
     // Show success message
-    setAlert({
-      open: true,
-      type: "success",
-      message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
-    });
-    setTimeout(
-      () => setAlert({ open: false, type: "success", message: "" }),
-      3000
-    );
+    // setAlert({
+    //   open: true,
+    //   type: "success",
+    //   message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
+    // });
+    // setTimeout(
+    //   () => setAlert({ open: false, type: "success", message: "" }),
+    //   3000
+    // );
+    toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
   };
 
   // Mobile attendee card renderer
@@ -2698,9 +2908,12 @@ const confirmDidNotMeet = async () => {
       boxSizing: "border-box",
     },
     tableContainer: {
-      overflowX: "auto",
+      // overflowX: "auto",
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
+      // overflowY: "hidden",
+      // border: "2px solid red",
+      paddingBottom: 8,
     },
     table: {
       width: "100%",
@@ -2775,6 +2988,7 @@ const confirmDidNotMeet = async () => {
       minWidth: isMobile ? 140 : 200,
       maxHeight: 300,
       overflowY: "auto",
+      // border: "2px solid blue",
     },
     decisionMenuItem: {
       padding: "10px 12px",
@@ -2783,6 +2997,8 @@ const confirmDidNotMeet = async () => {
       color: theme.palette.text.primary,
       transition: "background 0.15s",
     },
+
+    
     priceTierButton: {
       display: "flex",
       alignItems: "center",
@@ -3068,30 +3284,30 @@ const confirmDidNotMeet = async () => {
       cursor: "pointer",
       fontSize: 14,
       fontWeight: 500,
-    },
-    alert: {
-      position: "fixed",
-      top: "20px",
-      left: "50%",
-      transform: "translateX(-50%)",
-      padding: "12px 18px",
-      borderRadius: 8,
-      color: "#fff",
-      fontSize: 14,
-      fontWeight: 500,
-      zIndex: 10001,
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      maxWidth: "90vw",
-      textAlign: "center",
-    },
-    alertSuccess: { background: theme.palette.success.main },
-    alertError: { background: theme.palette.error.main },
-    alertWarning: { background: theme.palette.warning.main },
-    inputGroup: {
-      marginBottom: 8,
-    },
+     },
+    // alert: {
+    //   position: "fixed",
+    //   top: "20px",
+    //   left: "50%",
+    //   transform: "translateX(-50%)",
+    //   padding: "12px 18px",
+    //   borderRadius: 8,
+    //   color: "#fff",
+    //   fontSize: 14,
+    //   fontWeight: 500,
+    //   zIndex: 10001,
+    //   display: "flex",
+    //   alignItems: "center",
+    //   gap: 8,
+    //   maxWidth: "90vw",
+    //   textAlign: "center",
+    // },
+    // alertSuccess: { background: theme.palette.success.main },
+    // alertError: { background: theme.palette.error.main },
+    // alertWarning: { background: theme.palette.warning.main },
+    // inputGroup: {
+    //   marginBottom: 8,
+    // },
     label: {
       fontSize: 12,
       color: theme.palette.text.secondary,
@@ -3159,16 +3375,18 @@ const confirmDidNotMeet = async () => {
           <div style={styles.contentArea}>
             {activeTab === 0 && (
               <>
-                <div style={styles.searchBox}>
-                  <Search size={20} style={styles.searchIcon} />
-                  <input
-                    type="text"
-                    placeholder="Search attendees..."
-                    value={searchName}
-                    onChange={(e) => setSearchName(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
+      {/* // In the ASSOCIATE PERSON tab, update the search input placeholder: */}
+<div style={styles.searchBox}>
+  <Search size={20} style={styles.searchIcon} />
+  <input
+    type="text"
+    placeholder="Search by name and surname... (showing all people when empty)"
+    value={associateSearch}
+    onChange={(e) => setAssociateSearch(e.target.value)}
+    style={styles.input}
+    autoComplete="off"
+  />
+</div>
 
                 {isMobile ? (
                   <div>
@@ -3177,7 +3395,18 @@ const confirmDidNotMeet = async () => {
                         Loading...
                       </div>
                     )}
-                    {!loading && filteredCommonAttendees.length === 0 && (
+                    {/* // In the table rendering, update the empty state: */}
+{!loading && filteredPeople.length === 0 && (
+  <tr>
+    <td
+      colSpan="6"
+      style={{ ...styles.td, textAlign: "center" }}
+    >
+      {associateSearch.trim() ? "No people found matching your search." : "No people available."}
+    </td>
+  </tr>
+)}
+                    {/* {!loading && filteredCommonAttendees.length === 0 && (
                       <div
                         style={{
                           textAlign: "center",
@@ -3187,7 +3416,7 @@ const confirmDidNotMeet = async () => {
                       >
                         No attendees found.
                       </div>
-                    )}
+                    )} */}
                     {filteredCommonAttendees.map(renderMobileAttendeeCard)}
                   </div>
                 ) : (
@@ -3575,8 +3804,8 @@ const confirmDidNotMeet = async () => {
                                                 )
                                               }
                                               onMouseEnter={(e) =>
-                                                (e.target.style.background =
-                                                  "#f0f0f0")
+                                                (e.currentTarget.style.background =
+                                                  theme.palette.action.hover)
                                               }
                                               onMouseLeave={(e) =>
                                                 (e.target.style.background =
@@ -3835,6 +4064,7 @@ const confirmDidNotMeet = async () => {
 
           <div style={styles.footer}>
             <button style={styles.closeBtn} onClick={onClose}>
+
               CLOSE
             </button>
             <div
@@ -3893,23 +4123,7 @@ const confirmDidNotMeet = async () => {
         </div>
       )}
 
-      {alert.open && (
-        <div
-          style={{
-            ...styles.alert,
-            ...(alert.type === "success"
-              ? styles.alertSuccess
-              : styles.alertError),
-          }}
-        >
-          {alert.type === "success" ? (
-            <CheckCircle size={20} />
-          ) : (
-            <X size={20} />
-          )}
-          <span>{alert.message}</span>
-        </div>
-      )}
+      
 
       <AddPersonToEvents
         isOpen={showAddPersonModal}

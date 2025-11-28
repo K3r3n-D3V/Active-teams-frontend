@@ -16,6 +16,7 @@ import {
   CircularProgress,
   Alert,
 } from "@mui/material";
+import InputAdornment from "@mui/material/InputAdornment";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
@@ -112,6 +113,7 @@ const initialForm = {
   date_of_birth: "",
   home_address: "",
   invited_by: "",
+  leader:"",
   phone_number: "",
   email: "",
   gender: "",
@@ -247,11 +249,23 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
+
+  //adds selected gender to form state and updates leader value based on gender
+  const handleGenderChange = (e)=>{
+    const genderVal = e.target.value
+    setForm(prev => ({ ...prev, gender: genderVal, leader: genderVal === "male"?"Gavin Enslin":"Vicky Enslin" }));
+
+    if (errors.gender) {
+      setErrors(prev => ({ ...prev,gender: "" }));
+    }
+  }
+
   const handleSearchChange = (event, value) => {
     setSearchQuery(value);
   };
 
   const handleSubmit = async (e) => {
+    console.log(form)
     e.preventDefault();
     if (!validate()) return;
 
@@ -278,10 +292,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
           date_of_birth: submitData.date_of_birth,
           home_address: submitData.home_address,
           invited_by: submitData.invited_by,
+          leader: submitData.leader,
           phone_number: submitData.phone_number,
           email: submitData.email,
           gender: submitData.gender,
         };
+        console.log("hasLeader",userData)
         setUserProfile(userData);
         
         if (onSignup) onSignup(submitData);
@@ -378,6 +394,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
             {cacheError}
           </Alert>
         )}
+        
 
         <Box
           component="form"
@@ -423,6 +440,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 }}
               />
             ))}
+            
+            
 
             <Box sx={{ gridColumn: { xs: "1", sm: "1" } }}>
               <Autocomplete
@@ -486,13 +505,39 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 }}
               />
             </Box>
+            
+            {/* Added Leaders field component  */}
+            <TextField
+              // field is readonly and can not be clicked
+              readOnly
+              label="Leader@1"
+              name="leader"
+              type={"text"}
+              value={form.leader}
+              error={!!errors.leader}
+              helperText={errors.leader}
+              fullWidth
+              sx={{
+                "pointerEvents":"none",
+                "& .MuiOutlinedInput-root": { 
+                  borderRadius: 3,
+                  '& fieldset': {
+                    borderColor: errors.leader ? theme.palette.error.main : undefined,
+                  },
+                },
+                "& .MuiFormHelperText-root": { 
+                  color: errors.leader ? theme.palette.error.main : theme.palette.text.secondary 
+                },
+              }}
+            />
 
             <FormControl fullWidth error={!!errors.gender}>
               <InputLabel>Gender</InputLabel>
               <Select
                 name="gender"
                 value={form.gender}
-                onChange={handleChange}
+                //changed gender onChange function
+                onChange={handleGenderChange}
                 label="Gender"
                 sx={{ borderRadius: 3 }}
               >
@@ -508,6 +553,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 </Typography>
               )}
             </FormControl>
+            
+            
+            
 
             <TextField
               label="Password"
@@ -520,9 +568,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
               fullWidth
               InputProps={{
                 endAdornment: (
-                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
-                    {showPassword ? <Visibility /> : <VisibilityOff />}
-                  </IconButton>
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                      {showPassword ? <Visibility /> : <VisibilityOff />}
+                    </IconButton>
+                  </InputAdornment>
                 ),
               }}
               sx={{
@@ -537,6 +587,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 },
               }}
             />
+            
 
             <TextField
               label="Confirm Password"
@@ -549,9 +600,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
               fullWidth
               InputProps={{
                 endAdornment: (
-                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
-                    {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
-                  </IconButton>
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                      {showPassword ? <Visibility /> : <VisibilityOff />}
+                    </IconButton>
+                  </InputAdornment>
                 ),
               }}
               sx={{
@@ -567,6 +620,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
               }}
             />
           </Box>
+          
+          
 
           {Object.keys(errors).length > 0 && (
             <Alert severity="error" sx={{ borderRadius: 2 }}>

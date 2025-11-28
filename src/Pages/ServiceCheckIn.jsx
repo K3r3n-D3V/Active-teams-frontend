@@ -56,40 +56,23 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
 function ServiceCheckIn() {
-  const [attendees, setAttendees] = useState(() => {
-    const stored = localStorage.getItem("attendees");
-    return stored ? JSON.parse(stored) : [];
-  });
-
-  const [currentEventId, setCurrentEventId] = useState(() => {
-    const stored = localStorage.getItem("currentEventId");
-    return stored || "";
-  });
-
-  const [eventCheckIns, setEventCheckIns] = useState(() => {
-    const stored = localStorage.getItem("eventCheckIns");
-    return stored ? JSON.parse(stored) : {};
-  });
-
-  const [eventNewPeople, setEventNewPeople] = useState(() => {
-    const stored = localStorage.getItem("eventNewPeople");
-    return stored ? JSON.parse(stored) : {};
-  });
-
-  const [eventConsolidations, setEventConsolidations] = useState({});
+  // State management
+  const [attendees, setAttendees] = useState([]);
+  const [currentEventId, setCurrentEventId] = useState("");
   const [eventSearch, setEventSearch] = useState("");
   const [events, setEvents] = useState([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [openDialog, setOpenDialog] = useState(false);
-  const [firstTimeAddedIds, setFirstTimeAddedIds] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [newPeopleModalOpen, setNewPeopleModalOpen] = useState(false);
   const [consolidatedModalOpen, setConsolidatedModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
   const [consolidationOpen, setConsolidationOpen] = useState(false);
 
+  // Real-time data state
+  const [realTimeData, setRealTimeData] = useState(null);
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
@@ -97,18 +80,16 @@ function ServiceCheckIn() {
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Modal states
   const [modalSearch, setModalSearch] = useState("");
   const [modalPage, setModalPage] = useState(0);
   const [modalRowsPerPage, setModalRowsPerPage] = useState(100);
-
   const [newPeopleSearch, setNewPeopleSearch] = useState("");
   const [newPeoplePage, setNewPeoplePage] = useState(0);
   const [newPeopleRowsPerPage, setNewPeopleRowsPerPage] = useState(100);
-
   const [consolidatedSearch, setConsolidatedSearch] = useState("");
   const [consolidatedPage, setConsolidatedPage] = useState(0);
   const [consolidatedRowsPerPage, setConsolidatedRowsPerPage] = useState(100);
-
   const [activeTab, setActiveTab] = useState(0);
 
   const [eventHistoryDetails, setEventHistoryDetails] = useState({
@@ -132,11 +113,8 @@ function ServiceCheckIn() {
     leader144: "",
   });
 
-  const [consolidatedPeople, setConsolidatedPeople] = useState([]);
-
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
-  const closingRef = useRef(false);
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
   const isLgDown = useMediaQuery(theme.breakpoints.down("lg"));
@@ -154,8 +132,29 @@ function ServiceCheckIn() {
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
-  // Refresh function
-  const handleRefreshData = async () => {
+  // Real-time data fetching
+  const fetchRealTimeEventData = async (eventId) => {
+    if (!eventId) return null;
+    
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${BASE_URL}/service-checkin/real-time-data`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        params: { event_id: eventId }
+      });
+      
+      if (response.data.success) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Error fetching real-time event data:', error);
+      return null;
+    }
+  };
+
+  // Refresh function using real-time data
+  const handleFullRefresh = async () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
       return;
@@ -163,173 +162,80 @@ function ServiceCheckIn() {
 
     setIsRefreshing(true);
     try {
-      console.log("🔄 Refreshing data for event:", currentEventId);
-      await fetchEvents();
-      await loadEventCheckIns();
-      await fetchConsolidatedPeople();
-      await fetchAllPeople();
-      toast.success("Data refreshed successfully!");
+      console.log("🔄 Performing full refresh with real-time data for event:", currentEventId);
+      
+      const data = await fetchRealTimeEventData(currentEventId);
+      
+      if (data) {
+        console.log('✅ Real-time data received:', data);
+        setRealTimeData(data);
+        toast.success(`Refresh complete! ${data.present_count} present, ${data.new_people_count} new people, ${data.consolidation_count} consolidations`);
+      } else {
+        throw new Error('Failed to fetch real-time data');
+      }
+
     } catch (error) {
-      console.error("❌ Error refreshing data:", error);
+      console.error("❌ Error in real-time refresh:", error);
       toast.error("Failed to refresh data");
     } finally {
       setIsRefreshing(false);
     }
   };
 
-
-// Enhanced refresh function with real-time data and historical data
-const handleFullRefresh = async () => {
-  if (!currentEventId) {
-    toast.error("Please select an event first");
-    return;
-  }
-
-  setIsRefreshing(true);
-  try {
-    console.log("🔄 Performing full refresh with real-time data for event:", currentEventId);
-    const token = localStorage.getItem("token");
-    
-    // Use the real-time endpoint for current event data
-    const realTimeResponse = await axios.get(`${BASE_URL}/service-checkin/real-time-data`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      params: { event_id: currentEventId }
-    });
-
-    if (realTimeResponse.data.success) {
-      const realTimeData = realTimeResponse.data;
-      
-      console.log('✅ Real-time data received:', realTimeData);
-
-      // Update all states with fresh data for current event
-      setEventCheckIns(prev => ({
-        ...prev,
-        [currentEventId]: realTimeData.present_attendees.map(attendee => attendee._id || attendee.id)
-      }));
-
-      // Update new people
-      const newPeopleIds = realTimeData.new_people.map(person => person._id || person.id);
-      if (newPeopleIds.length > 0) {
-        setEventNewPeople(prev => ({
-          ...prev,
-          [currentEventId]: [...new Set([...(prev[currentEventId] || []), ...newPeopleIds])]
-        }));
-      }
-
-      // Update consolidations
-      setEventConsolidations(prev => ({
-        ...prev,
-        [currentEventId]: realTimeData.consolidation_count
-      }));
-
-      // Update consolidated people list
-      setConsolidatedPeople(realTimeData.consolidations?.filter(cons => 
-        cons.event_id === currentEventId
-      ) || []);
-
-      console.log('🔄 Real-time consolidation data:', {
-        consolidation_count: realTimeData.consolidation_count,
-        consolidations_length: realTimeData.consolidations?.length
-      });
-      
-      // ✅ NEW: Refresh events data to get updated closed events for Event History
-      await fetchEvents();
-      
-      toast.success(`Refresh complete! ${realTimeData.present_count} present, ${realTimeData.new_people_count} new people, ${realTimeData.consolidation_count} consolidations`);
-    } else {
-      throw new Error('Real-time endpoint returned unsuccessful response');
-    }
-
-  } catch (error) {
-    console.error("❌ Error in real-time refresh:", error);
-    
-    // Fallback to original refresh method if real-time fails
-    console.log("🔄 Falling back to original refresh method...");
-    await fetchEvents(); // This will refresh events data including closed events
-    await loadEventCheckIns();
-    await fetchConsolidatedPeople();
-    await fetchAllPeople();
-    toast.success("Data refreshed");
-  } finally {
-    setIsRefreshing(false);
-  }
-};
-
-  useEffect(() => {
-    // Reset consolidation data when event changes
-    if (currentEventId) {
-      setConsolidatedPeople([]);
-      setEventConsolidations(prev => ({
-        ...prev,
-        [currentEventId]: 0
-      }));
-    }
-  }, [currentEventId]);
-
-  // Utility functions
-  const toArray = (resData) =>
-    Array.isArray(resData)
-      ? resData
-      : Array.isArray(resData?.results)
-        ? resData.results
-        : Array.isArray(resData?.events)
-          ? resData.events
-          : [];
-
+  // Fetch all people for the main database
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
     try {
-      console.log('🔄 Fetching people data from cache endpoint...');
-      const response = await axios.get(`${BASE_URL}/cache/people`);
+      console.log('🔄 Fetching fresh people data from backend...');
       
-      if (response.data.success && response.data.cached_data) {
-        const cachedPeople = response.data.cached_data;
-        const formattedPeople = cachedPeople.map((person) => ({
-          _id: person._id || person.id || `temp-${Math.random()}`,
-          name: person.Name || person.name || "",
-          surname: person.Surname || person.surname || "",
-          email: person.Email || person.email || "",
-          phone: person.Number || person.Phone || person.phone || "",
-          leader1: person["Leader @1"] || person.leader1 || "",
-          leader12: person["Leader @12"] || person.leader12 || "",
-          leader144: person["Leader @144"] || person.leader144 || "",
-          fullName: person.FullName || `${person.Name || ''} ${person.Surname || ''}`.trim()
+      // Try ultra-fast endpoint first
+      const ultraResponse = await axios.get(`${BASE_URL}/people/ultra-fast`);
+      if (ultraResponse.data.success && ultraResponse.data.results) {
+        const people = ultraResponse.data.results.map((p) => ({
+          _id: p._id || p.key || `temp-${Math.random()}`,
+          name: p.Name || "",
+          surname: p.Surname || "",
+          email: p.Email || "",
+          phone: p.Number || "",
+          leader1: p["Leader @1"] || "",
+          leader12: p["Leader @12"] || "",
+          leader144: p["Leader @144"] || "",
+          fullName: `${p.Name || ''} ${p.Surname || ''}`.trim()
         }));
-
-        console.log(`✅ Loaded ${formattedPeople.length} people from cache`);
-        setAttendees(formattedPeople);
-        localStorage.setItem("attendees", JSON.stringify(formattedPeople));
-        localStorage.setItem("attendeesCacheTimestamp", Date.now().toString());
-        localStorage.setItem("serviceCheckInDataLoaded", "true");
+        
+        console.log(`✅ Loaded ${people.length} people from ultra-fast endpoint`);
+        setAttendees(people);
         setHasDataLoaded(true);
-
-        if (!response.data.is_complete && response.data.load_progress < 100) {
-          toast.info(`People data loading... ${response.data.load_progress}% complete`);
-        }
       } else {
-        throw new Error('Cache endpoint returned no data');
+        throw new Error('Ultra-fast endpoint returned no data');
       }
     } catch (err) {
-      console.error('❌ Error fetching from cache:', err);
+      console.error('❌ Error fetching from ultra-fast endpoint:', err);
+      
+      // Fallback to cache endpoint
       try {
-        const ultraResponse = await axios.get(`${BASE_URL}/people/ultra-fast`);
-        if (ultraResponse.data.success && ultraResponse.data.results) {
-          const people = ultraResponse.data.results.map((p) => ({
-            _id: p._id || p.key || `temp-${Math.random()}`,
-            name: p.Name || "",
-            surname: p.Surname || "",
-            email: p.Email || "",
-            phone: p.Number || "",
-            leader1: p["Leader @1"] || "",
-            leader12: p["Leader @12"] || "",
-            leader144: p["Leader @144"] || "",
-            fullName: `${p.Name || ''} ${p.Surname || ''}`.trim()
+        console.log('🔄 Trying cache endpoint as fallback...');
+        const response = await axios.get(`${BASE_URL}/cache/people`);
+        
+        if (response.data.success && response.data.cached_data) {
+          const cachedPeople = response.data.cached_data;
+          const formattedPeople = cachedPeople.map((person) => ({
+            _id: person._id || person.id || `temp-${Math.random()}`,
+            name: person.Name || person.name || "",
+            surname: person.Surname || person.surname || "",
+            email: person.Email || person.email || "",
+            phone: person.Number || person.Phone || person.phone || "",
+            leader1: person["Leader @1"] || person.leader1 || "",
+            leader12: person["Leader @12"] || person.leader12 || "",
+            leader144: person["Leader @144"] || person.leader144 || "",
+            fullName: person.FullName || `${person.Name || ''} ${person.Surname || ''}`.trim()
           }));
-          setAttendees(people);
-          localStorage.setItem("attendees", JSON.stringify(people));
-          localStorage.setItem("attendeesCacheTimestamp", Date.now().toString());
-          localStorage.setItem("serviceCheckInDataLoaded", "true");
+
+          console.log(`✅ Loaded ${formattedPeople.length} people from cache endpoint`);
+          setAttendees(formattedPeople);
           setHasDataLoaded(true);
+        } else {
+          throw new Error('Cache endpoint returned no data');
         }
       } catch (fallbackError) {
         console.error('❌ All data loading methods failed:', fallbackError);
@@ -340,109 +246,7 @@ const handleFullRefresh = async () => {
     }
   };
 
-const getFilteredEvents = () => {
-  const filteredEvents = events.filter(event => {
-    const isGlobal = event.isGlobal === true || 
-                    event.eventType === "Global Events" || 
-                    event.eventType === "Event" ||
-                    event.eventType?.toLowerCase().includes("event");
-    const eventStatus = event.status?.toLowerCase() || '';
-    // ✅ FIX: Check for both 'complete' and 'closed' status
-    const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
-    return isGlobal && isNotClosed;
-  });
-  return filteredEvents;
-};
-
-  const getClosedEvents = () => {
-    return events.filter(event => {
-      const isClosed = event.status?.toLowerCase() === 'closed';
-      const isGlobal = event.eventType === "Global Events";
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-      return isClosed && isGlobal && isNotCell;
-    });
-  };
-
-const getFilteredClosedEvents = () => {
-  const closedEvents = events.filter(event => {
-    const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'complete';
-    const isGlobal = event.eventType === "Global Events" || event.isGlobal === true;
-    const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-    
-    console.log(`🔍 Event Filter: ${event.eventName}`, {
-      isClosed,
-      isGlobal,
-      isNotCell,
-      status: event.status,
-      eventType: event.eventType
-    });
-    
-    return isClosed && isGlobal && isNotCell;
-  });
-  
-  // Apply search filter
-  if (!eventSearch.trim()) {
-    return closedEvents;
-  }
-  
-  const searchTerm = eventSearch.toLowerCase();
-  return closedEvents.filter(event => 
-    event.eventName?.toLowerCase().includes(searchTerm) ||
-    event.date?.toLowerCase().includes(searchTerm) ||
-    event.status?.toLowerCase().includes(searchTerm)
-  );
-};
-
-  const loadEventCheckIns = async () => {
-    if (!currentEventId) return;
-
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/checkins/${currentEventId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      const checkedInPeople = toArray(response.data);
-      const attendeeMap = new Map();
-
-      attendees.forEach(attendee => {
-        if (attendee._id) attendeeMap.set(attendee._id, attendee._id);
-        if (attendee.name) {
-          const nameKey = `${attendee.name.toLowerCase()} ${attendee.surname?.toLowerCase() || ''}`.trim();
-          attendeeMap.set(nameKey, attendee._id);
-        }
-        if (attendee.email) attendeeMap.set(attendee.email.toLowerCase(), attendee._id);
-      });
-
-      const checkedInIds = checkedInPeople
-        .map((person) => {
-          let matchedId = null;
-          if (person._id && attendeeMap.has(person._id)) {
-            matchedId = attendeeMap.get(person._id);
-          } else if (person.name || person.Name) {
-            const name = person.name || person.Name;
-            const surname = person.surname || person.Surname || '';
-            const nameKey = `${name.toLowerCase()} ${surname.toLowerCase()}`.trim();
-            if (attendeeMap.has(nameKey)) matchedId = attendeeMap.get(nameKey);
-          } else if (person.email || person.Email) {
-            const email = (person.email || person.Email).toLowerCase();
-            if (attendeeMap.has(email)) matchedId = attendeeMap.get(email);
-          }
-          return matchedId;
-        })
-        .filter(Boolean);
-
-      if (checkedInIds.length > 0) {
-        setEventCheckIns((prev) => ({
-          ...prev,
-          [currentEventId]: [...new Set([...(prev[currentEventId] || []), ...checkedInIds])]
-        }));
-      }
-    } catch (error) {
-      console.error('❌ Error loading event check-ins:', error);
-    }
-  };
-
+  // Fetch events
   const fetchEvents = async () => {
     setIsLoadingEvents(true);
     try {
@@ -487,72 +291,194 @@ const getFilteredClosedEvents = () => {
     }
   };
 
-  const fetchConsolidatedPeople = async () => {
+  // Event filtering functions
+  const getFilteredEvents = () => {
+    const filteredEvents = events.filter(event => {
+      const isGlobal = event.isGlobal === true || 
+                      event.eventType === "Global Events" || 
+                      event.eventType === "Event" ||
+                      event.eventType?.toLowerCase().includes("event");
+      const eventStatus = event.status?.toLowerCase() || '';
+      const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
+      return isGlobal && isNotClosed;
+    });
+    return filteredEvents;
+  };
+
+  const getClosedEvents = () => {
+    return events.filter(event => {
+      const isClosed = event.status?.toLowerCase() === 'closed';
+      const isGlobal = event.eventType === "Global Events";
+      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      return isClosed && isGlobal && isNotCell;
+    });
+  };
+
+  const getFilteredClosedEvents = () => {
+    const closedEvents = events.filter(event => {
+      const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'complete';
+      const isGlobal = event.eventType === "Global Events" || event.isGlobal === true;
+      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+      
+      return isClosed && isGlobal && isNotCell;
+    });
+    
+    // Apply search filter
+    if (!eventSearch.trim()) {
+      return closedEvents;
+    }
+    
+    const searchTerm = eventSearch.toLowerCase();
+    return closedEvents.filter(event => 
+      event.eventName?.toLowerCase().includes(searchTerm) ||
+      event.date?.toLowerCase().includes(searchTerm) ||
+      event.status?.toLowerCase().includes(searchTerm)
+    );
+  };
+
+  // Check-in functions using new endpoints
+  const handleToggleCheckIn = async (attendee) => {
     if (!currentEventId) {
-      setConsolidatedPeople([]);
+      toast.error("Please select an event");
       return;
     }
 
-    setIsLoadingConsolidated(true);
     try {
       const token = localStorage.getItem("token");
-      let consolidatedData = [];
-
-      try {
-        const response = await axios.get(`${BASE_URL}/consolidations`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          params: { event_id: currentEventId }
-        });
-        if (response.data && response.data.consolidations) {
-          consolidatedData = response.data.consolidations;
-        }
-      } catch (error) {
-        console.log("Consolidations endpoint failed:", error.message);
-      }
-
-      if (consolidatedData.length === 0) {
-        try {
-          const tasksResponse = await axios.get(`${BASE_URL}/tasks`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-            params: { taskType: "consolidation", event_id: currentEventId }
-          });
-          if (tasksResponse.data && Array.isArray(tasksResponse.data.tasks)) {
-            consolidatedData = tasksResponse.data.tasks.map(task => ({
-              _id: task._id,
-              name: task.contacted_person?.name || task.person_name || task.recipient_name,
-              surname: "",
-              email: task.contacted_person?.email || task.person_email || task.recipient_email,
-              phone: task.contacted_person?.phone || task.person_phone || task.recipient_phone,
-              assigned_to: task.assignedfor || task.assignedTo,
-              decision_type: task.decision_type || task.consolidation_type || "Commitment",
-              consolidation_type: task.consolidation_type || task.decision_type,
-              decision_date: task.followup_date || task.decision_date,
-              status: task.status,
-              task_id: task._id,
-              is_from_task: true,
-              event_id: task.event_id || currentEventId
-            }));
-          }
-        } catch (error) {
-          console.log("Tasks endpoint failed:", error.message);
-        }
-      }
-
-      // STRICT FILTERING - Only include consolidations for current event
-      const filteredConsolidations = consolidatedData.filter(consolidation => 
-        consolidation.event_id === currentEventId
+      const isCurrentlyPresent = realTimeData?.present_attendees?.some(a => 
+        a.id === attendee._id || a._id === attendee._id
       );
       
-      console.log(`✅ Filtered consolidations for event ${currentEventId}:`, filteredConsolidations.length);
-      setConsolidatedPeople(filteredConsolidations);
-    } catch (error) {
-      console.error("💥 Error fetching consolidated people:", error);
-      setConsolidatedPeople([]);
-    } finally {
-      setIsLoadingConsolidated(false);
+      if (!isCurrentlyPresent) {
+        // Check in as attendee
+        const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
+          event_id: currentEventId,
+          person_data: {
+            id: attendee._id,
+            name: attendee.name,
+            fullName: `${attendee.name} ${attendee.surname}`,
+            email: attendee.email,
+            phone: attendee.phone,
+            leader12: attendee.leader12
+          },
+          type: "attendee"
+        }, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.data.success) {
+          toast.success(response.data.message || "Checked in successfully");
+          // Refresh real-time data
+          await handleFullRefresh();
+        }
+      } else {
+        // Remove from check-in
+        const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          data: {
+            event_id: currentEventId,
+            person_id: attendee._id,
+            type: "attendees"
+          }
+        });
+
+        if (response.data.success) {
+          toast.info(response.data.message || "Removed from check-in");
+          // Refresh real-time data
+          await handleFullRefresh();
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || err.message);
     }
   };
 
+  // Add new person function
+  const handlePersonSave = async (responseData) => {
+    if (!currentEventId) {
+      toast.error("Please select an event first before adding people");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const newPersonData = responseData.person || responseData;
+      
+      // Add as new person to the event
+      const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
+        event_id: currentEventId,
+        person_data: {
+          name: formData.name,
+          surname: formData.surname,
+          email: formData.email,
+          phone: formData.phone,
+          gender: formData.gender,
+          invitedBy: formData.invitedBy
+        },
+        type: "new_person"
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        toast.success(response.data.message || "New person added successfully");
+        setOpenDialog(false);
+        setEditingPerson(null);
+        setFormData({
+          name: "", surname: "", dob: "", homeAddress: "", invitedBy: "",
+          email: "", phone: "", gender: "", leader1: "", leader12: "", leader144: ""
+        });
+        
+        // Refresh real-time data to show the new person
+        await handleFullRefresh();
+      }
+    } catch (error) {
+      console.error('❌ Error adding new person:', error);
+      toast.error(error.response?.data?.detail || "Failed to add person");
+    }
+  };
+
+  // Consolidation function
+  const handleFinishConsolidation = async (task) => {
+    if (!currentEventId) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      
+      // Add consolidation using the new endpoint
+      const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
+        event_id: currentEventId,
+        person_data: {
+          person_name: task.recipientName?.split(' ')[0] || 'Unknown',
+          person_surname: task.recipientName?.split(' ').slice(1).join(' ') || '',
+          person_email: task.recipient_email || '',
+          person_phone: task.recipient_phone || '',
+          decision_type: task.decisionType || task.taskStage || "first_time",
+          decision_display_name: task.decisionType === 'recommitment' ? 'Recommitment' : 'First Time Decision',
+          assigned_to: task.assignedTo,
+          assigned_to_email: task.assignedToEmail,
+          notes: task.notes || ''
+        },
+        type: "consolidation"
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setConsolidationOpen(false);
+        toast.success(response.data.message || "Consolidation recorded successfully");
+        
+        // Refresh real-time data
+        await handleFullRefresh();
+      }
+    } catch (error) {
+      console.error("❌ Error recording consolidation:", error);
+      toast.error(error.response?.data?.detail || "Failed to record consolidation");
+    }
+  };
+
+  // Event management
 const handleSaveAndCloseEvent = async () => {
   if (!currentEventId) {
     toast.error("Please select an event first");
@@ -570,51 +496,35 @@ const handleSaveAndCloseEvent = async () => {
   }
 
   setIsClosingEvent(true);
-  closingRef.current = true;
   try {
     const token = localStorage.getItem("token");
-    let response;
     
-    try {
-      // ✅ FIX: Use "complete" status instead of "closed"
-      response = await axios.patch(
-        `${BASE_URL}/events/${currentEventId}`,
-        { status: "complete" }, // Changed from "closed" to "complete"
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'X-Closing-From-ServiceCheckIn': '1'
-          },
-          timeout: 10000
-        }
-      );
-    } catch (patchError) {
-      // ✅ FIX: Use "complete" status instead of "closed"
-      response = await axios.put(
-        `${BASE_URL}/events/${currentEventId}`,
-        { status: "complete" }, // Changed from "closed" to "complete"
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'X-Closing-From-ServiceCheckIn': '1'
-          },
-          timeout: 10000
-        }
-      );
+    // Try PATCH first
+    const response = await fetch(`${BASE_URL}/events/${currentEventId}`, {
+      method: "PATCH",
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: "complete"
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    // ✅ FIX: Update events state with "complete" status
+    const result = await response.json();
+    
     setEvents(prev => prev.map(event =>
       event.id === currentEventId ? { ...event, status: "complete" } : event
     ));
 
-    toast.success(`Event "${currentEvent.eventName}" closed successfully!`);
-    clearEventData(currentEventId);
+    toast.success(result.message || `Event "${currentEvent.eventName}" closed successfully!`);
+    setRealTimeData(null);
     setCurrentEventId("");
     
-    // Force refresh events data to ensure consistency
     setTimeout(() => {
       fetchEvents();
     }, 500);
@@ -624,73 +534,16 @@ const handleSaveAndCloseEvent = async () => {
     toast.error("Event may still be open in the database. Please check.");
   } finally {
     setIsClosingEvent(false);
-    closingRef.current = false;
   }
 };
-  const clearEventData = (eventId) => {
-    setEventCheckIns(prev => {
-      const newCheckIns = { ...prev };
-      delete newCheckIns[eventId];
-      return newCheckIns;
-    });
-    setEventNewPeople(prev => {
-      const newNewPeople = { ...prev };
-      delete newNewPeople[eventId];
-      return newNewPeople;
-    });
-    setEventConsolidations(prev => {
-      const newConsolidations = { ...prev };
-      delete newConsolidations[eventId];
-      return newConsolidations;
-    });
-  };
 
+  // UI Handlers
   const handleConsolidationClick = () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
       return;
     }
     setConsolidationOpen(true);
-  };
-
-  const handleFinishConsolidation = async (task) => {
-    if (currentEventId) {
-      try {
-        setConsolidationOpen(false);
-        toast.success(`Consolidation task created for ${task.recipientName}`);
-
-        const actualDecisionType = task.decisionType || task.taskStage || task.consolidation_type || "Commitment";
-        const newConsolidatedPerson = {
-          _id: task.task_id || `temp-${Date.now()}`,
-          name: task.recipientName?.split(' ')[0] || 'Unknown',
-          surname: task.recipientName?.split(' ').slice(1).join(' ') || '',
-          email: task.recipient_email || '',
-          phone: task.recipient_phone || '',
-          assigned_to: task.assignedTo,
-          decision_type: actualDecisionType,
-          consolidation_type: actualDecisionType,
-          decision_date: new Date().toISOString(),
-          status: "Open",
-          is_new: true,
-          event_id: currentEventId,
-          is_checked_in: false
-        };
-
-        setConsolidatedPeople(prev => [...prev, newConsolidatedPerson]);
-        setEventConsolidations((prev) => ({
-          ...prev,
-          [currentEventId]: (prev[currentEventId] || 0) + 1,
-        }));
-
-        setTimeout(async () => {
-          await fetchConsolidatedPeople();
-        }, 1000);
-
-      } catch (error) {
-        console.error("❌ Error in consolidation completion:", error);
-        toast.error("Task created but failed to refresh list");
-      }
-    }
   };
 
   const handleEditClick = (person) => {
@@ -711,58 +564,6 @@ const handleSaveAndCloseEvent = async () => {
     setOpenDialog(true);
   };
 
-  const handlePersonSave = (responseData) => {
-    if (!currentEventId) {
-      toast.error("Please select an event first before adding people");
-      return;
-    }
-
-    const newPersonData = responseData.person || responseData;
-    const newPersonId = responseData.id || responseData._id || newPersonData._id;
-
-    const newPerson = {
-      _id: newPersonId,
-      name: newPersonData.Name || formData.name,
-      surname: newPersonData.Surname || formData.surname,
-      email: newPersonData.Email || formData.email,
-      phone: newPersonData.Phone || newPersonData.Number || formData.phone,
-      leader1: newPersonData["Leader @1"] || formData.leader1 || "",
-      leader12: newPersonData["Leader @12"] || formData.leader12 || "",
-      leader144: newPersonData["Leader @144"] || formData.leader144 || "",
-    };
-
-    let isNew = false;
-    setAttendees((prevAttendees) => {
-      const exists = prevAttendees.some((att) => att._id === newPersonId);
-      if (exists) return prevAttendees.map((att) => (att._id === newPersonId ? newPerson : att));
-      isNew = true;
-      newPerson.isNew = true;
-      return [newPerson, ...prevAttendees];
-    });
-
-    if (isNew) {
-      setFirstTimeAddedIds((prev) => [...prev, newPersonId]);
-      if (currentEventId) {
-        setEventNewPeople((prev) => ({
-          ...prev,
-          [currentEventId]: [...(prev[currentEventId] || []), newPersonId],
-        }));
-      }
-      setPage(0);
-      toast.success(`${newPerson.name} ${newPerson.surname} added successfully!`);
-
-      const now = new Date();
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      const timeUntilMidnight = endOfDay.getTime() - now.getTime();
-
-      setTimeout(() => {
-        setFirstTimeAddedIds((prev) => prev.filter((id) => id !== newPersonId));
-      }, timeUntilMidnight);
-    } else {
-      toast.success(`${newPerson.name} ${newPerson.surname} updated successfully!`);
-    }
-  };
-
   const handleDelete = async (personId) => {
     try {
       const res = await fetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
@@ -779,41 +580,6 @@ const handleSaveAndCloseEvent = async () => {
     }
   };
 
-  const handleToggleCheckIn = async (attendee) => {
-    if (!currentEventId) {
-      toast.error("Please select an event");
-      return;
-    }
-
-    try {
-      const isCurrentlyPresent = attendee.present;
-      if (!isCurrentlyPresent) {
-        const res = await axios.post(`${BASE_URL}/checkin`, {
-          event_id: currentEventId,
-          name: attendee.name,
-        });
-        toast.success(res.data?.message || "Checked in");
-        setEventCheckIns((prev) => ({
-          ...prev,
-          [currentEventId]: [...(prev[currentEventId] || []), attendee._id],
-        }));
-      } else {
-        const res = await axios.post(`${BASE_URL}/uncapture`, {
-          event_id: currentEventId,
-          name: attendee.name,
-        });
-        toast.info(res.data?.message || "Uncaptured");
-        setEventCheckIns((prev) => ({
-          ...prev,
-          [currentEventId]: (prev[currentEventId] || []).filter((id) => id !== attendee._id),
-        }));
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.detail || err.message);
-    }
-  };
-
   const handleAddPersonClick = () => {
     if (!currentEventId) {
       toast.error("Please select an event first before adding people");
@@ -822,46 +588,130 @@ const handleSaveAndCloseEvent = async () => {
     setOpenDialog(true);
   };
 
-  // Data processing functions
+  // Data processing
   const getAttendeesWithPresentStatus = () => {
-    const currentEventCheckIns = eventCheckIns[currentEventId] || [];
+    const presentAttendeeIds = realTimeData?.present_attendees?.map(a => a.id || a._id) || [];
     return attendees.map((attendee) => ({
       ...attendee,
-      present: currentEventCheckIns.includes(attendee._id),
+      present: presentAttendeeIds.includes(attendee._id),
       id: attendee._id,
     }));
   };
 
-const menuEvents = (() => {
-  try {
-    const filtered = getFilteredEvents();
-    const list = [...filtered];
-    if (currentEventId && !list.some((ev) => ev.id === currentEventId)) {
-      const currentEventFromAll = events.find((ev) => ev.id === currentEventId);
-      if (currentEventFromAll) {
-        const hasLocalActivity =
-          (eventCheckIns[currentEventId] && eventCheckIns[currentEventId].length > 0) ||
-          (eventNewPeople[currentEventId] && eventNewPeople[currentEventId].length > 0) ||
-          (eventConsolidations[currentEventId] && eventConsolidations[currentEventId] > 0) ||
-          consolidatedPeople.some((p) => p.event_id === currentEventId) ||
-          firstTimeAddedIds.some((id) => (eventNewPeople[currentEventId] || []).includes(id));
-
-        const displayEvent = { ...currentEventFromAll };
-        // ✅ FIX: Check for both 'complete' and 'closed' status
-        if (hasLocalActivity && (displayEvent.status === 'complete' || displayEvent.status === 'closed')) {
-          displayEvent.status = 'open';
+  const menuEvents = (() => {
+    try {
+      const filtered = getFilteredEvents();
+      const list = [...filtered];
+      if (currentEventId && !list.some((ev) => ev.id === currentEventId)) {
+        const currentEventFromAll = events.find((ev) => ev.id === currentEventId);
+        if (currentEventFromAll) {
+          list.unshift(currentEventFromAll);
         }
-        list.unshift(displayEvent);
       }
+      return list;
+    } catch (e) {
+      console.error('Error building menuEvents', e);
+      return getFilteredEvents();
     }
-    return list;
-  } catch (e) {
-    console.error('Error building menuEvents', e);
-    return getFilteredEvents();
-  }
-})();
+  })();
 
-  // Define mainColumns for DataGrid
+  // Event history handlers
+  const handleViewEventDetails = (event, data) => {
+    setEventHistoryDetails({
+      open: true,
+      event: event,
+      type: 'attendance',
+      data: data || []
+    });
+  };
+
+  const handleViewNewPeople = (event, data) => {
+    setEventHistoryDetails({
+      open: true,
+      event: event,
+      type: 'newPeople',
+      data: data || []
+    });
+  };
+
+  const handleViewConsolidated = (event, data) => {
+    setEventHistoryDetails({
+      open: true,
+      event: event,
+      type: 'consolidated',
+      data: data || []
+    });
+  };
+
+  // Data for display
+  const attendeesWithStatus = getAttendeesWithPresentStatus();
+  const presentCount = realTimeData?.present_count || 0;
+  const newPeopleCount = realTimeData?.new_people_count || 0;
+  const consolidationCount = realTimeData?.consolidation_count || 0;
+
+  const filteredAttendees = attendeesWithStatus.filter((a) => {
+    if (!search) return true;
+    const lc = search.toLowerCase();
+    const searchString = `
+      ${a.name || ''} 
+      ${a.surname || ''} 
+      ${a.email || ''} 
+      ${a.phone || ''} 
+      ${a.leader1 || ''} 
+      ${a.leader12 || ''} 
+      ${a.leader144 || ''}
+    `.toLowerCase();
+    return searchString.includes(lc);
+  });
+
+  const paginatedAttendees = filteredAttendees.slice(
+    page * rowsPerPage, 
+    page * rowsPerPage + rowsPerPage
+  );
+
+  // Modal data from real-time endpoints
+  const presentAttendees = realTimeData?.present_attendees || [];
+  const newPeopleList = realTimeData?.new_people || [];
+  const consolidationsList = realTimeData?.consolidations || [];
+
+  const modalFilteredAttendees = presentAttendees.filter((a) => {
+    const lc = modalSearch.toLowerCase();
+    const bag = [a.name, a.surname, a.email, a.phone, a.leader1, a.leader12, a.leader144]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return bag.includes(lc);
+  });
+  const modalPaginatedAttendees = modalFilteredAttendees.slice(
+    modalPage * modalRowsPerPage,
+    modalPage * modalRowsPerPage + modalRowsPerPage
+  );
+
+  const newPeopleFilteredList = newPeopleList.filter((a) => {
+    const lc = newPeopleSearch.toLowerCase();
+    const bag = [a.name, a.surname, a.email, a.phone, a.invitedBy]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return bag.includes(lc);
+  });
+  const newPeoplePaginatedList = newPeopleFilteredList.slice(
+    newPeoplePage * newPeopleRowsPerPage,
+    newPeoplePage * newPeopleRowsPerPage + newPeopleRowsPerPage
+  );
+
+  const filteredConsolidatedPeople = consolidationsList.filter((person) => {
+    const lc = consolidatedSearch.toLowerCase();
+    const searchString = `${person.person_name || ''} ${person.person_surname || ''} ${person.person_email || ''} ${person.person_phone || ''} ${person.assigned_to || ''} ${person.decision_type || ''}`.toLowerCase();
+    return searchString.includes(lc);
+  });
+
+  const consolidatedPaginatedList = filteredConsolidatedPeople.slice(
+    consolidatedPage * consolidatedRowsPerPage,
+    consolidatedPage * consolidatedRowsPerPage + consolidatedRowsPerPage
+  );
+
+  // Columns for DataGrid
   const mainColumns = [
     {
       field: 'name',
@@ -873,9 +723,6 @@ const menuEvents = (() => {
           <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
             {params.row.name} {params.row.surname}
           </Typography>
-          {firstTimeAddedIds.includes(params.row._id) && (
-            <Chip label="First Time" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
-          )}
         </Box>
       )
     },
@@ -910,34 +757,6 @@ const menuEvents = (() => {
     }
   ];
 
-  // Add these missing event handlers
-  const handleViewEventDetails = (event, data) => {
-    setEventHistoryDetails({
-      open: true,
-      event: event,
-      type: 'attendance',
-      data: data || []
-    });
-  };
-
-  const handleViewNewPeople = (event, data) => {
-    setEventHistoryDetails({
-      open: true,
-      event: event,
-      type: 'newPeople',
-      data: data || []
-    });
-  };
-
-  const handleViewConsolidated = (event, data) => {
-    setEventHistoryDetails({
-      open: true,
-      event: event,
-      type: 'consolidated',
-      data: data || []
-    });
-  };
-
   // Component definitions
   const AttendeeCard = ({ attendee, showNumber, index }) => (
     <Card
@@ -950,10 +769,6 @@ const menuEvents = (() => {
         flexDirection: 'column',
         justifyContent: 'space-between',
         "&:last-child": { mb: 0 },
-        ...(firstTimeAddedIds.includes(attendee._id) && {
-          border: `2px solid ${theme.palette.success.main}`,
-          backgroundColor: theme.palette.success.light + "0a",
-        }),
       }}
     >
       <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -961,9 +776,6 @@ const menuEvents = (() => {
           <Box flex={1}>
             <Typography variant="subtitle2" fontWeight={600}>
               {showNumber && `${index}. `}{attendee.name} {attendee.surname}
-              {firstTimeAddedIds.includes(attendee._id) && (
-                <Chip label="First Time" size="small" sx={{ ml: 1, fontSize: "0.7rem", height: 20 }} color="success" />
-              )}
             </Typography>
             {attendee.email && <Typography variant="body2" color="text.secondary">{attendee.email}</Typography>}
             {attendee.phone && <Typography variant="body2" color="text.secondary">{attendee.phone}</Typography>}
@@ -1025,7 +837,7 @@ const menuEvents = (() => {
           <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
             <Box flex={1}>
               <Typography variant="subtitle2" fontWeight={600}>
-                {showNumber && `${index}. `}{person.name || person.person_name} {person.surname || person.person_surname}
+                {showNumber && `${index}. `}{person.person_name} {person.person_surname}
                 <Chip
                   label={displayDecisionType}
                   size="small"
@@ -1033,27 +845,27 @@ const menuEvents = (() => {
                   color={displayDecisionType === 'Recommitment' ? 'primary' : 'secondary'}
                 />
               </Typography>
-              {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
-              {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+              {person.person_email && <Typography variant="body2" color="text.secondary">{person.person_email}</Typography>}
+              {person.person_phone && <Typography variant="body2" color="text.secondary">{person.person_phone}</Typography>}
             </Box>
           </Box>
 
           <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
             <Chip
-              label={`Assigned to: ${person.assigned_to || person.assignedTo || person.assignedfor || 'Not assigned'}`}
+              label={`Assigned to: ${person.assigned_to || 'Not assigned'}`}
               size="small"
               variant="outlined"
               color="primary"
             />
           </Stack>
 
-          {(person.decision_date || person.decision_type) && (
+          {(person.created_at || person.decision_type) && (
             <>
               <Divider sx={{ my: 1 }} />
               <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
-                {person.decision_date && (
+                {person.created_at && (
                   <Chip 
-                    label={`Date: ${new Date(person.decision_date).toLocaleDateString()}`} 
+                    label={`Date: ${new Date(person.created_at).toLocaleDateString()}`} 
                     size="small" 
                     variant="outlined" 
                     sx={{ fontSize: "0.7rem", height: 20 }} 
@@ -1107,19 +919,6 @@ const menuEvents = (() => {
           return `Consolidated People for ${eventName}`;
         default:
           return `Event Details for ${eventName}`;
-      }
-    };
-
-    const getColumnHeaders = () => {
-      switch (eventHistoryDetails.type) {
-        case 'attendance':
-          return ['Name', 'Email', 'Phone', 'Leader @1', 'Leader @12', 'Leader @144'];
-        case 'newPeople':
-          return ['Name', 'Email', 'Phone', 'Leader @1', 'Leader @12', 'Leader @144'];
-        case 'consolidated':
-          return ['Name', 'Email', 'Phone', 'Decision Type', 'Assigned To', 'Status'];
-        default:
-          return ['Name', 'Email', 'Phone'];
       }
     };
 
@@ -1193,9 +992,22 @@ const menuEvents = (() => {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                  {getColumnHeaders().map(header => (
-                    <TableCell key={header} sx={{ fontWeight: 600 }}>{header}</TableCell>
-                  ))}
+                  <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
+                  {eventHistoryDetails.type !== 'consolidated' ? (
+                    <>
+                      <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                    </>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1235,7 +1047,7 @@ const menuEvents = (() => {
                 ))}
                 {paginatedData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={getColumnHeaders().length + 1} align="center">
+                    <TableCell colSpan={eventHistoryDetails.type === 'consolidated' ? 7 : 7} align="center">
                       No matching data
                     </TableCell>
                   </TableRow>
@@ -1361,103 +1173,20 @@ const menuEvents = (() => {
     </Box>
   );
 
-  // Replace your current data processing section with this:
-  const attendeesWithStatus = getAttendeesWithPresentStatus();
-
-  // Use real-time data if available, otherwise calculate locally
-  const presentCount = currentEventId 
-    ? (eventCheckIns[currentEventId] || []).length 
-    : attendeesWithStatus.filter((a) => a.present).length;
-
-  const newPeopleForEvent = currentEventId && eventNewPeople[currentEventId]
-    ? attendeesWithStatus.filter(a => eventNewPeople[currentEventId].includes(a._id))
-    : [];
-
-  const consolidationsForEvent = currentEventId 
-    ? (eventConsolidations[currentEventId] || consolidatedPeople.length)
-    : 0;
-
-  const filteredAttendees = attendeesWithStatus.filter((a) => {
-    if (!search) return true;
-    const lc = search.toLowerCase();
-    const searchString = `
-      ${a.name || ''} 
-      ${a.surname || ''} 
-      ${a.email || ''} 
-      ${a.phone || ''} 
-      ${a.leader1 || ''} 
-      ${a.leader12 || ''} 
-      ${a.leader144 || ''}
-      ${firstTimeAddedIds.includes(a._id) ? "first time" : ""}
-    `.toLowerCase();
-    return searchString.includes(lc);
-  });
-
-  const paginatedAttendees = filteredAttendees.slice(
-    page * rowsPerPage, 
-    page * rowsPerPage + rowsPerPage
-  );
-
-  // Modal data
-  const modalBaseList = attendeesWithStatus.filter((a) => a.present);
-  const modalFilteredAttendees = modalBaseList.filter((a) => {
-    const lc = modalSearch.toLowerCase();
-    const bag = [a.name, a.surname, a.email, a.phone, a.leader1, a.leader12, a.leader144]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return bag.includes(lc);
-  });
-  const modalPaginatedAttendees = modalFilteredAttendees.slice(
-    modalPage * modalRowsPerPage,
-    modalPage * modalRowsPerPage + modalRowsPerPage
-  );
-
-  const newPeopleFilteredList = newPeopleForEvent.filter((a) => {
-    const lc = newPeopleSearch.toLowerCase();
-    const bag = [a.name, a.surname, a.email, a.phone, a.leader1, a.leader12, a.leader144]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return bag.includes(lc);
-  });
-  const newPeoplePaginatedList = newPeopleFilteredList.slice(
-    newPeoplePage * newPeopleRowsPerPage,
-    newPeoplePage * newPeopleRowsPerPage + newPeopleRowsPerPage
-  );
-
-  const filteredConsolidatedPeople = consolidatedPeople.filter((person) => {
-    const lc = consolidatedSearch.toLowerCase();
-    const searchString = `${person.name || ''} ${person.surname || ''} ${person.email || ''} ${person.phone || ''} ${person.assigned_to || ''} ${person.decision_type || ''}`.toLowerCase();
-    return searchString.includes(lc);
-  });
-
-  const consolidatedPaginatedList = filteredConsolidatedPeople.slice(
-    consolidatedPage * consolidatedRowsPerPage,
-    consolidatedPage * consolidatedRowsPerPage + consolidatedRowsPerPage
-  );
-
   // Effects
   useEffect(() => {
     if (currentEventId) {
-      localStorage.setItem("currentEventId", currentEventId);
+      // Fetch real-time data when event changes
+      const loadRealTimeData = async () => {
+        const data = await fetchRealTimeEventData(currentEventId);
+        if (data) {
+          setRealTimeData(data);
+        }
+      };
+      
+      loadRealTimeData();
     } else {
-      localStorage.removeItem("currentEventId");
-    }
-  }, [currentEventId]);
-
-  useEffect(() => {
-    localStorage.setItem("eventCheckIns", JSON.stringify(eventCheckIns));
-  }, [eventCheckIns]);
-
-  useEffect(() => {
-    localStorage.setItem("eventNewPeople", JSON.stringify(eventNewPeople));
-  }, [eventNewPeople]);
-
-  useEffect(() => {
-    if (currentEventId) {
-      loadEventCheckIns();
-      fetchConsolidatedPeople();
+      setRealTimeData(null);
     }
   }, [currentEventId]);
 
@@ -1471,54 +1200,11 @@ const menuEvents = (() => {
   }, [events]);
 
   useEffect(() => {
-    console.log('🚀 Service Check-In mounted - fetching events and people...');
+    console.log('🚀 Service Check-In mounted - fetching fresh data from backend...');
     fetchEvents();
-    
-    const dataLoaded = localStorage.getItem("serviceCheckInDataLoaded") === "true";
-    const cachedPeople = localStorage.getItem("attendees");
-    const cacheTimestamp = localStorage.getItem("attendeesCacheTimestamp");
-    const now = Date.now();
-    const oneHour = 60 * 60 * 1000;
-
-    if (dataLoaded && cachedPeople) {
-      const peopleData = JSON.parse(cachedPeople);
-      setAttendees(peopleData);
-      setHasDataLoaded(true);
-      setIsLoadingPeople(false);
-      
-      if (!cacheTimestamp || (now - parseInt(cacheTimestamp)) > oneHour) {
-        fetchAllPeople();
-      }
-    } else {
-      fetchAllPeople();
-    }
+    fetchAllPeople();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("attendees", JSON.stringify(attendees));
-  }, [attendees]);
-
-  useEffect(() => {
-    console.log('🔍 DEBUG Consolidation Data:', {
-      currentEventId,
-      eventConsolidations: eventConsolidations[currentEventId],
-      consolidatedPeopleCount: consolidatedPeople.length,
-      consolidatedPeople: consolidatedPeople,
-      localStorageData: localStorage.getItem("eventConsolidations")
-    });
-  }, [currentEventId, eventConsolidations, consolidatedPeople]);
-
-  // Update debug effect to track both statuses
-useEffect(() => {
-  console.log("🔍 DEBUG Events State:", {
-    totalEvents: events.length,
-    openEvents: events.filter(e => e.status !== 'complete' && e.status !== 'closed').length,
-    closedEvents: events.filter(e => e.status === 'complete' || e.status === 'closed').length,
-    completeEvents: events.filter(e => e.status === 'complete').length,
-    closedStatusEvents: events.filter(e => e.status === 'closed').length,
-    events: events.map(e => ({ name: e.eventName, status: e.status, id: e.id }))
-  });
-}, [events]);
   // Render
   if ((!hasDataLoaded && isLoadingPeople) || (attendees.length === 0 && isLoadingPeople)) {
     return <SkeletonLoader />;
@@ -1597,7 +1283,7 @@ useEffect(() => {
             <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
               <PersonAddAltIcon color={currentEventId ? "success" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
               <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={currentEventId ? "success.main" : "text.disabled"}>
-                {newPeopleForEvent.length}
+                {newPeopleCount}
               </Typography>
             </Stack>
             <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
@@ -1637,7 +1323,7 @@ useEffect(() => {
             <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
               <MergeIcon color={currentEventId ? "secondary" : "disabled"} sx={{ fontSize: getResponsiveValue(20, 24, 28, 32, 32) }} />
               <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={currentEventId ? "secondary.main" : "text.disabled"}>
-                {consolidationsForEvent}
+                {consolidationCount}
               </Typography>
             </Stack>
             <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary">
@@ -1686,10 +1372,8 @@ useEffect(() => {
           </Select>
         </Grid>
         
-        {/* UPDATED: Conditional Search Field */}
         <Grid item xs={12} sm={6} md={5}>
           {activeTab === 0 ? (
-            // Search for attendees (original behavior)
             <TextField
               size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
               placeholder="Search attendees..."
@@ -1699,7 +1383,6 @@ useEffect(() => {
               sx={{ boxShadow: 2 }}
             />
           ) : (
-            // Search for events (new behavior for Event History tab)
             <TextField
               size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
               placeholder="Search events..."
@@ -1790,7 +1473,7 @@ useEffect(() => {
         </Grid>
       </Grid>
 
-      {/* Main Attendees List */}
+      {/* Main Content */}
       <Box sx={{ minHeight: 400 }}>
         <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, minHeight: '48px' }}>
           <Tabs
@@ -1906,8 +1589,18 @@ useEffect(() => {
         }}
       >
         <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          Attendees Present: {presentCount}
-        </DialogTitle>
+           Attendees Present: {presentCount}
+         </DialogTitle>
+         <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
+           <TextField
+             size="small"
+             placeholder="Search present attendees..."
+             value={modalSearch}
+             onChange={(e) => { setModalSearch(e.target.value); setModalPage(0); }}
+             fullWidth
+             sx={{ mb: 2, boxShadow: 1 }}
+           />
+        </DialogContent>
         <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
           <TextField
             size="small"
@@ -1921,7 +1614,7 @@ useEffect(() => {
           {isSmDown ? (
             <Box>
               {modalPaginatedAttendees.map((a, idx) => (
-                <Card key={a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 }, minHeight: '100px' }}>
+                <Card key={a.id || a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 }, minHeight: '100px' }}>
                   <CardContent sx={{ p: 1.5 }}>
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                       <Box flex={1}>
@@ -1940,7 +1633,10 @@ useEffect(() => {
                           )}
                         </Stack>
                       </Box>
-                      <IconButton color="error" size="small" onClick={() => handleToggleCheckIn(a)}>
+                      <IconButton color="error" size="small" onClick={() => {
+                        const attendee = attendees.find(att => att._id === (a.id || a._id));
+                        if (attendee) handleToggleCheckIn(attendee);
+                      }}>
                         <CheckCircleOutlineIcon fontSize="small" />
                       </IconButton>
                     </Box>
@@ -1967,14 +1663,17 @@ useEffect(() => {
               </TableHead>
               <TableBody>
                 {modalPaginatedAttendees.map((a, idx) => (
-                  <TableRow key={a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
+                  <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
                     <TableCell>{modalPage * modalRowsPerPage + idx + 1}</TableCell>
                     <TableCell>{a.name} {a.surname}</TableCell>
                     <TableCell>{a.leader1 || "—"}</TableCell>
                     <TableCell>{a.leader12 || "—"}</TableCell>
                     <TableCell>{a.leader144 || "—"}</TableCell>
                     <TableCell align="center">
-                      <IconButton color="error" size="small" onClick={() => handleToggleCheckIn(a)}>
+                      <IconButton color="error" size="small" onClick={() => {
+                        const attendee = attendees.find(att => att._id === (a.id || a._id));
+                        if (attendee) handleToggleCheckIn(attendee);
+                      }}>
                         <CheckCircleOutlineIcon />
                       </IconButton>
                     </TableCell>
@@ -2026,7 +1725,7 @@ useEffect(() => {
         }}
       >
         <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          New People: {newPeopleForEvent.length}
+          New People: {newPeopleCount}
         </DialogTitle>
         <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
           <TextField
@@ -2042,7 +1741,7 @@ useEffect(() => {
             <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
               Please select an event to view new people
             </Typography>
-          ) : newPeopleForEvent.length === 0 ? (
+          ) : newPeopleList.length === 0 ? (
             <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
               No new people added for this event
             </Typography>
@@ -2051,7 +1750,7 @@ useEffect(() => {
               {isSmDown ? (
                 <Box>
                   {newPeoplePaginatedList.map((a, idx) => (
-                    <Card key={a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 }, minHeight: '100px' }}>
+                    <Card key={a.id || a._id} variant="outlined" sx={{ mb: 1, boxShadow: 2, "&:last-child": { mb: 0 }, minHeight: '100px' }}>
                       <CardContent sx={{ p: 1.5 }}>
                         <Typography variant="subtitle2" fontWeight={600} sx={{ fontSize: '0.9rem' }}>
                           {newPeoplePage * newPeopleRowsPerPage + idx + 1}. {a.name} {a.surname}
@@ -2059,17 +1758,11 @@ useEffect(() => {
                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
                           {a.phone || "No phone"}
                         </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5} mt={0.5}>
-                          {a.leader1 && (
-                            <Chip label={`@1: ${a.leader1}`} size="small" variant="outlined" sx={{ fontSize: "0.6rem", height: 18 }} />
-                          )}
-                          {a.leader12 && (
-                            <Chip label={`@12: ${a.leader12}`} size="small" variant="outlined" sx={{ fontSize: "0.6rem", height: 18 }} />
-                          )}
-                          {a.leader144 && (
-                            <Chip label={`@144: ${a.leader144}`} size="small" variant="outlined" sx={{ fontSize: "0.6rem", height: 18 }} />
-                          )}
-                        </Stack>
+                        {a.invitedBy && (
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                            Invited by: {a.invitedBy}
+                          </Typography>
+                        )}
                       </CardContent>
                     </Card>
                   ))}
@@ -2087,26 +1780,22 @@ useEffect(() => {
                       <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {newPeoplePaginatedList.map((a, idx) => (
-                      <TableRow key={a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
+                      <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
                         <TableCell>{newPeoplePage * newPeopleRowsPerPage + idx + 1}</TableCell>
                         <TableCell>{a.name} {a.surname}</TableCell>
                         <TableCell>{a.phone || "—"}</TableCell>
                         <TableCell>{a.email || "—"}</TableCell>
-                        <TableCell>{a.leader1 || "—"}</TableCell>
-                        <TableCell>{a.leader12 || "—"}</TableCell>
-                        <TableCell>{a.leader144 || "—"}</TableCell>
+                        <TableCell>{a.invitedBy || "—"}</TableCell>
                       </TableRow>
                     ))}
                     {newPeoplePaginatedList.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} align="center">No matching people</TableCell>
+                        <TableCell colSpan={5} align="center">No matching people</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -2152,10 +1841,7 @@ useEffect(() => {
         }}
       >
         <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          Consolidated People: {consolidationsForEvent}
-          <Typography variant="body2" color="text.secondary">
-            For current service only
-          </Typography>
+          Consolidated People: {consolidationCount}
         </DialogTitle>
         <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
           <TextField
@@ -2171,13 +1857,7 @@ useEffect(() => {
             <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
               Please select an event to view consolidated people
             </Typography>
-          ) : isLoadingConsolidated ? (
-            <Box textAlign="center" py={4}>
-              <Typography variant="body1" color="text.secondary">
-                Loading consolidated people...
-              </Typography>
-            </Box>
-          ) : filteredConsolidatedPeople.length === 0 ? (
+          ) : consolidationsList.length === 0 ? (
             <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
               No consolidated people for this event
             </Typography>
@@ -2187,7 +1867,7 @@ useEffect(() => {
                 <Box>
                   {consolidatedPaginatedList.map((person, idx) => (
                     <ConsolidatedPersonCard
-                      key={person._id || person.id || idx}
+                      key={person.id || person._id || idx}
                       person={person}
                       showNumber={true}
                       index={consolidatedPage * consolidatedRowsPerPage + idx + 1}
@@ -2214,35 +1894,35 @@ useEffect(() => {
                   </TableHead>
                   <TableBody>
                     {consolidatedPaginatedList.map((person, idx) => (
-                      <TableRow key={person._id || person.id || idx} hover sx={{ '&:hover': { boxShadow: 1 } }}>
+                      <TableRow key={person.id || person._id || idx} hover sx={{ '&:hover': { boxShadow: 1 } }}>
                         <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
                         <TableCell>
                           <Typography variant="body2" fontWeight="medium">
-                            {person.name || person.person_name} {person.surname || person.person_surname}
+                            {person.person_name} {person.person_surname}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Box>
-                            {person.email && <Typography variant="body2">{person.email}</Typography>}
-                            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+                            {person.person_email && <Typography variant="body2">{person.person_email}</Typography>}
+                            {person.person_phone && <Typography variant="body2" color="text.secondary">{person.person_phone}</Typography>}
                           </Box>
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={person.decision_type || person.consolidation_type || 'Commitment'}
+                            label={person.decision_type || 'Commitment'}
                             size="small"
-                            color={(person.decision_type || person.consolidation_type) === 'Recommitment' ? 'primary' : 'secondary'}
+                            color={person.decision_type === 'Recommitment' ? 'primary' : 'secondary'}
                             variant="filled"
                           />
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2">
-                            {person.assigned_to || person.assignedTo || person.assignedfor || 'Not assigned'}
+                            {person.assigned_to || 'Not assigned'}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2">
-                            {person.decision_date ? new Date(person.decision_date).toLocaleDateString() : 'No date'}
+                            {person.created_at ? new Date(person.created_at).toLocaleDateString() : 'No date'}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -2306,9 +1986,7 @@ useEffect(() => {
         onClose={() => setConsolidationOpen(false)}
         attendeesWithStatus={attendeesWithStatus}
         onFinish={handleFinishConsolidation}
-        consolidatedPeople={consolidatedPeople.filter(person => 
-          person.event_id === currentEventId
-        )}
+        consolidatedPeople={consolidationsList}
         currentEventId={currentEventId}
       />
     </Box>

@@ -129,7 +129,7 @@ const handleEventTypeSubmit = async (eventTypeData) => {
             fontWeight: 600,
             fontSize: '1.25rem',
           }}
-        >
+        > 
           Create Event
           <IconButton
             aria-label="close"
