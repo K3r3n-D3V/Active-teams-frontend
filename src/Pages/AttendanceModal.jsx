@@ -378,7 +378,7 @@ else {
         //   type: "success",
         //   message: "Person added successfully!",
         // })
-        toast.success("Person added successfully!");;
+        // toast.success("Person added successfully!");;
 
         if (typeof onPersonAdded === "function") {
           onPersonAdded(data.person || data);
@@ -576,8 +576,8 @@ else {
       left: 0,
       right: 0,
       marginTop: "4px",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1000,
@@ -587,17 +587,17 @@ else {
     dropdownItem: {
       padding: "12px",
       cursor: "pointer",
-      borderBottom: `1px solid ${isDarkMode ? "#3a3a3a" : "#f0f0f0"}`,
+      borderBottom: `1px solid ${theme.palette.divider}`,
       transition: "background 0.2s",
-      color: isDarkMode ? "#ffffff" : "#333",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
+      color: theme.palette.text.primary,
+      background: theme.palette.background.default,
     },
     dropdownEmpty: {
       padding: "12px",
-      color: isDarkMode ? "#aaa" : "#999",
+      color: theme.palette.text.secondary,
       textAlign: "center",
       fontSize: "14px",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
+      background: theme.palette.background.default,
     },
     radioGroup: {
       display: "flex",
@@ -704,8 +704,8 @@ else {
                       key={person.id}
                       style={styles.dropdownItem}
                       onClick={() => handleInviterSelect(person)}
-                      onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f8f9fa"}
-                      onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
+                      onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
+                      onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
                     >
                       <div style={{ fontWeight: "500" }}>{person.fullName}</div>
                       <div style={{ fontSize: "12px", color: isDarkMode ? "#999" : "#666" }}>
@@ -835,7 +835,7 @@ else {
                 style={styles.closeBtn} 
                 onClick={handleClose}
                 onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
-                onMouseLeave={(e) => e.target.style.background = "transparent"}
+                onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
               >
                 CANCEL
               </button>
@@ -843,8 +843,8 @@ else {
                 type="button" 
                 style={styles.nextBtn} 
                 onClick={handleNext}
-                onMouseEnter={(e) => e.target.style.background = "#4f46e5"}
-                onMouseLeave={(e) => e.target.style.background = "#6366f1"}
+                onMouseEnter={(e) => e.target.style.background = theme.palette.primary.dark}
+                onMouseLeave={(e) => e.target.style.background = theme.palette.primary.main}
               >
                 NEXT
               </button>
@@ -1378,164 +1378,358 @@ useEffect(() => {
     }
 }, [isOpen, event]);
 
-  const loadPreloadedPeople = async () => {
-    const now = Date.now();
+//   const loadPreloadedPeople = async () => {
+//     const now = Date.now();
     
-    // Check if global cache exists and is valid
-    if (
-      typeof window.globalPeopleCache !== 'undefined' &&
-      window.globalPeopleCache.data?.length > 0 &&
-      window.globalPeopleCache.timestamp &&
-      now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
-    ) {
-      console.log("📦 Using cached people data in AttendanceModal");
-      setPreloadedPeople(window.globalPeopleCache.data);
-      return;
-    }
+//     // Check if global cache exists and is valid
+//     if (
+//       typeof window.globalPeopleCache !== 'undefined' &&
+//       window.globalPeopleCache.data?.length > 0 &&
+//       window.globalPeopleCache.timestamp &&
+//       now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
+//     ) {
+//       console.log("📦 Using cached people data in AttendanceModal");
+//       setPreloadedPeople(window.globalPeopleCache.data);
+//       return;
+//     }
 
-    try {
-      console.log("🔄 Fetching fresh people data for AttendanceModal cache");
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
+//     try {
+//       console.log("🔄 Fetching fresh people data for AttendanceModal cache");
+//       const token = localStorage.getItem("token");
+//       const headers = { Authorization: `Bearer ${token}` };
 
-      const params = new URLSearchParams();
-      params.append("perPage", "100");
-      params.append("page", "1");
+//       const params = new URLSearchParams();
+//       params.append("perPage", "100");
+//       params.append("page", "1");
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
-        headers,
-      });
+//       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
+//         headers,
+//       });
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+//       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
+//       const data = await res.json();
+//       const peopleArray = data.people || data.results || [];
 
-      const formatted = peopleArray.map((p) => ({
-  id: p._id,
-  fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-  email: p.Email || p.email || "",
-  leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
-  leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
-  leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
-  leader1278: p["Leader @1278"] || p["Leader at 1278"] || p["Leader @ 1278"] || p.leader1278 || p.leaders?.[3] || "",
-  phone: p.Number || p.Phone || p.phone || "",
-}));
+//       const formatted = peopleArray.map((p) => ({
+//   id: p._id,
+//   fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+//   email: p.Email || p.email || "",
+//   leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
+//   leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
+//   leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+//   leader1278: p["Leader @1278"] || p["Leader at 1278"] || p["Leader @ 1278"] || p.leader1278 || p.leaders?.[3] || "",
+//   phone: p.Number || p.Phone || p.phone || "",
+// }));
 
-      // Update global cache if it exists
-      if (typeof window.globalPeopleCache !== 'undefined') {
-        window.globalPeopleCache.data = formatted;
-        window.globalPeopleCache.timestamp = now;
-        window.globalPeopleCache.expiry = 5 * 60 * 1000;
-      } else {
-        window.globalPeopleCache = {
-          data: formatted,
-          timestamp: now,
-          expiry: 5 * 60 * 1000,
-        };
-      }
+//       // Update global cache if it exists
+//       if (typeof window.globalPeopleCache !== 'undefined') {
+//         window.globalPeopleCache.data = formatted;
+//         window.globalPeopleCache.timestamp = now;
+//         window.globalPeopleCache.expiry = 5 * 60 * 1000;
+//       } else {
+//         window.globalPeopleCache = {
+//           data: formatted,
+//           timestamp: now,
+//           expiry: 5 * 60 * 1000,
+//         };
+//       }
 
-      setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
-    } catch (err) {
-      console.error("Error pre-loading people in AttendanceModal:", err);
-      if (globalPeopleCache.data.length > 0) {
-        setPreloadedPeople(globalPeopleCache.data);
-      }
-    }
-  }
+//       setPreloadedPeople(formatted);
+//       console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
+//     } catch (err) {
+//       console.error("Error pre-loading people in AttendanceModal:", err);
+//       if (globalPeopleCache.data.length > 0) {
+//         setPreloadedPeople(globalPeopleCache.data);
+//       }
+//     }
+//   }
+
+
 
  
-const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
-  const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
+// const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
+//   const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
 
-  // 1️⃣ Try cached results first
-  if (peopleCache[cacheKey]) {
-    console.log("📦 Using cached results for:", cacheKey);
-    setPeople(peopleCache[cacheKey]);
+//   // 1️⃣ Try cached results first
+//   if (peopleCache[cacheKey]) {
+//     console.log("📦 Using cached results for:", cacheKey);
+//     setPeople(peopleCache[cacheKey]);
+//     return;
+//   }
+
+//   if (preloadedPeople.length > 0 && filter) {
+//     const searchLower = filter.toLowerCase().trim();
+    
+//     const filteredFromPreloaded = preloadedPeople.filter(person => {
+//       const name = (person.Name || person.name || "").toLowerCase();
+//       const surname = (person.Surname || person.surname || "").toLowerCase();
+//       const fullName = `${name} ${surname}`.trim();
+//       const email = (person.email || person.Email || "").toLowerCase();
+      
+//       // ✅ FIXED: Use includes instead of startsWith for surname
+//       return (
+//         fullName.includes(searchLower) ||  // Matches "gia katufu"
+//         name.includes(searchLower) ||      // Matches "gia" 
+//         surname.includes(searchLower) ||   // Matches "katufu" ✅ FIXED
+//         email.includes(searchLower)        // Matches email
+//       );
+//     });
+    
+//     if (filteredFromPreloaded.length > 0) {
+//       console.log("⚡ Using preloaded data for instant results");
+//       const sliced = filteredFromPreloaded.slice(0, 50);
+//       setPeople(sliced);
+//       setPeopleCache((prev) => ({ ...prev, [cacheKey]: sliced }));
+//       return;
+//     }
+//   }
+
+//   // 3️⃣ Otherwise, fetch from API
+//   try {
+//     setLoading(true);
+//     const token = localStorage.getItem("token");
+//     const headers = { Authorization: `Bearer ${token}` };
+//     const params = new URLSearchParams();
+
+//     // 🔍 Backend already supports partial regex match, so we just send `name`
+//    if (filter && filter.trim().length > 0) {
+//   params.append("name", filter.toLowerCase().trim());
+// }
+
+//     params.append("perPage", "50");
+//     params.append("page", "1");
+
+//     console.log("🔍 Fetching people with params:", params.toString());
+
+//     const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
+//       headers,
+//     });
+
+//     if (!res.ok) {
+//       throw new Error(`HTTP error! status: ${res.status}`);
+//     }
+
+//     const data = await res.json();
+//     const peopleArray = data.results || data.people || [];
+
+//     console.log(`✅ Found ${peopleArray.length} people`);
+
+//     // 🧩 Normalize backend fields
+//     const formatted = peopleArray.map((p) => ({
+//       id: p._id,
+//       fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+//       email: p.Email || "",
+//       leader1: p["Leader @1"] || "",
+//       leader12: p["Leader @12"] || "",
+//       leader144: p["Leader @144"] || "",
+//       leader1728: p["Leader @1728"] || "",
+//       phone: p.Number || "",
+//     }));
+
+//     // 💾 Cache and update state
+//     setPeopleCache((prev) => ({ ...prev, [cacheKey]: formatted }));
+//     setPeople(formatted);
+//   } catch (err) {
+//     console.error("❌ Error fetching people:", err);
+//     setPeople([]);
+//   } finally {
+//     setLoading(false);
+//   }
+// };
+
+// const fetchPeople = async (q) => {
+//   if (!q.trim()) {
+//     setPeople([]);
+//     return;
+//   }
+
+//   const parts = q.trim().split(/\s+/);
+//   const name = parts[0];
+//   const surname = parts.slice(1).join(" ");
+
+//   try {
+//     const token = localStorage.getItem("token");
+//     const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+//       headers: { Authorization: `Bearer ${token}` },
+//     });
+
+//     if (!res.ok) throw new Error("Failed to fetch people");
+
+//     const data = await res.json();
+
+//     let filtered = (data?.results || data?.people || []).filter(p =>
+//       p.Name.toLowerCase().includes(name.toLowerCase()) &&
+//       (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+//     );
+
+//     // Sort the results
+//     filtered.sort((a, b) => {
+//       const nameA = (a.Name || "").toLowerCase();
+//       const nameB = (b.Name || "").toLowerCase();
+//       const surnameA = (a.Surname || "").toLowerCase();
+//       const surnameB = (b.Surname || "").toLowerCase();
+
+//       if (nameA < nameB) return -1;
+//       if (nameA > nameB) return 1;
+//       if (surnameA < surnameB) return -1;
+//       if (surnameA > surnameB) return 1;
+//       return 0;
+//     });
+
+//     // Format the results consistently
+//     const formatted = filtered.map((p) => ({
+//       id: p._id,
+//       fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+//       email: p.Email || p.email || "",
+//       leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+//       leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+//       leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
+//       phone: p.Number || p.Phone || p.phone || "",
+//     }));
+
+//     setPeople(formatted);
+//   } catch (err) {
+//     console.error("Error fetching people:", err);
+//     toast.error(err.message);
+//     setPeople([]);
+//   }
+// };
+
+const loadPreloadedPeople = async () => {
+  const now = Date.now();
+  
+  // Check if global cache exists and is valid
+  if (
+    typeof window.globalPeopleCache !== 'undefined' &&
+    window.globalPeopleCache.data?.length > 0 &&
+    window.globalPeopleCache.timestamp &&
+    now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
+  ) {
+    console.log("📦 Using cached people data in AttendanceModal");
+    setPreloadedPeople(window.globalPeopleCache.data);
+    
+    // Auto-populate the people list with preloaded data
+    if (activeTab === 1 && !associateSearch.trim()) {
+      setPeople(window.globalPeopleCache.data.slice(0, 50));
+    }
     return;
   }
 
-  if (preloadedPeople.length > 0 && filter) {
-    const searchLower = filter.toLowerCase().trim();
-    
-    const filteredFromPreloaded = preloadedPeople.filter(person => {
-      const name = (person.Name || person.name || "").toLowerCase();
-      const surname = (person.Surname || person.surname || "").toLowerCase();
-      const fullName = `${name} ${surname}`.trim();
-      const email = (person.email || person.Email || "").toLowerCase();
-      
-      // ✅ FIXED: Use includes instead of startsWith for surname
-      return (
-        fullName.includes(searchLower) ||  // Matches "gia katufu"
-        name.includes(searchLower) ||      // Matches "gia" 
-        surname.includes(searchLower) ||   // Matches "katufu" ✅ FIXED
-        email.includes(searchLower)        // Matches email
-      );
-    });
-    
-    if (filteredFromPreloaded.length > 0) {
-      console.log("⚡ Using preloaded data for instant results");
-      const sliced = filteredFromPreloaded.slice(0, 50);
-      setPeople(sliced);
-      setPeopleCache((prev) => ({ ...prev, [cacheKey]: sliced }));
-      return;
-    }
-  }
-
-  // 3️⃣ Otherwise, fetch from API
   try {
-    setLoading(true);
+    console.log("🔄 Fetching fresh people data for AttendanceModal cache");
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
+
     const params = new URLSearchParams();
-
-    // 🔍 Backend already supports partial regex match, so we just send `name`
-   if (filter && filter.trim().length > 0) {
-  params.append("name", filter.toLowerCase().trim());
-}
-
-    params.append("perPage", "50");
+    params.append("perPage", "100");
     params.append("page", "1");
-
-    console.log("🔍 Fetching people with params:", params.toString());
 
     const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
       headers,
     });
 
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
     const data = await res.json();
-    const peopleArray = data.results || data.people || [];
+    const peopleArray = data.people || data.results || [];
 
-    console.log(`✅ Found ${peopleArray.length} people`);
-
-    // 🧩 Normalize backend fields
     const formatted = peopleArray.map((p) => ({
       id: p._id,
-      fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-      email: p.Email || "",
-      leader1: p["Leader @1"] || "",
-      leader12: p["Leader @12"] || "",
-      leader144: p["Leader @144"] || "",
-      leader1728: p["Leader @1728"] || "",
-      phone: p.Number || "",
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
+      leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
+      leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+      phone: p.Number || p.Phone || p.phone || "",
     }));
 
-    // 💾 Cache and update state
-    setPeopleCache((prev) => ({ ...prev, [cacheKey]: formatted }));
-    setPeople(formatted);
+    // Update global cache
+    window.globalPeopleCache = {
+      data: formatted,
+      timestamp: now,
+      expiry: 5 * 60 * 1000,
+    };
+
+    setPreloadedPeople(formatted);
+    console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
+    
+    // Auto-populate the people list with fresh data
+    if (activeTab === 1 && !associateSearch.trim()) {
+      setPeople(formatted.slice(0, 50));
+    }
   } catch (err) {
-    console.error("❌ Error fetching people:", err);
-    setPeople([]);
-  } finally {
-    setLoading(false);
+    console.error("Error pre-loading people in AttendanceModal:", err);
   }
 };
+const fetchPeople = async (q = "") => {
+  // If no search query, show preloaded people
+  if (!q.trim()) {
+    if (preloadedPeople.length > 0) {
+      console.log("📋 Showing preloaded people list");
+      setPeople(preloadedPeople.slice(0, 50)); // Show first 50 preloaded people
+    } else {
+      setPeople([]);
+    }
+    return;
+  }
 
+  const parts = q.trim().split(/\s+/);
+  const name = parts[0];
+  const surname = parts.slice(1).join(" ");
+
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) throw new Error("Failed to fetch people");
+
+    const data = await res.json();
+
+    let filtered = (data?.results || data?.people || []).filter(p =>
+      p.Name.toLowerCase().includes(name.toLowerCase()) &&
+      (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+    );
+
+    // Sort the results
+    filtered.sort((a, b) => {
+      const nameA = (a.Name || "").toLowerCase();
+      const nameB = (b.Name || "").toLowerCase();
+      const surnameA = (a.Surname || "").toLowerCase();
+      const surnameB = (b.Surname || "").toLowerCase();
+
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      if (surnameA < surnameB) return -1;
+      if (surnameA > surnameB) return 1;
+      return 0;
+    });
+
+    // Format the results consistently
+    const formatted = filtered.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+      leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+      leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
+      phone: p.Number || p.Phone || p.phone || "",
+    }));
+
+    setPeople(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    toast.error(err.message);
+    // Fallback to preloaded people if search fails
+    if (preloadedPeople.length > 0) {
+      setPeople(preloadedPeople.slice(0, 50));
+    } else {
+      setPeople([]);
+    }
+  }
+};
 
   const fetchCommonAttendees = async (cellId) => {
     try {
@@ -1720,27 +1914,55 @@ const fetchPersistentAttendees = async (eventId) => {
   }, [isOpen]);
 
   // Effect: Search people in associate tab with debounce
-  useEffect(() => {
-    const delay = setTimeout(() => {
-      if (isOpen && activeTab === 1) {
-        // Use cached/preloaded data for faster response
-        if (associateSearch.length < 3 && preloadedPeople.length > 0) {
-          const filtered = preloadedPeople.filter(
-            (person) =>
-              person.fullName
-                .toLowerCase()
-                .includes(associateSearch.toLowerCase()) ||
-              person.email.toLowerCase().includes(associateSearch.toLowerCase())
-          );
-          setPeople(filtered.slice(0, 50));
-        } else {
-          fetchPeople(associateSearch);
-        }
-      }
-    }, 300);
+  // useEffect(() => {
+  //   const delay = setTimeout(() => {
+  //     if (isOpen && activeTab === 1) {
+  //       // Use cached/preloaded data for faster response
+  //       if (associateSearch.length < 3 && preloadedPeople.length > 0) {
+  //         const filtered = preloadedPeople.filter(
+  //           (person) =>
+  //             person.fullName
+  //               .toLowerCase()
+  //               .includes(associateSearch.toLowerCase()) ||
+  //             person.email.toLowerCase().includes(associateSearch.toLowerCase())
+  //         );
+  //         setPeople(filtered.slice(0, 50));
+  //       } else {
+  //         fetchPeople(associateSearch);
+  //       }
+  //     }
+  //   }, 300);
 
-    return () => clearTimeout(delay);
-  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+  //   return () => clearTimeout(delay);
+  // }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+
+  // Replace the existing useEffect for associate search with this:
+// useEffect(() => {
+//   const delay = setTimeout(() => {
+//     if (isOpen && activeTab === 1 && associateSearch.trim()) {
+//       fetchPeople(associateSearch);
+//     } else if (isOpen && activeTab === 1 && !associateSearch.trim()) {
+//       setPeople([]);
+//     }
+//   }, 300);
+
+//   return () => clearTimeout(delay);
+// }, [associateSearch, isOpen, activeTab]);
+// Update the useEffect for associate search
+useEffect(() => {
+  const delay = setTimeout(() => {
+    if (isOpen && activeTab === 1) {
+      if (associateSearch.trim()) {
+        fetchPeople(associateSearch);
+      } else {
+        // Show preloaded list when no search term
+        fetchPeople(""); // This will trigger the preloaded list
+      }
+    }
+  }, 300);
+
+  return () => clearTimeout(delay);
+}, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
   const handleCheckIn = (id, name) => {
     setCheckedIn((prev) => {
@@ -3153,16 +3375,18 @@ const confirmDidNotMeet = async () => {
           <div style={styles.contentArea}>
             {activeTab === 0 && (
               <>
-                <div style={styles.searchBox}>
-                  <Search size={20} style={styles.searchIcon} />
-                  <input
-                    type="text"
-                    placeholder="Search attendees..."
-                    value={searchName}
-                    onChange={(e) => setSearchName(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
+      {/* // In the ASSOCIATE PERSON tab, update the search input placeholder: */}
+<div style={styles.searchBox}>
+  <Search size={20} style={styles.searchIcon} />
+  <input
+    type="text"
+    placeholder="Search by name and surname... (showing all people when empty)"
+    value={associateSearch}
+    onChange={(e) => setAssociateSearch(e.target.value)}
+    style={styles.input}
+    autoComplete="off"
+  />
+</div>
 
                 {isMobile ? (
                   <div>
@@ -3171,7 +3395,18 @@ const confirmDidNotMeet = async () => {
                         Loading...
                       </div>
                     )}
-                    {!loading && filteredCommonAttendees.length === 0 && (
+                    {/* // In the table rendering, update the empty state: */}
+{!loading && filteredPeople.length === 0 && (
+  <tr>
+    <td
+      colSpan="6"
+      style={{ ...styles.td, textAlign: "center" }}
+    >
+      {associateSearch.trim() ? "No people found matching your search." : "No people available."}
+    </td>
+  </tr>
+)}
+                    {/* {!loading && filteredCommonAttendees.length === 0 && (
                       <div
                         style={{
                           textAlign: "center",
@@ -3181,7 +3416,7 @@ const confirmDidNotMeet = async () => {
                       >
                         No attendees found.
                       </div>
-                    )}
+                    )} */}
                     {filteredCommonAttendees.map(renderMobileAttendeeCard)}
                   </div>
                 ) : (
