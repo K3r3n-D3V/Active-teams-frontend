@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
- 
+
 const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRole }) => {
   const [hoveredButton, setHoveredButton] = useState(null);
   const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  
   React.useEffect(() => {
     const onResize = () => setWidth(window.innerWidth);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+  
   const isSmall = (width || 0) <= 420;
   
   if (!isOpen) return null;
@@ -51,38 +53,21 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRo
     optionButton: {
       display: 'flex',
       alignItems: 'center',
-      gap: '12px',
-      backgroundColor: 'white',
-      border: 'none',
-      borderRadius: '25px',
-      padding: '12px 20px',
+      justifyContent: 'center', // Center content horizontally
+      // Cute Styles
+      backgroundColor: '#ad1111ff',
+      border: '2px solid #e0cffc', // Softer pastel purple border
+      borderRadius: '25px',       // Very rounded corners
+      padding: '12px 24px',        // Comfortable padding, but not excessively wide
       cursor: 'pointer',
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-      fontSize: '14px',
-      fontWeight: '500',
-      color: '#333',
-      transition: 'all 0.2s ease',
-      minWidth: isSmall ? '100%' : '200px',
-      justifyContent: 'flex-start',
-      width: isSmall ? '100%' : 'auto',
-    },
-    optionIcon: {
-      width: '40px',
-      height: '40px',
-      borderRadius: '50%',
-      backgroundColor: '#f5f5f5',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '18px',
-    },
-    eventIcon: {
-      backgroundColor: '#e3f2fd',
-      color: '#1976d2',
-    },
-    eventTypeIcon: {
-      backgroundColor: '#f3e5f5',
-      color: '#7b1fa2',
+      boxShadow: '0 6px 15px rgba(180, 140, 255, 0.25)', // More pronounced but soft shadow
+      fontSize: '15px',
+      fontWeight: '700',
+      color: '#5e35b1', // Deep purple text
+      transition: 'all 0.3s ease',
+      // Width Fixes
+      width: isSmall ? '100%' : 'auto', // Auto width on large screens
+      maxWidth: '220px', // Prevent it from getting too wide on desktop/tablet
     }
   };
 
@@ -99,7 +84,8 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRo
         <button
           style={{
             ...modalStyles.optionButton,
-            transform: hoveredButton === 'event' ? 'scale(1.02)' : 'scale(1)',
+            // Subtle pop on hover
+            transform: hoveredButton === 'event' ? 'translateY(-2px) scale(1.02)' : 'translateY(0) scale(1)',
           }}
           onMouseEnter={() => setHoveredButton('event')}
           onMouseLeave={() => setHoveredButton(null)}
@@ -108,18 +94,16 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRo
             onClose();
           }}
         >
-          <div style={{...modalStyles.optionIcon, ...modalStyles.eventIcon}}>
-            
-          </div>
-          Create Event
+          ✨ Create Event
         </button>
-       
+        
         {/* Create Event Type - ONLY for admins */}
         {isAdmin && (
           <button
             style={{
               ...modalStyles.optionButton,
-              transform: hoveredButton === 'eventType' ? 'scale(1.02)' : 'scale(1)',
+              // Subtle pop on hover
+              transform: hoveredButton === 'eventType' ? 'translateY(-2px) scale(1.02)' : 'translateY(0) scale(1)',
             }}
             onMouseEnter={() => setHoveredButton('eventType')}
             onMouseLeave={() => setHoveredButton(null)}
@@ -128,10 +112,7 @@ const EventsModal = ({ isOpen, onClose, onCreateEvent, onCreateEventType, userRo
               onClose();
             }}
           >
-            <div style={{...modalStyles.optionIcon, ...modalStyles.eventTypeIcon}}>
-              
-            </div>
-            Create Event Type
+            ⭐ Create Event Type
           </button>
         )}
       </div>
