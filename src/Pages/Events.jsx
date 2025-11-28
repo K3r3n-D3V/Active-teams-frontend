@@ -897,7 +897,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
       start_date: startDateParam,
       ...filters,
-      isLeaderAt12
+      isLeaderAt12 //sending if leader at 12 to backend
     };
 
     if (!filters.status && params.status) {
