@@ -443,7 +443,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
   const sampleEvent = events[0];
   const filteredFields = Object.keys(sampleEvent).filter((key) => {
     const keyLower = key.toLowerCase();
-
+    
     // Fields to exclude
     const excludedFields = [
       'persistent_attendees', 'uuid', 'did_not_meet', 'status', 'is_recurring',
@@ -476,7 +476,8 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
 
     return !shouldExclude;
   });
-
+  console.log("Sample event",sampleEvent)
+  console.log("filteredFields",filteredFields)
   const columns = [];
 
   columns.push({
@@ -505,7 +506,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
           </Box>
         );
       }
-
+console.log("columns",columns)
       return (
         <Box
           sx={{

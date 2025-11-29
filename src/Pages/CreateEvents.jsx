@@ -513,7 +513,7 @@ else {
     dayValue = getDayFromDate(formData.date);
   } 
   else {
-    dayValue = "One-time";
+    dayValue = "Recurring";
   }
 
 }
