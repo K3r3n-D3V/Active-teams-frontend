@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { 
   Box, 
@@ -123,12 +122,19 @@ function EventHistory({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [localEvents, setLocalEvents] = useState([]);
-  const [eventStats, setEventStats] = useState({}); // Store stats for each event
+  const [eventStats, setEventStats] = useState({});
   
-  // Dialog states
-  const [detailsDialog, setDetailsDialog] = useState({ open: false, event: null, data: [] });
-  const [newPeopleDialog, setNewPeopleDialog] = useState({ open: false, event: null, data: [] });
-  const [convertsDialog, setConvertsDialog] = useState({ open: false, event: null, data: [] });
+  // Use the same dialog states as ServiceCheckIn
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newPeopleModalOpen, setNewPeopleModalOpen] = useState(false);
+  const [consolidatedModalOpen, setConsolidatedModalOpen] = useState(false);
+  
+  // Data for dialogs
+  const [currentDialogData, setCurrentDialogData] = useState({
+    present: [],
+    newPeople: [],
+    consolidated: []
+  });
 
   // Pagination for mobile cards
   const [page, setPage] = useState(0);
@@ -151,7 +157,6 @@ function EventHistory({
         throw new Error('Authentication token not found. Please log in again.');
       }
       
-      // Use the same events endpoint as ServiceCheckIn
       const response = await fetch(`${BASE_URL}/events/global`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -175,7 +180,6 @@ function EventHistory({
       
       console.log('📋 Raw events data for history:', data);
 
-      // Transform events data
       const eventsData = data.events || data.results || [];
       
       // Filter only closed/complete events
@@ -225,10 +229,6 @@ function EventHistory({
       }
 
       const data = await response.json();
-      console.log(`📊 Real-time data for event ${eventId}:`, data);
-      console.log('✅ Sample attendee:', data.present_attendees?.[0]);
-      console.log('✅ Sample new person:', data.new_people?.[0]);
-      console.log('✅ Sample consolidation:', data.consolidations?.[0]);
       return data;
     } catch (error) {
       console.error('Error fetching real-time event data:', error);
@@ -240,7 +240,6 @@ function EventHistory({
   const fetchAllEventStats = async (eventsList) => {
     const stats = {};
     
-    // Use Promise.all to fetch all stats concurrently for faster loading
     const promises = eventsList.map(async (event) => {
       try {
         const realTimeData = await fetchEventRealTimeData(event.id);
@@ -289,7 +288,7 @@ function EventHistory({
     await fetchClosedEvents();
   };
 
-// Handle viewing attendance details
+  // Handle viewing attendance details - using same modal as ServiceCheckIn
   const handleViewDetails = async (eventId) => {
     const event = localEvents.find(e => e.id === eventId);
     const stats = eventStats[eventId];
@@ -297,15 +296,15 @@ function EventHistory({
     if (onViewDetails) {
       onViewDetails(event, stats?.presentAttendees || []);
     } else {
-      setDetailsDialog({ 
-        open: true, 
-        event,
-        data: stats?.presentAttendees || [] 
-      });
+      setCurrentDialogData(prev => ({
+        ...prev,
+        present: stats?.presentAttendees || []
+      }));
+      setModalOpen(true);
     }
   };
 
-  // Handle viewing new people
+  // Handle viewing new people - using same modal as ServiceCheckIn
   const handleViewNewPeople = async (eventId) => {
     const event = localEvents.find(e => e.id === eventId);
     const stats = eventStats[eventId];
@@ -313,15 +312,15 @@ function EventHistory({
     if (onViewNewPeople) {
       onViewNewPeople(event, stats?.newPeopleList || []);
     } else {
-      setNewPeopleDialog({ 
-        open: true, 
-        event,
-        data: stats?.newPeopleList || [] 
-      });
+      setCurrentDialogData(prev => ({
+        ...prev,
+        newPeople: stats?.newPeopleList || []
+      }));
+      setNewPeopleModalOpen(true);
     }
   };
 
-  // Handle viewing consolidations
+  // Handle viewing consolidations - using same modal as ServiceCheckIn
   const handleViewConverts = async (eventId) => {
     const event = localEvents.find(e => e.id === eventId);
     const stats = eventStats[eventId];
@@ -329,11 +328,11 @@ function EventHistory({
     if (onViewConverts) {
       onViewConverts(event, stats?.consolidationsList || []);
     } else {
-      setConvertsDialog({ 
-        open: true, 
-        event,
-        data: stats?.consolidationsList || [] 
-      });
+      setCurrentDialogData(prev => ({
+        ...prev,
+        consolidated: stats?.consolidationsList || []
+      }));
+      setConsolidatedModalOpen(true);
     }
   };
 
@@ -631,11 +630,248 @@ function EventHistory({
     );
   };
 
+  // Card Components (copied from ServiceCheckIn for consistent display)
+  const PresentAttendeeCard = ({ attendee, showNumber, index }) => {
+    return (
+      <Card
+        variant="outlined"
+        sx={{
+          mb: 1,
+          boxShadow: 2,
+          minHeight: '120px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          "&:last-child": { mb: 0 },
+          border: `2px solid ${theme.palette.primary.main}`,
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? theme.palette.primary.dark + "1a" 
+            : theme.palette.primary.light + "0a",
+        }}
+      >
+        <CardContent sx={{ 
+          p: 1.5,
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column',
+          justifyContent: 'center'
+        }}>
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'flex-start',
+            width: '100%',
+            gap: 1
+          }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="subtitle1" fontWeight={600} noWrap>
+                  {showNumber && `${index}. `}{attendee.name} {attendee.surname}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1.5 }}>
+                {attendee.phone && (
+                  <Typography variant="body2" color="text.secondary" noWrap>
+                    {attendee.phone}
+                  </Typography>
+                )}
+                {attendee.email && (
+                  <Typography variant="body2" color="text.secondary" noWrap>
+                    {attendee.email}
+                  </Typography>
+                )}
+              </Box>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {attendee.leader1 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography variant="caption" fontWeight="bold" color="primary">
+                      @1:
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {attendee.leader1}
+                    </Typography>
+                  </Box>
+                )}
+                
+                {attendee.leader12 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography variant="caption" fontWeight="bold" color="primary">
+                      @12:
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {attendee.leader12}
+                    </Typography>
+                  </Box>
+                )}
+                
+                {attendee.leader144 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography variant="caption" fontWeight="bold" color="primary">
+                      @144:
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {attendee.leader144}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const NewPersonCard = ({ person, showNumber, index }) => (
+    <Card
+      variant="outlined"
+      sx={{
+        mb: 1,
+        boxShadow: 2,
+        minHeight: '140px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        "&:last-child": { mb: 0 },
+        border: `2px solid ${theme.palette.success.main}`,
+        backgroundColor: theme.palette.mode === 'dark' 
+          ? theme.palette.success.dark + "1a" 
+          : theme.palette.success.light + "0a",
+      }}
+    >
+      <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <Box flex={1}>
+            <Typography variant="subtitle2" fontWeight={600}>
+              {showNumber && `${index}. `}{person.name} {person.surname}
+            </Typography>
+            {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
+            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+            {person.gender && (
+              <Chip 
+                label={`Gender: ${person.gender}`} 
+                size="small" 
+                variant="outlined" 
+                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }} 
+              />
+            )}
+          </Box>
+        </Box>
+
+        {person.invitedBy && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+              <Chip 
+                label={`Invited by: ${person.invitedBy}`} 
+                size="small" 
+                variant="outlined" 
+                sx={{ fontSize: "0.7rem", height: 20 }} 
+              />
+            </Stack>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const ConsolidatedPersonCard = ({ person, showNumber, index }) => {
+    const decisionType = person.decision_type || person.consolidation_type || "Commitment";
+    const displayDecisionType = decisionType || 'Commitment';
+    
+    return (
+      <Card
+        variant="outlined"
+        sx={{
+          mb: 1,
+          boxShadow: 2,
+          minHeight: '140px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          "&:last-child": { mb: 0 },
+          border: `2px solid ${theme.palette.secondary.main}`,
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? theme.palette.secondary.dark + "1a" 
+            : theme.palette.secondary.light + "0a",
+        }}
+      >
+        <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+            <Box flex={1}>
+              <Typography variant="subtitle2" fontWeight={600}>
+                {showNumber && `${index}. `}{person.person_name} {person.person_surname}
+                <Chip
+                  label={displayDecisionType}
+                  size="small"
+                  sx={{ ml: 1, fontSize: "0.7rem", height: 20 }}
+                  color={displayDecisionType === 'Recommitment' ? 'primary' : 'secondary'}
+                />
+              </Typography>
+              {person.person_email && <Typography variant="body2" color="text.secondary">{person.person_email}</Typography>}
+              {person.person_phone && <Typography variant="body2" color="text.secondary">{person.person_phone}</Typography>}
+            </Box>
+          </Box>
+
+          <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
+            <Chip
+              label={`Assigned to: ${person.assigned_to || 'Not assigned'}`}
+              size="small"
+              variant="outlined"
+              color="primary"
+            />
+          </Stack>
+
+          {(person.created_at || person.decision_type || person.notes) && (
+            <>
+              <Divider sx={{ my: 1 }} />
+              <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+                {person.created_at && (
+                  <Chip 
+                    label={`Date: ${new Date(person.created_at).toLocaleDateString()}`} 
+                    size="small" 
+                    variant="outlined" 
+                    sx={{ fontSize: "0.7rem", height: 20 }} 
+                  />
+                )}
+                <Chip
+                  label={`Type: ${displayDecisionType}`}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontSize: "0.7rem", height: 20 }}
+                />
+                {person.status && (
+                  <Chip
+                    label={`Status: ${person.status}`}
+                    size="small"
+                    color={person.status === 'completed' ? 'success' : 'default'}
+                    sx={{ fontSize: "0.7rem", height: 20 }}
+                  />
+                )}
+                {person.notes && (
+                  <Tooltip title={person.notes}>
+                    <Chip
+                      label="Has Notes"
+                      size="small"
+                      variant="outlined"
+                      sx={{ fontSize: "0.7rem", height: 20 }}
+                    />
+                  </Tooltip>
+                )}
+              </Stack>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   // Show skeleton loader only on initial load
   if (loading && localEvents.length === 0) {
     return (
       <Box sx={{ width: '100%', height: '100%' }}>
-        {/* Search bar skeleton for mobile */}
         {isMdDown && (
           <Skeleton 
             variant="rectangular" 
@@ -646,7 +882,6 @@ function EventHistory({
         )}
         
         {isMdDown ? (
-          // Mobile/Tablet Skeleton
           <Box>
             <Box sx={{ maxHeight: 500, overflow: 'hidden' }}>
               {[1, 2, 3, 4, 5].map((item) => (
@@ -658,7 +893,6 @@ function EventHistory({
             </Box>
           </Box>
         ) : (
-          // Desktop Skeleton
           <DataGridSkeleton />
         )}
       </Box>
@@ -813,216 +1047,257 @@ function EventHistory({
         </Paper>
       )}
 
-      {/* Attendance Details Dialog */}
-      <Dialog 
-        open={detailsDialog.open} 
-        onClose={() => setDetailsDialog({ open: false, event: null, data: [] })}
-        maxWidth="lg"
+      {/* PRESENT Attendees Modal - Same as ServiceCheckIn */}
+      <Dialog
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
         fullWidth
-        fullScreen={isSmDown}
+        maxWidth="lg"
+        PaperProps={{
+          sx: {
+            boxShadow: 6,
+            maxHeight: '90vh',
+            ...(isSmDown && {
+              margin: 2,
+              maxHeight: '85vh',
+              width: 'calc(100% - 32px)',
+            })
+          }
+        }}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="h6">Attendance Details</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {detailsDialog.event?.eventName} - {formatDate(detailsDialog.event?.date)}
-            </Typography>
-          </Box>
-          <IconButton onClick={() => setDetailsDialog({ open: false, event: null, data: [] })}>
-            <CloseIcon />
-          </IconButton>
+        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+          Attendees Present: {currentDialogData.present.length}
         </DialogTitle>
-        <Divider />
-        <DialogContent>
-          <Stack spacing={2}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h4" color="primary">
-                {detailsDialog.data.length} People Checked In
-              </Typography>
-              <Chip 
-                icon={<GroupIcon />} 
-                label="Total Attendance" 
-                color="primary" 
-                variant="outlined"
-              />
-            </Box>
-            <Divider />
-            <Typography variant="subtitle1" fontWeight="bold">Attendees List:</Typography>
-            {detailsDialog.data.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
-                No attendance data available for this event
-              </Typography>
-            ) : (
-              <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+        <DialogContent dividers sx={{ 
+          maxHeight: isSmDown ? 600 : 700,
+          overflowY: "auto", 
+          p: isSmDown ? 1 : 2 
+        }}>
+          {currentDialogData.present.length === 0 ? (
+            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+              No attendees present for this event
+            </Typography>
+          ) : (
+            <>
+              {isSmDown ? (
+                <Box>
+                  {currentDialogData.present.map((a, idx) => (
+                    <PresentAttendeeCard 
+                      key={a.id || a._id} 
+                      attendee={a} 
+                      showNumber={true} 
+                      index={idx + 1} 
+                    />
+                  ))}
+                </Box>
+              ) : (
                 <Table size="small" stickyHeader>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
-                    </TableRow>
-                  </TableHead>
-              <TableBody>
-                    {detailsDialog.data.map((attendee, index) => {
-                      // Handle different possible data structures
-                      const personData = attendee.person || attendee;
-                      const name = personData.name || personData.fullName || '';
-                      const surname = personData.surname || '';
-                      const fullName = `${name} ${surname}`.trim() || `Person ${index + 1}`;
-                      const phone = personData.phone || personData.phoneNumber || '';
-                      const email = personData.email || '';
-                      const leader12 = personData.leader12 || personData.leaders?.leader12 || '';
-                      
-                      return (
-                        <TableRow key={attendee.id || attendee._id || index} hover>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="medium">
-                              {fullName}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{phone || "—"}</TableCell>
-                          <TableCell>{email || "—"}</TableCell>
-                          <TableCell>{leader12 || "—"}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Box>
-            )}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDetailsDialog({ open: false, event: null, data: [] })}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* New People Dialog */}
-      <Dialog 
-        open={newPeopleDialog.open} 
-        onClose={() => setNewPeopleDialog({ open: false, event: null, data: [] })}
-        maxWidth="lg"
-        fullWidth
-        fullScreen={isSmDown}
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="h6">New People Added</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {newPeopleDialog.event?.eventName} - {formatDate(newPeopleDialog.event?.date)}
-            </Typography>
-          </Box>
-          <IconButton onClick={() => setNewPeopleDialog({ open: false, event: null, data: [] })}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <Divider />
-        <DialogContent>
-          <Stack spacing={2}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h4" color="success.main">
-                {newPeopleDialog.data.length} New People Added
-              </Typography>
-              <Chip 
-                icon={<PersonAddAltIcon />} 
-                label="New People" 
-                color="success" 
-                variant="outlined"
-              />
-            </Box>
-            <Divider />
-            <Typography variant="subtitle1" fontWeight="bold">New People List:</Typography>
-            {newPeopleDialog.data.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
-                No new people recorded for this event
-              </Typography>
-            ) : (
-              <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: '40px' }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Name & Surname</TableCell>
+                      <TableCell sx={{ fontWeight: 600, minWidth: '100px' }}>Phone</TableCell>
+                      <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Email</TableCell>
+                      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @1</TableCell>
+                      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @12</TableCell>
+                      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @144</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {newPeopleDialog.data.map((person, index) => (
-                      <TableRow key={person.id || person._id || index} hover>
-                        <TableCell>{index + 1}</TableCell>
+                    {currentDialogData.present.map((a, idx) => (
+                      <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
+                        <TableCell>{idx + 1}</TableCell>
                         <TableCell>
-                          <Typography variant="body2" fontWeight="medium">
-                            {`${person.name || ''} ${person.surname || ''}`.trim() || `Person ${index + 1}`}
+                          <Box>
+                            <Typography variant="body2" fontWeight="600" noWrap>
+                              {a.name} {a.surname}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" noWrap title={a.phone || ""}>
+                            {a.phone || "—"}
                           </Typography>
                         </TableCell>
-                        <TableCell>{person.phone || "—"}</TableCell>
-                        <TableCell>{person.email || "—"}</TableCell>
-                        <TableCell>{person.invitedBy || "—"}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" noWrap title={a.email || ""}>
+                            {a.email || "—"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" noWrap title={a.leader1 || ""}>
+                            {a.leader1 || "—"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" noWrap title={a.leader12 || ""}>
+                            {a.leader12 || "—"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" noWrap title={a.leader144 || ""}>
+                            {a.leader144 || "—"}
+                          </Typography>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </Box>
-            )}
-          </Stack>
+              )}
+            </>
+          )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setNewPeopleDialog({ open: false, event: null, data: [] })}>Close</Button>
+        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+          <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Decisions Dialog */}
-      <Dialog 
-        open={convertsDialog.open} 
-        onClose={() => setConvertsDialog({ open: false, event: null, data: [] })}
-        maxWidth="lg"
-        fullWidth
-        fullScreen={isSmDown}
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+{/* NEW PEOPLE Modal - Updated to show gender and invitedBy */}
+<Dialog
+  open={newPeopleModalOpen}
+  onClose={() => setNewPeopleModalOpen(false)}
+  fullWidth
+  maxWidth="md"
+  PaperProps={{
+    sx: {
+      boxShadow: 6,
+      ...(isSmDown && {
+        margin: 2,
+        maxHeight: '80vh',
+        width: 'calc(100% - 32px)',
+      })
+    }
+  }}
+>
+  <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+    New People: {currentDialogData.newPeople.length}
+  </DialogTitle>
+  <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
+    {currentDialogData.newPeople.length === 0 ? (
+      <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+        No new people added for this event
+      </Typography>
+    ) : (
+      <>
+        {isSmDown ? (
           <Box>
-            <Typography variant="h6">Consolidation Decisions</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {convertsDialog.event?.eventName} - {formatDate(convertsDialog.event?.date)}
-            </Typography>
+            {currentDialogData.newPeople.map((a, idx) => (
+              <NewPersonCard 
+                key={a.id || a._id} 
+                person={a} 
+                showNumber={true} 
+                index={idx + 1} 
+              />
+            ))}
           </Box>
-          <IconButton onClick={() => setConvertsDialog({ open: false, event: null, data: [] })}>
-            <CloseIcon />
-          </IconButton>
+        ) : (
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600, width: '40px' }}>#</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Name & Surname</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '100px' }}>Phone</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Email</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Gender</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '120px' }}>Invited By</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {currentDialogData.newPeople.map((a, idx) => (
+                <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
+                  <TableCell>{idx + 1}</TableCell>
+                  <TableCell>
+                    <Box>
+                      <Typography variant="body2" fontWeight="600" noWrap>
+                        {a.name} {a.surname}
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" noWrap title={a.phone || ""}>
+                      {a.phone || "—"}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" noWrap title={a.email || ""}>
+                      {a.email || "—"}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    {a.gender ? (
+                      <Chip 
+                        label={a.gender} 
+                        size="small" 
+                        variant="outlined"
+                        sx={{ fontSize: "0.7rem" }}
+                      />
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        —
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" noWrap title={a.invitedBy || ""}>
+                      {a.invitedBy || "—"}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </>
+    )}
+  </DialogContent>
+  <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+    <Button onClick={() => setNewPeopleModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
+      Close
+    </Button>
+  </DialogActions>
+</Dialog>
+
+      {/* CONSOLIDATED Modal - Same as ServiceCheckIn */}
+      <Dialog
+        open={consolidatedModalOpen}
+        onClose={() => setConsolidatedModalOpen(false)}
+        fullWidth
+        maxWidth="md"
+        PaperProps={{
+          sx: {
+            boxShadow: 6,
+            ...(isSmDown && {
+              margin: 2,
+              maxHeight: '80vh',
+              width: 'calc(100% - 32px)',
+            })
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+          Consolidated People: {currentDialogData.consolidated.length}
         </DialogTitle>
-        <Divider />
-        <DialogContent>
-          <Stack spacing={2}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-              <Typography variant="h4" color="secondary.main">
-                {convertsDialog.data.length} Decisions Made
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap">
-                <Chip 
-                  label={`First Time: ${convertsDialog.data.filter(p => p.decision_type === 'first_time').length}`}
-                  color="primary" 
-                  size="small"
-                />
-                <Chip 
-                  label={`Recommitments: ${convertsDialog.data.filter(p => p.decision_type === 'recommitment').length}`}
-                  color="secondary" 
-                  size="small"
-                />
-              </Stack>
-            </Box>
-            <Divider />
-            <Typography variant="subtitle1" fontWeight="bold">Decisions List:</Typography>
-            {convertsDialog.data.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
-                No decisions recorded for this event
-              </Typography>
-            ) : (
-              <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
+          {currentDialogData.consolidated.length === 0 ? (
+            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+              No consolidated people for this event
+            </Typography>
+          ) : (
+            <>
+              {isSmDown ? (
+                <Box>
+                  {currentDialogData.consolidated.map((person, idx) => (
+                    <ConsolidatedPersonCard
+                      key={person.id || person._id || idx}
+                      person={person}
+                      showNumber={true}
+                      index={idx + 1}
+                    />
+                  ))}
+                </Box>
+              ) : (
                 <Table size="small" stickyHeader>
                   <TableHead>
                     <TableRow>
@@ -1035,47 +1310,49 @@ function EventHistory({
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {convertsDialog.data.map((person, index) => (
-                      <TableRow key={person.id || person._id || index} hover>
-                        <TableCell>{index + 1}</TableCell>
+                    {currentDialogData.consolidated.map((person, idx) => (
+                      <TableRow key={person.id || person._id || idx} hover>
+                        <TableCell>{idx + 1}</TableCell>
                         <TableCell>
                           <Typography variant="body2" fontWeight="medium">
-                            {`${person.person_name || ''} ${person.person_surname || ''}`.trim() || `Person ${index + 1}`}
+                            {person.person_name} {person.person_surname}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Box>
-                            {person.person_email && <Typography variant="body2">{person.person_email}</Typography>}
-                            {person.person_phone && <Typography variant="body2" color="text.secondary">{person.person_phone}</Typography>}
+                            {person.person_email && (
+                              <Typography variant="body2">{person.person_email}</Typography>
+                            )}
+                            {person.person_phone && (
+                              <Typography variant="body2" color="text.secondary">{person.person_phone}</Typography>
+                            )}
+                            {!person.person_email && !person.person_phone && "—"}
                           </Box>
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={person.decision_type === 'first_time' ? 'First Time' : 'Recommitment'}
-                            color={person.decision_type === 'first_time' ? 'primary' : 'secondary'}
+                            label={person.decision_type || 'Commitment'}
                             size="small"
+                            color={person.decision_type === 'Recommitment' ? 'primary' : 'secondary'}
+                            variant="filled"
                           />
                         </TableCell>
+                        <TableCell>{person.assigned_to || 'Not assigned'}</TableCell>
                         <TableCell>
-                          <Typography variant="body2">
-                            {person.assigned_to || 'Not assigned'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {person.created_at ? formatDate(person.created_at) : 'No date'}
-                          </Typography>
+                          {person.created_at ? new Date(person.created_at).toLocaleDateString() : '—'}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </Box>
-            )}
-          </Stack>
+              )}
+            </>
+          )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConvertsDialog({ open: false, event: null, data: [] })}>Close</Button>
+        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+          <Button onClick={() => setConsolidatedModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
