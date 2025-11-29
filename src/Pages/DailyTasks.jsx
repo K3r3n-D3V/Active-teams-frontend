@@ -705,7 +705,17 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
 };
 
   // Total count number
-  const totalCount = filteredTasks.length ? filteredTasks.status === 'completed' || filteredTasks.status === 'awaiting task' ? filteredTasks.length : filteredTasks.filter(t => t.status === 'completed' || t.status === 'awaiting task').length : 0;
+  const [totalCount, setTotalCount] = useState(0);
+
+useEffect(() => {
+  const count = filteredTasks.filter(
+    (t) =>
+      (t.status || "").toLowerCase() === "completed" ||
+      (t.status || "").toLowerCase() === "awaiting task"
+  ).length;
+
+  setTotalCount(count);
+}, [filteredTasks, updateTask]); 
 
   return (
     <div style={{ 
