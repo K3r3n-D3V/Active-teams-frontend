@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { 
   Box, 
@@ -224,6 +225,10 @@ function EventHistory({
       }
 
       const data = await response.json();
+      console.log(`📊 Real-time data for event ${eventId}:`, data);
+      console.log('✅ Sample attendee:', data.present_attendees?.[0]);
+      console.log('✅ Sample new person:', data.new_people?.[0]);
+      console.log('✅ Sample consolidation:', data.consolidations?.[0]);
       return data;
     } catch (error) {
       console.error('Error fetching real-time event data:', error);
@@ -284,7 +289,7 @@ function EventHistory({
     await fetchClosedEvents();
   };
 
-  // Handle viewing attendance details
+// Handle viewing attendance details
   const handleViewDetails = async (eventId) => {
     const event = localEvents.find(e => e.id === eventId);
     const stats = eventStats[eventId];
@@ -859,20 +864,31 @@ function EventHistory({
                       <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
                     </TableRow>
                   </TableHead>
-                  <TableBody>
-                    {detailsDialog.data.map((attendee, index) => (
-                      <TableRow key={attendee.id || attendee._id || index} hover>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="medium">
-                            {attendee.name || attendee.fullName || `Person ${index + 1}`}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{attendee.phone || "—"}</TableCell>
-                        <TableCell>{attendee.email || "—"}</TableCell>
-                        <TableCell>{attendee.leader12 || "—"}</TableCell>
-                      </TableRow>
-                    ))}
+              <TableBody>
+                    {detailsDialog.data.map((attendee, index) => {
+                      // Handle different possible data structures
+                      const personData = attendee.person || attendee;
+                      const name = personData.name || personData.fullName || '';
+                      const surname = personData.surname || '';
+                      const fullName = `${name} ${surname}`.trim() || `Person ${index + 1}`;
+                      const phone = personData.phone || personData.phoneNumber || '';
+                      const email = personData.email || '';
+                      const leader12 = personData.leader12 || personData.leaders?.leader12 || '';
+                      
+                      return (
+                        <TableRow key={attendee.id || attendee._id || index} hover>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="medium">
+                              {fullName}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{phone || "—"}</TableCell>
+                          <TableCell>{email || "—"}</TableCell>
+                          <TableCell>{leader12 || "—"}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </Box>
