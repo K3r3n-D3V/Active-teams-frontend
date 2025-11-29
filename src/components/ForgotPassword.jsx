@@ -19,8 +19,53 @@ const ForgotPassword = ({ mode }) => {
 
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
+  const isDark = mode === "dark";
 
   const { requestPasswordReset } = useContext(AuthContext);
+
+  const inputFieldSx = {
+    mb: 2,
+    "& .MuiOutlinedInput-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      borderRadius: "999px",
+      "& fieldset": {
+        borderColor: isDark ? "#333333" : "#e0e0e0",
+      },
+      "&:hover fieldset": {
+        borderColor: isDark ? "#555555" : "#b0b0b0",
+      },
+      "&.Mui-focused": {
+        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: "#42a5f5",
+      },
+    },
+    "& .MuiInputBase-input": {
+      color: isDark ? "#ffffff" : "#000000",
+      bgcolor: "transparent !important",
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: isDark ? "0 0 0 100px #1a1a1a inset !important" : "0 0 0 100px #f8f9fa inset !important",
+        WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
+        transition: "background-color 5000s ease-in-out 0s",
+      },
+      "&:focus": {
+        bgcolor: "transparent !important",
+      },
+    },
+    "& .MuiInputLabel-root": {
+      color: isDark ? "#999999" : "#666666",
+      "&.Mui-focused": {
+        color: "#42a5f5",
+      },
+    },
+    "& .MuiInputBase-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      "&.Mui-focused": {
+        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      },
+    },
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -94,20 +139,7 @@ const ForgotPassword = ({ mode }) => {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          sx={{
-            mb: 2,
-            "& .MuiOutlinedInput-root": {
-              borderRadius: "999px",
-              backgroundColor:
-                mode === "dark"
-                  ? theme.palette.background.default
-                  : "#fff",
-              color: theme.palette.text.primary,
-            },
-            "& .MuiInputLabel-root": {
-              color: theme.palette.text.secondary,
-            },
-          }}
+          sx={inputFieldSx}
         />
 
         {message && (

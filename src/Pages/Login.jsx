@@ -33,6 +33,7 @@ const Login = ({ mode, setMode }) => {
   const navigate = useNavigate();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const { login } = useContext(AuthContext);
+  const isDark = mode === "dark";
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -59,6 +60,49 @@ const Login = ({ mode, setMode }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const inputFieldSx = {
+    "& .MuiOutlinedInput-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      borderRadius: 3,
+      "& fieldset": {
+        borderColor: isDark ? "#333333" : "#e0e0e0",
+      },
+      "&:hover fieldset": {
+        borderColor: isDark ? "#555555" : "#b0b0b0",
+      },
+      "&.Mui-focused": {
+        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: "#42a5f5",
+      },
+    },
+    "& .MuiInputBase-input": {
+      color: isDark ? "#ffffff" : "#000000",
+      bgcolor: "transparent !important",
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: isDark ? "0 0 0 100px #1a1a1a inset !important" : "0 0 0 100px #f8f9fa inset !important",
+        WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
+        transition: "background-color 5000s ease-in-out 0s",
+      },
+      "&:focus": {
+        bgcolor: "transparent !important",
+      },
+    },
+    "& .MuiInputLabel-root": {
+      color: isDark ? "#999999" : "#666666",
+      "&.Mui-focused": {
+        color: "#42a5f5",
+      },
+    },
+    "& .MuiInputBase-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      "&.Mui-focused": {
+        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      },
+    },
   };
 
   return (
@@ -138,31 +182,29 @@ const Login = ({ mode, setMode }) => {
             fullWidth
             error={!!error && !form.email}
             helperText={!form.email && error ? "Email is required" : ""}
-            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+            sx={inputFieldSx}
           />
 
           <TextField
             label="Password"
             name="password"
-            //changing to normal textfield so default eye does not show
-           
             type="text"
             value={form.password}
             onChange={handleChange}
             fullWidth
             error={!!error && !form.password}
             helperText={!form.password && error ? "Password is required" : ""}
-            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+            sx={inputFieldSx}
             InputProps={{
               style: {
-                fontFamily: "monospace", // optional
-                WebkitTextSecurity:`${showPassword ? "" : "disc"}` // makes it dots forces dots
+                fontFamily: "monospace",
+                WebkitTextSecurity:`${showPassword ? "" : "disc"}`
               },
-
               endAdornment: (
                 <IconButton
                   onClick={() => setShowPassword((prev) => !prev)}
                   edge="end"
+                  sx={{ color: isDark ? "#cccccc" : "#666666" }}
                 >
                   {!showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
@@ -209,7 +251,7 @@ const Login = ({ mode, setMode }) => {
             Forgot Password?
           </Link>
           <Typography variant="body2" mt={1}>
-            Don’t have an account?{" "}
+            Don't have an account?{" "}
             <Link
               component="button"
               onClick={() => navigate("/signup")}
