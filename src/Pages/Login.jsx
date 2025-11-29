@@ -1,3 +1,4 @@
+
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -122,13 +123,7 @@ const Login = ({ mode, setMode }) => {
           Login
         </Typography>
 
-        <Box
-          component="form"
-          onSubmit={handleSubmit}
-          display="flex"
-          flexDirection="column"
-          gap={2}
-        >
+        <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={2}>
           <TextField
             label="Email Address"
             name="email"
@@ -144,9 +139,7 @@ const Login = ({ mode, setMode }) => {
           <TextField
             label="Password"
             name="password"
-            //changing to normal textfield so default eye does not show
-           
-            type="text"
+            type={showPassword ? "text" : "password"}
             value={form.password}
             onChange={handleChange}
             fullWidth
@@ -154,32 +147,16 @@ const Login = ({ mode, setMode }) => {
             helperText={!form.password && error ? "Password is required" : ""}
             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
             InputProps={{
-              style: {
-                fontFamily: "monospace", // optional
-                WebkitTextSecurity:`${showPassword ? "" : "disc"}` // makes it dots forces dots
-              },
-
               endAdornment: (
-                <IconButton
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  edge="end"
-                >
-                  {!showPassword ? <VisibilityOff /> : <Visibility />}
+                <IconButton onClick={() => setShowPassword((prev) => !prev)} edge="end">
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               ),
             }}
           />
 
-          {error && (
-            <Typography color="error.main" textAlign="center">
-              {error}
-            </Typography>
-          )}
-          {success && (
-            <Typography color="success.main" textAlign="center">
-              {success}
-            </Typography>
-          )}
+          {error && <Typography color="error.main" textAlign="center">{error}</Typography>}
+          {success && <Typography color="success.main" textAlign="center">{success}</Typography>}
 
           <Button
             type="submit"

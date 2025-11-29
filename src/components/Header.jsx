@@ -1,109 +1,105 @@
 // components/Home.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import EventRegistrationForm from "./EventRegistrationForm";
 
 export default function Home() {
   const [openPopup, setOpenPopup] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    setIsDarkMode(mediaQuery.matches);
-    const handler = (e) => setIsDarkMode(e.matches);
-    mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
-  }, []);
 
   const sections = [
-    { image: "/reactive.jpeg" },
-    { image: "/amenclub.jpeg" },
+    { image: "/Untitled.jpg" },
+    { image: "/newposter.jpg" },
     { image: "/homebanner1.jpg" },
     { image: "/home.jpg" },
   ];
 
-  const styles = {
-    container: {
-      width: "100%",
-      scrollSnapType: "y mandatory",
-      overflowY: "scroll",
-      height: "100vh",
-    },
-    section: {
-      width: "100%",
-      height: "100vh",
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      cursor: "pointer",
-      scrollSnapAlign: "start",
-    },
-    overlay: {
-      position: "fixed",
-      inset: 0,
-      backgroundColor: "rgba(0, 0, 0, 0.85)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 9999,
-      padding: "1rem",
-    },
-    modal: {
-      position: "relative",
-      width: "100%",
-      maxWidth: "680px",        // ← Slim & beautiful (your request)
-      maxHeight: "94vh",
-      borderRadius: "16px",
-      overflow: "hidden",
-      boxShadow: "0 25px 70px rgba(0,0,0,0.5)",
-      fontFamily: "'Georgia', serif",
-      backgroundColor: isDarkMode ? "#111" : "#fff",
-      color: isDarkMode ? "#eee" : "#111",
-    },
-    closeBtn: {
-      position: "absolute",
-      top: "16px",
-      right: "20px",
-      width: "48px",
-      height: "48px",
-      borderRadius: "50%",
-      background: "rgba(0,0,0,0.6)",
-      color: "white",
-      border: "none",
-      fontSize: "32px",
-      fontWeight: "300",
-      cursor: "pointer",
-      zIndex: 10,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-  };
-
   return (
-    <>
-      <div style={styles.container}>
-        {sections.map((sec, i) => (
-          <section
-            key={i}
-            onClick={() => setOpenPopup(true)}
-            style={{
-              ...styles.section,
-              backgroundImage: `url(${sec.image})`,
-            }}
-          />
-        ))}
-      </div>
+    <div style={styles.container}>
+      {sections.map((sec, index) => (
+        <section
+          key={index}
+          onClick={() => setOpenPopup(true)}
+          style={{
+            ...styles.section,
+            backgroundImage: `url(${sec.image})`,
+          }}
+        />
+      ))}
 
-      {/* SLIM & ELEGANT MODAL */}
       {openPopup && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <button style={styles.closeBtn} onClick={() => setOpenPopup(false)}>
-              ×
+        <div style={styles.popupOverlay}>
+          <div style={styles.popupContent}>
+            <button
+              style={styles.closeButton}
+              onClick={() => setOpenPopup(false)}
+            >
+              &times;
             </button>
-            <EventRegistrationForm eventId="ENC2025" />
+            <EventRegistrationForm />
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
+
+const styles = {
+  container: {
+    width: "100%",
+    minHeight: "100vh",
+    overflowY: "auto",
+    scrollBehavior: "smooth",
+  },
+  section: {
+    width: "100%",
+    minHeight: "100vh", // full screen on desktop
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxSizing: "border-box",
+    transition: "0.3s",
+    cursor: "pointer",
+
+    // responsive tweak: smaller height on mobile
+    // (simulate media queries in JS)
+    ...(window.innerWidth < 768 && { minHeight: "70vh" }),
+    ...(window.innerWidth < 480 && { minHeight: "60vh" }),
+  },
+  popupOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100vw",
+    height: "100vh",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+    padding: "1rem",
+  },
+  popupContent: {
+    position: "relative",
+    backgroundColor: "#fff",
+    padding: "clamp(1rem, 4vw, 2rem)", // scales with screen size
+    borderRadius: "8px",
+    width: "100%",
+    maxWidth: "600px",
+    maxHeight: "90vh",
+    overflowY: "auto",
+    boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+  },
+  closeButton: {
+    position: "absolute",
+    top: "10px",
+    right: "14px",
+    fontSize: "clamp(18px, 2.5vw, 24px)", // responsive size
+    fontWeight: "bold",
+    background: "none",
+    border: "none",
+    color: "#333",
+    cursor: "pointer",
+  },
+};
