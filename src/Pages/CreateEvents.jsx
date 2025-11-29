@@ -23,9 +23,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
 function generateUUID() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
 }
@@ -229,37 +229,96 @@ useEffect(() => {
     }
   }, [isTicketedEvent]);
 
-  const fetchPeople = async (filter = "") => {
-    try {
-      setLoadingPeople(true);
-      const params = new URLSearchParams();
-      params.append("perPage", "1000");
-      if (filter) params.append("name", filter);
+  // const fetchPeople = async (filter = "") => {
+  //   try {
+  //     setLoadingPeople(true);
+  //     const params = new URLSearchParams();
+  //     params.append("perPage", "1000");
+  //     if (filter) params.append("name", filter);
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
+  //     const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
+  //     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+  //     const data = await res.json();
       
-      const peopleArray = data.people || data.results || data || [];
+  //     const peopleArray = data.people || data.results || data || [];
 
-      const formatted = peopleArray.map((p) => ({
-        id: p._id || p.id || Math.random(),
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-      }));
+  //     const formatted = peopleArray.map((p) => ({
+  //       id: p._id || p.id || Math.random(),
+  //       fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+  //       email: p.Email || p.email || "",
+  //       leader1: p["Leader @1"] || p.leader1 || "",
+  //       leader12: p["Leader @12"] || p.leader12 || "",
+  //     }));
 
-      setPeopleData(formatted);
+  //     setPeopleData(formatted);
       
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      setPeopleData([]);
-    } finally {
-      setLoadingPeople(false);
-    }
-  };
+  //   } catch (err) {
+  //     console.error("Error fetching people:", err);
+  //     setPeopleData([]);
+  //   } finally {
+  //     setLoadingPeople(false);
+  //   }
+  // };
 
+ 
+  const fetchPeople = async (q) => {
+  if (!q.trim()) {
+    setPeopleData([]);
+    return;
+  }
+
+  const parts = q.trim().split(/\s+/);
+  const name = parts[0];
+  const surname = parts.slice(1).join(" ");
+
+  try {
+    setLoadingPeople(true);
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) throw new Error("Failed to fetch people");
+
+    const data = await res.json();
+
+    let filtered = (data?.results || data?.people || []).filter(p =>
+      (p.Name && p.Name.toLowerCase().includes(name.toLowerCase())) &&
+      (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+    );
+
+    // Sort the results
+    filtered.sort((a, b) => {
+      const nameA = (a.Name || "").toLowerCase();
+      const nameB = (b.Name || "").toLowerCase();
+      const surnameA = (a.Surname || "").toLowerCase();
+      const surnameB = (b.Surname || "").toLowerCase();
+
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      if (surnameA < surnameB) return -1;
+      if (surnameA > surnameB) return 1;
+      return 0;
+    });
+
+    // Format the results consistently
+    const formatted = filtered.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+      leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+    }));
+
+    setPeopleData(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    toast.error(err.message);
+    setPeopleData([]);
+  } finally {
+    setLoadingPeople(false);
+  }
+};
   useEffect(() => {
     if (!eventId) return;
 
@@ -282,29 +341,20 @@ useEffect(() => {
         }
 
         if (data.recurring_day) {
-          data.recurringDays = Array.isArray(data.recurring_day)
-            ? data.recurring_day
-            : [];
+          data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
         }
 
         if (data.isTicketed !== undefined) {
-          setEventTypeFlags((prev) => ({
+          setEventTypeFlags(prev => ({
             ...prev,
-            isTicketed: !!data.isTicketed,
+            isTicketed: !!data.isTicketed
           }));
         }
 
         if (data.isTicketed) {
-          console.log(
-            "Setting price tiers for ticketed event:",
-            data.priceTiers
-          );
-          if (
-            data.priceTiers &&
-            Array.isArray(data.priceTiers) &&
-            data.priceTiers.length > 0
-          ) {
-            const formattedPriceTiers = data.priceTiers.map((tier) => ({
+          console.log("Setting price tiers for ticketed event:", data.priceTiers);
+          if (data.priceTiers && Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
+            const formattedPriceTiers = data.priceTiers.map(tier => ({
               name: tier.name || "",
               price: tier.price || "",
               ageGroup: tier.ageGroup || "",
@@ -328,6 +378,7 @@ useEffect(() => {
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
+
       } catch (err) {
         console.error("Failed to fetch event:", err);
         toast.error("Failed to load event data. Please try again.");
@@ -402,10 +453,8 @@ useEffect(() => {
     if (!formData.eventType) newErrors.eventType = "Event type is required";
     if (!formData.eventName) newErrors.eventName = "Event name is required";
     if (!formData.location) newErrors.location = "Location is required";
-    if (!formData.eventLeader)
-      newErrors.eventLeader = "Event leader is required";
-    if (!formData.description)
-      newErrors.description = "Description is required";
+    if (!formData.eventLeader) newErrors.eventLeader = "Event leader is required";
+    if (!formData.description) newErrors.description = "Description is required";
 
     if (!isGlobalEvent) {
       if (hasPersonSteps && formData.recurringDays.length === 0) {
@@ -419,25 +468,15 @@ useEffect(() => {
 
       if (isTicketedEvent && !isGlobalEvent) {
         if (priceTiers.length === 0) {
-          newErrors.priceTiers =
-            "Add at least one price tier for ticketed events";
+          newErrors.priceTiers = "Add at least one price tier for ticketed events";
         } else {
           priceTiers.forEach((tier, index) => {
-            if (!tier.name)
-              newErrors[`tier_${index}_name`] = "Price name is required";
-            if (
-              tier.price === "" ||
-              isNaN(Number(tier.price)) ||
-              Number(tier.price) < 0
-            )
+            if (!tier.name) newErrors[`tier_${index}_name`] = "Price name is required";
+            if (tier.price === "" || isNaN(Number(tier.price)) || Number(tier.price) < 0)
               newErrors[`tier_${index}_price`] = "Valid price is required";
-            if (!tier.ageGroup)
-              newErrors[`tier_${index}_ageGroup`] = "Age group is required";
-            if (!tier.memberType)
-              newErrors[`tier_${index}_memberType`] = "Member type is required";
-            if (!tier.paymentMethod)
-              newErrors[`tier_${index}_paymentMethod`] =
-                "Payment method is required";
+            if (!tier.ageGroup) newErrors[`tier_${index}_ageGroup`] = "Age group is required";
+            if (!tier.memberType) newErrors[`tier_${index}_memberType`] = "Member type is required";
+            if (!tier.paymentMethod) newErrors[`tier_${index}_paymentMethod`] = "Payment method is required";
           });
         }
       }
@@ -482,41 +521,17 @@ useEffect(() => {
         return;
       }
 
-      console.log("Creating event with type:", eventTypeToSend);
+      console.log('Creating event with type:', eventTypeToSend);
 
-     // FIXED DAY LOGIC – fully correct
-let dayValue = "";
+      let dayValue = "";
 
-// 1) If event uses person steps → ALWAYS recurring logic
-if (hasPersonSteps) {
-  if (formData.recurringDays.length > 1) {
-    dayValue = "Recurring";
-  } else if (formData.recurringDays.length === 1) {
-    dayValue = formData.recurringDays[0];
-  } else {
-    // person-step event but no days chosen yet
-    dayValue = "";
-  }
-}
-
-// 2) Otherwise → normal event logic
-else {
-
-  if (formData.recurringDays.length > 1) {
-    dayValue = "Recurring";
-  } 
-  else if (formData.recurringDays.length === 1) {
-    dayValue = formData.recurringDays[0];
-  } 
-  else if (formData.date) {
-    // date exists → derive weekday
-    dayValue = getDayFromDate(formData.date);
-  } 
-  else {
-    dayValue = "Recurring";
-  }
-
-}
+      if (formData.date) {
+        dayValue = getDayFromDate(formData.date);
+      } else if (formData.recurringDays.length > 0) {
+        dayValue = formData.recurringDays[0];
+      } else {
+        dayValue = "One-time";
+      }
 
       const payload = {
         UUID: generateUUID(),
@@ -545,9 +560,9 @@ else {
         if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
         if (formData.timePeriod === "AM" && hours === 12) hours = 0;
 
-        payload.date = `${formData.date}T${hours
+        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
           .toString()
-          .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00`;
+          .padStart(2, "0")}:00`;
       }
 
       if (isTicketedEvent && !isGlobalEvent) {
@@ -571,7 +586,7 @@ else {
         payload.leader12 = formData.leader12 || "";
       }
 
-      console.log("Final Payload:", payload);
+      console.log('Final Payload:', payload);
 
       const token = localStorage.getItem("token");
       const headers = {
@@ -580,16 +595,8 @@ else {
       };
 
       const response = eventId
-        ? await axios.put(
-            `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`,
-            payload,
-            { headers }
-          )
-        : await axios.post(
-            `${BACKEND_URL.replace(/\/$/, "")}/events`,
-            payload,
-            { headers }
-          );
+        ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
+        : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
 
       console.log("Response:", response.data);
 
@@ -606,11 +613,12 @@ else {
           navigate("/events", {
             state: {
               refresh: true,
-              timestamp: Date.now(),
-            },
+              timestamp: Date.now()
+            }
           });
         }
       }, 1200);
+
     } catch (err) {
       console.error("Error:", err);
       console.error("Response:", err?.response?.data);
@@ -621,21 +629,19 @@ else {
         const errorData = err.response.data;
 
         if (Array.isArray(errorData.detail)) {
-          errorMsg =
-            "Validation errors: " +
-            errorData.detail
-              .map((errorObj) => {
-                if (errorObj.msg) return errorObj.msg;
-                if (errorObj.loc && errorObj.msg)
-                  return `${errorObj.loc.join(".")}: ${errorObj.msg}`;
-                return JSON.stringify(errorObj);
-              })
-              .join(", ");
-        } else if (errorData.detail && typeof errorData.detail === "object") {
+          errorMsg = "Validation errors: " + errorData.detail.map(errorObj => {
+            if (errorObj.msg) return errorObj.msg;
+            if (errorObj.loc && errorObj.msg) return `${errorObj.loc.join('.')}: ${errorObj.msg}`;
+            return JSON.stringify(errorObj);
+          }).join(', ');
+        }
+        else if (errorData.detail && typeof errorData.detail === 'object') {
           errorMsg = errorData.detail.msg || JSON.stringify(errorData.detail);
-        } else if (errorData.message) {
+        }
+        else if (errorData.message) {
           errorMsg = errorData.message;
-        } else if (errorData.detail) {
+        }
+        else if (errorData.detail) {
           errorMsg = errorData.detail;
         }
       } else if (err?.message) {
@@ -650,180 +656,151 @@ else {
 
   const containerStyle = isModal
     ? {
-        padding: "0",
-        minHeight: "auto",
-        backgroundColor: "transparent",
-        width: "100%",
-        height: "100%",
-        maxHeight: "none",
-        overflowY: "auto",
-      }
+      padding: "0",
+      minHeight: "auto",
+      backgroundColor: "transparent",
+      width: "100%",
+      height: "100%",
+      maxHeight: "none",
+      overflowY: "auto",
+    }
     : {
-        minHeight: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
-        px: 2,
-      };
+      minHeight: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
+      px: 2,
+    };
 
   const cardStyle = isModal
     ? {
-        width: "100%",
-        height: "100%",
-        padding: "1.5rem",
-        borderRadius: 0,
-        boxShadow: "none",
-        backgroundColor: "transparent",
-        maxHeight: "none",
-        overflow: "visible",
-      }
+      width: "100%",
+      height: "100%",
+      padding: "1.5rem",
+      borderRadius: 0,
+      boxShadow: "none",
+      backgroundColor: "transparent",
+      maxHeight: "none",
+      overflow: "visible",
+    }
     : {
-        width: { xs: "100%", sm: "85%", md: "700px" },
-        p: 5,
-        borderRadius: "20px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-      };
+      width: { xs: "100%", sm: "85%", md: "700px" },
+      p: 5,
+      borderRadius: "20px",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+    };
 
- const darkModeStyles = {
-  textField: {
-    "& .MuiOutlinedInput-root": {
-      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-      color: theme.palette.text.primary,
-      "& fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.divider
-          : "rgba(0, 0, 0, 0.23)",
-      },
-      "&:hover fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.primary.light
-          : "rgba(0, 0, 0, 0.87)",
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: theme.palette.primary.main,
-        boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
-      },
-      "& input": {
+  const darkModeStyles = {
+    textField: {
+      "& .MuiOutlinedInput-root": {
+        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
         color: theme.palette.text.primary,
-        WebkitTextFillColor: theme.palette.text.primary,
+        "& fieldset": {
+          borderColor: isDarkMode ? theme.palette.divider : "rgba(0, 0, 0, 0.23)",
+        },
+        "&:hover fieldset": {
+          borderColor: isDarkMode ? theme.palette.primary.light : "rgba(0, 0, 0, 0.87)",
+        },
+        "&.Mui-focused fieldset": {
+          borderColor: theme.palette.primary.main,
+          boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
+        },
+        "& input": {
+          color: theme.palette.text.primary,
+          WebkitTextFillColor: theme.palette.text.primary,
+        },
+        "& textarea": {
+          color: theme.palette.text.primary,
+        },
       },
-      "& textarea": {
-        color: theme.palette.text.primary,
+      "& .MuiInputLabel-root": {
+        color: theme.palette.text.secondary,
+        "&.Mui-focused": {
+          color: theme.palette.primary.main,
+        },
+        "&.MuiInputLabel-shrink": {
+          color: theme.palette.text.secondary,
+        },
+      },
+      "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+        color: theme.palette.text.secondary,
+      },
+      "& .MuiFormHelperText-root": {
+        color: theme.palette.text.secondary,
+        "&.Mui-error": {
+          color: theme.palette.error.main,
+        },
       },
     },
-
-    // ✅ Make date/time picker icons white in dark mode
-    "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-      color: isDarkMode ? "#fff" : theme.palette.text.secondary,
-    },
-
-    "& .MuiInputLabel-root": {
-      color: theme.palette.text.secondary,
-      "&.Mui-focused": {
-        color: theme.palette.primary.main,
+    autocomplete: {
+      "& .MuiOutlinedInput-root": {
+        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+        color: theme.palette.text.primary,
+        "& fieldset": {
+          borderColor: isDarkMode ? theme.palette.divider : "rgba(0, 0, 0, 0.23)",
+        },
+        "&:hover fieldset": {
+          borderColor: isDarkMode ? theme.palette.primary.light : "rgba(0, 0, 0, 0.87)",
+        },
+        "&.Mui-focused fieldset": {
+          borderColor: theme.palette.primary.main,
+        },
       },
-      "&.MuiInputLabel-shrink": {
+      "& .MuiAutocomplete-input": {
+        color: theme.palette.text.primary,
+      },
+      "& .MuiInputLabel-root": {
         color: theme.palette.text.secondary,
       },
     },
-    "& .MuiFormHelperText-root": {
-      color: theme.palette.text.secondary,
-      "&.Mui-error": {
-        color: theme.palette.error.main,
-      },
-    },
-  },
-
-  autocomplete: {
-    "& .MuiOutlinedInput-root": {
-      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-      color: theme.palette.text.primary,
-      "& fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.divider
-          : "rgba(0, 0, 0, 0.23)",
-      },
-      "&:hover fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.primary.light
-          : "rgba(0, 0, 0, 0.87)",
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: theme.palette.primary.main,
-      },
-    },
-    "& .MuiAutocomplete-input": {
-      color: theme.palette.text.primary,
-    },
-    "& .MuiInputLabel-root": {
-      color: theme.palette.text.secondary,
-    },
-  },
-
-  formControlLabel: {
-    "& .MuiFormControlLabel-label": {
-      color: theme.palette.text.primary,
-      fontSize: "0.95rem",
-      fontWeight: 500,
-    },
-    "& .MuiCheckbox-root": {
-      color: theme.palette.text.secondary,
-      "&.Mui-checked": {
-        color: theme.palette.primary.main,
-      },
-    },
-  },
-
-  button: {
-    // ✔ Darken create event button in dark mode
-    contained: {
-    backgroundColor: isDarkMode ? "#1565c0" : theme.palette.primary.main,
-    color: "#fff",
-    "&:hover": {
-      backgroundColor: isDarkMode ? "#0d47a1" : theme.palette.primary.dark,
-      },
-    },
-
-    outlined: {
-      borderColor: theme.palette.divider,
-      color: theme.palette.text.primary,
-      "&:hover": {
-        borderColor: theme.palette.primary.dark,
-        bgcolor: theme.palette.action.hover,
-      },
-    },
-  },
-
-  errorText: {
-    color: theme.palette.error.main,
-  },
-
-  card: {
-    bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-    border: `1px solid ${theme.palette.divider}`,
-  },
-
-  sectionTitle: {
-    color: theme.palette.text.primary,
-  },
-
-  helperText: {
-    color: theme.palette.text.secondary,
-  },
-
-  daysContainer: {
-    "& .MuiFormControlLabel-root": {
-      margin: 0,
+    formControlLabel: {
       "& .MuiFormControlLabel-label": {
         color: theme.palette.text.primary,
         fontSize: "0.95rem",
         fontWeight: 500,
       },
+      "& .MuiCheckbox-root": {
+        color: theme.palette.text.secondary,
+        "&.Mui-checked": {
+          color: theme.palette.primary.main,
+        },
+      },
     },
-  },
-};
-
+    button: {
+      outlined: {
+        borderColor: theme.palette.divider,
+        color: theme.palette.text.primary,
+        "&:hover": {
+          borderColor: theme.palette.primary.dark,
+          bgcolor: theme.palette.action.hover,
+        },
+      },
+    },
+    errorText: {
+      color: theme.palette.error.main,
+    },
+    card: {
+      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+      border: `1px solid ${theme.palette.divider}`,
+    },
+    sectionTitle: {
+      color: theme.palette.text.primary,
+    },
+    helperText: {
+      color: theme.palette.text.secondary,
+    },
+    daysContainer: {
+      "& .MuiFormControlLabel-root": {
+        margin: 0,
+        "& .MuiFormControlLabel-label": {
+          color: theme.palette.text.primary,
+          fontSize: "0.95rem",
+          fontWeight: 500,
+        },
+      },
+    },
+  };
 
   return (
     <Box sx={containerStyle}>
@@ -832,10 +809,10 @@ else {
           ...cardStyle,
           ...(isDarkMode && !isModal
             ? {
-                bgcolor: theme.palette.background.paper,
-                color: theme.palette.text.primary,
-                border: `1px solid ${theme.palette.divider}`,
-              }
+              bgcolor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+            }
             : {}),
         }}
       >
@@ -851,9 +828,7 @@ else {
               fontWeight="bold"
               textAlign="center"
               mb={4}
-              sx={{
-                color: isDarkMode ? "#ffffff" : theme.palette.primary.main,
-              }}
+              sx={{ color: isDarkMode ? "#ffffff" : theme.palette.primary.main }}
             >
               {eventId ? "Edit Event" : "Create New Event"}
             </Typography>
@@ -910,7 +885,10 @@ else {
                     mb: 2,
                   }}
                 >
-                  <Typography variant="h6" sx={darkModeStyles.sectionTitle}>
+                  <Typography
+                    variant="h6"
+                    sx={darkModeStyles.sectionTitle}
+                  >
                     Price Tiers *
                   </Typography>
                   <Button
@@ -925,11 +903,7 @@ else {
                 {errors.priceTiers && (
                   <Typography
                     variant="caption"
-                    sx={{
-                      ...darkModeStyles.errorText,
-                      mb: 1,
-                      display: "block",
-                    }}
+                    sx={{ ...darkModeStyles.errorText, mb: 1, display: "block" }}
                   >
                     {errors.priceTiers}
                   </Typography>
@@ -1086,10 +1060,7 @@ else {
                 mb={1}
                 sx={darkModeStyles.sectionTitle}
               >
-                Recurring Days{" "}
-                {hasPersonSteps && !isGlobalEvent && (
-                  <span style={{ color: "red" }}>*</span>
-                )}
+                Recurring Days {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
               </Typography>
               <Box
                 display="flex"
@@ -1135,7 +1106,7 @@ else {
               }}
             />
 
-            <Box sx={{ mb: 3, position: "relative" }}>
+            {/* <Box sx={{ mb: 3, position: 'relative' }}>
               <TextField
                 label="Event Leader *"
                 value={formData.eventLeader}
@@ -1156,12 +1127,7 @@ else {
                 size="small"
                 sx={darkModeStyles.textField}
                 error={!!errors.eventLeader}
-                helperText={
-                  errors.eventLeader ||
-                  (peopleData.length > 0
-                    ? `${peopleData.length} people found`
-                    : "Type to search for people")
-                }
+                helperText={errors.eventLeader || (peopleData.length > 0 ? `${peopleData.length} people found` : "Type to search for people")}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -1171,49 +1137,39 @@ else {
                 }}
                 placeholder="Type name to search..."
               />
-
+              
               {peopleData.length > 0 && (
-                <Box
-                  sx={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    zIndex: 1000,
-                    backgroundColor: isDarkMode
-                      ? theme.palette.background.paper
-                      : "#fff",
-                    border: `1px solid ${
-                      isDarkMode ? theme.palette.divider : "#ccc"
-                    }`,
-                    borderRadius: "4px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    maxHeight: "200px",
-                    overflowY: "auto",
-                    mt: 0.5,
-                  }}
-                >
+                <Box sx={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  zIndex: 1000,
+                  backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
+                  border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
+                  borderRadius: '4px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  mt: 0.5,
+                }}>
                   {peopleData.map((person) => (
                     <Box
                       key={person.id || `${person.fullName}-${person.email}`}
                       sx={{
-                        padding: "12px",
-                        cursor: "pointer",
-                        borderBottom: `1px solid ${
-                          isDarkMode ? theme.palette.divider : "#f0f0f0"
-                        }`,
-                        "&:hover": {
-                          backgroundColor: isDarkMode
-                            ? "rgba(255,255,255,0.1)"
-                            : "#f5f5f5",
+                        padding: '12px',
+                        cursor: 'pointer',
+                        borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
+                        '&:hover': {
+                          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
                         },
-                        "&:last-child": {
-                          borderBottom: "none",
+                        '&:last-child': {
+                          borderBottom: 'none',
                         },
                       }}
                       onClick={() => {
                         const selectedName = person.fullName;
-
+                        
                         if (hasPersonSteps && !isGlobalEvent) {
                           setFormData((prev) => ({
                             ...prev,
@@ -1231,10 +1187,7 @@ else {
                       <Typography variant="body1" fontWeight="500">
                         {person.fullName}
                       </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary", fontSize: "0.75rem" }}
-                      >
+                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
                         {person.email}
                         {person.leader1 && ` • L@1: ${person.leader1}`}
                         {person.leader12 && ` • L@12: ${person.leader12}`}
@@ -1243,16 +1196,117 @@ else {
                   ))}
                 </Box>
               )}
-
+              
               {loadingPeople && (
-                <Typography
-                  variant="body2"
-                  sx={{ color: "text.secondary", mt: 0.5 }}
-                >
+                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
                   Searching...
                 </Typography>
               )}
-            </Box>
+            </Box> */}
+
+            {/* // Replace the existing Event Leader TextField section with this: */}
+<Box sx={{ mb: 3, position: 'relative' }}>
+  <TextField
+    label="Event Leader *"
+    value={formData.eventLeader}
+    onChange={(e) => {
+      handleChange("eventLeader", e.target.value);
+      if (e.target.value.trim().length >= 1) {
+        fetchPeople(e.target.value);
+      } else {
+        setPeopleData([]);
+      }
+    }}
+    onFocus={() => {
+      if (formData.eventLeader.length >= 1) {
+        fetchPeople(formData.eventLeader);
+      }
+    }}
+    onBlur={() => {
+      // Delay hiding dropdown to allow for selection
+      setTimeout(() => setPeopleData([]), 200);
+    }}
+    fullWidth
+    size="small"
+    sx={darkModeStyles.textField}
+    error={!!errors.eventLeader}
+    helperText={errors.eventLeader || "Type name and surname to search..."}
+    InputProps={{
+      startAdornment: (
+        <InputAdornment position="start">
+          <PersonIcon />
+        </InputAdornment>
+      ),
+    }}
+    placeholder="Type name and surname to search..."
+    autoComplete="off"
+  />
+  
+  {peopleData.length > 0 && (
+    <Box sx={{
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      zIndex: 1000,
+      backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
+      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
+      borderRadius: '4px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      maxHeight: '200px',
+      overflowY: 'auto',
+      mt: 0.5,
+    }}>
+      {peopleData.map((person) => (
+        <Box
+          key={person.id || `${person.fullName}-${person.email}`}
+          sx={{
+            padding: '12px',
+            cursor: 'pointer',
+            borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
+            '&:hover': {
+              backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
+            },
+            '&:last-child': {
+              borderBottom: 'none',
+            },
+          }}
+          onClick={() => {
+            const selectedName = person.fullName;
+            
+            if (hasPersonSteps && !isGlobalEvent) {
+              setFormData((prev) => ({
+                ...prev,
+                eventLeader: selectedName,
+                eventName: selectedName,
+                leader1: person.leader1 || "",
+                leader12: person.leader12 || "",
+              }));
+            } else {
+              handleChange("eventLeader", selectedName);
+            }
+            setPeopleData([]);
+          }}
+        >
+          <Typography variant="body1" fontWeight="500">
+            {person.fullName}
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+            {person.email}
+            {person.leader1 && ` • L@1: ${person.leader1}`}
+            {person.leader12 && ` • L@12: ${person.leader12}`}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  )}
+  
+  {loadingPeople && (
+    <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+      Searching...
+    </Typography>
+  )}
+</Box>
 
             {hasPersonSteps && !isGlobalEvent && (
               <>
@@ -1327,15 +1381,23 @@ else {
                 variant="contained"
                 fullWidth
                 disabled={isSubmitting}
-                sx={darkModeStyles.button.contained}
+                sx={{
+                  bgcolor: "primary.main",
+                  color: "#ffffff",
+                  "&:hover": { bgcolor: "primary.dark" },
+                  "&:disabled": {
+                    bgcolor: isDarkMode ? "#333" : "#ccc",
+                    color: isDarkMode ? "#666" : "#999",
+                  },
+                }}
               >
                 {isSubmitting
                   ? eventId
                     ? "Updating..."
                     : "Creating..."
                   : eventId
-                  ? "Update Event"
-                  : "Create Event"}
+                    ? "Update Event"
+                    : "Create Event"}
               </Button>
             </Box>
           </form>
