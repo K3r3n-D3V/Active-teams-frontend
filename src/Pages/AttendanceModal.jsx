@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+ import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -1236,6 +1236,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const isTicketedEvent = event?.isTicketed || false;
   const eventPriceTiers = event?.priceTiers || [];
   const theme = useTheme();
+
+  // Debug logging
+  console.log("=== TICKETED EVENT DEBUG ===");
+  console.log("Event object:", event);
+  console.log("isTicketedEvent:", isTicketedEvent);
+  console.log("eventPriceTiers:", eventPriceTiers);
+  console.log("===========================");
 
   const isDarkMode = theme.palette.mode === "dark";
   const decisionOptions = [
@@ -2537,8 +2544,6 @@ const confirmDidNotMeet = async () => {
       color: theme.palette.text.primary,
       transition: "background 0.15s",
     },
-
-    
     priceTierButton: {
       display: "flex",
       alignItems: "center",
@@ -2832,6 +2837,9 @@ const confirmDidNotMeet = async () => {
       display: "block",
       fontWeight: 600,
     },
+    inputGroup: {
+      marginBottom: "8px",
+    },
   };
 
   if (!isOpen) return null;
@@ -2892,38 +2900,25 @@ const confirmDidNotMeet = async () => {
           <div style={styles.contentArea}>
             {activeTab === 0 && (
               <>
-      {/* // In the ASSOCIATE PERSON tab, update the search input placeholder: */}
-<div style={styles.searchBox}>
-  <Search size={20} style={styles.searchIcon} />
-  <input
-    type="text"
-    placeholder="Search by name and surname..."
-    value={associateSearch}
-    onChange={(e) => setAssociateSearch(e.target.value)}
-    style={styles.input}
-    autoComplete="off"
-  />
-</div>
+                <div style={styles.searchBox}>
+                  <Search size={20} style={styles.searchIcon} />
+                  <input
+                    type="text"
+                    placeholder="Search attendees..."
+                    value={searchName}
+                    onChange={(e) => setSearchName(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
 
-  {isMobile ? (
-      <div>
-        {loading && (
-          <div style={{ textAlign: "center", padding: "20px" }}>
-              Loading...
-          </div>
-         )}
-    {/* // In the table rendering, update the empty state: */}
-{!loading && filteredPeople.length === 0 && (
-  <tr>
-    <td
-      colSpan="6"
-      style={{ ...styles.td, textAlign: "center" }}
-    >
-      {associateSearch.trim() ? "No people found matching your search." : "No people available."}
-    </td>
-  </tr>
-)}
-            {filteredCommonAttendees.map(renderMobileAttendeeCard)}
+                {isMobile ? (
+                  <div>
+                    {loading && (
+                      <div style={{ textAlign: "center", padding: "20px" }}>
+                          Loading...
+                      </div>
+                     )}
+                    {filteredCommonAttendees.map(renderMobileAttendeeCard)}
                   </div>
                 ) : (
                   <div style={styles.tableContainer}>
@@ -2932,6 +2927,8 @@ const confirmDidNotMeet = async () => {
                         <tr>
                           <th style={styles.th}>Attendees Name</th>
                           <th style={styles.th}>Attendees Email</th>
+                          
+                          {/* Show regular columns for non-ticketed events */}
                           {!isTicketedEvent && (
                             <>
                               <th style={styles.th}>Attendees Leader @12</th>
@@ -2939,9 +2936,12 @@ const confirmDidNotMeet = async () => {
                               <th style={styles.th}>Attendees Number</th>
                             </>
                           )}
+                          
                           <th style={{ ...styles.th, textAlign: "center" }}>
                             Check In
                           </th>
+                          
+                          {/* Show ticketed event columns ONLY for ticketed events */}
                           {isTicketedEvent && (
                             <>
                               <th style={{ ...styles.th, textAlign: "center" }}>
@@ -2961,6 +2961,8 @@ const confirmDidNotMeet = async () => {
                               </th>
                             </>
                           )}
+                          
+                          {/* Show decision column ONLY for non-ticketed events */}
                           {!isTicketedEvent && (
                             <th style={{ ...styles.th, textAlign: "center" }}>
                               Decision
@@ -3005,6 +3007,8 @@ const confirmDidNotMeet = async () => {
                                 )}
                               </td>
                               <td style={styles.td}>{person.email}</td>
+                              
+                              {/* Regular columns for non-ticketed events */}
                               {!isTicketedEvent && (
                                 <>
                                   <td style={styles.td}>{person.leader12}</td>
@@ -3012,6 +3016,7 @@ const confirmDidNotMeet = async () => {
                                   <td style={styles.td}>{person.phone}</td>
                                 </>
                               )}
+                              
                               <td style={{ ...styles.td, ...styles.radioCell }}>
                                 <button
                                   style={{
@@ -3032,8 +3037,10 @@ const confirmDidNotMeet = async () => {
                                 </button>
                               </td>
 
+                              {/* Ticketed event columns */}
                               {isTicketedEvent && (
                                 <>
+                                  {/* Price Tier Column */}
                                   <td
                                     style={{
                                       ...styles.td,
@@ -3144,6 +3151,7 @@ const confirmDidNotMeet = async () => {
                                     )}
                                   </td>
 
+                                  {/* Payment Method Column */}
                                   <td
                                     style={{
                                       ...styles.td,
@@ -3211,6 +3219,7 @@ const confirmDidNotMeet = async () => {
                                     )}
                                   </td>
 
+                                  {/* Price Column */}
                                   <td
                                     style={{ ...styles.td, textAlign: "right" }}
                                   >
@@ -3225,6 +3234,7 @@ const confirmDidNotMeet = async () => {
                                     )}
                                   </td>
 
+                                  {/* Paid Column */}
                                   <td
                                     style={{ ...styles.td, textAlign: "right" }}
                                   >
@@ -3248,6 +3258,7 @@ const confirmDidNotMeet = async () => {
                                     )}
                                   </td>
 
+                                  {/* Owing Column */}
                                   <td
                                     style={{ ...styles.td, textAlign: "right" }}
                                   >
@@ -3270,6 +3281,7 @@ const confirmDidNotMeet = async () => {
                                 </>
                               )}
 
+                              {/* Decision Column - Only for non-ticketed events */}
                               {!isTicketedEvent && (
                                 <td
                                   style={{ ...styles.td, ...styles.radioCell }}
@@ -3570,7 +3582,6 @@ const confirmDidNotMeet = async () => {
 
           <div style={styles.footer}>
             <button style={styles.closeBtn} onClick={onClose}>
-
               CLOSE
             </button>
             <div
@@ -3628,8 +3639,6 @@ const confirmDidNotMeet = async () => {
           </div>
         </div>
       )}
-
-      
 
       <AddPersonToEvents
         isOpen={showAddPersonModal}
