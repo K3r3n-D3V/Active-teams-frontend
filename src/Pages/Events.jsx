@@ -7,12 +7,9 @@ import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import Skeleton from "@mui/material/Skeleton";
-import Snackbar from "@mui/material/Snackbar";
 import Tooltip from "@mui/material/Tooltip";
 import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment } from "@mui/material";
 import { DataGrid, GridToolbar } from '@mui/x-data-grid';
-import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
 import Popover from "@mui/material/Popover";
 import MenuItem from "@mui/material/MenuItem";
@@ -673,7 +670,7 @@ const Events = () => {
     userRole.includes("leader at 1728");
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-  const DEFAULT_API_START_DATE = '2025-10-27';
+  const DEFAULT_API_START_DATE = '2025-11-01';
 
   // State declarations - ALL AT THE TOP
   const [showFilter, setShowFilter] = useState(false);
@@ -849,7 +846,7 @@ const Events = () => {
     checkLeaderAt12Status();
   }, [BACKEND_URL]);
 
-  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
+ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
     console.log("fetchEvents - START", {
       filters,
       forceRefresh,
@@ -861,7 +858,6 @@ const Events = () => {
       currentUserLeaderAt1
     });
 
-    // Only show loader for initial load or if explicitly requested
     if (showLoader) {
       setLoading(true);
       setIsLoading(true);
@@ -888,14 +884,19 @@ const Events = () => {
 
       const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
-     console.log("CURRENT USER",currentUser)
-    const params = {
-      page: filters.page !== undefined ? filters.page : currentPage,
-      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-      start_date: startDateParam,
-      ...filters,
-      isLeaderAt12 //sending if leader at 12 to backend
-    };
+      console.log("CURRENT USER", currentUser);
+      
+      const params = {
+        page: filters.page !== undefined ? filters.page : currentPage,
+        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+        start_date: startDateParam,
+        ...filters,
+        isLeaderAt12 
+      };
+
+      if (selectedEventTypeFilter && selectedEventTypeFilter !== 'CELLS' && selectedEventTypeFilter !== 'all' && !params.event_type) {
+        params.event_type = selectedEventTypeFilter;
+      }
 
       if (!filters.status && params.status) {
         delete params.status;
@@ -926,7 +927,6 @@ const Events = () => {
       } else {
         console.log("CELL MODE - Applying role-based filters");
 
-
         if (isRegistrant || isRegularUser) {
           params.personal = true;
         } else if (isLeaderAt12) {
@@ -947,7 +947,6 @@ const Events = () => {
         }
       }
 
-      // Determine which endpoint to use
       let endpoint;
       if (isCellRequest) {
         endpoint = `${BACKEND_URL}/events/cells`;
@@ -957,7 +956,6 @@ const Events = () => {
         console.log("Using OTHER EVENTS endpoint for event type:", params.event_type);
       }
 
-      // Clean up undefined parameters
       Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
 
       console.log('Final API call details:', {
@@ -995,28 +993,23 @@ const Events = () => {
       const responseData = response.data;
       const newEvents = responseData.events || responseData.results || [];
 
-    console.log('BACKEND RESPONSE:',responseData);
-    console.log('Total events:', responseData.total_events);
-    console.log('Events found:', newEvents.length);
+      console.log('BACKEND RESPONSE:', responseData);
+      console.log('Total events:', responseData.total_events);
+      console.log('Events found:', newEvents.length);
 
       if (newEvents.length > 0) {
         console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
           name: e.eventName,
           type: e.eventType,
           typeName: e.eventTypeName,
-          status: e.status, // CRITICAL: Log the status
+          status: e.status,
           id: e._id
         })));
       } else {
         console.log('No events returned');
 
-        // Debug for empty results
         if (isEventTypeRequest) {
           console.log('Empty results for event type:', params.event_type);
-          console.log('Possible reasons:');
-          console.log('   - No events exist for this event type');
-          console.log('   - Events exist but have different eventType values');
-          console.log('   - Backend filtering issue');
         }
       }
 
@@ -1042,7 +1035,7 @@ const Events = () => {
       if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
         toast.warning("Request timeout. Please refresh and try again.");
       } else if (err.response?.status === 401) {
-        toast.error("Session expired. Logging out...");;
+        toast.error("Session expired. Logging out...");
         localStorage.removeItem("token");
         localStorage.removeItem("userProfile");
         setTimeout(() => window.location.href = '/login', 2000);
@@ -1055,7 +1048,6 @@ const Events = () => {
       setTotalEvents(0);
       setTotalPages(1);
     } finally {
-      // Only hide loader if we showed it
       if (showLoader) {
         setLoading(false);
         setIsLoading(false);
@@ -1065,7 +1057,7 @@ const Events = () => {
     currentPage,
     rowsPerPage,
     selectedStatus,
-    selectedEventTypeFilter,
+    selectedEventTypeFilter, 
     searchQuery,
     viewFilter,
     userRole,
@@ -1109,28 +1101,28 @@ const Events = () => {
   };
 
   // Call this when you try to delete
-  const handleDeleteEventType = () => {
-    if (selectedTypeForMenu && selectedTypeForMenu !== 'all') {
-      console.log("Attempting to delete event type:", selectedTypeForMenu);
+  // const handleDeleteEventType = () => {
+  //   if (selectedTypeForMenu && selectedTypeForMenu !== 'all') {
+  //     console.log("Attempting to delete event type:", selectedTypeForMenu);
 
-      // Debug: Check what events are using this type
-      checkEventsForType(selectedTypeForMenu);
+  //     // Debug: Check what events are using this type
+  //     checkEventsForType(selectedTypeForMenu);
 
-      const exactEventType = eventTypes.find(et => {
-        const etName = et.name || et.eventType || et.eventTypeName || '';
-        return etName.toLowerCase() === selectedTypeForMenu.toLowerCase();
-      });
+  //     const exactEventType = eventTypes.find(et => {
+  //       const etName = et.name || et.eventType || et.eventTypeName || '';
+  //       return etName.toLowerCase() === selectedTypeForMenu.toLowerCase();
+  //     });
 
-      const typeToDelete = exactEventType ?
-        (exactEventType.name || exactEventType.eventType || exactEventType.eventTypeName) :
-        selectedTypeForMenu;
+  //     const typeToDelete = exactEventType ?
+  //       (exactEventType.name || exactEventType.eventType || exactEventType.eventTypeName) :
+  //       selectedTypeForMenu;
 
-      console.log("Final type to delete:", typeToDelete);
-      setToDeleteType(typeToDelete);
-      setConfirmDeleteOpen(true);
-    }
-    handleMenuClose();
-  };
+  //     console.log("Final type to delete:", typeToDelete);
+  //     setToDeleteType(typeToDelete);
+  //     setConfirmDeleteOpen(true);
+  //   }
+  //   handleMenuClose();
+  // };
 
   const handleStatusFilterChange = useCallback((newStatus) => {
     console.log(" Status filter changing to:", newStatus);
@@ -1728,25 +1720,50 @@ const Events = () => {
   }, []);
 
   const handleDeleteEvent = useCallback(async (event) => {
-    if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await axios.delete(`${BACKEND_URL}/events/${event._id}`, {
-          headers: { Authorization: `Bearer ${token}` }
+  if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
+    try {
+      console.log("DELETE DEBUG - Current event type filter:", selectedEventTypeFilter);
+      console.log("DELETE DEBUG - Current status filter:", selectedStatus);
+      
+      const token = localStorage.getItem("token");
+      const response = await axios.delete(`${BACKEND_URL}/events/${event._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.status === 200) {
+        console.log("DELETE DEBUG - Refreshing with filters:", {
+          event_type: selectedEventTypeFilter,
+          status: selectedStatus
         });
-
-        if (response.status === 200) {
-          fetchEvents();
-          toast.success("Event deleted successfully!");
-
+        
+        const refreshFilters = {
+          event_type: selectedEventTypeFilter
+        };
+        
+        if (selectedStatus && selectedStatus !== 'all') {
+          refreshFilters.status = selectedStatus;
         }
-      } catch (error) {
-        console.error("Error deleting event:", error);
-
-        toast.error("Failed to delete event");
+        
+        if (searchQuery) {
+          refreshFilters.search = searchQuery;
+        }
+        
+        setTimeout(() => {
+          fetchEvents(
+            refreshFilters,  
+            true,          
+            false           
+          );
+        }, 100);
+        
+        toast.success("Event deleted successfully!");
       }
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      toast.error(error.response?.data?.message || "Failed to delete event");
     }
-  }, [BACKEND_URL, fetchEvents]);
+  }
+}, [BACKEND_URL, fetchEvents, selectedEventTypeFilter, selectedStatus, searchQuery]);
 
 
   const handleSaveEvent = useCallback(async (eventData) => {
