@@ -61,7 +61,6 @@ let eventsCacheTimestamp = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 function ServiceCheckIn() {
-  // State management
   const [attendees, setAttendees] = useState([]);
   const [currentEventId, setCurrentEventId] = useState("");
   const [eventSearch, setEventSearch] = useState("");
@@ -76,21 +75,15 @@ function ServiceCheckIn() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [consolidationOpen, setConsolidationOpen] = useState(false);
   const [sortModel, setSortModel] = useState([
-  { field: 'isNew', sort: 'desc' }, // 🆕 New people first
+  { field: 'isNew', sort: 'desc' }, 
   { field: 'name', sort: 'asc' }
 ]);
-
-
-  // Real-time data state
   const [realTimeData, setRealTimeData] = useState(null);
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
-  const [isLoadingConsolidated, setIsLoadingConsolidated] = useState(false);
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Modal states
   const [modalSearch, setModalSearch] = useState("");
   const [modalPage, setModalPage] = useState(0);
   const [modalRowsPerPage, setModalRowsPerPage] = useState(100);
@@ -101,7 +94,6 @@ function ServiceCheckIn() {
   const [consolidatedPage, setConsolidatedPage] = useState(0);
   const [consolidatedRowsPerPage, setConsolidatedRowsPerPage] = useState(100);
   const [activeTab, setActiveTab] = useState(0);
-
   const [eventHistoryDetails, setEventHistoryDetails] = useState({
     open: false,
     event: null,
@@ -139,7 +131,6 @@ function ServiceCheckIn() {
   };
 
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
-  const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
 // Enhanced leader column sort comparator that also considers new people
@@ -189,26 +180,6 @@ const createLeaderSortComparator = (leaderField) => (v1, v2, row1, row2) => {
 };
 
   // Real-time data fetching
-  // const fetchRealTimeEventData = async (eventId) => {
-  //   if (!eventId) return null;
-    
-  //   try {
-  //     const token = localStorage.getItem("token");
-  //     const response = await axios.get(`${BASE_URL}/service-checkin/real-time-data`, {
-  //       headers: { 'Authorization': `Bearer ${token}` },
-  //       params: { event_id: eventId }
-  //     });
-      
-  //     if (response.data.success) {
-  //       return response.data;
-  //     }
-  //     return null;
-  //   } catch (error) {
-  //     console.error('❌ Error fetching real-time event data:', error);
-  //     return null;
-  //   }
-  // };
-  // Enhanced real-time data fetching
 const fetchRealTimeEventData = async (eventId) => {
   if (!eventId) return null;
   
@@ -220,54 +191,15 @@ const fetchRealTimeEventData = async (eventId) => {
     });
     
     if (response.data.success) {
-      return response.data; // Just return whatever the backend gives
+      return response.data;
     }
     return null;
   } catch (error) {
-    console.error('❌ Error fetching real-time event data:', error);
+    console.error('Error fetching real-time event data:', error);
     return null;
   }
 };
 
-// Refresh function using real-time data - FIXED VERSION
-// const handleFullRefresh = async () => {
-//   if (!currentEventId) {
-//     toast.error("Please select an event first");
-//     return;
-//   }
-
-//   setIsRefreshing(true);
-//   try {
-//     console.log("🔄 Performing full refresh from database for event:", currentEventId);
-    
-//     // First refresh the people cache
-//     await axios.post(`${BASE_URL}/cache/people/refresh`);
-    
-//     // Then get the REAL data from the database
-//     const data = await fetchRealTimeEventData(currentEventId);
-    
-//     if (data) {
-//       console.log('✅ Real-time data received from DB:', {
-//         present_count: data.present_count,
-//         new_people_count: data.new_people_count, 
-//         consolidation_count: data.consolidation_count
-//       });
-      
-//       // COMPLETELY REPLACE the state with database data
-//       setRealTimeData(data);
-//       toast.success(`Refresh complete!`);
-//     } else {
-//       throw new Error('Failed to fetch real-time data from database');
-//     }
-
-//   } catch (error) {
-//     console.error("❌ Error in real-time refresh:", error);
-//     toast.error("Failed to refresh data from database");
-//   } finally {
-//     setIsRefreshing(false);
-//   }
-// };
-// Enhanced refresh function for real-time sync across devices
 const handleFullRefresh = async () => {
   if (!currentEventId) {
     toast.error("Please select an event first");
@@ -276,7 +208,7 @@ const handleFullRefresh = async () => {
 
   setIsRefreshing(true);
   try {
-    console.log("🔄 Performing full refresh from database for event:", currentEventId);
+    console.log("Performing full refresh from database for event:", currentEventId);
     
     // Refresh people cache
     await axios.post(`${BASE_URL}/cache/people/refresh`);
@@ -285,13 +217,13 @@ const handleFullRefresh = async () => {
     const data = await fetchRealTimeEventData(currentEventId);
     
     if (data) {
-      console.log('✅ Real-time data received from DB:', {
+      console.log('Real-time data received from DB:', {
         present_count: data.present_count,
         new_people_count: data.new_people_count, 
         consolidation_count: data.consolidation_count
       });
       
-      // 🔥 COMPLETELY REPLACE all state with fresh database data
+      // COMPLETELY REPLACE all state with fresh database data
       setRealTimeData(data);
       
       // Also refresh the attendees list from cache
@@ -323,7 +255,7 @@ const handleFullRefresh = async () => {
     }
 
   } catch (error) {
-    console.error("❌ Error in real-time refresh:", error);
+    console.error("Error in real-time refresh:", error);
     toast.error("Failed to refresh data from database");
   } finally {
     setIsRefreshing(false);
@@ -334,7 +266,7 @@ const handleFullRefresh = async () => {
 const fetchAllPeople = async () => {
   setIsLoadingPeople(true);
   try {
-    console.log('🔄 Fetching people data from cache...');
+    console.log('Fetching people data from cache...');
     
     const response = await axios.get(`${BASE_URL}/cache/people`);
     
@@ -356,14 +288,14 @@ const fetchAllPeople = async () => {
         fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
       }));
       
-      console.log(`✅ Loaded ${people.length} people from cache`);
+      console.log(`Loaded ${people.length} people from cache`);
       setAttendees(people);
       setHasDataLoaded(true);
     } else {
       throw new Error('No people data available in cache');
     }
   } catch (err) {
-    console.error('❌ Error fetching people:', err);
+    console.error('Error fetching people:', err);
     toast.error("Failed to load people data. Please refresh the page.");
   } finally {
     setIsLoadingPeople(false);
@@ -391,7 +323,7 @@ const fetchAllPeople = async () => {
     setIsLoadingEvents(true);
     try {
       const token = localStorage.getItem('token');
-      console.log('🔄 Fetching events...');
+      console.log('Fetching events...');
       
       const response = await fetch(`${BASE_URL}/events/global`, {
         headers: {
@@ -405,10 +337,10 @@ const fetchAllPeople = async () => {
       }
 
       const data = await response.json();
-      console.log('📋 RAW Global events response:', data);
+      console.log('RAW Global events response:', data);
       
       const eventsData = data.events || [];
-      console.log('✅ Processed events:', eventsData);
+      console.log('Processed events:', eventsData);
 
       const transformedEvents = eventsData.map(event => ({
         id: event._id || event.id,
@@ -420,7 +352,7 @@ const fetchAllPeople = async () => {
         eventType: event.eventType || "Global Events"
       }));
 
-      console.log('🎯 Final transformed events:', transformedEvents);
+      console.log('Final transformed events:', transformedEvents);
       
       // Update cache
       eventsCache = transformedEvents;
@@ -437,7 +369,7 @@ const fetchAllPeople = async () => {
       }
 
     } catch (err) {
-      console.error('❌ Error fetching global events:', err);
+      console.error('Error fetching global events:', err);
       toast.error("Failed to fetch events. Please try again.");
     } finally {
       setIsLoadingEvents(false);
@@ -492,72 +424,6 @@ const fetchAllPeople = async () => {
     );
   };
 
-// Updated handleToggleCheckIn to use database counts
-// const handleToggleCheckIn = async (attendee) => {
-//   if (!currentEventId) {
-//     toast.error("Please select an event");
-//     return;
-//   }
-
-//   try {
-//     const token = localStorage.getItem("token");
-//     const isCurrentlyPresent = realTimeData?.present_attendees?.some(a => 
-//       a.id === attendee._id || a._id === attendee._id
-//     );
-//     const fullName = `${attendee.name} ${attendee.surname}`.trim();
-    
-//     if (!isCurrentlyPresent) {
-//       // Check in as attendee
-//       const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
-//         event_id: currentEventId,
-//         person_data: {
-//           id: attendee._id,
-//           name: attendee.name,
-//           fullName: fullName,
-//           email: attendee.email,
-//           phone: attendee.phone,
-//           leader12: attendee.leader12
-//         },
-//         type: "attendee"
-//       }, {
-//         headers: { 'Authorization': `Bearer ${token}` }
-//       });
-
-//       if (response.data.success) {
-//         toast.success(`${fullName} checked in successfully`);
-        
-//         // REFRESH from database to get ACTUAL counts
-//         const freshData = await fetchRealTimeEventData(currentEventId);
-//         if (freshData) {
-//           setRealTimeData(freshData);
-//         }
-//       }
-//     } else {
-//       // Remove from check-in
-//       const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
-//         headers: { 'Authorization': `Bearer ${token}` },
-//         data: {
-//           event_id: currentEventId,
-//           person_id: attendee._id,
-//           type: "attendees"
-//         }
-//       });
-
-//       if (response.data.success) {
-//         toast.info(`${fullName} removed from check-in`);
-        
-//         // REFRESH from database to get ACTUAL counts
-//         const freshData = await fetchRealTimeEventData(currentEventId);
-//         if (freshData) {
-//           setRealTimeData(freshData);
-//         }
-//       }
-//     }
-//   } catch (err) {
-//     console.error("Error in toggle check-in:", err);
-//     toast.error(err.response?.data?.detail || err.message);
-//   }
-// };
 const handleToggleCheckIn = async (attendee) => {
   if (!currentEventId) {
     toast.error("Please select an event");
@@ -572,7 +438,6 @@ const handleToggleCheckIn = async (attendee) => {
     const fullName = `${attendee.name} ${attendee.surname}`.trim();
     
     if (!isCurrentlyPresent) {
-      // Check in as attendee
       const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
         event_id: currentEventId,
         person_data: {
@@ -607,7 +472,6 @@ const handleToggleCheckIn = async (attendee) => {
       }
     }
 
-    // 🔥 CRITICAL: ALWAYS refresh from backend after any change
     const freshData = await fetchRealTimeEventData(currentEventId);
     if (freshData) {
       setRealTimeData(freshData);
@@ -633,139 +497,6 @@ const emptyForm = {
 };
 
 
-// const handlePersonSave = async (responseData) => {
-//   if (!currentEventId) {
-//     toast.error("Please select an event first before adding people");
-//     return;
-//   }
-
-//   try {
-//     const token = localStorage.getItem("token");
-//     if (editingPerson) {
-//       const updatedPersonData = {
-//         name: formData.name,
-//         surname: formData.surname,
-//         email: formData.email,
-//         phone: formData.phone,
-//         gender: formData.gender,
-//         invitedBy: formData.invitedBy,
-//         leader1: formData.leader1,
-//         leader12: formData.leader12,
-//         leader144: formData.leader144,
-//         stage: formData.stage || "Win"
-//       };
-
-//       const updateResponse = await axios.patch(
-//         `${BASE_URL}/people/${editingPerson._id}`,
-//         updatedPersonData,
-//         { headers: { Authorization: `Bearer ${token}` } }
-//       );
-
-//       if (updateResponse.data) {
-//         toast.success(`${formData.name} ${formData.surname} updated successfully`);
-
-//         // Update DataGrid immediately
-//         setAttendees(prev =>
-//           prev.map(person =>
-//             person._id === editingPerson._id
-//               ? { ...person, ...updatedPersonData }
-//               : person
-//           )
-//         );
-
-//         setOpenDialog(false);
-//         setEditingPerson(null);
-//         setFormData(emptyForm);
-//       }
-
-//       return;
-//     }
-
-//     const newPersonData = responseData.person || responseData;
-
-//     const fullName = `${formData.name} ${formData.surname}`.trim();
-
-//     // Step 1: Add this new person as a FIRST TIME attendee
-//     const response = await axios.post(
-//       `${BASE_URL}/service-checkin/checkin`,
-//       {
-//         event_id: currentEventId,
-//         person_data: {
-//           id: newPersonData._id,
-//           name: newPersonData.Name || formData.name,
-//           surname: newPersonData.Surname || formData.surname,
-//           email: newPersonData.Email || formData.email,
-//           phone: newPersonData.Number || formData.phone,
-//           gender: newPersonData.Gender || formData.gender,
-//           invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-//           stage: "First Time"
-//         },
-//         type: "new_person"
-//       },
-//       { headers: { Authorization: `Bearer ${token}` } }
-//     );
-
-//     if (response.data.success) {
-//       toast.success(`${fullName} added as new person successfully`);
-
-//       // Close dialog + reset form
-//       setOpenDialog(false);
-//       setEditingPerson(null);
-//       setFormData(emptyForm);
-
-//     try {
-//       await axios.post(`${BASE_URL}/cache/people/refresh`);
-//       console.log("✅ Cache refreshed after adding new person");
-//     } catch (cacheError) {
-//       console.warn("⚠️ Cache refresh failed:", cacheError);
-//     }
-
-//       // Step 2: Update new_people cards immediately
-//       if (response.data.new_person) {
-//         setRealTimeData(prev => ({
-//           ...prev,
-//           new_people: [...(prev?.new_people || []), response.data.new_person],
-//           new_people_count: (prev?.new_people_count || 0) + 1
-//         }));
-//       }
-
-//       // Step 3: Create the new person object with ALL fields for searchability
-//       const newPersonForGrid = {
-//         _id: newPersonData._id,
-//         name: newPersonData.Name || formData.name,
-//         surname: newPersonData.Surname || formData.surname,
-//         email: newPersonData.Email || formData.email,
-//         phone: newPersonData.Number || formData.phone,
-//         gender: newPersonData.Gender || formData.gender,
-//         invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-//         leader1: formData.leader1 || "",
-//         leader12: formData.leader12 || "",
-//         leader144: formData.leader144 || "",
-//         stage: "First Time",
-//         fullName: fullName,
-//         address: "",
-//         birthday: "",
-//         occupation: "",
-//         cellGroup: "",
-//         zone: "",
-//         homeAddress: "",
-//         isNew: true,
-//         present: false
-//       };
-
-//       // Step 4: Add directly to DataGrid attendees - at the TOP so it's visible
-//       setAttendees(prev => [newPersonForGrid, ...prev]);
-
-//       // Step 5: Clear search so the new person is visible immediately
-//       setSearch("");
-
-//       console.log("✅ New person added to DataGrid:", newPersonForGrid);
-//     }
-//   } catch (error) {
-//     console.error("❌ Error saving person:", error);
-//     toast.error(error.response?.data?.detail || "Failed to save person");
-//   }
-// };
 
 const handlePersonSave = async (responseData) => {
   if (!currentEventId) {
@@ -847,7 +578,6 @@ if (editingPerson) {
       setEditingPerson(null);
       setFormData(emptyForm);
 
-      // 🔥 CRITICAL FIX: Immediately update the real-time data state
       setRealTimeData(prev => {
         if (!prev) return prev;
         
@@ -857,7 +587,6 @@ if (editingPerson) {
           ...prev,
           new_people: updatedNewPeople,
           new_people_count: updatedNewPeople.length,
-          // Also update the consolidation count if this was a consolidation
           ...(response.data.consolidation_count && {
             consolidation_count: response.data.consolidation_count
           })
@@ -908,77 +637,33 @@ if (editingPerson) {
     }
 
 
-      console.log("✅ New person added to DataGrid and counts updated immediately");
+      console.log("New person added to DataGrid and counts updated immediately");
     }
   } catch (error) {
-    console.error("❌ Error saving person:", error);
+    console.error("Error saving person:", error);
     toast.error(error.response?.data?.detail || "Failed to save person");
   }
 };
 
-// const handleFinishConsolidation = async (task) => {
-//   if (!currentEventId) return;
-//   const fullName = task.recipientName || `${task.person_name || ''} ${task.person_surname || ''}`.trim() || 'Unknown Person';
-
-//   console.log("🎯 Recording consolidation in UI for:", fullName);
-//   console.log("📋 Consolidation result from modal:", task);
-
-//   try {
-//     // ✅ Just like AddPersonDialog pattern - update local state only
-//     // The consolidation was already created by the modal
-    
-//     setConsolidationOpen(false);
-//     toast.success(`${fullName} consolidated successfully`);
-    
-//     // Create consolidation record for local state
-//     const newConsolidation = {
-//       id: task.consolidation_id || task.task_id,
-//       person_name: task.person_name || task.recipientName?.split(' ')[0],
-//       person_surname: task.person_surname || task.recipientName?.split(' ').slice(1).join(' '),
-//       person_email: task.person_email || task.recipient_email || '',
-//       person_phone: task.person_phone || task.recipient_phone || '',
-//       decision_type: task.decision_type || task.decisionType,
-//       assigned_to: task.assigned_to || task.assignedTo,
-//       assigned_to_email: task.assigned_to_email || task.assignedToEmail || task.leader_email,
-//       created_at: new Date().toISOString()
-//     };
-    
-//     // Update local state (like how people are added)
-//     setRealTimeData(prev => ({
-//       ...prev,
-//       consolidations: [...(prev?.consolidations || []), newConsolidation],
-//       consolidation_count: (prev?.consolidation_count || 0) + 1
-//     }));
-    
-//     console.log("✅ Consolidation recorded in local state");
-    
-//   } catch (error) {
-//     console.error("❌ Error recording consolidation in UI:", error);
-//     toast.error("Consolidation created but failed to update display");
-//   }
-// };
-
-  // Event management
-const handleFinishConsolidation = async (task) => {
+  const handleFinishConsolidation = async (task) => {
   if (!currentEventId) return;
   const fullName = task.recipientName || `${task.person_name || ''} ${task.person_surname || ''}`.trim() || 'Unknown Person';
 
-  console.log("🎯 Recording consolidation in UI for:", fullName);
-  console.log("📋 Consolidation result from modal:", task);
+  console.log("Recording consolidation in UI for:", fullName);
+  console.log("Consolidation result from modal:", task);
 
   try {
     setConsolidationOpen(false);
     toast.success(`${fullName} consolidated successfully`);
     
-    // 🔥 CRITICAL: ALWAYS refresh from backend after consolidation
     const freshData = await fetchRealTimeEventData(currentEventId);
     if (freshData) {
       setRealTimeData(freshData);
-      console.log("✅ Consolidation data refreshed from backend");
+      console.log("Consolidation data refreshed from backend");
     }
     
   } catch (error) {
-    console.error("❌ Error recording consolidation in UI:", error);
+    console.error("Error recording consolidation in UI:", error);
     toast.error("Consolidation created but failed to update display");
   }
 };
@@ -1041,14 +726,13 @@ const handleFinishConsolidation = async (task) => {
     }, 500);
     
   } catch (error) {
-    console.error("❌ ERROR in event closure process:", error);
+    console.error("ERROR in event closure process:", error);
     toast.error("Event may still be open in the database. Please check.");
   } finally {
     setIsClosingEvent(false);
   }
 };
 
-  // UI Handlers
   const handleConsolidationClick = () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
@@ -1075,31 +759,7 @@ const handleFinishConsolidation = async (task) => {
     setOpenDialog(true);
   };
 
-  // const handleDelete = async (personId) => {
-  //   try {
-  //     const res = await fetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
-  //     if (!res.ok) {
-  //       const errorData = await res.json();
-  //       toast.error(`Delete failed: ${errorData.detail}`);
-  //       return;
-  //     }
-  //     setAttendees((prev) => prev.filter((p) => p._id !== personId));
-    
-  //     // UPDATE CACHE
-  //   try {
-  //     await axios.post(`${BASE_URL}/cache/people/refresh`);
-  //     console.log("✅ Cache refreshed after deletion");
-  //   } catch (cacheError) {
-  //     console.warn("⚠️ Cache refresh failed:", cacheError);
-  //   }
-    
-  //     toast.success("Person deleted successfully");
-  //   } catch (err) {
-  //     console.error(err);
-  //     toast.error("An error occurred while deleting the person");
-  //   }
-  // };
-const handleDelete = async (personId) => {
+  const handleDelete = async (personId) => {
   try {
     const res = await fetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
     if (!res.ok) {
@@ -1108,7 +768,6 @@ const handleDelete = async (personId) => {
       return;
     }
 
-    // 🔥 ALWAYS refresh from backend after delete
     const freshData = await fetchRealTimeEventData(currentEventId);
     if (freshData) {
       setRealTimeData(freshData);
@@ -1136,7 +795,7 @@ const getAttendeesWithPresentStatus = () => {
   return attendees.map((attendee) => ({
     ...attendee,
     present: presentAttendeeIds.includes(attendee._id),
-    isNew: newPeopleIds.includes(attendee._id), // 🆕 Mark as new person
+    isNew: newPeopleIds.includes(attendee._id),
     id: attendee._id,
   }));
 };
@@ -1188,7 +847,6 @@ const getAttendeesWithPresentStatus = () => {
 
   // Data for display
   const attendeesWithStatus = getAttendeesWithPresentStatus();
-  // const presentCount = realTimeData?.present_count || 0;
   const presentCount = realTimeData?.present_attendees?.length || 0;
   const newPeopleCount = realTimeData?.new_people_count || 0;
   const consolidationCount = realTimeData?.consolidation_count || 0;
@@ -1199,7 +857,7 @@ const filteredAttendees = attendeesWithStatus.filter((a) => {
   const searchTerm = search.toLowerCase().trim();
   const searchTerms = searchTerm.split(/\s+/); // Split by one or more spaces
   
-  // Create a comprehensive searchable string from all relevant fields
+  // comprehensive searchable string from all relevant fields
   const searchableText = [
     a.name || '',
     a.surname || '',
@@ -1215,7 +873,7 @@ const filteredAttendees = attendeesWithStatus.filter((a) => {
     a.invitedBy || '',
     a.address || '',
     a.homeAddress || '',
-    a.stage || '' // Include stage for "First Time" search
+    a.stage || '' 
   ].join(' ').toLowerCase();
   
   // Check if ALL search terms are found in the combined searchable text
@@ -1414,7 +1072,7 @@ const mainColumns = [
 ];
 
 
-  // StatsCard component definition
+  // StatsCard component
   const StatsCard = ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
     <Paper
       variant="outlined"
@@ -1577,12 +1235,12 @@ const PresentAttendeeCard = ({ attendee, showNumber, index }) => {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1.5 }}>
               {mappedAttendee.phone && (
                 <Typography variant="body2" color="text.secondary" noWrap>
-                  📞 {mappedAttendee.phone}
+                   {mappedAttendee.phone}
                 </Typography>
               )}
               {mappedAttendee.email && (
                 <Typography variant="body2" color="text.secondary" noWrap>
-                  ✉️ {mappedAttendee.email}
+                  {mappedAttendee.email}
                 </Typography>
               )}
             </Box>
@@ -2100,7 +1758,6 @@ const PresentAttendeeCard = ({ attendee, showNumber, index }) => {
     </Box>
   );
 
-// Effects - optimized to prevent unnecessary reloads
 useEffect(() => {
   if (currentEventId) {
     // Fetch real-time data when event changes - ALWAYS FROM DATABASE
@@ -2122,10 +1779,8 @@ useEffect(() => {
     setRealTimeData(null);
   }
 }, [currentEventId]);
-  // Initial load - only once with proper loading states
   const hasInitialized = useRef(false);
   
-  // Add this to your useEffect section
 useEffect(() => {
   if (!currentEventId) return;
 
@@ -2139,7 +1794,6 @@ useEffect(() => {
   
   loadData();
 
-  // Set up interval to refresh every 3 seconds
   const interval = setInterval(loadData, 3000);
   
   return () => clearInterval(interval);
@@ -2176,7 +1830,7 @@ useEffect(() => {
             title="Present"
             count={presentCount}
             icon={<GroupIcon />}
-            color="primary" // Blue
+            color="primary" 
             onClick={() => { 
               if (currentEventId) {
                 setModalOpen(true); 
@@ -2192,7 +1846,7 @@ useEffect(() => {
             title="New People"
             count={newPeopleCount}
             icon={<PersonAddAltIcon />}
-            color="success" // Green
+            color="success" 
             onClick={() => { 
               if (currentEventId) {
                 setNewPeopleModalOpen(true); 
@@ -2208,7 +1862,7 @@ useEffect(() => {
             title="Consolidated"
             count={consolidationCount}
             icon={<MergeIcon />}
-            color="secondary" // Purple
+            color="secondary" 
             onClick={() => { 
               if (currentEventId) {
                 setConsolidatedModalOpen(true); 
@@ -2542,7 +2196,6 @@ useEffect(() => {
             </TableHead>
             <TableBody>
               {modalPaginatedAttendees.map((a, idx) => {
-                // For present attendees, we need to get the full person data to access all fields
                 const fullPersonData = attendees.find(att => att._id === (a.id || a._id)) || a;
                 
                 // Create a properly mapped attendee with all fields
@@ -2551,10 +2204,8 @@ useEffect(() => {
                   // Name fields - ensure we have both name and surname
                   name: a.name || fullPersonData.name || 'Unknown',
                   surname: a.surname || fullPersonData.surname || '',
-                  // Contact fields
                   phone: a.phone || fullPersonData.phone || '',
                   email: a.email || fullPersonData.email || '',
-                  // Leader fields
                   leader1: a.leader1 || fullPersonData.leader1 || '',
                   leader12: a.leader12 || fullPersonData.leader12 || '',
                   leader144: a.leader144 || fullPersonData.leader144 || '',
