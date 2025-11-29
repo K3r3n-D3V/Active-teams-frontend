@@ -249,7 +249,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
-
   //adds selected gender to form state and updates leader value based on gender
   const handleGenderChange = (e)=>{
     const genderVal = e.target.value
@@ -395,7 +394,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
           </Alert>
         )}
         
-
         <Box
           component="form"
           onSubmit={handleSubmit}
@@ -441,8 +439,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               />
             ))}
             
-            
-
             <Box sx={{ gridColumn: { xs: "1", sm: "1" } }}>
               <Autocomplete
                 freeSolo
@@ -508,7 +504,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
             
             {/* Added Leaders field component  */}
             <TextField
-              // field is readonly and can not be clicked
               readOnly
               label="Leader@1"
               name="leader"
@@ -536,7 +531,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               <Select
                 name="gender"
                 value={form.gender}
-                //changed gender onChange function
                 onChange={handleGenderChange}
                 label="Gender"
                 sx={{ borderRadius: 3 }}
@@ -554,23 +548,39 @@ const Signup = ({ onSignup, mode, setMode }) => {
               )}
             </FormControl>
             
-            
-            
-
             <TextField
               label="Password"
               name="password"
-              type={showPassword ? "text" : "password"}
+              //changing to normal textfield so default eye does not show
+
+              type = "text"
               value={form.password}
               onChange={handleChange}
               error={!!errors.password}
               helperText={errors.password}
               fullWidth
               InputProps={{
+                style: {
+                fontFamily: "monospace", // optional
+                WebkitTextSecurity:`${showPassword ? "" : "disc"}` // makes it dots forces dots
+              },
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
-                      {showPassword ? <Visibility /> : <VisibilityOff />}
+                    <IconButton 
+                      onClick={() => setShowPassword(!showPassword)} 
+                      edge="end"
+                      tabIndex={-1}
+                      disableRipple
+                      sx={{
+                        '&:hover': {
+                          backgroundColor: 'transparent',
+                        },
+                        '&:focus': {
+                          outline: 'none',
+                        }
+                      }}
+                    >
+                      {!showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
                 ),
@@ -588,21 +598,29 @@ const Signup = ({ onSignup, mode, setMode }) => {
               }}
             />
             
-
             <TextField
               label="Confirm Password"
               name="confirm_password"
-              type={showConfirmPassword ? "text" : "password"}
+              //changing to normal textfield so default eye does not show
+              type = "text"
               value={form.confirm_password}
               onChange={handleChange}
               error={!!errors.confirm_password}
               helperText={errors.confirm_password}
               fullWidth
               InputProps={{
+                style: {
+                fontFamily: "monospace", // optional
+                WebkitTextSecurity:`${showConfirmPassword ? "" : "disc"}` // makes it dots forces dots
+              },
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
-                      {showPassword ? <Visibility /> : <VisibilityOff />}
+                    <IconButton 
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)} 
+                      edge="end"
+                      tabIndex={-1}
+                    >
+                      {!showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
                 ),
@@ -621,8 +639,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
             />
           </Box>
           
-          
-
           {Object.keys(errors).length > 0 && (
             <Alert severity="error" sx={{ borderRadius: 2 }}>
               Please fix the highlighted errors above.

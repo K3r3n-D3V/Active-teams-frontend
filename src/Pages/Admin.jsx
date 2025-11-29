@@ -534,18 +534,6 @@ export default function AdminDashboard() {
 
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-      {/* <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: cardSpacing }}>
-        <Typography variant={titleVariant} fontWeight="bold" color="text.primary">User Management</Typography>
-        {globalDataLoaded && (
-          <Chip 
-            icon={<Circle sx={{ fontSize: 12 }} />} 
-            label="Data Cached" 
-            color="success" 
-            variant="outlined"
-            size="small"
-          />
-        )}
-      </Stack> */}
 
       {/* Statistics Cards */}
       <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
