@@ -33,7 +33,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     dob: "",
     address: "",
   });
-  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
+
   const [inviterSearch, setInviterSearch] = useState("");
   const [inviterResults, setInviterResults] = useState([]);
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
@@ -300,24 +300,14 @@ else {
 
     if (missingFields.length > 0) {
      toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: `Please fill in all required fields: ${missingFields.join(', ')}`,
-      // });
-      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
      toast.error("Please enter a valid email address");
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: "Please enter a valid email address",
-      // });
-      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
+
       return false;
     }
 
@@ -373,13 +363,6 @@ else {
           expiry: 5 * 60 * 1000
         };
 
-        // setAlert({
-        //   open: true,
-        //   type: "success",
-        //   message: "Person added successfully!",
-        // })
-        // toast.success("Person added successfully!");;
-
         if (typeof onPersonAdded === "function") {
           onPersonAdded(data.person || data);
         }
@@ -433,23 +416,11 @@ else {
           errorMessage = error.message;
         }
 
-        // setAlert({
-        //   open: true,
-        //   type: "error",
-        //   message: errorMessage,
-        // });
-        // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 5000);
       toast.error(errorMessage);
       }
     } catch (error) {
       console.error("Network error adding person:", error);
      toast.error("Network error: Could not connect to server");
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: "Network error: Could not connect to server",
-      // });
-      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
   };
 
@@ -1192,59 +1163,12 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
               
               <div style={styles.inputContainer}>
                 <input
-                  // type="text"
                   value={leaderSearches[field]}
-                  // onChange={(e) => handleSearchChange(e, field)}
-                  // onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
                   onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
                   style={styles.input}
                   placeholder={`Type to search...`}
                   autoComplete="off"
                 />
-                
-                {/* {leaderSearches[field] && (
-                  <button 
-                    type="button" 
-                    style={styles.clearButton}
-                    onClick={() => handleClearField(field)}
-                  >
-                    <X size={14} />
-                  </button>
-                )} */}
-                
-                {/* {showDropdowns[field] && leaderSearches[field].length > 0 && (
-                  <div style={styles.dropdown}>
-                    {loadingLeaders && (
-                      <div style={styles.dropdownEmpty}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                          <div style={{ 
-                            width: '14px', 
-                            height: '14px', 
-                            border: `2px solid ${isDarkMode ? '#555' : '#ddd'}`,
-                            borderTop: `2px solid #6366f1`,
-                            borderRadius: '50%',
-                            animation: 'spin 1s linear infinite'
-                          }} />
-                          Searching...
-                        </div>
-                      </div>
-                    )}
-                    {!loadingLeaders && leaderResults[field].length === 0 && (
-                      <div style={styles.dropdownEmpty}>No results found</div>
-                    )}
-                    {!loadingLeaders && leaderResults[field].map((person) => (
-                      <div
-                        key={person.id}
-                        style={styles.dropdownItem}
-                        onClick={() => handleLeaderSelect(person, field)}
-                        onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f5f5f5"}
-                        onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
-                      >
-                        {person.fullName}
-                      </div>
-                    ))}
-                  </div>
-                )} */}
               </div>
             </div>
           ))}
@@ -1281,8 +1205,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   );
 };
 
-// import { toast } from "react-toastify";
-
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
     const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
@@ -1299,11 +1221,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [commonAttendees, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  // const [alert, setAlert] = useState({
-  //   open: false,
-  //   type: "success",
-  //   message: "",
-  // });
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
@@ -1378,224 +1295,6 @@ useEffect(() => {
     }
 }, [isOpen, event]);
 
-//   const loadPreloadedPeople = async () => {
-//     const now = Date.now();
-    
-//     // Check if global cache exists and is valid
-//     if (
-//       typeof window.globalPeopleCache !== 'undefined' &&
-//       window.globalPeopleCache.data?.length > 0 &&
-//       window.globalPeopleCache.timestamp &&
-//       now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
-//     ) {
-//       console.log("📦 Using cached people data in AttendanceModal");
-//       setPreloadedPeople(window.globalPeopleCache.data);
-//       return;
-//     }
-
-//     try {
-//       console.log("🔄 Fetching fresh people data for AttendanceModal cache");
-//       const token = localStorage.getItem("token");
-//       const headers = { Authorization: `Bearer ${token}` };
-
-//       const params = new URLSearchParams();
-//       params.append("perPage", "100");
-//       params.append("page", "1");
-
-//       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
-//         headers,
-//       });
-
-//       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
-//       const data = await res.json();
-//       const peopleArray = data.people || data.results || [];
-
-//       const formatted = peopleArray.map((p) => ({
-//   id: p._id,
-//   fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-//   email: p.Email || p.email || "",
-//   leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
-//   leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
-//   leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
-//   leader1278: p["Leader @1278"] || p["Leader at 1278"] || p["Leader @ 1278"] || p.leader1278 || p.leaders?.[3] || "",
-//   phone: p.Number || p.Phone || p.phone || "",
-// }));
-
-//       // Update global cache if it exists
-//       if (typeof window.globalPeopleCache !== 'undefined') {
-//         window.globalPeopleCache.data = formatted;
-//         window.globalPeopleCache.timestamp = now;
-//         window.globalPeopleCache.expiry = 5 * 60 * 1000;
-//       } else {
-//         window.globalPeopleCache = {
-//           data: formatted,
-//           timestamp: now,
-//           expiry: 5 * 60 * 1000,
-//         };
-//       }
-
-//       setPreloadedPeople(formatted);
-//       console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
-//     } catch (err) {
-//       console.error("Error pre-loading people in AttendanceModal:", err);
-//       if (globalPeopleCache.data.length > 0) {
-//         setPreloadedPeople(globalPeopleCache.data);
-//       }
-//     }
-//   }
-
-
-
- 
-// const fetchPeople = async (filter = "", leader1 = "", leader12 = "", leader144 = "", leader1728 = "") => {
-//   const cacheKey = `${filter}-${leader1}-${leader12}-${leader144}-${leader1728}`;
-
-//   // 1️⃣ Try cached results first
-//   if (peopleCache[cacheKey]) {
-//     console.log("📦 Using cached results for:", cacheKey);
-//     setPeople(peopleCache[cacheKey]);
-//     return;
-//   }
-
-//   if (preloadedPeople.length > 0 && filter) {
-//     const searchLower = filter.toLowerCase().trim();
-    
-//     const filteredFromPreloaded = preloadedPeople.filter(person => {
-//       const name = (person.Name || person.name || "").toLowerCase();
-//       const surname = (person.Surname || person.surname || "").toLowerCase();
-//       const fullName = `${name} ${surname}`.trim();
-//       const email = (person.email || person.Email || "").toLowerCase();
-      
-//       // ✅ FIXED: Use includes instead of startsWith for surname
-//       return (
-//         fullName.includes(searchLower) ||  // Matches "gia katufu"
-//         name.includes(searchLower) ||      // Matches "gia" 
-//         surname.includes(searchLower) ||   // Matches "katufu" ✅ FIXED
-//         email.includes(searchLower)        // Matches email
-//       );
-//     });
-    
-//     if (filteredFromPreloaded.length > 0) {
-//       console.log("⚡ Using preloaded data for instant results");
-//       const sliced = filteredFromPreloaded.slice(0, 50);
-//       setPeople(sliced);
-//       setPeopleCache((prev) => ({ ...prev, [cacheKey]: sliced }));
-//       return;
-//     }
-//   }
-
-//   // 3️⃣ Otherwise, fetch from API
-//   try {
-//     setLoading(true);
-//     const token = localStorage.getItem("token");
-//     const headers = { Authorization: `Bearer ${token}` };
-//     const params = new URLSearchParams();
-
-//     // 🔍 Backend already supports partial regex match, so we just send `name`
-//    if (filter && filter.trim().length > 0) {
-//   params.append("name", filter.toLowerCase().trim());
-// }
-
-//     params.append("perPage", "50");
-//     params.append("page", "1");
-
-//     console.log("🔍 Fetching people with params:", params.toString());
-
-//     const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
-//       headers,
-//     });
-
-//     if (!res.ok) {
-//       throw new Error(`HTTP error! status: ${res.status}`);
-//     }
-
-//     const data = await res.json();
-//     const peopleArray = data.results || data.people || [];
-
-//     console.log(`✅ Found ${peopleArray.length} people`);
-
-//     // 🧩 Normalize backend fields
-//     const formatted = peopleArray.map((p) => ({
-//       id: p._id,
-//       fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-//       email: p.Email || "",
-//       leader1: p["Leader @1"] || "",
-//       leader12: p["Leader @12"] || "",
-//       leader144: p["Leader @144"] || "",
-//       leader1728: p["Leader @1728"] || "",
-//       phone: p.Number || "",
-//     }));
-
-//     // 💾 Cache and update state
-//     setPeopleCache((prev) => ({ ...prev, [cacheKey]: formatted }));
-//     setPeople(formatted);
-//   } catch (err) {
-//     console.error("❌ Error fetching people:", err);
-//     setPeople([]);
-//   } finally {
-//     setLoading(false);
-//   }
-// };
-
-// const fetchPeople = async (q) => {
-//   if (!q.trim()) {
-//     setPeople([]);
-//     return;
-//   }
-
-//   const parts = q.trim().split(/\s+/);
-//   const name = parts[0];
-//   const surname = parts.slice(1).join(" ");
-
-//   try {
-//     const token = localStorage.getItem("token");
-//     const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
-//       headers: { Authorization: `Bearer ${token}` },
-//     });
-
-//     if (!res.ok) throw new Error("Failed to fetch people");
-
-//     const data = await res.json();
-
-//     let filtered = (data?.results || data?.people || []).filter(p =>
-//       p.Name.toLowerCase().includes(name.toLowerCase()) &&
-//       (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
-//     );
-
-//     // Sort the results
-//     filtered.sort((a, b) => {
-//       const nameA = (a.Name || "").toLowerCase();
-//       const nameB = (b.Name || "").toLowerCase();
-//       const surnameA = (a.Surname || "").toLowerCase();
-//       const surnameB = (b.Surname || "").toLowerCase();
-
-//       if (nameA < nameB) return -1;
-//       if (nameA > nameB) return 1;
-//       if (surnameA < surnameB) return -1;
-//       if (surnameA > surnameB) return 1;
-//       return 0;
-//     });
-
-//     // Format the results consistently
-//     const formatted = filtered.map((p) => ({
-//       id: p._id,
-//       fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-//       email: p.Email || p.email || "",
-//       leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
-//       leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-//       leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
-//       phone: p.Number || p.Phone || p.phone || "",
-//     }));
-
-//     setPeople(formatted);
-//   } catch (err) {
-//     console.error("Error fetching people:", err);
-//     toast.error(err.message);
-//     setPeople([]);
-//   }
-// };
-
 const loadPreloadedPeople = async () => {
   const now = Date.now();
   
@@ -1606,7 +1305,7 @@ const loadPreloadedPeople = async () => {
     window.globalPeopleCache.timestamp &&
     now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
   ) {
-    console.log("📦 Using cached people data in AttendanceModal");
+    console.log("Using cached people data in AttendanceModal");
     setPreloadedPeople(window.globalPeopleCache.data);
     
     // Auto-populate the people list with preloaded data
@@ -1617,7 +1316,7 @@ const loadPreloadedPeople = async () => {
   }
 
   try {
-    console.log("🔄 Fetching fresh people data for AttendanceModal cache");
+    console.log("Fetching fresh people data for AttendanceModal cache");
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
 
@@ -1794,20 +1493,20 @@ const loadExistingAttendance = async () => {
     if (!event) return;
 
     const eventId = event._id || event.id;
-    console.log("🔄 Loading attendance data for event:", eventId);
+    console.log("Loading attendance data for event:", eventId);
 
     const currentWeek = getCurrentWeekIdentifier();
     
-    // ✅ ALWAYS start with empty state for new week
+    // ALWAYS start with empty state for new week
     setCheckedIn({});
     setDecisions({});
     setDecisionTypes({});
     setManualHeadcount("");
     setDidNotMeet(false);
 
-    console.log(`🆕 NEW WEEK - ${persistentCommonAttendees?.length || 0} names loaded - ALL UNCHECKED`);
+    console.log(`NEW WEEK - ${persistentCommonAttendees?.length || 0} names loaded - ALL UNCHECKED`);
 
-    // ✅ Only load existing ticks if this week already has attendance data WITH CHECKED-IN ATTENDEES
+    // Only load existing ticks if this week already has attendance data WITH CHECKED-IN ATTENDEES
     const hasCurrentWeekData = 
         event.attendance && 
         event.attendance[currentWeek] && 
@@ -1818,9 +1517,9 @@ const loadExistingAttendance = async () => {
         event.attendance[currentWeek] &&
         event.attendance[currentWeek].status === "did_not_meet";
 
-    console.log(`📅 Current week: ${currentWeek}`);
-    console.log(`✅ Has current week data: ${hasCurrentWeekData}`);
-    console.log(`❌ Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
+    console.log(`Current week: ${currentWeek}`);
+    console.log(`Has current week data: ${hasCurrentWeekData}`);
+    console.log(`Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
 
     if (hasCurrentWeekData && !hasCurrentWeekDidNotMeet) {
         const weekData = event.attendance[currentWeek];
@@ -1828,11 +1527,11 @@ const loadExistingAttendance = async () => {
         const newDecisions = {};
         const newDecisionTypes = {};
 
-        console.log(`👥 Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
+        console.log(`Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
 
-        // ✅ CRITICAL FIX: Only mark as checked if they were explicitly checked last time
+        // CRITICAL FIX: Only mark as checked if they were explicitly checked last time
         weekData.attendees.forEach(attendee => {
-            if (attendee.id && attendee.checked_in) { // ✅ ADD THIS CHECK
+            if (attendee.id && attendee.checked_in) { // DD THIS CHECK
                 newCheckedIn[attendee.id] = true;
 
                 if (attendee.decision) {
@@ -1913,41 +1612,6 @@ const fetchPersistentAttendees = async (eventId) => {
     }
   }, [isOpen]);
 
-  // Effect: Search people in associate tab with debounce
-  // useEffect(() => {
-  //   const delay = setTimeout(() => {
-  //     if (isOpen && activeTab === 1) {
-  //       // Use cached/preloaded data for faster response
-  //       if (associateSearch.length < 3 && preloadedPeople.length > 0) {
-  //         const filtered = preloadedPeople.filter(
-  //           (person) =>
-  //             person.fullName
-  //               .toLowerCase()
-  //               .includes(associateSearch.toLowerCase()) ||
-  //             person.email.toLowerCase().includes(associateSearch.toLowerCase())
-  //         );
-  //         setPeople(filtered.slice(0, 50));
-  //       } else {
-  //         fetchPeople(associateSearch);
-  //       }
-  //     }
-  //   }, 300);
-
-  //   return () => clearTimeout(delay);
-  // }, [associateSearch, isOpen, activeTab, preloadedPeople]);
-
-  // Replace the existing useEffect for associate search with this:
-// useEffect(() => {
-//   const delay = setTimeout(() => {
-//     if (isOpen && activeTab === 1 && associateSearch.trim()) {
-//       fetchPeople(associateSearch);
-//     } else if (isOpen && activeTab === 1 && !associateSearch.trim()) {
-//       setPeople([]);
-//     }
-//   }, 300);
-
-//   return () => clearTimeout(delay);
-// }, [associateSearch, isOpen, activeTab]);
 // Update the useEffect for associate search
 useEffect(() => {
   const delay = setTimeout(() => {
@@ -1969,27 +1633,8 @@ useEffect(() => {
       const newState = { ...prev, [id]: !prev[id] };
 
       if (newState[id]) {
-      //  toast.success(`${name} has been checked in`);
-        // setAlert({
-        //   open: true,
-        //   type: "success",
-        //   message: `${name} has been checked in`,
-        // });
-        // setTimeout(
-        //   () => setAlert({ open: false, type: "success", message: "" }),
-        //   3000
-        // );
+
       } else {
-        // setAlert({
-        //   open: true,
-        //   type: "warning",
-        //   message: `You have unchecked ${name}`,
-        // });
-        // setTimeout(
-        //   () => setAlert({ open: false, type: "warning", message: "" }),
-        //   3000
-        // );
-        // toast.warning(`You have unchecked ${name}`);
 
         setDecisions((prev) => ({ ...prev, [id]: false }));
         setDecisionTypes((prev) => {
@@ -2082,15 +1727,6 @@ useEffect(() => {
         setPersistentCommonAttendees(updatedAttendees);
         savePersistentCommonAttendees(updatedAttendees);
 
-        // setAlert({
-        //   open: true,
-        //   type: "warning",
-        //   message: `You have removed ${person.fullName} from common attendees`,
-        // });
-        // setTimeout(
-        //   () => setAlert({ open: false, type: "warning", message: "" }),
-        //   3000
-        // );
          toast.warning(`You have removed ${person.fullName} from common attendees`);
       }
     } else {
@@ -2098,21 +1734,12 @@ useEffect(() => {
       setPersistentCommonAttendees(updatedAttendees);
       savePersistentCommonAttendees(updatedAttendees);
 
-      // setAlert({
-      //   open: true,
-      //   type: "success",
-      //   message: `${person.fullName} added to common attendees`,
-      // });
-      // setTimeout(
-      //   () => setAlert({ open: false, type: "success", message: "" }),
-      //   3000
-      // );
       toast.success(`${person.fullName} added to common attendees`);
     }
   };
 
 const getAllCommonAttendees = () => {
-    // ✅ FIX: Add proper null/undefined checks
+    // FIX: Add proper null/undefined checks
     const combined = [...(persistentCommonAttendees || [])];
 
     console.log("Getting all common attendees:", {
@@ -2120,7 +1747,7 @@ const getAllCommonAttendees = () => {
         combinedCount: combined.length
     });
 
-    // ✅ FIX: Add validation and filtering for invalid entries
+    // FIX: Add validation and filtering for invalid entries
     const fixedAttendees = combined
         .filter(persistentAttendee => persistentAttendee != null) 
         .map(persistentAttendee => ({
@@ -2176,33 +1803,16 @@ const handleSave = async () => {
     console.log("📊 All people for save:", allPeople);
     
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    console.log("✅ Checked-in attendees:", attendeesList);
+    console.log("Checked-in attendees:", attendeesList);
 
     if (!didNotMeet && attendeesList.length === 0) {
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: "Please check in at least one attendee before saving.",
-      // });
-      // setTimeout(
-      //   () => setAlert({ open: false, type: "error", message: "" }),
-      //   3000
-      // );
       toast.error("Please check in at least one attendee before saving.");
       return;
     }
 
     const eventId = event?.id || event?._id;
+
     if (!eventId) {
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: "Event ID is missing, cannot submit attendance.",
-      // });
-      // setTimeout(
-      //   () => setAlert({ open: false, type: "error", message: "" }),
-      //   3000
-      // );
        toast.error("Event ID is missing, cannot submit attendance.");
       return;
     }
@@ -2213,7 +1823,7 @@ const handleSave = async () => {
             const person = allPeople.find((p) => p && p.id === id);
             
             if (!person) {
-                console.warn(`❌ Person with id ${id} not found in allPeople`);
+                console.warn(`Person with id ${id} not found in allPeople`);
                 return null;
             }
             
@@ -2243,12 +1853,12 @@ const handleSave = async () => {
             return attendee;
         }).filter(attendee => attendee !== null);
 
-        console.log("📤 Final selected attendees:", selectedAttendees);
+        console.log("Final selected attendees:", selectedAttendees);
 
         let result;
 
         if (typeof onSubmit === "function") {
-            console.log("✅ Using onSubmit prop...");
+            console.log("Using onSubmit prop...");
 
             const payload = {
                 attendees: didNotMeet ? [] : selectedAttendees,
@@ -2269,7 +1879,7 @@ const handleSave = async () => {
                 week: getCurrentWeekIdentifier()
             };
             
-            console.log("📦 Submission payload structure:", {
+            console.log("Submission payload structure:", {
                 attendees_count: payload.attendees.length,
                 all_attendees_count: payload.all_attendees.length,
                 persistent_attendees_count: payload.persistent_attendees.length,
@@ -2286,7 +1896,7 @@ const handleSave = async () => {
                 Authorization: `Bearer ${token}`,
             };
 
-            // ✅ FIX: Use direct structure for direct API call
+            // FIX: Use direct structure for direct API call
             const payload = {
                 attendees: didNotMeet ? [] : selectedAttendees,
                 all_attendees: allPeople,
@@ -2306,7 +1916,7 @@ const handleSave = async () => {
                 week: getCurrentWeekIdentifier()
             };
 
-            console.log("🌐 Direct API call with eventId:", eventId);
+            console.log("Direct API call with eventId:", eventId);
             
             const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
                 method: "PUT",
@@ -2322,49 +1932,33 @@ const handleSave = async () => {
             result = await response.json();
         }
 
-        console.log("✅ Save result:", result);
+        console.log("Save result:", result);
 
         if (result.success) {
-            // setAlert({
-            //     open: true,
-            //     type: "success",
-            //     message: result.message || "Attendance saved successfully!",
-            // });
-            
-            // setTimeout(() => {
-            //     setAlert({ open: false, type: "success", message: "" });
-            //     onClose();
-            // }, 2000);
-            // toast.success("Attendance saved successfully!");
+
         } else {
             throw new Error(result.message || "Failed to save attendance");
         }
 
     } catch (error) {
-        console.error("❌ Error saving attendance:", error);
+        console.error("Error saving attendance:", error);
        toast.error(error.message || "Failed to save attendance. Please try again.");
-        // setAlert({
-        //     open: true,
-        //     type: "error",
-        //     message: error.message || "Failed to save attendance. Please try again.",
-        // });
-        // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
     }
 };
 
 const handleSubmitAttendance = (attendanceData) => {
-  console.log("📝 Preparing to submit attendance:");
-  console.log("   Event ID:", event?._id); 
-  console.log("   Did Not Meet:", attendanceData === "did_not_meet");
-  console.log("   Checked-in Attendees:", Array.isArray(attendanceData) ? attendanceData.length : 'unknown');
-  console.log("   Persistent Attendees:", attendanceData?.all_attendees?.length || 'unknown');
-  console.log("   Current Week:", get_current_week_identifier()); 
+  console.log("Preparing to submit attendance:");
+  console.log("Event ID:", event?._id); 
+  console.log("Did Not Meet:", attendanceData === "did_not_meet");
+  console.log("Checked-in Attendees:", Array.isArray(attendanceData) ? attendanceData.length : 'unknown');
+  console.log("Persistent Attendees:", attendanceData?.all_attendees?.length || 'unknown');
+  console.log("Current Week:", get_current_week_identifier()); 
   
 
   if (onSubmit) { 
     return onSubmit(attendanceData);
   } else {
-    console.error("❌ No onSubmit prop provided to AttendanceModal");
+    console.error("No onSubmit prop provided to AttendanceModal");
     return Promise.resolve({ success: false, message: "No submit handler" });
   }
 };
@@ -2384,15 +1978,6 @@ const confirmDidNotMeet = async () => {
     try {
       const eventId = event?.id || event?._id;
       if (!eventId) {
-        // setAlert({
-        //   open: true,
-        //   type: "error",
-        //   message: "Event ID is missing, cannot submit attendance.",
-        // });
-        // setTimeout(
-        //   () => setAlert({ open: false, type: "error", message: "" }),
-        //   3000
-        // );
         toast.error("Event ID is missing, cannot submit attendance");
         return;
       }
@@ -2458,48 +2043,17 @@ const confirmDidNotMeet = async () => {
       }
       
       if (result?.success) {
-        // setAlert({
-        //   open: true,
-        //   type: "success",
-        //   message: "Event marked as 'Did Not Meet' successfully!",
-        // });
         toast.alert("Event marked as 'Did Not Meet' successfully!")
 
         if (typeof onAttendanceSubmitted === "function") {
           onAttendanceSubmitted();
         }
 
-        // setTimeout(() => {
-        //   setAlert({ open: false, type: "success", message: "" });
-        //   onClose();
-        // }, 1500);
       } else {
-        // setAlert({
-        //   open: true,
-        //   type: "error",
-        //   message:
-        //     result?.message ||
-        //     result?.detail ||
-        //     "Failed to mark event as 'Did Not Meet'.",
-        // });
-        // setTimeout(
-        //   () => setAlert({ open: false, type: "error", message: "" }),
-        //   3000
-        // );
         toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
       }
     } catch (error) {
-      console.error("❌ Error marking event as 'Did Not Meet':", error);
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: "Something went wrong while marking event as 'Did Not Meet'.",
-      // });
-      // setTimeout(
-      //   () => setAlert({ open: false, type: "error", message: "" }),
-      //   3000
-      // );
-      // toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+      console.error("Error marking event as 'Did Not Meet':", error);
     }
 };
 
@@ -2524,16 +2078,6 @@ const confirmDidNotMeet = async () => {
 
     setShowAddPersonModal(false);
 
-    // Show success message
-    // setAlert({
-    //   open: true,
-    //   type: "success",
-    //   message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
-    // });
-    // setTimeout(
-    //   () => setAlert({ open: false, type: "success", message: "" }),
-    //   3000
-    // );
     toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
   };
 
@@ -2908,11 +2452,8 @@ const confirmDidNotMeet = async () => {
       boxSizing: "border-box",
     },
     tableContainer: {
-      // overflowX: "auto",
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
-      // overflowY: "hidden",
-      // border: "2px solid red",
       paddingBottom: 8,
     },
     table: {
@@ -2988,7 +2529,6 @@ const confirmDidNotMeet = async () => {
       minWidth: isMobile ? 140 : 200,
       maxHeight: 300,
       overflowY: "auto",
-      // border: "2px solid blue",
     },
     decisionMenuItem: {
       padding: "10px 12px",
@@ -3285,29 +2825,6 @@ const confirmDidNotMeet = async () => {
       fontSize: 14,
       fontWeight: 500,
      },
-    // alert: {
-    //   position: "fixed",
-    //   top: "20px",
-    //   left: "50%",
-    //   transform: "translateX(-50%)",
-    //   padding: "12px 18px",
-    //   borderRadius: 8,
-    //   color: "#fff",
-    //   fontSize: 14,
-    //   fontWeight: 500,
-    //   zIndex: 10001,
-    //   display: "flex",
-    //   alignItems: "center",
-    //   gap: 8,
-    //   maxWidth: "90vw",
-    //   textAlign: "center",
-    // },
-    // alertSuccess: { background: theme.palette.success.main },
-    // alertError: { background: theme.palette.error.main },
-    // alertWarning: { background: theme.palette.warning.main },
-    // inputGroup: {
-    //   marginBottom: 8,
-    // },
     label: {
       fontSize: 12,
       color: theme.palette.text.secondary,
@@ -3380,7 +2897,7 @@ const confirmDidNotMeet = async () => {
   <Search size={20} style={styles.searchIcon} />
   <input
     type="text"
-    placeholder="Search by name and surname... (showing all people when empty)"
+    placeholder="Search by name and surname..."
     value={associateSearch}
     onChange={(e) => setAssociateSearch(e.target.value)}
     style={styles.input}
@@ -3388,14 +2905,14 @@ const confirmDidNotMeet = async () => {
   />
 </div>
 
-                {isMobile ? (
-                  <div>
-                    {loading && (
-                      <div style={{ textAlign: "center", padding: "20px" }}>
-                        Loading...
-                      </div>
-                    )}
-                    {/* // In the table rendering, update the empty state: */}
+  {isMobile ? (
+      <div>
+        {loading && (
+          <div style={{ textAlign: "center", padding: "20px" }}>
+              Loading...
+          </div>
+         )}
+    {/* // In the table rendering, update the empty state: */}
 {!loading && filteredPeople.length === 0 && (
   <tr>
     <td
@@ -3406,18 +2923,7 @@ const confirmDidNotMeet = async () => {
     </td>
   </tr>
 )}
-                    {/* {!loading && filteredCommonAttendees.length === 0 && (
-                      <div
-                        style={{
-                          textAlign: "center",
-                          padding: "20px",
-                          color: "#666",
-                        }}
-                      >
-                        No attendees found.
-                      </div>
-                    )} */}
-                    {filteredCommonAttendees.map(renderMobileAttendeeCard)}
+            {filteredCommonAttendees.map(renderMobileAttendeeCard)}
                   </div>
                 ) : (
                   <div style={styles.tableContainer}>

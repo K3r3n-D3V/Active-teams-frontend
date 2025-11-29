@@ -1,153 +1,109 @@
-import React, { useState } from "react";
-
-// Placeholder for EventRegistrationForm - replace with your actual component
-const EventRegistrationForm = () => (
-  <div style={{ padding: "20px" }}>
-    <h2>Event Registration</h2>
-    <p>Your registration form goes here</p>
-  </div>
-);
+// components/Home.jsx
+import React, { useState, useEffect } from "react";
+import EventRegistrationForm from "./EventRegistrationForm";
 
 export default function Home() {
   const [openPopup, setOpenPopup] = useState(false);
-  const [imagesLoaded, setImagesLoaded] = useState({});
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    setIsDarkMode(mediaQuery.matches);
+    const handler = (e) => setIsDarkMode(e.matches);
+    mediaQuery.addEventListener("change", handler);
+    return () => mediaQuery.removeEventListener("change", handler);
+  }, []);
 
   const sections = [
-    { image: "/Untitled.jpg" },
-    { image: "/newposter.jpg" },
+    { image: "/reactive.jpeg" },
+    { image: "/amenclub.jpeg" },
     { image: "/homebanner1.jpg" },
     { image: "/home.jpg" },
   ];
 
-  React.useEffect(() => {
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const handleImageLoad = (index) => {
-    setImagesLoaded(prev => ({ ...prev, [index]: true }));
-  };
-
-  const getSectionHeight = () => {
-    if (windowWidth < 480) return '80vh'; // Small phones
-    if (windowWidth < 768) return '85vh'; // Tablets portrait
-    if (windowWidth < 1024) return '90vh'; // Tablets landscape / small laptops
-    return '100vh'; // Desktop
+  const styles = {
+    container: {
+      width: "100%",
+      scrollSnapType: "y mandatory",
+      overflowY: "scroll",
+      height: "100vh",
+    },
+    section: {
+      width: "100%",
+      height: "100vh",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      cursor: "pointer",
+      scrollSnapAlign: "start",
+    },
+    overlay: {
+      position: "fixed",
+      inset: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.85)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 9999,
+      padding: "1rem",
+    },
+    modal: {
+      position: "relative",
+      width: "100%",
+      maxWidth: "680px",        // ← Slim & beautiful (your request)
+      maxHeight: "94vh",
+      borderRadius: "16px",
+      overflow: "hidden",
+      boxShadow: "0 25px 70px rgba(0,0,0,0.5)",
+      fontFamily: "'Georgia', serif",
+      backgroundColor: isDarkMode ? "#111" : "#fff",
+      color: isDarkMode ? "#eee" : "#111",
+    },
+    closeBtn: {
+      position: "absolute",
+      top: "16px",
+      right: "20px",
+      width: "48px",
+      height: "48px",
+      borderRadius: "50%",
+      background: "rgba(0,0,0,0.6)",
+      color: "white",
+      border: "none",
+      fontSize: "32px",
+      fontWeight: "300",
+      cursor: "pointer",
+      zIndex: 10,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
   };
 
   return (
-    <div style={styles.container}>
-      {sections.map((sec, index) => (
-        <section
-          key={index}
-          onClick={() => setOpenPopup(true)}
-          style={{
-            ...styles.section,
-            minHeight: getSectionHeight(),
-          }}
-        >
-          {!imagesLoaded[index] && (
-            <div style={styles.loader}>Loading...</div>
-          )}
-          <img
-            src={sec.image}
-            alt={`Section ${index + 1}`}
-            onLoad={() => handleImageLoad(index)}
+    <>
+      <div style={styles.container}>
+        {sections.map((sec, i) => (
+          <section
+            key={i}
+            onClick={() => setOpenPopup(true)}
             style={{
-              ...styles.image,
-              opacity: imagesLoaded[index] ? 1 : 0,
+              ...styles.section,
+              backgroundImage: `url(${sec.image})`,
             }}
-            loading="lazy"
           />
-        </section>
-      ))}
+        ))}
+      </div>
 
+      {/* SLIM & ELEGANT MODAL */}
       {openPopup && (
-        <div style={styles.popupOverlay}>
-          <div style={styles.popupContent}>
-            <button
-              style={styles.closeButton}
-              onClick={() => setOpenPopup(false)}
-            >
-              &times;
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <button style={styles.closeBtn} onClick={() => setOpenPopup(false)}>
+              ×
             </button>
-            <EventRegistrationForm />
+            <EventRegistrationForm eventId="ENC2025" />
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
-
-const styles = {
-  container: {
-    width: "100%",
-    minHeight: "100vh",
-    overflowY: "auto",
-    scrollBehavior: "smooth",
-  },
-  section: {
-    position: "relative",
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    cursor: "pointer",
-    backgroundColor: "#f0f0f0",
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-    minHeight: "inherit",
-    objectFit: "cover",
-    objectPosition: "center",
-    transition: "opacity 0.3s ease-in-out",
-    display: "block",
-  },
-  loader: {
-    position: "absolute",
-    fontSize: "18px",
-    color: "#666",
-  },
-  popupOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100vw",
-    height: "100vh",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 9999,
-    padding: "1rem",
-  },
-  popupContent: {
-    position: "relative",
-    backgroundColor: "#fff",
-    padding: "clamp(1rem, 4vw, 2rem)",
-    borderRadius: "8px",
-    width: "100%",
-    maxWidth: "600px",
-    maxHeight: "90vh",
-    overflowY: "auto",
-    boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
-  },
-  closeButton: {
-    position: "absolute",
-    top: "10px",
-    right: "14px",
-    fontSize: "clamp(18px, 2.5vw, 24px)",
-    fontWeight: "bold",
-    background: "none",
-    border: "none",
-    color: "#333",
-    cursor: "pointer",
-  },
-};

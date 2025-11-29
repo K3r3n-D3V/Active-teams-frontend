@@ -33,7 +33,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const [alreadyConsolidated, setAlreadyConsolidated] = useState(false);
 
   const decisionTypes = [
-    "Commitment",
+    "First Time",
     "Recommitment"
   ];
 
@@ -112,33 +112,66 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
   }, [open]);
 
-  const checkIfAlreadyConsolidated = useCallback((person) => {
-    if (!person) return false;
+  // const checkIfAlreadyConsolidated = useCallback((person) => {
+  //   if (!person) return false;
     
-    const personEmail = person.Email || person.email;
-    const personName = `${person.Name || person.name} ${person.Surname || person.surname}`.trim().toLowerCase();
+  //   const personEmail = person.Email || person.email;
+  //   const personName = `${person.Name || person.name} ${person.Surname || person.surname}`.trim().toLowerCase();
     
-    const isInConsolidatedList = consolidatedPeople.some(consolidated => {
-      const consolidatedEmail = consolidated.email || consolidated.person_email;
-      const consolidatedName = `${consolidated.name || consolidated.person_name} ${consolidated.surname || consolidated.person_surname}`.trim().toLowerCase();
+  //   const isInConsolidatedList = consolidatedPeople.some(consolidated => {
+  //     const consolidatedEmail = consolidated.email || consolidated.person_email;
+  //     const consolidatedName = `${consolidated.name || consolidated.person_name} ${consolidated.surname || consolidated.person_surname}`.trim().toLowerCase();
       
-      return (personEmail && consolidatedEmail && personEmail.toLowerCase() === consolidatedEmail.toLowerCase()) ||
-             (personName === consolidatedName);
-    });
+  //     return (personEmail && consolidatedEmail && personEmail.toLowerCase() === consolidatedEmail.toLowerCase()) ||
+  //            (personName === consolidatedName);
+  //   });
     
-    const hasConsolidationStage = person.Stage === "Consolidate";
-    const hasDecisionHistory = person.DecisionHistory && person.DecisionHistory.length > 0;
+  //   const hasConsolidationStage = person.Stage === "Consolidate";
+  //   const hasDecisionHistory = person.DecisionHistory && person.DecisionHistory.length > 0;
     
-    console.log("🔍 Consolidation check for:", personName, {
-      isInConsolidatedList,
-      hasConsolidationStage,
-      hasDecisionHistory,
-      stage: person.Stage,
-      decisionHistory: person.DecisionHistory
-    });
+  //   console.log("🔍 Consolidation check for:", personName, {
+  //     isInConsolidatedList,
+  //     hasConsolidationStage,
+  //     hasDecisionHistory,
+  //     stage: person.Stage,
+  //     decisionHistory: person.DecisionHistory
+  //   });
     
-    return isInConsolidatedList || hasConsolidationStage || hasDecisionHistory;
-  }, [consolidatedPeople]);
+  //   return isInConsolidatedList || hasConsolidationStage || hasDecisionHistory;
+  // }, [consolidatedPeople]);
+const checkIfAlreadyConsolidated = useCallback((person) => {
+  if (!person) return false;
+  
+  const personEmail = person.Email || person.email;
+  const personName = `${person.Name || person.name} ${person.Surname || person.surname}`.trim().toLowerCase();
+  
+  // FIXED: More precise matching
+  const isInConsolidatedList = consolidatedPeople.some(consolidated => {
+    const consolidatedEmail = consolidated.email || consolidated.person_email;
+    const consolidatedName = `${consolidated.name || consolidated.person_name} ${consolidated.surname || consolidated.person_surname}`.trim().toLowerCase();
+    
+    // Match by email if available
+    if (personEmail && consolidatedEmail) {
+      return personEmail.toLowerCase() === consolidatedEmail.toLowerCase();
+    }
+    
+    // Fallback to name matching
+    return personName === consolidatedName;
+  });
+  
+  const hasConsolidationStage = person.Stage === "Consolidate";
+  const hasDecisionHistory = person.DecisionHistory && person.DecisionHistory.length > 0;
+  
+  console.log("🔍 Consolidation check for:", personName, {
+    isInConsolidatedList,
+    hasConsolidationStage,
+    hasDecisionHistory,
+    stage: person.Stage,
+    decisionHistory: person.DecisionHistory
+  });
+  
+  return isInConsolidatedList || hasConsolidationStage || hasDecisionHistory;
+}, [consolidatedPeople]);
 
   const getHighestAvailableLeader = (person) => {
     const leader1 = person["Leader @1"] || person.leader1;
@@ -256,141 +289,342 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
   };
 
-  // FIXED: Enhanced handleFinish with better validation
-  const handleFinish = async () => {
-    if (!recipient) {
-      setError("Please select a person for consolidation");
-      return;
-    }
+// const handleFinish = async () => {
+//   if (!recipient) {
+//     setError("Please select a person for consolidation");
+//     return;
+//   }
 
-    if (!taskStage) {
-      setError("Please select a decision type");
-      return;
-    }
+//   if (!taskStage) {
+//     setError("Please select a decision type");
+//     return;
+//   }
 
-    if (alreadyConsolidated) {
-      setError("This person has already been consolidated and cannot be consolidated again.");
-      return;
-    }
+//   // FINAL consolidation check with more robust validation
+//   const finalCheck = checkIfAlreadyConsolidated(recipient);
+//   if (finalCheck) {
+//     setError("This person has already been consolidated. Please select someone else.");
+//     return;
+//   }
 
-    const leaderInfo = getHighestAvailableLeader(recipient);
+//   const leaderInfo = getHighestAvailableLeader(recipient);
+  
+//   if (!leaderInfo.hasLeader) {
+//     setError("Cannot create consolidation task: No leader available for assignment");
+//     return;
+//   }
+
+//   // FIXED: Better leader email lookup with guaranteed fallback
+//   let leaderEmail = await findLeaderEmail(leaderInfo.leader);
+  
+//   // CRITICAL FIX: Ensure we have a valid email - GUARANTEED assignment
+//   if (!leaderEmail || leaderEmail.trim() === "") {
+//     // Create a fallback email based on leader name
+//     leaderEmail = `${leaderInfo.leader.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, '.')}@consolidation.fallback`;
+//     console.log(`⚠️ Using fallback email for leader: ${leaderEmail}`);
     
-    if (!leaderInfo.hasLeader) {
-      setError("Cannot create consolidation task: No leader available for assignment");
-      return;
+//     // Show warning but proceed - don't block submission
+//     setError(`Note: Using system email for ${leaderInfo.leader}. The consolidation will still be created.`);
+//   }
+
+//   const decisionType = taskStage.toLowerCase() === 'recommitment' ? 'recommitment' : 'first_time';
+  
+//   // FIXED: Use consistent field names that match your backend - GUARANTEED email
+//   const consolidationData = {
+//     person_name: recipient.Name || recipient.name,
+//     person_surname: recipient.Surname || recipient.surname,
+//     person_email: recipient.Email || recipient.email || "",
+//     person_phone: recipient.Phone || recipient.phone || "",
+//     decision_type: decisionType,
+//     decision_date: new Date().toISOString().split('T')[0],
+//     assigned_to: leaderInfo.leader,
+//     assigned_to_email: leaderEmail, // ✅ GUARANTEED to have a value now
+//     event_id: currentEventId,
+//     leaders: [
+//       recipient["Leader @1"] || recipient.leader1 || "",
+//       recipient["Leader @12"] || recipient.leader12 || "",
+//       recipient["Leader @144"] || recipient.leader144 || "",
+//       recipient["Leader @1728"] || recipient.leader1728 || ""
+//     ],
+//     notes: "", // Add empty notes field if required
+//     // EXPLICITLY state this is not a check-in
+//     is_check_in: false,
+//     attendance_status: "not_checked_in"
+//   };
+
+//   console.log("📤 Sending consolidation data (NO CHECK-IN):", consolidationData);
+//   console.log("🔍 Email validation:", {
+//     assigned_to_email: consolidationData.assigned_to_email,
+//     exists: !!consolidationData.assigned_to_email,
+//     length: consolidationData.assigned_to_email?.length,
+//     trimmed: consolidationData.assigned_to_email?.trim()
+//   });
+
+//   setLoading(true);
+
+//   try {
+//     const token = localStorage.getItem("token");
+//     console.log("🔑 Token available:", !!token);
+
+//     if (!token) {
+//       throw new Error("No authentication token found");
+//     }
+
+//     // FIXED: Add timeout and prevent duplicate requests
+//     const response = await axios.post(`${BASE_URL}/consolidations`, consolidationData, {
+//       headers: {
+//         'Authorization': `Bearer ${token}`,
+//         'Content-Type': 'application/json'
+//       },
+//       timeout: 10000 // 10 second timeout
+//     });
+    
+//     console.log("✅ Consolidation creation response:", response.data);
+
+//     if (!response.data.success) {
+//       throw new Error(response.data.message || "Failed to create consolidation");
+//     }
+
+//     // FIXED: Call onFinish with ALL required data including assignedToEmail
+//     const resultData = {
+//       ...response.data,
+//       recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
+//       assignedTo: leaderInfo.leader,
+//       assignedToEmail: leaderEmail, // ✅ CRITICAL: This was missing before
+//       taskStage: taskStage,
+//       decisionType: decisionType,
+//       leaderLevel: leaderInfo.level,
+//       task_id: response.data.task_id,
+//       recipient_email: recipient.Email || recipient.email || "",
+//       recipient_phone: recipient.Phone || recipient.phone || "",
+//       leader_email: leaderEmail,
+//       consolidation_id: response.data.consolidation_id,
+//       // Also pass person data for ServiceCheckIn
+//       person_name: recipient.Name || recipient.name,
+//       person_surname: recipient.Surname || recipient.surname,
+//       person_email: recipient.Email || recipient.email || "",
+//       person_phone: recipient.Phone || recipient.phone || "",
+//       // EXPLICITLY mark that this is not a check-in
+//       isConsolidationOnly: true
+//     };
+
+//     console.log("📤 Passing to onFinish with assignedToEmail:", {
+//       assignedTo: resultData.assignedTo,
+//       assignedToEmail: resultData.assignedToEmail,
+//       leader_email: resultData.leader_email
+//     });
+    
+//     onFinish(resultData);
+    
+//     // Reset form
+//     setRecipient(null);
+//     setAssignedTo("");
+//     setTaskStage("");
+//     setAlreadyConsolidated(false);
+//     setError("");
+    
+//     // Close modal after successful submission
+//     setTimeout(() => {
+//       onClose();
+//     }, 500);
+    
+//   } catch (err) {
+//     console.error("❌ Error creating consolidation:", err);
+    
+//     // FIXED: Better error handling
+//     if (err.code === 'ECONNABORTED') {
+//       setError("Request timeout. Please try again.");
+//     } else if (err.response) {
+//       console.error("📡 Server response error:", {
+//         status: err.response.status,
+//         data: err.response.data,
+//       });
+      
+//       if (err.response.status === 409) {
+//         setError("This person has already been consolidated. Please select someone else.");
+//       } else if (err.response.data && err.response.data.detail) {
+//         setError(`Server error: ${err.response.data.detail}`);
+//       } else if (err.response.data && err.response.data.errors) {
+//         // Handle validation errors
+//         const validationErrors = err.response.data.errors;
+//         const errorMessages = validationErrors.map(error => 
+//           `${error.field}: ${error.message}`
+//         ).join(', ');
+//         setError(`Validation errors: ${errorMessages}`);
+//       } else {
+//         setError(`Server error: ${err.response.status} - ${err.response.data?.message || 'Unknown error'}`);
+//       }
+//     } else if (err.request) {
+//       console.error("🌐 Network error:", err.request);
+//       setError("Network error: Could not connect to server. Please check your connection.");
+//     } else {
+//       console.error("⚡ Request setup error:", err.message);
+//       setError(`Request error: ${err.message}`);
+//     }
+//   } finally {
+//     setLoading(false);
+//   }
+// };
+const handleFinish = async () => {
+  if (!recipient) {
+    setError("Please select a person for consolidation");
+    return;
+  }
+
+  if (!taskStage) {
+    setError("Please select a decision type");
+    return;
+  }
+
+  // FINAL consolidation check with more robust validation
+  const finalCheck = checkIfAlreadyConsolidated(recipient);
+  if (finalCheck) {
+    setError("This person has already been consolidated. Please select someone else.");
+    return;
+  }
+
+  const leaderInfo = getHighestAvailableLeader(recipient);
+  
+  if (!leaderInfo.hasLeader) {
+    setError("Cannot create consolidation task: No leader available for assignment");
+    return;
+  }
+
+  // FIXED: Better leader email lookup with guaranteed fallback
+  let leaderEmail = await findLeaderEmail(leaderInfo.leader);
+  
+  // CRITICAL FIX: Ensure we have a valid email - GUARANTEED assignment
+  if (!leaderEmail || leaderEmail.trim() === "") {
+    leaderEmail = `${leaderInfo.leader.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, '.')}@consolidation.fallback`;
+    console.log(`⚠️ Using fallback email for leader: ${leaderEmail}`);
+  }
+
+  const decisionType = taskStage.toLowerCase() === 'recommitment' ? 'recommitment' : 'first_time';
+  
+  // FIXED: Use consistent field names that match your backend - GUARANTEED email
+  const consolidationData = {
+    person_name: recipient.Name || recipient.name,
+    person_surname: recipient.Surname || recipient.surname,
+    person_email: recipient.Email || recipient.email || "",
+    person_phone: recipient.Phone || recipient.phone || "",
+    decision_type: decisionType,
+    decision_date: new Date().toISOString().split('T')[0],
+    assigned_to: leaderInfo.leader,
+    assigned_to_email: leaderEmail, // ✅ GUARANTEED to have a value now
+    event_id: currentEventId,
+    leaders: [
+      recipient["Leader @1"] || recipient.leader1 || "",
+      recipient["Leader @12"] || recipient.leader12 || "",
+      recipient["Leader @144"] || recipient.leader144 || "",
+      recipient["Leader @1728"] || recipient.leader1728 || ""
+    ],
+    notes: "",
+    is_check_in: false,
+    attendance_status: "not_checked_in"
+  };
+
+  console.log("📤 Sending consolidation data (NO CHECK-IN):", consolidationData);
+
+  setLoading(true);
+
+  try {
+    const token = localStorage.getItem("token");
+    console.log("🔑 Token available:", !!token);
+
+    if (!token) {
+      throw new Error("No authentication token found");
     }
 
-    const finalCheck = checkIfAlreadyConsolidated(recipient);
-    if (finalCheck) {
-      setError("This person has already been consolidated. Please select someone else.");
-      return;
-    }
-
-    // IMPORTANT: Log current check-in status before proceeding
-    console.log("🔍 PRE-CONSOLIDATION CHECK - Person status:", {
-      name: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
-      email: recipient.Email || recipient.email,
-      isCheckedIn: false, // Consolidation should NEVER check people in
-      action: "Creating consolidation task only"
+    // ✅ ConsolidationModal makes the API call (like AddPersonDialog)
+    const response = await axios.post(`${BASE_URL}/consolidations`, consolidationData, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
     });
+    
+    console.log("✅ Consolidation creation response:", response.data);
 
-    const decisionType = taskStage.toLowerCase() === 'recommitment' ? 'recommitment' : 'first_time';
-    
-    // Get leader's email
-    const leaderEmail = await findLeaderEmail(leaderInfo.leader);
-    
-    const consolidationData = {
+    if (!response.data.success) {
+      throw new Error(response.data.message || "Failed to create consolidation");
+    }
+
+    // ✅ Prepare result data to pass to parent (like AddPersonDialog)
+    const resultData = {
+      ...response.data,
+      // Include all data needed for ServiceCheckIn to update its state
+      recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
+      assignedTo: leaderInfo.leader,
+      assignedToEmail: leaderEmail,
+      taskStage: taskStage,
+      decisionType: decisionType,
+      leaderLevel: leaderInfo.level,
+      task_id: response.data.task_id,
+      recipient_email: recipient.Email || recipient.email || "",
+      recipient_phone: recipient.Phone || recipient.phone || "",
+      leader_email: leaderEmail,
+      consolidation_id: response.data.consolidation_id,
+      // Person data for consistency
       person_name: recipient.Name || recipient.name,
       person_surname: recipient.Surname || recipient.surname,
       person_email: recipient.Email || recipient.email || "",
       person_phone: recipient.Phone || recipient.phone || "",
-      decision_type: decisionType,
-      decision_date: new Date().toISOString().split('T')[0],
-      assigned_to: leaderInfo.leader,
-      assigned_to_email: leaderEmail,
-      event_id: currentEventId,
-      leaders: [
-        recipient["Leader @1"] || recipient.leader1 || "",
-        recipient["Leader @12"] || recipient.leader12 || "",
-        recipient["Leader @144"] || recipient.leader144 || "",
-        recipient["Leader @1728"] || recipient.leader1728 || ""
-      ],
-      // EXPLICITLY state this is not a check-in
-      is_check_in: false,
-      attendance_status: "not_checked_in"
+      // Mark as consolidation only
+      isConsolidationOnly: true
     };
 
-    console.log("📤 Sending consolidation data (NO CHECK-IN):", consolidationData);
-
-    setLoading(true);
-
-    try {
-      const token = localStorage.getItem("token");
-      console.log("🔑 Token available:", !!token);
-
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
-
-      // Create consolidation record ONLY
-      const response = await axios.post(`${BASE_URL}/consolidations`, consolidationData, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+    console.log("📤 Passing consolidation result to parent:", resultData);
+    
+    // ✅ Call onFinish with the result (like AddPersonDialog calls onSave)
+    onFinish(resultData);
+    
+    // Reset form and close modal
+    setRecipient(null);
+    setAssignedTo("");
+    setTaskStage("");
+    setAlreadyConsolidated(false);
+    setError("");
+    
+    // Close modal after successful submission
+    onClose();
+    
+  } catch (err) {
+    console.error("❌ Error creating consolidation:", err);
+    
+    // Error handling remains the same...
+    if (err.code === 'ECONNABORTED') {
+      setError("Request timeout. Please try again.");
+    } else if (err.response) {
+      console.error("📡 Server response error:", {
+        status: err.response.status,
+        data: err.response.data,
       });
       
-      console.log("✅ Consolidation creation response:", response.data);
-
-      // Call onFinish with consolidation data only - NO CHECK-IN
-      onFinish({
-        ...response.data,
-        recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
-        assignedTo: leaderInfo.leader,
-        taskStage: taskStage,
-        decisionType: decisionType,
-        leaderLevel: leaderInfo.level,
-        task_id: response.data.task_id,
-        recipient_email: recipient.Email || recipient.email || "",
-        recipient_phone: recipient.Phone || recipient.phone || "",
-        leader_email: leaderEmail,
-        // EXPLICITLY mark that this is not a check-in
-        isConsolidationOnly: true
-      });
-      
-      onClose();
-      
-      // Reset form
-      setRecipient(null);
-      setAssignedTo("");
-      setTaskStage("");
-      setAlreadyConsolidated(false);
-      
-    } catch (err) {
-      console.error("❌ Error creating consolidation:", err);
-      
-      if (err.response) {
-        console.error("📡 Server response error:", {
-          status: err.response.status,
-          data: err.response.data,
-        });
-        
-        if (err.response.data && err.response.data.detail) {
-          setError(`Server error: ${err.response.data.detail}`);
-        } else {
-          setError(`Server error: ${err.response.status} - ${err.response.data?.message || 'Unknown error'}`);
-        }
-      } else if (err.request) {
-        console.error("🌐 Network error:", err.request);
-        setError("Network error: Could not connect to server. Please check your connection.");
+      if (err.response.status === 409) {
+        setError("This person has already been consolidated. Please select someone else.");
+      } else if (err.response.data && err.response.data.detail) {
+        setError(`Server error: ${err.response.data.detail}`);
+      } else if (err.response.data && err.response.data.errors) {
+        const validationErrors = err.response.data.errors;
+        const errorMessages = validationErrors.map(error => 
+          `${error.field}: ${error.message}`
+        ).join(', ');
+        setError(`Validation errors: ${errorMessages}`);
       } else {
-        console.error("⚡ Request setup error:", err.message);
-        setError(`Request error: ${err.message}`);
+        setError(`Server error: ${err.response.status} - ${err.response.data?.message || 'Unknown error'}`);
       }
-    } finally {
-      setLoading(false);
+    } else if (err.request) {
+      console.error("🌐 Network error:", err.request);
+      setError("Network error: Could not connect to server. Please check your connection.");
+    } else {
+      console.error("⚡ Request setup error:", err.message);
+      setError(`Request error: ${err.message}`);
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleKeyPress = (event) => {
     if (event.key === 'Enter') {
