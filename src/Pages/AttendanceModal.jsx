@@ -2897,7 +2897,7 @@ const confirmDidNotMeet = async () => {
   <Search size={20} style={styles.searchIcon} />
   <input
     type="text"
-    placeholder="Search by name and surname... (showing all people when empty)"
+    placeholder="Search by name and surname..."
     value={associateSearch}
     onChange={(e) => setAssociateSearch(e.target.value)}
     style={styles.input}

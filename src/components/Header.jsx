@@ -21,6 +21,63 @@ export default function Home() {
     { image: "/home.jpg" },
   ];
 
+  const styles = {
+    container: {
+      width: "100%",
+      scrollSnapType: "y mandatory",
+      overflowY: "scroll",
+      height: "100vh",
+    },
+    section: {
+      width: "100%",
+      height: "100vh",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      cursor: "pointer",
+      scrollSnapAlign: "start",
+    },
+    overlay: {
+      position: "fixed",
+      inset: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.85)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 9999,
+      padding: "1rem",
+    },
+    modal: {
+      position: "relative",
+      width: "100%",
+      maxWidth: "680px",        // ← Slim & beautiful (your request)
+      maxHeight: "94vh",
+      borderRadius: "16px",
+      overflow: "hidden",
+      boxShadow: "0 25px 70px rgba(0,0,0,0.5)",
+      fontFamily: "'Georgia', serif",
+      backgroundColor: isDarkMode ? "#111" : "#fff",
+      color: isDarkMode ? "#eee" : "#111",
+    },
+    closeBtn: {
+      position: "absolute",
+      top: "16px",
+      right: "20px",
+      width: "48px",
+      height: "48px",
+      borderRadius: "50%",
+      background: "rgba(0,0,0,0.6)",
+      color: "white",
+      border: "none",
+      fontSize: "32px",
+      fontWeight: "300",
+      cursor: "pointer",
+      zIndex: 10,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+  };
+
   return (
     <>
       <div style={styles.container}>
@@ -36,16 +93,10 @@ export default function Home() {
         ))}
       </div>
 
-      {/* WIDE & ELEGANT BLACK & WHITE MODAL */}
+      {/* SLIM & ELEGANT MODAL */}
       {openPopup && (
         <div style={styles.overlay}>
-          <div
-            style={{
-              ...styles.modal,
-              backgroundColor: isDarkMode ? "#111" : "#fff",
-              color: isDarkMode ? "#eee" : "#111",
-            }}
-          >
+          <div style={styles.modal}>
             <button style={styles.closeBtn} onClick={() => setOpenPopup(false)}>
               ×
             </button>
@@ -56,56 +107,3 @@ export default function Home() {
     </>
   );
 }
-
-const styles = {
-  container: {
-    width: "100%",
-    scrollSnapType: "y mandatory",
-    overflowY: "scroll",
-    height: "100vh",
-  },
-  section: {
-    width: "100%",
-    height: "100vh",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    cursor: "pointer",
-    scrollSnapAlign: "start",
-  },
-
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 9999,
-    padding: "1rem",
-  },
- // In Home.jsx – make sure modal allows internal scrolling
-modal: {
-  position: "relative",
-  width: "100%",
-  maxWidth: "900px",
-  maxHeight: "95vh",
-  borderRadius: "12px",
-  overflow: "hidden",        // This is OK here
-  boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-  fontFamily: "'Georgia', serif",
-},
-  closeBtn: {
-    position: "absolute",
-    top: "16px",
-    right: "20px",
-    width: "44px",
-    height: "44px",
-    borderRadius: "50%",
-    background: "rgba(0,0,0,0.5)",
-    color: "white",
-    border: "none",
-    fontSize: "28px",
-    cursor: "pointer",
-    zIndex: 10,
-  },
-};
