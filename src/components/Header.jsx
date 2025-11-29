@@ -1,44 +1,16 @@
+// components/Home.jsx
 import React, { useState } from "react";
-
-// Placeholder for EventRegistrationForm - replace with your actual component
-const EventRegistrationForm = () => (
-  <div style={{ padding: "20px" }}>
-    <h2>Event Registration</h2>
-    <p>Your registration form goes here</p>
-  </div>
-);
+import EventRegistrationForm from "./EventRegistrationForm";
 
 export default function Home() {
   const [openPopup, setOpenPopup] = useState(false);
-  const [imagesLoaded, setImagesLoaded] = useState({});
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   const sections = [
-    { image: "/Untitled.jpg" },
-    { image: "/newposter.jpg" },
+    { image: "/reactive.jpeg" },
+    { image: "/amenclub.jpeg" },
     { image: "/homebanner1.jpg" },
     { image: "/home.jpg" },
   ];
-
-  React.useEffect(() => {
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const handleImageLoad = (index) => {
-    setImagesLoaded(prev => ({ ...prev, [index]: true }));
-  };
-
-  const getSectionHeight = () => {
-    if (windowWidth < 480) return '80vh'; // Small phones
-    if (windowWidth < 768) return '85vh'; // Tablets portrait
-    if (windowWidth < 1024) return '90vh'; // Tablets landscape / small laptops
-    return '100vh'; // Desktop
-  };
 
   return (
     <div style={styles.container}>
@@ -48,23 +20,9 @@ export default function Home() {
           onClick={() => setOpenPopup(true)}
           style={{
             ...styles.section,
-            minHeight: getSectionHeight(),
+            backgroundImage: `url(${sec.image})`,
           }}
-        >
-          {!imagesLoaded[index] && (
-            <div style={styles.loader}>Loading...</div>
-          )}
-          <img
-            src={sec.image}
-            alt={`Section ${index + 1}`}
-            onLoad={() => handleImageLoad(index)}
-            style={{
-              ...styles.image,
-              opacity: imagesLoaded[index] ? 1 : 0,
-            }}
-            loading="lazy"
-          />
-        </section>
+        />
       ))}
 
       {openPopup && (
@@ -92,28 +50,22 @@ const styles = {
     scrollBehavior: "smooth",
   },
   section: {
-    position: "relative",
     width: "100%",
+    minHeight: "100vh", // full screen on desktop
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
+    boxSizing: "border-box",
+    transition: "0.3s",
     cursor: "pointer",
-    backgroundColor: "#f0f0f0",
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-    minHeight: "inherit",
-    objectFit: "cover",
-    objectPosition: "center",
-    transition: "opacity 0.3s ease-in-out",
-    display: "block",
-  },
-  loader: {
-    position: "absolute",
-    fontSize: "18px",
-    color: "#666",
+
+    // responsive tweak: smaller height on mobile
+    // (simulate media queries in JS)
+    ...(window.innerWidth < 768 && { minHeight: "70vh" }),
+    ...(window.innerWidth < 480 && { minHeight: "60vh" }),
   },
   popupOverlay: {
     position: "fixed",
@@ -131,7 +83,7 @@ const styles = {
   popupContent: {
     position: "relative",
     backgroundColor: "#fff",
-    padding: "clamp(1rem, 4vw, 2rem)",
+    padding: "clamp(1rem, 4vw, 2rem)", // scales with screen size
     borderRadius: "8px",
     width: "100%",
     maxWidth: "600px",
@@ -143,7 +95,7 @@ const styles = {
     position: "absolute",
     top: "10px",
     right: "14px",
-    fontSize: "clamp(18px, 2.5vw, 24px)",
+    fontSize: "clamp(18px, 2.5vw, 24px)", // responsive size
     fontWeight: "bold",
     background: "none",
     border: "none",
