@@ -298,6 +298,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
 // ---------------- PeopleSection ----------------
 export const PeopleSection = () => {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const { user } = useContext(AuthContext);
   const { userProfile } = useContext(UserContext);
   const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
@@ -321,6 +322,54 @@ export const PeopleSection = () => {
   const searchDebounceRef = useRef(null);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+  const inputFieldSx = {
+    "& .MuiOutlinedInput-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      "& fieldset": {
+        borderColor: isDark ? "#333333" : "#e0e0e0",
+      },
+      "&:hover fieldset": {
+        borderColor: isDark ? "#555555" : "#b0b0b0",
+      },
+      "&.Mui-focused": {
+        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: "#42a5f5",
+      },
+    },
+    "& .MuiInputBase-input": {
+      color: isDark ? "#ffffff" : "#000000",
+      bgcolor: "transparent !important",
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: isDark ? "0 0 0 100px #1a1a1a inset !important" : "0 0 0 100px #f8f9fa inset !important",
+        WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
+        transition: "background-color 5000s ease-in-out 0s",
+      },
+      "&:focus": {
+        bgcolor: "transparent !important",
+      },
+    },
+    "& .MuiInputLabel-root": {
+      color: isDark ? "#999999" : "#666666",
+      "&.Mui-focused": {
+        color: "#42a5f5",
+      },
+    },
+    "& .MuiInputBase-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      "&.Mui-focused": {
+        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      },
+    },
+    "& .MuiSelect-select": {
+      bgcolor: "transparent !important",
+      "&:focus": {
+        bgcolor: "transparent !important",
+      },
+    },
+  };
 
   // Debounce search input
   useEffect(() => {
@@ -421,7 +470,7 @@ export const PeopleSection = () => {
           const nameLower = person.name.toLowerCase();
           const surnameLower = person.surname.toLowerCase();
           const fullName = `${nameLower} ${surnameLower}`;
-          
+
           return nameLower.includes(searchLower) ||
             surnameLower.includes(searchLower) ||
             fullName.includes(searchLower);
@@ -700,14 +749,38 @@ export const PeopleSection = () => {
               </InputAdornment>
             ),
           }}
-          sx={{ flex: 1 }}
+          sx={{ ...inputFieldSx, flex: 1 }}
         />
         <TextField
           size="small"
           select
           value={searchField}
           onChange={(e) => setSearchField(e.target.value)}
-          sx={{ minWidth: 140 }}
+          sx={{
+            ...inputFieldSx,
+            minWidth: 140
+          }}
+          SelectProps={{
+            MenuProps: {
+              PaperProps: {
+                sx: {
+                  bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                  "& .MuiMenuItem-root": {
+                    color: isDark ? "#ffffff" : "#000000",
+                    "&:hover": {
+                      bgcolor: isDark ? "#2a2a2a" : "#f5f5f5",
+                    },
+                    "&.Mui-selected": {
+                      bgcolor: isDark ? "#333333" : "#e0e0e0",
+                      "&:hover": {
+                        bgcolor: isDark ? "#3a3a3a" : "#d5d5d5",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }}
         >
           <MenuItem value="name">Name</MenuItem>
           <MenuItem value="email">Email</MenuItem>
