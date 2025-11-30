@@ -37,23 +37,62 @@ const initialFormState = {
 };
 
 // UNIFIED STYLES FOR ALL INPUTS - SAME SIZE
-const uniformInputSx = {
+const uniformInputSx = (isDark) => ({
   "& .MuiOutlinedInput-root": {
     height: "50px",
     borderRadius: "15px",
+    bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+    "& fieldset": {
+      borderColor: isDark ? "#333333" : "#e0e0e0",
+    },
+    "&:hover fieldset": {
+      borderColor: isDark ? "#555555" : "#b0b0b0",
+    },
+    "&.Mui-focused": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+    },
+    "&.Mui-focused fieldset": {
+      borderColor: "#42a5f5",
+    },
   },
   "& .MuiOutlinedInput-input": {
     fontSize: "0.95rem",
     padding: "10px 10px",
+    color: isDark ? "#ffffff" : "#000000",
+    bgcolor: "transparent !important",
+    "&:-webkit-autofill": {
+      WebkitBoxShadow: isDark
+        ? "0 0 0 100px #1a1a1a inset !important"
+        : "0 0 0 100px #f8f9fa inset !important",
+      WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
+      transition: "background-color 5000s ease-in-out 0s",
+    },
+    "&:focus": {
+      bgcolor: "transparent !important",
+    },
   },
   "& .MuiInputLabel-root": {
     fontSize: "0.95rem",
+    color: isDark ? "#999999" : "#666666",
+    "&.Mui-focused": {
+      color: "#42a5f5",
+    },
+  },
+  "& .MuiInputBase-root": {
+    bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+    "&.Mui-focused": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+    },
   },
   "& .MuiSelect-select": {
     fontSize: "0.95rem",
     padding: "10px 10px",
+    bgcolor: "transparent !important",
+    "&:focus": {
+      bgcolor: "transparent !important",
+    },
   },
-};
+});
 
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -74,7 +113,7 @@ const useDebounce = (value, delay) => {
 export default function AddPersonDialog({ open, onClose, onSave, formData, setFormData, isEdit = false, personId = null }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  
+
   const [peopleList, setPeopleList] = useState([]);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,7 +147,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       // Check if any leader field has data to determine whether to show the section
       const hasLeaderData = formData.leader1 || formData.leader12 || formData.leader144;
       setShowLeaderFields(hasLeaderData);
-      
+
       // Ensure all fields are properly set from formData
       const updatedFormData = {
         ...initialFormState,
@@ -127,7 +166,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         leader144: formData.leader144 || formData["Leader @144"] || "",
         stage: formData.stage || formData.Stage || "Win",
       };
-      
+
       // Only update if there are actual changes to avoid infinite loops
       if (JSON.stringify(updatedFormData) !== JSON.stringify(formData)) {
         setFormData(updatedFormData);
@@ -138,8 +177,8 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const peopleOptions = useMemo(() => {
     return peopleList.map(person => {
       const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
-      return { 
-        label: fullName, 
+      return {
+        label: fullName,
         person,
         FullName: person.FullName || fullName,
         Email: person.Email || "",
@@ -155,7 +194,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       setIsLoadingPeople(true);
       try {
         const response = await axios.get(`${BASE_URL}/cache/people`);
-        
+
         if (response.data.success) {
           const cachedData = response.data.cached_data || [];
           setPeopleList(cachedData);
@@ -203,10 +242,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     }
 
     const label = typeof value === "string" ? value : value.label;
-    
+
     const person = peopleList.find(
       p => `${p.Name} ${p.Surname}`.trim() === label.trim() ||
-           p.FullName?.trim() === label.trim()
+        p.FullName?.trim() === label.trim()
     );
 
     setFormData(prev => ({
@@ -233,10 +272,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     if (!inputValue) {
       return options.slice(0, 30);
     }
-    
+
     const searchTerm = inputValue.toLowerCase();
     return options
-      .filter(option => 
+      .filter(option =>
         option.searchText.includes(searchTerm) ||
         option.label.toLowerCase().includes(searchTerm) ||
         option.Email.toLowerCase().includes(searchTerm)
@@ -246,7 +285,8 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
   const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
     const currentValue = formData[name] || "";
-    
+
+
     return (
       <Autocomplete
         freeSolo
@@ -258,9 +298,9 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         }}
         filterOptions={filterOptions}
         value={
-          peopleOptions.find(option => 
+          peopleOptions.find(option =>
             option.label === currentValue
-          ) || 
+          ) ||
           (currentValue ? { label: currentValue } : null)
         }
         onChange={(e, newValue) => {
@@ -269,8 +309,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           } else {
             const value = newValue ? (typeof newValue === "string" ? newValue : newValue.label) : "";
             setFormData(prev => ({ ...prev, [name]: value }));
-            
-            // Show leader fields when any leader field gets data
+
             if (value && !showLeaderFields) {
               setShowLeaderFields(true);
             }
@@ -278,11 +317,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         }}
         onInputChange={(e, newInputValue, reason) => {
           handleSearchInputChange(name, newInputValue);
-          
+
           if (reason === "input") {
             setFormData(prev => ({ ...prev, [name]: newInputValue }));
-            
-            // Show leader fields when user starts typing in a leader field
+
             if (newInputValue && !showLeaderFields) {
               setShowLeaderFields(true);
             }
@@ -296,7 +334,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
             helperText={errors[name]}
             margin="normal"
             fullWidth
-            sx={uniformInputSx}
+            sx={uniformInputSx(isDark)} // ← CHANGED: Added (isDark)
           />
         )}
         loading={isLoadingPeople}
@@ -326,10 +364,32 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         onChange={handleInputChange}
         error={!!errors[name]}
         helperText={errors[name] || helperText}
-        InputLabelProps={{ 
+        InputLabelProps={{
           shrink: type === "date" || Boolean(currentValue)
         }}
-        sx={uniformInputSx}
+        sx={uniformInputSx(isDark)} // ← CHANGED: Added (isDark)
+        SelectProps={select ? {
+          MenuProps: {
+            PaperProps: {
+              sx: {
+                bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                "& .MuiMenuItem-root": {
+                  color: isDark ? "#ffffff" : "#000000",
+                  fontSize: "0.95rem",
+                  "&:hover": {
+                    bgcolor: isDark ? "#2a2a2a" : "#f5f5f5",
+                  },
+                  "&.Mui-selected": {
+                    bgcolor: isDark ? "#333333" : "#e0e0e0",
+                    "&:hover": {
+                      bgcolor: isDark ? "#3a3a3a" : "#d5d5d5",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        } : undefined} // ← ADDED: SelectProps for dropdown styling
       >
         {select && selectOptions.map((opt) => (
           <MenuItem key={opt} value={opt} sx={{ fontSize: "0.95rem" }}>
@@ -340,18 +400,19 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     );
   };
 
+
   const validate = () => {
     const newErrors = {};
     const requiredFields = [
       'name', 'surname', 'dob', 'address', 'email', 'number', 'gender'
     ];
-    
+
     requiredFields.forEach((field) => {
       if (!formData[field]?.trim()) {
         newErrors[field] = 'This field is required';
       }
     });
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -377,7 +438,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         dob: formData.dob,
         address: formData.address,
         leaders: leaders,
-        stage: formData.stage || "Win", 
+        stage: formData.stage || "Win",
       };
 
       let res;
@@ -429,12 +490,12 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       maxWidth="md"
       fullWidth
       disableEscapeKeyDown={isSubmitting}
-      PaperProps={{ 
-        sx: { 
+      PaperProps={{
+        sx: {
           borderRadius: 3,
           m: 2,
           maxHeight: '90vh',
-        } 
+        }
       }}
     >
       <DialogTitle sx={{ pb: 1 }}>
@@ -442,7 +503,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           {isEdit ? "Update Person" : "Add New Person"}
         </Typography>
       </DialogTitle>
-      
+
       <DialogContent dividers>
         {Object.keys(errors).length > 0 && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setErrors({})}>
@@ -461,25 +522,25 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         <Box>
           {renderTextField('name', 'First Name *', { required: true })}
           {renderTextField('surname', 'Last Name *', { required: true })}
-          {renderTextField('dob', 'Date of Birth *', { 
-            type: 'date', 
-            required: true 
+          {renderTextField('dob', 'Date of Birth *', {
+            type: 'date',
+            required: true
           })}
           {renderAutocomplete('invitedBy', 'Invited By', true, false)}
-          {renderTextField('address', 'Home Address *', { 
-            required: true 
+          {renderTextField('address', 'Home Address *', {
+            required: true
           })}
-          {renderTextField('email', 'Email Address *', { 
-            type: 'email', 
-            required: true 
+          {renderTextField('email', 'Email Address *', {
+            type: 'email',
+            required: true
           })}
-          {renderTextField('number', 'Phone Number *', { 
-            required: true 
+          {renderTextField('number', 'Phone Number *', {
+            required: true
           })}
-          {renderTextField('gender', 'Gender *', { 
-            select: true, 
+          {renderTextField('gender', 'Gender *', {
+            select: true,
             selectOptions: ['Male', 'Female'],
-            required: true 
+            required: true
           })}
 
           {/* Leader Fields Section - Hidden by default */}
@@ -488,7 +549,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
               <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1 }}>
                 Additional Leaders (Optional)
               </Typography>
-              
+
               {/* Only Leader @1 is editable, others are disabled */}
               {renderAutocomplete('leader1', 'Leader @1', false, true)}
               {renderAutocomplete('leader12', 'Leader @12', false, true)}
@@ -499,7 +560,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           {/* Show toggle button only when leader fields are hidden and no leader data exists */}
           {!showLeaderFields && !formData.leader1 && !formData.leader12 && !formData.leader144 && (
             <Box sx={{ mt: 2, textAlign: 'center' }}>
-              <Button 
+              <Button
                 onClick={toggleLeaderFields}
                 startIcon={<LeaderIcon />}
                 variant="outlined"
@@ -512,11 +573,11 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           )}
         </Box>
       </DialogContent>
-      
+
       <DialogActions sx={{ p: 2 }}>
-        <Button 
-          onClick={handleClose} 
-          color="inherit" 
+        <Button
+          onClick={handleClose}
+          color="inherit"
           disabled={isSubmitting}
         >
           Cancel
