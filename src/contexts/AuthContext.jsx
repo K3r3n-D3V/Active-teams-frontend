@@ -102,44 +102,50 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Initialize auth from localStorage on mount
   useEffect(() => {
-    const initializeAuth = async () => {
+    const initializeAuth = () => {
       console.log('🔄 [AuthContext] Initializing auth...');
-      
-      // Add a small initial delay to ensure all components are mounted
-      await new Promise(resolve => setTimeout(resolve, 50));
       
       try {
         const token = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('userProfile');
+        let storedUser = localStorage.getItem('userProfile');
         
         console.log('🔍 [AuthContext] Checking localStorage:', {
           hasToken: !!token,
           hasStoredUser: !!storedUser,
-          hasProfilePic: !!localStorage.getItem('profilePic')
+          hasProfilePic: !!localStorage.getItem('profilePic'),
+          rawStoredUser: storedUser
         });
         
         if (token && storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          const userWithAvatar = ensureUserWithAvatar(parsedUser);
-          
-          console.log('✅ [AuthContext] User restored from localStorage:', {
-            email: userWithAvatar.email,
-            hasProfilePicture: !!userWithAvatar.profile_picture,
-            profilePicture: userWithAvatar.profile_picture
-          });
-          
-          setUser(userWithAvatar);
-          setIsAuthenticated(true);
-          
-          // Ensure localStorage is consistent
-          localStorage.setItem('userProfile', JSON.stringify(userWithAvatar));
-          if (userWithAvatar.profile_picture) {
-            localStorage.setItem('profilePic', userWithAvatar.profile_picture);
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            const userWithAvatar = ensureUserWithAvatar(parsedUser);
+            
+            console.log('✅ [AuthContext] User restored from localStorage:', {
+              email: userWithAvatar.email,
+              role: userWithAvatar.role,
+              hasProfilePicture: !!userWithAvatar.profile_picture,
+              profilePicture: userWithAvatar.profile_picture
+            });
+            
+            setUser(userWithAvatar);
+            setIsAuthenticated(true);
+            
+            // Ensure localStorage is consistent
+            localStorage.setItem('userProfile', JSON.stringify(userWithAvatar));
+            if (userWithAvatar.profile_picture) {
+              localStorage.setItem('profilePic', userWithAvatar.profile_picture);
+            }
+          } catch (parseError) {
+            console.error('❌ [AuthContext] Error parsing stored user:', parseError);
+            logout();
           }
-          
-          // Add a delay to ensure state propagation before loading completes
-          await new Promise(resolve => setTimeout(resolve, 150));
+        } else if (token && !storedUser) {
+          console.log('⚠️ [AuthContext] Token exists but no userProfile - this should not happen!');
+          console.log('⚠️ [AuthContext] Logging out to force re-authentication');
+          logout();
         } else {
           console.log('❌ [AuthContext] No stored auth found');
         }
@@ -172,26 +178,55 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
       
       console.log('✅ [AuthContext] Login successful, storing data');
+      console.log("LOGIN DATA", data);
+      
+      // FIX: Merge user and leaders data properly
+      const mergedUserData = {
+        ...data.user,
+        ...(data.leaders || {})
+      };
       
       // Ensure user has profile picture from multiple sources
-      const userWithAvatar = ensureUserWithAvatar({...data.user,...data.leaders});
+      const userWithAvatar = ensureUserWithAvatar(mergedUserData);
       
+      console.log('📦 [AuthContext] Prepared user data:', {
+        email: userWithAvatar.email,
+        role: userWithAvatar.role,
+        id: userWithAvatar.id,
+        hasProfilePicture: !!userWithAvatar.profile_picture
+      });
+      
+      // Store in localStorage - CRITICAL: Store all data
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('userId', data.user.id);
       localStorage.setItem('userProfile', JSON.stringify(userWithAvatar));
       localStorage.setItem('userRole', data.user.role);
-      localStorage.setItem('leaders',JSON.stringify(data.leaders));
+      
+      if (data.leaders) {
+        localStorage.setItem('leaders', JSON.stringify(data.leaders));
+      }
+      if (data.isLeader !== undefined) {
+        localStorage.setItem('isLeader', JSON.stringify(data.isLeader));
+      }
       
       // Also store profile picture separately for easy access
       if (userWithAvatar.profile_picture) {
         localStorage.setItem('profilePic', userWithAvatar.profile_picture);
       }
 
+      // Verify localStorage write was successful
+      const verifyStore = localStorage.getItem('userProfile');
+      console.log('✅ [AuthContext] Verify localStorage write:', {
+        stored: !!verifyStore,
+        length: verifyStore?.length
+      });
+
       setUser(userWithAvatar);
       setIsAuthenticated(true);
 
       console.log('✅ [AuthContext] User state updated:', {
         email: userWithAvatar.email,
+        role: userWithAvatar.role,
         hasProfilePicture: !!userWithAvatar.profile_picture
       });
       

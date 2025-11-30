@@ -15,6 +15,7 @@ import {
   Autocomplete,
   CircularProgress,
   Alert,
+  Paper,
 } from "@mui/material";
 import InputAdornment from "@mui/material/InputAdornment";
 import Visibility from "@mui/icons-material/Visibility";
@@ -129,6 +130,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const { login } = useContext(AuthContext);
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeName, setWelcomeName] = useState("");
+  const isDark = mode === "dark";
 
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
@@ -140,6 +142,52 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [cacheLoading, setCacheLoading] = useState(true);
   const [cacheError, setCacheError] = useState("");
+
+  const inputFieldSx = {
+    "& .MuiOutlinedInput-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      borderRadius: 3,
+      "& fieldset": {
+        borderColor: isDark ? "#333333" : "#e0e0e0",
+      },
+      "&:hover fieldset": {
+        borderColor: isDark ? "#555555" : "#b0b0b0",
+      },
+      "&.Mui-focused": {
+        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: "#42a5f5",
+      },
+    },
+    "& .MuiInputBase-input": {
+      color: isDark ? "#ffffff" : "#000000",
+      bgcolor: "transparent !important",
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: isDark ? "0 0 0 100px #1a1a1a inset !important" : "0 0 0 100px #f8f9fa inset !important",
+        WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
+        transition: "background-color 5000s ease-in-out 0s",
+      },
+      "&:focus": {
+        bgcolor: "transparent !important",
+      },
+    },
+    "& .MuiInputLabel-root": {
+      color: isDark ? "#999999" : "#666666",
+      "&.Mui-focused": {
+        color: "#42a5f5",
+      },
+    },
+    "& .MuiInputBase-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      "&.Mui-focused": {
+        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      },
+    },
+    "& .MuiFormHelperText-root": {
+      color: isDark ? "#999999" : "#666666",
+    },
+  };
 
   useEffect(() => {
     const fetchAllPeople = async () => {
@@ -249,8 +297,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
-
-  //adds selected gender to form state and updates leader value based on gender
   const handleGenderChange = (e)=>{
     const genderVal = e.target.value
     setForm(prev => ({ ...prev, gender: genderVal, leader: genderVal === "male"?"Gavin Enslin":"Vicky Enslin" }));
@@ -428,14 +474,15 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 fullWidth
                 InputLabelProps={type === "date" ? { shrink: true } : undefined}
                 sx={{
-                  "& .MuiOutlinedInput-root": { 
-                    borderRadius: 3,
+                  ...inputFieldSx,
+                  "& .MuiOutlinedInput-root": {
+                    ...inputFieldSx["& .MuiOutlinedInput-root"],
                     '& fieldset': {
-                      borderColor: errors[name] ? theme.palette.error.main : undefined,
+                      borderColor: errors[name] ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
                     },
                   },
                   "& .MuiFormHelperText-root": { 
-                    color: errors[name] ? theme.palette.error.main : theme.palette.text.secondary 
+                    color: errors[name] ? theme.palette.error.main : (isDark ? "#999999" : "#666666")
                   },
                 }}
               />
@@ -453,6 +500,33 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 onInputChange={handleSearchChange}
                 filterOptions={(x) => x}
                 loading={cacheLoading}
+                ListboxProps={{
+                  sx: {
+                    bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                    "& .MuiAutocomplete-option": {
+                      color: isDark ? "#ffffff" : "#000000",
+                      "&:hover": {
+                        bgcolor: isDark ? "#2a2a2a" : "#f5f5f5",
+                      },
+                      "&[aria-selected='true']": {
+                        bgcolor: isDark ? "#333333" : "#e0e0e0",
+                        "&:hover": {
+                          bgcolor: isDark ? "#3a3a3a" : "#d5d5d5",
+                        },
+                      },
+                    },
+                  },
+                }}
+                PaperComponent={({ children }) => (
+                  <Paper 
+                    sx={{ 
+                      bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                      border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`,
+                    }}
+                  >
+                    {children}
+                  </Paper>
+                )}
                 renderInput={(params) => (
                   <TextField
                     {...params}
@@ -471,14 +545,15 @@ const Signup = ({ onSignup, mode, setMode }) => {
                       ),
                     }}
                     sx={{
-                      "& .MuiOutlinedInput-root": { 
-                        borderRadius: 3,
+                      ...inputFieldSx,
+                      "& .MuiOutlinedInput-root": {
+                        ...inputFieldSx["& .MuiOutlinedInput-root"],
                         '& fieldset': {
-                          borderColor: errors.invited_by ? theme.palette.error.main : undefined,
+                          borderColor: errors.invited_by ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
                         },
                       },
                       "& .MuiFormHelperText-root": { 
-                        color: errors.invited_by ? theme.palette.error.main : theme.palette.text.secondary,
+                        color: errors.invited_by ? theme.palette.error.main : (isDark ? "#999999" : "#666666"),
                         mx: 0,
                       },
                     }}
@@ -506,7 +581,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               />
             </Box>
             
-            {/* Added Leaders field component  */}
             <TextField
               // field is readonly and can not be clicked
               readOnly
@@ -518,28 +592,69 @@ const Signup = ({ onSignup, mode, setMode }) => {
               helperText={errors.leader}
               fullWidth
               sx={{
-                "pointerEvents":"none",
-                "& .MuiOutlinedInput-root": { 
-                  borderRadius: 3,
+                ...inputFieldSx,
+                pointerEvents: "none",
+                "& .MuiOutlinedInput-root": {
+                  ...inputFieldSx["& .MuiOutlinedInput-root"],
                   '& fieldset': {
-                    borderColor: errors.leader ? theme.palette.error.main : undefined,
+                    borderColor: errors.leader ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
                   },
                 },
                 "& .MuiFormHelperText-root": { 
-                  color: errors.leader ? theme.palette.error.main : theme.palette.text.secondary 
+                  color: errors.leader ? theme.palette.error.main : (isDark ? "#999999" : "#666666")
                 },
               }}
             />
 
             <FormControl fullWidth error={!!errors.gender}>
-              <InputLabel>Gender</InputLabel>
+              <InputLabel sx={{ color: isDark ? "#999999" : "#666666", "&.Mui-focused": { color: "#42a5f5" } }}>
+                Gender
+              </InputLabel>
               <Select
                 name="gender"
                 value={form.gender}
                 //changed gender onChange function
                 onChange={handleGenderChange}
                 label="Gender"
-                sx={{ borderRadius: 3 }}
+                sx={{
+                  bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+                  borderRadius: 3,
+                  color: isDark ? "#ffffff" : "#000000",
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: isDark ? "#333333" : "#e0e0e0",
+                  },
+                  "&:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: isDark ? "#555555" : "#b0b0b0",
+                  },
+                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "#42a5f5",
+                  },
+                  "& .MuiSelect-select": {
+                    bgcolor: "transparent !important",
+                    "&:focus": {
+                      bgcolor: "transparent !important",
+                    },
+                  },
+                }}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                      "& .MuiMenuItem-root": {
+                        color: isDark ? "#ffffff" : "#000000",
+                        "&:hover": {
+                          bgcolor: isDark ? "#2a2a2a" : "#f5f5f5",
+                        },
+                        "&.Mui-selected": {
+                          bgcolor: isDark ? "#333333" : "#e0e0e0",
+                          "&:hover": {
+                            bgcolor: isDark ? "#3a3a3a" : "#d5d5d5",
+                          },
+                        },
+                      },
+                    },
+                  },
+                }}
               >
                 <MenuItem value="">
                   <em>Select Gender</em>
@@ -560,30 +675,49 @@ const Signup = ({ onSignup, mode, setMode }) => {
             <TextField
               label="Password"
               name="password"
-              type={showPassword ? "text" : "password"}
+              type="text"
               value={form.password}
               onChange={handleChange}
               error={!!errors.password}
               helperText={errors.password}
               fullWidth
               InputProps={{
+                style: {
+                  fontFamily: "monospace",
+                  WebkitTextSecurity:`${showPassword ? "" : "disc"}`
+                },
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
-                      {showPassword ? <Visibility /> : <VisibilityOff />}
+                    <IconButton 
+                      onClick={() => setShowPassword(!showPassword)} 
+                      edge="end"
+                      tabIndex={-1}
+                      disableRipple
+                      sx={{
+                        color: isDark ? "#cccccc" : "#666666",
+                        '&:hover': {
+                          backgroundColor: 'transparent',
+                        },
+                        '&:focus': {
+                          outline: 'none',
+                        }
+                      }}
+                    >
+                      {!showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
                 ),
               }}
               sx={{
-                "& .MuiOutlinedInput-root": { 
-                  borderRadius: 3,
+                ...inputFieldSx,
+                "& .MuiOutlinedInput-root": {
+                  ...inputFieldSx["& .MuiOutlinedInput-root"],
                   '& fieldset': {
-                    borderColor: errors.password ? theme.palette.error.main : undefined,
+                    borderColor: errors.password ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
                   },
                 },
                 "& .MuiFormHelperText-root": { 
-                  color: errors.password ? theme.palette.error.main : theme.palette.text.secondary 
+                  color: errors.password ? theme.palette.error.main : (isDark ? "#999999" : "#666666")
                 },
               }}
             />
@@ -592,30 +726,48 @@ const Signup = ({ onSignup, mode, setMode }) => {
             <TextField
               label="Confirm Password"
               name="confirm_password"
-              type={showConfirmPassword ? "text" : "password"}
+              type="text"
               value={form.confirm_password}
               onChange={handleChange}
               error={!!errors.confirm_password}
               helperText={errors.confirm_password}
               fullWidth
               InputProps={{
+                style: {
+                  fontFamily: "monospace",
+                  WebkitTextSecurity:`${showConfirmPassword ? "" : "disc"}`
+                },
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
-                      {showPassword ? <Visibility /> : <VisibilityOff />}
+                    <IconButton 
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)} 
+                      edge="end"
+                      tabIndex={-1}
+                      sx={{
+                        color: isDark ? "#cccccc" : "#666666",
+                        '&:hover': {
+                          backgroundColor: 'transparent',
+                        },
+                        '&:focus': {
+                          outline: 'none',
+                        }
+                      }}
+                    >
+                      {!showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
                 ),
               }}
               sx={{
-                "& .MuiOutlinedInput-root": { 
-                  borderRadius: 3,
+                ...inputFieldSx,
+                "& .MuiOutlinedInput-root": {
+                  ...inputFieldSx["& .MuiOutlinedInput-root"],
                   '& fieldset': {
-                    borderColor: errors.confirm_password ? theme.palette.error.main : undefined,
+                    borderColor: errors.confirm_password ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
                   },
                 },
                 "& .MuiFormHelperText-root": { 
-                  color: errors.confirm_password ? theme.palette.error.main : theme.palette.text.secondary 
+                  color: errors.confirm_password ? theme.palette.error.main : (isDark ? "#999999" : "#666666")
                 },
               }}
             />

@@ -38,14 +38,14 @@ export const UserProvider = ({ children }) => {
     initializeUserData();
   }, []);
 
-  // Save user profile to localStorage whenever it changes
-  useEffect(() => {
-    if (userProfile) {
-      localStorage.setItem('userProfile', JSON.stringify(userProfile));
-    } else {
-      localStorage.removeItem('userProfile');
-    }
-  }, [userProfile]);
+  // ✅ REMOVED THIS EFFECT - Let AuthContext manage userProfile in localStorage
+  // useEffect(() => {
+  //   if (userProfile) {
+  //     localStorage.setItem('userProfile', JSON.stringify(userProfile));
+  //   } else {
+  //     localStorage.removeItem('userProfile');  // ❌ THIS WAS DELETING IT!
+  //   }
+  // }, [userProfile]);
 
   // Enhanced setProfilePic that also updates userProfile
   const setProfilePicEnhanced = (newProfilePic) => {
@@ -60,6 +60,8 @@ export const UserProvider = ({ children }) => {
         profilePicUrl: newProfilePic
       };
       setUserProfile(updatedProfile);
+      // ✅ Update localStorage here since we removed the effect
+      localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
     }
     
     // Save to localStorage for standalone access
@@ -72,8 +74,11 @@ export const UserProvider = ({ children }) => {
   const setUserProfileEnhanced = (newUserProfile) => {
     setUserProfile(newUserProfile);
     
-    // Update profile picture from the new user profile
+    // ✅ Only save to localStorage if we have data
     if (newUserProfile) {
+      localStorage.setItem('userProfile', JSON.stringify(newUserProfile));
+      
+      // Update profile picture from the new user profile
       const picFromProfile = newUserProfile?.profile_picture || 
                            newUserProfile?.avatarUrl || 
                            newUserProfile?.profilePicUrl;

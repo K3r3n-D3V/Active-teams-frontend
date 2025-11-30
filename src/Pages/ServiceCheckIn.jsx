@@ -132,6 +132,69 @@ function ServiceCheckIn() {
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
+// Enhanced leader column sort comparator - Vicky/Gavin Enslin ALWAYS at top
+const createLeaderSortComparator = (leaderField) => (v1, v2, row1, row2) => {
+  // Get full names and individual names for priority checking
+  const fullName1 = `${row1.name || ''} ${row1.surname || ''}`.toLowerCase().trim();
+  const fullName2 = `${row2.name || ''} ${row2.surname || ''}`.toLowerCase().trim();
+  const firstName1 = (row1.name || '').toLowerCase().trim();
+  const firstName2 = (row2.name || '').toLowerCase().trim();
+  const surname1 = (row1.surname || '').toLowerCase().trim();
+  const surname2 = (row2.surname || '').toLowerCase().trim();
+  
+  // Helper function to check if someone is Vicky or Gavin Enslin
+  const isPriorityPerson = (firstName, surname, fullName) => {
+    // Check if last name contains "ensl" (Enslin/Ensline)
+    const isEnslin = surname.includes('ensl');
+    
+    // Check for Vicky (in first name or full name)
+    const isVicky = firstName.includes('vick') || firstName.includes('vic') || 
+                    fullName.includes('vick') || fullName.includes('vic');
+    
+    // Check for Gavin (in first name or full name)
+    const isGavin = firstName.includes('gav') || fullName.includes('gav');
+    
+    // Priority: Either is Vicky Enslin OR Gavin Enslin
+    // Make it more flexible - check if they have Enslin AND (Vicky or Gavin)
+    return isEnslin && (isVicky || isGavin);
+  };
+  
+  // Check if each person is priority (Vicky Enslin or Gavin Enslin)
+  const isPriority1 = isPriorityPerson(firstName1, surname1, fullName1);
+  const isPriority2 = isPriorityPerson(firstName2, surname2, fullName2);
+  
+  // ALWAYS put Vicky/Gavin Enslin at the very top - no matter what
+  if (isPriority1 && !isPriority2) return -1;
+  if (!isPriority1 && isPriority2) return 1;
+  
+  // Both are priority (both are Enslin with Vicky/Gavin) - Vicky comes before Gavin
+  if (isPriority1 && isPriority2) {
+    const isVicky1 = firstName1.includes('vick') || firstName1.includes('vic');
+    const isVicky2 = firstName2.includes('vick') || firstName2.includes('vic');
+    if (isVicky1 && !isVicky2) return -1;
+    if (!isVicky1 && isVicky2) return 1;
+    return fullName1.localeCompare(fullName2);
+  }
+  
+  // New people should appear after priority but before others
+  const isNew1 = row1.isNew;
+  const isNew2 = row2.isNew;
+  
+  if (isNew1 && !isNew2) return -1;
+  if (!isNew1 && isNew2) return 1;
+  
+  // Neither are priority - sort by leader field presence and then alphabetically
+  const hasLeader1 = Boolean(row1[leaderField] && row1[leaderField].trim());
+  const hasLeader2 = Boolean(row2[leaderField] && row2[leaderField].trim());
+  
+  // People with leader values come before people without
+  if (hasLeader1 && !hasLeader2) return -1;
+  if (!hasLeader1 && hasLeader2) return 1;
+  
+  // Both have leader values or both don't - sort alphabetically
+  return (v1 || '').localeCompare(v2 || '');
+};
+
   // Real-time data fetching
   const fetchRealTimeEventData = async (eventId) => {
     if (!eventId) return null;
@@ -664,7 +727,35 @@ const handleSaveAndCloseEvent = async () => {
     return searchString.includes(lc);
   });
 
-  const paginatedAttendees = filteredAttendees.slice(
+// Apply sorting to filtered attendees based on sortModel
+const sortedFilteredAttendees = (() => {
+  const result = [...filteredAttendees];
+  
+  if (sortModel && sortModel.length > 0) {
+    const sort = sortModel[0]; // Get the first sort
+    
+    // Apply custom comparator for leader fields
+    if (sort.field === 'leader1' || sort.field === 'leader12' || sort.field === 'leader144') {
+      result.sort((a, b) => {
+        const comparator = createLeaderSortComparator(sort.field);
+        let comparison = comparator(a[sort.field], b[sort.field], a, b);
+        return sort.sort === 'desc' ? -comparison : comparison;
+      });
+    } else if (sort.field && sort.field !== 'actions') {
+      // Standard string/field sorting
+      result.sort((a, b) => {
+        const aVal = (a[sort.field] || '').toString().toLowerCase();
+        const bVal = (b[sort.field] || '').toString().toLowerCase();
+        const comparison = aVal.localeCompare(bVal);
+        return sort.sort === 'desc' ? -comparison : comparison;
+      });
+    }
+  }
+  
+  return result;
+})();
+
+  const paginatedAttendees = sortedFilteredAttendees.slice(
     page * rowsPerPage, 
     page * rowsPerPage + rowsPerPage
   );
@@ -1519,7 +1610,7 @@ const handleSaveAndCloseEvent = async () => {
             <Box>
               <Paper variant="outlined" sx={{ height: 600, boxShadow: 3 }}>
                 <DataGrid
-                  rows={filteredAttendees}
+                  rows={sortedFilteredAttendees ?? attendees}
                   columns={mainColumns}
                   pageSizeOptions={[25, 50, 100]}
                   slots={{ toolbar: GridToolbar }}

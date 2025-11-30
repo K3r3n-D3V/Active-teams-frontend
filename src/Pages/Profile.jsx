@@ -655,28 +655,43 @@ export default function Profile() {
 
   const currentCarouselItem = carouselTexts[carouselIndex];
 
-  const commonFieldSx = {
-    "& .MuiOutlinedInput-root": {
+ const commonFieldSx = {
+  "& .MuiOutlinedInput-root": {
+    bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+    height: "56px",
+
+    // KEEP BG DARK EVEN WHEN FOCUSED
+    "&.Mui-focused": {
       bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
-      height: "56px",
-      "& fieldset": {
-        borderColor: isDark ? "#333333" : "#e0e0e0",
-      },
-      "&:hover fieldset": {
-        borderColor: currentCarouselItem.color,
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: currentCarouselItem.color,
-      },
     },
-    "& .MuiInputBase-input": {
-      color: isDark ? "#ffffff" : "#000000",
-      padding: "16px 14px",
-      height: "24px",
-      fontSize: "0.875rem",
-      lineHeight: "1.4375em",
+
+    "& fieldset": {
+      borderColor: isDark ? "#333333" : "#e0e0e0",
     },
-  };
+    "&:hover fieldset": {
+      borderColor: currentCarouselItem.color,
+    },
+    "&.Mui-focused fieldset": {
+      borderColor: currentCarouselItem.color,
+    },
+  },
+
+  // Prevent white autofill background
+  "& input:-webkit-autofill": {
+    WebkitBoxShadow: `0 0 0 1000px ${isDark ? "#1a1a1a" : "#f8f9fa"} inset`,
+    WebkitTextFillColor: isDark ? "#ffffff" : "#000000",
+  },
+
+  "& .MuiInputBase-input": {
+    color: isDark ? "#ffffff" : "#000000",
+    padding: "16px 14px",
+    height: "24px",
+    fontSize: "0.875rem",
+    lineHeight: "1.4375em",
+    background: "transparent !important",
+  }
+};
+
 
   // Skeleton loading component
   const ProfileSkeleton = () => (
