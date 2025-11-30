@@ -38,7 +38,7 @@ const allMenuItems = [
   { label: 'Daily Tasks', path: '/daily-tasks', icon: Assignment, roles: ['admin', 'leader', 'user', 'registrant'] },
   { label: 'Admin', path: '/admin', icon: AdminPanelSettings, roles: ['admin'] },
   { 
-  label: 'Helpdesk', 
+  label: 'Help & Support', 
   path: 'https://activemediahelpdesk.netlify.app/', 
   icon: SupportAgentIcon, 
   external: true, 
