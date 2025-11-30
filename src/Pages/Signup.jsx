@@ -441,6 +441,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           </Alert>
         )}
         
+
         <Box
           component="form"
           onSubmit={handleSubmit}
@@ -487,6 +488,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
               />
             ))}
             
+            
+
             <Box sx={{ gridColumn: { xs: "1", sm: "1" } }}>
               <Autocomplete
                 freeSolo
@@ -579,6 +582,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
             </Box>
             
             <TextField
+              // field is readonly and can not be clicked
               readOnly
               label="Leader@1"
               name="leader"
@@ -609,6 +613,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               <Select
                 name="gender"
                 value={form.gender}
+                //changed gender onChange function
                 onChange={handleGenderChange}
                 label="Gender"
                 sx={{
@@ -664,6 +669,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
               )}
             </FormControl>
             
+            
+            
+
             <TextField
               label="Password"
               name="password"
@@ -714,6 +722,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
               }}
             />
             
+
             <TextField
               label="Confirm Password"
               name="confirm_password"
@@ -764,6 +773,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
             />
           </Box>
           
+          
+
           {Object.keys(errors).length > 0 && (
             <Alert severity="error" sx={{ borderRadius: 2 }}>
               Please fix the highlighted errors above.

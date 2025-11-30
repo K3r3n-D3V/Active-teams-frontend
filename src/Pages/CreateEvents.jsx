@@ -229,38 +229,6 @@ useEffect(() => {
     }
   }, [isTicketedEvent]);
 
-  // const fetchPeople = async (filter = "") => {
-  //   try {
-  //     setLoadingPeople(true);
-  //     const params = new URLSearchParams();
-  //     params.append("perPage", "1000");
-  //     if (filter) params.append("name", filter);
-
-  //     const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`);
-  //     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-  //     const data = await res.json();
-      
-  //     const peopleArray = data.people || data.results || data || [];
-
-  //     const formatted = peopleArray.map((p) => ({
-  //       id: p._id || p.id || Math.random(),
-  //       fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-  //       email: p.Email || p.email || "",
-  //       leader1: p["Leader @1"] || p.leader1 || "",
-  //       leader12: p["Leader @12"] || p.leader12 || "",
-  //     }));
-
-  //     setPeopleData(formatted);
-      
-  //   } catch (err) {
-  //     console.error("Error fetching people:", err);
-  //     setPeopleData([]);
-  //   } finally {
-  //     setLoadingPeople(false);
-  //   }
-  // };
-
- 
   const fetchPeople = async (q) => {
   if (!q.trim()) {
     setPeopleData([]);
@@ -523,15 +491,18 @@ useEffect(() => {
 
       console.log('Creating event with type:', eventTypeToSend);
 
-      let dayValue = "";
+   let dayValue = "";
 
-      if (formData.date) {
-        dayValue = getDayFromDate(formData.date);
-      } else if (formData.recurringDays.length > 0) {
-        dayValue = formData.recurringDays[0];
-      } else {
-        dayValue = "One-time";
-      }
+if (!formData.recurringDays || formData.recurringDays.length === 0) {
+  // No recurring days selected → use date to get the day
+  dayValue = formData.date ? getDayFromDate(formData.date) : "";
+} else if (formData.recurringDays.length === 1) {
+  // Exactly one day selected → One-time
+  dayValue = "One-time";
+} else {
+  // More than one day → Recurring
+  dayValue = "Recurring";
+}
 
       const payload = {
         UUID: generateUUID(),

@@ -488,7 +488,7 @@ const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 ;
       } else {
         await createTask(taskPayload);
-        toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
+        // toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
 ;
       }
 
@@ -703,18 +703,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
   }
 };
 
-  // Total count number
-  const [totalCount, setTotalCount] = useState(0);
-
-useEffect(() => {
-  const count = filteredTasks.filter(
-    (t) =>
-      (t.status || "").toLowerCase() === "completed" ||
-      (t.status || "").toLowerCase() === "awaiting task"
-  ).length;
-
-  setTotalCount(count);
-}, [filteredTasks, updateTask]); 
+  const totalCount = filteredTasks.length;
 
   return (
     <div style={{ 

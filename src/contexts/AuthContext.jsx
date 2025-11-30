@@ -58,7 +58,6 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('userRole');
     localStorage.removeItem('profilePic');
     localStorage.removeItem('leaders');
-    localStorage.removeItem('isLeader');
     setUser(null);
     setIsAuthenticated(false);
   }, []);
