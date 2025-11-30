@@ -1200,8 +1200,8 @@ function EventHistory({
                 <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Name & Surname</TableCell>
                 <TableCell sx={{ fontWeight: 600, minWidth: '100px' }}>Phone</TableCell>
                 <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Email</TableCell>
-                <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Gender</TableCell>
-                <TableCell sx={{ fontWeight: 600, minWidth: '120px' }}>Invited By</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '100px' }}>Gender</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Invited By</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1226,18 +1226,9 @@ function EventHistory({
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    {a.gender ? (
-                      <Chip 
-                        label={a.gender} 
-                        size="small" 
-                        variant="outlined"
-                        sx={{ fontSize: "0.7rem" }}
-                      />
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        —
-                      </Typography>
-                    )}
+                    <Typography variant="body2" noWrap>
+                      {a.gender || "—"}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" noWrap title={a.invitedBy || ""}>

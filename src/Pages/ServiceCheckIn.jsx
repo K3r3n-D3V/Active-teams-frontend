@@ -1444,33 +1444,7 @@ function ServiceCheckIn() {
               </Stack>
             </>
           )}
-
-          {/* Leader Information */}
-          {(mappedPerson.leader1 || mappedPerson.leader12 || mappedPerson.leader144) && (
-            <>
-              <Divider sx={{ my: 1 }} />
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                <Typography variant="caption" fontWeight="bold" color="primary">
-                  Leaders:
-                </Typography>
-                {mappedPerson.leader1 && (
-                  <Typography variant="caption" color="text.secondary">
-                    @1: {mappedPerson.leader1}
-                  </Typography>
-                )}
-                {mappedPerson.leader12 && (
-                  <Typography variant="caption" color="text.secondary">
-                    @12: {mappedPerson.leader12}
-                  </Typography>
-                )}
-                {mappedPerson.leader144 && (
-                  <Typography variant="caption" color="text.secondary">
-                    @144: {mappedPerson.leader144}
-                  </Typography>
-                )}
-              </Box>
-            </>
-          )}
+          {/* Leaders removed for New People card - show gender/invitedBy only */}
         </CardContent>
       </Card>
     );
@@ -1689,7 +1663,7 @@ function ServiceCheckIn() {
             sx={{ mb: 2, boxShadow: 1 }}
           />
 
-          {isSmDown ? (
+                    {isSmDown ? (
             <Box>
               {paginatedData.map((item, idx) => (
                 <Card key={item._id || item.id || idx} variant="outlined" sx={{ mb: 1, boxShadow: 2, minHeight: '120px' }}>
@@ -1699,7 +1673,7 @@ function ServiceCheckIn() {
                     </Typography>
                     {item.email && <Typography variant="body2" color="text.secondary">{item.email}</Typography>}
                     {item.phone && <Typography variant="body2" color="text.secondary">{item.phone}</Typography>}
-                    {eventHistoryDetails.type === 'consolidated' ? (
+                              {eventHistoryDetails.type === 'consolidated' ? (
                       <>
                         <Chip
                           label={item.decision_type || item.consolidation_type || 'Commitment'}
@@ -1711,19 +1685,28 @@ function ServiceCheckIn() {
                           Assigned to: {item.assigned_to || item.assignedTo || 'Not assigned'}
                         </Typography>
                       </>
-                    ) : (
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5} mt={0.5}>
-                        {item.leader1 && (
-                          <Chip label={`@1: ${item.leader1}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                        )}
-                        {item.leader12 && (
-                          <Chip label={`@12: ${item.leader12}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                        )}
-                        {item.leader144 && (
-                          <Chip label={`@144: ${item.leader144}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                        )}
-                      </Stack>
-                    )}
+                              ) : eventHistoryDetails.type === 'newPeople' ? (
+                                <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5} mt={0.5}>
+                                  {item.gender && (
+                                    <Chip label={`Gender: ${item.gender}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                                  )}
+                                  {item.invitedBy && (
+                                    <Chip label={`Invited by: ${item.invitedBy}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                                  )}
+                                </Stack>
+                              ) : (
+                                <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5} mt={0.5}>
+                                  {item.leader1 && (
+                                    <Chip label={`@1: ${item.leader1}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                                  )}
+                                  {item.leader12 && (
+                                    <Chip label={`@12: ${item.leader12}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                                  )}
+                                  {item.leader144 && (
+                                    <Chip label={`@144: ${item.leader144}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                                  )}
+                                </Stack>
+                              )}
                   </CardContent>
                 </Card>
               ))}
@@ -1741,18 +1724,22 @@ function ServiceCheckIn() {
                   <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-                  {eventHistoryDetails.type !== 'consolidated' ? (
-                    <>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
-                      {/* <TableCell sx={{ fontWeight: 600 }}>Occupation</TableCell> */}
-                    </>
-                  ) : (
+                  {eventHistoryDetails.type === 'consolidated' ? (
                     <>
                       <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                    </>
+                  ) : eventHistoryDetails.type === 'newPeople' ? (
+                    <>
+                      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
                     </>
                   )}
                 </TableRow>
@@ -1764,14 +1751,7 @@ function ServiceCheckIn() {
                     <TableCell>{item.name} {item.surname}</TableCell>
                     <TableCell>{item.email || "—"}</TableCell>
                     <TableCell>{item.phone || "—"}</TableCell>
-                    {eventHistoryDetails.type !== 'consolidated' ? (
-                      <>
-                        <TableCell>{item.leader1 || "—"}</TableCell>
-                        <TableCell>{item.leader12 || "—"}</TableCell>
-                        <TableCell>{item.leader144 || "—"}</TableCell>
-                        {/* <TableCell>{item.occupation || "—"}</TableCell> */}
-                      </>
-                    ) : (
+                    {eventHistoryDetails.type === 'consolidated' ? (
                       <>
                         <TableCell>
                           <Chip
@@ -1789,6 +1769,17 @@ function ServiceCheckIn() {
                             color={item.status === 'completed' ? 'success' : 'default'}
                           />
                         </TableCell>
+                      </>
+                    ) : eventHistoryDetails.type === 'newPeople' ? (
+                      <>
+                        <TableCell>{item.gender || '—'}</TableCell>
+                        <TableCell>{item.invitedBy || '—'}</TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell>{item.leader1 || "—"}</TableCell>
+                        <TableCell>{item.leader12 || "—"}</TableCell>
+                        <TableCell>{item.leader144 || "—"}</TableCell>
                       </>
                     )}
                   </TableRow>
@@ -2516,7 +2507,6 @@ function ServiceCheckIn() {
                       <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -2543,7 +2533,6 @@ function ServiceCheckIn() {
                           <TableCell>{mappedPerson.email || "—"}</TableCell>
                           <TableCell>{mappedPerson.gender || "—"}</TableCell>
                           <TableCell>{mappedPerson.invitedBy || "—"}</TableCell>
-                          <TableCell>{mappedPerson.leader12 || "—"}</TableCell>
                         </TableRow>
                       );
                     })}
