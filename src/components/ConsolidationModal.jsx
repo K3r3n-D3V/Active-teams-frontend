@@ -33,7 +33,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const [alreadyConsolidated, setAlreadyConsolidated] = useState(false);
 
   const decisionTypes = [
-    "Commitment",
+    "First Time",
     "Recommitment"
   ];
 

@@ -486,7 +486,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           <Collapse in={showLeaderFields}>
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1 }}>
-                Additional Leaders (Optional)
+                Additional Leaders
               </Typography>
               
               {/* Only Leader @1 is editable, others are disabled */}
