@@ -60,28 +60,7 @@ let eventsCache = null;
 let eventsCacheTimestamp = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const mapPersonData = (person) => {
-  return {
-    _id: person._id || person.id || `temp-${Math.random()}`,
-    name: person.name || person.Name || person.person_name || "",
-    surname: person.surname || person.Surname || person.person_surname || "",
-    email: person.email || person.Email || person.person_email || "",
-    phone: person.phone || person.Number || person.Phone || person.person_phone || "",
-    gender: person.gender || person.Gender || "",
-    invitedBy: person.invitedBy || person.InvitedBy || "",
-    leader1: person.leader1 || person["Leader @1"] || "",
-    leader12: person.leader12 || person["Leader @12"] || "",
-    leader144: person.leader144 || person["Leader @144"] || "",
-    stage: person.stage || person.Stage || "",
-    occupation: person.occupation || person.Occupation || "",
-    address: person.address || person.Address || person.homeAddress || "",
-    birthday: person.birthday || person.Birthday || person.dob || person.DOB || "",
-    fullName: person.fullName || person.FullName || `${person.name || person.Name || ''} ${person.surname || person.Surname || ''}`.trim()
-  };
-};
-
 function ServiceCheckIn() {
-  // State management
   const [attendees, setAttendees] = useState([]);
   const [currentEventId, setCurrentEventId] = useState("");
   const [eventSearch, setEventSearch] = useState("");
@@ -96,21 +75,15 @@ function ServiceCheckIn() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [consolidationOpen, setConsolidationOpen] = useState(false);
   const [sortModel, setSortModel] = useState([
-    { field: 'isNew', sort: 'desc' }, // 🆕 New people first
-    { field: 'name', sort: 'asc' }
-  ]);
-
-
-  // Real-time data state
+  { field: 'isNew', sort: 'desc' }, 
+  { field: 'name', sort: 'asc' }
+]);
   const [realTimeData, setRealTimeData] = useState(null);
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
-  const [isLoadingConsolidated, setIsLoadingConsolidated] = useState(false);
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Modal states
   const [modalSearch, setModalSearch] = useState("");
   const [modalPage, setModalPage] = useState(0);
   const [modalRowsPerPage, setModalRowsPerPage] = useState(100);
@@ -121,7 +94,6 @@ function ServiceCheckIn() {
   const [consolidatedPage, setConsolidatedPage] = useState(0);
   const [consolidatedRowsPerPage, setConsolidatedRowsPerPage] = useState(100);
   const [activeTab, setActiveTab] = useState(0);
-
   const [eventHistoryDetails, setEventHistoryDetails] = useState({
     open: false,
     event: null,
@@ -159,116 +131,106 @@ function ServiceCheckIn() {
   };
 
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
-  const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
-  // Enhanced leader column sort comparator that also considers new people
-  const createLeaderSortComparator = (leaderField) => (v1, v2, row1, row2) => {
-    // New people should always appear first
-    const isNew1 = row1.isNew;
-    const isNew2 = row2.isNew;
-
-    if (isNew1 && !isNew2) return -1;
-    if (!isNew1 && isNew2) return 1;
-
-    // Rest of your existing sorting logic...
-    const fullName1 = `${row1.name || ''} ${row1.surname || ''}`.toLowerCase().trim();
-    const fullName2 = `${row2.name || ''} ${row2.surname || ''}`.toLowerCase().trim();
-
-    // Check for Vicky and Gavin Enslin
-    const isVicky1 = fullName1.includes('vicky') && fullName1.includes('enslin');
-    const isVicky2 = fullName2.includes('vicky') && fullName2.includes('enslin');
-    const isGavin1 = fullName1.includes('gavin') && fullName1.includes('enslin');
-    const isGavin2 = fullName2.includes('gavin') && fullName2.includes('enslin');
-
-    const isPriority1 = isVicky1 || isGavin1;
-    const isPriority2 = isVicky2 || isGavin2;
-
-    // Priority sorting: Vicky and Gavin always at top
-    if (isPriority1 && isPriority2) {
-      // Both are priority - Vicky comes before Gavin
-      if (isVicky1 && isGavin2) return -1;
-      if (isGavin1 && isVicky2) return 1;
-      return fullName1.localeCompare(fullName2);
-    }
-
-    // Only one is priority
-    if (isPriority1 && !isPriority2) return -1;
-    if (!isPriority1 && isPriority2) return 1;
-
-    // Neither are priority - sort by leader field presence and then alphabetically
-    const hasLeader1 = Boolean(row1[leaderField] && row1[leaderField].trim());
-    const hasLeader2 = Boolean(row2[leaderField] && row2[leaderField].trim());
-
-    // People with leader values come before people without
-    if (hasLeader1 && !hasLeader2) return -1;
-    if (!hasLeader1 && hasLeader2) return 1;
-
-    // Both have leader values or both don't - sort alphabetically
-    return (v1 || '').localeCompare(v2 || '');
-  };
+// Enhanced leader column sort comparator that also considers new people
+const createLeaderSortComparator = (leaderField) => (v1, v2, row1, row2) => {
+  // New people should always appear first
+  const isNew1 = row1.isNew;
+  const isNew2 = row2.isNew;
+  
+  if (isNew1 && !isNew2) return -1;
+  if (!isNew1 && isNew2) return 1;
+  
+  // Rest of your existing sorting logic...
+  const fullName1 = `${row1.name || ''} ${row1.surname || ''}`.toLowerCase().trim();
+  const fullName2 = `${row2.name || ''} ${row2.surname || ''}`.toLowerCase().trim();
+  
+  // Check for Vicky and Gavin Enslin
+  const isVicky1 = fullName1.includes('vicky') && fullName1.includes('enslin');
+  const isVicky2 = fullName2.includes('vicky') && fullName2.includes('enslin');
+  const isGavin1 = fullName1.includes('gavin') && fullName1.includes('enslin');
+  const isGavin2 = fullName2.includes('gavin') && fullName2.includes('enslin');
+  
+  const isPriority1 = isVicky1 || isGavin1;
+  const isPriority2 = isVicky2 || isGavin2;
+  
+  // Priority sorting: Vicky and Gavin always at top
+  if (isPriority1 && isPriority2) {
+    // Both are priority - Vicky comes before Gavin
+    if (isVicky1 && isGavin2) return -1;
+    if (isGavin1 && isVicky2) return 1;
+    return fullName1.localeCompare(fullName2);
+  }
+  
+  // Only one is priority
+  if (isPriority1 && !isPriority2) return -1;
+  if (!isPriority1 && isPriority2) return 1;
+  
+  // Neither are priority - sort by leader field presence and then alphabetically
+  const hasLeader1 = Boolean(row1[leaderField] && row1[leaderField].trim());
+  const hasLeader2 = Boolean(row2[leaderField] && row2[leaderField].trim());
+  
+  // People with leader values come before people without
+  if (hasLeader1 && !hasLeader2) return -1;
+  if (!hasLeader1 && hasLeader2) return 1;
+  
+  // Both have leader values or both don't - sort alphabetically
+  return (v1 || '').localeCompare(v2 || '');
+};
 
   // Real-time data fetching
-  const fetchRealTimeEventData = async (eventId) => {
-    if (!eventId) return null;
+const fetchRealTimeEventData = async (eventId) => {
+  if (!eventId) return null;
+  
+  try {
+    const token = localStorage.getItem("token");
+    const response = await axios.get(`${BASE_URL}/service-checkin/real-time-data`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      params: { event_id: eventId }
+    });
+    
+    if (response.data.success) {
+      return response.data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching real-time event data:', error);
+    return null;
+  }
+};
 
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/service-checkin/real-time-data`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        params: { event_id: eventId }
+const handleFullRefresh = async () => {
+  if (!currentEventId) {
+    toast.error("Please select an event first");
+    return;
+  }
+
+  setIsRefreshing(true);
+  try {
+    console.log("Performing full refresh from database for event:", currentEventId);
+    
+    // Refresh people cache
+    await axios.post(`${BASE_URL}/cache/people/refresh`);
+    
+    // Get the REAL data from the database
+    const data = await fetchRealTimeEventData(currentEventId);
+    
+    if (data) {
+      console.log('Real-time data received from DB:', {
+        present_count: data.present_count,
+        new_people_count: data.new_people_count, 
+        consolidation_count: data.consolidation_count
       });
-
-      if (response.data.success) {
-        return response.data;
-      }
-      return null;
-    } catch (error) {
-      console.error('❌ Error fetching real-time event data:', error);
-      return null;
-    }
-  };
-
-  // Refresh function using real-time data
-  const handleFullRefresh = async () => {
-    if (!currentEventId) {
-      toast.error("Please select an event first");
-      return;
-    }
-
-    setIsRefreshing(true);
-    try {
-      console.log("🔄 Performing full refresh with real-time data for event:", currentEventId);
-
-      const data = await fetchRealTimeEventData(currentEventId);
-
-      if (data) {
-        console.log('✅ Real-time data received:', data);
-        setRealTimeData(data);
-        toast.success(`Refresh complete! ${data.present_count} present, ${data.new_people_count} new people, ${data.consolidation_count} consolidations`);
-      } else {
-        throw new Error('Failed to fetch real-time data');
-      }
-
-    } catch (error) {
-      console.error("❌ Error in real-time refresh:", error);
-      toast.error("Failed to refresh data");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  // Fetch all people for the main database
-  const fetchAllPeople = async () => {
-    setIsLoadingPeople(true);
-    try {
-      console.log('🔄 Fetching fresh people data from backend...');
-
-      // Try ultra-fast endpoint first
-      const ultraResponse = await axios.get(`${BASE_URL}/people/ultra-fast`);
-      if (ultraResponse.data.success && ultraResponse.data.results) {
-        const people = ultraResponse.data.results.map((p) => ({
-          _id: p._id || p.key || `temp-${Math.random()}`,
+      
+      // COMPLETELY REPLACE all state with fresh database data
+      setRealTimeData(data);
+      
+      // Also refresh the attendees list from cache
+      const cacheResponse = await axios.get(`${BASE_URL}/cache/people`);
+      if (cacheResponse.data.success && cacheResponse.data.cached_data) {
+        const people = cacheResponse.data.cached_data.map((p) => ({
+          _id: p._id,
           name: p.Name || "",
           surname: p.Surname || "",
           email: p.Email || "",
@@ -281,56 +243,64 @@ function ServiceCheckIn() {
           birthday: p.Birthday || "",
           invitedBy: p.InvitedBy || "",
           stage: p.Stage || "",
-          fullName: `${p.Name || ''} ${p.Surname || ''}`.trim()
+          fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
         }));
-
-        console.log(`✅ Loaded ${people.length} people from ultra-fast endpoint`);
+        
         setAttendees(people);
-        setHasDataLoaded(true);
-      } else {
-        throw new Error('Ultra-fast endpoint returned no data');
       }
-    } catch (err) {
-      console.error('❌ Error fetching from ultra-fast endpoint:', err);
-
-      // Fallback to cache endpoint
-      try {
-        console.log('🔄 Trying cache endpoint as fallback...');
-        const response = await axios.get(`${BASE_URL}/cache/people`);
-
-        if (response.data.success && response.data.cached_data) {
-          const cachedPeople = response.data.cached_data;
-          const formattedPeople = cachedPeople.map((person) => ({
-            _id: person._id || person.id || `temp-${Math.random()}`,
-            name: person.Name || person.name || "",
-            surname: person.Surname || person.surname || "",
-            email: person.Email || person.email || "",
-            phone: person.Number || person.Phone || person.phone || "",
-            leader1: person["Leader @1"] || person.leader1 || "",
-            leader12: person["Leader @12"] || person.leader12 || "",
-            leader144: person["Leader @144"] || person.leader144 || "",
-            gender: person.Gender || person.gender || "",
-            address: person.Address || person.address || "",
-            birthday: person.Birthday || person.birthday || "",
-            invitedBy: person.InvitedBy || person.invitedBy || "",
-            stage: person.Stage || person.stage || "",
-            fullName: person.FullName || `${person.Name || ''} ${person.Surname || ''}`.trim()
-          }));
-
-          console.log(`✅ Loaded ${formattedPeople.length} people from cache endpoint`);
-          setAttendees(formattedPeople);
-          setHasDataLoaded(true);
-        } else {
-          throw new Error('Cache endpoint returned no data');
-        }
-      } catch (fallbackError) {
-        console.error('❌ All data loading methods failed:', fallbackError);
-        toast.error("Failed to load people data. Please refresh the page.");
-      }
-    } finally {
-      setIsLoadingPeople(false);
+      
+      toast.success(`Refresh complete! Present: ${data.present_count}, New: ${data.new_people_count}, Consolidated: ${data.consolidation_count}`);
+    } else {
+      throw new Error('Failed to fetch real-time data from database');
     }
-  };
+
+  } catch (error) {
+    console.error("Error in real-time refresh:", error);
+    toast.error("Failed to refresh data from database");
+  } finally {
+    setIsRefreshing(false);
+  }
+};
+
+  // Fetch all people for the main database
+const fetchAllPeople = async () => {
+  setIsLoadingPeople(true);
+  try {
+    console.log('Fetching people data from cache...');
+    
+    const response = await axios.get(`${BASE_URL}/cache/people`);
+    
+    if (response.data.success && response.data.cached_data) {
+      const people = response.data.cached_data.map((p) => ({
+        _id: p._id,
+        name: p.Name || "",
+        surname: p.Surname || "",
+        email: p.Email || "",
+        phone: p.Number || "",
+        leader1: p["Leader @1"] || "",
+        leader12: p["Leader @12"] || "",
+        leader144: p["Leader @144"] || "",
+        gender: p.Gender || "",
+        address: p.Address || "",
+        birthday: p.Birthday || "",
+        invitedBy: p.InvitedBy || "",
+        stage: p.Stage || "",
+        fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
+      }));
+      
+      console.log(`Loaded ${people.length} people from cache`);
+      setAttendees(people);
+      setHasDataLoaded(true);
+    } else {
+      throw new Error('No people data available in cache');
+    }
+  } catch (err) {
+    console.error('Error fetching people:', err);
+    toast.error("Failed to load people data. Please refresh the page.");
+  } finally {
+    setIsLoadingPeople(false);
+  }
+};
 
   // Fetch events - with caching to prevent unnecessary reloads
   const fetchEvents = async (forceRefresh = false) => {
@@ -339,7 +309,7 @@ function ServiceCheckIn() {
     if (eventsCache && eventsCacheTimestamp && (now - eventsCacheTimestamp) < CACHE_DURATION && !forceRefresh) {
       console.log('📋 Using cached events data');
       setEvents(eventsCache);
-
+      
       // Set current event if not already set
       if (!currentEventId && eventsCache.length > 0) {
         const filteredEvents = getFilteredEvents(eventsCache);
@@ -353,8 +323,8 @@ function ServiceCheckIn() {
     setIsLoadingEvents(true);
     try {
       const token = localStorage.getItem('token');
-      console.log('🔄 Fetching events...');
-
+      console.log('Fetching events...');
+      
       const response = await fetch(`${BASE_URL}/events/global`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -367,10 +337,10 @@ function ServiceCheckIn() {
       }
 
       const data = await response.json();
-      console.log('📋 RAW Global events response:', data);
-
+      console.log('RAW Global events response:', data);
+      
       const eventsData = data.events || [];
-      console.log('✅ Processed events:', eventsData);
+      console.log('Processed events:', eventsData);
 
       const transformedEvents = eventsData.map(event => ({
         id: event._id || event.id,
@@ -382,12 +352,12 @@ function ServiceCheckIn() {
         eventType: event.eventType || "Global Events"
       }));
 
-      console.log('🎯 Final transformed events:', transformedEvents);
-
+      console.log('Final transformed events:', transformedEvents);
+      
       // Update cache
       eventsCache = transformedEvents;
       eventsCacheTimestamp = now;
-
+      
       setEvents(transformedEvents);
 
       // Set current event if not already set
@@ -399,7 +369,7 @@ function ServiceCheckIn() {
       }
 
     } catch (err) {
-      console.error('❌ Error fetching global events:', err);
+      console.error('Error fetching global events:', err);
       toast.error("Failed to fetch events. Please try again.");
     } finally {
       setIsLoadingEvents(false);
@@ -409,10 +379,10 @@ function ServiceCheckIn() {
   // Event filtering functions - exclude events that didn't meet
   const getFilteredEvents = (eventsList = events) => {
     const filteredEvents = eventsList.filter(event => {
-      const isGlobal = event.isGlobal === true ||
-        event.eventType === "Global Events" ||
-        event.eventType === "Event" ||
-        event.eventType?.toLowerCase().includes("event");
+      const isGlobal = event.isGlobal === true || 
+                      event.eventType === "Global Events" || 
+                      event.eventType === "Event" ||
+                      event.eventType?.toLowerCase().includes("event");
       const eventStatus = event.status?.toLowerCase() || '';
       const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
       const didMeet = eventStatus !== 'cancelled' && eventStatus !== 'did_not_meet';
@@ -437,364 +407,332 @@ function ServiceCheckIn() {
       const isGlobal = event.eventType === "Global Events" || event.isGlobal === true;
       const isNotCell = event.eventType?.toLowerCase() !== 'cell';
       const didMeet = event.status?.toLowerCase() !== 'cancelled' && event.status?.toLowerCase() !== 'did_not_meet';
-
+      
       return isClosed && isGlobal && isNotCell && didMeet;
     });
-
+    
     // Apply search filter
     if (!eventSearch.trim()) {
       return closedEvents;
     }
-
+    
     const searchTerm = eventSearch.toLowerCase();
-    return closedEvents.filter(event =>
+    return closedEvents.filter(event => 
       event.eventName?.toLowerCase().includes(searchTerm) ||
       event.date?.toLowerCase().includes(searchTerm) ||
       event.status?.toLowerCase().includes(searchTerm)
     );
   };
 
-  // Replace the handleToggleCheckIn function with this:
-  const handleToggleCheckIn = async (attendee) => {
-    if (!currentEventId) {
-      toast.error("Please select an event");
-      return;
-    }
+const handleToggleCheckIn = async (attendee) => {
+  if (!currentEventId) {
+    toast.error("Please select an event");
+    return;
+  }
 
-    try {
-      const token = localStorage.getItem("token");
-      const isCurrentlyPresent = realTimeData?.present_attendees?.some(a =>
-        a.id === attendee._id || a._id === attendee._id
-      );
-      const fullName = `${attendee.name} ${attendee.surname}`.trim();
-
-      if (!isCurrentlyPresent) {
-        // Check in as attendee
-        const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
-          event_id: currentEventId,
-          person_data: {
-            id: attendee._id,
-            name: attendee.name,
-            fullName: fullName,
-            email: attendee.email,
-            phone: attendee.phone,
-            leader12: attendee.leader12
-          },
-          type: "attendee"
-        }, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (response.data.success) {
-          toast.success(`${fullName} checked in successfully`);
-          // IMMEDIATELY update local state
-          if (response.data.attendee) {
-            setRealTimeData(prev => ({
-              ...prev,
-              present_attendees: [...(prev?.present_attendees || []), response.data.attendee],
-              present_count: (prev?.present_count || 0) + 1
-            }));
-          }
-        }
-      } else {
-        // Remove from check-in
-        const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          data: {
-            event_id: currentEventId,
-            person_id: attendee._id,
-            type: "attendees"
-          }
-        });
-
-        if (response.data.success) {
-          toast.info(`${fullName} removed from check-in`);
-          // IMMEDIATELY update local state
-          setRealTimeData(prev => ({
-            ...prev,
-            present_attendees: prev?.present_attendees?.filter(a =>
-              a.id !== attendee._id && a._id !== attendee._id
-            ) || [],
-            present_count: Math.max((prev?.present_count || 0) - 1, 0)
-          }));
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.detail || err.message);
-    }
-  };
-
-  const emptyForm = {
-    name: "",
-    surname: "",
-    email: "",
-    phone: "",
-    gender: "",
-    invitedBy: "",
-    leader1: "",
-    leader12: "",
-    leader144: "",
-    stage: "Win"
-  };
-
-
-  const handlePersonSave = async (responseData) => {
-    if (!currentEventId) {
-      toast.error("Please select an event first before adding people");
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("token");
-
-      // -------------------------
-      // EDITING AN EXISTING PERSON
-      // -------------------------
-      if (editingPerson) {
-        const updatedPersonData = {
-          name: formData.name,
-          surname: formData.surname,
-          email: formData.email,
-          phone: formData.phone,
-          gender: formData.gender,
-          invitedBy: formData.invitedBy,
-          leader1: formData.leader1,
-          leader12: formData.leader12,
-          leader144: formData.leader144,
-          stage: formData.stage || "Win"
-        };
-
-        const updateResponse = await axios.patch(
-          `${BASE_URL}/people/${editingPerson._id}`,
-          updatedPersonData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        if (updateResponse.data) {
-          toast.success(`${formData.name} ${formData.surname} updated successfully`);
-
-          // Update DataGrid immediately
-          setAttendees(prev =>
-            prev.map(person =>
-              person._id === editingPerson._id
-                ? { ...person, ...updatedPersonData }
-                : person
-            )
-          );
-
-          setOpenDialog(false);
-          setEditingPerson(null);
-          setFormData(emptyForm);
-        }
-
-        return;
-      }
-
-      // -------------------------
-      // ADDING A NEW PERSON
-      // -------------------------
-      const newPersonData = responseData.person || responseData;
-
-      const fullName = `${formData.name} ${formData.surname}`.trim();
-
-      // Step 1: Add this new person as a FIRST TIME attendee
-      const response = await axios.post(
-        `${BASE_URL}/service-checkin/checkin`,
-        {
-          event_id: currentEventId,
-          person_data: {
-            id: newPersonData._id,
-            name: newPersonData.Name || formData.name,
-            surname: newPersonData.Surname || formData.surname,
-            email: newPersonData.Email || formData.email,
-            phone: newPersonData.Number || formData.phone,
-            gender: newPersonData.Gender || formData.gender,
-            invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-            stage: "First Time"
-          },
-          type: "new_person"
+  try {
+    const token = localStorage.getItem("token");
+    const isCurrentlyPresent = realTimeData?.present_attendees?.some(a => 
+      a.id === attendee._id || a._id === attendee._id
+    );
+    const fullName = `${attendee.name} ${attendee.surname}`.trim();
+    
+    if (!isCurrentlyPresent) {
+      const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
+        event_id: currentEventId,
+        person_data: {
+          id: attendee._id,
+          name: attendee.name,
+          fullName: fullName,
+          email: attendee.email,
+          phone: attendee.phone,
+          leader12: attendee.leader12
         },
+        type: "attendee"
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        toast.success(`${fullName} checked in successfully`);
+      }
+    } else {
+      // Remove from check-in
+      const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        data: {
+          event_id: currentEventId,
+          person_id: attendee._id,
+          type: "attendees"
+        }
+      });
+
+      if (response.data.success) {
+        toast.info(`${fullName} removed from check-in`);
+      }
+    }
+
+    const freshData = await fetchRealTimeEventData(currentEventId);
+    if (freshData) {
+      setRealTimeData(freshData);
+    }
+
+  } catch (err) {
+    console.error("Error in toggle check-in:", err);
+    toast.error(err.response?.data?.detail || err.message);
+  }
+};
+
+const emptyForm = {
+  name: "",
+  surname: "",
+  email: "",
+  phone: "",
+  gender: "",
+  invitedBy: "",
+  leader1: "",
+  leader12: "",
+  leader144: "",
+  stage: "Win"
+};
+
+
+
+const handlePersonSave = async (responseData) => {
+  if (!currentEventId) {
+    toast.error("Please select an event first before adding people");
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem("token");
+    
+if (editingPerson) {
+      const updatedPersonData = {
+        name: formData.name,
+        surname: formData.surname,
+        email: formData.email,
+        phone: formData.phone,
+        gender: formData.gender,
+        invitedBy: formData.invitedBy,
+        leader1: formData.leader1,
+        leader12: formData.leader12,
+        leader144: formData.leader144,
+        stage: formData.stage || "Win"
+      };
+
+      const updateResponse = await axios.patch(
+        `${BASE_URL}/people/${editingPerson._id}`,
+        updatedPersonData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (response.data.success) {
-        toast.success(`${fullName} added as new person successfully`);
+      if (updateResponse.data) {
+        toast.success(`${formData.name} ${formData.surname} updated successfully`);
 
-        // Close dialog + reset form
+        // Update DataGrid immediately
+        setAttendees(prev =>
+          prev.map(person =>
+            person._id === editingPerson._id
+              ? { ...person, ...updatedPersonData }
+              : person
+          )
+        );
+
         setOpenDialog(false);
         setEditingPerson(null);
         setFormData(emptyForm);
+      }
 
-        // Step 2: Update new_people cards immediately
-        if (response.data.new_person) {
-          setRealTimeData(prev => ({
-            ...prev,
-            new_people: [...(prev?.new_people || []), response.data.new_person],
-            new_people_count: (prev?.new_people_count || 0) + 1
-          }));
-        }
+      return;
+    }
 
-        // Step 3: Create the new person object with ALL fields for searchability
-        const newPersonForGrid = {
-          _id: newPersonData._id,
+    const newPersonData = responseData.person || responseData;
+    const fullName = `${formData.name} ${formData.surname}`.trim();
+
+    // Step 1: Add this new person as a FIRST TIME attendee
+    const response = await axios.post(
+      `${BASE_URL}/service-checkin/checkin`,
+      {
+        event_id: currentEventId,
+        person_data: {
+          id: newPersonData._id,
           name: newPersonData.Name || formData.name,
           surname: newPersonData.Surname || formData.surname,
           email: newPersonData.Email || formData.email,
           phone: newPersonData.Number || formData.phone,
           gender: newPersonData.Gender || formData.gender,
           invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-          leader1: formData.leader1 || "",
-          leader12: formData.leader12 || "",
-          leader144: formData.leader144 || "",
-          stage: "First Time",
-          // Add these fields to make the person searchable
-          fullName: fullName,
-          address: "",
-          birthday: "",
-          occupation: "",
-          cellGroup: "",
-          zone: "",
-          homeAddress: "",
-          // Mark as new for sorting
-          isNew: true,
-          present: false
+          stage: "First Time"
+        },
+        type: "new_person"
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (response.data.success) {
+      toast.success(`${fullName} added as new person successfully`);
+
+      // Close dialog + reset form
+      setOpenDialog(false);
+      setEditingPerson(null);
+      setFormData(emptyForm);
+
+      setRealTimeData(prev => {
+        if (!prev) return prev;
+        
+        const updatedNewPeople = [...(prev.new_people || []), response.data.new_person];
+        
+        return {
+          ...prev,
+          new_people: updatedNewPeople,
+          new_people_count: updatedNewPeople.length,
+          ...(response.data.consolidation_count && {
+            consolidation_count: response.data.consolidation_count
+          })
         };
+      });
 
-        // Step 4: Add directly to DataGrid attendees - at the TOP so it's visible
-        setAttendees(prev => [newPersonForGrid, ...prev]);
-
-        // Step 5: Clear search so the new person is visible immediately
-        setSearch("");
-
-        console.log("✅ New person added to DataGrid:", newPersonForGrid);
+      // Refresh cache
+      try {
+        await axios.post(`${BASE_URL}/cache/people/refresh`);
+        console.log("✅ Cache refreshed after adding new person");
+      } catch (cacheError) {
+        console.warn("⚠️ Cache refresh failed:", cacheError);
       }
-    } catch (error) {
-      console.error("❌ Error saving person:", error);
-      toast.error(error.response?.data?.detail || "Failed to save person");
+
+      // Create the new person object for DataGrid
+      const newPersonForGrid = {
+        _id: newPersonData._id,
+        name: newPersonData.Name || formData.name,
+        surname: newPersonData.Surname || formData.surname,
+        email: newPersonData.Email || formData.email,
+        phone: newPersonData.Number || formData.phone,
+        gender: newPersonData.Gender || formData.gender,
+        invitedBy: newPersonData.InvitedBy || formData.invitedBy,
+        leader1: formData.leader1 || "",
+        leader12: formData.leader12 || "",
+        leader144: formData.leader144 || "",
+        stage: "First Time",
+        fullName: fullName,
+        address: "",
+        birthday: "",
+        occupation: "",
+        cellGroup: "",
+        zone: "",
+        homeAddress: "",
+        isNew: true,
+        present: false
+      };
+
+      // Add directly to DataGrid attendees
+      setAttendees(prev => [newPersonForGrid, ...prev]);
+
+      // Clear search so the new person is visible immediately
+      setSearch("");
+
+      const freshData = await fetchRealTimeEventData(currentEventId);
+    if (freshData) {
+      setRealTimeData(freshData);
     }
-  };
 
 
-  // Replace the handleFinishConsolidation function with this:
+      console.log("New person added to DataGrid and counts updated immediately");
+    }
+  } catch (error) {
+    console.error("Error saving person:", error);
+    toast.error(error.response?.data?.detail || "Failed to save person");
+  }
+};
+
   const handleFinishConsolidation = async (task) => {
-    if (!currentEventId) return;
+  if (!currentEventId) return;
+  const fullName = task.recipientName || `${task.person_name || ''} ${task.person_surname || ''}`.trim() || 'Unknown Person';
 
-    try {
-      const token = localStorage.getItem("token");
-      const fullName = task.recipientName || `${task.person_name || ''} ${task.person_surname || ''}`.trim() || 'Unknown Person';
+  console.log("Recording consolidation in UI for:", fullName);
+  console.log("Consolidation result from modal:", task);
 
-      console.log("🎯 Starting consolidation for:", fullName);
-
-      // Add consolidation - this should ONLY add to consolidations, NOT to present attendees
-      const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
-        event_id: currentEventId,
-        person_data: {
-          person_name: task.recipientName?.split(' ')[0] || task.person_name || 'Unknown',
-          person_surname: task.recipientName?.split(' ').slice(1).join(' ') || task.person_surname || '',
-          person_email: task.recipient_email || '',
-          person_phone: task.recipient_phone || '',
-          decision_type: task.decisionType || task.taskStage || "first_time",
-          decision_display_name: task.decisionType === 'recommitment' ? 'Recommitment' : 'First Time Decision',
-          assigned_to: task.assignedTo,
-          assigned_to_email: task.assignedToEmail,
-          notes: task.notes || '',
-          // Explicitly mark this as consolidation only
-          type: "consolidation_only"
-        },
-        type: "consolidation"
-      }, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.data.success) {
-        setConsolidationOpen(false);
-        toast.success(`${fullName} consolidated successfully`);
-
-        // IMMEDIATELY update local state instead of waiting for refresh
-        if (response.data.consolidation) {
-          setRealTimeData(prev => ({
-            ...prev,
-            consolidations: [...(prev?.consolidations || []), response.data.consolidation],
-            consolidation_count: (prev?.consolidation_count || 0) + 1
-          }));
-        }
-
-        console.log("✅ Consolidation completed successfully");
-      }
-    } catch (error) {
-      console.error("❌ Error recording consolidation:", error);
-      toast.error(error.response?.data?.detail || "Failed to record consolidation");
+  try {
+    setConsolidationOpen(false);
+    toast.success(`${fullName} consolidated successfully`);
+    
+    const freshData = await fetchRealTimeEventData(currentEventId);
+    if (freshData) {
+      setRealTimeData(freshData);
+      console.log("Consolidation data refreshed from backend");
     }
-  };
+    
+  } catch (error) {
+    console.error("Error recording consolidation in UI:", error);
+    toast.error("Consolidation created but failed to update display");
+  }
+};
 
-  // Event management
   const handleSaveAndCloseEvent = async () => {
-    if (!currentEventId) {
-      toast.error("Please select an event first");
-      return;
+  if (!currentEventId) {
+    toast.error("Please select an event first");
+    return;
+  }
+
+  const currentEvent = events.find(event => event.id === currentEventId);
+  if (!currentEvent) {
+    toast.error("Selected event not found");
+    return;
+  }
+
+  if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  setIsClosingEvent(true);
+  try {
+    const token = localStorage.getItem("token");
+    
+    // Try PATCH first
+    const response = await fetch(`${BASE_URL}/events/${currentEventId}`, {
+      method: "PATCH",
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: "complete"
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const currentEvent = events.find(event => event.id === currentEventId);
-    if (!currentEvent) {
-      toast.error("Selected event not found");
-      return;
-    }
+    const result = await response.json();
+    
+    setEvents(prev => prev.map(event =>
+      event.id === currentEventId ? { ...event, status: "complete" } : event
+    ));
 
-    if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    setIsClosingEvent(true);
-    try {
-      const token = localStorage.getItem("token");
-
-      // Try PATCH first
-      const response = await fetch(`${BASE_URL}/events/${currentEventId}`, {
-        method: "PATCH",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: "complete"
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      setEvents(prev => prev.map(event =>
+    // Update cache
+    if (eventsCache) {
+      eventsCache = eventsCache.map(event =>
         event.id === currentEventId ? { ...event, status: "complete" } : event
-      ));
-
-      // Update cache
-      if (eventsCache) {
-        eventsCache = eventsCache.map(event =>
-          event.id === currentEventId ? { ...event, status: "complete" } : event
-        );
-      }
-
-      toast.success(result.message || `Event "${currentEvent.eventName}" closed successfully!`);
-      setRealTimeData(null);
-      setCurrentEventId("");
-
-      setTimeout(() => {
-        fetchEvents(true); // Force refresh events
-      }, 500);
-
-    } catch (error) {
-      console.error("❌ ERROR in event closure process:", error);
-      toast.error("Event may still be open in the database. Please check.");
-    } finally {
-      setIsClosingEvent(false);
+      );
     }
-  };
 
-  // UI Handlers
+    toast.success(result.message || `Event "${currentEvent.eventName}" closed successfully!`);
+    setRealTimeData(null);
+    setCurrentEventId("");
+    
+    setTimeout(() => {
+      fetchEvents(true); // Force refresh events
+    }, 500);
+    
+  } catch (error) {
+    console.error("ERROR in event closure process:", error);
+    toast.error("Event may still be open in the database. Please check.");
+  } finally {
+    setIsClosingEvent(false);
+  }
+};
+
   const handleConsolidationClick = () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
@@ -822,20 +760,25 @@ function ServiceCheckIn() {
   };
 
   const handleDelete = async (personId) => {
-    try {
-      const res = await fetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
-      if (!res.ok) {
-        const errorData = await res.json();
-        toast.error(`Delete failed: ${errorData.detail}`);
-        return;
-      }
-      setAttendees((prev) => prev.filter((p) => p._id !== personId));
-      toast.success("Person deleted successfully");
-    } catch (err) {
-      console.error(err);
-      toast.error("An error occurred while deleting the person");
+  try {
+    const res = await fetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const errorData = await res.json();
+      toast.error(`Delete failed: ${errorData.detail}`);
+      return;
     }
-  };
+
+    const freshData = await fetchRealTimeEventData(currentEventId);
+    if (freshData) {
+      setRealTimeData(freshData);
+    }
+
+    toast.success("Person deleted successfully");
+  } catch (err) {
+    console.error(err);
+    toast.error("An error occurred while deleting the person");
+  }
+};
 
   const handleAddPersonClick = () => {
     if (!currentEventId) {
@@ -845,17 +788,17 @@ function ServiceCheckIn() {
     setOpenDialog(true);
   };
 
-  const getAttendeesWithPresentStatus = () => {
-    const presentAttendeeIds = realTimeData?.present_attendees?.map(a => a.id || a._id) || [];
-    const newPeopleIds = realTimeData?.new_people?.map(np => np.id) || [];
-
-    return attendees.map((attendee) => ({
-      ...attendee,
-      present: presentAttendeeIds.includes(attendee._id),
-      isNew: newPeopleIds.includes(attendee._id), // 🆕 Mark as new person
-      id: attendee._id,
-    }));
-  };
+const getAttendeesWithPresentStatus = () => {
+  const presentAttendeeIds = realTimeData?.present_attendees?.map(a => a.id || a._id) || [];
+  const newPeopleIds = realTimeData?.new_people?.map(np => np.id) || [];
+  
+  return attendees.map((attendee) => ({
+    ...attendee,
+    present: presentAttendeeIds.includes(attendee._id),
+    isNew: newPeopleIds.includes(attendee._id),
+    id: attendee._id,
+  }));
+};
 
   const menuEvents = (() => {
     try {
@@ -904,41 +847,41 @@ function ServiceCheckIn() {
 
   // Data for display
   const attendeesWithStatus = getAttendeesWithPresentStatus();
-  const presentCount = realTimeData?.present_count || 0;
+  const presentCount = realTimeData?.present_attendees?.length || 0;
   const newPeopleCount = realTimeData?.new_people_count || 0;
   const consolidationCount = realTimeData?.consolidation_count || 0;
 
-  const filteredAttendees = attendeesWithStatus.filter((a) => {
-    if (!search.trim()) return true;
-
-    const searchTerm = search.toLowerCase().trim();
-    const searchTerms = searchTerm.split(/\s+/); // Split by one or more spaces
-
-    // Create a comprehensive searchable string from all relevant fields
-    const searchableText = [
-      a.name || '',
-      a.surname || '',
-      a.email || '',
-      a.phone || '',
-      a.leader1 || '',
-      a.leader12 || '',
-      a.leader144 || '',
-      a.gender || '',
-      a.occupation || '',
-      a.cellGroup || '',
-      a.zone || '',
-      a.invitedBy || '',
-      a.address || '',
-      a.homeAddress || '',
-      a.stage || '' // Include stage for "First Time" search
-    ].join(' ').toLowerCase();
-
-    // Check if ALL search terms are found in the combined searchable text
-    return searchTerms.every(term => searchableText.includes(term));
-  });
+const filteredAttendees = attendeesWithStatus.filter((a) => {
+  if (!search.trim()) return true;
+  
+  const searchTerm = search.toLowerCase().trim();
+  const searchTerms = searchTerm.split(/\s+/); // Split by one or more spaces
+  
+  // comprehensive searchable string from all relevant fields
+  const searchableText = [
+    a.name || '',
+    a.surname || '',
+    a.email || '',
+    a.phone || '',
+    a.leader1 || '',
+    a.leader12 || '',
+    a.leader144 || '',
+    a.gender || '',
+    a.occupation || '',
+    a.cellGroup || '',
+    a.zone || '',
+    a.invitedBy || '',
+    a.address || '',
+    a.homeAddress || '',
+    a.stage || '' 
+  ].join(' ').toLowerCase();
+  
+  // Check if ALL search terms are found in the combined searchable text
+  return searchTerms.every(term => searchableText.includes(term));
+});
 
   const paginatedAttendees = filteredAttendees.slice(
-    page * rowsPerPage,
+    page * rowsPerPage, 
     page * rowsPerPage + rowsPerPage
   );
 
@@ -949,10 +892,10 @@ function ServiceCheckIn() {
 
   const modalFilteredAttendees = presentAttendees.filter((a) => {
     if (!modalSearch.trim()) return true;
-
+    
     const searchTerm = modalSearch.toLowerCase().trim();
     const searchTerms = searchTerm.split(/\s+/);
-
+    
     const searchableFields = [
       a.name || '',
       a.surname || '',
@@ -964,8 +907,8 @@ function ServiceCheckIn() {
       a.gender || '',
       a.occupation || ''
     ].map(field => field.toLowerCase());
-
-    return searchTerms.every(term =>
+    
+    return searchTerms.every(term => 
       searchableFields.some(field => field.includes(term))
     );
   });
@@ -975,29 +918,27 @@ function ServiceCheckIn() {
     modalPage * modalRowsPerPage + modalRowsPerPage
   );
 
-  const newPeopleFilteredList = newPeopleList.filter((person) => {
+  const newPeopleFilteredList = newPeopleList.filter((a) => {
     if (!newPeopleSearch.trim()) return true;
-
-    const mappedPerson = mapPersonData(person);
+    
     const searchTerm = newPeopleSearch.toLowerCase().trim();
     const searchTerms = searchTerm.split(/\s+/);
-
+    
     const searchableFields = [
-      mappedPerson.name,
-      mappedPerson.surname,
-      mappedPerson.fullName,
-      mappedPerson.email,
-      mappedPerson.phone,
-      mappedPerson.gender,
-      mappedPerson.invitedBy,
-      mappedPerson.occupation,
-      mappedPerson.address
-    ].map(field => (field || '').toLowerCase());
-
-    return searchTerms.every(term =>
+      a.name || '',
+      a.surname || '',
+      a.email || '',
+      a.phone || '',
+      a.invitedBy || '',
+      a.gender || '',
+      a.occupation || ''
+    ].map(field => field.toLowerCase());
+    
+    return searchTerms.every(term => 
       searchableFields.some(field => field.includes(term))
     );
   });
+ 
   const newPeoplePaginatedList = newPeopleFilteredList.slice(
     newPeoplePage * newPeopleRowsPerPage,
     newPeoplePage * newPeopleRowsPerPage + newPeopleRowsPerPage
@@ -1005,10 +946,10 @@ function ServiceCheckIn() {
 
   const filteredConsolidatedPeople = consolidationsList.filter((person) => {
     if (!consolidatedSearch.trim()) return true;
-
+    
     const searchTerm = consolidatedSearch.toLowerCase().trim();
     const searchTerms = searchTerm.split(/\s+/);
-
+    
     const searchableFields = [
       person.person_name || '',
       person.person_surname || '',
@@ -1018,8 +959,8 @@ function ServiceCheckIn() {
       person.decision_type || '',
       person.notes || ''
     ].map(field => field.toLowerCase());
-
-    return searchTerms.every(term =>
+    
+    return searchTerms.every(term => 
       searchableFields.some(field => field.includes(term))
     );
   });
@@ -1029,109 +970,109 @@ function ServiceCheckIn() {
     consolidatedPage * consolidatedRowsPerPage + consolidatedRowsPerPage
   );
 
-  const mainColumns = [
-    {
-      field: 'name',
-      headerName: 'Name',
-      flex: 1,
-      minWidth: 150,
-      sortable: true,
-      renderCell: (params) => {
-        const isFirstTime =
-          params.row.stage === "First Time" ||
-          params.row.isNew === true;
+const mainColumns = [
+  {
+    field: 'name',
+    headerName: 'Name',
+    flex: 1,
+    minWidth: 150,
+    sortable: true,
+    renderCell: (params) => {
+      const isFirstTime =
+        params.row.stage === "First Time" ||
+        params.row.isNew === true;
 
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-            {isFirstTime && (
-              <Chip
-                label="First Time"
-                size="small"
-                color="success"
-                variant="filled"
-                sx={{ fontSize: '0.7rem', height: 20 }}
-              />
-            )}
-            <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
-              {params.row.name} {params.row.surname}
-            </Typography>
-          </Box>
-        );
-      }
-    },
-
-    {
-      field: 'phone',
-      headerName: 'Phone',
-      flex: 1,
-      minWidth: 120,
-      sortable: true
-    },
-
-    {
-      field: 'email',
-      headerName: 'Email',
-      flex: 1,
-      minWidth: 150,
-      sortable: true
-    },
-
-    {
-      field: 'leader1',
-      headerName: 'Leader @1',
-      flex: 0.8,
-      minWidth: 100,
-      sortable: true,
-      sortComparator: createLeaderSortComparator('leader1')
-    },
-
-    {
-      field: 'leader12',
-      headerName: 'Leader @12',
-      flex: 0.8,
-      minWidth: 100,
-      sortable: true,
-      sortComparator: createLeaderSortComparator('leader12')
-    },
-
-    {
-      field: 'leader144',
-      headerName: 'Leader @144',
-      flex: 0.8,
-      minWidth: 100,
-      sortable: true,
-      sortComparator: createLeaderSortComparator('leader144')
-    },
-
-    {
-      field: 'actions',
-      headerName: 'Actions',
-      width: 150,
-      sortable: false,
-      filterable: false,
-      renderCell: (params) => (
-        <Stack direction="row" spacing={0.5}>
-          <IconButton size="small" color="error" onClick={() => handleDelete(params.row._id)}>
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-          <IconButton size="small" color="primary" onClick={() => handleEditClick(params.row)}>
-            <EditIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="success"
-            disabled={!currentEventId}
-            onClick={() => handleToggleCheckIn(params.row)}
-          >
-            {params.row.present ? <CheckCircleIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
-          </IconButton>
-        </Stack>
-      )
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+          {isFirstTime && (
+            <Chip
+              label="First Time"
+              size="small"
+              color="success"
+              variant="filled"
+              sx={{ fontSize: '0.7rem', height: 20 }}
+            />
+          )}
+          <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+            {params.row.name} {params.row.surname}
+          </Typography>
+        </Box>
+      );
     }
-  ];
+  },
+
+  { 
+    field: 'phone', 
+    headerName: 'Phone', 
+    flex: 1, 
+    minWidth: 120,
+    sortable: true 
+  },
+
+  { 
+    field: 'email', 
+    headerName: 'Email', 
+    flex: 1, 
+    minWidth: 150,
+    sortable: true 
+  },
+
+  { 
+    field: 'leader1', 
+    headerName: 'Leader @1', 
+    flex: 0.8, 
+    minWidth: 100,
+    sortable: true,
+    sortComparator: createLeaderSortComparator('leader1')
+  },
+
+  { 
+    field: 'leader12', 
+    headerName: 'Leader @12', 
+    flex: 0.8, 
+    minWidth: 100,
+    sortable: true,
+    sortComparator: createLeaderSortComparator('leader12')
+  },
+
+  { 
+    field: 'leader144', 
+    headerName: 'Leader @144', 
+    flex: 0.8, 
+    minWidth: 100,
+    sortable: true,
+    sortComparator: createLeaderSortComparator('leader144')
+  },
+
+  {
+    field: 'actions',
+    headerName: 'Actions',
+    width: 150,
+    sortable: false,
+    filterable: false,
+    renderCell: (params) => (
+      <Stack direction="row" spacing={0.5}>
+        <IconButton size="small" color="error" onClick={() => handleDelete(params.row._id)}>
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+        <IconButton size="small" color="primary" onClick={() => handleEditClick(params.row)}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+        <IconButton
+          size="small"
+          color="success"
+          disabled={!currentEventId}
+          onClick={() => handleToggleCheckIn(params.row)}
+        >
+          {params.row.present ? <CheckCircleIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
+        </IconButton>
+      </Stack>
+    )
+  }
+];
 
 
-  // StatsCard component definition
+  // StatsCard component
   const StatsCard = ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
     <Paper
       variant="outlined"
@@ -1152,20 +1093,20 @@ function ServiceCheckIn() {
       onClick={onClick}
     >
       <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-        {React.cloneElement(icon, {
+        {React.cloneElement(icon, { 
           color: disabled ? "disabled" : color,
           sx: { fontSize: getResponsiveValue(20, 24, 28, 32, 32) }
         })}
-        <Typography
-          variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")}
-          fontWeight={600}
+        <Typography 
+          variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
+          fontWeight={600} 
           color={disabled ? "text.disabled" : `${color}.main`}
         >
           {count}
         </Typography>
       </Stack>
-      <Typography
-        variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")}
+      <Typography 
+        variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} 
         color={disabled ? "text.disabled" : `${color}.main`}
       >
         {title}
@@ -1235,225 +1176,189 @@ function ServiceCheckIn() {
     </Card>
   );
 
-  // Updated PresentAttendeeCard - Clear name and surname display
-  const PresentAttendeeCard = ({ attendee, showNumber, index }) => {
-    // Get full person data to access all fields
-    const fullPersonData = attendees.find(att => att._id === (attendee.id || attendee._id)) || attendee;
+// Updated PresentAttendeeCard - Clear name and surname display
+const PresentAttendeeCard = ({ attendee, showNumber, index }) => {
+  // Get full person data to access all fields
+  const fullPersonData = attendees.find(att => att._id === (attendee.id || attendee._id)) || attendee;
+  
+  const mappedAttendee = {
+    ...attendee,
+    name: attendee.name || fullPersonData.name || 'Unknown',
+    surname: attendee.surname || fullPersonData.surname || '',
+    phone: attendee.phone || fullPersonData.phone || '',
+    email: attendee.email || fullPersonData.email || '',
+    leader1: attendee.leader1 || fullPersonData.leader1 || '',
+    leader12: attendee.leader12 || fullPersonData.leader12 || '',
+    leader144: attendee.leader144 || fullPersonData.leader144 || '',
+  };
 
-    const mappedAttendee = {
-      ...attendee,
-      name: attendee.name || fullPersonData.name || 'Unknown',
-      surname: attendee.surname || fullPersonData.surname || '',
-      phone: attendee.phone || fullPersonData.phone || '',
-      email: attendee.email || fullPersonData.email || '',
-      leader1: attendee.leader1 || fullPersonData.leader1 || '',
-      leader12: attendee.leader12 || fullPersonData.leader12 || '',
-      leader144: attendee.leader144 || fullPersonData.leader144 || '',
-    };
-
-    return (
-      <Card
-        variant="outlined"
-        sx={{
-          mb: 1,
-          boxShadow: 2,
-          minHeight: '120px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          "&:last-child": { mb: 0 },
-          border: `2px solid ${theme.palette.primary.main}`,
-          backgroundColor: isDarkMode
-            ? theme.palette.primary.dark + "1a"
-            : theme.palette.primary.light + "0a",
-        }}
-      >
-        <CardContent sx={{
-          p: 1.5,
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center'
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        mb: 1,
+        boxShadow: 2,
+        minHeight: '120px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        "&:last-child": { mb: 0 },
+        border: `2px solid ${theme.palette.primary.main}`,
+        backgroundColor: isDarkMode 
+          ? theme.palette.primary.dark + "1a" 
+          : theme.palette.primary.light + "0a",
+      }}
+    >
+      <CardContent sx={{ 
+        p: 1.5,
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center'
+      }}>
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'flex-start',
+          width: '100%',
+          gap: 1
         }}>
-          <Box sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            width: '100%',
-            gap: 1
-          }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              {/* Clear Name & Surname Display */}
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="subtitle1" fontWeight={600} noWrap>
-                  {showNumber && `${index}. `}{mappedAttendee.name} {mappedAttendee.surname}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            {/* Clear Name & Surname Display */}
+            <Box sx={{ mb: 1 }}>
+              <Typography variant="subtitle1" fontWeight={600} noWrap>
+                {showNumber && `${index}. `}{mappedAttendee.name} {mappedAttendee.surname}
+              </Typography>
+            </Box>
+            
+            {/* Contact Information */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1.5 }}>
+              {mappedAttendee.phone && (
+                <Typography variant="body2" color="text.secondary" noWrap>
+                   {mappedAttendee.phone}
                 </Typography>
-              </Box>
-
-              {/* Contact Information */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1.5 }}>
-                {mappedAttendee.phone && (
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    📞 {mappedAttendee.phone}
-                  </Typography>
-                )}
-                {mappedAttendee.email && (
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    ✉️ {mappedAttendee.email}
-                  </Typography>
-                )}
-              </Box>
-
-              {/* Leader information - all three fields */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                {mappedAttendee.leader1 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography variant="caption" fontWeight="bold" color="primary">
-                      @1:
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {mappedAttendee.leader1}
-                    </Typography>
-                  </Box>
-                )}
-
-                {mappedAttendee.leader12 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography variant="caption" fontWeight="bold" color="primary">
-                      @12:
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {mappedAttendee.leader12}
-                    </Typography>
-                  </Box>
-                )}
-
-                {mappedAttendee.leader144 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography variant="caption" fontWeight="bold" color="primary">
-                      @144:
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {mappedAttendee.leader144}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
+              )}
+              {mappedAttendee.email && (
+                <Typography variant="body2" color="text.secondary" noWrap>
+                  {mappedAttendee.email}
+                </Typography>
+              )}
             </Box>
 
-            {/* Remove button */}
-            <Tooltip title="Remove from check-in">
-              <IconButton
-                color="error"
-                size="small"
-                onClick={() => {
-                  const originalAttendee = attendees.find(att => att._id === (attendee.id || attendee._id));
-                  if (originalAttendee) handleToggleCheckIn(originalAttendee);
-                }}
-                sx={{ flexShrink: 0, mt: 0.5 }}
-              >
-                <CheckCircleOutlineIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            {/* Leader information - all three fields */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {mappedAttendee.leader1 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography variant="caption" fontWeight="bold" color="primary">
+                    @1:
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {mappedAttendee.leader1}
+                  </Typography>
+                </Box>
+              )}
+              
+              {mappedAttendee.leader12 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography variant="caption" fontWeight="bold" color="primary">
+                    @12:
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {mappedAttendee.leader12}
+                  </Typography>
+                </Box>
+              )}
+              
+              {mappedAttendee.leader144 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography variant="caption" fontWeight="bold" color="primary">
+                    @144:
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {mappedAttendee.leader144}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
           </Box>
-        </CardContent>
-      </Card>
-    );
-  };
 
-  const NewPersonCard = ({ person, showNumber, index }) => {
-    const mappedPerson = mapPersonData(person);
+          {/* Remove button */}
+          <Tooltip title="Remove from check-in">
+            <IconButton 
+              color="error" 
+              size="small" 
+              onClick={() => {
+                const originalAttendee = attendees.find(att => att._id === (attendee.id || attendee._id));
+                if (originalAttendee) handleToggleCheckIn(originalAttendee);
+              }}
+              sx={{ flexShrink: 0, mt: 0.5 }}
+            >
+              <CheckCircleOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
 
-    return (
-      <Card
-        variant="outlined"
-        sx={{
-          mb: 1,
-          boxShadow: 2,
-          minHeight: '180px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          "&:last-child": { mb: 0 },
-          border: `2px solid ${theme.palette.success.main}`,
-          backgroundColor: isDarkMode
-            ? theme.palette.success.dark + "1a"
-            : theme.palette.success.light + "0a",
-        }}
-      >
-        <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          {/* Header with name and First Time badge */}
-          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-            <Box flex={1}>
-              <Typography variant="subtitle1" fontWeight={600}>
-                {showNumber && `${index}. `}{mappedPerson.name} {mappedPerson.surname}
-              </Typography>
-              <Chip
-                label="First Time"
-                size="small"
-                color="success"
-                variant="filled"
-                sx={{ mt: 0.5, fontSize: '0.7rem', height: 20 }}
+  const NewPersonCard = ({ person, showNumber, index }) => (
+    <Card
+      variant="outlined"
+      sx={{
+        mb: 1,
+        boxShadow: 2,
+        minHeight: '140px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        "&:last-child": { mb: 0 },
+        border: `2px solid ${theme.palette.success.main}`,
+        backgroundColor: isDarkMode 
+          ? theme.palette.success.dark + "1a" 
+          : theme.palette.success.light + "0a",
+      }}
+    >
+      <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <Box flex={1}>
+            <Typography variant="subtitle2" fontWeight={600}>
+              {showNumber && `${index}. `}{person.name} {person.surname}
+            </Typography>
+            {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
+            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+            {person.gender && (
+              <Chip 
+                label={person.gender} 
+                size="small" 
+                variant="outlined" 
+                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }} 
               />
-            </Box>
-          </Box>
-
-          {/* Contact Information */}
-          <Box sx={{ mb: 1.5 }}>
-            {mappedPerson.phone && (
-              <Typography variant="body2" color="text.secondary">
-                📞 {mappedPerson.phone}
-              </Typography>
-            )}
-            {mappedPerson.email && (
-              <Typography variant="body2" color="text.secondary">
-                ✉️ {mappedPerson.email}
-              </Typography>
             )}
           </Box>
+        </Box>
 
-          {/* Additional Details */}
-          {(mappedPerson.gender || mappedPerson.invitedBy || mappedPerson.occupation) && (
-            <>
-              <Divider sx={{ my: 1 }} />
-              <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
-                {mappedPerson.gender && (
-                  <Chip
-                    label={mappedPerson.gender}
-                    size="small"
-                    variant="outlined"
-                    sx={{ fontSize: '0.7rem', height: 20 }}
-                  />
-                )}
-                {mappedPerson.invitedBy && (
-                  <Chip
-                    label={`Invited by: ${mappedPerson.invitedBy}`}
-                    size="small"
-                    variant="outlined"
-                    sx={{ fontSize: '0.7rem', height: 20 }}
-                  />
-                )}
-                {mappedPerson.occupation && (
-                  <Chip
-                    label={`Work: ${mappedPerson.occupation}`}
-                    size="small"
-                    variant="outlined"
-                    sx={{ fontSize: '0.7rem', height: 20 }}
-                  />
-                )}
-              </Stack>
-            </>
-          )}
-          {/* Leaders removed for New People card - show gender/invitedBy only */}
-        </CardContent>
-      </Card>
-    );
-  };
+        {(person.invitedBy || person.occupation) && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+              {person.invitedBy && (
+                <Chip label={`Invited by: ${person.invitedBy}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+              {person.occupation && (
+                <Chip label={`Work: ${person.occupation}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+              )}
+            </Stack>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   const ConsolidatedPersonCard = ({ person, showNumber, index }) => {
     const decisionType = person.decision_type || person.consolidation_type || "Commitment";
     const displayDecisionType = decisionType || 'Commitment';
-
+    
     return (
       <Card
         variant="outlined"
@@ -1466,8 +1371,8 @@ function ServiceCheckIn() {
           justifyContent: 'space-between',
           "&:last-child": { mb: 0 },
           border: `2px solid ${theme.palette.secondary.main}`,
-          backgroundColor: isDarkMode
-            ? theme.palette.secondary.dark + "1a"
+          backgroundColor: isDarkMode 
+            ? theme.palette.secondary.dark + "1a" 
             : theme.palette.secondary.light + "0a",
         }}
       >
@@ -1502,11 +1407,11 @@ function ServiceCheckIn() {
               <Divider sx={{ my: 1 }} />
               <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
                 {person.created_at && (
-                  <Chip
-                    label={`Date: ${new Date(person.created_at).toLocaleDateString()}`}
-                    size="small"
-                    variant="outlined"
-                    sx={{ fontSize: "0.7rem", height: 20 }}
+                  <Chip 
+                    label={`Date: ${new Date(person.created_at).toLocaleDateString()}`} 
+                    size="small" 
+                    variant="outlined" 
+                    sx={{ fontSize: "0.7rem", height: 20 }} 
                   />
                 )}
                 <Chip
@@ -1546,56 +1451,14 @@ function ServiceCheckIn() {
     const [currentPage, setCurrentPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(25);
 
-    // DEBUG: Log the raw data structure
-    useEffect(() => {
-      if (eventHistoryDetails.open && eventHistoryDetails.data.length > 0) {
-        console.log('📊 Event History Modal - Type:', eventHistoryDetails.type);
-        console.log('📊 Event History Modal - Total records:', eventHistoryDetails.data.length);
-      }
-    }, [eventHistoryDetails.open]);
-
-    // Map data - Look up full person details from attendees array
-    const mappedData = eventHistoryDetails.data.map((item) => {
-      // Find the full person record from the attendees array
-      const personId = item.id || item._id;
-      const fullPersonData = attendees.find(att => att._id === personId);
-
-      // For new people (with temp IDs starting with "new_"), there won't be full data yet
-      const isNewPerson = personId?.toString().startsWith('new_');
-
-      const mapped = {
-        ...item,
-        // Merge with full person data to get ALL fields including leaders
-        ...fullPersonData,
-        // Ensure basic fields are not overwritten with empty values
-        name: item.name || item.person_name || fullPersonData?.name || '',
-        surname: item.surname || item.person_surname || fullPersonData?.surname || '',
-        email: item.email || item.person_email || fullPersonData?.email || '',
-        phone: item.phone || item.person_phone || fullPersonData?.phone || '',
-        // Leader fields come from full person data (won't exist for brand new people)
-        leader1: fullPersonData?.leader1 || '',
-        leader12: fullPersonData?.leader12 || '',
-        leader144: fullPersonData?.leader144 || '',
-        // Other fields
-        occupation: fullPersonData?.occupation || '',
-        invitedBy: item.invitedBy || fullPersonData?.invitedBy || '',
-        gender: item.gender || fullPersonData?.gender || '',
-        fullName: item.fullName || `${item.name || ''} ${item.surname || ''}`.trim(),
-        isNewPerson: isNewPerson, // Flag for UI to show different message
-      };
-
-      return mapped;
-    });
-
-    const filteredData = mappedData.filter(item => {
+    const filteredData = eventHistoryDetails.data.filter(item => {
       if (!searchTerm.trim()) return true;
-
+      
       const searchTerms = searchTerm.toLowerCase().trim().split(/\s+/);
-
+      
       const searchableFields = [
         item.name || '',
         item.surname || '',
-        item.fullName || '',
         item.email || '',
         item.phone || '',
         item.leader1 || '',
@@ -1605,8 +1468,8 @@ function ServiceCheckIn() {
         item.assigned_to || '',
         item.decision_type || ''
       ].map(field => field.toLowerCase());
-
-      return searchTerms.every(term =>
+      
+      return searchTerms.every(term => 
         searchableFields.some(field => field.includes(term))
       );
     });
@@ -1663,7 +1526,7 @@ function ServiceCheckIn() {
             sx={{ mb: 2, boxShadow: 1 }}
           />
 
-                    {isSmDown ? (
+          {isSmDown ? (
             <Box>
               {paginatedData.map((item, idx) => (
                 <Card key={item._id || item.id || idx} variant="outlined" sx={{ mb: 1, boxShadow: 2, minHeight: '120px' }}>
@@ -1673,7 +1536,7 @@ function ServiceCheckIn() {
                     </Typography>
                     {item.email && <Typography variant="body2" color="text.secondary">{item.email}</Typography>}
                     {item.phone && <Typography variant="body2" color="text.secondary">{item.phone}</Typography>}
-                              {eventHistoryDetails.type === 'consolidated' ? (
+                    {eventHistoryDetails.type === 'consolidated' ? (
                       <>
                         <Chip
                           label={item.decision_type || item.consolidation_type || 'Commitment'}
@@ -1685,28 +1548,19 @@ function ServiceCheckIn() {
                           Assigned to: {item.assigned_to || item.assignedTo || 'Not assigned'}
                         </Typography>
                       </>
-                              ) : eventHistoryDetails.type === 'newPeople' ? (
-                                <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5} mt={0.5}>
-                                  {item.gender && (
-                                    <Chip label={`Gender: ${item.gender}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                                  )}
-                                  {item.invitedBy && (
-                                    <Chip label={`Invited by: ${item.invitedBy}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                                  )}
-                                </Stack>
-                              ) : (
-                                <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5} mt={0.5}>
-                                  {item.leader1 && (
-                                    <Chip label={`@1: ${item.leader1}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                                  )}
-                                  {item.leader12 && (
-                                    <Chip label={`@12: ${item.leader12}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                                  )}
-                                  {item.leader144 && (
-                                    <Chip label={`@144: ${item.leader144}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                                  )}
-                                </Stack>
-                              )}
+                    ) : (
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5} mt={0.5}>
+                        {item.leader1 && (
+                          <Chip label={`@1: ${item.leader1}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                        )}
+                        {item.leader12 && (
+                          <Chip label={`@12: ${item.leader12}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                        )}
+                        {item.leader144 && (
+                          <Chip label={`@144: ${item.leader144}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
+                        )}
+                      </Stack>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -1724,22 +1578,18 @@ function ServiceCheckIn() {
                   <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-                  {eventHistoryDetails.type === 'consolidated' ? (
-                    <>
-                      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    </>
-                  ) : eventHistoryDetails.type === 'newPeople' ? (
-                    <>
-                      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
-                    </>
-                  ) : (
+                  {eventHistoryDetails.type !== 'consolidated' ? (
                     <>
                       <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Occupation</TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                     </>
                   )}
                 </TableRow>
@@ -1751,7 +1601,14 @@ function ServiceCheckIn() {
                     <TableCell>{item.name} {item.surname}</TableCell>
                     <TableCell>{item.email || "—"}</TableCell>
                     <TableCell>{item.phone || "—"}</TableCell>
-                    {eventHistoryDetails.type === 'consolidated' ? (
+                    {eventHistoryDetails.type !== 'consolidated' ? (
+                      <>
+                        <TableCell>{item.leader1 || "—"}</TableCell>
+                        <TableCell>{item.leader12 || "—"}</TableCell>
+                        <TableCell>{item.leader144 || "—"}</TableCell>
+                        <TableCell>{item.occupation || "—"}</TableCell>
+                      </>
+                    ) : (
                       <>
                         <TableCell>
                           <Chip
@@ -1769,17 +1626,6 @@ function ServiceCheckIn() {
                             color={item.status === 'completed' ? 'success' : 'default'}
                           />
                         </TableCell>
-                      </>
-                    ) : eventHistoryDetails.type === 'newPeople' ? (
-                      <>
-                        <TableCell>{item.gender || '—'}</TableCell>
-                        <TableCell>{item.invitedBy || '—'}</TableCell>
-                      </>
-                    ) : (
-                      <>
-                        <TableCell>{item.leader1 || "—"}</TableCell>
-                        <TableCell>{item.leader12 || "—"}</TableCell>
-                        <TableCell>{item.leader144 || "—"}</TableCell>
                       </>
                     )}
                   </TableRow>
@@ -1912,34 +1758,55 @@ function ServiceCheckIn() {
     </Box>
   );
 
-  // Effects - optimized to prevent unnecessary reloads
-  useEffect(() => {
-    if (currentEventId) {
-      // Fetch real-time data when event changes
-      const loadRealTimeData = async () => {
-        const data = await fetchRealTimeEventData(currentEventId);
-        if (data) {
-          setRealTimeData(data);
-        }
-      };
-
-      loadRealTimeData();
-    } else {
-      setRealTimeData(null);
-    }
-  }, [currentEventId]);
-
-  // Initial load - only once with proper loading states
+useEffect(() => {
+  if (currentEventId) {
+    // Fetch real-time data when event changes - ALWAYS FROM DATABASE
+    const loadRealTimeData = async () => {
+      console.log("🔄 Event changed, loading fresh data from database...");
+      const data = await fetchRealTimeEventData(currentEventId);
+      if (data) {
+        setRealTimeData(data);
+        console.log("✅ Loaded fresh data from DB:", {
+          present: data.present_count,
+          new: data.new_people_count,
+          consolidations: data.consolidation_count
+        });
+      }
+    };
+    
+    loadRealTimeData();
+  } else {
+    setRealTimeData(null);
+  }
+}, [currentEventId]);
   const hasInitialized = useRef(false);
+  
+useEffect(() => {
+  if (!currentEventId) return;
+
+  // Refresh data immediately when event changes
+  const loadData = async () => {
+    const data = await fetchRealTimeEventData(currentEventId);
+    if (data) {
+      setRealTimeData(data);
+    }
+  };
+  
+  loadData();
+
+  const interval = setInterval(loadData, 3000);
+  
+  return () => clearInterval(interval);
+}, [currentEventId]);
 
   useEffect(() => {
     if (!hasInitialized.current) {
       console.log('🚀 Service Check-In mounted - fetching fresh data from backend...');
       hasInitialized.current = true;
-
+      
       // Show loading state for events
       setIsLoadingEvents(true);
-
+      
       // Fetch both in parallel but show proper loading states
       fetchEvents();
       fetchAllPeople();
@@ -1963,12 +1830,12 @@ function ServiceCheckIn() {
             title="Present"
             count={presentCount}
             icon={<GroupIcon />}
-            color="primary" // Blue
-            onClick={() => {
+            color="primary" 
+            onClick={() => { 
               if (currentEventId) {
-                setModalOpen(true);
-                setModalSearch("");
-                setModalPage(0);
+                setModalOpen(true); 
+                setModalSearch(""); 
+                setModalPage(0); 
               }
             }}
             disabled={!currentEventId}
@@ -1979,12 +1846,12 @@ function ServiceCheckIn() {
             title="New People"
             count={newPeopleCount}
             icon={<PersonAddAltIcon />}
-            color="success" // Green
-            onClick={() => {
+            color="success" 
+            onClick={() => { 
               if (currentEventId) {
-                setNewPeopleModalOpen(true);
-                setNewPeopleSearch("");
-                setNewPeoplePage(0);
+                setNewPeopleModalOpen(true); 
+                setNewPeopleSearch(""); 
+                setNewPeoplePage(0); 
               }
             }}
             disabled={!currentEventId}
@@ -1995,12 +1862,12 @@ function ServiceCheckIn() {
             title="Consolidated"
             count={consolidationCount}
             icon={<MergeIcon />}
-            color="secondary" // Purple
-            onClick={() => {
+            color="secondary" 
+            onClick={() => { 
               if (currentEventId) {
-                setConsolidatedModalOpen(true);
-                setConsolidatedSearch("");
-                setConsolidatedPage(0);
+                setConsolidatedModalOpen(true); 
+                setConsolidatedSearch(""); 
+                setConsolidatedPage(0); 
               }
             }}
             disabled={!currentEventId}
@@ -2041,7 +1908,7 @@ function ServiceCheckIn() {
             )}
           </Select>
         </Grid>
-
+        
         <Grid item xs={12} sm={isSmDown ? 12 : 6} md={5}>
           {activeTab === 0 ? (
             <TextField
@@ -2063,11 +1930,11 @@ function ServiceCheckIn() {
             />
           )}
         </Grid>
-
+        
         <Grid item xs={12} md={3}>
-          <Stack
-            direction="row"
-            spacing={2}
+          <Stack 
+            direction="row" 
+            spacing={2} 
             justifyContent={isMdDown ? "center" : "flex-end"}
             sx={{ mt: isSmDown ? 2 : 0 }}
           >
@@ -2117,7 +1984,7 @@ function ServiceCheckIn() {
                       cursor: currentEventId ? "pointer" : "not-allowed",
                       transition: "all 0.2s",
                       backgroundColor: theme.palette.warning.main,
-                      "&:hover": currentEventId ? {
+                      "&:hover": currentEventId ? { 
                         transform: "translateY(-2px)",
                         boxShadow: 4,
                         backgroundColor: theme.palette.warning.dark,
@@ -2130,7 +1997,7 @@ function ServiceCheckIn() {
               </Tooltip>
               <Tooltip title={currentEventId ? "Refresh All Data" : "Please select an event first"}>
                 <span>
-                  <IconButton
+                  <IconButton 
                     onClick={handleFullRefresh}
                     color="primary"
                     disabled={!currentEventId || isRefreshing}
@@ -2238,490 +2105,489 @@ function ServiceCheckIn() {
       </Box>
 
       {/* Add / Edit Dialog */}
-      <AddPersonDialog
-        open={openDialog}
-        onClose={() => setOpenDialog(false)}
-        onSave={handlePersonSave}
-        formData={formData}
-        setFormData={setFormData}
-        isEdit={Boolean(editingPerson)}
-        personId={editingPerson?._id || null}
-        currentEventId={currentEventId}
-      />
+<AddPersonDialog
+  open={openDialog}
+  onClose={() => setOpenDialog(false)}
+  onSave={handlePersonSave}
+  formData={formData}
+  setFormData={setFormData}
+  isEdit={Boolean(editingPerson)}
+  personId={editingPerson?._id || null}
+  currentEventId={currentEventId}
+/>
 
       {/* Event History Details Modal */}
       <EventHistoryDetailsModal />
 
-      {/* PRESENT Attendees Modal - Fixed with proper name display */}
-      <Dialog
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        fullWidth
-        maxWidth="lg"
-        PaperProps={{
-          sx: {
-            boxShadow: 6,
-            maxHeight: '90vh',
-            ...(isSmDown && {
-              margin: 2,
-              maxHeight: '85vh',
-              width: 'calc(100% - 32px)',
-            })
-          }
-        }}
-      >
-        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          Attendees Present: {presentCount}
-        </DialogTitle>
-        <DialogContent dividers sx={{
-          maxHeight: isSmDown ? 600 : 700,
-          overflowY: "auto",
-          p: isSmDown ? 1 : 2
-        }}>
-          <TextField
-            size="small"
-            placeholder="Search present attendees..."
-            value={modalSearch}
-            onChange={(e) => { setModalSearch(e.target.value); setModalPage(0); }}
-            fullWidth
-            sx={{ mb: 2, boxShadow: 1 }}
-          />
+{/* PRESENT Attendees Modal - Fixed with proper name display */}
+<Dialog
+  open={modalOpen}
+  onClose={() => setModalOpen(false)}
+  fullWidth
+  maxWidth="lg"
+  PaperProps={{
+    sx: {
+      boxShadow: 6,
+      maxHeight: '90vh',
+      ...(isSmDown && {
+        margin: 2,
+        maxHeight: '85vh',
+        width: 'calc(100% - 32px)',
+      })
+    }
+  }}
+>
+  <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+    Attendees Present: {presentCount}
+  </DialogTitle>
+  <DialogContent dividers sx={{ 
+    maxHeight: isSmDown ? 600 : 700,
+    overflowY: "auto", 
+    p: isSmDown ? 1 : 2 
+  }}>
+    <TextField
+      size="small"
+      placeholder="Search present attendees..."
+      value={modalSearch}
+      onChange={(e) => { setModalSearch(e.target.value); setModalPage(0); }}
+      fullWidth
+      sx={{ mb: 2, boxShadow: 1 }}
+    />
 
-          {!currentEventId ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-              Please select an event to view present attendees
-            </Typography>
-          ) : presentAttendees.length === 0 ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-              No attendees present for this event
-            </Typography>
-          ) : (
-            <>
-              {isSmDown ? (
-                <Box>
-                  {modalPaginatedAttendees.map((a, idx) => (
-                    <PresentAttendeeCard
-                      key={a.id || a._id}
-                      attendee={a}
-                      showNumber={true}
-                      index={modalPage * modalRowsPerPage + idx + 1}
-                    />
-                  ))}
-                  {modalPaginatedAttendees.length === 0 && (
-                    <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
-                      No matching attendees
-                    </Typography>
-                  )}
-                </Box>
-              ) : (
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600, width: '40px' }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Name & Surname</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '100px' }}>Phone</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @1</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @12</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @144</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600, width: '80px' }}>Remove</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {modalPaginatedAttendees.map((a, idx) => {
-                      // For present attendees, we need to get the full person data to access all fields
-                      const fullPersonData = attendees.find(att => att._id === (a.id || a._id)) || a;
+    {!currentEventId ? (
+      <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+        Please select an event to view present attendees
+      </Typography>
+    ) : presentAttendees.length === 0 ? (
+      <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+        No attendees present for this event
+      </Typography>
+    ) : (
+      <>
+        {isSmDown ? (
+          <Box>
+            {modalPaginatedAttendees.map((a, idx) => (
+              <PresentAttendeeCard 
+                key={a.id || a._id} 
+                attendee={a} 
+                showNumber={true} 
+                index={modalPage * modalRowsPerPage + idx + 1} 
+              />
+            ))}
+            {modalPaginatedAttendees.length === 0 && (
+              <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+                No matching attendees
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600, width: '40px' }}>#</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Name & Surname</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '100px' }}>Phone</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Email</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @1</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @12</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @144</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600, width: '80px' }}>Remove</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {modalPaginatedAttendees.map((a, idx) => {
+                const fullPersonData = attendees.find(att => att._id === (a.id || a._id)) || a;
+                
+                // Create a properly mapped attendee with all fields
+                const mappedAttendee = {
+                  ...a,
+                  // Name fields - ensure we have both name and surname
+                  name: a.name || fullPersonData.name || 'Unknown',
+                  surname: a.surname || fullPersonData.surname || '',
+                  phone: a.phone || fullPersonData.phone || '',
+                  email: a.email || fullPersonData.email || '',
+                  leader1: a.leader1 || fullPersonData.leader1 || '',
+                  leader12: a.leader12 || fullPersonData.leader12 || '',
+                  leader144: a.leader144 || fullPersonData.leader144 || '',
+                };
 
-                      // Create a properly mapped attendee with all fields
-                      const mappedAttendee = {
-                        ...a,
-                        // Name fields - ensure we have both name and surname
-                        name: a.name || fullPersonData.name || 'Unknown',
-                        surname: a.surname || fullPersonData.surname || '',
-                        // Contact fields
-                        phone: a.phone || fullPersonData.phone || '',
-                        email: a.email || fullPersonData.email || '',
-                        // Leader fields
-                        leader1: a.leader1 || fullPersonData.leader1 || '',
-                        leader12: a.leader12 || fullPersonData.leader12 || '',
-                        leader144: a.leader144 || fullPersonData.leader144 || '',
-                      };
+                // Create full name display
+                const fullName = `${mappedAttendee.name} ${mappedAttendee.surname}`.trim();
 
-                      // Create full name display
-                      const fullName = `${mappedAttendee.name} ${mappedAttendee.surname}`.trim();
-
-                      return (
-                        <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
-                          <TableCell>{modalPage * modalRowsPerPage + idx + 1}</TableCell>
-                          <TableCell>
-                            <Box>
-                              <Typography variant="body2" fontWeight="600" noWrap>
-                                {mappedAttendee.name} {mappedAttendee.surname}
-                              </Typography>
-                              {fullName !== `${mappedAttendee.name} ${mappedAttendee.surname}`.trim() && (
-                                <Typography variant="caption" color="text.secondary">
-                                  {fullName}
-                                </Typography>
-                              )}
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" noWrap title={mappedAttendee.phone || ""}>
-                              {mappedAttendee.phone || "—"}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" noWrap title={mappedAttendee.email || ""}>
-                              {mappedAttendee.email || "—"}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" noWrap title={mappedAttendee.leader1 || ""}>
-                              {mappedAttendee.leader1 || "—"}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" noWrap title={mappedAttendee.leader12 || ""}>
-                              {mappedAttendee.leader12 || "—"}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" noWrap title={mappedAttendee.leader144 || ""}>
-                              {mappedAttendee.leader144 || "—"}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Tooltip title="Remove from check-in">
-                              <IconButton
-                                color="error"
-                                size="small"
-                                onClick={() => {
-                                  const attendee = attendees.find(att => att._id === (a.id || a._id));
-                                  if (attendee) handleToggleCheckIn(attendee);
-                                }}
-                              >
-                                <CheckCircleOutlineIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    {modalPaginatedAttendees.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={8} align="center">No matching attendees</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                return (
+                  <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
+                    <TableCell>{modalPage * modalRowsPerPage + idx + 1}</TableCell>
+                    <TableCell>
+                      <Box>
+                        <Typography variant="body2" fontWeight="600" noWrap>
+                          {mappedAttendee.name} {mappedAttendee.surname}
+                        </Typography>
+                        {fullName !== `${mappedAttendee.name} ${mappedAttendee.surname}`.trim() && (
+                          <Typography variant="caption" color="text.secondary">
+                            {fullName}
+                          </Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" noWrap title={mappedAttendee.phone || ""}>
+                        {mappedAttendee.phone || "—"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" noWrap title={mappedAttendee.email || ""}>
+                        {mappedAttendee.email || "—"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" noWrap title={mappedAttendee.leader1 || ""}>
+                        {mappedAttendee.leader1 || "—"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" noWrap title={mappedAttendee.leader12 || ""}>
+                        {mappedAttendee.leader12 || "—"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" noWrap title={mappedAttendee.leader144 || ""}>
+                        {mappedAttendee.leader144 || "—"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="Remove from check-in">
+                        <IconButton 
+                          color="error" 
+                          size="small" 
+                          onClick={() => {
+                            const attendee = attendees.find(att => att._id === (a.id || a._id));
+                            if (attendee) handleToggleCheckIn(attendee);
+                          }}
+                        >
+                          <CheckCircleOutlineIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {modalPaginatedAttendees.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} align="center">No matching attendees</TableCell>
+                </TableRow>
               )}
+            </TableBody>
+          </Table>
+        )}
 
-              <Box mt={1}>
-                <TablePagination
-                  component="div"
-                  count={modalFilteredAttendees.length}
-                  page={modalPage}
-                  onPageChange={(e, newPage) => setModalPage(newPage)}
-                  rowsPerPage={modalRowsPerPage}
-                  onRowsPerPageChange={(e) => { setModalRowsPerPage(parseInt(e.target.value, 10)); setModalPage(0); }}
-                  rowsPerPageOptions={[25, 50, 100]}
-                />
-              </Box>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* NEW PEOPLE Modal - Fixed data structure */}
-      <Dialog
-        open={newPeopleModalOpen}
-        onClose={() => setNewPeopleModalOpen(false)}
-        fullWidth
-        maxWidth="md"
-        PaperProps={{
-          sx: {
-            boxShadow: 6,
-            ...(isSmDown && {
-              margin: 2,
-              maxHeight: '80vh',
-              width: 'calc(100% - 32px)',
-            })
-          }
-        }}
-      >
-        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          New People: {newPeopleCount}
-        </DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
-          <TextField
-            size="small"
-            placeholder="Search new people..."
-            value={newPeopleSearch}
-            onChange={(e) => { setNewPeopleSearch(e.target.value); setNewPeoplePage(0); }}
-            fullWidth
-            sx={{ mb: 2, boxShadow: 1 }}
+        <Box mt={1}>
+          <TablePagination
+            component="div"
+            count={modalFilteredAttendees.length}
+            page={modalPage}
+            onPageChange={(e, newPage) => setModalPage(newPage)}
+            rowsPerPage={modalRowsPerPage}
+            onRowsPerPageChange={(e) => { setModalRowsPerPage(parseInt(e.target.value, 10)); setModalPage(0); }}
+            rowsPerPageOptions={[25, 50, 100]}
           />
+        </Box>
+      </>
+    )}
+  </DialogContent>
+  <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+    <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
+      Close
+    </Button>
+  </DialogActions>
+</Dialog>
 
-          {!currentEventId ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-              Please select an event to view new people
-            </Typography>
-          ) : newPeopleList.length === 0 ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-              No new people added for this event
-            </Typography>
-          ) : (
-            <>
-              {isSmDown ? (
-                <Box>
-                  {newPeoplePaginatedList.map((person, idx) => {
-                    const mappedPerson = mapPersonData(person);
+{/* NEW PEOPLE Modal - Fixed data structure */}
+<Dialog
+  open={newPeopleModalOpen}
+  onClose={() => setNewPeopleModalOpen(false)}
+  fullWidth
+  maxWidth="md"
+  PaperProps={{
+    sx: {
+      boxShadow: 6,
+      ...(isSmDown && {
+        margin: 2,
+        maxHeight: '80vh',
+        width: 'calc(100% - 32px)',
+      })
+    }
+  }}
+>
+  <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+    New People: {newPeopleCount}
+  </DialogTitle>
+  <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
+    <TextField
+      size="small"
+      placeholder="Search new people..."
+      value={newPeopleSearch}
+      onChange={(e) => { setNewPeopleSearch(e.target.value); setNewPeoplePage(0); }}
+      fullWidth
+      sx={{ mb: 2, boxShadow: 1 }}
+    />
 
-                    return (
-                      <NewPersonCard
-                        key={mappedPerson._id}
-                        person={mappedPerson}
-                        showNumber={true}
-                        index={newPeoplePage * newPeopleRowsPerPage + idx + 1}
+    {!currentEventId ? (
+      <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+        Please select an event to view new people
+      </Typography>
+    ) : newPeopleList.length === 0 ? (
+      <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+        No new people added for this event
+      </Typography>
+    ) : (
+      <>
+        {isSmDown ? (
+          <Box>
+            {newPeoplePaginatedList.map((a, idx) => (
+              <NewPersonCard 
+                key={a.id || a._id} 
+                person={a} 
+                showNumber={true} 
+                index={newPeoplePage * newPeopleRowsPerPage + idx + 1} 
+              />
+            ))}
+            {newPeoplePaginatedList.length === 0 && (
+              <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+                No matching people
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {newPeoplePaginatedList.map((a, idx) => {
+                // Map the data to ensure consistent field names
+                const mappedPerson = {
+                  ...a,
+                  name: a.name || '',
+                  surname: a.surname || '',
+                  phone: a.phone || '',
+                  email: a.email || '',
+                  gender: a.gender || '',
+                  invitedBy: a.invitedBy || '',
+                };
+
+                return (
+                  <TableRow key={a.id || a._id} hover>
+                    <TableCell>{newPeoplePage * newPeopleRowsPerPage + idx + 1}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="medium">
+                        {mappedPerson.name} {mappedPerson.surname}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{mappedPerson.phone || "—"}</TableCell>
+                    <TableCell>{mappedPerson.email || "—"}</TableCell>
+                    <TableCell>{mappedPerson.gender || "—"}</TableCell>
+                    <TableCell>{mappedPerson.invitedBy || "—"}</TableCell>
+                  </TableRow>
+                );
+              })}
+              {newPeoplePaginatedList.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">No matching people</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+
+        <Box mt={1}>
+          <TablePagination
+            component="div"
+            count={newPeopleFilteredList.length}
+            page={newPeoplePage}
+            onPageChange={(e, newPage) => setNewPeoplePage(newPage)}
+            rowsPerPage={newPeopleRowsPerPage}
+            onRowsPerPageChange={(e) => { setNewPeopleRowsPerPage(parseInt(e.target.value, 10)); setNewPeoplePage(0); }}
+            rowsPerPageOptions={[25, 50, 100]}
+          />
+        </Box>
+      </>
+    )}
+  </DialogContent>
+  <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+    <Button onClick={() => setNewPeopleModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
+      Close
+    </Button>
+  </DialogActions>
+</Dialog>
+
+{/* CONSOLIDATED Modal - Fixed data structure */}
+<Dialog
+  open={consolidatedModalOpen}
+  onClose={() => setConsolidatedModalOpen(false)}
+  fullWidth
+  maxWidth="md"
+  PaperProps={{
+    sx: {
+      boxShadow: 6,
+      ...(isSmDown && {
+        margin: 2,
+        maxHeight: '80vh',
+        width: 'calc(100% - 32px)',
+      })
+    }
+  }}
+>
+  <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+    Consolidated People: {consolidationCount}
+  </DialogTitle>
+  <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
+    <TextField
+      size="small"
+      placeholder="Search consolidated people..."
+      value={consolidatedSearch}
+      onChange={(e) => { setConsolidatedSearch(e.target.value); setConsolidatedPage(0); }}
+      fullWidth
+      sx={{ mb: 2, boxShadow: 1 }}
+    />
+
+    {!currentEventId ? (
+      <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+        Please select an event to view consolidated people
+      </Typography>
+    ) : consolidationsList.length === 0 ? (
+      <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
+        No consolidated people for this event
+      </Typography>
+    ) : (
+      <>
+        {isSmDown ? (
+          <Box>
+            {consolidatedPaginatedList.map((person, idx) => (
+              <ConsolidatedPersonCard
+                key={person.id || person._id || idx}
+                person={person}
+                showNumber={true}
+                index={consolidatedPage * consolidatedRowsPerPage + idx + 1}
+              />
+            ))}
+            {consolidatedPaginatedList.length === 0 && (
+              <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+                No matching consolidated people
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {consolidatedPaginatedList.map((person, idx) => {
+                // Map the data to ensure consistent field names
+                const mappedPerson = {
+                  ...person,
+                  person_name: person.person_name || '',
+                  person_surname: person.person_surname || '',
+                  person_email: person.person_email || '',
+                  person_phone: person.person_phone || '',
+                  decision_type: person.decision_type || 'Commitment',
+                  assigned_to: person.assigned_to || 'Not assigned',
+                  created_at: person.created_at || '',
+                };
+
+                return (
+                  <TableRow key={person.id || person._id || idx} hover>
+                    <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="medium">
+                        {mappedPerson.person_name} {mappedPerson.person_surname}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box>
+                        {mappedPerson.person_email && (
+                          <Typography variant="body2">{mappedPerson.person_email}</Typography>
+                        )}
+                        {mappedPerson.person_phone && (
+                          <Typography variant="body2" color="text.secondary">{mappedPerson.person_phone}</Typography>
+                        )}
+                        {!mappedPerson.person_email && !mappedPerson.person_phone && "—"}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={mappedPerson.decision_type}
+                        size="small"
+                        color={mappedPerson.decision_type === 'Recommitment' ? 'primary' : 'secondary'}
+                        variant="filled"
                       />
-                    );
-                  })}
-                  {newPeoplePaginatedList.length === 0 && (
-                    <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
-                      No matching people
-                    </Typography>
-                  )}
-                </Box>
-              ) : (
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {newPeoplePaginatedList.map((person, idx) => {
-                      const mappedPerson = mapPersonData(person);
-
-                      return (
-                        <TableRow key={mappedPerson._id} hover>
-                          <TableCell>{newPeoplePage * newPeopleRowsPerPage + idx + 1}</TableCell>
-                          <TableCell>
-                            <Box>
-                              <Typography variant="body2" fontWeight="medium">
-                                {mappedPerson.name} {mappedPerson.surname}
-                              </Typography>
-                              <Chip
-                                label="First Time"
-                                size="small"
-                                color="success"
-                                sx={{ fontSize: '0.6rem', height: 18, mt: 0.5 }}
-                              />
-                            </Box>
-                          </TableCell>
-                          <TableCell>{mappedPerson.phone || "—"}</TableCell>
-                          <TableCell>{mappedPerson.email || "—"}</TableCell>
-                          <TableCell>{mappedPerson.gender || "—"}</TableCell>
-                          <TableCell>{mappedPerson.invitedBy || "—"}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                    </TableCell>
+                    <TableCell>{mappedPerson.assigned_to}</TableCell>
+                    <TableCell>
+                      {mappedPerson.created_at ? new Date(mappedPerson.created_at).toLocaleDateString() : '—'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {consolidatedPaginatedList.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">No matching consolidated people</TableCell>
+                </TableRow>
               )}
+            </TableBody>
+          </Table>
+        )}
 
-              <Box mt={1}>
-                <TablePagination
-                  component="div"
-                  count={newPeopleFilteredList.length}
-                  page={newPeoplePage}
-                  onPageChange={(e, newPage) => setNewPeoplePage(newPage)}
-                  rowsPerPage={newPeopleRowsPerPage}
-                  onRowsPerPageChange={(e) => { setNewPeopleRowsPerPage(parseInt(e.target.value, 10)); setNewPeoplePage(0); }}
-                  rowsPerPageOptions={[25, 50, 100]}
-                />
-              </Box>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button onClick={() => setNewPeopleModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* CONSOLIDATED Modal - Fixed data structure */}
-      <Dialog
-        open={consolidatedModalOpen}
-        onClose={() => setConsolidatedModalOpen(false)}
-        fullWidth
-        maxWidth="md"
-        PaperProps={{
-          sx: {
-            boxShadow: 6,
-            ...(isSmDown && {
-              margin: 2,
-              maxHeight: '80vh',
-              width: 'calc(100% - 32px)',
-            })
-          }
-        }}
-      >
-        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          Consolidated People: {consolidationCount}
-        </DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
-          <TextField
-            size="small"
-            placeholder="Search consolidated people..."
-            value={consolidatedSearch}
-            onChange={(e) => { setConsolidatedSearch(e.target.value); setConsolidatedPage(0); }}
-            fullWidth
-            sx={{ mb: 2, boxShadow: 1 }}
+        <Box mt={1}>
+          <TablePagination
+            component="div"
+            count={filteredConsolidatedPeople.length}
+            page={consolidatedPage}
+            onPageChange={(e, newPage) => setConsolidatedPage(newPage)}
+            rowsPerPage={consolidatedRowsPerPage}
+            onRowsPerPageChange={(e) => { setConsolidatedRowsPerPage(parseInt(e.target.value, 10)); setConsolidatedPage(0); }}
+            rowsPerPageOptions={[25, 50, 100]}
           />
-
-          {!currentEventId ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-              Please select an event to view consolidated people
-            </Typography>
-          ) : consolidationsList.length === 0 ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-              No consolidated people for this event
-            </Typography>
-          ) : (
-            <>
-              {isSmDown ? (
-                <Box>
-                  {consolidatedPaginatedList.map((person, idx) => (
-                    <ConsolidatedPersonCard
-                      key={person.id || person._id || idx}
-                      person={person}
-                      showNumber={true}
-                      index={consolidatedPage * consolidatedRowsPerPage + idx + 1}
-                    />
-                  ))}
-                  {consolidatedPaginatedList.length === 0 && (
-                    <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
-                      No matching consolidated people
-                    </Typography>
-                  )}
-                </Box>
-              ) : (
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {consolidatedPaginatedList.map((person, idx) => {
-                      // Map the data to ensure consistent field names
-                      const mappedPerson = {
-                        ...person,
-                        person_name: person.person_name || '',
-                        person_surname: person.person_surname || '',
-                        person_email: person.person_email || '',
-                        person_phone: person.person_phone || '',
-                        decision_type: person.decision_type || 'Commitment',
-                        assigned_to: person.assigned_to || 'Not assigned',
-                        created_at: person.created_at || '',
-                      };
-
-                      return (
-                        <TableRow key={person.id || person._id || idx} hover>
-                          <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="medium">
-                              {mappedPerson.person_name} {mappedPerson.person_surname}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Box>
-                              {mappedPerson.person_email && (
-                                <Typography variant="body2">{mappedPerson.person_email}</Typography>
-                              )}
-                              {mappedPerson.person_phone && (
-                                <Typography variant="body2" color="text.secondary">{mappedPerson.person_phone}</Typography>
-                              )}
-                              {!mappedPerson.person_email && !mappedPerson.person_phone && "—"}
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={mappedPerson.decision_type}
-                              size="small"
-                              color={mappedPerson.decision_type === 'Recommitment' ? 'primary' : 'secondary'}
-                              variant="filled"
-                            />
-                          </TableCell>
-                          <TableCell>{mappedPerson.assigned_to}</TableCell>
-                          <TableCell>
-                            {mappedPerson.created_at ? new Date(mappedPerson.created_at).toLocaleDateString() : '—'}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    {consolidatedPaginatedList.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} align="center">No matching consolidated people</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              )}
-
-              <Box mt={1}>
-                <TablePagination
-                  component="div"
-                  count={filteredConsolidatedPeople.length}
-                  page={consolidatedPage}
-                  onPageChange={(e, newPage) => setConsolidatedPage(newPage)}
-                  rowsPerPage={consolidatedRowsPerPage}
-                  onRowsPerPageChange={(e) => { setConsolidatedRowsPerPage(parseInt(e.target.value, 10)); setConsolidatedPage(0); }}
-                  rowsPerPageOptions={[25, 50, 100]}
-                />
-              </Box>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button
-            variant="contained"
-            startIcon={<EmojiPeopleIcon />}
-            onClick={() => {
-              setConsolidatedModalOpen(false);
-              handleConsolidationClick();
-            }}
-            disabled={!currentEventId}
-            size={isSmDown ? "small" : "medium"}
-            sx={{
-              opacity: currentEventId ? 1 : 0.5,
-              cursor: currentEventId ? "pointer" : "not-allowed"
-            }}
-          >
-            Add Consolidation
-          </Button>
-          <Button onClick={() => setConsolidatedModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </>
+    )}
+  </DialogContent>
+  <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+    <Button
+      variant="contained"
+      startIcon={<EmojiPeopleIcon />}
+      onClick={() => {
+        setConsolidatedModalOpen(false);
+        handleConsolidationClick();
+      }}
+      disabled={!currentEventId}
+      size={isSmDown ? "small" : "medium"}
+      sx={{
+        opacity: currentEventId ? 1 : 0.5,
+        cursor: currentEventId ? "pointer" : "not-allowed"
+      }}
+    >
+      Add Consolidation
+    </Button>
+    <Button onClick={() => setConsolidatedModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
+      Close
+    </Button>
+  </DialogActions>
+</Dialog>
 
       <ConsolidationModal
         open={consolidationOpen}
