@@ -663,115 +663,143 @@ if (!formData.recurringDays || formData.recurringDays.length === 0) {
     };
 
   const darkModeStyles = {
-    textField: {
-      "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+  textField: {
+    "& .MuiOutlinedInput-root": {
+      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+      color: theme.palette.text.primary,
+      "& fieldset": {
+        borderColor: isDarkMode
+          ? theme.palette.divider
+          : "rgba(0, 0, 0, 0.23)",
+      },
+      "&:hover fieldset": {
+        borderColor: isDarkMode
+          ? theme.palette.primary.light
+          : "rgba(0, 0, 0, 0.87)",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: theme.palette.primary.main,
+        boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
+      },
+      "& input": {
         color: theme.palette.text.primary,
-        "& fieldset": {
-          borderColor: isDarkMode ? theme.palette.divider : "rgba(0, 0, 0, 0.23)",
-        },
-        "&:hover fieldset": {
-          borderColor: isDarkMode ? theme.palette.primary.light : "rgba(0, 0, 0, 0.87)",
-        },
-        "&.Mui-focused fieldset": {
-          borderColor: theme.palette.primary.main,
-          boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
-        },
-        "& input": {
-          color: theme.palette.text.primary,
-          WebkitTextFillColor: theme.palette.text.primary,
-        },
-        "& textarea": {
-          color: theme.palette.text.primary,
-        },
+        WebkitTextFillColor: theme.palette.text.primary,
       },
-      "& .MuiInputLabel-root": {
-        color: theme.palette.text.secondary,
-        "&.Mui-focused": {
-          color: theme.palette.primary.main,
-        },
-        "&.MuiInputLabel-shrink": {
-          color: theme.palette.text.secondary,
-        },
-      },
-      "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-        color: theme.palette.text.secondary,
-      },
-      "& .MuiFormHelperText-root": {
-        color: theme.palette.text.secondary,
-        "&.Mui-error": {
-          color: theme.palette.error.main,
-        },
+      "& textarea": {
+        color: theme.palette.text.primary,
       },
     },
-    autocomplete: {
-      "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-        color: theme.palette.text.primary,
-        "& fieldset": {
-          borderColor: isDarkMode ? theme.palette.divider : "rgba(0, 0, 0, 0.23)",
-        },
-        "&:hover fieldset": {
-          borderColor: isDarkMode ? theme.palette.primary.light : "rgba(0, 0, 0, 0.87)",
-        },
-        "&.Mui-focused fieldset": {
-          borderColor: theme.palette.primary.main,
-        },
+
+    // ✅ Make date/time picker icons white in dark mode
+    "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+      color: isDarkMode ? "#fff" : theme.palette.text.secondary,
+    },
+
+    "& .MuiInputLabel-root": {
+      color: theme.palette.text.secondary,
+      "&.Mui-focused": {
+        color: theme.palette.primary.main,
       },
-      "& .MuiAutocomplete-input": {
-        color: theme.palette.text.primary,
-      },
-      "& .MuiInputLabel-root": {
+      "&.MuiInputLabel-shrink": {
         color: theme.palette.text.secondary,
       },
     },
-    formControlLabel: {
+    "& .MuiFormHelperText-root": {
+      color: theme.palette.text.secondary,
+      "&.Mui-error": {
+        color: theme.palette.error.main,
+      },
+    },
+  },
+
+  autocomplete: {
+    "& .MuiOutlinedInput-root": {
+      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+      color: theme.palette.text.primary,
+      "& fieldset": {
+        borderColor: isDarkMode
+          ? theme.palette.divider
+          : "rgba(0, 0, 0, 0.23)",
+      },
+      "&:hover fieldset": {
+        borderColor: isDarkMode
+          ? theme.palette.primary.light
+          : "rgba(0, 0, 0, 0.87)",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: theme.palette.primary.main,
+      },
+    },
+    "& .MuiAutocomplete-input": {
+      color: theme.palette.text.primary,
+    },
+    "& .MuiInputLabel-root": {
+      color: theme.palette.text.secondary,
+    },
+  },
+
+  formControlLabel: {
+    "& .MuiFormControlLabel-label": {
+      color: theme.palette.text.primary,
+      fontSize: "0.95rem",
+      fontWeight: 500,
+    },
+    "& .MuiCheckbox-root": {
+      color: theme.palette.text.secondary,
+      "&.Mui-checked": {
+        color: theme.palette.primary.main,
+      },
+    },
+  },
+
+  button: {
+  contained: {
+    bgcolor: isDarkMode ? "#194c99ff" : theme.palette.primary.dark,
+    color: "#fff",
+    "&:hover": {
+      bgcolor: isDarkMode ? "#2f6bbeff" : theme.palette.primary.main,
+    },
+  },
+
+    outlined: {
+      borderColor: theme.palette.divider,
+      color: theme.palette.text.primary,
+      "&:hover": {
+        borderColor: theme.palette.primary.dark,
+        bgcolor: theme.palette.action.hover,
+      },
+    },
+  },
+
+  errorText: {
+    color: theme.palette.error.main,
+  },
+
+  card: {
+    bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+    border: `1px solid ${theme.palette.divider}`,
+  },
+
+  sectionTitle: {
+    color: theme.palette.text.primary,
+  },
+
+  helperText: {
+    color: theme.palette.text.secondary,
+  },
+
+  daysContainer: {
+    "& .MuiFormControlLabel-root": {
+      margin: 0,
       "& .MuiFormControlLabel-label": {
         color: theme.palette.text.primary,
         fontSize: "0.95rem",
         fontWeight: 500,
       },
-      "& .MuiCheckbox-root": {
-        color: theme.palette.text.secondary,
-        "&.Mui-checked": {
-          color: theme.palette.primary.main,
-        },
-      },
     },
-    button: {
-      outlined: {
-        borderColor: theme.palette.divider,
-        color: theme.palette.text.primary,
-        "&:hover": {
-          borderColor: theme.palette.primary.dark,
-          bgcolor: theme.palette.action.hover,
-        },
-      },
-    },
-    errorText: {
-      color: theme.palette.error.main,
-    },
-    card: {
-      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-      border: `1px solid ${theme.palette.divider}`,
-    },
-    sectionTitle: {
-      color: theme.palette.text.primary,
-    },
-    helperText: {
-      color: theme.palette.text.secondary,
-    },
-    daysContainer: {
-      "& .MuiFormControlLabel-root": {
-        margin: 0,
-        "& .MuiFormControlLabel-label": {
-          color: theme.palette.text.primary,
-          fontSize: "0.95rem",
-          fontWeight: 500,
-        },
-      },
-    },
-  };
+  },
+};
+
 
   return (
     <Box sx={containerStyle}>
@@ -1353,13 +1381,7 @@ if (!formData.recurringDays || formData.recurringDays.length === 0) {
                 fullWidth
                 disabled={isSubmitting}
                 sx={{
-                  bgcolor: "primary.main",
-                  color: "#ffffff",
-                  "&:hover": { bgcolor: "primary.dark" },
-                  "&:disabled": {
-                    bgcolor: isDarkMode ? "#333" : "#ccc",
-                    color: isDarkMode ? "#666" : "#999",
-                  },
+                  ...darkModeStyles.button.contained,
                 }}
               >
                 {isSubmitting
