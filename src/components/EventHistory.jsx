@@ -136,10 +136,14 @@ function EventHistory({
     consolidated: []
   });
 
-  // Pagination for mobile cards
+  // Pagination and sorting for mobile/desktop
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [search, setSearch] = useState("");
+  // Sorting model for DataGrid
+  const [sortModel, setSortModel] = useState([
+    { field: 'date', sort: 'desc' }
+  ]);
 
   // Fetch closed events using the same endpoint as ServiceCheckIn
   const fetchClosedEvents = async () => {
@@ -1026,11 +1030,11 @@ function EventHistory({
             }}
             disableRowSelectionOnClick
             initialState={{
-              pagination: { paginationModel: { pageSize: 100 } },
-              sorting: {
-                sortModel: [{ field: 'date', sort: 'desc' }],
-              },
+              pagination: { paginationModel: { pageSize: 100 } }
             }}
+            sortingMode="client"
+            sortModel={sortModel}
+            onSortModelChange={setSortModel}
             sx={{
               '& .MuiDataGrid-row:hover': {
                 backgroundColor: theme.palette.action.hover,

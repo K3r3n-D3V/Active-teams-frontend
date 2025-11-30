@@ -727,14 +727,16 @@ const handleSaveAndCloseEvent = async () => {
     return searchString.includes(lc);
   });
 
+// Sorting model for DataGrid
+const [sortModel, setSortModel] = React.useState([
+  { field: 'name', sort: 'asc' }
+]);
+
 // Apply sorting to filtered attendees based on sortModel
 const sortedFilteredAttendees = (() => {
   const result = [...filteredAttendees];
-  
   if (sortModel && sortModel.length > 0) {
-    const sort = sortModel[0]; // Get the first sort
-    
-    // Apply custom comparator for leader fields
+    const sort = sortModel[0];
     if (sort.field === 'leader1' || sort.field === 'leader12' || sort.field === 'leader144') {
       result.sort((a, b) => {
         const comparator = createLeaderSortComparator(sort.field);
@@ -742,7 +744,6 @@ const sortedFilteredAttendees = (() => {
         return sort.sort === 'desc' ? -comparison : comparison;
       });
     } else if (sort.field && sort.field !== 'actions') {
-      // Standard string/field sorting
       result.sort((a, b) => {
         const aVal = (a[sort.field] || '').toString().toLowerCase();
         const bVal = (b[sort.field] || '').toString().toLowerCase();
@@ -751,7 +752,6 @@ const sortedFilteredAttendees = (() => {
       });
     }
   }
-  
   return result;
 })();
 
@@ -1625,6 +1625,9 @@ const sortedFilteredAttendees = (() => {
                     pagination: { paginationModel: { pageSize: 100 } },
                   }}
                   getRowId={(row) => row._id}
+                  sortingMode="client"
+                  sortModel={sortModel}
+                  onSortModelChange={setSortModel}
                   sx={{
                     '& .MuiDataGrid-row:hover': {
                       backgroundColor: theme.palette.action.hover,
