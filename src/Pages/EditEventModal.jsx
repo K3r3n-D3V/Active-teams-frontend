@@ -49,7 +49,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       // CRITICAL FIX: Extract identifiers with better fallbacks
       const eventUUID = event.UUID || event.uuid || "";
       const eventId = event._id || event.id || "";
-      
+
       console.log('🔍 Extracted identifiers:', {
         UUID: eventUUID,
         _id: eventId,
@@ -74,7 +74,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         // Identifiers - MUST preserve both
         UUID: eventUUID,
         _id: eventId,
-        
+
         // Form fields with safe fallbacks
         eventName: event.eventName || event.name || "",
         eventLeader: event.eventLeader || event.eventLeaderName || event.leader || "",
@@ -111,14 +111,14 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
 
   const handleSave = async () => {
     console.log('Save initiated - Current formData:', formData);
-    
+
     // CRITICAL FIX: Prefer _id over UUID for updates
     const primaryIdentifier = formData._id || formData.UUID;
-    
+
     if (!primaryIdentifier) {
       console.error('No event identifier found. FormData:', formData);
       console.error('Original event:', event);
-      
+
       // setAlert({
       //   open: true,
       //   type: "error",
@@ -149,17 +149,17 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         // Use the primary identifier (_id preferred)
         ...(formData._id && { _id: formData._id }),
         ...(formData.UUID && { UUID: formData.UUID }),
-        
+
         // CRITICAL: Event name must be sent to backend
         eventName: formData.eventName.trim(),
-        
+
         // Updated fields
         day: formData.day,
         location: formData.location,
         date: formData.date,
         status: formData.status,
         renocaming: formData.recurring,
-        
+
         // Preserve original data
         eventLeader: formData.eventLeader,
         eventType: event?.eventType,
@@ -176,21 +176,21 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
 
       // Call the save function with the payload
       const result = await onSave(updatePayload);
-      
+
       console.log('Save result:', result);
-      
+
       if (result && (result.success || result.event)) {
 
       } else {
         throw new Error(result?.message || "Update failed - no confirmation received");
       }
-      
+
     } catch (error) {
       console.error('Error saving event:', error);
-      
+
       // Extract proper error message
       let errorMessage = "Failed to update event";
-      
+
       if (typeof error === 'string') {
         errorMessage = error;
       } else if (error.message) {
@@ -262,6 +262,28 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       color: theme.palette.text.primary,
       outline: "none",
       boxSizing: "border-box",
+
+      // Add autofill fixes
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDark ? theme.palette.background.default : "#fff"} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        caretColor: theme.palette.text.primary,
+        border: `1px solid ${isDark ? theme.palette.divider : "rgba(0,0,0,0.12)"}`,
+      },
+
+      "&:-webkit-autofill:hover": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDark ? theme.palette.background.default : "#fff"} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+      },
+
+      "&:-webkit-autofill:focus": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDark ? theme.palette.background.default : "#fff"} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        border: `2px solid ${theme.palette.primary.main}`,
+      },
+
+      // Remove default autofill styles
+      transition: "background-color 5000s ease-in-out 0s",
     },
     readOnlyInput: {
       width: "100%",
@@ -274,6 +296,13 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       outline: "none",
       boxSizing: "border-box",
       cursor: "not-allowed",
+
+      // Add autofill fixes for read-only inputs too
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDark ? "#2b2b2b" : "#f5f5f5"} inset`,
+        WebkitTextFillColor: isDark ? theme.palette.text.secondary : "#666",
+        caretColor: isDark ? theme.palette.text.secondary : "#666",
+      },
     },
     checkboxGroup: {
       display: "flex",
@@ -336,7 +365,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       fontSize: isSmall ? 12 : 12,
       color: theme.palette.text.secondary,
     },
-   };
+  };
 
   const hasIdentifier = !!(formData._id || formData.UUID);
 
@@ -354,17 +383,17 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           <strong>Event Identification:</strong>
           <br />
           {formData._id && (
-            <div style={{color: "#10b981", marginTop: "4px"}}>
+            <div style={{ color: "#10b981", marginTop: "4px" }}>
               ID: {formData._id}
             </div>
           )}
           {formData.UUID && (
-            <div style={{color: "#10b981", marginTop: "4px"}}>
+            <div style={{ color: "#10b981", marginTop: "4px" }}>
               UUID: {formData.UUID}
             </div>
           )}
           {!hasIdentifier && (
-            <div style={{color: "#ef4444", marginTop: "4px"}}>
+            <div style={{ color: "#ef4444", marginTop: "4px" }}>
               No identifier found - cannot save
             </div>
           )}
@@ -398,7 +427,12 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             type="text"
             name="eventLeader"
             value={formData.eventLeader}
-            style={styles.readOnlyInput}
+            style={{
+              ...styles.readOnlyInput,
+              WebkitBoxShadow: isDark ? '0 0 0 1000px #2b2b2b inset' : '0 0 0 1000px #f5f5f5 inset',
+              WebkitTextFillColor: isDark ? theme.palette.text.secondary : '#666',
+              caretColor: isDark ? theme.palette.text.secondary : '#666',
+            }}
             readOnly
             title="Leader cannot be changed"
           />
@@ -485,14 +519,20 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           <input
             type="text"
             value={formData.eventTimestamp ? new Date(formData.eventTimestamp).toLocaleString() : 'Unknown'}
-            style={styles.readOnlyInput}
+            style={{
+              ...styles.readOnlyInput,
+              // Force autofill styles for Created At field
+              WebkitBoxShadow: isDark ? '0 0 0 1000px #2b2b2b inset' : '0 0 0 1000px #f5f5f5 inset',
+              WebkitTextFillColor: isDark ? theme.palette.text.secondary : '#666',
+              caretColor: isDark ? theme.palette.text.secondary : '#666',
+            }}
             readOnly
           />
         </div>
 
         <div style={styles.buttonGroup}>
-          <button 
-            style={styles.cancelBtn} 
+          <button
+            style={styles.cancelBtn}
             onClick={() => onClose(false)}
             disabled={loading}
           >
@@ -510,7 +550,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       </div>
 
       {/* Alert Messages */}
-     
+
     </div>
   );
 };

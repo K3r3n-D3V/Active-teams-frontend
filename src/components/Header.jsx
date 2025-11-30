@@ -15,10 +15,10 @@ export default function Home() {
   }, []);
 
   const sections = [
-    { image: "/reactive.jpeg" },
-    { image: "/amenclub.jpeg" },
+    { image: "/img2.jpeg" },
     { image: "/homebanner1.jpg" },
     { image: "/home.jpg" },
+    { image: "/amenclub.jpeg" },
   ];
 
   const styles = {
