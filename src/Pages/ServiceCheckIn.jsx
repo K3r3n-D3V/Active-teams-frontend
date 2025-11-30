@@ -492,7 +492,7 @@ const fetchAllPeople = async () => {
     );
   };
 
-// Updated handleToggleCheckIn to use database counts
+
 // const handleToggleCheckIn = async (attendee) => {
 //   if (!currentEventId) {
 //     toast.error("Please select an event");
@@ -525,12 +525,6 @@ const fetchAllPeople = async () => {
 
 //       if (response.data.success) {
 //         toast.success(`${fullName} checked in successfully`);
-        
-//         // REFRESH from database to get ACTUAL counts
-//         const freshData = await fetchRealTimeEventData(currentEventId);
-//         if (freshData) {
-//           setRealTimeData(freshData);
-//         }
 //       }
 //     } else {
 //       // Remove from check-in
@@ -545,14 +539,15 @@ const fetchAllPeople = async () => {
 
 //       if (response.data.success) {
 //         toast.info(`${fullName} removed from check-in`);
-        
-//         // REFRESH from database to get ACTUAL counts
-//         const freshData = await fetchRealTimeEventData(currentEventId);
-//         if (freshData) {
-//           setRealTimeData(freshData);
-//         }
 //       }
 //     }
+
+//     // 🔥 CRITICAL: ALWAYS refresh from backend after any change
+//     const freshData = await fetchRealTimeEventData(currentEventId);
+//     if (freshData) {
+//       setRealTimeData(freshData);
+//     }
+
 //   } catch (err) {
 //     console.error("Error in toggle check-in:", err);
 //     toast.error(err.response?.data?.detail || err.message);
@@ -592,7 +587,7 @@ const handleToggleCheckIn = async (attendee) => {
         toast.success(`${fullName} checked in successfully`);
       }
     } else {
-      // Remove from check-in
+      // Remove from check-in using the DELETE endpoint
       const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
         headers: { 'Authorization': `Bearer ${token}` },
         data: {
