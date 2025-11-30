@@ -492,7 +492,7 @@ const fetchAllPeople = async () => {
     );
   };
 
-
+// Updated handleToggleCheckIn to use database counts
 // const handleToggleCheckIn = async (attendee) => {
 //   if (!currentEventId) {
 //     toast.error("Please select an event");
@@ -525,6 +525,12 @@ const fetchAllPeople = async () => {
 
 //       if (response.data.success) {
 //         toast.success(`${fullName} checked in successfully`);
+        
+//         // REFRESH from database to get ACTUAL counts
+//         const freshData = await fetchRealTimeEventData(currentEventId);
+//         if (freshData) {
+//           setRealTimeData(freshData);
+//         }
 //       }
 //     } else {
 //       // Remove from check-in
@@ -539,15 +545,14 @@ const fetchAllPeople = async () => {
 
 //       if (response.data.success) {
 //         toast.info(`${fullName} removed from check-in`);
+        
+//         // REFRESH from database to get ACTUAL counts
+//         const freshData = await fetchRealTimeEventData(currentEventId);
+//         if (freshData) {
+//           setRealTimeData(freshData);
+//         }
 //       }
 //     }
-
-//     // 🔥 CRITICAL: ALWAYS refresh from backend after any change
-//     const freshData = await fetchRealTimeEventData(currentEventId);
-//     if (freshData) {
-//       setRealTimeData(freshData);
-//     }
-
 //   } catch (err) {
 //     console.error("Error in toggle check-in:", err);
 //     toast.error(err.response?.data?.detail || err.message);
@@ -587,7 +592,7 @@ const handleToggleCheckIn = async (attendee) => {
         toast.success(`${fullName} checked in successfully`);
       }
     } else {
-      // Remove from check-in using the DELETE endpoint
+      // Remove from check-in
       const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
         headers: { 'Authorization': `Bearer ${token}` },
         data: {
@@ -1070,30 +1075,6 @@ const handleFinishConsolidation = async (task) => {
     setOpenDialog(true);
   };
 
-  // const handleDelete = async (personId) => {
-  //   try {
-  //     const res = await fetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
-  //     if (!res.ok) {
-  //       const errorData = await res.json();
-  //       toast.error(`Delete failed: ${errorData.detail}`);
-  //       return;
-  //     }
-  //     setAttendees((prev) => prev.filter((p) => p._id !== personId));
-    
-  //     // UPDATE CACHE
-  //   try {
-  //     await axios.post(`${BASE_URL}/cache/people/refresh`);
-  //     console.log("✅ Cache refreshed after deletion");
-  //   } catch (cacheError) {
-  //     console.warn("⚠️ Cache refresh failed:", cacheError);
-  //   }
-    
-  //     toast.success("Person deleted successfully");
-  //   } catch (err) {
-  //     console.error(err);
-  //     toast.error("An error occurred while deleting the person");
-  //   }
-  // };
 const handleDelete = async (personId) => {
   try {
     const res = await fetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
@@ -1103,13 +1084,43 @@ const handleDelete = async (personId) => {
       return;
     }
 
-    // 🔥 ALWAYS refresh from backend after delete
-    const freshData = await fetchRealTimeEventData(currentEventId);
-    if (freshData) {
-      setRealTimeData(freshData);
+    // 🔥 CRITICAL: Remove from local state immediately for instant UI update
+    setAttendees(prev => prev.filter(person => person._id !== personId));
+    
+    // 🔥 Also remove from any real-time data if present
+    setRealTimeData(prev => {
+      if (!prev) return prev;
+      
+      return {
+        ...prev,
+        // Remove from present attendees
+        present_attendees: (prev.present_attendees || []).filter(a => 
+          a.id !== personId && a._id !== personId
+        ),
+        // Remove from new people
+        new_people: (prev.new_people || []).filter(np => 
+          np.id !== personId && np._id !== personId
+        ),
+        // Update counts
+        present_count: (prev.present_attendees || []).filter(a => 
+          a.id !== personId && a._id !== personId
+        ).length,
+        new_people_count: (prev.new_people || []).filter(np => 
+          np.id !== personId && np._id !== personId
+        ).length,
+      };
+    });
+
+    // Refresh cache to ensure consistency
+    try {
+      await axios.post(`${BASE_URL}/cache/people/refresh`);
+      console.log("✅ Cache refreshed after deletion");
+    } catch (cacheError) {
+      console.warn("⚠️ Cache refresh failed:", cacheError);
     }
 
     toast.success("Person deleted successfully");
+    
   } catch (err) {
     console.error(err);
     toast.error("An error occurred while deleting the person");
