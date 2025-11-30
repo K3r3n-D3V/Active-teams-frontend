@@ -9,7 +9,7 @@ export default function Home() {
     { image: "/img2.jpeg" },
     { image: "/homebanner1.jpg" },
     { image: "/home.jpg" },
-    { image: "/amenclub.jpeg" },
+    { image: "/newimage.jpg" }, 
   ];
 
   return (
