@@ -850,146 +850,176 @@ const Events = () => {
     checkLeaderAt12Status();
   }, [BACKEND_URL]);
 
-  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
-    console.log("fetchEvents - START", {
-      filters,
-      forceRefresh,
-      showLoader,
-      isLeaderAt12,
-      isAdmin,
-      isRegistrant,
-      viewFilter,
-      currentUserLeaderAt1
-    });
+ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
+  console.log("fetchEvents - START", {
+    filters,
+    forceRefresh,
+    showLoader,
+    isLeaderAt12,
+    isAdmin,
+    isRegistrant,
+    viewFilter,
+    currentUserLeaderAt1
+  });
 
-    // Only show loader for initial load or if explicitly requested
-    if (showLoader) {
-      setLoading(true);
-      setIsLoading(true);
+  if (showLoader) {
+    setLoading(true);
+    setIsLoading(true);
+  }
+
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast.error("Please log in again");
+      setTimeout(() => window.location.href = '/login', 2000);
+      setEvents([]);
+      setFilteredEvents([]);
+      if (showLoader) {
+        setLoading(false);
+        setIsLoading(false);
+      }
+      return;
     }
 
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        toast.error("Please log in again");
-        setTimeout(() => window.location.href = '/login', 2000);
-        setEvents([]);
-        setFilteredEvents([]);
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
+
+    // 🔥 FIX #1: REPLACE THIS SECTION (around line 880)
+    // OLD CODE (DELETE THIS):
+    // const params = {
+    //   page: filters.page !== undefined ? filters.page : currentPage,
+    //   limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+    //   start_date: startDateParam,
+    //   ...filters  // ⚠️ THIS SPREADS ALL PROPERTIES INCLUDING INVALID ONES
+    // };
+
+    // NEW CODE (USE THIS INSTEAD):
+    const params = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      start_date: startDateParam,
+    };
+
+    // Only add valid filters one by one
+    if (filters.status) params.status = filters.status;
+    if (filters.event_type) params.event_type = filters.event_type;
+    if (filters.search) params.search = filters.search;
+    if (filters.personal !== undefined) params.personal = filters.personal;
+    if (filters.leader_at_12_view) params.leader_at_12_view = filters.leader_at_12_view;
+    if (filters.show_personal_cells) params.show_personal_cells = filters.show_personal_cells;
+    if (filters.show_all_authorized) params.show_all_authorized = filters.show_all_authorized;
+    if (filters.include_subordinate_cells) params.include_subordinate_cells = filters.include_subordinate_cells;
+    if (filters.leader_at_1_identifier) params.leader_at_1_identifier = filters.leader_at_1_identifier;
+    if (filters._t) params._t = filters._t;
+
+    // Remove undefined status
+    if (!filters.status && params.status) {
+      delete params.status;
+    }
+
+    const isCellRequest = params.event_type === 'CELLS' || params.event_type === 'all' || !params.event_type;
+    const isEventTypeRequest = !isCellRequest;
+
+    console.log("Request Type:", {
+      isCellRequest,
+      isEventTypeRequest,
+      event_type: params.event_type,
+      status: params.status
+    });
+
+    if (isEventTypeRequest) {
+      console.log("EVENT TYPE MODE - Removing all personal/leader filters");
+      delete params.personal;
+      delete params.leader_at_12_view;
+      delete params.show_personal_cells;
+      delete params.show_all_authorized;
+      delete params.include_subordinate_cells;
+      delete params.leader_at_1_identifier;
+
+      if (!filters.status) {
+        delete params.status;
+      }
+    } else {
+      console.log("CELL MODE - Applying role-based filters");
+
+      if (isRegistrant || isRegularUser) {
+        params.personal = true;
+      } else if (isLeaderAt12) {
+        params.leader_at_12_view = true;
+        params.include_subordinate_cells = true;
+
+        if (currentUserLeaderAt1) {
+          params.leader_at_1_identifier = currentUserLeaderAt1;
+        }
+
+        if (viewFilter === 'personal') {
+          params.show_personal_cells = true;
+          params.personal = true;
+        } else {
+          params.show_all_authorized = true;
+        }
+      }
+    }
+
+    // Determine which endpoint to use
+    let endpoint;
+    if (isCellRequest) {
+      endpoint = `${BACKEND_URL}/events/cells`;
+      console.log("Using CELLS endpoint");
+    } else {
+      endpoint = `${BACKEND_URL}/events/other`;
+      console.log("Using OTHER EVENTS endpoint for event type:", params.event_type);
+    }
+
+    // 🔥 FIX #2: ADD THIS SECTION RIGHT HERE (before axios.get)
+    // Clean up undefined/null parameters AND invalid parameters
+    Object.keys(params).forEach(key => {
+      if (params[key] === undefined || params[key] === null || params[key] === '') {
+        delete params[key];
+      }
+      // Remove any invalid boolean parameters
+      if (key === 'isLeaderAt12' || key === 'isAdmin' || key === 'isRegistrant' || 
+          key === 'isRegularUser' || key === 'userRole' || key === 'theme') {
+        console.warn(`⚠️ Removing invalid parameter: ${key}`);
+        delete params[key];
+      }
+    });
+
+    console.log('Final API call details:', {
+      endpoint,
+      params: JSON.stringify(params, null, 2),
+      userRole: userRole
+    });
+
+    const cacheKey = getCacheKey({ ...params, userRole, endpoint });
+
+    if (!forceRefresh) {
+      const cachedData = getCachedData(cacheKey);
+      if (cachedData) {
+        console.log("Using cached data");
+        setEvents(cachedData.events);
+        setFilteredEvents(cachedData.events);
+        setTotalEvents(cachedData.total_events);
+        setTotalPages(cachedData.total_pages);
+        if (filters.page !== undefined) setCurrentPage(filters.page);
         if (showLoader) {
           setLoading(false);
           setIsLoading(false);
         }
         return;
       }
+    }
 
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
-
-      const params = {
-        page: filters.page !== undefined ? filters.page : currentPage,
-        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        start_date: startDateParam,
-        ...filters
-      };
-
-      if (!filters.status && params.status) {
-        delete params.status;
-      }
-
-      const isCellRequest = params.event_type === 'CELLS' || params.event_type === 'all' || !params.event_type;
-      const isEventTypeRequest = !isCellRequest;
-
-      console.log("Request Type:", {
-        isCellRequest,
-        isEventTypeRequest,
-        event_type: params.event_type,
-        status: params.status
-      });
-
-      if (isEventTypeRequest) {
-        console.log("EVENT TYPE MODE - Removing all personal/leader filters");
-        delete params.personal;
-        delete params.leader_at_12_view;
-        delete params.show_personal_cells;
-        delete params.show_all_authorized;
-        delete params.include_subordinate_cells;
-        delete params.leader_at_1_identifier;
-
-        if (!filters.status) {
-          delete params.status;
-        }
-      } else {
-        console.log("CELL MODE - Applying role-based filters");
-
-
-        if (isRegistrant || isRegularUser) {
-          params.personal = true;
-        } else if (isLeaderAt12) {
-          params.leader_at_12_view = true;
-          params.include_subordinate_cells = true;
-
-          if (currentUserLeaderAt1) {
-            params.leader_at_1_identifier = currentUserLeaderAt1;
-          }
-
-          if (viewFilter === 'personal') {
-            params.show_personal_cells = true;
-            params.personal = true;
-          } else {
-            params.show_all_authorized = true;
-            params.include_subordinate_cells = true;
-          }
-        }
-      }
-
-      // Determine which endpoint to use
-      let endpoint;
-      if (isCellRequest) {
-        endpoint = `${BACKEND_URL}/events/cells`;
-        console.log("Using CELLS endpoint");
-      } else {
-        endpoint = `${BACKEND_URL}/events/other`;
-        console.log("Using OTHER EVENTS endpoint for event type:", params.event_type);
-      }
-
-      // Clean up undefined parameters
-      Object.keys(params).forEach(key => (params[key] === undefined || params[key] === null) && delete params[key]);
-
-      console.log('Final API call details:', {
-        endpoint,
-        params: JSON.stringify(params, null, 2),
-        userRole: userRole
-      });
-
-      const cacheKey = getCacheKey({ ...params, userRole, endpoint });
-
-      if (!forceRefresh) {
-        const cachedData = getCachedData(cacheKey);
-        if (cachedData) {
-          console.log("Using cached data");
-          setEvents(cachedData.events);
-          setFilteredEvents(cachedData.events);
-          setTotalEvents(cachedData.total_events);
-          setTotalPages(cachedData.total_pages);
-          if (filters.page !== undefined) setCurrentPage(filters.page);
-          if (showLoader) {
-            setLoading(false);
-            setIsLoading(false);
-          }
-          return;
-        }
-      }
-
-      console.log("Making fresh API call");
-      const response = await axios.get(endpoint, {
-        headers,
-        params,
-        timeout: 60000
-      });
+    console.log("Making fresh API call");
+    const response = await axios.get(endpoint, {
+      headers,
+      params,
+      timeout: 60000
+    });
 
       const responseData = response.data;
       const newEvents = responseData.events || responseData.results || [];
@@ -1664,7 +1694,7 @@ const handleStatusFilterChange = useCallback((newStatus) => {
   ]);
 
   const handleEditEvent = useCallback((event) => {
-    console.log("📝 [handleEditEvent] Opening edit modal for event:", {
+    console.log("[handleEditEvent] Opening edit modal for event:", {
       name: event.eventName,
       _id: event._id,
       UUID: event.UUID,
@@ -1701,26 +1731,85 @@ const handleStatusFilterChange = useCallback((newStatus) => {
     setEditModalOpen(true);
   }, []);
 
-  const handleDeleteEvent = useCallback(async (event) => {
-    if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await axios.delete(`${BACKEND_URL}/events/${event._id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+const handleDeleteEvent = useCallback(async (event) => {
+  if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.delete(`${BACKEND_URL}/events/${event._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-        if (response.status === 200) {
-          fetchEvents();
-          toast.success("Event deleted successfully!");
+      if (response.status === 200) {
+        console.log("Event deleted successfully, refreshing with current filters...");
+        
+        const refreshParams = {
+          page: currentPage,
+          limit: rowsPerPage,
+          start_date: DEFAULT_API_START_DATE,
+          _t: Date.now()
+        };
 
+        if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+          refreshParams.event_type = selectedEventTypeFilter;
+        } else {
+          refreshParams.event_type = "CELLS";
         }
-      } catch (error) {
-        console.error("Error deleting event:", error);
 
-        toast.error("Failed to delete event");
+        // Keep status filter
+        if (selectedStatus && selectedStatus !== 'all') {
+          refreshParams.status = selectedStatus;
+        }
+
+        // Keep search query
+        if (searchQuery && searchQuery.trim()) {
+          refreshParams.search = searchQuery.trim();
+        }
+
+        // Apply role-based filters
+        if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
+          if (isLeaderAt12) {
+            refreshParams.leader_at_12_view = true;
+            refreshParams.include_subordinate_cells = true;
+            
+            if (currentUserLeaderAt1) {
+              refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+            }
+            
+            if (viewFilter === 'personal') {
+              refreshParams.show_personal_cells = true;
+              refreshParams.personal = true;
+            } else {
+              refreshParams.show_all_authorized = true;
+            }
+          } else if (isAdmin && viewFilter === 'personal') {
+            refreshParams.personal = true;
+          }
+        }
+
+        console.log("🔄 Refreshing with params after deletion:", refreshParams);
+        await fetchEvents(refreshParams, true);
+        
+        toast.success("Event deleted successfully!");
       }
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      toast.error("Failed to delete event");
     }
-  }, [BACKEND_URL, fetchEvents]);
+  }
+}, [
+  BACKEND_URL, 
+  currentPage, 
+  rowsPerPage, 
+  selectedEventTypeFilter, 
+  selectedStatus, 
+  searchQuery, 
+  isLeaderAt12, 
+  isAdmin, 
+  viewFilter, 
+  currentUserLeaderAt1, 
+  fetchEvents, 
+  DEFAULT_API_START_DATE
+]);
 
 
   const handleSaveEvent = useCallback(async (eventData) => {
@@ -2006,32 +2095,31 @@ const handleStatusFilterChange = useCallback((newStatus) => {
     }, 300);
   }, []);
 
+const handleDeleteType = useCallback(async () => {
+  try {
+    const token = localStorage.getItem("token");
 
-  const handleDeleteType = useCallback(async () => {
+    if (!token) {
+      toast.error("Please log in again");
+      setTimeout(() => window.location.href = '/login', 2000);
+      return;
+    }
+
+    const typeName = typeof toDeleteType === 'string'
+      ? toDeleteType
+      : toDeleteType?.name || toDeleteType?.eventType || '';
+
+    if (!typeName) {
+      throw new Error("No event type name provided for deletion");
+    }
+
+    console.log('🗑️ Attempting to delete event type:', typeName);
+
+    // First, try normal delete
+    const encodedTypeName = encodeURIComponent(typeName);
+    const url = `${BACKEND_URL}/event-types/${encodedTypeName}`;
+
     try {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        toast.error("Please log in again");
-        setTimeout(() => window.location.href = '/login', 2000);
-        return;
-      }
-
-      const typeName = typeof toDeleteType === 'string'
-        ? toDeleteType
-        : toDeleteType?.name || toDeleteType?.eventType || '';
-
-      if (!typeName) {
-        throw new Error("No event type name provided for deletion");
-      }
-
-      console.log('Deleting event type:', typeName);
-
-      const encodedTypeName = encodeURIComponent(typeName);
-      const url = `${BACKEND_URL}/event-types/${encodedTypeName}`;
-
-      console.log('DELETE URL:', url);
-
       const response = await axios.delete(url, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2039,29 +2127,39 @@ const handleStatusFilterChange = useCallback((newStatus) => {
         }
       });
 
-      console.log('Delete response:', response.data);
+      console.log('✅ Delete response:', response.data);
 
-      if (response.status !== 200) {
-        throw new Error(response.data.message || "Deletion failed on backend");
+      if (response.status === 200) {
+        // Success - refresh everything
+        await fetchEventTypes(true);
+        setConfirmDeleteOpen(false);
+        setToDeleteType(null);
+
+        // Switch to "all" if deleting current filter
+        if (selectedEventTypeFilter === typeName || 
+            selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()) {
+          setSelectedEventTypeFilter('all');
+          setSelectedEventTypeObj(null);
+          
+          setTimeout(() => {
+            fetchEvents({
+              page: 1,
+              limit: rowsPerPage,
+              event_type: 'CELLS',
+              start_date: DEFAULT_API_START_DATE
+            }, true);
+          }, 300);
+        }
+
+        toast.success(
+          response.data.message || `Event type "${typeName}" deleted successfully!`
+        );
       }
-
-      await fetchEventTypes(true);
-
-      setConfirmDeleteOpen(false);
-      setToDeleteType(null);
-
-      if (selectedEventTypeFilter === typeName || selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()) {
-        console.log(`Switching from deleted event type "${typeName}" to "ALL CELLS"`);
-        setSelectedEventTypeFilter('all');
-        setSelectedEventTypeObj(null);
-      }
-
-      toast.success(response.data.message || `Event type "${typeName}" deleted successfully`);
 
     } catch (error) {
-      console.error("Error deleting event type:", error);
+      console.error("❌ Error deleting event type:", error);
 
-      // Handle 401/unauthorized errors properly
+      // Handle 401/unauthorized
       if (error.response?.status === 401) {
         toast.error("Session expired. Logging out...");
         localStorage.removeItem("token");
@@ -2070,33 +2168,124 @@ const handleStatusFilterChange = useCallback((newStatus) => {
         return;
       }
 
-      let errorMessage = "Failed to delete event type";
-
-      if (error.response?.data) {
+      // Handle 400 - Events exist
+      if (error.response?.status === 400) {
         const errorData = error.response.data;
+        let eventsCount = 0;
+        let eventsList = [];
 
-        // Enhanced error handling for events blocking deletion
-        if (error.response.status === 400 && errorData.detail) {
-          if (typeof errorData.detail === 'object') {
-            // New backend response with details
-            errorMessage = `${errorData.detail.message}. Events using this type: ${errorData.detail.events_count}`;
-            console.log('Events blocking deletion:', errorData.detail.event_samples);
-          } else {
-            // Old backend response
-            errorMessage = errorData.detail;
+        if (typeof errorData.detail === 'object') {
+          eventsCount = errorData.detail.events_count || 0;
+          eventsList = errorData.detail.event_samples || [];
+        }
+
+        console.log(`⚠️ ${eventsCount} events are blocking deletion:`, eventsList);
+
+        // Show detailed dialog with force delete option
+        const eventsListText = eventsList.slice(0, 5).map(e => 
+          `• ${e.name} (${e.date || 'No date'}) - Status: ${e.status}`
+        ).join('\n');
+
+        const shouldForceDelete = window.confirm(
+          `❌ Cannot delete "${typeName}"\n\n` +
+          `${eventsCount} event(s) are using this event type:\n\n` +
+          `${eventsListText}\n` +
+          `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ''}\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `⚠️ FORCE DELETE OPTION:\n\n` +
+          `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
+          `Click Cancel to keep everything.\n\n` +
+          `⚠️ THIS ACTION CANNOT BE UNDONE!`
+        );
+
+        if (shouldForceDelete) {
+          console.log('🔥 User confirmed FORCE DELETE');
+          
+          // Call delete with force=true
+          try {
+            const forceUrl = `${url}?force=true`;
+            const forceResponse = await axios.delete(forceUrl, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            console.log('✅ Force delete successful:', forceResponse.data);
+
+            // Refresh everything
+            await fetchEventTypes(true);
+            setConfirmDeleteOpen(false);
+            setToDeleteType(null);
+
+            // Switch to "all"
+            if (selectedEventTypeFilter === typeName || 
+                selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()) {
+              setSelectedEventTypeFilter('all');
+              setSelectedEventTypeObj(null);
+              
+              setTimeout(() => {
+                fetchEvents({
+                  page: 1,
+                  limit: rowsPerPage,
+                  event_type: 'CELLS',
+                  start_date: DEFAULT_API_START_DATE
+                }, true);
+              }, 300);
+            }
+
+            toast.success(
+              `✅ Deleted event type "${typeName}" and ${forceResponse.data.events_deleted || eventsCount} events`,
+              { autoClose: 5000 }
+            );
+
+          } catch (forceError) {
+            console.error('❌ Force delete failed:', forceError);
+            toast.error(
+              `Failed to force delete: ${forceError.response?.data?.detail || forceError.message}`,
+              { autoClose: 7000 }
+            );
           }
         } else {
-          errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
+          console.log('❌ User cancelled force delete');
+          toast.info('Deletion cancelled', { autoClose: 3000 });
         }
+
+        setConfirmDeleteOpen(false);
+        setToDeleteType(null);
+        return;
+      }
+
+      // Other errors
+      let errorMessage = "Failed to delete event type";
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
       } else if (error.message) {
         errorMessage = error.message;
       }
 
       console.error('Error details:', error.response?.data);
       setConfirmDeleteOpen(false);
-      toast.error(errorMessage);
+      setToDeleteType(null);
+      toast.error(errorMessage, { autoClose: 7000 });
     }
-  }, [BACKEND_URL, eventTypes, selectedEventTypeFilter, toDeleteType, fetchEventTypes]);
+
+  } catch (error) {
+    console.error("❌ Unexpected error:", error);
+    toast.error(`Unexpected error: ${error.message}`, { autoClose: 7000 });
+    setConfirmDeleteOpen(false);
+    setToDeleteType(null);
+  }
+}, [
+  BACKEND_URL, 
+  selectedEventTypeFilter, 
+  toDeleteType, 
+  fetchEventTypes, 
+  fetchEvents, 
+  rowsPerPage, 
+  DEFAULT_API_START_DATE
+]);
 
   const handlePageChange = useCallback((newPage) => {
     setCurrentPage(newPage);
@@ -2528,7 +2717,7 @@ const handleStatusFilterChange = useCallback((newStatus) => {
     editingEventType,
     fetchEventTypes,
     selectedEventTypeFilter
-  ]);
+  ])
 
   const handleCreateEventType = async (eventTypeData) => {
     try {

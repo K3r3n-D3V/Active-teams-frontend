@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { toast } from "react-toastify";
+import { toast } from "react-toastify"; 
 import { useTheme } from "@mui/material/styles";
 
-// small helper hook for responsiveness
 function useWindowSize() {
   const isClient = typeof window === "object";
   const getSize = () => ({
@@ -23,19 +22,18 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
   const theme = useTheme();
   const [formData, setFormData] = useState({
     eventName: "",
-    eventLeader: "",
+    eventLeaderName: "", 
+    eventLeaderEmail: "", 
     day: "",
     location: "",
     date: "",
-    status: "open",
+    status: "incomplete", 
     recurring: false,
     eventTimestamp: "",
     UUID: "",
     _id: ""
   });
   const [loading, setLoading] = useState(false);
-  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
-
 
   useEffect(() => {
     if (event && isOpen) {
@@ -46,7 +44,6 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         fullEvent: event
       });
 
-      // ✅ CRITICAL FIX: Extract identifiers with better fallbacks
       const eventUUID = event.UUID || event.uuid || "";
       const eventId = event._id || event.id || "";
 
@@ -57,48 +54,49 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         hasId: !!eventId
       });
 
-      // ✅ CRITICAL: Ensure at least ONE identifier exists
       if (!eventUUID && !eventId) {
-        console.error('❌ CRITICAL: No identifier found in event object!', event);
-        // setAlert({
-        //   open: true,
-        //   type: "error",
-        //   message: "Cannot edit event: No identifier found. Please refresh and try again.",
-        // });
+        console.error(' CRITICAL: No identifier found in event object!', event);
         toast.error("Cannot edit event: No identifier found. Please refresh and try again.");
         return;
       }
 
-      // ✅ Set form data with identifiers preserved
+      const normalizeStatus = (status) => {
+        if (!status) return "incomplete";
+        const statusLower = status.toLowerCase().trim();
+        if (statusLower === "did not meet" || statusLower === "didnotmeet") return "did_not_meet";
+        if (statusLower === "complete") return "complete";
+        if (statusLower === "incomplete") return "incomplete";
+        if (statusLower === "cancelled") return "cancelled";
+        return "incomplete";
+      };
+
       setFormData({
-        // Identifiers - MUST preserve both
         UUID: eventUUID,
         _id: eventId,
-
-        // Form fields with safe fallbacks
         eventName: event.eventName || event.name || "",
-        eventLeader: event.eventLeader || event.eventLeaderName || event.leader || "",
+        eventLeaderName: event.eventLeaderName || event.Leader || event.leader || "", 
+        eventLeaderEmail: event.eventLeaderEmail || event.Email || event.email || "", 
         day: event.day || event.recurring_day?.[0] || "",
         location: event.location || event.address || "",
         date: event.date || event.dateOfEvent || "",
-        status: event.status || event.Status || "open",
-        recurring: event.renocaming || event.recurring || event.isVirtual || false,
+        status: normalizeStatus(event.status || event.Status), 
+        recurring: event.recurring || event.is_recurring || event.isVirtual || false,
         eventTimestamp: event.eventTimestamp || event.created_at || event.updated_at || ""
       });
 
-      // ✅ Verify state was set correctly
       setTimeout(() => {
         console.log('✅ FormData after setting:', {
           UUID: eventUUID,
           _id: eventId,
-          eventName: event.eventName || event.name || ""
+          eventName: event.eventName || event.name || "",
+          status: normalizeStatus(event.status || event.Status)
         });
       }, 100);
     }
   }, [event, isOpen]);
 
   const { width } = useWindowSize();
-  const isSmall = (width || 0) <= 420; // targets small phones
+  const isSmall = (width || 0) <= 420;
   const isDark = theme.palette.mode === "dark";
 
   const handleInputChange = (e) => {
@@ -110,33 +108,18 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
   };
 
   const handleSave = async () => {
-    console.log('Save initiated - Current formData:', formData);
+    console.log(' Save initiated - Current formData:', formData);
 
-    // CRITICAL FIX: Prefer _id over UUID for updates
     const primaryIdentifier = formData._id || formData.UUID;
 
     if (!primaryIdentifier) {
-      console.error('No event identifier found. FormData:', formData);
-      console.error('Original event:', event);
-
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: "Cannot save: Missing event identifier. Please close and try again.",
-      // });
-      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
+      console.error(' No event identifier found. FormData:', formData);
+      console.error(' Original event:', event);
       toast.error("Cannot save: Missing event identifier. Please close and try again.");
       return;
     }
 
-    // ✅ Validate required fields
     if (!formData.eventName?.trim() || !formData.date) {
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: "Please fill in event name and date",
-      // });
-      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 3000);
       toast.error("Please fill in event name and date");
       return;
     }
@@ -144,24 +127,22 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     setLoading(true);
 
     try {
-      // ✅ CRITICAL FIX: Build payload with correct identifier
+      let formattedDate = formData.date;
+      if (formattedDate && formattedDate.includes('T')) {
+        formattedDate = formattedDate.split('T')[0];
+      }
+
       const updatePayload = {
-        // Use the primary identifier (_id preferred)
         ...(formData._id && { _id: formData._id }),
         ...(formData.UUID && { UUID: formData.UUID }),
-
-        // CRITICAL: Event name must be sent to backend
         eventName: formData.eventName.trim(),
-
-        // Updated fields
+        eventLeaderName: formData.eventLeaderName, 
+        eventLeaderEmail: formData.eventLeaderEmail, 
         day: formData.day,
         location: formData.location,
-        date: formData.date,
-        status: formData.status,
-        renocaming: formData.recurring,
-
-        // Preserve original data
-        eventLeader: formData.eventLeader,
+        date: formattedDate, 
+        status: formData.status, 
+        recurring: formData.recurring,
         eventType: event?.eventType,
         isTicketed: event?.isTicketed,
         isGlobal: event?.isGlobal
@@ -174,38 +155,27 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         eventNameChanged: formData.eventName.trim() !== event?.eventName
       });
 
-      // ✅ Call the save function with the payload
       const result = await onSave(updatePayload);
 
-      console.log('Save result:', result);
+      console.log('✅ Save result:', result);
 
       if (result && (result.success || result.event)) {
-        // setAlert({
-        //   open: true,
-        //   type: "success",
-        //   message: "Event updated successfully! Refreshing...",
-        // });
-        // toast.success("Event updated successfully! Refreshing...");
+        toast.success("Event updated successfully!");
         
-        // ✅ CRITICAL: Close modal after short delay and force refresh
-        // setTimeout(() => {
-        //   // setAlert({ open: false, type: "success", message: "" });
-        //   // setLoading(false);
-        // toast.success("Event updated successfully! Refreshing...");
-
-        //   // Call onClose with explicit true parameter
-        //   if (typeof onClose === 'function') {
-        //     onClose(true);
-        //   }
-        // }, 800);
+        console.log('🚪 Closing modal after successful save...');
+        
+        if (typeof onClose === 'function') {
+          console.log('🔄 Calling onClose(true) to trigger refresh');
+          onClose(true);
+        }
+        
       } else {
         throw new Error(result?.message || "Update failed - no confirmation received");
       }
 
     } catch (error) {
-      console.error('Error saving event:', error);
+      console.error('❌ Error saving event:', error);
 
-      // Extract proper error message
       let errorMessage = "Failed to update event";
 
       if (typeof error === 'string') {
@@ -218,13 +188,8 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         errorMessage = error.response.data.message;
       }
       
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: errorMessage,
-      // });
-      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
       toast.error(errorMessage);
+      
     } finally {
       setLoading(false);
     }
@@ -285,27 +250,6 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       color: theme.palette.text.primary,
       outline: "none",
       boxSizing: "border-box",
-
-      // Add autofill fixes
-      "&:-webkit-autofill": {
-        WebkitBoxShadow: `0 0 0px 1000px ${isDark ? theme.palette.background.default : "#fff"} inset`,
-        WebkitTextFillColor: theme.palette.text.primary,
-        caretColor: theme.palette.text.primary,
-        border: `1px solid ${isDark ? theme.palette.divider : "rgba(0,0,0,0.12)"}`,
-      },
-
-      "&:-webkit-autofill:hover": {
-        WebkitBoxShadow: `0 0 0px 1000px ${isDark ? theme.palette.background.default : "#fff"} inset`,
-        WebkitTextFillColor: theme.palette.text.primary,
-      },
-
-      "&:-webkit-autofill:focus": {
-        WebkitBoxShadow: `0 0 0px 1000px ${isDark ? theme.palette.background.default : "#fff"} inset`,
-        WebkitTextFillColor: theme.palette.text.primary,
-        border: `2px solid ${theme.palette.primary.main}`,
-      },
-
-      // Remove default autofill styles
       transition: "background-color 5000s ease-in-out 0s",
     },
     readOnlyInput: {
@@ -319,13 +263,6 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       outline: "none",
       boxSizing: "border-box",
       cursor: "not-allowed",
-
-      // Add autofill fixes for read-only inputs too
-      "&:-webkit-autofill": {
-        WebkitBoxShadow: `0 0 0px 1000px ${isDark ? "#2b2b2b" : "#f5f5f5"} inset`,
-        WebkitTextFillColor: isDark ? theme.palette.text.secondary : "#666",
-        caretColor: isDark ? theme.palette.text.secondary : "#666",
-      },
     },
     checkboxGroup: {
       display: "flex",
@@ -368,17 +305,6 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       transition: "all 0.2s ease",
       width: isSmall ? "100%" : "auto",
     },
-    saveBtnDisabled: {
-      padding: "10px 20px",
-      background: "#666",
-      border: "none",
-      borderRadius: "6px",
-      color: "#ccc",
-      cursor: "not-allowed",
-      fontSize: "14px",
-      fontWeight: "500",
-      opacity: 0.6,
-    },
     infoBox: {
       background: isDark ? theme.palette.background.default : "#f7f7f7",
       border: `1px solid ${theme.palette.divider}`,
@@ -397,11 +323,13 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       <div style={styles.modal}>
         <h2 style={styles.title}>Edit Event</h2>
 
-        {/* ✅ Event Identifier Status */}
+        {/* Event Identifier Status */}
         <div style={{
           ...styles.infoBox,
-          border: hasIdentifier ? "1px solid #555" : "2px solid #ef4444",
-          background: hasIdentifier ? "#2b2b2b" : "#442222"
+          border: hasIdentifier ? `1px solid ${theme.palette.divider}` : "2px solid #ef4444",
+          background: hasIdentifier 
+            ? (isDark ? theme.palette.background.default : "#f7f7f7")
+            : "#442222"
         }}>
           <strong>Event Identification:</strong>
           <br />
@@ -417,7 +345,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           )}
           {!hasIdentifier && (
             <div style={{ color: "#ef4444", marginTop: "4px" }}>
-              No identifier found - cannot save
+              ⚠️ No identifier found - cannot save
             </div>
           )}
         </div>
@@ -448,14 +376,9 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           <label style={styles.label}>Leader</label>
           <input
             type="text"
-            name="eventLeader"
-            value={formData.eventLeader}
-            style={{
-              ...styles.readOnlyInput,
-              WebkitBoxShadow: isDark ? '0 0 0 1000px #2b2b2b inset' : '0 0 0 1000px #f5f5f5 inset',
-              WebkitTextFillColor: isDark ? theme.palette.text.secondary : '#666',
-              caretColor: isDark ? theme.palette.text.secondary : '#666',
-            }}
+            name="eventLeaderName"
+            value={formData.eventLeaderName}
+            style={styles.readOnlyInput}
             readOnly
             title="Leader cannot be changed"
           />
@@ -515,10 +438,9 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             style={styles.input}
             disabled={loading || !hasIdentifier}
           >
-            <option value="open">Open</option>
-            <option value="Incomplete">Incomplete</option>
-            <option value="Complete">Complete</option>
-            <option value="Did Not Meet">Did Not Meet</option>
+            <option value="incomplete">Incomplete</option>
+            <option value="complete">Complete</option>
+            <option value="did_not_meet">Did Not Meet</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
@@ -542,13 +464,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
           <input
             type="text"
             value={formData.eventTimestamp ? new Date(formData.eventTimestamp).toLocaleString() : 'Unknown'}
-            style={{
-              ...styles.readOnlyInput,
-              // Force autofill styles for Created At field
-              WebkitBoxShadow: isDark ? '0 0 0 1000px #2b2b2b inset' : '0 0 0 1000px #f5f5f5 inset',
-              WebkitTextFillColor: isDark ? theme.palette.text.secondary : '#666',
-              caretColor: isDark ? theme.palette.text.secondary : '#666',
-            }}
+            style={styles.readOnlyInput}
             readOnly
           />
         </div>
@@ -558,22 +474,34 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
             style={styles.cancelBtn}
             onClick={() => onClose(false)}
             disabled={loading}
+            onMouseEnter={(e) => {
+              if (!loading) e.currentTarget.style.borderColor = theme.palette.primary.main;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = theme.palette.divider;
+            }}
           >
             CANCEL
           </button>
           <button
-            style={styles.saveBtn}
+            style={{
+              ...styles.saveBtn,
+              opacity: loading ? 0.7 : 1,
+              cursor: loading || !hasIdentifier ? 'not-allowed' : 'pointer',
+            }}
             onClick={handleSave}
-            onMouseEnter={(e) => e.currentTarget.style.opacity = 0.95}
-            onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
+            disabled={loading || !hasIdentifier}
+            onMouseEnter={(e) => {
+              if (!loading && hasIdentifier) e.currentTarget.style.opacity = 0.9;
+            }}
+            onMouseLeave={(e) => {
+              if (!loading && hasIdentifier) e.currentTarget.style.opacity = 1;
+            }}
           >
-            {loading ? "SAVING..." : hasIdentifier ? "SAVE" : "MISSING ID"}
+            {loading ? "SAVING..." : hasIdentifier ? "SAVE CHANGES" : "MISSING ID"}
           </button>
         </div>
       </div>
-
-      {/* Alert Messages */}
-
     </div>
   );
 };
