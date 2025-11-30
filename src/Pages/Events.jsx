@@ -450,7 +450,8 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       'week_identifier', 'attendees', '_id', 'isoverdue', 'attendance', 'location',
       'eventtype', 'event_type', 'eventtypes', 'status', 'displaydate', 'originatedid',
       'leader12', 'leader@12', 'leader at 12', 'original_event_id', '_is_overdue',
-      'haspersonsteps', 'haspersonsteps', 'has_person_steps'
+      'haspersonsteps', 'haspersonsteps', 'has_person_steps',
+       'is_recurring', 'isrecurring', 'recurring' 
     ];
 
     const exactMatch = excludedFields.includes(key);
