@@ -675,7 +675,7 @@ const Events = () => {
     userRole.includes("leader at 1728");
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-  const DEFAULT_API_START_DATE = '2025-10-27';
+  const DEFAULT_API_START_DATE = '2025-11-30';
 
   // State declarations - ALL AT THE TOP
   const [showFilter, setShowFilter] = useState(false);
@@ -1106,68 +1106,44 @@ const Events = () => {
     }
   };
 
-  // Call this when you try to delete
-  const handleDeleteEventType = () => {
-    if (selectedTypeForMenu && selectedTypeForMenu !== 'all') {
-      console.log("Attempting to delete event type:", selectedTypeForMenu);
+ 
+const handleStatusFilterChange = useCallback((newStatus) => {
+  console.log("Status filter changing to:", newStatus);
 
-      // Debug: Check what events are using this type
-      checkEventsForType(selectedTypeForMenu);
+  setSelectedStatus(newStatus);
+  setCurrentPage(1);
 
-      const exactEventType = eventTypes.find(et => {
-        const etName = et.name || et.eventType || et.eventTypeName || '';
-        return etName.toLowerCase() === selectedTypeForMenu.toLowerCase();
-      });
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
 
-      const typeToDelete = exactEventType ?
-        (exactEventType.name || exactEventType.eventType || exactEventType.eventTypeName) :
-        selectedTypeForMenu;
-
-      console.log("Final type to delete:", typeToDelete);
-      setToDeleteType(typeToDelete);
-      setConfirmDeleteOpen(true);
-    }
-    handleMenuClose();
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    status: newStatus !== 'all' ? newStatus : undefined,
+    start_date: DEFAULT_API_START_DATE,
+    _t: Date.now(),
+    ...(searchQuery.trim() && { search: searchQuery.trim() }),
+    ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
+    ...(shouldApplyPersonalFilter && { personal: true }),
+    ...(isLeaderAt12 && {
+      leader_at_12_view: true,
+      include_subordinate_cells: true,
+      ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
+      ...(viewFilter === 'personal' ?
+        { show_personal_cells: true, personal: true } :
+        { show_all_authorized: true }
+      )
+    })
   };
 
-  const handleStatusFilterChange = useCallback((newStatus) => {
-    console.log(" Status filter changing to:", newStatus);
+  if (newStatus === 'all') {
+    delete fetchParams.status;
+  }
 
-    setSelectedStatus(newStatus);
-    setCurrentPage(1);
-
-    const shouldApplyPersonalFilter =
-      viewFilter === 'personal' &&
-      (userRole === "admin" || userRole === "leader at 12");
-
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage,
-      status: newStatus !== 'all' ? newStatus : undefined,
-      start_date: DEFAULT_API_START_DATE,
-      _t: Date.now(),
-      ...(searchQuery.trim() && { search: searchQuery.trim() }),
-      ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
-      ...(shouldApplyPersonalFilter && { personal: true }),
-      // Leader at 12 params
-      ...(isLeaderAt12 && {
-        leader_at_12_view: true,
-        include_subordinate_cells: true,
-        ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
-        ...(viewFilter === 'personal' ?
-          { show_personal_cells: true, personal: true } :
-          { show_all_authorized: true }
-        )
-      })
-    };
-
-    if (newStatus === 'all') {
-      delete fetchParams.status;
-    }
-
-    console.log(" Fetching with status params:", fetchParams);
-    fetchEvents(fetchParams, true, true);
-  }, [
+  console.log("Fetching with status params:", fetchParams);
+  fetchEvents(fetchParams, true, false); 
+},  [
     viewFilter,
     userRole,
     rowsPerPage,
@@ -1347,27 +1323,26 @@ const Events = () => {
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, DEFAULT_API_START_DATE]);
 
 
-  const handleSearchSubmit = useCallback(() => {
-    const trimmedSearch = searchQuery.trim();
+ const handleSearchSubmit = useCallback(() => {
+  const trimmedSearch = searchQuery.trim();
 
-    let shouldApplyPersonalFilter = undefined;
-    if (userRole === "admin" || userRole === "leader at 12") {
-      shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
-    }
+  let shouldApplyPersonalFilter = undefined;
+  if (userRole === "admin" || userRole === "leader at 12") {
+    shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
+  }
 
-    setCurrentPage(1);
+  setCurrentPage(1);
 
-    fetchEvents({
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: trimmedSearch || undefined,
-      personal: shouldApplyPersonalFilter,
-      start_date: DEFAULT_API_START_DATE
-    }, true);
-  }, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
-
+  fetchEvents({
+    page: 1,
+    limit: rowsPerPage,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    search: trimmedSearch || undefined,
+    personal: shouldApplyPersonalFilter,
+    start_date: DEFAULT_API_START_DATE
+  }, true, false);
+}, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
   const handleRowsPerPageChange = useCallback((e) => {
     const newRowsPerPage = Number(e.target.value);
     setRowsPerPage(newRowsPerPage);
@@ -2153,53 +2128,9 @@ const Events = () => {
   };
 
   const handleSearchChange = useCallback((e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    searchTimeoutRef.current = setTimeout(() => {
-      const trimmedSearch = value.trim();
-      console.log("🔍 Executing search for:", trimmedSearch);
-
-      let shouldApplyPersonalFilter = undefined;
-      if (userRole === "admin" || userRole === "leader at 12") {
-        shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
-      }
-
-      setCurrentPage(1);
-      clearCache();
-
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now(), // Cache buster
-        // Include search parameter
-        ...(trimmedSearch && { search: trimmedSearch }),
-        ...(shouldApplyPersonalFilter && { personal: true }),
-      };
-
-      // Determine event_type for endpoint selection
-      if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-        fetchParams.event_type = selectedEventTypeFilter;
-      } else {
-        fetchParams.event_type = "CELLS";
-      }
-
-      if (selectedStatus && selectedStatus !== 'all') {
-        fetchParams.status = selectedStatus;
-      }
-
-      console.log("🔍 Search fetching with params:", fetchParams);
-      fetchEvents(fetchParams, true);
-    }, 800);
-  },
-    [userRole, viewFilter, clearCache, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
-
-  // Replace your checkAccess useEffect in Events.jsx with this fixed version:
+  const value = e.target.value;
+  setSearchQuery(value);
+}, []);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -2425,22 +2356,14 @@ const Events = () => {
 
 
 
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, []);
 
 
-  // Add this useEffect to automatically set Leader at 12 to VIEW ALL on initial load
+
   useEffect(() => {
     if (isLeaderAt12 && viewFilter === 'personal') {
       console.log("🔄 Auto-switching Leader at 12 to VIEW ALL mode on initial load");
       setViewFilter('all');
 
-      // Force refresh with VIEW ALL params
       const fetchParams = {
         page: 1,
         limit: rowsPerPage,
@@ -3519,32 +3442,66 @@ const Events = () => {
           px: 1
         }}>
           {/* ... TextField (Search) ... */}
-          <TextField
-            size="small"
-            placeholder="Search by Event Name, Leader, or Email..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleSearchSubmit();
-              }
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              flex: 1,
-              minWidth: 200,
-              '& .MuiInputBase-input': {
-                fontSize: isMobileView ? '14px' : '0.95rem',
-                padding: isMobileView ? '0.6rem 0.8rem' : '0.75rem 1rem',
-              }
-            }}
-          />
+
+
+<TextField
+  size="small"
+  placeholder="Search by Event Name, Leader, or Email..."
+  value={searchQuery}
+  onChange={handleSearchChange}
+  onKeyPress={(e) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit();
+    }
+  }}
+  InputProps={{
+    startAdornment: (
+      <InputAdornment position="start">
+        <SearchIcon />
+      </InputAdornment>
+    ),
+  }}
+  sx={{
+    flex: 1,
+    minWidth: 200,
+    backgroundColor: 'transparent !important',
+    '& .MuiInputBase-root': {
+      backgroundColor: 'transparent !important',
+    },
+    '& .MuiInputBase-input': {
+      fontSize: isMobileView ? '14px' : '0.95rem',
+      padding: isMobileView ? '0.6rem 0.8rem' : '0.75rem 1rem',
+      color: isDarkMode ? theme.palette.text.primary : '#000',
+      backgroundColor: 'transparent !important',
+    },
+    '& .MuiOutlinedInput-root': {
+      backgroundColor: 'transparent !important',
+      '& fieldset': {
+        borderColor: isDarkMode ? theme.palette.divider : '#ccc',
+        backgroundColor: 'transparent !important',
+      },
+      '&:hover fieldset': {
+        borderColor: isDarkMode ? theme.palette.primary.main : '#007bff',
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: isDarkMode ? theme.palette.primary.main : '#007bff',
+      },
+      '&:hover': {
+        backgroundColor: 'transparent !important',
+      },
+      '&.Mui-focused': {
+        backgroundColor: 'transparent !important',
+      },
+    },
+    '& input': {
+      backgroundColor: 'transparent !important',
+    },
+    '& input:-webkit-autofill': {
+      WebkitBoxShadow: isDarkMode ? '0 0 0 1000px #1a1a1a inset !important' : '0 0 0 1000px white inset !important',
+      WebkitTextFillColor: isDarkMode ? '#fff !important' : '#000 !important',
+    },
+  }}
+/>
 
           {/* ... Button (Search) ... */}
           <Button

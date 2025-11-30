@@ -6,10 +6,10 @@ export default function Home() {
   const [openPopup, setOpenPopup] = useState(false);
 
   const sections = [
-    { image: "/Untitled.jpg" },
-    { image: "/newposter.jpg" },
+    { image: "/img2.jpeg" },
     { image: "/homebanner1.jpg" },
     { image: "/home.jpg" },
+    { image: "/amenclub.jpeg" },
   ];
 
   return (
