@@ -1,3 +1,4 @@
+
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -166,13 +167,7 @@ const Login = ({ mode, setMode }) => {
           Login
         </Typography>
 
-        <Box
-          component="form"
-          onSubmit={handleSubmit}
-          display="flex"
-          flexDirection="column"
-          gap={2}
-        >
+        <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={2}>
           <TextField
             label="Email Address"
             name="email"
@@ -212,16 +207,8 @@ const Login = ({ mode, setMode }) => {
             }}
           />
 
-          {error && (
-            <Typography color="error.main" textAlign="center">
-              {error}
-            </Typography>
-          )}
-          {success && (
-            <Typography color="success.main" textAlign="center">
-              {success}
-            </Typography>
-          )}
+          {error && <Typography color="error.main" textAlign="center">{error}</Typography>}
+          {success && <Typography color="success.main" textAlign="center">{success}</Typography>}
 
           <Button
             type="submit"

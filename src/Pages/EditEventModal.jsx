@@ -39,14 +39,14 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
 
   useEffect(() => {
     if (event && isOpen) {
-      console.log('Loading event for editing:', {
+      console.log('📝 Loading event for editing:', {
         name: event.eventName,
         UUID: event.UUID,
         _id: event._id,
         fullEvent: event
       });
 
-      // CRITICAL FIX: Extract identifiers with better fallbacks
+      // ✅ CRITICAL FIX: Extract identifiers with better fallbacks
       const eventUUID = event.UUID || event.uuid || "";
       const eventId = event._id || event.id || "";
 
@@ -57,9 +57,9 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         hasId: !!eventId
       });
 
-      // CRITICAL: Ensure at least ONE identifier exists
+      // ✅ CRITICAL: Ensure at least ONE identifier exists
       if (!eventUUID && !eventId) {
-        console.error('CRITICAL: No identifier found in event object!', event);
+        console.error('❌ CRITICAL: No identifier found in event object!', event);
         // setAlert({
         //   open: true,
         //   type: "error",
@@ -69,7 +69,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         return;
       }
 
-      // Set form data with identifiers preserved
+      // ✅ Set form data with identifiers preserved
       setFormData({
         // Identifiers - MUST preserve both
         UUID: eventUUID,
@@ -86,9 +86,9 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         eventTimestamp: event.eventTimestamp || event.created_at || event.updated_at || ""
       });
 
-      // Verify state was set correctly
+      // ✅ Verify state was set correctly
       setTimeout(() => {
-        console.log('FormData after setting:', {
+        console.log('✅ FormData after setting:', {
           UUID: eventUUID,
           _id: eventId,
           eventName: event.eventName || event.name || ""
@@ -129,7 +129,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       return;
     }
 
-    // Validate required fields
+    // ✅ Validate required fields
     if (!formData.eventName?.trim() || !formData.date) {
       // setAlert({
       //   open: true,
@@ -144,7 +144,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
     setLoading(true);
 
     try {
-      // CRITICAL FIX: Build payload with correct identifier
+      // ✅ CRITICAL FIX: Build payload with correct identifier
       const updatePayload = {
         // Use the primary identifier (_id preferred)
         ...(formData._id && { _id: formData._id }),
@@ -167,20 +167,37 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         isGlobal: event?.isGlobal
       };
 
-      console.log('Saving event with payload:', {
+      console.log('💾 Saving event with payload:', {
         identifier: primaryIdentifier,
         identifierType: formData._id ? '_id' : 'UUID',
         payload: updatePayload,
         eventNameChanged: formData.eventName.trim() !== event?.eventName
       });
 
-      // Call the save function with the payload
+      // ✅ Call the save function with the payload
       const result = await onSave(updatePayload);
 
       console.log('Save result:', result);
 
       if (result && (result.success || result.event)) {
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: "Event updated successfully! Refreshing...",
+        // });
+        // toast.success("Event updated successfully! Refreshing...");
+        
+        // ✅ CRITICAL: Close modal after short delay and force refresh
+        // setTimeout(() => {
+        //   // setAlert({ open: false, type: "success", message: "" });
+        //   // setLoading(false);
+        // toast.success("Event updated successfully! Refreshing...");
 
+        //   // Call onClose with explicit true parameter
+        //   if (typeof onClose === 'function') {
+        //     onClose(true);
+        //   }
+        // }, 800);
       } else {
         throw new Error(result?.message || "Update failed - no confirmation received");
       }
@@ -200,7 +217,13 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       }
-
+      
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: errorMessage,
+      // });
+      // setTimeout(() => setAlert({ open: false, type: "error", message: "" }), 4000);
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -374,7 +397,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
       <div style={styles.modal}>
         <h2 style={styles.title}>Edit Event</h2>
 
-        {/* Event Identifier Status */}
+        {/* ✅ Event Identifier Status */}
         <div style={{
           ...styles.infoBox,
           border: hasIdentifier ? "1px solid #555" : "2px solid #ef4444",
@@ -403,8 +426,8 @@ const EditEventModal = ({ isOpen, onClose, event, onSave }) => {
         {event?.eventType && (
           <div style={styles.infoBox}>
             <strong>Event Type:</strong> {event.eventType}
-            {event?.isGlobal && <span> • Global</span>}
-            {event?.isTicketed && <span> •Ticketed</span>}
+            {event?.isGlobal && <span> • 🌍 Global</span>}
+            {event?.isTicketed && <span> • 🎫 Ticketed</span>}
           </div>
         )}
 

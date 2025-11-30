@@ -33,7 +33,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     dob: "",
     address: "",
   });
-
+  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
   const [inviterSearch, setInviterSearch] = useState("");
   const [inviterResults, setInviterResults] = useState([]);
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
@@ -362,6 +362,13 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
           timestamp: null,
           expiry: 5 * 60 * 1000
         };
+
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: "Person added successfully!",
+        // })
+        // toast.success("Person added successfully!");;
 
         if (typeof onPersonAdded === "function") {
           onPersonAdded(data.person || data);
@@ -1213,12 +1220,59 @@ input: {
 
               <div style={styles.inputContainer}>
                 <input
+                  // type="text"
                   value={leaderSearches[field]}
+                  // onChange={(e) => handleSearchChange(e, field)}
+                  // onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
                   onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
                   style={styles.input}
                   placeholder={`Type to search...`}
                   autoComplete="off"
                 />
+                
+                {/* {leaderSearches[field] && (
+                  <button 
+                    type="button" 
+                    style={styles.clearButton}
+                    onClick={() => handleClearField(field)}
+                  >
+                    <X size={14} />
+                  </button>
+                )} */}
+                
+                {/* {showDropdowns[field] && leaderSearches[field].length > 0 && (
+                  <div style={styles.dropdown}>
+                    {loadingLeaders && (
+                      <div style={styles.dropdownEmpty}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                          <div style={{ 
+                            width: '14px', 
+                            height: '14px', 
+                            border: `2px solid ${isDarkMode ? '#555' : '#ddd'}`,
+                            borderTop: `2px solid #6366f1`,
+                            borderRadius: '50%',
+                            animation: 'spin 1s linear infinite'
+                          }} />
+                          Searching...
+                        </div>
+                      </div>
+                    )}
+                    {!loadingLeaders && leaderResults[field].length === 0 && (
+                      <div style={styles.dropdownEmpty}>No results found</div>
+                    )}
+                    {!loadingLeaders && leaderResults[field].map((person) => (
+                      <div
+                        key={person.id}
+                        style={styles.dropdownItem}
+                        onClick={() => handleLeaderSelect(person, field)}
+                        onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f5f5f5"}
+                        onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
+                      >
+                        {person.fullName}
+                      </div>
+                    ))}
+                  </div>
+                )} */}
               </div>
             </div>
           ))}
@@ -1255,6 +1309,8 @@ input: {
   );
 };
 
+// import { toast } from "react-toastify";
+
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
   const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
@@ -1271,6 +1327,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [commonAttendees, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  // const [alert, setAlert] = useState({
+  //   open: false,
+  //   type: "success",
+  //   message: "",
+  // });
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
@@ -1286,13 +1347,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const isTicketedEvent = event?.isTicketed || false;
   const eventPriceTiers = event?.priceTiers || [];
   const theme = useTheme();
-
-  // Debug logging
-  console.log("=== TICKETED EVENT DEBUG ===");
-  console.log("Event object:", event);
-  console.log("isTicketedEvent:", isTicketedEvent);
-  console.log("eventPriceTiers:", eventPriceTiers);
-  console.log("===========================");
 
   const isDarkMode = theme.palette.mode === "dark";
   const decisionOptions = [
@@ -1549,7 +1603,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     if (!event) return;
 
     const eventId = event._id || event.id;
-    console.log("Loading attendance data for event:", eventId);
+    console.log("🔄 Loading attendance data for event:", eventId);
 
     const currentWeek = getCurrentWeekIdentifier();
 
@@ -1560,7 +1614,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     setManualHeadcount("");
     setDidNotMeet(false);
 
-    console.log(`NEW WEEK - ${persistentCommonAttendees?.length || 0} names loaded - ALL UNCHECKED`);
+    console.log(`🆕 NEW WEEK - ${persistentCommonAttendees?.length || 0} names loaded - ALL UNCHECKED`);
 
     // Only load existing ticks if this week already has attendance data WITH CHECKED-IN ATTENDEES
     const hasCurrentWeekData =
@@ -1573,9 +1627,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       event.attendance[currentWeek] &&
       event.attendance[currentWeek].status === "did_not_meet";
 
-    console.log(`Current week: ${currentWeek}`);
-    console.log(`Has current week data: ${hasCurrentWeekData}`);
-    console.log(`Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
+    console.log(`📅 Current week: ${currentWeek}`);
+    console.log(`✅ Has current week data: ${hasCurrentWeekData}`);
+    console.log(`❌ Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
 
     if (hasCurrentWeekData && !hasCurrentWeekDidNotMeet) {
       const weekData = event.attendance[currentWeek];
@@ -1689,8 +1743,27 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       const newState = { ...prev, [id]: !prev[id] };
 
       if (newState[id]) {
-
+      //  toast.success(`${name} has been checked in`);
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: `${name} has been checked in`,
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "success", message: "" }),
+        //   3000
+        // );
       } else {
+        // setAlert({
+        //   open: true,
+        //   type: "warning",
+        //   message: `You have unchecked ${name}`,
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "warning", message: "" }),
+        //   3000
+        // );
+        // toast.warning(`You have unchecked ${name}`);
 
         setDecisions((prev) => ({ ...prev, [id]: false }));
         setDecisionTypes((prev) => {
@@ -1790,6 +1863,15 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       setPersistentCommonAttendees(updatedAttendees);
       savePersistentCommonAttendees(updatedAttendees);
 
+      // setAlert({
+      //   open: true,
+      //   type: "success",
+      //   message: `${person.fullName} added to common attendees`,
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "success", message: "" }),
+      //   3000
+      // );
       toast.success(`${person.fullName} added to common attendees`);
     }
   };
@@ -1803,7 +1885,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       combinedCount: combined.length
     });
 
-    // FIX: Add validation and filtering for invalid entries
+    // ✅ FIX: Add validation and filtering for invalid entries
     const fixedAttendees = combined
       .filter(persistentAttendee => persistentAttendee != null)
       .map(persistentAttendee => ({
@@ -1859,15 +1941,23 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     console.log("📊 All people for save:", allPeople);
 
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    console.log("Checked-in attendees:", attendeesList);
+    console.log("✅ Checked-in attendees:", attendeesList);
 
     if (!didNotMeet && attendeesList.length === 0) {
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Please check in at least one attendee before saving.",
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "error", message: "" }),
+      //   3000
+      // );
       toast.error("Please check in at least one attendee before saving.");
       return;
     }
 
     const eventId = event?.id || event?._id;
-
     if (!eventId) {
       toast.error("Event ID is missing, cannot submit attendance.");
       return;
@@ -2039,6 +2129,15 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     try {
       const eventId = event?.id || event?._id;
       if (!eventId) {
+        // setAlert({
+        //   open: true,
+        //   type: "error",
+        //   message: "Event ID is missing, cannot submit attendance.",
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "error", message: "" }),
+        //   3000
+        // );
         toast.error("Event ID is missing, cannot submit attendance");
         return;
       }
@@ -2104,17 +2203,48 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       }
 
       if (result?.success) {
+        // setAlert({
+        //   open: true,
+        //   type: "success",
+        //   message: "Event marked as 'Did Not Meet' successfully!",
+        // });
         toast.alert("Event marked as 'Did Not Meet' successfully!")
 
         if (typeof onAttendanceSubmitted === "function") {
           onAttendanceSubmitted();
         }
 
+        // setTimeout(() => {
+        //   setAlert({ open: false, type: "success", message: "" });
+        //   onClose();
+        // }, 1500);
       } else {
+        // setAlert({
+        //   open: true,
+        //   type: "error",
+        //   message:
+        //     result?.message ||
+        //     result?.detail ||
+        //     "Failed to mark event as 'Did Not Meet'.",
+        // });
+        // setTimeout(
+        //   () => setAlert({ open: false, type: "error", message: "" }),
+        //   3000
+        // );
         toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
       }
     } catch (error) {
-      console.error("Error marking event as 'Did Not Meet':", error);
+      console.error("❌ Error marking event as 'Did Not Meet':", error);
+      // setAlert({
+      //   open: true,
+      //   type: "error",
+      //   message: "Something went wrong while marking event as 'Did Not Meet'.",
+      // });
+      // setTimeout(
+      //   () => setAlert({ open: false, type: "error", message: "" }),
+      //   3000
+      // );
+      // toast.error("Something went wrong while marking event as 'Did Not Meet'.");
     }
   };
 
@@ -2139,6 +2269,16 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
     setShowAddPersonModal(false);
 
+    // Show success message
+    // setAlert({
+    //   open: true,
+    //   type: "success",
+    //   message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
+    // });
+    // setTimeout(
+    //   () => setAlert({ open: false, type: "success", message: "" }),
+    //   3000
+    // );
     toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
   };
 
@@ -2505,8 +2645,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       width: "100%",
     },
     tableContainer: {
+      // overflowX: "auto",
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
+      // overflowY: "hidden",
+      // border: "2px solid red",
       paddingBottom: 8,
     },
     table: {
@@ -2582,6 +2725,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       minWidth: isMobile ? 140 : 200,
       maxHeight: 300,
       overflowY: "auto",
+      // border: "2px solid blue",
     },
     decisionMenuItem: {
       padding: "10px 12px",
@@ -2590,6 +2734,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       color: theme.palette.text.primary,
       transition: "background 0.15s",
     },
+
+    
     priceTierButton: {
       display: "flex",
       alignItems: "center",
@@ -2883,9 +3029,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       display: "block",
       fontWeight: 600,
     },
-    inputGroup: {
-      marginBottom: "8px",
-    },
   };
 
   if (!isOpen) return null;
@@ -3103,10 +3246,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                                 </button>
                               </td>
 
-                              {/* Ticketed event columns */}
                               {isTicketedEvent && (
                                 <>
-                                  {/* Price Tier Column */}
                                   <td
                                     style={{
                                       ...styles.td,
@@ -3216,7 +3357,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                                     )}
                                   </td>
 
-                                  {/* Payment Method Column */}
                                   <td
                                     style={{
                                       ...styles.td,
@@ -3284,7 +3424,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                                     )}
                                   </td>
 
-                                  {/* Price Column */}
                                   <td
                                     style={{ ...styles.td, textAlign: "right" }}
                                   >
@@ -3299,7 +3438,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                                     )}
                                   </td>
 
-                                  {/* Paid Column */}
                                   <td
                                     style={{ ...styles.td, textAlign: "right" }}
                                   >
@@ -3323,7 +3461,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                                     )}
                                   </td>
 
-                                  {/* Owing Column */}
                                   <td
                                     style={{ ...styles.td, textAlign: "right" }}
                                   >
@@ -3346,7 +3483,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                                 </>
                               )}
 
-                              {/* Decision Column - Only for non-ticketed events */}
                               {!isTicketedEvent && (
                                 <td
                                   style={{ ...styles.td, ...styles.radioCell }}
@@ -3665,6 +3801,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
           <div style={styles.footer}>
             <button style={styles.closeBtn} onClick={onClose}>
+
               CLOSE
             </button>
             <div
@@ -3722,6 +3859,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           </div>
         </div>
       )}
+
+      
 
       <AddPersonToEvents
         isOpen={showAddPersonModal}

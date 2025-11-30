@@ -10,7 +10,7 @@ const EventDetails = () => {
     return (
       <div style={styles.container}>
         <h2>No event details found.</h2>
-        <button style={styles.backBtn} onClick={() => navigate(-1)}>Go Back</button>
+        <button style={styles.backBtn} onClick={() => navigate(-1)}>🔙 Go Back</button>
       </div>
     );
   }
@@ -22,7 +22,7 @@ const EventDetails = () => {
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.header}>Event Details</h1>
+      <h1 style={styles.header}>📋 Event Details</h1>
 
       <div style={styles.detailsBox}>
         <p><strong>Event Name:</strong> {event.service_name}</p>
@@ -32,7 +32,7 @@ const EventDetails = () => {
         <p><strong>Status:</strong> {latest.status === "attended" ? "Attended" : "Did Not Meet"}</p>
       </div>
 
-      <h2 style={styles.attendeesHeader}>Attendees</h2>
+      <h2 style={styles.attendeesHeader}>👥 Attendees</h2>
       {latest.attendees && latest.attendees.length > 0 ? (
         <ul style={styles.attendeeList}>
           {latest.attendees.map((person, index) => (
@@ -45,7 +45,7 @@ const EventDetails = () => {
         <p>No attendees captured for this event.</p>
       )}
 
-      <button style={styles.backBtn} onClick={() => navigate(-1)}>Go Back</button>
+      <button style={styles.backBtn} onClick={() => navigate(-1)}>🔙 Go Back</button>
     </div>
   );
 };
