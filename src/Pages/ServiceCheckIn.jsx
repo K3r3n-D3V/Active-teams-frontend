@@ -2703,7 +2703,6 @@ useEffect(() => {
             <Tab label="Event History" />
           </Tabs>
         </Paper>
-
 {activeTab === 0 && (
   <Box sx={{ width: '100%', height: '100%' }}>
     <Paper 
@@ -2712,274 +2711,140 @@ useEffect(() => {
         boxShadow: 3,
         overflow: 'hidden',
         width: '100%',
-        height: isMdDown ? `calc(100vh - ${containerPadding * 8 + 320}px)` : 500,
-        minHeight: isMdDown ? 400 : 500, 
-        maxHeight: isMdDown ? '550px' : 500, 
+        height: isMdDown ? `calc(100vh - ${containerPadding * 8 + 280}px)` : 650, // Increased from 500 to 650
+        minHeight: isMdDown ? 500 : 650, // Increased from 400/500 to 500/650
+        maxHeight: isMdDown ? '650px' : 700, // Increased from 550/500 to 650/700
       }}
     >
-<DataGrid
-  rows={sortedFilteredAttendees ?? attendees}
-  columns={mainColumns}
-  pageSizeOptions={[25, 50, 100]}
-  paginationModel={{
-    page: page,
-    pageSize: rowsPerPage,
-  }}
-  onPaginationModelChange={(model) => {
-    setPage(model.page);
-    setRowsPerPage(model.pageSize);
-  }}
-  rowCount={filteredAttendees.length}
-  slots={{
-    toolbar: GridToolbar,
-    // Custom pagination footer matching the screenshot
-    pagination: (props) => (
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between',
-        width: '100%',
-        p: isSmDown ? '6px 8px' : '8px 16px',
-        borderTop: `1px solid ${theme.palette.divider}`,
-        backgroundColor: theme.palette.background.paper,
-        minHeight: '52px',
-        flexWrap: isSmDown ? 'wrap' : 'nowrap',
-        gap: isSmDown ? 1 : 0
-      }}>
-        {/* Left side - Rows per page selector */}
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 1,
-          flexShrink: 0
-        }}>
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.875rem'),
-              color: theme.palette.text.secondary,
-              whiteSpace: 'nowrap'
-            }}
-          >
-            Rows per page:
-          </Typography>
-          <Select
-            size="small"
-            value={rowsPerPage}
-            onChange={(e) => {
-              setRowsPerPage(Number(e.target.value));
-              setPage(0);
-            }}
-            sx={{
-              fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.875rem'),
-              height: '32px',
-              minWidth: '80px',
-              '& .MuiSelect-select': {
-                py: '4px',
-                px: '8px',
-                display: 'flex',
-                alignItems: 'center'
-              },
-              '& .MuiOutlinedInput-notchedOutline': {
-                borderColor: theme.palette.divider,
-              }
-            }}
-            MenuProps={{
-              PaperProps: {
-                sx: {
-                  '& .MuiMenuItem-root': {
-                    fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.875rem'),
-                    py: '4px',
-                    px: '12px'
-                  }
-                }
-              }
-            }}
-          >
-            {[25, 50, 100].map((option) => (
-              <MenuItem 
-                key={option} 
-                value={option}
-              >
-                {option}
-              </MenuItem>
-            ))}
-          </Select>
-        </Box>
-
-        {/* Center - Page info */}
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.875rem'),
-            color: theme.palette.text.secondary,
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            mx: isSmDown ? 0 : 2
-          }}
-        >
-          {`${page * rowsPerPage + 1}–${Math.min((page + 1) * rowsPerPage, filteredAttendees.length)} of ${filteredAttendees.length}`}
-        </Typography>
-
-        {/* Right side - Pagination controls */}
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 0.5,
-          flexShrink: 0
-        }}>
-          {/* Previous button */}
-          <IconButton
-            size="small"
-            onClick={() => setPage(Math.max(0, page - 1))}
-            disabled={page === 0}
-            sx={{ 
-              p: '6px',
-              '&.Mui-disabled': {
-                opacity: 0.3
-              }
-            }}
-          >
-            <ChevronLeftIcon 
-              fontSize="small" 
-              sx={{ 
-                fontSize: isXsDown ? '1rem' : '1.125rem',
-                color: page === 0 ? theme.palette.text.disabled : theme.palette.text.primary
-              }}
-            />
-          </IconButton>
-          
-          {/* Next button */}
-          <IconButton
-            size="small"
-            onClick={() => setPage(Math.min(page + 1, Math.ceil(filteredAttendees.length / rowsPerPage) - 1))}
-            disabled={page >= Math.ceil(filteredAttendees.length / rowsPerPage) - 1}
-            sx={{ 
-              p: '6px',
-              '&.Mui-disabled': {
-                opacity: 0.3
-              }
-            }}
-          >
-            <ChevronRightIcon 
-              fontSize="small" 
-              sx={{ 
-                fontSize: isXsDown ? '1rem' : '1.125rem',
-                color: page >= Math.ceil(filteredAttendees.length / rowsPerPage) - 1 ? theme.palette.text.disabled : theme.palette.text.primary
-              }}
-            />
-          </IconButton>
-        </Box>
-      </Box>
-    ),
-  }}
-  slotProps={{
-    toolbar: {
-      showQuickFilter: true,
-      quickFilterProps: { debounceMs: 500 },
-    },
-  }}
-  disableRowSelectionOnClick
-  sortModel={sortModel}
-  onSortModelChange={(model) => {
-    setPage(0);
-    setSortModel(model);
-  }}
-  getRowId={(row) => row._id}
-  sx={{
-    width: '100%',
-    height: '80vh',
-    '& .MuiDataGrid-root': {
-      border: 'none',
-      width: '100%',
-    },
-    '& .MuiDataGrid-main': {
-      width: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%'
-    },
-    '& .MuiDataGrid-virtualScroller': {
-      width: '100% !important',
-      minWidth: '100%',
-      flex: 1
-    },
-    '& .MuiDataGrid-row': {
-      width: '100% !important',
-    },
-    '& .MuiDataGrid-cell': {
-      display: 'flex',
-      alignItems: 'center',
-      padding: isXsDown ? '2px 4px' : (isSmDown ? '2px 3px' : '4px 6px'),
-      fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
-      minWidth: '40px',
-    },
-    '& .MuiDataGrid-columnHeaders': {
-      width: '100% !important',
-      backgroundColor: theme.palette.action.hover,
-      borderBottom: `1px solid ${theme.palette.divider}`,
-    },
-    '& .MuiDataGrid-columnHeader': {
-      fontWeight: 600,
-      minWidth: '40px',
-      fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
-      padding: isXsDown ? '4px 2px' : (isSmDown ? '4px 2px' : '6px 4px'),
-      '& .MuiDataGrid-iconButtonContainer': {
-        visibility: 'visible !important',
-      },
-      '& .MuiDataGrid-sortIcon': {
-        opacity: 1,
-      },
-    },
-    '& .MuiDataGrid-row:hover': {
-      backgroundColor: theme.palette.action.hover,
-    },
-    '& .MuiDataGrid-toolbarContainer': {
-      padding: isXsDown ? '4px 2px' : (isSmDown ? '8px 4px' : '12px 8px'),
-      minHeight: 'auto',
-      width: '100%',
-      borderBottom: `1px solid ${theme.palette.divider}`,
-      '& .MuiOutlinedInput-root': {
-        fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
-      }
-    },
-    // Remove the default footer container since we're using custom pagination
-    '& .MuiDataGrid-footerContainer': {
-      display: 'none',
-    },
-    '& .MuiDataGrid-virtualScrollerContent': {
-      width: '100% !important',
-    },
-    '& .MuiDataGrid-scrollbar--vertical': {
-      width: '8px !important',
-    },
-    // Mobile-specific optimizations
-    ...(isSmDown && {
-      '& .MuiDataGrid-columnHeader': {
-        padding: '4px 2px',
-        fontSize: '0.7rem',
-        minWidth: '40px',
-      },
-      '& .MuiDataGrid-cell': {
-        padding: '2px 4px',
-        fontSize: '0.7rem',
-        minWidth: '40px',
-      },
-      '& .MuiDataGrid-columnSeparator': {
-        display: 'none',
-      },
-      '& .MuiDataGrid-toolbarContainer': {
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        gap: 1
-      }
-    }),
-  }}
-/>
-            </Paper>
-          </Box>
-        )}
-
+      <DataGrid
+        rows={sortedFilteredAttendees ?? attendees}
+        columns={mainColumns}
+        pagination
+        paginationModel={{
+          page: page,
+          pageSize: rowsPerPage,
+        }}
+        onPaginationModelChange={(model) => {
+          setPage(model.page);
+          setRowsPerPage(model.pageSize);
+        }}
+        rowCount={filteredAttendees.length}
+        pageSizeOptions={[25, 50, 100]}
+        slots={{
+          toolbar: GridToolbar,
+        }}
+        slotProps={{
+          toolbar: {
+            showQuickFilter: true,
+            quickFilterProps: { debounceMs: 500 },
+          },
+        }}
+        disableRowSelectionOnClick
+        sortModel={sortModel}
+        onSortModelChange={(model) => {
+          setPage(0);
+          setSortModel(model);
+        }}
+        getRowId={(row) => row._id}
+        sx={{
+          width: '100%',
+          height: 'calc(100% - 1px)', // Slightly smaller to fit within Paper
+          '& .MuiDataGrid-root': {
+            border: 'none',
+            width: '100%',
+            height: '100%',
+          },
+          '& .MuiDataGrid-main': {
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%'
+          },
+          '& .MuiDataGrid-virtualScroller': {
+            width: '100% !important',
+            minWidth: '100%',
+            flex: 1,
+            height: '100% !important',
+          },
+          '& .MuiDataGrid-row': {
+            width: '100% !important',
+          },
+          '& .MuiDataGrid-cell': {
+            display: 'flex',
+            alignItems: 'center',
+            padding: isXsDown ? '2px 4px' : (isSmDown ? '2px 3px' : '4px 6px'),
+            fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
+            minWidth: '40px',
+          },
+          '& .MuiDataGrid-columnHeaders': {
+            width: '100% !important',
+            backgroundColor: theme.palette.action.hover,
+            borderBottom: `1px solid ${theme.palette.divider}`,
+          },
+          '& .MuiDataGrid-columnHeader': {
+            fontWeight: 600,
+            minWidth: '40px',
+            fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
+            padding: isXsDown ? '4px 2px' : (isSmDown ? '4px 2px' : '6px 4px'),
+            '& .MuiDataGrid-iconButtonContainer': {
+              visibility: 'visible !important',
+            },
+            '& .MuiDataGrid-sortIcon': {
+              opacity: 1,
+            },
+          },
+          '& .MuiDataGrid-row:hover': {
+            backgroundColor: theme.palette.action.hover,
+          },
+          '& .MuiDataGrid-toolbarContainer': {
+            padding: isXsDown ? '4px 2px' : (isSmDown ? '8px 4px' : '12px 8px'),
+            minHeight: 'auto',
+            width: '100%',
+            borderBottom: `1px solid ${theme.palette.divider}`,
+            '& .MuiOutlinedInput-root': {
+              fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
+            }
+          },
+          // Ensure the footer is visible
+          '& .MuiDataGrid-footerContainer': {
+            display: 'flex',
+            borderTop: `1px solid ${theme.palette.divider}`,
+            backgroundColor: theme.palette.background.paper,
+            minHeight: '52px',
+          },
+          '& .MuiDataGrid-virtualScrollerContent': {
+            width: '100% !important',
+            height: '100% !important',
+          },
+          '& .MuiDataGrid-scrollbar--vertical': {
+            width: '8px !important',
+          },
+          // Mobile-specific optimizations
+          ...(isSmDown && {
+            '& .MuiDataGrid-columnHeader': {
+              padding: '4px 2px',
+              fontSize: '0.7rem',
+              minWidth: '40px',
+            },
+            '& .MuiDataGrid-cell': {
+              padding: '2px 4px',
+              fontSize: '0.7rem',
+              minWidth: '40px',
+            },
+            '& .MuiDataGrid-columnSeparator': {
+              display: 'none',
+            },
+            '& .MuiDataGrid-toolbarContainer': {
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: 1
+            }
+          }),
+        }}
+      />
+    </Paper>
+  </Box>
+)}
         {activeTab === 1 && (
           <Box sx={{ width: '100%' }}>
             <EventHistory
