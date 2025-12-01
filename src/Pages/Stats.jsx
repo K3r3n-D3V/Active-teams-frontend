@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Grid, Typography, Card, CardContent, LinearProgress, Chip, IconButton, Button,
   FormControl, InputLabel, Select, MenuItem, Alert, Avatar, useTheme, useMediaQuery,
@@ -12,6 +12,7 @@ import {
   People, CellTower, Task, Warning, Groups, Refresh, Add, CalendarToday, Close,
   Visibility, ChevronLeft, ChevronRight, Save, CheckCircle, Event
 } from '@mui/icons-material';
+
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 const StatsDashboard = () => {
@@ -29,6 +30,7 @@ const StatsDashboard = () => {
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
+  
   const [stats, setStats] = useState({
     overview: null,
     events: [],
@@ -54,31 +56,32 @@ const StatsDashboard = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [eventTypes, setEventTypes] = useState([]);
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
-
   const [overdueModalOpen, setOverdueModalOpen] = useState(false);
 
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+
   const getDateRange = () => {
-  const now = new Date();
-  const start = new Date(now);
-  const end = new Date(now);
+    const now = new Date();
+    const start = new Date(now);
+    const end = new Date(now);
 
-  if (period === 'weekly') {
-    const day = now.getDay(); // 0 = Sunday
-    start.setDate(now.getDate() - day);        // Start: Sunday
-    end.setDate(now.getDate() + (6 - day));    // End: Saturday
-  } else if (period === 'monthly') {
-    start.setDate(1);                          // First day of month
-    end.setMonth(end.getMonth() + 1);
-    end.setDate(0);                            // Last day of current month
-  }
+    if (period === 'weekly') {
+      const day = now.getDay(); // 0 = Sunday
+      start.setDate(now.getDate() - day);        // Start: Sunday
+      end.setDate(now.getDate() + (6 - day));    // End: Saturday
+    } else if (period === 'monthly') {
+      start.setDate(1);                          // First day of month
+      end.setMonth(end.getMonth() + 1);
+      end.setDate(0);                            // Last day of current month
+    }
 
-  start.setHours(0, 0, 0, 0);
-  end.setHours(23, 59, 59, 999);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
 
-  return { start, end }; // ← Return actual Date objects!
-};
+    return { start, end };
+  };
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     const cacheKey = `statsDashboard_${period}`;
     const cachedData = localStorage.getItem(cacheKey);
     
@@ -120,151 +123,156 @@ const StatsDashboard = () => {
 
       // 2. Fetch Tasks + Apply Date Filter
       let allTasks = [];
-    try {
-      const res = await fetch(`${BACKEND_URL}/tasks/all`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        const rawTasks = data.tasks || data.results || data.data || data || [];
+      try {
+        const res = await fetch(`${BACKEND_URL}/tasks/all`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const rawTasks = data.tasks || data.results || data.data || data || [];
 
-        const { start, end } = getDateRange(); // ← Now uses current `period`
+          const { start, end } = getDateRange();
 
-        const filteredTasks = rawTasks.filter((task) => {
-          const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
-          if (!rawDate) return false;
+          const filteredTasks = rawTasks.filter((task) => {
+            const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
+            if (!rawDate) return false;
 
-          const taskDate = new Date(rawDate);
-          if (isNaN(taskDate)) return false;
+            const taskDate = new Date(rawDate);
+            if (isNaN(taskDate)) return false;
 
-          return taskDate >= start && taskDate <= end;
-        });
+            return taskDate >= start && taskDate <= end;
+          });
 
-        allTasks = filteredTasks;
+          allTasks = filteredTasks;
+        }
+      } catch (e) {
+        console.error("Tasks failed", e);
       }
-    } catch (e) {
-      console.error("Tasks failed", e);
-    }
 
-    // 3. Fetch Users (unchanged)
-    let allUsers = [];
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/users`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        allUsers = data.users || data.data || [];
+      // 3. Fetch Users
+      let allUsers = [];
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/users`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          allUsers = data.users || data.data || [];
+        }
+      } catch (e) {
+        console.error("Users failed", e);
       }
-    } catch (e) {
-      console.error("Users failed", e);
-    }
-    const userMap = {};
-    allUsers.forEach(u => {
-      if (u._id) userMap[u._id.toString()] = u;
-      if (u.email) userMap[u.email.toLowerCase()] = u;
-    });
 
-    const getUserFromTask = (task) => {
-      if (task.assignedTo) {
-        const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
-        if (id && userMap[id.toString()]) return userMap[id.toString()];
-      }
-      if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
-        return userMap[task.assignedfor.toLowerCase()];
-      }
-      return null;
-    };
-
-    const taskGroups = {};
-    allTasks.forEach(task => {
-      const user = getUserFromTask(task);
-      if (!user) return;
-      const key = user._id || user.email;
-      if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
-      taskGroups[key].tasks.push(task);
-    });
-
-    const groupedTasks = allUsers.map(user => {
-      const key = user._id || user.email;
-      const group = taskGroups[key] || { tasks: [] };
-      const tasks = group.tasks;
-      const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
-      const incomplete = tasks.length - completed;
-
-      return {
-        user: {
-          _id: user._id,
-          fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
-          email: user.email || '',
-        },
-        tasks,
-        totalCount: tasks.length,
-        completedCount: completed,
-        incompleteCount: incomplete
-      };
-    }).sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
-
-    const overview = {
-      total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
-      outstanding_cells: overdueCells.length,
-      outstanding_tasks: allTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
-      people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
-    };
-
-    setStats({
-      overview,
-      events: overdueCells,
-      overdueCells,
-      allTasks,
-      allUsers,
-      groupedTasks,
-      loading: false,
-      error: null
-    });
-
-  } catch (err) {
-    setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
-  } finally {
-    setRefreshing(false);
-  }
-};
-
-// ———— ONLY ONE useEffect! ————
-useEffect(() => {
-  fetchStats();
-}, [period]);
-
-useEffect(() => {
-  const fetchEventTypes = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${BACKEND_URL}/event-types`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const userMap = {};
+      allUsers.forEach(u => {
+        if (u._id) userMap[u._id.toString()] = u;
+        if (u.email) userMap[u.email.toLowerCase()] = u;
       });
 
-      if (!res.ok) throw new Error("Failed to load event types");
+      const getUserFromTask = (task) => {
+        if (task.assignedTo) {
+          const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
+          if (id && userMap[id.toString()]) return userMap[id.toString()];
+        }
+        if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
+          return userMap[task.assignedfor.toLowerCase()];
+        }
+        return null;
+      };
 
-      const data = await res.json();
-      // Adjust based on your actual response structure
-      const types = data.eventTypes || data.data || data || [];
-      setEventTypes(types);
+      const taskGroups = {};
+      allTasks.forEach(task => {
+        const user = getUserFromTask(task);
+        if (!user) return;
+        const key = user._id || user.email;
+        if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
+        taskGroups[key].tasks.push(task);
+      });
+
+      const groupedTasks = allUsers.map(user => {
+        const key = user._id || user.email;
+        const group = taskGroups[key] || { tasks: [] };
+        const tasks = group.tasks;
+        const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
+        const incomplete = tasks.length - completed;
+
+        return {
+          user: {
+            _id: user._id,
+            fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
+            email: user.email || '',
+          },
+          tasks,
+          totalCount: tasks.length,
+          completedCount: completed,
+          incompleteCount: incomplete
+        };
+      }).sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
+
+      const overview = {
+        total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
+        outstanding_cells: overdueCells.length,
+        outstanding_tasks: allTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
+        people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
+      };
+
+      const newStats = {
+        overview,
+        events: overdueCells,
+        overdueCells,
+        allTasks,
+        allUsers,
+        groupedTasks,
+        loading: false,
+        error: null
+      };
+
+      setStats(newStats);
+
+      // Cache the data
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data: newStats,
+        timestamp: Date.now()
+      }));
+
     } catch (err) {
-      console.error("Failed to load event types:", err);
-      // Fallback to default list
-      setEventTypes([
-        { name: "CELLS" },
-        { name: "GLOBAL" },
-        { name: "SERVICE" },
-        { name: "MEETING" },
-        { name: "TRAINING" },
-        { name: "OUTREACH" }
-      ]);
+      console.error("Fetch stats error:", err);
+      setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
     } finally {
-      setEventTypesLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [period, refreshing]);
 
-  fetchEventTypes();
-}, []);
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
-  useEffect(() => { fetchStats(); }, []);
+  useEffect(() => {
+    const fetchEventTypes = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${BACKEND_URL}/event-types`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!res.ok) throw new Error("Failed to load event types");
+
+        const data = await res.json();
+        const types = data.eventTypes || data.data || data || [];
+        setEventTypes(types);
+      } catch (err) {
+        console.error("Failed to load event types:", err);
+        setEventTypes([
+          { name: "CELLS" },
+          { name: "GLOBAL" },
+          { name: "SERVICE" },
+          { name: "MEETING" },
+          { name: "TRAINING" },
+          { name: "OUTREACH" }
+        ]);
+      } finally {
+        setEventTypesLoading(false);
+      }
+    };
+
+    fetchEventTypes();
+  }, []);
 
   const toggleExpand = (key) => {
     setExpandedUsers(prev => prev.includes(key) ? prev.filter(e => e !== key) : [...prev, key]);
@@ -281,58 +289,60 @@ useEffect(() => {
   };
 
   const handleSaveEvent = async () => {
-  if (!newEventData.eventName.trim()) {
-    setSnackbar({ open: true, message: 'Event Name is required!', severity: 'error' });
-    return;
-  }
-
-  try {
-    const token = localStorage.getItem("token");
-    const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
-
-    const payload = {
-      eventName: newEventData.eventName.trim(),                    // ← MUST be first & present
-      eventTypeName: newEventData.eventTypeName,
-      date: newEventData.date || selectedDate,                     // ← fallback to selected date
-      time: newEventData.time,
-      location: newEventData.location || null,
-      description: newEventData.description || null,
-      eventLeaderName: newEventData.eventLeaderName || `${user.name || ''} ${user.surname || ''}`.trim() || 'Unknown Leader',
-      eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
-      isRecurring: newEventData.isRecurring,
-      status: 'incomplete',                                         // ← lowercase!
-      created_at: new Date().toISOString(),
-    };
-
-    console.log("Sending payload:", payload); // ← Remove later
-
-    const res = await fetch(`${BACKEND_URL}/events`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.detail?.[0]?.msg || `HTTP ${res.status}`);
+    if (!newEventData.eventName.trim()) {
+      setSnackbar({ open: true, message: 'Event Name is required!', severity: 'error' });
+      return;
     }
 
-    setCreateEventModalOpen(false);
-    setNewEventData({
-      eventName: '', eventTypeName: '', date: '', eventLeaderName: '', eventLeaderEmail: '',
-      location: '', time: '19:00', description: '', isRecurring: false,
-    });
+    try {
+      const token = localStorage.getItem("token");
+      const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
 
-    setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
-    fetchStats(); // Refresh dashboard
-  } catch (err) {
-    console.error("Create event failed:", err);
-    setSnackbar({ open: true, message: err.message || 'Failed to create event', severity: 'error' });
-  }
-};
+      const payload = {
+        eventName: newEventData.eventName.trim(),
+        eventTypeName: newEventData.eventTypeName,
+        date: newEventData.date || selectedDate,
+        time: newEventData.time,
+        location: newEventData.location || null,
+        description: newEventData.description || null,
+        eventLeaderName: newEventData.eventLeaderName || `${user.name || ''} ${user.surname || ''}`.trim() || 'Unknown Leader',
+        eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
+        isRecurring: newEventData.isRecurring,
+        status: 'incomplete',
+        created_at: new Date().toISOString(),
+      };
+
+      const res = await fetch(`${BACKEND_URL}/events`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail?.[0]?.msg || `HTTP ${res.status}`);
+      }
+
+      setCreateEventModalOpen(false);
+      setNewEventData({
+        eventName: '', eventTypeName: '', date: '', eventLeaderName: '', eventLeaderEmail: '',
+        location: '', time: '19:00', description: '', isRecurring: false,
+      });
+
+      setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
+      fetchStats();
+      
+      // Clear cache to force fresh data
+      const cacheKey = `statsDashboard_${period}`;
+      localStorage.removeItem(cacheKey);
+    } catch (err) {
+      console.error("Create event failed:", err);
+      setSnackbar({ open: true, message: err.message || 'Failed to create event', severity: 'error' });
+    }
+  };
 
   const EnhancedCalendar = () => {
     const eventCounts = {};
@@ -618,7 +628,7 @@ useEffect(() => {
         )}
       </Box>
 
-      {/* FULL ORIGINAL CREATE EVENT MODAL */}
+      {/* CREATE EVENT MODAL */}
       <Dialog open={createEventModalOpen} onClose={() => setCreateEventModalOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, boxShadow: 24 } }}>
         <DialogTitle sx={{ background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`, color: 'white', p: 3 }}>
           <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -685,7 +695,7 @@ useEffect(() => {
       </Dialog>
 
       {/* OVERDUE CELLS MODAL */}
-<Dialog open={overdueModalOpen} onClose={() => setOverdueModalOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={overdueModalOpen} onClose={() => setOverdueModalOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{
           background: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
           color: 'white', p: 3
@@ -750,4 +760,5 @@ useEffect(() => {
     </Box>
   );
 };
+
 export default StatsDashboard;
