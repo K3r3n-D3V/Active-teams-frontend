@@ -107,7 +107,7 @@ const StatsDashboard = () => {
       let allCellEvents = [];
       let page = 1;
       while (true) {
-        const res = await fetch(`${BACKEND_URL}/events/cells?page=${page}&limit=100&start_date=2025-10-27`, { headers });
+        const res = await fetch(`${BACKEND_URL}/events/cells?page=${page}&limit=100&start_date=2025-11-30`, { headers });
         if (!res.ok) break;
         const data = await res.json();
         const events = data.events || data.data || [];
