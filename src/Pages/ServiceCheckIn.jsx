@@ -52,6 +52,10 @@ import EventHistory from "../components/EventHistory";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import FirstPageIcon from '@mui/icons-material/FirstPage';
+import LastPageIcon from '@mui/icons-material/LastPage';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -2717,7 +2721,158 @@ useEffect(() => {
   rows={sortedFilteredAttendees ?? attendees}
   columns={mainColumns}
   pageSizeOptions={[25, 50, 100]}
-  slots={{ toolbar: GridToolbar }}
+  paginationModel={{
+    page: page,
+    pageSize: rowsPerPage,
+  }}
+  onPaginationModelChange={(model) => {
+    setPage(model.page);
+    setRowsPerPage(model.pageSize);
+  }}
+  rowCount={filteredAttendees.length}
+  slots={{
+    toolbar: GridToolbar,
+    // Custom pagination footer matching the screenshot
+    pagination: (props) => (
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        width: '100%',
+        p: isSmDown ? '6px 8px' : '8px 16px',
+        borderTop: `1px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
+        minHeight: '52px',
+        flexWrap: isSmDown ? 'wrap' : 'nowrap',
+        gap: isSmDown ? 1 : 0
+      }}>
+        {/* Left side - Rows per page selector */}
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1,
+          flexShrink: 0
+        }}>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.875rem'),
+              color: theme.palette.text.secondary,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Rows per page:
+          </Typography>
+          <Select
+            size="small"
+            value={rowsPerPage}
+            onChange={(e) => {
+              setRowsPerPage(Number(e.target.value));
+              setPage(0);
+            }}
+            sx={{
+              fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.875rem'),
+              height: '32px',
+              minWidth: '80px',
+              '& .MuiSelect-select': {
+                py: '4px',
+                px: '8px',
+                display: 'flex',
+                alignItems: 'center'
+              },
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderColor: theme.palette.divider,
+              }
+            }}
+            MenuProps={{
+              PaperProps: {
+                sx: {
+                  '& .MuiMenuItem-root': {
+                    fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.875rem'),
+                    py: '4px',
+                    px: '12px'
+                  }
+                }
+              }
+            }}
+          >
+            {[25, 50, 100].map((option) => (
+              <MenuItem 
+                key={option} 
+                value={option}
+              >
+                {option}
+              </MenuItem>
+            ))}
+          </Select>
+        </Box>
+
+        {/* Center - Page info */}
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.875rem'),
+            color: theme.palette.text.secondary,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            mx: isSmDown ? 0 : 2
+          }}
+        >
+          {`${page * rowsPerPage + 1}–${Math.min((page + 1) * rowsPerPage, filteredAttendees.length)} of ${filteredAttendees.length}`}
+        </Typography>
+
+        {/* Right side - Pagination controls */}
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 0.5,
+          flexShrink: 0
+        }}>
+          {/* Previous button */}
+          <IconButton
+            size="small"
+            onClick={() => setPage(Math.max(0, page - 1))}
+            disabled={page === 0}
+            sx={{ 
+              p: '6px',
+              '&.Mui-disabled': {
+                opacity: 0.3
+              }
+            }}
+          >
+            <ChevronLeftIcon 
+              fontSize="small" 
+              sx={{ 
+                fontSize: isXsDown ? '1rem' : '1.125rem',
+                color: page === 0 ? theme.palette.text.disabled : theme.palette.text.primary
+              }}
+            />
+          </IconButton>
+          
+          {/* Next button */}
+          <IconButton
+            size="small"
+            onClick={() => setPage(Math.min(page + 1, Math.ceil(filteredAttendees.length / rowsPerPage) - 1))}
+            disabled={page >= Math.ceil(filteredAttendees.length / rowsPerPage) - 1}
+            sx={{ 
+              p: '6px',
+              '&.Mui-disabled': {
+                opacity: 0.3
+              }
+            }}
+          >
+            <ChevronRightIcon 
+              fontSize="small" 
+              sx={{ 
+                fontSize: isXsDown ? '1rem' : '1.125rem',
+                color: page >= Math.ceil(filteredAttendees.length / rowsPerPage) - 1 ? theme.palette.text.disabled : theme.palette.text.primary
+              }}
+            />
+          </IconButton>
+        </Box>
+      </Box>
+    ),
+  }}
   slotProps={{
     toolbar: {
       showQuickFilter: true,
@@ -2725,12 +2880,8 @@ useEffect(() => {
     },
   }}
   disableRowSelectionOnClick
-  initialState={{
-    pagination: { paginationModel: { pageSize: isMdDown ? 25 : 100 } },
-  }}
   sortModel={sortModel}
   onSortModelChange={(model) => {
-    // Reset to page 0 when sorting changes
     setPage(0);
     setSortModel(model);
   }}
@@ -2744,10 +2895,14 @@ useEffect(() => {
     },
     '& .MuiDataGrid-main': {
       width: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%'
     },
     '& .MuiDataGrid-virtualScroller': {
       width: '100% !important',
       minWidth: '100%',
+      flex: 1
     },
     '& .MuiDataGrid-row': {
       width: '100% !important',
@@ -2762,6 +2917,7 @@ useEffect(() => {
     '& .MuiDataGrid-columnHeaders': {
       width: '100% !important',
       backgroundColor: theme.palette.action.hover,
+      borderBottom: `1px solid ${theme.palette.divider}`,
     },
     '& .MuiDataGrid-columnHeader': {
       fontWeight: 600,
@@ -2782,15 +2938,14 @@ useEffect(() => {
       padding: isXsDown ? '4px 2px' : (isSmDown ? '8px 4px' : '12px 8px'),
       minHeight: 'auto',
       width: '100%',
+      borderBottom: `1px solid ${theme.palette.divider}`,
       '& .MuiOutlinedInput-root': {
         fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
       }
     },
+    // Remove the default footer container since we're using custom pagination
     '& .MuiDataGrid-footerContainer': {
-      padding: isXsDown ? '4px 2px' : (isSmDown ? '8px 4px' : '12px 8px'),
-      fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.875rem'),
-      minHeight: 'auto',
-      width: '100%',
+      display: 'none',
     },
     '& .MuiDataGrid-virtualScrollerContent': {
       width: '100% !important',
@@ -2813,6 +2968,11 @@ useEffect(() => {
       '& .MuiDataGrid-columnSeparator': {
         display: 'none',
       },
+      '& .MuiDataGrid-toolbarContainer': {
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: 1
+      }
     }),
   }}
 />
