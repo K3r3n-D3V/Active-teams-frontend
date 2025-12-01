@@ -26,6 +26,9 @@ import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
 import axios from "axios";
+// 1. IMPORT ToastContainer and toast
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -131,6 +134,18 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeName, setWelcomeName] = useState("");
   const isDark = mode === "dark";
+  
+  // Define toast settings for consistency
+  const toastOptions = {
+    position: "top-center",
+    autoClose: 3500, // Toast duration
+    hideProgressBar: false,
+    closeOnClick: true,
+    pauseOnHover: true,
+    draggable: true,
+    progress: undefined,
+    theme: isDark ? "dark" : "light",
+  };
 
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
@@ -205,6 +220,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
         }
         
       } catch (err) {
+        // Use toast.error for non-critical background error
+        toast.error("Failed to load people data. Autocomplete may not work.", {
+          ...toastOptions,
+          autoClose: 5000,
+        });
         setCacheError("Failed to load people data. You can still type names manually.");
       } finally {
         setCacheLoading(false);
@@ -228,9 +248,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
       const surname = (person.Surname || '').toLowerCase();
       
       return fullName.includes(query) || 
-             name.includes(query) || 
-             email.includes(query) || 
-             surname.includes(query);
+               name.includes(query) || 
+               email.includes(query) || 
+               surname.includes(query);
     });
 
     results.sort((a, b) => {
@@ -330,7 +350,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data?.detail || "Signup failed. Please try again.");
+        // 2. Replace alert with toast.error for signup failure
+        toast.error(data?.detail || "Signup failed. Please try again.", toastOptions);
       } else {
         const userData = {
           name: submitData.name,
@@ -349,22 +370,39 @@ const Signup = ({ onSignup, mode, setMode }) => {
         if (onSignup) onSignup(submitData);
 
         try {
+          // Attempt to log in immediately after successful signup
           await login(submitData.email, submitData.password);
+          
+          // 3. SUCCESS TOAST: Show success toast notification
+          toast.success("You've been signed up!", toastOptions);
+
         } catch (loginErr) {
-          navigate("/login");
+          // If auto-login fails, redirect to login page and show error toast
+          toast.error("Signup successful, but automatic login failed. Please log in.", {
+            ...toastOptions,
+            autoClose: 5000,
+          });
+          // Redirect immediately if auto-login fails, no need to wait for success toast
+          navigate("/login"); 
           return;
         }
         
+        // If login succeeded, proceed with welcome overlay and dashboard redirect
         setWelcomeName(submitData.name || submitData.email);
         setShowWelcome(true);
+        
+        // 4. FIX: Use a timeout that is slightly longer than the WelcomeOverlay duration (2000ms)
+        // Note: The WelcomeOverlay is managing the delay before navigation.
         setTimeout(() => {
           setForm(initialForm);
           setShowWelcome(false);
           navigate("/");
-        }, 2000);
+        }, 2000); 
+        
       }
     } catch (error) {
-      alert("Network or server error occurred.");
+      // 5. Replace alert with toast.error for network/server errors
+      toast.error("Network or server error occurred.", toastOptions);
     } finally {
       setLoading(false);
     }
@@ -383,6 +421,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
         alignItems: "center",
       }}
     >
+      {/* 6. Add ToastContainer with high zIndex to ensure visibility */}
+      <ToastContainer 
+          limit={1} 
+          containerStyle={{ zIndex: 99999 }} 
+      />
+      
       {showWelcome && <WelcomeOverlay name={welcomeName} mode={mode} />}
       
       <Box sx={{ position: "absolute", top: 16, right: 16 }}>
@@ -743,6 +787,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)} 
                       edge="end"
                       tabIndex={-1}
+                      disableRipple
                       sx={{
                         color: isDark ? "#cccccc" : "#666666",
                         '&:hover': {
