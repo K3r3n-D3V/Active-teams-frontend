@@ -718,284 +718,358 @@ useEffect(() => {
 
   return (
     <div style={{ 
-      maxWidth: '1200px', 
-      margin: '0 auto', 
-      padding: '32px 24px', 
-      backgroundColor: isDarkMode ? '#1e1e1e' : '#f8f9fa', 
-      minHeight: '100vh',
+      height: '100vh', // Make the root container full viewport height
+      overflow: 'hidden', // Prevent root scrolling
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: isDarkMode ? '#1e1e1e' : '#f8f9fa',
       paddingTop: '5rem'
     }}>
-      <div style={{
-        backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-        color: isDarkMode ? '#fff' : '#1a1a24',
-        borderRadius: '20px',
-        padding: '48px 32px',
-        textAlign: 'center',
-        boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-        border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+      {/* Header section - responsive height */}
+      <div style={{ 
+        maxWidth: '1200px', 
+        margin: '0 auto', 
+        padding: '16px 16px 0 16px', // Reduced padding on mobile
+        width: '100%',
+        flexShrink: 0,
+        boxSizing: 'border-box'
       }}>
-        <h1 style={{ fontSize: '72px', fontWeight: '700', margin: 0, letterSpacing: '-2px' }}>
-          {totalCount}
-        </h1>
-        <p style={{ 
-          marginTop: '12px', 
-          fontSize: '16px', 
-          letterSpacing: '1px', 
-          textTransform: 'uppercase', 
-          color: isDarkMode ? '#aaa' : '#6b7280', 
-          fontWeight: '600' 
+        <div style={{
+          backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+          color: isDarkMode ? '#fff' : '#1a1a24',
+          borderRadius: '16px', // Slightly smaller on mobile
+          padding: '24px 16px', // Reduced padding
+          textAlign: 'center',
+          boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+          border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
         }}>
-          Tasks Complete
-        </p>
+          <h1 style={{ 
+            fontSize: 'clamp(48px, 8vw, 72px)', // Responsive font size
+            fontWeight: '700', 
+            margin: 0, 
+            letterSpacing: '-2px',
+            lineHeight: '1.2'
+          }}>
+            {totalCount}
+          </h1>
+          <p style={{ 
+            marginTop: '8px', // Reduced margin
+            fontSize: '14px', // Slightly smaller on mobile
+            letterSpacing: '1px', 
+            textTransform: 'uppercase', 
+            color: isDarkMode ? '#aaa' : '#6b7280', 
+            fontWeight: '600' 
+          }}>
+            Tasks Complete
+          </p>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '40px', flexWrap: 'wrap' }}>
-          <button
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              backgroundColor: isDarkMode ? '#fff' : '#000',
-              color: isDarkMode ? '#000' : '#fff',
-              fontWeight: '600',
-              padding: '14px 28px',
-              borderRadius: '12px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '15px',
-              boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-            }}
-            onClick={() => handleOpen("call")}
-          >
-            <Phone size={20} /> Call Task
-          </button>
-          <button
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              backgroundColor: isDarkMode ? '#fff' : '#000',
-              color: isDarkMode ? '#000' : '#fff',
-              fontWeight: '600',
-              padding: '14px 28px',
-              borderRadius: '12px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '15px',
-              boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-            }}
-            onClick={() => handleOpen("visit")}
-          >
-            <UserPlus size={20} /> Visit Task
-          </button>
-          
-          {storedUser?.role === 'admin' && (
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            gap: '12px', // Reduced gap
+            marginTop: '24px', // Reduced margin
+            flexWrap: 'wrap' 
+          }}>
             <button
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '10px',
+                justifyContent: 'center',
+                gap: '8px', // Reduced gap
                 backgroundColor: isDarkMode ? '#fff' : '#000',
                 color: isDarkMode ? '#000' : '#fff',
                 fontWeight: '600',
-                padding: '14px 28px',
-                borderRadius: '12px',
+                padding: '12px 20px', // Reduced padding
+                borderRadius: '10px', // Slightly smaller
                 border: 'none',
                 cursor: 'pointer',
-                fontSize: '15px',
+                fontSize: '14px', // Smaller font
                 boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                width: '140px', // Fixed width for better mobile layout
+                minHeight: '44px'
               }}
-              onClick={() => setIsAddTypeModalOpen(true)}
+              onClick={() => handleOpen("call")}
             >
-              <Plus size={20} /> New Task Type
+              <Phone size={18} /> Call Task
             </button>
-          )}
-        </div>
-
-        <div style={{ marginTop: '32px' }}>
-          <select
-            style={{
-              padding: '12px 20px',
-              borderRadius: '12px',
-              border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-              backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-              color: isDarkMode ? '#fff' : '#1a1a24',
-              fontSize: '14px',
-              cursor: 'pointer',
-              fontWeight: '500',
-              outline: 'none',
-            }}
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-          >
-            <option value="today">Today</option>
-            <option value="thisWeek">This Week</option>
-            <option value="thisMonth">This Month</option>
-            <option value="previousWeek">Previous Week</option>
-            <option value="previousMonth">Previous Month</option>
-          </select>
-        </div>
-        {/* 👇 Add download button here */}
-        <div style={{ marginTop: '16px' }}>
-          <button
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              backgroundColor: isDarkMode ? '#fff' : '#000',
-              color: isDarkMode ? '#000' : '#fff',
-              fontWeight: '600',
-              padding: '14px 28px',
-              borderRadius: '12px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '15px',
-              marginTop: '12px',
-              boxShadow: isDarkMode
-                ? '0 2px 8px rgba(255,255,255,0.1)'
-                : '0 4px 24px rgba(0, 0, 0, 0.08)',
-            }}
-            onClick={downloadFilteredTasks}
-          >
-            Download Filtered Tasks
-          </button>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '32px', flexWrap: 'wrap' }}>
-        {["all", "call", "visit", "consolidation"].map((type) => (
-          <button
-            key={type}
-            style={{
-              padding: '10px 24px',
-              borderRadius: '24px',
-              border: filterType === type ? 'none' : `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-              fontWeight: '600',
-              cursor: 'pointer',
-              backgroundColor: filterType === type ? (isDarkMode ? '#fff' : '#000') : (isDarkMode ? '#2d2d2d' : '#ffffff'),
-              color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
-              fontSize: '14px',
-              boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
-            }}
-            onClick={() => setFilterType(type)}
-          >
-            {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ marginTop: '32px' }}>
-        {loading ? (
-          <p style={{ 
-            textAlign: 'center', 
-            color: isDarkMode ? '#aaa' : '#6b7280', 
-            fontStyle: 'italic', 
-            padding: '40px' 
-          }}>
-            Loading tasks...
-          </p>
-        ) : filteredTasks.length === 0 ? (
-          <p style={{ textAlign: 'center', color: isDarkMode ? '#aaa' : '#6b7280' }}>
-            No tasks yet.
-          </p>
-        ) : (
-          filteredTasks.map((task) => (
-            <div
-              key={task._id}
+            <button
               style={{
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-                padding: '24px',
-                borderRadius: '16px',
-                border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                marginBottom: '12px',
+                justifyContent: 'center',
+                gap: '8px',
+                backgroundColor: isDarkMode ? '#fff' : '#000',
+                color: isDarkMode ? '#000' : '#fff',
+                fontWeight: '600',
+                padding: '12px 20px',
+                borderRadius: '10px',
+                border: 'none',
                 cursor: 'pointer',
+                fontSize: '14px',
                 boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                width: '140px',
+                minHeight: '44px'
               }}
+              onClick={() => handleOpen("visit")}
             >
+              <UserPlus size={18} /> Visit Task
+            </button>
+            
+            {storedUser?.role === 'admin' && (
+              <button
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  backgroundColor: isDarkMode ? '#fff' : '#000',
+                  color: isDarkMode ? '#000' : '#fff',
+                  fontWeight: '600',
+                  padding: '12px 20px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                  width: '140px',
+                  minHeight: '44px'
+                }}
+                onClick={() => setIsAddTypeModalOpen(true)}
+              >
+                <Plus size={18} /> New Task Type
+              </button>
+            )}
+          </div>
+
+          <div style={{ marginTop: '20px' }}>
+            <select
+              style={{
+                padding: '10px 16px', // Reduced padding
+                borderRadius: '10px',
+                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                color: isDarkMode ? '#fff' : '#1a1a24',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: '500',
+                outline: 'none',
+                width: '100%',
+                maxWidth: '280px'
+              }}
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+            >
+              <option value="today">Today</option>
+              <option value="thisWeek">This Week</option>
+              <option value="thisMonth">This Month</option>
+              <option value="previousWeek">Previous Week</option>
+              <option value="previousMonth">Previous Month</option>
+            </select>
+          </div>
+          
+          <div style={{ marginTop: '12px' }}>
+            <button
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                backgroundColor: isDarkMode ? '#fff' : '#000',
+                color: isDarkMode ? '#000' : '#fff',
+                fontWeight: '600',
+                padding: '12px 20px',
+                borderRadius: '10px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '14px',
+                boxShadow: isDarkMode
+                  ? '0 2px 8px rgba(255,255,255,0.1)'
+                  : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                width: '100%',
+                maxWidth: '280px',
+                margin: '0 auto'
+              }}
+              onClick={downloadFilteredTasks}
+            >
+              Download Filtered Tasks
+            </button>
+          </div>
+        </div>
+
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: '8px', // Reduced gap
+          marginTop: '20px', // Reduced margin
+          flexWrap: 'wrap',
+          overflowX: 'auto', // Allow horizontal scrolling on mobile
+          paddingBottom: '8px'
+        }}>
+          {["all", "call", "visit", "consolidation"].map((type) => (
+            <button
+              key={type}
+              style={{
+                padding: '8px 16px', // Reduced padding
+                borderRadius: '20px',
+                border: filterType === type ? 'none' : `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                fontWeight: '600',
+                cursor: 'pointer',
+                backgroundColor: filterType === type ? (isDarkMode ? '#fff' : '#000') : (isDarkMode ? '#2d2d2d' : '#ffffff'),
+                color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
+                fontSize: '13px', // Smaller font
+                boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
+                whiteSpace: 'nowrap', // Prevent text wrapping
+                flexShrink: 0 // Don't shrink buttons
+              }}
+              onClick={() => setFilterType(type)}
+            >
+              {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Task list container - this is the scrollable area */}
+      <div style={{ 
+        flex: 1, // Take up remaining space
+        overflowY: 'auto', // Enable vertical scrolling here
+        maxWidth: '1200px', 
+        margin: '0 auto', 
+        padding: '0 16px 16px 16px', // Reduced padding
+        width: '100%',
+        boxSizing: 'border-box'
+      }}>
+        <div style={{ marginTop: '16px' }}>
+          {loading ? (
+            <p style={{ 
+              textAlign: 'center', 
+              color: isDarkMode ? '#aaa' : '#6b7280', 
+              fontStyle: 'italic', 
+              padding: '20px' // Reduced padding
+            }}>
+              Loading tasks...
+            </p>
+          ) : filteredTasks.length === 0 ? (
+            <p style={{ 
+              textAlign: 'center', 
+              color: isDarkMode ? '#aaa' : '#6b7280',
+              padding: '20px'
+            }}>
+              No tasks yet.
+            </p>
+          ) : (
+            filteredTasks.map((task) => (
               <div
-                style={{ cursor: 'pointer' }}
-                onClick={() => {
-                  toast.success(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.Number || task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
+                key={task._id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+                  padding: '16px', // Reduced padding
+                  borderRadius: '12px', // Slightly smaller
+                  border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                  marginBottom: '10px', // Reduced margin
+                  cursor: 'pointer',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
                 }}
               >
-                <p style={{ 
-                  fontWeight: '700', 
-                  color: isDarkMode ? '#fff' : '#1a1a24', 
-                  margin: 0, 
-                  fontSize: '16px' 
-                }}>
-                  {task.contacted_person?.name}
-                </p>
-                <p style={{ 
-                  fontSize: '14px', 
-                  color: isDarkMode ? '#aaa' : '#6b7280', 
-                  margin: '6px 0 0 0' 
-                }}>
-                  {task.name}
-                </p>
-                {task.isRecurring && (
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    backgroundColor: '#fde047',
-                    color: '#854d0e',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    display: 'inline-block',
-                    marginTop: '8px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                  }}>
-                    Recurring
-                  </span>
-                )}
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <span
-                  style={{
-                    display: 'inline-block',
-                    padding: '6px 16px',
-                    borderRadius: '20px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    textTransform: 'capitalize',
-                    border: '2px solid',
+                <div
+                  style={{ 
                     cursor: 'pointer',
-                    backgroundColor: task.status === "open" 
-                      ? (isDarkMode ? '#2d2d2d' : '#ffffff') 
-                      : task.status === "completed" 
-                        ? (isDarkMode ? '#fff' : '#000')
-                        : (isDarkMode ? '#3a3a3a' : '#e5e5e5'),
-                    color: task.status === "open" 
-                      ? (isDarkMode ? '#fff' : '#000')
-                      : task.status === "completed" 
-                        ? (isDarkMode ? '#000' : '#fff')
-                        : (isDarkMode ? '#fff' : '#1a1a24'),
-                    borderColor: task.status === "open" 
-                      ? (isDarkMode ? '#fff' : '#000')
-                      : task.status === "completed" 
-                        ? (isDarkMode ? '#fff' : '#000')
-                        : (isDarkMode ? '#444' : '#6b7280'),
+                    flex: 1,
+                    minWidth: 0 // Allow text truncation
                   }}
-                  onClick={() => handleEdit(task)}
+                  onClick={() => {
+                    toast.success(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.Number || task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
+                  }}
                 >
-                  {task.status}
-                </span>
+                  <p style={{ 
+                    fontWeight: '700', 
+                    color: isDarkMode ? '#fff' : '#1a1a24', 
+                    margin: 0, 
+                    fontSize: '15px', // Slightly smaller
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {task.contacted_person?.name}
+                  </p>
+                  <p style={{ 
+                    fontSize: '13px', // Smaller
+                    color: isDarkMode ? '#aaa' : '#6b7280', 
+                    margin: '4px 0 0 0', // Reduced margin
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {task.name}
+                  </p>
+                  {task.isRecurring && (
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      backgroundColor: '#fde047',
+                      color: '#854d0e',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      display: 'inline-block',
+                      marginTop: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      Recurring
+                    </span>
+                  )}
+                </div>
                 <div style={{ 
-                  fontSize: '12px', 
-                  color: isDarkMode ? '#aaa' : '#6b7280', 
-                  marginTop: '8px', 
-                  fontWeight: '500' 
+                  textAlign: 'right',
+                  marginLeft: '12px',
+                  flexShrink: 0
                 }}>
-                  {formatDate(task.date)}
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '5px 12px', // Reduced padding
+                      borderRadius: '16px',
+                      fontSize: '12px', // Smaller
+                      fontWeight: '600',
+                      textTransform: 'capitalize',
+                      border: '2px solid',
+                      cursor: 'pointer',
+                      backgroundColor: task.status === "open" 
+                        ? (isDarkMode ? '#2d2d2d' : '#ffffff') 
+                        : task.status === "completed" 
+                          ? (isDarkMode ? '#fff' : '#000')
+                          : (isDarkMode ? '#3a3a3a' : '#e5e5e5'),
+                      color: task.status === "open" 
+                        ? (isDarkMode ? '#fff' : '#000')
+                        : task.status === "completed" 
+                          ? (isDarkMode ? '#000' : '#fff')
+                          : (isDarkMode ? '#fff' : '#1a1a24'),
+                      borderColor: task.status === "open" 
+                        ? (isDarkMode ? '#fff' : '#000')
+                        : task.status === "completed" 
+                          ? (isDarkMode ? '#fff' : '#000')
+                          : (isDarkMode ? '#444' : '#6b7280'),
+                    }}
+                    onClick={() => handleEdit(task)}
+                  >
+                    {task.status}
+                  </span>
+                  <div style={{ 
+                    fontSize: '11px', // Smaller
+                    color: isDarkMode ? '#aaa' : '#6b7280', 
+                    marginTop: '6px', // Reduced margin
+                    fontWeight: '500' 
+                  }}>
+                    {formatDate(task.date)}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
 
       {isAddTypeModalOpen && (
@@ -1014,18 +1088,23 @@ useEffect(() => {
             style={{
               backgroundColor: isDarkMode ? '#1e1e1e' : "#fff",
               color: isDarkMode ? '#fff' : '#1a1a24',
-              padding: "32px",
+              padding: "24px", // Reduced padding
               borderRadius: "16px",
-              width: "440px",
-              maxWidth: "90%",
+              width: "90%", // Percentage width for mobile
+              maxWidth: "440px",
               boxShadow: isDarkMode ? "0 20px 60px rgba(255,255,255,0.1)" : "0 20px 60px rgba(0,0,0,0.3)",
               display: "flex",
               flexDirection: "column",
-              gap: "20px",
+              gap: "16px", // Reduced gap
               border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
             }}
           >
-            <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700" }}>
+            <h2 style={{ 
+              margin: 0, 
+              fontSize: "20px", // Smaller on mobile
+              fontWeight: "700",
+              textAlign: 'center'
+            }}>
               Add New Task Type
             </h2>
             <input
@@ -1035,9 +1114,9 @@ useEffect(() => {
               placeholder="Enter task type name"
               autoFocus
               style={{
-                padding: "14px 16px",
-                fontSize: "15px",
-                borderRadius: "12px",
+                padding: "12px 14px", // Reduced padding
+                fontSize: "14px",
+                borderRadius: "10px",
                 border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
                 color: isDarkMode ? '#fff' : '#1a1a24',
@@ -1046,20 +1125,21 @@ useEffect(() => {
                 outline: 'none',
               }}
             />
-            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
               <button
                 onClick={createTaskType}
                 disabled={addingTaskType}
                 style={{
-                  padding: "12px 24px",
+                  padding: "10px 20px", // Reduced padding
                   backgroundColor: isDarkMode ? '#fff' : '#000',
                   color: isDarkMode ? '#000' : '#fff',
                   fontWeight: "600",
-                  borderRadius: "12px",
+                  borderRadius: "10px",
                   border: "none",
                   cursor: addingTaskType ? "not-allowed" : "pointer",
                   fontSize: "14px",
                   opacity: addingTaskType ? 0.7 : 1,
+                  flex: 1
                 }}
               >
                 {addingTaskType ? "Adding..." : "Add"}
@@ -1067,14 +1147,15 @@ useEffect(() => {
               <button
                 onClick={() => setIsAddTypeModalOpen(false)}
                 style={{
-                  padding: "12px 24px",
+                  padding: "10px 20px",
                   backgroundColor: isDarkMode ? '#2d2d2d' : "#e5e5e5",
                   color: isDarkMode ? '#fff' : "#1a1a24",
                   fontWeight: "600",
-                  borderRadius: "12px",
+                  borderRadius: "10px",
                   border: `1px solid ${isDarkMode ? '#444' : 'transparent'}`,
                   cursor: "pointer",
                   fontSize: "14px",
+                  flex: 1
                 }}
               >
                 Cancel
@@ -1085,12 +1166,13 @@ useEffect(() => {
       )}
 
       <Modal isOpen={isModalOpen} onClose={handleClose} isDarkMode={isDarkMode}>
-        <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} onSubmit={handleSubmit}>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleSubmit}>
           <h3 style={{ 
-            fontSize: '24px', 
+            fontSize: '20px', 
             fontWeight: 'bold', 
             color: isDarkMode ? '#fff' : '#1a1a24', 
-            margin: 0 
+            margin: 0,
+            textAlign: 'center'
           }}>
             {formType === "call" ? "Call" : "Visit"} Task
           </h3>
@@ -1098,10 +1180,10 @@ useEffect(() => {
           <div>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '600', 
               color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '8px' 
+              marginBottom: '6px' 
             }}>
               Task Type
             </label>
@@ -1133,10 +1215,10 @@ useEffect(() => {
           <div style={{ position: 'relative' }}>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '600', 
               color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '8px' 
+              marginBottom: '6px' 
             }}>
               Recipient
             </label>
@@ -1219,10 +1301,10 @@ useEffect(() => {
             <label
               style={{
                 display: 'block',
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '600',
                 color: isDarkMode ? '#fff' : '#1a1a24',
-                marginBottom: '8px',
+                marginBottom: '6px',
               }}
             >
               Assigned To
@@ -1302,10 +1384,10 @@ useEffect(() => {
           <div>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '600', 
               color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '8px' 
+              marginBottom: '6px' 
             }}>
               Due Date & Time
             </label>
@@ -1331,10 +1413,10 @@ useEffect(() => {
           <div>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '600', 
               color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '8px' 
+              marginBottom: '6px' 
             }}>
               Task Stage
             </label>
@@ -1359,11 +1441,11 @@ useEffect(() => {
             </select>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', paddingTop: '12px' }}>
             <button
               type="button"
               style={{
-                padding: '10px 24px',
+                padding: '10px 20px',
                 borderRadius: '10px',
                 backgroundColor: isDarkMode ? '#2d2d2d' : '#e5e5e5',
                 color: isDarkMode ? '#fff' : '#1a1a24',
@@ -1371,6 +1453,7 @@ useEffect(() => {
                 border: `1px solid ${isDarkMode ? '#444' : 'transparent'}`,
                 cursor: 'pointer',
                 fontSize: '14px',
+                flex: 1
               }}
               onClick={handleClose}
               disabled={submitting}
@@ -1380,7 +1463,7 @@ useEffect(() => {
             <button
               type="submit"
               style={{
-                padding: '10px 24px',
+                padding: '10px 20px',
                 borderRadius: '10px',
                 backgroundColor: submitting ? '#666' : (isDarkMode ? '#fff' : '#000'),
                 color: submitting ? '#fff' : (isDarkMode ? '#000' : '#fff'),
@@ -1388,6 +1471,7 @@ useEffect(() => {
                 border: 'none',
                 cursor: submitting ? 'not-allowed' : 'pointer',
                 fontSize: '14px',
+                flex: 1
               }}
               disabled={submitting}
             >
