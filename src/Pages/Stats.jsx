@@ -15,6 +15,125 @@ import {
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+// Skeleton Components
+const StatCardSkeleton = () => (
+  <Paper variant="outlined" sx={{
+    p: 3,
+    textAlign: "center",
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 140
+  }}>
+    <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
+      <Skeleton variant="circular" width={40} height={40} />
+      <Skeleton variant="text" width={60} height={40} />
+    </Stack>
+    <Skeleton variant="text" width="80%" />
+    <Skeleton variant="text" width="60%" />
+  </Paper>
+);
+
+const TaskRowSkeleton = () => (
+  <Box sx={{ p: 2, backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 1 }}>
+    <Box display="flex" alignItems="center" gap={1.5}>
+      <Skeleton variant="circular" width={40} height={40} />
+      <Box flex={1}>
+        <Skeleton variant="text" width="60%" height={24} />
+        <Skeleton variant="text" width="40%" height={16} />
+      </Box>
+      <Skeleton variant="rounded" width={70} height={28} />
+    </Box>
+  </Box>
+);
+
+const EventCardSkeleton = () => (
+  <Card variant="outlined" sx={{ mb: 1, p: 1.5 }}>
+    <Box display="flex" alignItems="center">
+      <Skeleton variant="circular" width={32} height={32} sx={{ mr: 1.5 }} />
+      <Box flex={1}>
+        <Skeleton variant="text" width="80%" height={20} />
+        <Skeleton variant="text" width="60%" height={16} />
+      </Box>
+    </Box>
+  </Card>
+);
+
+const CalendarSkeleton = () => (
+  <Box sx={{ 
+    display: 'flex', 
+    flexDirection: { xs: 'column', sm: 'row' }, 
+    gap: 3,
+    height: 'calc(100% - 60px)',
+    overflow: 'hidden'
+  }}>
+    {/* Calendar Skeleton */}
+    <Box sx={{ 
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: 0,
+      backgroundColor: 'background.paper',
+      borderRadius: 2,
+      border: '1px solid',
+      borderColor: 'divider',
+      p: 2,
+      overflow: 'hidden'
+    }}>
+      <Box sx={{ flexShrink: 0 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Skeleton variant="text" width={200} height={40} />
+          <Box display="flex" gap={1}>
+            <Skeleton variant="circular" width={40} height={40} />
+            <Skeleton variant="rounded" width={80} height={40} />
+            <Skeleton variant="circular" width={40} height={40} />
+          </Box>
+        </Box>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, mb: 1 }}>
+          {Array.from({ length: 7 }).map((_, i) => (
+            <Skeleton key={i} variant="text" height={40} sx={{ textAlign: 'center' }} />
+          ))}
+        </Box>
+      </Box>
+      <Box sx={{ flex: 1, overflowY: 'auto' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
+          {Array.from({ length: 42 }).map((_, i) => (
+            <Skeleton key={i} variant="rectangular" height={52} sx={{ borderRadius: 2 }} />
+          ))}
+        </Box>
+      </Box>
+    </Box>
+
+    {/* Events List Skeleton */}
+    <Box sx={{ 
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: 0,
+      backgroundColor: 'background.paper',
+      borderRadius: 2,
+      border: '1px solid',
+      borderColor: 'divider',
+      overflow: 'hidden'
+    }}>
+      <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+        <Skeleton variant="text" width="60%" height={28} />
+        <Skeleton variant="text" width="40%" height={20} />
+      </Box>
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Box key={i} sx={{ mb: 1.5, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+            <Skeleton variant="text" width="80%" />
+            <Skeleton variant="text" width="60%" />
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  </Box>
+);
+
 const StatsDashboard = () => {
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
@@ -57,8 +176,31 @@ const StatsDashboard = () => {
   const [eventTypes, setEventTypes] = useState([]);
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
   const [overdueModalOpen, setOverdueModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+
+  // Calendar navigation functions
+  const goToPreviousMonth = () => {
+    setCurrentMonth(prev => {
+      const m = new Date(prev);
+      m.setMonth(m.getMonth() - 1);
+      return m;
+    });
+  };
+
+  const goToNextMonth = () => {
+    setCurrentMonth(prev => {
+      const m = new Date(prev);
+      m.setMonth(m.getMonth() + 1);
+      return m;
+    });
+  };
+
+  const goToToday = () => {
+    setCurrentMonth(new Date());
+    setSelectedDate(new Date().toISOString().split('T')[0]);
+  };
 
   const getDateRange = () => {
     const now = new Date();
@@ -103,120 +245,106 @@ const StatsDashboard = () => {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-      // === 1. Fetch Overdue/Incomplete Cells ===
-      let allCellEvents = [];
-      let page = 1;
-      while (true) {
-        const res = await fetch(`${BACKEND_URL}/events/cells?page=${page}&limit=100&start_date=2025-11-30`, { headers });
-        if (!res.ok) break;
-        const data = await res.json();
-        const events = data.events || data.data || [];
-        allCellEvents.push(...events);
-        if (events.length < 100) break;
-        page++;
-      }
+      // OPTIMIZATION: Use aggregated endpoints for better performance
+      const [overdueResponse, summaryResponse, tasksResponse, usersResponse] = await Promise.all([
+        fetch(`${BACKEND_URL}/events/cells?page=1&limit=50&start_date=2025-11-30&status=incomplete`, { headers }),
+        fetch(`${BACKEND_URL}/stats/dashboard-summary?period=${period}`, { headers }),
+        fetch(`${BACKEND_URL}/tasks/all`, { headers }),
+        fetch(`${BACKEND_URL}/api/users`, { headers })
+      ]);
 
-      const overdueCells = allCellEvents.filter(e => {
-        const s = (e.status || '').toString().toLowerCase().trim();
-        return s === 'overdue' || s === 'incomplete';
-      });
+      // Process responses
+      const overdueData = overdueResponse.ok ? await overdueResponse.json() : { events: [] };
+      const summaryData = summaryResponse.ok ? await summaryResponse.json() : {};
+      const tasksData = tasksResponse.ok ? await tasksResponse.json() : { tasks: [] };
+      const usersData = usersResponse.ok ? await usersResponse.json() : { users: [] };
 
-      // 2. Fetch Tasks + Apply Date Filter
-      let allTasks = [];
-      try {
-        const res = await fetch(`${BACKEND_URL}/tasks/all`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          const rawTasks = data.tasks || data.results || data.data || data || [];
+      // Extract data
+      const allTasks = tasksData.tasks || tasksData.results || tasksData.data || tasksData || [];
+      const allUsers = usersData.users || usersData.data || [];
+      const overdueCells = overdueData.events || overdueData.data || [];
 
-          const { start, end } = getDateRange();
+      // Use summary data if available, otherwise calculate
+      let overview = summaryData.overview;
+      let groupedTasks = summaryData.groupedTasks || [];
 
-          const filteredTasks = rawTasks.filter((task) => {
-            const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
-            if (!rawDate) return false;
+      if (!overview || !groupedTasks.length) {
+        // Fallback: Apply date filter to tasks
+        const { start, end } = getDateRange();
+        const filteredTasks = allTasks.filter((task) => {
+          const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
+          if (!rawDate) return false;
 
-            const taskDate = new Date(rawDate);
-            if (isNaN(taskDate)) return false;
+          const taskDate = new Date(rawDate);
+          if (isNaN(taskDate)) return false;
 
-            return taskDate >= start && taskDate <= end;
-          });
+          return taskDate >= start && taskDate <= end;
+        });
 
-          allTasks = filteredTasks;
-        }
-      } catch (e) {
-        console.error("Tasks failed", e);
-      }
+        // Create user map
+        const userMap = {};
+        allUsers.forEach(u => {
+          if (u._id) userMap[u._id.toString()] = u;
+          if (u.email) userMap[u.email.toLowerCase()] = u;
+        });
 
-      // 3. Fetch Users
-      let allUsers = [];
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/users`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          allUsers = data.users || data.data || [];
-        }
-      } catch (e) {
-        console.error("Users failed", e);
-      }
-
-      const userMap = {};
-      allUsers.forEach(u => {
-        if (u._id) userMap[u._id.toString()] = u;
-        if (u.email) userMap[u.email.toLowerCase()] = u;
-      });
-
-      const getUserFromTask = (task) => {
-        if (task.assignedTo) {
-          const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
-          if (id && userMap[id.toString()]) return userMap[id.toString()];
-        }
-        if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
-          return userMap[task.assignedfor.toLowerCase()];
-        }
-        return null;
-      };
-
-      const taskGroups = {};
-      allTasks.forEach(task => {
-        const user = getUserFromTask(task);
-        if (!user) return;
-        const key = user._id || user.email;
-        if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
-        taskGroups[key].tasks.push(task);
-      });
-
-      const groupedTasks = allUsers.map(user => {
-        const key = user._id || user.email;
-        const group = taskGroups[key] || { tasks: [] };
-        const tasks = group.tasks;
-        const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
-        const incomplete = tasks.length - completed;
-
-        return {
-          user: {
-            _id: user._id,
-            fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
-            email: user.email || '',
-          },
-          tasks,
-          totalCount: tasks.length,
-          completedCount: completed,
-          incompleteCount: incomplete
+        const getUserFromTask = (task) => {
+          if (task.assignedTo) {
+            const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
+            if (id && userMap[id.toString()]) return userMap[id.toString()];
+          }
+          if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
+            return userMap[task.assignedfor.toLowerCase()];
+          }
+          return null;
         };
-      }).sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
 
-      const overview = {
-        total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
-        outstanding_cells: overdueCells.length,
-        outstanding_tasks: allTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
-        people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
-      };
+        // Group tasks by user
+        const taskGroups = {};
+        filteredTasks.forEach(task => {
+          const user = getUserFromTask(task);
+          if (!user) return;
+          const key = user._id || user.email;
+          if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
+          taskGroups[key].tasks.push(task);
+        });
+
+        groupedTasks = allUsers
+          .map(user => {
+            const key = user._id || user.email;
+            const group = taskGroups[key] || { tasks: [] };
+            const tasks = group.tasks;
+            const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
+            const incomplete = tasks.length - completed;
+
+            return {
+              user: {
+                _id: user._id,
+                fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
+                email: user.email || '',
+              },
+              tasks,
+              totalCount: tasks.length,
+              completedCount: completed,
+              incompleteCount: incomplete
+            };
+          })
+          .filter(g => g.tasks.length > 0) // Only show users with tasks
+          .sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
+
+        overview = {
+          total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
+          outstanding_cells: overdueCells.length,
+          outstanding_tasks: filteredTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
+          people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
+        };
+      }
 
       const newStats = {
         overview,
-        events: overdueCells,
+        events: summaryData.recentEvents || overdueCells,
         overdueCells,
-        allTasks,
+        allTasks: summaryData.recentTasks || allTasks.slice(0, 50),
         allUsers,
         groupedTasks,
         loading: false,
@@ -236,6 +364,7 @@ const StatsDashboard = () => {
       setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
     } finally {
       setRefreshing(false);
+      setIsRefreshing(false);
     }
   }, [period, refreshing]);
 
@@ -284,7 +413,21 @@ const StatsDashboard = () => {
   const getEventsForDate = (date) => stats.events.filter(e => e.date && new Date(e.date).toISOString().split('T')[0] === date);
 
   const handleCreateEvent = () => {
-    setNewEventData(prev => ({ ...prev, date: selectedDate }));
+    // Get default event type
+    const defaultEventType = eventTypes.length > 0 ? eventTypes[0].name : 'CELLS';
+    
+    // Get current user from localStorage
+    const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
+    
+    setNewEventData(prev => ({ 
+      ...prev, 
+      eventName: `New Event ${new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      eventTypeName: prev.eventTypeName || defaultEventType,
+      date: selectedDate,
+      eventLeaderName: `${user.name || ''} ${user.surname || ''}`.trim() || 'Unknown Leader',
+      eventLeaderEmail: user.email || '',
+      time: '19:00'
+    }));
     setCreateEventModalOpen(true);
   };
 
@@ -300,7 +443,7 @@ const StatsDashboard = () => {
 
       const payload = {
         eventName: newEventData.eventName.trim(),
-        eventTypeName: newEventData.eventTypeName,
+        eventTypeName: newEventData.eventTypeName || 'CELLS',
         date: newEventData.date || selectedDate,
         time: newEventData.time,
         location: newEventData.location || null,
@@ -344,86 +487,17 @@ const StatsDashboard = () => {
     }
   };
 
-  const EnhancedCalendar = () => {
-    const eventCounts = {};
-    stats.events.forEach(e => {
-      if (e.date) {
-        const d = e.date.split('T')[0];
-        eventCounts[d] = (eventCounts[d] || 0) + 1;
-      }
-    });
-
-    const today = new Date().toISOString().split('T')[0];
-    const goToPreviousMonth = () => setCurrentMonth(prev => { const m = new Date(prev); m.setMonth(m.getMonth() - 1); return m; });
-    const goToNextMonth = () => setCurrentMonth(prev => { const m = new Date(prev); m.setMonth(m.getMonth() + 1); return m; });
-    const goToToday = () => { setCurrentMonth(new Date()); setSelectedDate(today); };
-
-    const getDaysInMonth = () => {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
-      const firstDay = new Date(year, month, 1).getDay();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const days = [];
-      for (let i = 0; i < firstDay; i++) days.push(null);
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = new Date(year, month, day).toISOString().split('T')[0];
-        days.push({
-          day, date: dateStr,
-          eventCount: eventCounts[dateStr] || 0,
-          isToday: dateStr === today,
-          isSelected: dateStr === selectedDate
-        });
-      }
-      return days;
-    };
-    const days = getDaysInMonth();
-    return (
-      <Box>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant={titleVariant} fontWeight="bold">
-            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </Typography>
-          <Box display="flex" gap={1}>
-            <IconButton size="small" onClick={goToPreviousMonth}><ChevronLeft /></IconButton>
-            <Button size="small" variant="outlined" onClick={goToToday}>Today</Button>
-            <IconButton size="small" onClick={goToNextMonth}><ChevronRight /></IconButton>
-          </Box>
-        </Box>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, mb: 1, backgroundColor: 'background.paper', borderRadius: 2, overflow: 'hidden', boxShadow: 1 }}>
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
-            <Box key={i} sx={{ py: 1.5, textAlign: 'center', fontWeight: 'bold', fontSize: { xs: '0.75rem', sm: '0.875rem' }, color: 'text.primary', backgroundColor: i === 0 || i === 6 ? 'action.hover' : 'transparent', borderRight: i < 6 ? '1px solid' : 'none', borderColor: 'divider' }}>
-              {isSmDown ? day[0] : day}
-            </Box>
-          ))}
-        </Box>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
-          {days.map((d, i) => !d ? <Box key={`empty-${i}`} sx={{ height: 52 }} /> : (
-            <Box
-              key={d.date}
-              onClick={() => setSelectedDate(d.date)}
-              sx={{
-                height: 52, borderRadius: 2, cursor: 'pointer',
-                backgroundColor: d.isSelected ? 'primary.main' : d.isToday ? 'primary.50' : 'background.default',
-                color: d.isSelected ? 'white' : d.isToday ? 'primary.main' : 'text.primary',
-                border: d.isToday && !d.isSelected ? '2px solid' : '1px solid',
-                borderColor: d.isToday && !d.isSelected ? 'primary.main' : 'divider',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                position: 'relative', transition: 'all 0.2s ease',
-                '&:hover': { backgroundColor: d.isSelected ? 'primary.dark' : 'action.hover', transform: 'translateY(-2px)', boxShadow: 4 }
-              }}
-            >
-              <Typography variant="body2" fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'}>{d.day}</Typography>
-              {d.eventCount > 0 && (
-                <Box sx={{ position: 'absolute', bottom: 6, width: 8, height: 8, borderRadius: '50%', bgcolor: d.isSelected ? 'white' : 'primary.main', boxShadow: 1 }} />
-              )}
-            </Box>
-          ))}
-        </Box>
-      </Box>
-    );
-  };
+  const debouncedRefresh = useCallback(() => {
+    if (isRefreshing) return;
+    
+    setIsRefreshing(true);
+    fetchStats();
+    
+    // Reset after 2 seconds
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 2000);
+  }, [fetchStats, isRefreshing]);
 
   const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
     <Paper variant="outlined" sx={{
@@ -457,6 +531,7 @@ const StatsDashboard = () => {
   }
 
   const eventsOnSelectedDate = getEventsForDate(selectedDate);
+  
   return (
     <Box p={containerPadding} maxWidth="1400px" mx="auto" mt={8}>
       <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} gap={2}>
@@ -467,166 +542,528 @@ const StatsDashboard = () => {
             <MenuItem value="monthly">Monthly</MenuItem>
           </Select>
         </FormControl>
-        <Tooltip title="Refresh"><IconButton onClick={fetchStats} disabled={refreshing}><Refresh /></IconButton></Tooltip>
+        <Tooltip title="Refresh">
+          <IconButton onClick={debouncedRefresh} disabled={isRefreshing || refreshing}>
+            <Refresh className={isRefreshing ? "MuiCircularProgress-indeterminate" : ""} />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {(stats.loading || refreshing) && <LinearProgress sx={{ mb: 2 }} />}
 
       <Grid container spacing={cardSpacing} mb={4}>
         <Grid item xs={6} md={3}>
-          {stats.loading ? <Skeleton variant="rectangular" height={140} /> : <StatCard title="Total Attendance" value={stats.overview?.total_attendance || 0} icon={<People />} color="primary" />}
+          {stats.loading ? <StatCardSkeleton /> : <StatCard title="Total Attendance" value={stats.overview?.total_attendance || 0} icon={<People />} color="primary" />}
         </Grid>
         <Grid item xs={6} md={3}>
-          {stats.loading ? <Skeleton variant="rectangular" height={140} /> :
+          {stats.loading ? <StatCardSkeleton /> :
             <>
               <StatCard title="Overdue Cells" value={stats.overview?.outstanding_cells || 0} icon={<Warning />} color="warning" />
             </>
           }
         </Grid>
         <Grid item xs={6} md={3}>
-          {stats.loading ? <Skeleton variant="rectangular" height={140} /> : <StatCard title="Incomplete Tasks" value={stats.overview?.outstanding_tasks || 0} icon={<Task />} color="secondary" />}
+          {stats.loading ? <StatCardSkeleton /> : <StatCard title="Incomplete Tasks" value={stats.overview?.outstanding_tasks || 0} icon={<Task />} color="secondary" />}
         </Grid>
         <Grid item xs={6} md={3}>
-          {stats.loading ? <Skeleton variant="rectangular" height={140} /> : <StatCard title="People Behind" value={stats.overview?.people_behind || 0} icon={<Warning />} color="error" />}
+          {stats.loading ? <StatCardSkeleton /> : <StatCard title="People Behind" value={stats.overview?.people_behind || 0} icon={<Warning />} color="error" />}
         </Grid>
       </Grid>
 
-      <Paper variant="outlined" sx={{ mb: 2 }}>
-        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} variant={isSmDown ? "scrollable" : "standard"} centered>
+      {/* Main Content Container with Consistent Height */}
+      <Paper 
+        variant="outlined" 
+        sx={{ 
+          mb: 2,
+          minHeight: '500px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}
+      >
+        <Tabs 
+          value={activeTab} 
+          onChange={(_, v) => setActiveTab(v)} 
+          variant={isSmDown ? "scrollable" : "standard"} 
+          centered
+          sx={{ 
+            borderBottom: 1, 
+            borderColor: 'divider',
+            flexShrink: 0
+          }}
+        >
           <Tab label="Overdue Cells" />
           <Tab label="Tasks" />
           <Tab label="Calendar" />
         </Tabs>
-      </Paper>
 
-      <Box minHeight="500px">
-        {activeTab === 0 && (
-          <Paper sx={{ p: 3 }}>
-            <Box display="flex" justifyContent="space-between" mb={2}>
-              <Typography variant="h6">Overdue Cells</Typography>
-              <Chip label={stats.overdueCells.length} color="warning" />
-            </Box>
-            {stats.overdueCells.slice(0, 5).map((c, i) => (
-              <Card key={i} variant="outlined" sx={{ mb: 1.5, p: 2, boxShadow: 2, '&:hover': { boxShadow: 4 } }}>
-                <Box display="flex" alignItems="center">
-                  <Avatar sx={{ bgcolor: 'warning.main', mr: 2 }}><Warning /></Avatar>
-                  <Box flex={1}>
-                    <Typography variant="subtitle2" fontWeight="medium" noWrap>{c.eventName || 'Unnamed'}</Typography>
-                    <Typography variant="caption" color="textSecondary" noWrap>
-                      {formatDate(c.date)} • {c.eventLeaderName || 'No leader'}
-                    </Typography>
+        {/* Tab Content Container - Takes remaining space */}
+        <Box sx={{ 
+          flex: 1, 
+          overflow: 'auto',
+          p: { xs: 1.5, sm: 2, md: 3 }
+        }}>
+          {activeTab === 0 && (
+            <Box>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">Overdue Cells</Typography>
+                <Chip label={stats.overview?.outstanding_cells || 0} color="warning" />
+              </Box>
+              {stats.loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <EventCardSkeleton key={i} />
+                ))
+              ) : (
+                <>
+                  {stats.overdueCells.slice(0, 5).map((c, i) => (
+                    <Card key={i} variant="outlined" sx={{ mb: 1.5, p: 2, boxShadow: 2, '&:hover': { boxShadow: 4 } }}>
+                      <Box display="flex" alignItems="center">
+                        <Avatar sx={{ bgcolor: 'warning.main', mr: 2 }}><Warning /></Avatar>
+                        <Box flex={1}>
+                          <Typography variant="subtitle2" fontWeight="medium" noWrap>{c.eventName || 'Unnamed'}</Typography>
+                          <Typography variant="caption" color="textSecondary" noWrap>
+                            {formatDate(c.date)} • {c.eventLeaderName || 'No leader'}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Card>
+                  ))}
+                  <Box textAlign="center" mt={1}>
+                    <Button
+                      size="small"
+                      variant="text"
+                      color="warning"
+                      startIcon={<Visibility />}
+                      onClick={() => setOverdueModalOpen(true)}
+                      disabled={(stats.overview?.outstanding_cells || 0) === 0}
+                    >
+                      View All
+                    </Button>
                   </Box>
+                </>
+              )}
+            </Box>
+          )}
+          
+          {activeTab === 1 && (
+            <Box>
+              <Typography variant="h6" gutterBottom mb={2}>
+                All Tasks by Person ({stats.groupedTasks.length} people • {stats.allTasks.length} total)
+              </Typography>
+
+              {stats.loading ? (
+                <Stack spacing={2}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <TaskRowSkeleton key={i} />
+                  ))}
+                </Stack>
+              ) : (
+                <Box sx={{ 
+                  maxHeight: '400px', 
+                  overflowY: 'auto',
+                  pr: 1,
+                  '&::-webkit-scrollbar': {
+                    width: '8px',
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    backgroundColor: 'transparent',
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: 'rgba(0,0,0,0.2)',
+                    borderRadius: '4px',
+                  },
+                }}>
+                  <Stack spacing={1.5}>
+                    {stats.groupedTasks.map(({ user, tasks, totalCount, completedCount, incompleteCount }) => {
+                      const key = user.email || user.fullName;
+                      const isExpanded = expandedUsers.includes(key);
+
+                      return (
+                        <Box key={key} sx={{ 
+                          backgroundColor: 'background.paper', 
+                          border: '1px solid', 
+                          borderColor: 'divider', 
+                          borderRadius: 2,
+                          overflow: 'hidden',
+                          transition: 'all 0.2s',
+                          '&:hover': { boxShadow: 2 }
+                        }}>
+                          <Box
+                            sx={{ 
+                              p: 2, 
+                              cursor: 'pointer', 
+                              backgroundColor: incompleteCount > 0 ? 'error.50' : 'transparent',
+                              '&:hover': { backgroundColor: 'action.hover' }
+                            }}
+                            onClick={() => toggleExpand(key)}
+                          >
+                            <Box display="flex" alignItems="center" justifyContent="space-between">
+                              <Box display="flex" alignItems="center" gap={1.5}>
+                                <Avatar sx={{ 
+                                  bgcolor: 'primary.main', 
+                                  width: 40, 
+                                  height: 40, 
+                                  fontSize: '1rem',
+                                  fontWeight: 'bold'
+                                }}>
+                                  {user.fullName.charAt(0).toUpperCase()}
+                                </Avatar>
+                                <Box>
+                                  <Typography variant="subtitle1" fontWeight="bold">{user.fullName}</Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {totalCount} task{totalCount !== 1 ? 's' : ''} • {completedCount} done
+                                    {incompleteCount > 0 && ` • ${incompleteCount} behind`}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                              <Box display="flex" alignItems="center" gap={1}>
+                                {incompleteCount > 0 && (
+                                  <Chip 
+                                    label={`${incompleteCount} behind`} 
+                                    color="error" 
+                                    size="small" 
+                                    sx={{ fontWeight: 'bold' }} 
+                                  />
+                                )}
+                                <IconButton size="small">
+                                  <ExpandMore sx={{ 
+                                    transition: 'transform 0.2s ease', 
+                                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' 
+                                  }} />
+                                </IconButton>
+                              </Box>
+                            </Box>
+                          </Box>
+
+                          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                            <Box sx={{ px: 2, pb: 2, pt: 1, backgroundColor: 'grey.50' }}>
+                              <Divider sx={{ mb: 1.5 }} />
+                              {tasks.length === 0 ? (
+                                <Typography color="text.secondary" fontStyle="italic" align="center">
+                                  No tasks assigned
+                                </Typography>
+                              ) : (
+                                <Stack spacing={1}>
+                                  {tasks.map(task => (
+                                    <Box key={task._id} sx={{ 
+                                      p: 1.5, 
+                                      borderRadius: 1.5, 
+                                      backgroundColor: 'background.paper', 
+                                      border: '1px solid', 
+                                      borderColor: 'divider',
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center'
+                                    }}>
+                                      <Box>
+                                        <Typography variant="body2" fontWeight="medium">
+                                          {task.name || task.taskType || 'Untitled Task'}
+                                        </Typography>
+                                        {task.contacted_person?.name && (
+                                          <Typography variant="caption" color="text.secondary">
+                                            Contact: {task.contacted_person.name}
+                                          </Typography>
+                                        )}
+                                      </Box>
+                                      <Chip
+                                        label={task.status || 'Pending'}
+                                        size="small"
+                                        color={['completed', 'done'].includes(task.status?.toLowerCase()) ? 'success' : task.status?.toLowerCase() === 'overdue' ? 'error' : 'warning'}
+                                      />
+                                    </Box>
+                                  ))}
+                                </Stack>
+                              )}
+                            </Box>
+                          </Collapse>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
                 </Box>
-              </Card>
-            ))}
-            <Box textAlign="center" mt={1}>
-                <Button
-                  size="small"
-                  variant="text"
-                  color="warning"
-                  startIcon={<Visibility />}
-                  onClick={() => setOverdueModalOpen(true)}
-                  disabled={(stats.overview?.outstanding_cells || 0) === 0}
-                >
-                  View All
+              )}
+            </Box>
+          )}
+
+          {activeTab === 2 && (
+            <Box>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                <Typography variant="h6">Event Calendar</Typography>
+                <Button variant="contained" startIcon={<Add />} onClick={handleCreateEvent}>
+                  Create Event
                 </Button>
               </Box>
-          </Paper>
-        )}
-        {activeTab === 1 && (
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom mb={3}>
-              All Tasks by Person ({stats.groupedTasks.length} people • {stats.allTasks.length} total)
-            </Typography>
-
-            <Stack spacing={3}>
-              {stats.groupedTasks.map(({ user, tasks, totalCount, completedCount, incompleteCount }) => {
-                const key = user.email || user.fullName;
-                const isExpanded = expandedUsers.includes(key);
-
-                return (
-                  <Box key={key} sx={{ Whom: 3, backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', boxShadow: 3, overflow: 'hidden', transition: 'all 0.2s', '&:hover': { boxShadow: 6 } }}>
-                    <Box
-                      sx={{ p: 3, cursor: 'pointer', backgroundColor: incompleteCount > 0 ? 'error.50' : 'transparent', '&:hover': { backgroundColor: 'action.hover' } }}
-                      onClick={() => toggleExpand(key)}
-                    >
-                      <Box display="flex" alignItems="center" justifyContent="space-between">
-                        <Box display="flex" alignItems="center" gap={2.5}>
-                          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56, fontSize: '1.5rem', fontWeight: 'bold' }}>
-                            {user.fullName.charAt(0).toUpperCase()}
-                          </Avatar>
-                          <Box>
-                            <Typography variant="h6" fontWeight="bold">{user.fullName}</Typography>
-                            <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
-                              {totalCount} task{totalCount !== 1 ? 's' : ''} → {completedCount} completed
-                              {incompleteCount > 0 && ` • ${incompleteCount} behind`}
-                              {incompleteCount === 0 && totalCount > 0 && ' — ALL DONE!'}
-                            </Typography>
-                          </Box>
-                        </Box>
-                        <Box display="flex" alignItems="center" gap={2}>
-                          {incompleteCount > 0 && <Chip label={`${incompleteCount} behind`} color="error" size="medium" sx={{ fontWeight: 'bold', px: 2, height: 36 }} />}
-                          <IconButton size="small">
-                            <ExpandMore sx={{ transition: 'transform 0.2s ease', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+              
+              {stats.loading ? (
+                <CalendarSkeleton />
+              ) : (
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: { xs: 'column', sm: 'row' }, 
+                  gap: 3,
+                  height: 'calc(100% - 60px)',
+                  overflow: 'hidden'
+                }}>
+                  {/* Calendar Container */}
+                  <Box sx={{ 
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                    backgroundColor: 'background.paper',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    p: 2,
+                    overflow: 'hidden'
+                  }}>
+                    <Box sx={{ flexShrink: 0 }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Typography variant="h6" fontWeight="bold">
+                          {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        </Typography>
+                        <Box display="flex" gap={1}>
+                          <IconButton size="small" onClick={goToPreviousMonth}>
+                            <ChevronLeft />
+                          </IconButton>
+                          <Button size="small" variant="outlined" onClick={goToToday}>
+                            Today
+                          </Button>
+                          <IconButton size="small" onClick={goToNextMonth}>
+                            <ChevronRight />
                           </IconButton>
                         </Box>
                       </Box>
+
+                      {/* Weekday Headers */}
+                      <Box sx={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(7, 1fr)', 
+                        gap: 0.5, 
+                        mb: 1,
+                        backgroundColor: 'background.paper',
+                        borderRadius: 2,
+                        overflow: 'hidden'
+                      }}>
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
+                          <Box key={i} sx={{ 
+                            py: 1.5, 
+                            textAlign: 'center', 
+                            fontWeight: 'bold', 
+                            fontSize: { xs: '0.75rem', sm: '0.875rem' }, 
+                            color: 'text.primary', 
+                            backgroundColor: i === 0 || i === 6 ? 'action.hover' : 'transparent',
+                            borderRight: i < 6 ? '1px solid' : 'none', 
+                            borderColor: 'divider' 
+                          }}>
+                            {isSmDown ? day[0] : day}
+                          </Box>
+                        ))}
+                      </Box>
                     </Box>
 
-                    <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                      <Box sx={{ px: 3, pb: 3, pt: 1, backgroundColor: 'grey.50' }}>
-                        <Divider sx={{ mb: 2 }} />
-                        {tasks.length === 0 ? (
-                          <Typography color="text.secondary" fontStyle="italic">No tasks assigned</Typography>
-                        ) : (
-                          <Stack spacing={1.5}>
-                            {tasks.map(task => (
-                              <Box key={task._id} sx={{ p: 2, borderRadius: 2, backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Box>
-                                  <Typography variant="body2" fontWeight="medium">{task.name || task.taskType || 'Untitled Task'}</Typography>
-                                  {task.contacted_person?.name && <Typography variant="caption" color="text.secondary">Contact: {task.contacted_person.name}</Typography>}
-                                </Box>
-                                <Chip
-                                  label={task.status || 'Pending'}
-                                  size="small"
-                                  color={['completed', 'done'].includes(task.status?.toLowerCase()) ? 'success' : task.status?.toLowerCase() === 'overdue' ? 'error' : 'warning'}
-                                />
-                              </Box>
-                            ))}
-                          </Stack>
-                        )}
-                      </Box>
-                    </Collapse>
-                  </Box>
-                );
-              })}
-            </Stack>
-          </Paper>
-        )}
+                    {/* Calendar Days Container - Scrollable */}
+                    <Box sx={{ 
+                      flex: 1,
+                      overflowY: 'auto',
+                      '&::-webkit-scrollbar': {
+                        width: '8px',
+                      },
+                      '&::-webkit-scrollbar-track': {
+                        backgroundColor: 'transparent',
+                      },
+                      '&::-webkit-scrollbar-thumb': {
+                        backgroundColor: 'rgba(0,0,0,0.2)',
+                        borderRadius: '4px',
+                      },
+                    }}>
+                      <Box sx={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(7, 1fr)', 
+                        gap: 0.5 
+                      }}>
+                        {(() => {
+                          // Calculate event counts for each date
+                          const eventCounts = {};
+                          stats.events.forEach(e => {
+                            if (e.date) {
+                              const d = e.date.split('T')[0];
+                              eventCounts[d] = (eventCounts[d] || 0) + 1;
+                            }
+                          });
 
-        {activeTab === 2 && (
-          <Paper sx={{ p: 3 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-              <Typography variant="h6">Event Calendar</Typography>
-              <Button variant="contained" startIcon={<Add />} onClick={handleCreateEvent}>
-                Create Event
-              </Button>
+                          const today = new Date().toISOString().split('T')[0];
+                          const year = currentMonth.getFullYear();
+                          const month = currentMonth.getMonth();
+                          const firstDay = new Date(year, month, 1).getDay();
+                          const daysInMonth = new Date(year, month + 1, 0).getDate();
+                          const days = [];
+                          
+                          // Add empty cells for days before the first day of month
+                          for (let i = 0; i < firstDay; i++) days.push(null);
+                          
+                          // Add days of the month
+                          for (let day = 1; day <= daysInMonth; day++) {
+                            const dateStr = new Date(year, month, day).toISOString().split('T')[0];
+                            days.push({
+                              day, 
+                              date: dateStr,
+                              eventCount: eventCounts[dateStr] || 0,
+                              isToday: dateStr === today,
+                              isSelected: dateStr === selectedDate
+                            });
+                          }
+                          
+                          return days.map((d, i) => !d ? (
+                            <Box key={`empty-${i}`} sx={{ height: 52 }} />
+                          ) : (
+                            <Box
+                              key={d.date}
+                              onClick={() => setSelectedDate(d.date)}
+                              sx={{
+                                height: 52,
+                                borderRadius: 2,
+                                cursor: 'pointer',
+                                backgroundColor: d.isSelected ? 'primary.main' : d.isToday ? 'primary.50' : 'background.default',
+                                color: d.isSelected ? 'white' : d.isToday ? 'primary.main' : 'text.primary',
+                                border: d.isToday && !d.isSelected ? '2px solid' : '1px solid',
+                                borderColor: d.isToday && !d.isSelected ? 'primary.main' : 'divider',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                position: 'relative',
+                                transition: 'all 0.2s ease',
+                                '&:hover': { 
+                                  backgroundColor: d.isSelected ? 'primary.dark' : 'action.hover', 
+                                  transform: 'translateY(-2px)', 
+                                  boxShadow: 4 
+                                }
+                              }}
+                            >
+                              <Typography variant="body2" fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'}>
+                                {d.day}
+                              </Typography>
+                              {d.eventCount > 0 && (
+                                <Box sx={{ 
+                                  position: 'absolute', 
+                                  bottom: 6, 
+                                  width: 8, 
+                                  height: 8, 
+                                  borderRadius: '50%', 
+                                  bgcolor: d.isSelected ? 'white' : 'primary.main', 
+                                  boxShadow: 1 
+                                }} />
+                              )}
+                            </Box>
+                          ));
+                        })()}
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  {/* Events List Container */}
+                  <Box sx={{ 
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                    backgroundColor: 'background.paper',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    overflow: 'hidden'
+                  }}>
+                    <Box sx={{ 
+                      p: 2, 
+                      borderBottom: '1px solid', 
+                      borderColor: 'divider',
+                      flexShrink: 0 
+                    }}>
+                      <Typography variant="subtitle1" fontWeight="bold">
+                        Events on {formatDisplayDate(selectedDate)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {eventsOnSelectedDate.length} event{eventsOnSelectedDate.length !== 1 ? 's' : ''}
+                      </Typography>
+                    </Box>
+                    
+                    {/* Events List - Scrollable */}
+                    <Box sx={{ 
+                      flex: 1,
+                      overflowY: 'auto',
+                      p: 2,
+                      '&::-webkit-scrollbar': {
+                        width: '8px',
+                      },
+                      '&::-webkit-scrollbar-track': {
+                        backgroundColor: 'transparent',
+                      },
+                      '&::-webkit-scrollbar-thumb': {
+                        backgroundColor: 'rgba(0,0,0,0.2)',
+                        borderRadius: '4px',
+                      },
+                    }}>
+                      {eventsOnSelectedDate.length > 0 ? (
+                        eventsOnSelectedDate.map(e => (
+                          <Card key={e._id} sx={{ 
+                            mb: 1.5, 
+                            p: 2, 
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              boxShadow: 3,
+                              transform: 'translateY(-1px)'
+                            }
+                          }}>
+                            <Typography variant="subtitle2" fontWeight="medium">
+                              {e.eventName}
+                            </Typography>
+                            <Box display="flex" alignItems="center" gap={1} mt={0.5}>
+                              <Typography variant="caption" color="text.secondary">
+                                {e.eventTypeName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">•</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {e.time || 'No time set'}
+                              </Typography>
+                            </Box>
+                            {e.location && (
+                              <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
+                                📍 {e.location}
+                              </Typography>
+                            )}
+                          </Card>
+                        ))
+                      ) : (
+                        <Box sx={{ 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          py: 4,
+                          color: 'text.secondary'
+                        }}>
+                          <CalendarToday sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
+                          <Typography variant="body2">No events scheduled</Typography>
+                          <Button 
+                            variant="text" 
+                            size="small" 
+                            startIcon={<Add />} 
+                            onClick={handleCreateEvent}
+                            sx={{ mt: 1 }}
+                          >
+                            Create Event
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                </Box>
+              )}
             </Box>
-            <Box display="flex" flexDirection={isSmDown ? "column" : "row"} gap={4}>
-              <Box flex={1}><EnhancedCalendar /></Box>
-              <Box flex={1}>
-                <Typography variant="subtitle1" gutterBottom>Events on {formatDisplayDate(selectedDate)}</Typography>
-                {eventsOnSelectedDate.length > 0 ? eventsOnSelectedDate.map(e => (
-                  <Card key={e._id} sx={{ mb: 1, p: 2 }}>
-                    <Typography variant="subtitle2">{e.eventName}</Typography>
-                    <Typography variant="caption">{e.eventTypeName} • {e.time}</Typography>
-                  </Card>
-                )) : <Typography color="textSecondary">No events scheduled</Typography>}
-              </Box>
-            </Box>
-          </Paper>
-        )}
-      </Box>
+          )}
+        </Box>
+      </Paper>
 
       {/* CREATE EVENT MODAL */}
       <Dialog open={createEventModalOpen} onClose={() => setCreateEventModalOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, boxShadow: 24 } }}>
@@ -710,7 +1147,7 @@ const StatsDashboard = () => {
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Cells that need attention
                 </Typography>
-              </Box>
+            </Box>
             </Box>
             <IconButton onClick={() => setOverdueModalOpen(false)} sx={{ color: 'white' }}>
               <Close />
@@ -756,9 +1193,22 @@ const StatsDashboard = () => {
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
         <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
-
     </Box>
   );
 };
 
 export default StatsDashboard;
+
+// Add CSS for spinning refresh icon
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .MuiCircularProgress-indeterminate {
+    animation: spin 1s linear infinite;
+  }
+`;
+document.head.appendChild(style);
