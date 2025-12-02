@@ -61,79 +61,6 @@ const EventCardSkeleton = () => (
   </Card>
 );
 
-const CalendarSkeleton = () => (
-  <Box sx={{ 
-    display: 'flex', 
-    flexDirection: { xs: 'column', sm: 'row' }, 
-    gap: 3,
-    height: 'calc(100% - 60px)',
-    overflow: 'hidden'
-  }}>
-    {/* Calendar Skeleton */}
-    <Box sx={{ 
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: 0,
-      backgroundColor: 'background.paper',
-      borderRadius: 2,
-      border: '1px solid',
-      borderColor: 'divider',
-      p: 2,
-      overflow: 'hidden'
-    }}>
-      <Box sx={{ flexShrink: 0 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Skeleton variant="text" width={200} height={40} />
-          <Box display="flex" gap={1}>
-            <Skeleton variant="circular" width={40} height={40} />
-            <Skeleton variant="rounded" width={80} height={40} />
-            <Skeleton variant="circular" width={40} height={40} />
-          </Box>
-        </Box>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, mb: 1 }}>
-          {Array.from({ length: 7 }).map((_, i) => (
-            <Skeleton key={i} variant="text" height={40} sx={{ textAlign: 'center' }} />
-          ))}
-        </Box>
-      </Box>
-      <Box sx={{ flex: 1, overflowY: 'auto' }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
-          {Array.from({ length: 42 }).map((_, i) => (
-            <Skeleton key={i} variant="rectangular" height={52} sx={{ borderRadius: 2 }} />
-          ))}
-        </Box>
-      </Box>
-    </Box>
-
-    {/* Events List Skeleton */}
-    <Box sx={{ 
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: 0,
-      backgroundColor: 'background.paper',
-      borderRadius: 2,
-      border: '1px solid',
-      borderColor: 'divider',
-      overflow: 'hidden'
-    }}>
-      <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
-        <Skeleton variant="text" width="60%" height={28} />
-        <Skeleton variant="text" width="40%" height={20} />
-      </Box>
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Box key={i} sx={{ mb: 1.5, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-            <Skeleton variant="text" width="80%" />
-            <Skeleton variant="text" width="60%" />
-          </Box>
-        ))}
-      </Box>
-    </Box>
-  </Box>
-);
-
 const StatsDashboard = () => {
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
@@ -223,128 +150,301 @@ const StatsDashboard = () => {
     return { start, end };
   };
 
-  const fetchStats = useCallback(async () => {
-    const cacheKey = `statsDashboard_${period}`;
-    const cachedData = localStorage.getItem(cacheKey);
+  // const fetchStats = useCallback(async () => {
+  //   const cacheKey = `statsDashboard_${period}`;
+  //   const cachedData = localStorage.getItem(cacheKey);
     
-    if (cachedData && !refreshing) {
-      const { data, timestamp } = JSON.parse(cachedData);
-      if (Date.now() - timestamp < CACHE_DURATION) {
-        setStats({
-          ...data,
-          loading: false,
-          error: null
-        });
-        return;
-      }
-    }
+  //   if (cachedData && !refreshing) {
+  //     const { data, timestamp } = JSON.parse(cachedData);
+  //     if (Date.now() - timestamp < CACHE_DURATION) {
+  //       setStats({
+  //         ...data,
+  //         loading: false,
+  //         error: null
+  //       });
+  //       return;
+  //     }
+  //   }
 
+  //   try {
+  //     setRefreshing(true);
+  //     setStats(prev => ({ ...prev, loading: true, error: null }));
+  //     const token = localStorage.getItem("token");
+  //     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  //     // OPTIMIZATION: Use aggregated endpoints for better performance
+  //     const [overdueResponse, summaryResponse, tasksResponse, usersResponse] = await Promise.all([
+  //       fetch(`${BACKEND_URL}/events/cells?page=1&limit=50&start_date=2025-11-30&status=incomplete`, { headers }),
+  //       fetch(`${BACKEND_URL}/stats/dashboard-summary?period=${period}`, { headers }),
+  //       fetch(`${BACKEND_URL}/tasks/all`, { headers }),
+  //       fetch(`${BACKEND_URL}/api/users`, { headers })
+  //     ]);
+
+  //     // Process responses
+  //     const overdueData = overdueResponse.ok ? await overdueResponse.json() : { events: [] };
+  //     const summaryData = summaryResponse.ok ? await summaryResponse.json() : {};
+  //     const tasksData = tasksResponse.ok ? await tasksResponse.json() : { tasks: [] };
+  //     const usersData = usersResponse.ok ? await usersResponse.json() : { users: [] };
+
+  //     // Extract data
+  //     const allTasks = tasksData.tasks || tasksData.results || tasksData.data || tasksData || [];
+  //     const allUsers = usersData.users || usersData.data || [];
+  //     const overdueCells = overdueData.events || overdueData.data || [];
+
+  //     // Use summary data if available, otherwise calculate
+  //     let overview = summaryData.overview;
+  //     let groupedTasks = summaryData.groupedTasks || [];
+
+  //     if (!overview || !groupedTasks.length) {
+  //       // Fallback: Apply date filter to tasks
+  //       const { start, end } = getDateRange();
+  //       const filteredTasks = allTasks.filter((task) => {
+  //         const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
+  //         if (!rawDate) return false;
+
+  //         const taskDate = new Date(rawDate);
+  //         if (isNaN(taskDate)) return false;
+
+  //         return taskDate >= start && taskDate <= end;
+  //       });
+
+  //       // Create user map
+  //       const userMap = {};
+  //       allUsers.forEach(u => {
+  //         if (u._id) userMap[u._id.toString()] = u;
+  //         if (u.email) userMap[u.email.toLowerCase()] = u;
+  //       });
+
+  //       const getUserFromTask = (task) => {
+  //         if (task.assignedTo) {
+  //           const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
+  //           if (id && userMap[id.toString()]) return userMap[id.toString()];
+  //         }
+  //         if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
+  //           return userMap[task.assignedfor.toLowerCase()];
+  //         }
+  //         return null;
+  //       };
+
+  //       // Group tasks by user
+  //       const taskGroups = {};
+  //       filteredTasks.forEach(task => {
+  //         const user = getUserFromTask(task);
+  //         if (!user) return;
+  //         const key = user._id || user.email;
+  //         if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
+  //         taskGroups[key].tasks.push(task);
+  //       });
+
+  //       groupedTasks = allUsers
+  //         .map(user => {
+  //           const key = user._id || user.email;
+  //           const group = taskGroups[key] || { tasks: [] };
+  //           const tasks = group.tasks;
+  //           const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
+  //           const incomplete = tasks.length - completed;
+
+  //           return {
+  //             user: {
+  //               _id: user._id,
+  //               fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
+  //               email: user.email || '',
+  //             },
+  //             tasks,
+  //             totalCount: tasks.length,
+  //             completedCount: completed,
+  //             incompleteCount: incomplete
+  //           };
+  //         })
+  //         .filter(g => g.tasks.length > 0) // Only show users with tasks
+  //         .sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
+
+  //       overview = {
+  //         total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
+  //         outstanding_cells: overdueCells.length,
+  //         outstanding_tasks: filteredTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
+  //         people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
+  //       };
+  //     }
+
+  //     const newStats = {
+  //       overview,
+  //       events: summaryData.recentEvents || overdueCells,
+  //       overdueCells,
+  //       allTasks: summaryData.recentTasks || allTasks.slice(0, 50),
+  //       allUsers,
+  //       groupedTasks,
+  //       loading: false,
+  //       error: null
+  //     };
+
+  //     setStats(newStats);
+
+  //     // Cache the data
+  //     localStorage.setItem(cacheKey, JSON.stringify({
+  //       data: newStats,
+  //       timestamp: Date.now()
+  //     }));
+
+  //   } catch (err) {
+  //     console.error("Fetch stats error:", err);
+  //     setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
+  //   } finally {
+  //     setRefreshing(false);
+  //     setIsRefreshing(false);
+  //   }
+  // }, [period, refreshing]);
+// In your frontend, update the fetchStats function:
+
+const fetchStats = useCallback(async () => {
+  const cacheKey = `statsDashboard_${period}`;
+  
+  // First, try to get from the cache endpoint
+  try {
+    setRefreshing(true);
+    setStats(prev => ({ ...prev, loading: true, error: null }));
+    
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+
+    // Use the cache endpoint instead of multiple API calls
+    const cacheResponse = await fetch(`${BACKEND_URL}/cache/dashboard-stats?period=${period}`, { headers });
+    
+    if (!cacheResponse.ok) {
+      throw new Error(`Cache endpoint failed: ${cacheResponse.status}`);
+    }
+    
+    const cacheData = await cacheResponse.json();
+    
+    if (!cacheData.success || !cacheData.data) {
+      throw new Error('Invalid cache data');
+    }
+    
+    const cachedStats = cacheData.data;
+    
+    // Update state with cached data
+    const newStats = {
+      overview: cachedStats.overview || {
+        total_attendance: 0,
+        outstanding_cells: 0,
+        outstanding_tasks: 0,
+        people_behind: 0
+      },
+      events: cachedStats.recentEvents || [],
+      overdueCells: cachedStats.overdueCells || [],
+      allTasks: cachedStats.allTasks || [],
+      allUsers: cachedStats.allUsers || [],
+      groupedTasks: cachedStats.groupedTasks || [],
+      loading: false,
+      error: null
+    };
+    
+    setStats(newStats);
+    
+    // Also store in localStorage for offline use
+    localStorage.setItem(cacheKey, JSON.stringify({
+      data: newStats,
+      timestamp: Date.now()
+    }));
+    
+  } catch (err) {
+    console.error("Fetch stats from cache failed:", err);
+    
+    // Fallback to the old method if cache fails
     try {
-      setRefreshing(true);
-      setStats(prev => ({ ...prev, loading: true, error: null }));
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-      // OPTIMIZATION: Use aggregated endpoints for better performance
-      const [overdueResponse, summaryResponse, tasksResponse, usersResponse] = await Promise.all([
+      const [overdueResponse, tasksResponse, usersResponse] = await Promise.all([
         fetch(`${BACKEND_URL}/events/cells?page=1&limit=50&start_date=2025-11-30&status=incomplete`, { headers }),
-        fetch(`${BACKEND_URL}/stats/dashboard-summary?period=${period}`, { headers }),
         fetch(`${BACKEND_URL}/tasks/all`, { headers }),
         fetch(`${BACKEND_URL}/api/users`, { headers })
       ]);
 
-      // Process responses
       const overdueData = overdueResponse.ok ? await overdueResponse.json() : { events: [] };
-      const summaryData = summaryResponse.ok ? await summaryResponse.json() : {};
       const tasksData = tasksResponse.ok ? await tasksResponse.json() : { tasks: [] };
       const usersData = usersResponse.ok ? await usersResponse.json() : { users: [] };
 
-      // Extract data
       const allTasks = tasksData.tasks || tasksData.results || tasksData.data || tasksData || [];
       const allUsers = usersData.users || usersData.data || [];
       const overdueCells = overdueData.events || overdueData.data || [];
 
-      // Use summary data if available, otherwise calculate
-      let overview = summaryData.overview;
-      let groupedTasks = summaryData.groupedTasks || [];
+      // Calculate date range
+      const { start, end } = getDateRange();
+      
+      // Filter tasks by date like before
+      const filteredTasks = allTasks.filter((task) => {
+        const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
+        if (!rawDate) return false;
 
-      if (!overview || !groupedTasks.length) {
-        // Fallback: Apply date filter to tasks
-        const { start, end } = getDateRange();
-        const filteredTasks = allTasks.filter((task) => {
-          const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
-          if (!rawDate) return false;
+        const taskDate = new Date(rawDate);
+        if (isNaN(taskDate)) return false;
 
-          const taskDate = new Date(rawDate);
-          if (isNaN(taskDate)) return false;
+        return taskDate >= start && taskDate <= end;
+      });
 
-          return taskDate >= start && taskDate <= end;
-        });
+      // Create user map and group tasks
+      const userMap = {};
+      allUsers.forEach(u => {
+        if (u._id) userMap[u._id.toString()] = u;
+        if (u.email) userMap[u.email.toLowerCase()] = u;
+      });
 
-        // Create user map
-        const userMap = {};
-        allUsers.forEach(u => {
-          if (u._id) userMap[u._id.toString()] = u;
-          if (u.email) userMap[u.email.toLowerCase()] = u;
-        });
+      const getUserFromTask = (task) => {
+        if (task.assignedTo) {
+          const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
+          if (id && userMap[id.toString()]) return userMap[id.toString()];
+        }
+        if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
+          return userMap[task.assignedfor.toLowerCase()];
+        }
+        return null;
+      };
 
-        const getUserFromTask = (task) => {
-          if (task.assignedTo) {
-            const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
-            if (id && userMap[id.toString()]) return userMap[id.toString()];
-          }
-          if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
-            return userMap[task.assignedfor.toLowerCase()];
-          }
-          return null;
-        };
+      const taskGroups = {};
+      filteredTasks.forEach(task => {
+        const user = getUserFromTask(task);
+        if (!user) return;
+        const key = user._id || user.email;
+        if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
+        taskGroups[key].tasks.push(task);
+      });
 
-        // Group tasks by user
-        const taskGroups = {};
-        filteredTasks.forEach(task => {
-          const user = getUserFromTask(task);
-          if (!user) return;
+      const groupedTasks = allUsers
+        .map(user => {
           const key = user._id || user.email;
-          if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
-          taskGroups[key].tasks.push(task);
-        });
+          const group = taskGroups[key] || { tasks: [] };
+          const tasks = group.tasks;
+          const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
+          const incomplete = tasks.length - completed;
 
-        groupedTasks = allUsers
-          .map(user => {
-            const key = user._id || user.email;
-            const group = taskGroups[key] || { tasks: [] };
-            const tasks = group.tasks;
-            const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
-            const incomplete = tasks.length - completed;
+          return {
+            user: {
+              _id: user._id,
+              fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
+              email: user.email || '',
+            },
+            tasks,
+            totalCount: tasks.length,
+            completedCount: completed,
+            incompleteCount: incomplete
+          };
+        })
+        .filter(g => g.tasks.length > 0)
+        .sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
 
-            return {
-              user: {
-                _id: user._id,
-                fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
-                email: user.email || '',
-              },
-              tasks,
-              totalCount: tasks.length,
-              completedCount: completed,
-              incompleteCount: incomplete
-            };
-          })
-          .filter(g => g.tasks.length > 0) // Only show users with tasks
-          .sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
-
-        overview = {
-          total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
-          outstanding_cells: overdueCells.length,
-          outstanding_tasks: filteredTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
-          people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
-        };
-      }
+      const overview = {
+        total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
+        outstanding_cells: overdueCells.length,
+        outstanding_tasks: filteredTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
+        people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
+      };
 
       const newStats = {
         overview,
-        events: summaryData.recentEvents || overdueCells,
+        events: overdueCells,
         overdueCells,
-        allTasks: summaryData.recentTasks || allTasks.slice(0, 50),
+        allTasks: filteredTasks.slice(0, 50),
         allUsers,
         groupedTasks,
         loading: false,
@@ -352,21 +452,20 @@ const StatsDashboard = () => {
       };
 
       setStats(newStats);
-
-      // Cache the data
       localStorage.setItem(cacheKey, JSON.stringify({
         data: newStats,
         timestamp: Date.now()
       }));
 
-    } catch (err) {
-      console.error("Fetch stats error:", err);
-      setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
-    } finally {
-      setRefreshing(false);
-      setIsRefreshing(false);
+    } catch (fallbackErr) {
+      console.error("Fallback fetch error:", fallbackErr);
+      setStats(prev => ({ ...prev, error: fallbackErr.message || 'Failed to load data', loading: false }));
     }
-  }, [period, refreshing]);
+  } finally {
+    setRefreshing(false);
+    setIsRefreshing(false);
+  }
+}, [period, refreshing]);
 
   useEffect(() => {
     fetchStats();
@@ -575,7 +674,7 @@ const StatsDashboard = () => {
         variant="outlined" 
         sx={{ 
           mb: 2,
-          minHeight: '500px',
+          height: '60vh',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden'
@@ -600,21 +699,23 @@ const StatsDashboard = () => {
         {/* Tab Content Container - Takes remaining space */}
         <Box sx={{ 
           flex: 1, 
-          overflow: 'auto',
-          p: { xs: 1.5, sm: 2, md: 3 }
+          overflow: 'hidden',
+          p: { xs: 1.5, sm: 2, md: 3 },
         }}>
           {activeTab === 0 && (
-            <Box>
+            <Box height="100%" display="flex" flexDirection="column">
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6">Overdue Cells</Typography>
                 <Chip label={stats.overview?.outstanding_cells || 0} color="warning" />
               </Box>
               {stats.loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <EventCardSkeleton key={i} />
-                ))
+                <Box flex={1} overflow="auto">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <EventCardSkeleton key={i} />
+                  ))}
+                </Box>
               ) : (
-                <>
+                <Box flex={1} overflow="auto">
                   {stats.overdueCells.slice(0, 5).map((c, i) => (
                     <Card key={i} variant="outlined" sx={{ mb: 1.5, p: 2, boxShadow: 2, '&:hover': { boxShadow: 4 } }}>
                       <Box display="flex" alignItems="center">
@@ -640,27 +741,27 @@ const StatsDashboard = () => {
                       View All
                     </Button>
                   </Box>
-                </>
+                </Box>
               )}
             </Box>
           )}
           
           {activeTab === 1 && (
-            <Box>
+            <Box height="100%" display="flex" flexDirection="column">
               <Typography variant="h6" gutterBottom mb={2}>
                 All Tasks by Person ({stats.groupedTasks.length} people • {stats.allTasks.length} total)
               </Typography>
 
               {stats.loading ? (
-                <Stack spacing={2}>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <TaskRowSkeleton key={i} />
-                  ))}
-                </Stack>
+                <Box flex={1} overflow="auto">
+                  <Stack spacing={2}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <TaskRowSkeleton key={i} />
+                    ))}
+                  </Stack>
+                </Box>
               ) : (
-                <Box sx={{ 
-                  maxHeight: '400px', 
-                  overflowY: 'auto',
+                <Box flex={1} overflow="auto" sx={{ 
                   pr: 1,
                   '&::-webkit-scrollbar': {
                     width: '8px',
@@ -786,7 +887,7 @@ const StatsDashboard = () => {
           )}
 
           {activeTab === 2 && (
-            <Box>
+            <Box height="100%" display="flex" flexDirection="column">
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h6">Event Calendar</Typography>
                 <Button variant="contained" startIcon={<Add />} onClick={handleCreateEvent}>
@@ -795,21 +896,12 @@ const StatsDashboard = () => {
               </Box>
               
               {stats.loading ? (
-                <CalendarSkeleton />
-              ) : (
-                <Box sx={{ 
-                  display: 'flex', 
-                  flexDirection: { xs: 'column', sm: 'row' }, 
-                  gap: 3,
-                  height: 'calc(100% - 60px)',
-                  overflow: 'hidden'
-                }}>
-                  {/* Calendar Container */}
+                <Box flex={1} display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={3}>
+                  {/* Calendar Skeleton */}
                   <Box sx={{ 
                     flex: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    minHeight: 0,
                     backgroundColor: 'background.paper',
                     borderRadius: 2,
                     border: '1px solid',
@@ -818,6 +910,68 @@ const StatsDashboard = () => {
                     overflow: 'hidden'
                   }}>
                     <Box sx={{ flexShrink: 0 }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Skeleton variant="text" width={200} height={40} />
+                        <Box display="flex" gap={1}>
+                          <Skeleton variant="circular" width={40} height={40} />
+                          <Skeleton variant="rounded" width={80} height={40} />
+                          <Skeleton variant="circular" width={40} height={40} />
+                        </Box>
+                      </Box>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, mb: 1 }}>
+                        {Array.from({ length: 7 }).map((_, i) => (
+                          <Skeleton key={i} variant="text" height={40} sx={{ textAlign: 'center' }} />
+                        ))}
+                      </Box>
+                    </Box>
+                    <Box flex={1} overflow="auto">
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
+                        {Array.from({ length: 42 }).map((_, i) => (
+                          <Skeleton key={i} variant="rectangular" height={52} sx={{ borderRadius: 2 }} />
+                        ))}
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  {/* Events List Skeleton */}
+                  <Box sx={{ 
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    backgroundColor: 'background.paper',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    overflow: 'hidden'
+                  }}>
+                    <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+                      <Skeleton variant="text" width="60%" height={28} />
+                      <Skeleton variant="text" width="40%" height={20} />
+                    </Box>
+                    <Box flex={1} overflow="auto" p={2}>
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <Box key={i} sx={{ mb: 1.5, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                          <Skeleton variant="text" width="80%" />
+                          <Skeleton variant="text" width="60%" />
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                </Box>
+              ) : (
+                <Box flex={1} display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={3}>
+                  {/* Calendar Container */}
+                  <Box sx={{ 
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    backgroundColor: 'background.paper',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    overflow: 'hidden'
+                  }}>
+                    <Box sx={{ flexShrink: 0, p: 2 }}>
                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                         <Typography variant="h6" fontWeight="bold">
                           {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -863,20 +1017,7 @@ const StatsDashboard = () => {
                     </Box>
 
                     {/* Calendar Days Container - Scrollable */}
-                    <Box sx={{ 
-                      flex: 1,
-                      overflowY: 'auto',
-                      '&::-webkit-scrollbar': {
-                        width: '8px',
-                      },
-                      '&::-webkit-scrollbar-track': {
-                        backgroundColor: 'transparent',
-                      },
-                      '&::-webkit-scrollbar-thumb': {
-                        backgroundColor: 'rgba(0,0,0,0.2)',
-                        borderRadius: '4px',
-                      },
-                    }}>
+                    <Box flex={1} overflow="auto" p={2} pt={0}>
                       <Box sx={{ 
                         display: 'grid', 
                         gridTemplateColumns: 'repeat(7, 1fr)', 
@@ -967,7 +1108,6 @@ const StatsDashboard = () => {
                     flex: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    minHeight: 0,
                     backgroundColor: 'background.paper',
                     borderRadius: 2,
                     border: '1px solid',
@@ -989,21 +1129,7 @@ const StatsDashboard = () => {
                     </Box>
                     
                     {/* Events List - Scrollable */}
-                    <Box sx={{ 
-                      flex: 1,
-                      overflowY: 'auto',
-                      p: 2,
-                      '&::-webkit-scrollbar': {
-                        width: '8px',
-                      },
-                      '&::-webkit-scrollbar-track': {
-                        backgroundColor: 'transparent',
-                      },
-                      '&::-webkit-scrollbar-thumb': {
-                        backgroundColor: 'rgba(0,0,0,0.2)',
-                        borderRadius: '4px',
-                      },
-                    }}>
+                    <Box flex={1} overflow="auto" p={2}>
                       {eventsOnSelectedDate.length > 0 ? (
                         eventsOnSelectedDate.map(e => (
                           <Card key={e._id} sx={{ 
@@ -1147,7 +1273,7 @@ const StatsDashboard = () => {
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Cells that need attention
                 </Typography>
-            </Box>
+              </Box>
             </Box>
             <IconButton onClick={() => setOverdueModalOpen(false)} sx={{ color: 'white' }}>
               <Close />
