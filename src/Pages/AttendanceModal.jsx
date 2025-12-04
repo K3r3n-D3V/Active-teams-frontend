@@ -1356,55 +1356,77 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
   const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
-  useEffect(() => {
-    if (isOpen && event) {
-      console.log("=== EVENT DATA DEBUG ===");
-      console.log("Full event object:", event);
-      console.log("Event ID:", event._id || event.id);
-      console.log("Event persistent_attendees:", event.persistent_attendees);
-      console.log("Event status:", event.status);
-      console.log("Event attendance:", event.attendance);
-
-      // Debug: Check current week calculation
-      const currentWeek = getCurrentWeekIdentifier();
-      console.log("Current week identifier:", currentWeek);
-      console.log("Current week attendance data:", event.attendance ? event.attendance[currentWeek] : "No attendance data");
-      console.log("=========================");
-
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-      setShowMobileMenu(false);
-
-      const loadPersistentData = async () => {
-        const eventId = event._id || event.id;
-
-        // Check if we have persistent attendees in the event data
-        if (event.persistent_attendees && Array.isArray(event.persistent_attendees) && event.persistent_attendees.length > 0) {
-          console.log("Using persistent attendees from event data:", event.persistent_attendees.length);
-          setPersistentCommonAttendees(event.persistent_attendees);
-        } else {
-          console.log("No persistent attendees in event data, fetching from API");
-          // Try to fetch from API
-          await fetchPersistentAttendees(eventId);
-        }
-      };
-
-      loadPersistentData();
-      loadExistingAttendance();
-      fetchPeople();
-
-      if (event.eventType === "cell") {
-        fetchCommonAttendees(event._id || event.id);
-      } else {
-        setCommonAttendees([]);
-      }
-
-      if (event.did_not_meet) {
-        setDidNotMeet(true);
-      }
+useEffect(() => {
+  if (isOpen && event) {
+    console.log("📱 Opening attendance modal");
+    
+    // Get clean ID
+    let eventId = event._id || event.id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
     }
-  }, [isOpen, event]);
+    
+    // Reset states
+    setSearchName("");
+    setAssociateSearch("");
+    setActiveTab(0);
+    
+    // ==================== IMPORTANT ====================
+    // 1. ALWAYS fetch ALL attendees from database
+    const fetchAttendees = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const allAttendees = data.persistent_attendees || [];
+          console.log(`📋 Loaded ${allAttendees.length} attendees from database`);
+          
+          // SET ALL ATTENDEES (people added from Associate tab)
+          setPersistentCommonAttendees(allAttendees);
+        }
+      } catch (error) {
+        console.error("Error loading attendees:", error);
+      }
+    };
+    
+    // 2. Load weekly check-in status (who is ticked THIS WEEK only)
+    const loadWeeklyCheckins = () => {
+      const currentWeek = getCurrentWeekIdentifier();
+      const weekAttendance = event.attendance?.[currentWeek];
+      
+      if (weekAttendance && weekAttendance.attendees) {
+        const newCheckedIn = {};
+        
+        // Mark people checked THIS WEEK
+        weekAttendance.attendees.forEach(att => {
+          if (att.id && att.checked_in) {
+            newCheckedIn[att.id] = true;
+          }
+        });
+        
+        setCheckedIn(newCheckedIn);
+        console.log(`✓ Loaded ${Object.keys(newCheckedIn).length} check-ins for this week`);
+      } else {
+        setCheckedIn({});
+        console.log("No check-ins for this week yet");
+      }
+    };
+    
+    // Run both
+    fetchAttendees();
+    loadWeeklyCheckins();
+    
+    fetchPeople();
+    setDidNotMeet(event.did_not_meet || false);
+  }
+}, [isOpen, event]);
+
+
 
   const loadPreloadedPeople = async () => {
     const now = Date.now();
@@ -1569,15 +1591,69 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  const savePersistentCommonAttendees = (attendees) => {
-    if (event) {
-      const eventId = event._id || event.id;
-      localStorage.setItem(
-        `commonAttendees_${eventId}`,
-        JSON.stringify(attendees)
-      );
+const savePersistentCommonAttendeesToDB = async (attendees) => {
+  if (!event) return false;
+  
+  // Get clean event ID WITHOUT date suffix
+  let eventId = event._id || event.id;
+  
+  // Remove any date suffix that might be appended
+  if (eventId && eventId.includes("_")) {
+    const parts = eventId.split("_");
+    // Take only the first part (ObjectId)
+    eventId = parts[0];
+    console.log(`Cleaned event ID: ${eventId} (removed date suffix)`);
+  }
+  
+  if (!eventId) {
+    toast.error("No event ID found");
+    return false;
+  }
+  
+  try {
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+
+    // Format attendees
+    const formattedAttendees = attendees.map(p => ({
+      id: p.id || p._id || "",
+      name: p.fullName || p.name || "",
+      fullName: p.fullName || p.name || "",
+      email: p.email || "",
+      leader12: p.leader12 || "",
+      leader144: p.leader144 || "",
+      phone: p.phone || ""
+    })).filter(p => p.id);
+
+    console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
+
+    const response = await fetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
+      method: "PUT",
+      headers: headers,
+      body: JSON.stringify({
+        persistent_attendees: formattedAttendees
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to save: ${response.status} - ${errorText}`);
     }
-  };
+
+    console.log("✅ Attendees saved to database");
+    return true;
+    
+  } catch (error) {
+    console.error("Error saving:", error);
+    toast.error("Failed to save attendees");
+    return false;
+  }
+};
+
+
   function getCurrentWeekIdentifier() {
     const now = new Date();
     const year = now.getFullYear();
@@ -1668,25 +1744,36 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  const fetchPersistentAttendees = async (eventId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const response = await fetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, { headers });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.persistent_attendees && Array.isArray(data.persistent_attendees)) {
-          console.log("Fetched persistent attendees from API:", data.persistent_attendees.length);
-          setPersistentCommonAttendees(data.persistent_attendees);
-          return data.persistent_attendees;
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching persistent attendees:", error);
+ const fetchPersistentAttendees = async (eventId) => {
+  try {
+    // Clean the event ID before using it
+    let cleanEventId = eventId;
+    if (eventId && eventId.includes("_")) {
+      const parts = eventId.split("_");
+      cleanEventId = parts[0];
     }
-    return [];
-  };
+    
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+
+    console.log(`Fetching persistent attendees for event ID: ${cleanEventId}`);
+    const response = await fetch(`${BACKEND_URL}/events/${cleanEventId}/persistent-attendees`, { headers });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.persistent_attendees && Array.isArray(data.persistent_attendees)) {
+        console.log("Fetched persistent attendees from API:", data.persistent_attendees.length);
+        setPersistentCommonAttendees(data.persistent_attendees);
+        return data.persistent_attendees;
+      }
+    } else {
+      console.error("Failed to fetch persistent attendees:", response.status);
+    }
+  } catch (error) {
+    console.error("Error fetching persistent attendees:", error);
+  }
+  return [];
+};
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -1698,22 +1785,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-  // Effect: Load persistent attendees from localStorage
-  useEffect(() => {
-    if (event) {
-      const eventId = event._id || event.id;
-      const storedAttendees = localStorage.getItem(
-        `commonAttendees_${eventId}`
-      );
-      if (storedAttendees) {
-        try {
-          setPersistentCommonAttendees(JSON.parse(storedAttendees));
-        } catch (error) {
-          console.error("Error loading persistent attendees:", error);
-        }
-      }
-    }
-  }, [event]);
+ 
 
   // Effect: Load preloaded people when modal opens
   useEffect(() => {
@@ -1738,59 +1810,32 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     return () => clearTimeout(delay);
   }, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
-  const handleCheckIn = (id) => {
-    setCheckedIn((prev) => {
-      const newState = { ...prev, [id]: !prev[id] };
-
-      if (newState[id]) {
-      //  toast.success(`${name} has been checked in`);
-        // setAlert({
-        //   open: true,
-        //   type: "success",
-        //   message: `${name} has been checked in`,
-        // });
-        // setTimeout(
-        //   () => setAlert({ open: false, type: "success", message: "" }),
-        //   3000
-        // );
-      } else {
-        // setAlert({
-        //   open: true,
-        //   type: "warning",
-        //   message: `You have unchecked ${name}`,
-        // });
-        // setTimeout(
-        //   () => setAlert({ open: false, type: "warning", message: "" }),
-        //   3000
-        // );
-        // toast.warning(`You have unchecked ${name}`);
-
-        setDecisions((prev) => ({ ...prev, [id]: false }));
-        setDecisionTypes((prev) => {
-          const updated = { ...prev };
-          delete updated[id];
-          return updated;
-        });
-        setPriceTiers((prev) => {
-          const updated = { ...prev };
-          delete updated[id];
-          return updated;
-        });
-        setPaymentMethods((prev) => {
-          const updated = { ...prev };
-          delete updated[id];
-          return updated;
-        });
-        setPaidAmounts((prev) => {
-          const updated = { ...prev };
-          delete updated[id];
-          return updated;
-        });
-      }
-      return newState;
-    });
-  };
-
+ const handleCheckIn = (id) => {
+  setCheckedIn(prev => {
+    const isNowChecked = !prev[id];
+    
+    // Update UI state
+    const newState = { ...prev, [id]: isNowChecked };
+    
+    // Note: This check/uncheck only affects WEEKLY attendance
+    // The person stays in the database attendees list regardless
+    
+    if (isNowChecked) {
+      toast.success("Person checked in for this week");
+    } else {
+      // Remove any decisions/payment info when unchecking
+      setDecisions(prevDec => ({ ...prevDec, [id]: false }));
+      setDecisionTypes(prevTypes => {
+        const updated = { ...prevTypes };
+        delete updated[id];
+        return updated;
+      });
+      toast.warning("Person unchecked for this week");
+    }
+    
+    return newState;
+  });
+};
   const handleDecisionTypeSelect = (id, type) => {
     setDecisionTypes((prev) => ({
       ...prev,
@@ -1839,42 +1884,75 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     return price - paid;
   };
 
-  const handleAssociatePerson = (person) => {
-    const isAlreadyAdded = persistentCommonAttendees.some(
-      (p) => p.id === person.id
+const saveAllAttendeesToDatabase = async (attendees) => {
+  if (!event) return false;
+  
+  // Get clean event ID
+  let eventId = event._id || event.id;
+  if (eventId && eventId.includes("_")) {
+    eventId = eventId.split("_")[0];
+  }
+  
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch(
+      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          persistent_attendees: attendees
+        }),
+      }
     );
 
-    if (isAlreadyAdded) {
-      if (
-        window.confirm(
-          `Are you sure you want to remove ${person.fullName} from common attendees?`
-        )
-      ) {
-        const updatedAttendees = persistentCommonAttendees.filter(
-          (p) => p.id !== person.id
-        );
-        setPersistentCommonAttendees(updatedAttendees);
-        savePersistentCommonAttendees(updatedAttendees);
-
-        toast.warning(`You have removed ${person.fullName} from common attendees`);
-      }
-    } else {
-      const updatedAttendees = [...persistentCommonAttendees, person];
-      setPersistentCommonAttendees(updatedAttendees);
-      savePersistentCommonAttendees(updatedAttendees);
-
-      // setAlert({
-      //   open: true,
-      //   type: "success",
-      //   message: `${person.fullName} added to common attendees`,
-      // });
-      // setTimeout(
-      //   () => setAlert({ open: false, type: "success", message: "" }),
-      //   3000
-      // );
-      toast.success(`${person.fullName} added to common attendees`);
+    if (!response.ok) {
+      throw new Error(`Save failed: ${response.status}`);
     }
-  };
+
+    console.log(`✅ Saved ${attendees.length} attendees to database`);
+    return true;
+    
+  } catch (error) {
+    console.error("❌ Failed to save:", error);
+    toast.error("Failed to save attendees list");
+    return false;
+  }
+};
+
+
+const handleAssociatePerson = async (person) => {
+  const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
+  
+  if (isAlreadyAdded) {
+    // REMOVE from database entirely
+    if (window.confirm(`Remove ${person.fullName}?`)) {
+      const updated = persistentCommonAttendees.filter(p => p.id !== person.id);
+      
+      // Update UI immediately
+      setPersistentCommonAttendees(updated);
+      
+      // SAVE TO DATABASE IMMEDIATELY (ALL attendees list)
+      await saveAllAttendeesToDatabase(updated);
+      
+      toast.success(`${person.fullName} removed from attendees list`);
+    }
+  } else {
+    // ADD to database
+    const updated = [...persistentCommonAttendees, person];
+    
+    // Update UI immediately
+    setPersistentCommonAttendees(updated);
+    
+    // SAVE TO DATABASE IMMEDIATELY (ALL attendees list)
+    await saveAllAttendeesToDatabase(updated);
+    
+    toast.success(`${person.fullName} added to attendees list`);
+  }
+};
 
   const getAllCommonAttendees = () => {
     // FIX: Add proper null/undefined checks
@@ -1935,167 +2013,136 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     person.email.toLowerCase().includes(associateSearch.toLowerCase())
   );
 
+const handleSave = async () => {
+  const allPeople = getAllCommonAttendees();
+  console.log("📊 All people for save:", allPeople);
 
-  const handleSave = async () => {
-    const allPeople = getAllCommonAttendees();
-    console.log("📊 All people for save:", allPeople);
+  const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+  console.log("✅ Checked-in attendees:", attendeesList);
 
-    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    console.log("✅ Checked-in attendees:", attendeesList);
+  if (!didNotMeet && attendeesList.length === 0) {
+    toast.error("Please check in at least one attendee before saving.");
+    return;
+  }
 
-    if (!didNotMeet && attendeesList.length === 0) {
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: "Please check in at least one attendee before saving.",
-      // });
-      // setTimeout(
-      //   () => setAlert({ open: false, type: "error", message: "" }),
-      //   3000
-      // );
-      toast.error("Please check in at least one attendee before saving.");
-      return;
-    }
+  // Get clean event ID
+  let eventId = event?.id || event?._id;
+  if (eventId && eventId.includes("_")) {
+    const parts = eventId.split("_");
+    eventId = parts[0];
+  }
+  
+  if (!eventId) {
+    toast.error("Event ID is missing, cannot submit attendance.");
+    return;
+  }
 
-    const eventId = event?.id || event?._id;
-    if (!eventId) {
-      toast.error("Event ID is missing, cannot submit attendance.");
-      return;
-    }
+  try {
+    const selectedAttendees = attendeesList.map((id) => {
+      const person = allPeople.find((p) => p && p.id === id);
 
-    try {
-      const selectedAttendees = attendeesList.map((id) => {
-        const person = allPeople.find((p) => p && p.id === id);
-
-        if (!person) {
-          console.warn(`Person with id ${id} not found in allPeople`);
-          return null;
-        }
-
-        const attendee = {
-          id: person.id,
-          name: person.fullName || "",
-          email: person.email || "",
-          fullName: person.fullName || "",
-          leader12: person.leader12 || "",
-          leader144: person.leader144 || "",
-          phone: person.phone || "",
-          time: new Date().toISOString(),
-          decision: decisions[id] ? decisionTypes[id] || "" : "",
-          checked_in: true
-        };
-
-        if (isTicketedEvent) {
-          attendee.priceTier = priceTiers[id]?.name || "";
-          attendee.price = priceTiers[id]?.price || 0;
-          attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-          attendee.memberType = priceTiers[id]?.memberType || "";
-          attendee.paymentMethod = paymentMethods[id] || "";
-          attendee.paid = paidAmounts[id] || 0;
-          attendee.owing = calculateOwing(id);
-        }
-
-        return attendee;
-      }).filter(attendee => attendee !== null);
-
-      console.log("Final selected attendees:", selectedAttendees);
-
-      let result;
-
-      if (typeof onSubmit === "function") {
-        console.log("Using onSubmit prop...");
-
-        const payload = {
-          attendees: didNotMeet ? [] : selectedAttendees,
-          all_attendees: allPeople,
-          persistent_attendees: allPeople.map(p => ({
-            id: p.id,
-            name: p.fullName,
-            fullName: p.fullName,
-            email: p.email,
-            leader12: p.leader12,
-            leader144: p.leader144,
-            phone: p.phone
-          })),
-          leaderEmail: currentUser?.email || "",
-          leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-          did_not_meet: didNotMeet,
-          isTicketed: isTicketedEvent,
-          week: getCurrentWeekIdentifier()
-        };
-
-        console.log("Submission payload structure:", {
-          attendees_count: payload.attendees.length,
-          all_attendees_count: payload.all_attendees.length,
-          persistent_attendees_count: payload.persistent_attendees.length,
-          did_not_meet: payload.did_not_meet
-        });
-
-        result = await onSubmit(payload);
-
-      } else {
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
-
-        const payload = {
-          attendees: didNotMeet ? [] : selectedAttendees,
-          all_attendees: allPeople,
-          persistent_attendees: allPeople.map(p => ({
-            id: p.id,
-            name: p.fullName,
-            fullName: p.fullName,
-            email: p.email,
-            leader12: p.leader12,
-            leader144: p.leader144,
-            phone: p.phone
-          })),
-          leaderEmail: currentUser?.email || "",
-          leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-          did_not_meet: didNotMeet,
-          isTicketed: isTicketedEvent,
-          week: getCurrentWeekIdentifier()
-        };
-
-        console.log("Direct API call with eventId:", eventId);
-
-        const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-          method: "PUT",
-          headers: headers,
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-        }
-
-        result = await response.json();
+      if (!person) {
+        console.warn(`Person with id ${id} not found in allPeople`);
+        return null;
       }
 
-      console.log("Save result:", result);
+      const attendee = {
+        id: person.id,
+        name: person.fullName || "",
+        email: person.email || "",
+        fullName: person.fullName || "",
+        leader12: person.leader12 || "",
+        leader144: person.leader144 || "",
+        phone: person.phone || "",
+        time: new Date().toISOString(),
+        decision: decisions[id] ? decisionTypes[id] || "" : "",
+        checked_in: true
+      };
 
-      if (result && result.success) {
-        toast.success("Attendance saved successfully!");
-
-        if (typeof onClose === "function") {
-          onClose();
-        }
-
-        if (typeof onAttendanceSubmitted === "function") {
-          onAttendanceSubmitted();
-        }
-      } else {
-        throw new Error(result?.message || "Failed to save attendance");
+      if (isTicketedEvent) {
+        attendee.priceTier = priceTiers[id]?.name || "";
+        attendee.price = priceTiers[id]?.price || 0;
+        attendee.ageGroup = priceTiers[id]?.ageGroup || "";
+        attendee.memberType = priceTiers[id]?.memberType || "";
+        attendee.paymentMethod = paymentMethods[id] || "";
+        attendee.paid = paidAmounts[id] || 0;
+        attendee.owing = calculateOwing(id);
       }
 
-    } catch (error) {
-      console.error("Error saving attendance:", error);
-      toast.error(error.message || "Failed to save attendance. Please try again.");
+      return attendee;
+    }).filter(attendee => attendee !== null);
+
+    console.log("Final selected attendees:", selectedAttendees);
+
+    // IMPORTANT: Use clean event ID in payload
+    const payload = {
+      attendees: didNotMeet ? [] : selectedAttendees,
+      persistent_attendees: allPeople.map(p => ({
+        id: p.id,
+        name: p.fullName,
+        fullName: p.fullName,
+        email: p.email,
+        leader12: p.leader12,
+        leader144: p.leader144,
+        phone: p.phone
+      })),
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      did_not_meet: didNotMeet,
+      isTicketed: isTicketedEvent,
+      week: getCurrentWeekIdentifier()
+    };
+
+    console.log("💾 Submitting weekly attendance to event ID:", eventId);
+
+    let result;
+
+    if (typeof onSubmit === "function") {
+      result = await onSubmit(payload);
+    } else {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+        method: "PUT",
+        headers: headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+      }
+
+      result = await response.json();
     }
-  };
+
+    console.log("Save result:", result);
+
+    if (result && result.success) {
+      toast.success("Attendance saved successfully!");
+
+      if (typeof onClose === "function") {
+        onClose();
+      }
+
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted();
+      }
+    } else {
+      throw new Error(result?.message || "Failed to save attendance");
+    }
+
+  } catch (error) {
+    console.error("Error saving attendance:", error);
+    toast.error(error.message || "Failed to save attendance. Please try again.");
+  }
+};
+
+
 
   const handleSubmitAttendance = (attendanceData) => {
     console.log("Preparing to submit attendance:");
@@ -2117,136 +2164,85 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     setShowDidNotMeetConfirm(true);
   };
 
-  const confirmDidNotMeet = async () => {
-    setShowDidNotMeetConfirm(false);
-    setDidNotMeet(true);
-    setCheckedIn({});
-    setDecisions({});
-    setManualHeadcount("");
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
-    try {
-      const eventId = event?.id || event?._id;
-      if (!eventId) {
-        // setAlert({
-        //   open: true,
-        //   type: "error",
-        //   message: "Event ID is missing, cannot submit attendance.",
-        // });
-        // setTimeout(
-        //   () => setAlert({ open: false, type: "error", message: "" }),
-        //   3000
-        // );
-        toast.error("Event ID is missing, cannot submit attendance");
-        return;
-      }
-
-      let result;
-      if (typeof onSubmit === "function") {
-        const allPeople = getAllCommonAttendees();
-        const payload = {
-          attendees: [],
-          all_attendees: allPeople,
-          leaderEmail: currentUser?.email || "",
-          leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-          did_not_meet: true,
-          isTicketed: isTicketedEvent,
-          week: getCurrentWeekIdentifier(),
-          persistent_attendees: allPeople.map(p => ({
-            id: p.id,
-            fullName: p.fullName,
-            email: p.email,
-            leader12: p.leader12,
-            leader144: p.leader144,
-            phone: p.phone
-          }))
-        };
-
-        result = await onSubmit(payload);
-      } else {
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
-
-        const allPeople = getAllCommonAttendees();
-        const payload = {
-          attendees: [],
-          all_attendees: allPeople,
-          leaderEmail: currentUser?.email || "",
-          leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-          did_not_meet: true,
-          isTicketed: isTicketedEvent,
-          week: getCurrentWeekIdentifier(),
-          persistent_attendees: allPeople.map(p => ({
-            id: p.id,
-            fullName: p.fullName,
-            email: p.email,
-            leader12: p.leader12,
-            leader144: p.leader144,
-            phone: p.phone
-          }))
-        };
-
-        const response = await fetch(
-          `${BACKEND_URL}/submit-attendance/${eventId}`,
-          {
-            method: "PUT",
-            headers,
-            body: JSON.stringify(payload),
-          }
-        );
-        result = await response.json();
-        result.success = response.ok;
-      }
-
-      if (result?.success) {
-        // setAlert({
-        //   open: true,
-        //   type: "success",
-        //   message: "Event marked as 'Did Not Meet' successfully!",
-        // });
-        toast.alert("Event marked as 'Did Not Meet' successfully!")
-
-        if (typeof onAttendanceSubmitted === "function") {
-          onAttendanceSubmitted();
-        }
-
-        // setTimeout(() => {
-        //   setAlert({ open: false, type: "success", message: "" });
-        //   onClose();
-        // }, 1500);
-      } else {
-        // setAlert({
-        //   open: true,
-        //   type: "error",
-        //   message:
-        //     result?.message ||
-        //     result?.detail ||
-        //     "Failed to mark event as 'Did Not Meet'.",
-        // });
-        // setTimeout(
-        //   () => setAlert({ open: false, type: "error", message: "" }),
-        //   3000
-        // );
-        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
-      }
-    } catch (error) {
-      console.error("❌ Error marking event as 'Did Not Meet':", error);
-      // setAlert({
-      //   open: true,
-      //   type: "error",
-      //   message: "Something went wrong while marking event as 'Did Not Meet'.",
-      // });
-      // setTimeout(
-      //   () => setAlert({ open: false, type: "error", message: "" }),
-      //   3000
-      // );
-      // toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+ const confirmDidNotMeet = async () => {
+  setShowDidNotMeetConfirm(false);
+  setDidNotMeet(true);
+  setCheckedIn({});
+  setDecisions({});
+  setManualHeadcount("");
+  setPriceTiers({});
+  setPaymentMethods({});
+  setPaidAmounts({});
+  
+  try {
+    const eventId = event?.id || event?._id;
+    if (!eventId) {
+      toast.error("Event ID is missing, cannot submit attendance.");
+      return;
     }
-  };
+
+    const allPeople = getAllCommonAttendees();
+    
+    // IMPORTANT: persistent_attendees remain in database
+    // We're just marking this week as "did not meet"
+    const payload = {
+      attendees: [],
+      persistent_attendees: allPeople.map(p => ({
+        id: p.id,
+        fullName: p.fullName,
+        email: p.email,
+        leader12: p.leader12,
+        leader144: p.leader144,
+        phone: p.phone
+      })),
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      did_not_meet: true,
+      isTicketed: isTicketedEvent,
+      week: getCurrentWeekIdentifier()
+    };
+
+    let result;
+    
+    if (typeof onSubmit === "function") {
+      result = await onSubmit(payload);
+    } else {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const response = await fetch(
+        `${BACKEND_URL}/submit-attendance/${eventId}`,
+        {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(payload),
+        }
+      );
+      result = await response.json();
+      result.success = response.ok;
+    }
+
+    if (result?.success) {
+      toast.success("Event marked as 'Did Not Meet' successfully!");
+
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted();
+      }
+
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } else {
+      toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+    }
+  } catch (error) {
+    console.error("❌ Error marking event as 'Did Not Meet':", error);
+    toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+  }
+};
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
