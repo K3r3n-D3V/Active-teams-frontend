@@ -111,6 +111,8 @@ const StatsDashboard = () => {
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
   const [overdueModalOpen, setOverdueModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [globalEvents, setGlobalEvents] = useState([]);
+  const [globalEventsLoading, setGlobalEventsLoading] = useState(true);
 
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
 
@@ -160,6 +162,55 @@ const StatsDashboard = () => {
     return { start, end };
   };
 
+  // Fetch global events (GLOBAL type events only) - UPDATED to use correct endpoint
+  const fetchGlobalEvents = useCallback(async () => {
+    try {
+      setGlobalEventsLoading(true);
+      const token = localStorage.getItem("token");
+      const headers = { 
+        Authorization: `Bearer ${token}`, 
+        'Content-Type': 'application/json' 
+      };
+
+      // Fetch ALL events and filter for GLOBAL type
+      const response = await fetch(`${BACKEND_URL}/events`, { 
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ limit: 100, page: 1 })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}: Failed to load events`);
+      }
+
+      const eventsData = await response.json();
+      
+      // Extract events array from response
+      let events = [];
+      if (eventsData.events) {
+        events = eventsData.events;
+      } else if (eventsData.data && Array.isArray(eventsData.data)) {
+        events = eventsData.data;
+      } else if (Array.isArray(eventsData)) {
+        events = eventsData;
+      }
+      
+      // Filter for GLOBAL events
+      const globalEventsOnly = events.filter(event => 
+        event.eventType === 'GLOBAL' || event.eventTypeName === 'GLOBAL'
+      );
+      
+      setGlobalEvents(globalEventsOnly);
+      
+    } catch (err) {
+      console.error("Fetch global events error:", err);
+      setGlobalEvents([]);
+    } finally {
+      setGlobalEventsLoading(false);
+    }
+  }, []);
+
   const fetchStats = useCallback(async (forceRefresh = false) => {
     const cacheKey = `statsDashboard_${period}`;
     
@@ -191,76 +242,134 @@ const StatsDashboard = () => {
         'Content-Type': 'application/json' 
       };
 
-      // Use the new optimized endpoint
-      const response = await fetch(
-        `${BACKEND_URL}/stats/dashboard-optimized?period=${period}&include_details=true`, 
-        { headers }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}: Failed to load dashboard data`);
+      // === 1. Fetch Overdue/Incomplete Cells ===
+      let allCellEvents = [];
+      let page = 1;
+      while (true) {
+        const res = await fetch(`${BACKEND_URL}/events/cells?page=${page}&limit=100&start_date=2025-11-30`, { headers });
+        if (!res.ok) break;
+        const data = await res.json();
+        const events = data.events || data.data || [];
+        allCellEvents.push(...events);
+        if (events.length < 100) break;
+        page++;
       }
 
-      const dashboardData = await response.json();
+      const overdueCells = allCellEvents.filter(e => {
+        const s = (e.status || '').toString().toLowerCase().trim();
+        return s === 'overdue' || s === 'incomplete';
+      });
 
-      if (!dashboardData.success) {
-        throw new Error('Failed to load dashboard data');
+      // 2. Fetch Tasks + Apply Date Filter
+      let allTasks = [];
+      try {
+        const res = await fetch(`${BACKEND_URL}/tasks/all`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const rawTasks = data.tasks || data.results || data.data || data || [];
+
+          const { start, end } = getDateRange();
+
+          const filteredTasks = rawTasks.filter((task) => {
+            const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
+            if (!rawDate) return false;
+
+            const taskDate = new Date(rawDate);
+            if (isNaN(taskDate)) return false;
+
+            return taskDate >= start && taskDate <= end;
+          });
+
+          allTasks = filteredTasks;
+        }
+      } catch (e) {
+        console.error("Tasks failed", e);
       }
 
-      // Transform the backend data to match your frontend structure
-      const transformedData = {
-        overview: {
-          total_attendance: dashboardData.overview?.total_attendance || 0,
-          outstanding_cells: dashboardData.overview?.outstanding_cells || 0,
-          outstanding_tasks: dashboardData.overview?.outstanding_tasks || 0,
-          people_behind: dashboardData.overview?.people_behind || 0,
-          total_tasks: dashboardData.overview?.total_tasks || 0,
-          completed_tasks: dashboardData.overview?.completed_tasks || 0
-        },
-        events: dashboardData.upcoming_events || [],
-        overdueCells: dashboardData.overdue_cells || [],
-        allTasks: [], // Will be populated from grouped_tasks
-        allUsers: [], // Will be extracted from grouped_tasks
-        groupedTasks: dashboardData.grouped_tasks || [],
+      // 3. Fetch Users
+      let allUsers = [];
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/users`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          allUsers = data.users || data.data || [];
+        }
+      } catch (e) {
+        console.error("Users failed", e);
+      }
+
+      const userMap = {};
+      allUsers.forEach(u => {
+        if (u._id) userMap[u._id.toString()] = u;
+        if (u.email) userMap[u.email.toLowerCase()] = u;
+      });
+
+      const getUserFromTask = (task) => {
+        if (task.assignedTo) {
+          const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
+          if (id && userMap[id.toString()]) return userMap[id.toString()];
+        }
+        if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
+          return userMap[task.assignedfor.toLowerCase()];
+        }
+        return null;
+      };
+
+      const taskGroups = {};
+      allTasks.forEach(task => {
+        const user = getUserFromTask(task);
+        if (!user) return;
+        const key = user._id || user.email;
+        if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
+        taskGroups[key].tasks.push(task);
+      });
+
+      const groupedTasks = allUsers.map(user => {
+        const key = user._id || user.email;
+        const group = taskGroups[key] || { tasks: [] };
+        const tasks = group.tasks;
+        const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
+        const incomplete = tasks.length - completed;
+
+        return {
+          user: {
+            _id: user._id,
+            fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
+            email: user.email || '',
+          },
+          tasks,
+          totalCount: tasks.length,
+          completedCount: completed,
+          incompleteCount: incomplete
+        };
+      }).sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
+
+      const overview = {
+        total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
+        outstanding_cells: overdueCells.length,
+        outstanding_tasks: allTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
+        people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
+        total_tasks: allTasks.length,
+        completed_tasks: allTasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length
+      };
+
+      const newStats = {
+        overview,
+        events: [], // We'll keep this empty since we're using globalEvents instead
+        overdueCells,
+        allTasks,
+        allUsers,
+        groupedTasks,
         loading: false,
         error: null
       };
 
-      // Extract tasks and users from grouped_tasks
-      const allTasks = [];
-      const allUsers = new Set();
-      
-      dashboardData.grouped_tasks?.forEach(group => {
-        if (group.user) {
-          allUsers.add({
-            _id: group.user._id,
-            name: group.user.fullName?.split(' ')[0] || '',
-            surname: group.user.fullName?.split(' ')[1] || '',
-            email: group.user.email,
-            fullName: group.user.fullName
-          });
-        }
-        
-        if (group.tasks) {
-          group.tasks.forEach(task => {
-            allTasks.push({
-              ...task,
-              assignedfor: group.user?.email
-            });
-          });
-        }
-      });
-
-      transformedData.allTasks = allTasks;
-      transformedData.allUsers = Array.from(allUsers);
-
       // Set the transformed data to state
-      setStats(transformedData);
+      setStats(newStats);
 
       // Cache the data
       localStorage.setItem(cacheKey, JSON.stringify({
-        data: transformedData,
+        data: newStats,
         timestamp: Date.now()
       }));
 
@@ -280,7 +389,8 @@ const StatsDashboard = () => {
   // Initial fetch
   useEffect(() => {
     fetchStats();
-  }, [fetchStats]);
+    fetchGlobalEvents();
+  }, [fetchStats, fetchGlobalEvents]);
 
   // Fetch when period changes
   useEffect(() => {
@@ -349,8 +459,9 @@ const StatsDashboard = () => {
 
   const formatDisplayDate = (d) => !d ? 'Not set' : new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  const getEventsForDate = (date) => {
-    return stats.events.filter(e => {
+  // Get GLOBAL events for the selected date
+  const getGlobalEventsForDate = (date) => {
+    return globalEvents.filter(e => {
       if (!e.date) return false;
       
       try {
@@ -369,7 +480,7 @@ const StatsDashboard = () => {
     // Clear all fields - start with empty form
     setNewEventData({
       eventName: '', 
-      eventTypeName: eventTypes.length > 0 ? eventTypes[0].name : '', 
+      eventTypeName: 'GLOBAL', // Default to GLOBAL for calendar events
       date: selectedDate,
       eventLeaderName: '', 
       eventLeaderEmail: '',
@@ -392,7 +503,7 @@ const StatsDashboard = () => {
 
       const payload = {
         eventName: newEventData.eventName.trim(),
-        eventTypeName: newEventData.eventTypeName || (eventTypes.length > 0 ? eventTypes[0].name : 'CELLS'),
+        eventTypeName: newEventData.eventTypeName || 'GLOBAL', // Default to GLOBAL
         date: newEventData.date || selectedDate,
         time: newEventData.time || '19:00',
         location: newEventData.location || null,
@@ -431,10 +542,10 @@ const StatsDashboard = () => {
         isRecurring: false,
       });
 
-      setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
+      setSnackbar({ open: true, message: 'Global event created successfully!', severity: 'success' });
       
-      // Force refresh the stats data
-      fetchStats(true);
+      // Force refresh the global events data
+      fetchGlobalEvents();
     } catch (err) {
       console.error("Create event failed:", err);
       setSnackbar({ open: true, message: err.message || 'Failed to create event', severity: 'error' });
@@ -443,6 +554,7 @@ const StatsDashboard = () => {
 
   const handleRefresh = () => {
     fetchStats(true); // Force refresh bypassing cache
+    fetchGlobalEvents(); // Also refresh global events
   };
 
   const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
@@ -476,8 +588,20 @@ const StatsDashboard = () => {
     );
   }
 
-  const eventsOnSelectedDate = getEventsForDate(selectedDate);
+  const globalEventsOnSelectedDate = getGlobalEventsForDate(selectedDate);
   
+  // Calculate event counts for calendar display (only GLOBAL events)
+  const getGlobalEventCountsForMonth = () => {
+    const eventCounts = {};
+    globalEvents.forEach(e => {
+      if (e.date) {
+        const d = e.date.split('T')[0];
+        eventCounts[d] = (eventCounts[d] || 0) + 1;
+      }
+    });
+    return eventCounts;
+  };
+
   return (
     <Box p={containerPadding} maxWidth="1400px" mx="auto" mt={8}>
       <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} gap={2}>
@@ -548,7 +672,7 @@ const StatsDashboard = () => {
         >
           <Tab label="Overdue Cells" />
           <Tab label="Tasks" />
-          <Tab label="Calendar" />
+          <Tab label="Global Events Calendar" />
         </Tabs>
 
         {/* Tab Content Container - Takes remaining space */}
@@ -603,10 +727,6 @@ const StatsDashboard = () => {
           
           {activeTab === 1 && (
             <Box height="100%" display="flex" flexDirection="column">
-              <Typography variant="h6" gutterBottom mb={2}>
-                All Tasks by Person ({stats.groupedTasks.length} people • {stats.allTasks.length} total)
-              </Typography>
-
               {stats.loading ? (
                 <Box flex={1} overflow="auto">
                   <Stack spacing={2}>
@@ -744,13 +864,13 @@ const StatsDashboard = () => {
           {activeTab === 2 && (
             <Box height="100%" display="flex" flexDirection="column">
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">Event Calendar</Typography>
+                <Typography variant="h6">Calendar</Typography>
                 <Button variant="contained" startIcon={<Add />} onClick={handleCreateEvent}>
-                  Create Event
+                  Create Global Event
                 </Button>
               </Box>
               
-              {stats.loading ? (
+              {globalEventsLoading ? (
                 <Box flex={1} display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={3}>
                   {/* Calendar Skeleton */}
                   <Box sx={{ 
@@ -788,7 +908,7 @@ const StatsDashboard = () => {
                     </Box>
                   </Box>
 
-                  {/* Events List Skeleton */}
+                  {/* Global Events List Skeleton */}
                   <Box sx={{ 
                     flex: 1,
                     display: 'flex',
@@ -879,15 +999,7 @@ const StatsDashboard = () => {
                         gap: 0.5 
                       }}>
                         {(() => {
-                          // Calculate event counts for each date
-                          const eventCounts = {};
-                          stats.events.forEach(e => {
-                            if (e.date) {
-                              const d = e.date.split('T')[0];
-                              eventCounts[d] = (eventCounts[d] || 0) + 1;
-                            }
-                          });
-
+                          const eventCounts = getGlobalEventCountsForMonth();
                           const today = new Date().toISOString().split('T')[0];
                           const year = currentMonth.getFullYear();
                           const month = currentMonth.getMonth();
@@ -958,7 +1070,7 @@ const StatsDashboard = () => {
                     </Box>
                   </Box>
 
-                  {/* Events List Container - Now scrollable */}
+                  {/* Global Events List Container - Now scrollable */}
                   <Box sx={{ 
                     flex: 1,
                     display: 'flex',
@@ -977,14 +1089,14 @@ const StatsDashboard = () => {
                       flexShrink: 0 
                     }}>
                       <Typography variant="subtitle1" fontWeight="bold">
-                        Events on {formatDisplayDate(selectedDate)}
+                        Global Events on {formatDisplayDate(selectedDate)}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {eventsOnSelectedDate.length} event{eventsOnSelectedDate.length !== 1 ? 's' : ''}
+                        {globalEventsOnSelectedDate.length} global event{globalEventsOnSelectedDate.length !== 1 ? 's' : ''}
                       </Typography>
                     </Box>
                     
-                    {/* Events List - Scrollable */}
+                    {/* Global Events List - Scrollable */}
                     <Box 
                       flex={1} 
                       overflow="auto" 
@@ -1001,46 +1113,67 @@ const StatsDashboard = () => {
                         },
                       }}
                     >
-                      {eventsOnSelectedDate.length > 0 ? (
+                      {globalEventsOnSelectedDate.length > 0 ? (
                         <Box p={2}>
-                          {eventsOnSelectedDate.map(e => (
+                          {globalEventsOnSelectedDate.map(e => (
                             <Card 
                               key={e._id} 
                               sx={{ 
                                 mb: 1.5, 
                                 p: 2, 
                                 transition: 'all 0.2s',
+                                backgroundColor: 'info.50',
+                                borderLeft: '4px solid',
+                                borderLeftColor: 'info.main',
                                 '&:hover': {
                                   boxShadow: 3,
-                                  transform: 'translateY(-1px)'
+                                  transform: 'translateY(-1px)',
+                                  backgroundColor: 'info.100'
                                 }
                               }}
                             >
-                              <Typography variant="subtitle2" fontWeight="medium" noWrap>
-                                {e.eventName}
-                              </Typography>
-                              <Box display="flex" alignItems="center" gap={1} mt={0.5} flexWrap="wrap">
-                                <Chip 
-                                  label={e.eventType} 
-                                  size="small" 
-                                  color="primary" 
-                                  variant="outlined"
-                                  sx={{ height: 20, fontSize: '0.7rem' }}
-                                />
-                                <Typography variant="caption" color="text.secondary">
-                                  {e.time || 'No time set'}
-                                </Typography>
+                              <Box display="flex" alignItems="flex-start" gap={1.5}>
+                                <Avatar sx={{ bgcolor: 'info.main', width: 40, height: 40 }}>
+                                  <Event />
+                                </Avatar>
+                                <Box flex={1}>
+                                  <Typography variant="subtitle2" fontWeight="bold" noWrap>
+                                    {e.eventName}
+                                  </Typography>
+                                  <Box display="flex" alignItems="center" gap={1} mt={0.5} flexWrap="wrap">
+                                    <Chip 
+                                      label="GLOBAL" 
+                                      size="small" 
+                                      color="info" 
+                                      sx={{ height: 20, fontSize: '0.7rem', fontWeight: 'bold' }}
+                                    />
+                                    <Typography variant="caption" color="text.secondary">
+                                      {e.time || 'No time set'}
+                                    </Typography>
+                                  </Box>
+                                  {e.location && (
+                                    <Typography variant="caption" color="text.secondary" display="block" mt={0.5} noWrap>
+                                      📍 {e.location}
+                                    </Typography>
+                                  )}
+                                  {e.eventLeaderName && (
+                                    <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
+                                      👤 {e.eventLeaderName}
+                                    </Typography>
+                                  )}
+                                  {e.description && (
+                                    <Typography variant="caption" color="text.secondary" display="block" mt={0.5} sx={{
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical'
+                                    }}>
+                                      {e.description}
+                                    </Typography>
+                                  )}
+                                </Box>
                               </Box>
-                              {e.location && (
-                                <Typography variant="caption" color="text.secondary" display="block" mt={0.5} noWrap>
-                                  📍 {e.location}
-                                </Typography>
-                              )}
-                              {e.eventLeaderName && (
-                                <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                                  👤 {e.eventLeaderName}
-                                </Typography>
-                              )}
                             </Card>
                           ))}
                         </Box>
@@ -1054,8 +1187,8 @@ const StatsDashboard = () => {
                           color: 'text.secondary',
                           height: '100%'
                         }}>
-                          <CalendarToday sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
-                          <Typography variant="body2">No events scheduled</Typography>
+                          <Event sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
+                          <Typography variant="body2">No global events scheduled</Typography>
                           <Button 
                             variant="text" 
                             size="small" 
@@ -1063,7 +1196,7 @@ const StatsDashboard = () => {
                             onClick={handleCreateEvent}
                             sx={{ mt: 1 }}
                           >
-                            Create Event
+                            Create Global Event
                           </Button>
                         </Box>
                       )}
@@ -1076,7 +1209,7 @@ const StatsDashboard = () => {
         </Box>
       </Paper>
 
-      {/* CREATE EVENT MODAL */}
+      {/* CREATE EVENT MODAL - Now creates GLOBAL events by default */}
       <Dialog 
         open={createEventModalOpen} 
         onClose={() => setCreateEventModalOpen(false)} 
@@ -1085,13 +1218,14 @@ const StatsDashboard = () => {
         PaperProps={{ sx: { borderRadius: 3, boxShadow: 24 } }}
       >
         <DialogTitle sx={{ 
-          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`, 
+          background: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`, 
           color: 'white', 
           p: 3 
         }}>
           <Box display="flex" alignItems="center" justifyContent="space-between">
             <Box display="flex" alignItems="center" gap={1.5}>
-              <Box component="span" sx={{ fontSize: 28 }}>Create New Event</Box>
+              <Event sx={{ fontSize: 28 }} />
+              <Box component="span" sx={{ fontSize: 28 }}>Create Global Event</Box>
               <Box>
                 <Typography variant="caption" sx={{ opacity: 0.9 }}>{formatDisplayDate(selectedDate)}</Typography>
               </Box>
@@ -1105,13 +1239,13 @@ const StatsDashboard = () => {
           <Box sx={{ mb: 3 }}>
             <Typography variant="subtitle2" sx={{ 
               mb: 2, 
-              color: 'primary.main', 
+              color: 'info.main', 
               fontWeight: 600, 
               textTransform: 'uppercase', 
               fontSize: '0.75rem', 
               letterSpacing: 1 
             }}>
-              EVENT DETAILS
+              GLOBAL EVENT DETAILS
             </Typography>
             <Grid container spacing={2.5}>
               <Grid item xs={12}>
@@ -1127,7 +1261,7 @@ const StatsDashboard = () => {
                 <FormControl fullWidth disabled={eventTypesLoading}>
                   <InputLabel>Event Type *</InputLabel>
                   <Select
-                    value={newEventData.eventTypeName || ''}
+                    value={newEventData.eventTypeName || 'GLOBAL'}
                     onChange={e => setNewEventData(p => ({ ...p, eventTypeName: e.target.value }))}
                     label="Event Type *"
                   >
@@ -1140,7 +1274,7 @@ const StatsDashboard = () => {
                         </MenuItem>
                       ))
                     ) : (
-                      <MenuItem disabled>No event types available</MenuItem>
+                      <MenuItem value="GLOBAL">GLOBAL</MenuItem>
                     )}
                   </Select>
                 </FormControl>
@@ -1169,7 +1303,7 @@ const StatsDashboard = () => {
           <Box sx={{ mb: 3 }}>
             <Typography variant="subtitle2" sx={{ 
               mb: 2, 
-              color: 'primary.main', 
+              color: 'info.main', 
               fontWeight: 600, 
               textTransform: 'uppercase', 
               fontSize: '0.75rem', 
@@ -1201,7 +1335,7 @@ const StatsDashboard = () => {
           <Box>
             <Typography variant="subtitle2" sx={{ 
               mb: 2, 
-              color: 'primary.main', 
+              color: 'info.main', 
               fontWeight: 600, 
               textTransform: 'uppercase', 
               fontSize: '0.75rem', 
@@ -1229,7 +1363,7 @@ const StatsDashboard = () => {
                     onChange={e => setNewEventData(p => ({ ...p, isRecurring: e.target.checked }))} 
                   />
                 } 
-                label="Recurring Event (e.g., Weekly Meeting)" 
+                label="Recurring Global Event (e.g., Weekly Meeting)" 
               />
             </Box>
           </Box>
@@ -1238,11 +1372,12 @@ const StatsDashboard = () => {
           <Button onClick={() => setCreateEventModalOpen(false)}>Cancel</Button>
           <Button 
             variant="contained" 
+            color="info"
             startIcon={<Save />} 
             onClick={handleSaveEvent} 
             disabled={!newEventData.eventName || !newEventData.eventTypeName}
           >
-            Create Event
+            Create Global Event
           </Button>
         </DialogActions>
       </Dialog>
@@ -1293,7 +1428,7 @@ const StatsDashboard = () => {
                         {formatDate(cell.date)} — {cell.status?.toUpperCase() || 'INCOMPLETE'}
                       </Typography>
                     </Box>
-                    <Chip label={cell.attendees_count || 0} size="small" />
+                    <Chip label={cell.attendees?.length || 0} size="small" />
                   </Box>
                 </Card>
               ))}
