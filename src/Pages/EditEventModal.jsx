@@ -47,7 +47,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [showAllFields, setShowAllFields] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
-
   const fieldMapping = {
   'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
   'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
