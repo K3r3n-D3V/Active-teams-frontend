@@ -1,1355 +1,902 @@
-import React, { useState, useEffect } from "react";
-import { 
-  Box, 
-  Paper, 
-  IconButton, 
-  useTheme, 
-  Typography, 
-  Alert, 
+import React, { useState } from 'react';
+import {
+  Box,
+  Paper,
   Button,
+  Chip,
+  Typography,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  List,
-  ListItem,
-  ListItemText,
-  Divider,
-  Chip,
-  Stack,
-  Card,
-  CardContent,
-  TextField,
-  TablePagination,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  TextField,
+  Stack,
+  Card,
+  CardContent,
+  useTheme,
   useMediaQuery,
-  Skeleton,
-  Tooltip
-} from "@mui/material";
-import { DataGrid, GridToolbar } from "@mui/x-data-grid";
-import GroupIcon from "@mui/icons-material/Group";
-import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
-import MergeIcon from "@mui/icons-material/Merge";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import CloseIcon from "@mui/icons-material/Close";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-
-const BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
-
-// Helper function to format date
-const formatDate = (dateString) => {
-  if (!dateString) return 'Unknown Date';
-  
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
-  } catch (error) {
-    return 'Invalid Date';
-  }
-};
-
-// Skeleton Loader Components
-const DataGridSkeleton = () => (
-  <Paper variant="outlined" sx={{ height: 600, width: '100%', p: 2 }}>
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-      <Skeleton variant="text" width={200} height={40} />
-      <Skeleton variant="rectangular" width={120} height={40} />
-    </Box>
-    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-      {[1, 2, 3, 4].map((item) => (
-        <Skeleton key={item} variant="text" width={100} height={40} />
-      ))}
-    </Box>
-    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((row) => (
-      <Box key={row} sx={{ display: 'flex', gap: 1, mb: 1 }}>
-        {[1, 2, 3, 4, 5, 6, 7].map((col) => (
-          <Skeleton 
-            key={col} 
-            variant="rectangular" 
-            width={col === 1 ? 200 : col === 7 ? 80 : 100} 
-            height={40} 
-            sx={{ flex: col === 1 ? 2 : 1 }}
-          />
-        ))}
-      </Box>
-    ))}
-  </Paper>
-);
-
-const MobileCardSkeleton = () => (
-  <Card variant="outlined" sx={{ mb: 2 }}>
-    <CardContent>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-        <Box flex={1}>
-          <Skeleton variant="text" width="80%" height={24} />
-          <Skeleton variant="text" width="60%" height={20} />
-          <Skeleton variant="rectangular" width={80} height={24} sx={{ mt: 1, borderRadius: 1 }} />
-        </Box>
-      </Box>
-      <Divider sx={{ my: 2 }} />
-      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-        {[1, 2, 3].map((item) => (
-          <Skeleton key={item} variant="rectangular" width={100} height={32} sx={{ borderRadius: 16 }} />
-        ))}
-      </Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-        {[1, 2, 3].map((item) => (
-          <Skeleton key={item} variant="circular" width={40} height={40} />
-        ))}
-      </Box>
-    </CardContent>
-  </Card>
-);
+  TablePagination,
+  IconButton,
+  Tooltip,
+  CircularProgress,
+  Alert
+} from '@mui/material';
+import { DataGrid, GridToolbar } from '@mui/x-data-grid';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import InfoIcon from '@mui/icons-material/Info';
 
 function EventHistory({ 
-  onViewDetails,
-  onViewNewPeople,
-  onViewConverts,
-  events = []
+  onViewDetails, 
+  onViewNewPeople, 
+  onViewConverts, 
+  events, 
+  isLoading = false,
+  onRefresh 
 }) {
   const theme = useTheme();
-  const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
-  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
+  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMdDown = useMediaQuery(theme.breakpoints.down('md'));
   
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [localEvents, setLocalEvents] = useState([]);
-  const [eventStats, setEventStats] = useState({});
-  
-  // Use the same dialog states as ServiceCheckIn
-  const [modalOpen, setModalOpen] = useState(false);
-  const [newPeopleModalOpen, setNewPeopleModalOpen] = useState(false);
-  const [consolidatedModalOpen, setConsolidatedModalOpen] = useState(false);
-  
-  // Data for dialogs
-  const [currentDialogData, setCurrentDialogData] = useState({
-    present: [],
-    newPeople: [],
-    consolidated: []
+  const [detailsDialog, setDetailsDialog] = useState({
+    open: false,
+    event: null,
+    type: null,
+    data: []
   });
+  
+  const [detailSearch, setDetailSearch] = useState('');
+  const [detailPage, setDetailPage] = useState(0);
+  const [detailRowsPerPage, setDetailRowsPerPage] = useState(25);
 
-  // Pagination and sorting for mobile/desktop
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(100);
-  const [search, setSearch] = useState("");
-  // Sorting model for DataGrid
-  const [sortModel, setSortModel] = useState([
-    { field: 'date', sort: 'desc' }
-  ]);
-
-  // Fetch closed events using the same endpoint as ServiceCheckIn
-  const fetchClosedEvents = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Debug: Log what events we're receiving
+  React.useEffect(() => {
+    if (events && events.length > 0) {
+      console.log('📅 EventHistory received events:', events);
+      console.log('📊 Sample event data:', events[0]);
       
-      const token = localStorage.getItem('token');
-      
-      if (!BASE_URL) {
-        throw new Error('API URL is not configured');
-      }
-
-      if (!token) {
-        throw new Error('Authentication token not found. Please log in again.');
+      // Debug the actual data structure
+      if (events[0]?.attendanceData?.length > 0) {
+        console.log('👥 First attendance data:', events[0].attendanceData[0]);
+        console.log('🔍 Leader fields check:', {
+          leader1: events[0].attendanceData[0].leader1,
+          leader12: events[0].attendanceData[0].leader12,
+          leader144: events[0].attendanceData[0].leader144
+        });
       }
       
-      const response = await fetch(`${BASE_URL}/events/global`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Your session may have expired. Please log in again.');
+      if (events[0]?.newPeopleData?.length > 0) {
+        console.log('👶 First new person data:', events[0].newPeopleData[0]);
+        console.log('🔍 New person leader fields:', {
+          leader1: events[0].newPeopleData[0].leader1,
+          leader12: events[0].newPeopleData[0].leader12,
+          leader144: events[0].newPeopleData[0].leader144
+        });
       }
-
-      if (response.status === 403) {
-        throw new Error('Access denied. You do not have permission to view events.');
+      
+      if (events[0]?.consolidatedData?.length > 0) {
+        console.log('🤝 First consolidation data:', events[0].consolidatedData[0]);
+        console.log('🔍 Consolidation leader fields:', {
+          leader1: events[0].consolidatedData[0].leader1,
+          leader12: events[0].consolidatedData[0].leader12,
+          leader144: events[0].consolidatedData[0].leader144
+        });
       }
-
-      if (!response.ok) {
-        throw new Error(`Failed to load events (Error ${response.status}). Please try again.`);
-      }
-
-      const data = await response.json();
-      
-      console.log('📋 Raw events data for history:', data);
-
-      const eventsData = data.events || data.results || [];
-      
-      // Filter only closed/complete events
-      const closedEvents = eventsData.filter(event => {
-        const status = (event.status || '').toLowerCase();
-        return status === 'closed' || status === 'complete';
-      });
-
-      console.log('🔍 Closed events:', closedEvents);
-
-      const transformedEvents = closedEvents.map(event => ({
-        id: event._id || event.id,
-        eventName: event.eventName || "Unnamed Event",
-        status: (event.status || "closed").toLowerCase(),
-        isGlobal: event.isGlobal !== false,
-        isTicketed: event.isTicketed || false,
-        date: event.date || event.createdAt,
-        eventType: event.eventType || "Global Events"
-      }));
-      
-      setLocalEvents(transformedEvents);
-      
-      // Pre-fetch stats for all events
-      await fetchAllEventStats(transformedEvents);
-
-    } catch (err) {
-      console.error('Error fetching closed events:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [events]);
 
-  // Fetch real-time data for a specific event
-  const fetchEventRealTimeData = async (eventId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BASE_URL}/service-checkin/real-time-data?event_id=${eventId}`, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch event data: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching real-time event data:', error);
-      return null;
-    }
-  };
-
-  // Fetch stats for all events
-  const fetchAllEventStats = async (eventsList) => {
-    const stats = {};
+  const handleViewDetails = (event, type) => {
+    let data = [];
     
-    const promises = eventsList.map(async (event) => {
-      try {
-        const realTimeData = await fetchEventRealTimeData(event.id);
-        if (realTimeData) {
-          stats[event.id] = {
-            attendance: realTimeData.present_count || 0,
-            newPeople: realTimeData.new_people_count || 0,
-            consolidated: realTimeData.consolidation_count || 0,
-            presentAttendees: realTimeData.present_attendees || [],
-            newPeopleList: realTimeData.new_people || [],
-            consolidationsList: realTimeData.consolidations || []
-          };
-        } else {
-          stats[event.id] = {
-            attendance: 0,
-            newPeople: 0,
-            consolidated: 0,
-            presentAttendees: [],
-            newPeopleList: [],
-            consolidationsList: []
-          };
+    switch (type) {
+      case 'attendance':
+        data = event.attendanceData || [];
+        if (onViewDetails) {
+          onViewDetails(event, data);
+          return;
         }
-      } catch (error) {
-        console.error(`Error fetching stats for event ${event.id}:`, error);
-        stats[event.id] = {
-          attendance: 0,
-          newPeople: 0,
-          consolidated: 0,
-          presentAttendees: [],
-          newPeopleList: [],
-          consolidationsList: []
-        };
-      }
+        break;
+      case 'newPeople':
+        data = event.newPeopleData || [];
+        if (onViewNewPeople) {
+          onViewNewPeople(event, data);
+          return;
+        }
+        break;
+      case 'consolidated':
+        data = event.consolidatedData || [];
+        if (onViewConverts) {
+          onViewConverts(event, data);
+          return;
+        }
+        break;
+    }
+    
+    console.log(`👁️ Viewing ${type} for ${event.eventName}:`, {
+      count: data.length,
+      sample: data[0],
+      dataStructure: data.length > 0 ? Object.keys(data[0]) : 'No data',
+      leaderFields: data[0] ? {
+        leader1: data[0].leader1,
+        leader12: data[0].leader12,
+        leader144: data[0].leader144
+      } : 'No data'
     });
-
-    await Promise.all(promises);
-    setEventStats(stats);
-  };
-
-  // Load events on component mount
-  useEffect(() => {
-    fetchClosedEvents();
-  }, []);
-
-  const handleRefresh = async () => {
-    await fetchClosedEvents();
-  };
-
-  // Handle viewing attendance details - using same modal as ServiceCheckIn
-  const handleViewDetails = async (eventId) => {
-    const event = localEvents.find(e => e.id === eventId);
-    const stats = eventStats[eventId];
     
-    if (onViewDetails) {
-      onViewDetails(event, stats?.presentAttendees || []);
+    setDetailsDialog({
+      open: true,
+      event: event,
+      type: type,
+      data: data
+    });
+    setDetailSearch('');
+    setDetailPage(0);
+  };
+
+  const handleCloseDetails = () => {
+    setDetailsDialog({
+      open: false,
+      event: null,
+      type: null,
+      data: []
+    });
+  };
+
+  const filteredDetailData = detailsDialog.data.filter(item => {
+    if (!detailSearch.trim()) return true;
+
+    const searchTerms = detailSearch.toLowerCase().trim().split(/\s+/);
+
+    let searchableFields = [];
+
+    if (detailsDialog.type === 'consolidated') {
+      searchableFields = [
+        item.person_name || item.name || '',
+        item.person_surname || item.surname || '',
+        item.person_email || item.email || '',
+        item.person_phone || item.phone || '',
+        item.assigned_to || '',
+        item.decision_type || '',
+        item.notes || '',
+        item.assigned_to_email || ''
+      ];
+    } else if (detailsDialog.type === 'newPeople') {
+      searchableFields = [
+        item.name || '',
+        item.surname || '',
+        item.email || '',
+        item.phone || '',
+        item.leader1 || '',
+        item.leader12 || '',
+        item.leader144 || '',
+        item.gender || '',
+        item.invitedBy || ''
+      ];
     } else {
-      setCurrentDialogData(prev => ({
-        ...prev,
-        present: stats?.presentAttendees || []
-      }));
-      setModalOpen(true);
+      // attendance
+      searchableFields = [
+        item.name || '',
+        item.surname || '',
+        item.email || '',
+        item.phone || '',
+        item.leader1 || '',
+        item.leader12 || '',
+        item.leader144 || '',
+        item.gender || '',
+        item.invitedBy || ''
+      ];
     }
-  };
 
-  // Handle viewing new people - using same modal as ServiceCheckIn
-  const handleViewNewPeople = async (eventId) => {
-    const event = localEvents.find(e => e.id === eventId);
-    const stats = eventStats[eventId];
-    
-    if (onViewNewPeople) {
-      onViewNewPeople(event, stats?.newPeopleList || []);
-    } else {
-      setCurrentDialogData(prev => ({
-        ...prev,
-        newPeople: stats?.newPeopleList || []
-      }));
-      setNewPeopleModalOpen(true);
-    }
-  };
-
-  // Handle viewing consolidations - using same modal as ServiceCheckIn
-  const handleViewConverts = async (eventId) => {
-    const event = localEvents.find(e => e.id === eventId);
-    const stats = eventStats[eventId];
-    
-    if (onViewConverts) {
-      onViewConverts(event, stats?.consolidationsList || []);
-    } else {
-      setCurrentDialogData(prev => ({
-        ...prev,
-        consolidated: stats?.consolidationsList || []
-      }));
-      setConsolidatedModalOpen(true);
-    }
-  };
-
-  const getEventStats = (event) => {
-    return eventStats[event.id] || {
-      attendance: 0,
-      newPeople: 0,
-      consolidated: 0,
-      presentAttendees: [],
-      newPeopleList: [],
-      consolidationsList: []
-    };
-  };
-
-  const rows = localEvents.map((event) => {
-    const stats = getEventStats(event);
-    return {
-      id: event.id,
-      date: `${formatDate(event.date)} - ${event.eventName}`,
-      attendanceCount: stats.attendance,
-      newPeopleCount: stats.newPeople,
-      consolidatedCount: stats.consolidated,
-      eventId: event.id,
-      rawEvent: event
-    };
+    return searchTerms.every(term =>
+      searchableFields.some(field =>
+        field.toLowerCase().includes(term)
+      )
+    );
   });
 
-  // Filter rows based on search
-  const filteredRows = rows.filter(row => {
-    const searchLower = search.toLowerCase();
-    return row.date.toLowerCase().includes(searchLower);
-  });
+  const paginatedDetailData = filteredDetailData.slice(
+    detailPage * detailRowsPerPage,
+    detailPage * detailRowsPerPage + detailRowsPerPage
+  );
 
-  const paginatedRows = filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const getDialogTitle = () => {
+    if (!detailsDialog.event) return '';
+    
+    const titles = {
+      attendance: `Attendance for ${detailsDialog.event.eventName}`,
+      newPeople: `New People for ${detailsDialog.event.eventName}`,
+      consolidated: `Decisions for ${detailsDialog.event.eventName}`
+    };
+    
+    return titles[detailsDialog.type] || '';
+  };
+
+  // Helper function to get display value for leader fields
+  const getLeaderDisplay = (value) => {
+    return value && value.trim() !== "" ? value : "—";
+  };
 
   const columns = [
-    { 
-      field: 'date', 
-      headerName: 'Event', 
-      flex: 2, 
-      minWidth: 250
-    },
-    { 
-      field: 'attendanceCount', 
-      headerName: 'Attendance', 
-      flex: 1, 
-      minWidth: 120,
-      align: 'center',
-      headerAlign: 'center',
-      type: 'number',
-      renderCell: (params) => (
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="h6" color="primary" fontWeight="bold">
-            {params.value}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Present
-          </Typography>
-        </Box>
-      )
-    },
-    { 
-      field: 'newPeopleCount', 
-      headerName: 'New People', 
-      flex: 1, 
-      minWidth: 120,
-      align: 'center',
-      headerAlign: 'center',
-      type: 'number',
-      renderCell: (params) => (
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="h6" color="success.main" fontWeight="bold">
-            {params.value}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Added
-          </Typography>
-        </Box>
-      )
-    },
-    { 
-      field: 'consolidatedCount', 
-      headerName: 'Decisions', 
-      flex: 1, 
-      minWidth: 120,
-      align: 'center',
-      headerAlign: 'center',
-      type: 'number',
-      renderCell: (params) => (
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="h6" color="secondary.main" fontWeight="bold">
-            {params.value}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Consolidated
-          </Typography>
-        </Box>
-      )
-    },
     {
-      field: 'status',
-      headerName: 'Status',
+      field: 'eventName',
+      headerName: 'Event',
       flex: 1,
-      minWidth: 100,
-      align: 'center',
-      headerAlign: 'center',
+      minWidth: 200,
       renderCell: (params) => (
-        <Chip 
-          label={params.row.rawEvent.status || 'Unknown'} 
-          size="small"
-          color={
-            params.row.rawEvent.status === 'complete' ? 'success' :
-            params.row.rawEvent.status === 'closed' ? 'success' :
-            'default'
-          }
-          variant="outlined"
-        />
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Typography variant="body2" fontWeight={600}>
+            {params.row.date ? new Date(params.row.date).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            }) : 'No date'} - {params.row.eventName}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {params.row.status?.toUpperCase()}
+          </Typography>
+        </Box>
       )
     },
     {
-      field: 'viewDetails',
-      headerName: 'View Attendance',
+      field: 'attendance',
+      headerName: 'Attendance',
+      width: 130,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Typography fontWeight={600} color="primary">
+            {params.row.attendance || 0}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            present
+          </Typography>
+        </Box>
+      )
+    },
+    {
+      field: 'newPeople',
+      headerName: 'New People',
+      width: 130,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Typography fontWeight={600} color="success.main">
+            {params.row.newPeople || 0}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            first time
+          </Typography>
+        </Box>
+      )
+    },
+    {
+      field: 'consolidated',
+      headerName: 'Decisions',
+      width: 130,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Typography fontWeight={600} color="secondary.main">
+            {params.row.consolidated || 0}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            commitments
+          </Typography>
+        </Box>
+      )
+    },
+    {
+      field: 'viewAttendance',
+      headerName: 'Attendance',
       width: 150,
       sortable: false,
       filterable: false,
-      align: 'center',
-      headerAlign: 'center',
       renderCell: (params) => (
-        <Tooltip title="View checked-in attendees">
-          <Button 
-            size="small" 
-            variant="outlined"
-            color="primary"
-            startIcon={<VisibilityIcon />}
-            onClick={() => handleViewDetails(params.row.eventId)}
-            disabled={params.row.attendanceCount === 0}
-          >
-            View ({params.row.attendanceCount})
-          </Button>
-        </Tooltip>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<VisibilityIcon />}
+          onClick={() => handleViewDetails(params.row, 'attendance')}
+          disabled={!params.row.attendance || params.row.attendance === 0}
+          sx={{ 
+            fontSize: '0.75rem',
+            '&:disabled': {
+              opacity: 0.5,
+              cursor: 'not-allowed'
+            }
+          }}
+        >
+          VIEW ({params.row.attendance || 0})
+        </Button>
       )
     },
     {
       field: 'viewNewPeople',
-      headerName: 'View New People',
-      width: 160,
+      headerName: 'New People',
+      width: 150,
       sortable: false,
       filterable: false,
-      align: 'center',
-      headerAlign: 'center',
       renderCell: (params) => (
-        <Tooltip title="View new people added">
-          <Button 
-            size="small" 
-            variant="outlined"
-            color="success"
-            startIcon={<VisibilityIcon />}
-            onClick={() => handleViewNewPeople(params.row.eventId)}
-            disabled={params.row.newPeopleCount === 0}
-          >
-            View ({params.row.newPeopleCount})
-          </Button>
-        </Tooltip>
+        <Button
+          size="small"
+          variant="outlined"
+          color="success"
+          startIcon={<VisibilityIcon />}
+          onClick={() => handleViewDetails(params.row, 'newPeople')}
+          disabled={!params.row.newPeople || params.row.newPeople === 0}
+          sx={{ 
+            fontSize: '0.75rem',
+            '&:disabled': {
+              opacity: 0.5,
+              cursor: 'not-allowed'
+            }
+          }}
+        >
+          VIEW ({params.row.newPeople || 0})
+        </Button>
       )
     },
     {
-      field: 'viewConverts',
-      headerName: 'View Decisions',
-      width: 160,
+      field: 'viewConsolidated',
+      headerName: 'Decisions',
+      width: 150,
       sortable: false,
       filterable: false,
-      align: 'center',
-      headerAlign: 'center',
       renderCell: (params) => (
-        <Tooltip title="View consolidation decisions">
-          <Button 
-            size="small" 
-            variant="outlined"
-            color="secondary"
-            startIcon={<VisibilityIcon />}
-            onClick={() => handleViewConverts(params.row.eventId)}
-            disabled={params.row.consolidatedCount === 0}
-          >
-            View ({params.row.consolidatedCount})
-          </Button>
-        </Tooltip>
+        <Button
+          size="small"
+          variant="outlined"
+          color="secondary"
+          startIcon={<VisibilityIcon />}
+          onClick={() => handleViewDetails(params.row, 'consolidated')}
+          disabled={!params.row.consolidated || params.row.consolidated === 0}
+          sx={{ 
+            fontSize: '0.75rem',
+            '&:disabled': {
+              opacity: 0.5,
+              cursor: 'not-allowed'
+            }
+          }}
+        >
+          VIEW ({params.row.consolidated || 0})
+        </Button>
       )
-    },
+    }
   ];
 
-  // Event Card Component for Mobile
-  const EventCard = ({ event, index }) => {
-    const stats = getEventStats(event.rawEvent);
-    
+  // Show loading state
+  if (isLoading) {
     return (
-      <Card
-        variant="outlined"
-        sx={{
-          mb: 2,
-          boxShadow: 2,
-          "&:last-child": { mb: 0 },
-        }}
-      >
-        <CardContent sx={{ p: 2 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-            <Box flex={1}>
-              <Typography variant="subtitle1" fontWeight={600}>
-                {index}. {event.rawEvent.eventName}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {formatDate(event.rawEvent.date)}
-              </Typography>
-              <Chip 
-                label={event.rawEvent.status || 'Unknown'} 
-                size="small" 
-                color={
-                  event.rawEvent.status === 'complete' ? 'success' :
-                  event.rawEvent.status === 'closed' ? 'success' :
-                  'default'
-                }
-                variant="outlined"
-                sx={{ mt: 0.5 }}
-              />
-            </Box>
-          </Box>
-
-          {/* Stats Row */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, gap: 1 }}>
-            <Box sx={{ textAlign: 'center', flex: 1 }}>
-              <Typography variant="h5" color="primary" fontWeight="bold">
-                {stats.attendance}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Present
-              </Typography>
-            </Box>
-            <Box sx={{ textAlign: 'center', flex: 1 }}>
-              <Typography variant="h5" color="success.main" fontWeight="bold">
-                {stats.newPeople}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                New People
-              </Typography>
-            </Box>
-            <Box sx={{ textAlign: 'center', flex: 1 }}>
-              <Typography variant="h5" color="secondary.main" fontWeight="bold">
-                {stats.consolidated}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Decisions
-              </Typography>
-            </Box>
-          </Box>
-
-          <Divider sx={{ my: 1 }} />
-
-          {/* Action Buttons */}
-          <Stack direction="row" spacing={1} justifyContent="space-between" flexWrap="wrap" gap={1}>
-            <Button 
-              size="small" 
-              variant="contained"
-              color="primary"
-              startIcon={<GroupIcon />}
-              onClick={() => handleViewDetails(event.eventId)}
-              disabled={stats.attendance === 0}
-              sx={{ flex: 1, minWidth: 100 }}
-            >
-              Attendance
-            </Button>
-            <Button 
-              size="small" 
-              variant="contained"
-              color="success"
-              startIcon={<PersonAddAltIcon />}
-              onClick={() => handleViewNewPeople(event.eventId)}
-              disabled={stats.newPeople === 0}
-              sx={{ flex: 1, minWidth: 100 }}
-            >
-              New People
-            </Button>
-            <Button 
-              size="small" 
-              variant="contained"
-              color="secondary"
-              startIcon={<MergeIcon />}
-              onClick={() => handleViewConverts(event.eventId)}
-              disabled={stats.consolidated === 0}
-              sx={{ flex: 1, minWidth: 100 }}
-            >
-              Decisions
-            </Button>
-          </Stack>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  // Card Components (copied from ServiceCheckIn for consistent display)
-  const PresentAttendeeCard = ({ attendee, showNumber, index }) => {
-    return (
-      <Card
-        variant="outlined"
-        sx={{
-          mb: 1,
-          boxShadow: 2,
-          minHeight: '120px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          "&:last-child": { mb: 0 },
-          border: `2px solid ${theme.palette.primary.main}`,
-          backgroundColor: theme.palette.mode === 'dark' 
-            ? theme.palette.primary.dark + "1a" 
-            : theme.palette.primary.light + "0a",
-        }}
-      >
-        <CardContent sx={{ 
-          p: 1.5,
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column',
-          justifyContent: 'center'
-        }}>
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'flex-start',
-            width: '100%',
-            gap: 1
-          }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="subtitle1" fontWeight={600} noWrap>
-                  {showNumber && `${index}. `}{attendee.name} {attendee.surname}
-                </Typography>
-              </Box>
-              
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1.5 }}>
-                {attendee.phone && (
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {attendee.phone}
-                  </Typography>
-                )}
-                {attendee.email && (
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {attendee.email}
-                  </Typography>
-                )}
-              </Box>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                {attendee.leader1 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography variant="caption" fontWeight="bold" color="primary">
-                      @1:
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {attendee.leader1}
-                    </Typography>
-                  </Box>
-                )}
-                
-                {attendee.leader12 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography variant="caption" fontWeight="bold" color="primary">
-                      @12:
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {attendee.leader12}
-                    </Typography>
-                  </Box>
-                )}
-                
-                {attendee.leader144 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography variant="caption" fontWeight="bold" color="primary">
-                      @144:
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {attendee.leader144}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  const NewPersonCard = ({ person, showNumber, index }) => (
-    <Card
-      variant="outlined"
-      sx={{
-        mb: 1,
-        boxShadow: 2,
-        minHeight: '140px',
-        display: 'flex',
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: 300,
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        "&:last-child": { mb: 0 },
-        border: `2px solid ${theme.palette.success.main}`,
-        backgroundColor: theme.palette.mode === 'dark' 
-          ? theme.palette.success.dark + "1a" 
-          : theme.palette.success.light + "0a",
-      }}
-    >
-      <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-          <Box flex={1}>
-            <Typography variant="subtitle2" fontWeight={600}>
-              {showNumber && `${index}. `}{person.name} {person.surname}
-            </Typography>
-            {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
-            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
-            {person.gender && (
-              <Chip 
-                label={`Gender: ${person.gender}`} 
-                size="small" 
-                variant="outlined" 
-                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }} 
-              />
-            )}
-          </Box>
-        </Box>
-
-        {person.invitedBy && (
-          <>
-            <Divider sx={{ my: 1 }} />
-            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
-              <Chip 
-                label={`Invited by: ${person.invitedBy}`} 
-                size="small" 
-                variant="outlined" 
-                sx={{ fontSize: "0.7rem", height: 20 }} 
-              />
-            </Stack>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-
-  const ConsolidatedPersonCard = ({ person, showNumber, index }) => {
-    const decisionType = person.decision_type || person.consolidation_type || "Commitment";
-    const displayDecisionType = decisionType || 'Commitment';
-    
-    return (
-      <Card
-        variant="outlined"
-        sx={{
-          mb: 1,
-          boxShadow: 2,
-          minHeight: '140px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          "&:last-child": { mb: 0 },
-          border: `2px solid ${theme.palette.secondary.main}`,
-          backgroundColor: theme.palette.mode === 'dark' 
-            ? theme.palette.secondary.dark + "1a" 
-            : theme.palette.secondary.light + "0a",
-        }}
-      >
-        <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-            <Box flex={1}>
-              <Typography variant="subtitle2" fontWeight={600}>
-                {showNumber && `${index}. `}{person.person_name} {person.person_surname}
-                <Chip
-                  label={displayDecisionType}
-                  size="small"
-                  sx={{ ml: 1, fontSize: "0.7rem", height: 20 }}
-                  color={displayDecisionType === 'Recommitment' ? 'primary' : 'secondary'}
-                />
-              </Typography>
-              {person.person_email && <Typography variant="body2" color="text.secondary">{person.person_email}</Typography>}
-              {person.person_phone && <Typography variant="body2" color="text.secondary">{person.person_phone}</Typography>}
-            </Box>
-          </Box>
-
-          <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
-            <Chip
-              label={`Assigned to: ${person.assigned_to || 'Not assigned'}`}
-              size="small"
-              variant="outlined"
-              color="primary"
-            />
-          </Stack>
-
-          {(person.created_at || person.decision_type || person.notes) && (
-            <>
-              <Divider sx={{ my: 1 }} />
-              <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
-                {person.created_at && (
-                  <Chip 
-                    label={`Date: ${new Date(person.created_at).toLocaleDateString()}`} 
-                    size="small" 
-                    variant="outlined" 
-                    sx={{ fontSize: "0.7rem", height: 20 }} 
-                  />
-                )}
-                <Chip
-                  label={`Type: ${displayDecisionType}`}
-                  size="small"
-                  variant="outlined"
-                  sx={{ fontSize: "0.7rem", height: 20 }}
-                />
-                {person.status && (
-                  <Chip
-                    label={`Status: ${person.status}`}
-                    size="small"
-                    color={person.status === 'completed' ? 'success' : 'default'}
-                    sx={{ fontSize: "0.7rem", height: 20 }}
-                  />
-                )}
-                {person.notes && (
-                  <Tooltip title={person.notes}>
-                    <Chip
-                      label="Has Notes"
-                      size="small"
-                      variant="outlined"
-                      sx={{ fontSize: "0.7rem", height: 20 }}
-                    />
-                  </Tooltip>
-                )}
-              </Stack>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
-
-  // Show skeleton loader only on initial load
-  if (loading && localEvents.length === 0) {
-    return (
-      <Box sx={{ width: '100%', height: '100%' }}>
-        {isMdDown && (
-          <Skeleton 
-            variant="rectangular" 
-            width="100%" 
-            height={56} 
-            sx={{ mb: 2, borderRadius: 1 }}
-          />
-        )}
-        
-        {isMdDown ? (
-          <Box>
-            <Box sx={{ maxHeight: 500, overflow: 'hidden' }}>
-              {[1, 2, 3, 4, 5].map((item) => (
-                <MobileCardSkeleton key={item} />
-              ))}
-            </Box>
-            <Box sx={{ mt: 1 }}>
-              <Skeleton variant="rectangular" width="100%" height={52} sx={{ borderRadius: 1 }} />
-            </Box>
-          </Box>
-        ) : (
-          <DataGridSkeleton />
-        )}
+        gap: 2
+      }}>
+        <CircularProgress />
+        <Typography variant="body1" color="text.secondary">
+          Loading event history...
+        </Typography>
       </Box>
     );
   }
 
-  if (error && localEvents.length === 0) {
+  // Show empty state
+  if (!events || events.length === 0) {
     return (
-      <Box>
-        <Alert 
-          severity="error" 
-          sx={{ m: 2, boxShadow: 2 }}
-          action={
-            <Button color="inherit" size="small" onClick={handleRefresh} startIcon={<RefreshIcon />}>
-              Retry
-            </Button>
-          }
-        >
-          Error loading events: {error}
-        </Alert>
-      </Box>
+      <Paper sx={{ p: 4, textAlign: 'center', boxShadow: 3 }}>
+        <Typography variant="h6" color="text.secondary" gutterBottom>
+          No event history found
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Closed events with attendance data will appear here
+        </Typography>
+        {onRefresh && (
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={onRefresh}
+            sx={{ mt: 2 }}
+          >
+            Refresh Events
+          </Button>
+        )}
+      </Paper>
     );
   }
 
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
-      {error && (
+      {/* Debug Info Banner */}
+      {events.length > 0 && (
         <Alert 
-          severity="error" 
-          sx={{ mb: 2 }}
-          action={
-            <Button color="inherit" size="small" onClick={handleRefresh} startIcon={<RefreshIcon />}>
-              Retry
-            </Button>
-          }
+          severity="info" 
+          icon={<InfoIcon />}
+          sx={{ mb: 2, fontSize: '0.8rem', py: 0.5 }}
         >
-          Error loading events: {error}
+          Showing {events.length} closed events. Click VIEW buttons to see detailed data including leader assignments.
         </Alert>
       )}
 
-      {/* Search bar for mobile */}
-      {isMdDown && (
-        <TextField
-          size="small"
-          placeholder="Search events..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-          fullWidth
-          sx={{ mb: 2, boxShadow: 1 }}
-        />
-      )}
-      
-      {localEvents.length === 0 ? (
-        <Paper 
-          sx={{ 
-            p: { xs: 2, sm: 4 }, 
-            textAlign: 'center', 
-            boxShadow: 3,
-            backgroundColor: theme.palette.background.paper
-          }}
-        >
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            {loading ? 'Loading Events...' : 'No Closed Events Found'}
-          </Typography>
+      {/* Toolbar with refresh button */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        mb: 2,
+        flexWrap: 'wrap',
+        gap: 1
+      }}>
+        <Typography variant="h6" fontWeight={600}>
+          Event History
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           <Typography variant="body2" color="text.secondary">
-            {loading 
-              ? 'Please wait while we load your event history...'
-              : 'Only closed/complete events will appear here. Close events in the Service Check-In to see them in history.'
-            }
+            {events.length} closed events
           </Typography>
-          <Button 
-            variant="contained" 
-            onClick={handleRefresh}
-            startIcon={<RefreshIcon />}
-            sx={{ mt: 2, boxShadow: 1 }}
-          >
-            {loading ? 'Loading...' : 'Refresh Events'}
-          </Button>
-        </Paper>
-      ) : isMdDown ? (
-        // Mobile/Tablet View - Cards
-        <Box>
-          <Box 
-            sx={{ 
-              maxHeight: 500, 
-              overflowY: "auto",
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 1,
-              p: 1,
-              boxShadow: 2
-            }}
-          >
-            {paginatedRows.map((row, idx) => (
-              <EventCard key={row.id} event={row} index={page * rowsPerPage + idx + 1} />
-            ))}
-          </Box>
-
-          <TablePagination 
-            component="div" 
-            count={filteredRows.length} 
-            page={page} 
-            onPageChange={(e, newPage) => setPage(newPage)} 
-            rowsPerPage={rowsPerPage} 
-            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} 
-            rowsPerPageOptions={[25, 50, 100]} 
-            sx={{ boxShadow: 2, borderRadius: 1, mt: 1 }}
-          />
+          {onRefresh && (
+            <Tooltip title="Refresh Event Stats">
+              <IconButton 
+                onClick={onRefresh} 
+                size="small"
+                color="primary"
+                sx={{ 
+                  border: `1px solid ${theme.palette.divider}`,
+                  '&:hover': {
+                    backgroundColor: theme.palette.action.hover
+                  }
+                }}
+              >
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
-      ) : (
-        // Desktop View - DataGrid
-        <Paper 
-          variant="outlined" 
-          sx={{ 
-            height: 600, 
+      </Box>
+
+      <Paper
+        variant="outlined"
+        sx={{
+          boxShadow: 3,
+          overflow: 'hidden',
+          width: '100%',
+          height: isMdDown ? 'calc(100vh - 280px)' : 650,
+          minHeight: isMdDown ? 500 : 650,
+        }}
+      >
+        <DataGrid
+          rows={events}
+          columns={columns}
+          loading={isLoading}
+          slots={{
+            toolbar: GridToolbar,
+          }}
+          slotProps={{
+            toolbar: {
+              showQuickFilter: true,
+              quickFilterProps: { debounceMs: 500 },
+            },
+          }}
+          initialState={{
+            pagination: {
+              paginationModel: { pageSize: 25 }
+            },
+            sorting: {
+              sortModel: [{ field: 'date', sort: 'desc' }]
+            }
+          }}
+          pageSizeOptions={[25, 50, 100]}
+          disableRowSelectionOnClick
+          sx={{
             width: '100%',
-            boxShadow: 3,
-            backgroundColor: theme.palette.background.paper
+            height: '100%',
+            '& .MuiDataGrid-columnHeaders': {
+              backgroundColor: theme.palette.action.hover,
+              borderBottom: `2px solid ${theme.palette.divider}`,
+            },
+            '& .MuiDataGrid-columnHeader': {
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+            },
+            '& .MuiDataGrid-columnHeaderTitle': {
+              textAlign: 'center',
+              width: '100%',
+              fontWeight: 600,
+            },
+            '& .MuiDataGrid-cell': {
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              textAlign: 'center',
+            },
+            '& .MuiDataGrid-cell[data-field="eventName"]': {
+              justifyContent: 'flex-start',
+              textAlign: 'left',
+              paddingLeft: 2,
+            },
+          }}
+        />
+      </Paper>
+
+      {/* Details Dialog - Now only shown if parent component doesn't handle it */}
+      {!onViewDetails && !onViewNewPeople && !onViewConverts && (
+        <Dialog
+          open={detailsDialog.open}
+          onClose={handleCloseDetails}
+          fullWidth
+          maxWidth="lg"
+          PaperProps={{
+            sx: {
+              boxShadow: 6,
+              maxHeight: '90vh',
+              ...(isSmDown && {
+                margin: 2,
+                maxHeight: '85vh',
+                width: 'calc(100% - 32px)',
+              })
+            }
           }}
         >
-          <DataGrid
-            rows={filteredRows}
-            columns={columns}
-            loading={loading}
-            pageSizeOptions={[10, 25, 50, 100]}
-            slots={{ toolbar: GridToolbar }}
-            slotProps={{
-              toolbar: {
-                showQuickFilter: true,
-                quickFilterProps: { debounceMs: 500 },
-              },
-            }}
-            disableRowSelectionOnClick
-            initialState={{
-              pagination: { paginationModel: { pageSize: 100 } }
-            }}
-            sortingMode="client"
-            sortModel={sortModel}
-            onSortModelChange={setSortModel}
+          <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+            {getDialogTitle()}
+            <Typography variant="body2" color="text.secondary">
+              Total: {detailsDialog.data.length}
+            </Typography>
+            <Alert severity="info" sx={{ mt: 1, py: 0.5, fontSize: '0.8rem' }}>
+              {detailsDialog.type === 'consolidated' 
+                ? 'Showing consolidation/decision records' 
+                : detailsDialog.type === 'newPeople'
+                ? 'Showing new/first-time visitors'
+                : 'Showing regular attendees'}
+            </Alert>
+          </DialogTitle>
+
+          <DialogContent
+            dividers
             sx={{
-              '& .MuiDataGrid-row:hover': {
-                backgroundColor: theme.palette.action.hover,
-              },
-              '& .MuiDataGrid-cell': {
-                borderBottom: `1px solid ${theme.palette.divider}`,
-              },
-              '& .MuiDataGrid-toolbarContainer': {
-                p: 1,
-                flexWrap: 'wrap'
-              },
+              maxHeight: isSmDown ? 600 : 700,
+              overflowY: 'auto',
+              p: isSmDown ? 1 : 2
             }}
-          />
-        </Paper>
-      )}
+          >
+            <TextField
+              size="small"
+              placeholder="Search..."
+              value={detailSearch}
+              onChange={(e) => {
+                setDetailSearch(e.target.value);
+                setDetailPage(0);
+              }}
+              fullWidth
+              sx={{ mb: 2, boxShadow: 1 }}
+            />
 
-      {/* PRESENT Attendees Modal - Same as ServiceCheckIn */}
-      <Dialog
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        fullWidth
-        maxWidth="lg"
-        PaperProps={{
-          sx: {
-            boxShadow: 6,
-            maxHeight: '90vh',
-            ...(isSmDown && {
-              margin: 2,
-              maxHeight: '85vh',
-              width: 'calc(100% - 32px)',
-            })
-          }
-        }}
-      >
-        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          Attendees Present: {currentDialogData.present.length}
-        </DialogTitle>
-        <DialogContent dividers sx={{ 
-          maxHeight: isSmDown ? 600 : 700,
-          overflowY: "auto", 
-          p: isSmDown ? 1 : 2 
-        }}>
-          {currentDialogData.present.length === 0 ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-              No attendees present for this event
-            </Typography>
-          ) : (
-            <>
-              {isSmDown ? (
-                <Box>
-                  {currentDialogData.present.map((a, idx) => (
-                    <PresentAttendeeCard 
-                      key={a.id || a._id} 
-                      attendee={a} 
-                      showNumber={true} 
-                      index={idx + 1} 
-                    />
-                  ))}
-                </Box>
-              ) : (
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600, width: '40px' }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Name & Surname</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '100px' }}>Phone</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @1</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @12</TableCell>
-                      <TableCell sx={{ fontWeight: 600, minWidth: '90px' }}>Leader @144</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {currentDialogData.present.map((a, idx) => (
-                      <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
-                        <TableCell>{idx + 1}</TableCell>
-                        <TableCell>
-                          <Box>
-                            <Typography variant="body2" fontWeight="600" noWrap>
-                              {a.name} {a.surname}
+            {/* MOBILE VIEW */}
+            {isSmDown ? (
+              <Box>
+                {paginatedDetailData.map((item, idx) => (
+                  <Card key={item._id || item.id || idx} variant="outlined" sx={{ mb: 1, boxShadow: 2 }}>
+                    <CardContent sx={{ p: 1.5 }}>
+                      {detailsDialog.type === 'consolidated' ? (
+                        <>
+                          <Typography variant="subtitle2" fontWeight={600}>
+                            {item.person_name || item.name} {item.person_surname || item.surname}
+                          </Typography>
+                          {item.person_email || item.email ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {item.person_email || item.email}
                             </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" noWrap title={a.phone || ""}>
-                            {a.phone || "—"}
+                          ) : null}
+                          {item.person_phone || item.phone ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {item.person_phone || item.phone}
+                            </Typography>
+                          ) : null}
+                          <Stack direction="row" spacing={1} mt={1} flexWrap="wrap" gap={0.5}>
+                            <Chip
+                              label={item.decision_type || 'Commitment'}
+                              size="small"
+                              color={item.decision_type === 'recommitment' ? 'primary' : 'secondary'}
+                            />
+                            <Chip
+                              label={`Assigned: ${item.assigned_to || 'Not assigned'}`}
+                              size="small"
+                              variant="outlined"
+                            />
+                          </Stack>
+                          {/* LEADER FIELDS FOR CONSOLIDATIONS */}
+                          <Stack direction="row" spacing={0.5} mt={1} flexWrap="wrap" gap={0.5}>
+                            {item.leader1 && item.leader1.trim() !== "" && (
+                              <Chip 
+                                label={`@1: ${item.leader1}`} 
+                                size="small" 
+                                sx={{ fontSize: '0.6rem', height: 18 }} 
+                              />
+                            )}
+                            {item.leader12 && item.leader12.trim() !== "" && (
+                              <Chip 
+                                label={`@12: ${item.leader12}`} 
+                                size="small" 
+                                sx={{ fontSize: '0.6rem', height: 18 }} 
+                              />
+                            )}
+                            {item.leader144 && item.leader144.trim() !== "" && (
+                              <Chip 
+                                label={`@144: ${item.leader144}`} 
+                                size="small" 
+                                sx={{ fontSize: '0.6rem', height: 18 }} 
+                              />
+                            )}
+                          </Stack>
+                        </>
+                      ) : detailsDialog.type === 'newPeople' ? (
+                        <>
+                          <Typography variant="subtitle2" fontWeight={600}>
+                            {item.name} {item.surname}
                           </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" noWrap title={a.email || ""}>
-                            {a.email || "—"}
+                          {item.email && (
+                            <Typography variant="body2" color="text.secondary">
+                              {item.email}
+                            </Typography>
+                          )}
+                          {item.phone && (
+                            <Typography variant="body2" color="text.secondary">
+                              {item.phone}
+                            </Typography>
+                          )}
+                          {item.invitedBy && (
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Invited by: {item.invitedBy}
+                            </Typography>
+                          )}
+                          {/* LEADER FIELDS FOR NEW PEOPLE */}
+                          <Stack direction="row" spacing={0.5} mt={1} flexWrap="wrap" gap={0.5}>
+                            {item.leader1 && item.leader1.trim() !== "" && (
+                              <Chip 
+                                label={`@1: ${item.leader1}`} 
+                                size="small" 
+                                sx={{ fontSize: '0.6rem', height: 18 }} 
+                              />
+                            )}
+                            {item.leader12 && item.leader12.trim() !== "" && (
+                              <Chip 
+                                label={`@12: ${item.leader12}`} 
+                                size="small" 
+                                sx={{ fontSize: '0.6rem', height: 18 }} 
+                              />
+                            )}
+                            {item.leader144 && item.leader144.trim() !== "" && (
+                              <Chip 
+                                label={`@144: ${item.leader144}`} 
+                                size="small" 
+                                sx={{ fontSize: '0.6rem', height: 18 }} 
+                              />
+                            )}
+                            {(!item.leader1 || item.leader1.trim() === "") && 
+                             (!item.leader12 || item.leader12.trim() === "") && 
+                             (!item.leader144 || item.leader144.trim() === "") && (
+                              <Typography variant="caption" color="text.secondary">
+                                No leader assignments
+                              </Typography>
+                            )}
+                          </Stack>
+                        </>
+                      ) : (
+                        <>
+                          <Typography variant="subtitle2" fontWeight={600}>
+                            {item.name} {item.surname}
                           </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" noWrap title={a.leader1 || ""}>
-                            {a.leader1 || "—"}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" noWrap title={a.leader12 || ""}>
-                            {a.leader12 || "—"}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" noWrap title={a.leader144 || ""}>
-                            {a.leader144 || "—"}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+                          {item.email && (
+                            <Typography variant="body2" color="text.secondary">
+                              {item.email}
+                            </Typography>
+                          )}
+                          {item.phone && (
+                            <Typography variant="body2" color="text.secondary">
+                              {item.phone}
+                            </Typography>
+                          )}
+                          {/* LEADER FIELDS DISPLAY */}
+                          <Stack direction="row" spacing={0.5} mt={1} flexWrap="wrap" gap={0.5}>
+                            {item.leader1 && item.leader1.trim() !== "" && (
+                              <Chip 
+                                label={`@1: ${item.leader1}`} 
+                                size="small" 
+                                sx={{ fontSize: '0.6rem', height: 18 }} 
+                              />
+                            )}
+                            {item.leader12 && item.leader12.trim() !== "" && (
+                              <Chip 
+                                label={`@12: ${item.leader12}`} 
+                                size="small" 
+                                sx={{ fontSize: '0.6rem', height: 18 }} 
+                              />
+                            )}
+                            {item.leader144 && item.leader144.trim() !== "" && (
+                              <Chip 
+                                label={`@144: ${item.leader144}`} 
+                                size="small" 
+                                sx={{ fontSize: '0.6rem', height: 18 }} 
+                              />
+                            )}
+                            {(!item.leader1 || item.leader1.trim() === "") && 
+                             (!item.leader12 || item.leader12.trim() === "") && 
+                             (!item.leader144 || item.leader144.trim() === "") && (
+                              <Typography variant="caption" color="text.secondary">
+                                No leader assignments
+                              </Typography>
+                            )}
+                          </Stack>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
 
-{/* NEW PEOPLE Modal - Updated to show gender and invitedBy */}
-<Dialog
-  open={newPeopleModalOpen}
-  onClose={() => setNewPeopleModalOpen(false)}
-  fullWidth
-  maxWidth="md"
-  PaperProps={{
-    sx: {
-      boxShadow: 6,
-      ...(isSmDown && {
-        margin: 2,
-        maxHeight: '80vh',
-        width: 'calc(100% - 32px)',
-      })
-    }
-  }}
->
-  <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-    New People: {currentDialogData.newPeople.length}
-  </DialogTitle>
-  <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
-    {currentDialogData.newPeople.length === 0 ? (
-      <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-        No new people added for this event
-      </Typography>
-    ) : (
-      <>
-        {isSmDown ? (
-          <Box>
-            {currentDialogData.newPeople.map((a, idx) => (
-              <NewPersonCard 
-                key={a.id || a._id} 
-                person={a} 
-                showNumber={true} 
-                index={idx + 1} 
-              />
-            ))}
-          </Box>
-        ) : (
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600, width: '40px' }}>#</TableCell>
-                <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Name & Surname</TableCell>
-                <TableCell sx={{ fontWeight: 600, minWidth: '100px' }}>Phone</TableCell>
-                <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Email</TableCell>
-                <TableCell sx={{ fontWeight: 600, minWidth: '100px' }}>Gender</TableCell>
-                <TableCell sx={{ fontWeight: 600, minWidth: '150px' }}>Invited By</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {currentDialogData.newPeople.map((a, idx) => (
-                <TableRow key={a.id || a._id} hover sx={{ '&:hover': { boxShadow: 1 } }}>
-                  <TableCell>{idx + 1}</TableCell>
-                  <TableCell>
-                    <Box>
-                      <Typography variant="body2" fontWeight="600" noWrap>
-                        {a.name} {a.surname}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" noWrap title={a.phone || ""}>
-                      {a.phone || "—"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" noWrap title={a.email || ""}>
-                      {a.email || "—"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" noWrap>
-                      {a.gender || "—"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" noWrap title={a.invitedBy || ""}>
-                      {a.invitedBy || "—"}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </>
-    )}
-  </DialogContent>
-  <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-    <Button onClick={() => setNewPeopleModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
-      Close
-    </Button>
-  </DialogActions>
-</Dialog>
+                {paginatedDetailData.length === 0 && (
+                  <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
+                    No matching data
+                  </Typography>
+                )}
+              </Box>
+            ) : (
+              /* DESKTOP TABLE */
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
+                    
+                    {detailsDialog.type === 'consolidated' ? (
+                      <>
+                        <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
+                      </>
+                    ) : detailsDialog.type === 'newPeople' ? (
+                      <>
+                        <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                </TableHead>
 
-      {/* CONSOLIDATED Modal - Same as ServiceCheckIn */}
-      <Dialog
-        open={consolidatedModalOpen}
-        onClose={() => setConsolidatedModalOpen(false)}
-        fullWidth
-        maxWidth="md"
-        PaperProps={{
-          sx: {
-            boxShadow: 6,
-            ...(isSmDown && {
-              margin: 2,
-              maxHeight: '80vh',
-              width: 'calc(100% - 32px)',
-            })
-          }
-        }}
-      >
-        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          Consolidated People: {currentDialogData.consolidated.length}
-        </DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
-          {currentDialogData.consolidated.length === 0 ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>
-              No consolidated people for this event
-            </Typography>
-          ) : (
-            <>
-              {isSmDown ? (
-                <Box>
-                  {currentDialogData.consolidated.map((person, idx) => (
-                    <ConsolidatedPersonCard
-                      key={person.id || person._id || idx}
-                      person={person}
-                      showNumber={true}
-                      index={idx + 1}
-                    />
-                  ))}
-                </Box>
-              ) : (
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                <TableBody>
+                  {paginatedDetailData.map((item, idx) => (
+                    <TableRow key={item._id || item.id || idx} hover>
+                      <TableCell>{detailPage * detailRowsPerPage + idx + 1}</TableCell>
+                      
+                      {/* Name - handles different field names */}
+                      <TableCell>
+                        {detailsDialog.type === 'consolidated'
+                          ? `${item.person_name || item.name || ''} ${item.person_surname || item.surname || ''}`
+                          : `${item.name || ''} ${item.surname || ''}`}
+                      </TableCell>
+                      
+                      {/* Email - handles different field names */}
+                      <TableCell>
+                        {detailsDialog.type === 'consolidated'
+                          ? item.person_email || item.email || '—'
+                          : item.email || '—'}
+                      </TableCell>
+                      
+                      {/* Phone - handles different field names */}
+                      <TableCell>
+                        {detailsDialog.type === 'consolidated'
+                          ? item.person_phone || item.phone || '—'
+                          : item.phone || '—'}
+                      </TableCell>
+
+                      {detailsDialog.type === 'consolidated' ? (
+                        <>
+                          <TableCell>
+                            <Chip
+                              label={item.decision_type ? item.decision_type.charAt(0).toUpperCase() + item.decision_type.slice(1) : 'Commitment'}
+                              size="small"
+                              color={item.decision_type === 'recommitment' ? 'primary' : 'secondary'}
+                            />
+                          </TableCell>
+                          <TableCell>{item.assigned_to || 'Not assigned'}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : 'Active'}
+                              size="small"
+                              color={item.status === 'completed' ? 'success' : 'default'}
+                            />
+                          </TableCell>
+                          {/* LEADER FIELDS FOR CONSOLIDATIONS */}
+                          <TableCell>{getLeaderDisplay(item.leader1)}</TableCell>
+                          <TableCell>{getLeaderDisplay(item.leader12)}</TableCell>
+                          <TableCell>{getLeaderDisplay(item.leader144)}</TableCell>
+                        </>
+                      ) : detailsDialog.type === 'newPeople' ? (
+                        <>
+                          <TableCell>{item.invitedBy || '—'}</TableCell>
+                          <TableCell>{item.gender || '—'}</TableCell>
+                          {/* LEADER FIELDS FOR NEW PEOPLE */}
+                          <TableCell>{getLeaderDisplay(item.leader1)}</TableCell>
+                          <TableCell>{getLeaderDisplay(item.leader12)}</TableCell>
+                          <TableCell>{getLeaderDisplay(item.leader144)}</TableCell>
+                        </>
+                      ) : (
+                        <>
+                          {/* LEADER FIELDS FOR ATTENDEES */}
+                          <TableCell>{getLeaderDisplay(item.leader1)}</TableCell>
+                          <TableCell>{getLeaderDisplay(item.leader12)}</TableCell>
+                          <TableCell>{getLeaderDisplay(item.leader144)}</TableCell>
+                          <TableCell>{item.gender || '—'}</TableCell>
+                          <TableCell>{item.invitedBy || '—'}</TableCell>
+                        </>
+                      )}
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {currentDialogData.consolidated.map((person, idx) => (
-                      <TableRow key={person.id || person._id || idx} hover>
-                        <TableCell>{idx + 1}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="medium">
-                            {person.person_name} {person.person_surname}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Box>
-                            {person.person_email && (
-                              <Typography variant="body2">{person.person_email}</Typography>
-                            )}
-                            {person.person_phone && (
-                              <Typography variant="body2" color="text.secondary">{person.person_phone}</Typography>
-                            )}
-                            {!person.person_email && !person.person_phone && "—"}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={person.decision_type || 'Commitment'}
-                            size="small"
-                            color={person.decision_type === 'Recommitment' ? 'primary' : 'secondary'}
-                            variant="filled"
-                          />
-                        </TableCell>
-                        <TableCell>{person.assigned_to || 'Not assigned'}</TableCell>
-                        <TableCell>
-                          {person.created_at ? new Date(person.created_at).toLocaleDateString() : '—'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button onClick={() => setConsolidatedModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+                  ))}
+
+                  {paginatedDetailData.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={detailsDialog.type === 'consolidated' ? 10 : 
+                                 detailsDialog.type === 'newPeople' ? 8 : 8}
+                        align="center"
+                      >
+                        No matching data
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+
+            <Box mt={1}>
+              <TablePagination
+                component="div"
+                count={filteredDetailData.length}
+                page={detailPage}
+                onPageChange={(e, newPage) => setDetailPage(newPage)}
+                rowsPerPage={detailRowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setDetailRowsPerPage(parseInt(e.target.value, 10));
+                  setDetailPage(0);
+                }}
+                rowsPerPageOptions={[25, 50, 100]}
+              />
+            </Box>
+          </DialogContent>
+
+          <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+            <Button onClick={handleCloseDetails} variant="outlined" size={isSmDown ? 'small' : 'medium'}>
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
     </Box>
   );
 }

@@ -83,13 +83,14 @@ function ServiceCheckIn() {
     { field: 'isNew', sort: 'desc' }, // 🆕 New people first
     { field: 'name', sort: 'asc' }
   ]);
+  const [enrichedClosedEvents, setEnrichedClosedEvents] = useState([]);
+const [isLoadingClosedEvents, setIsLoadingClosedEvents] = useState(false);
 
   // Real-time data state
   const [realTimeData, setRealTimeData] = useState(null);
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
-  const [isLoadingConsolidated, setIsLoadingConsolidated] = useState(false);
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -523,15 +524,6 @@ const createLeaderSortComparator = (leaderField) => (v1, v2, row1, row2) => {
     return filteredEvents;
   };
 
-  const getClosedEvents = () => {
-    return events.filter(event => {
-      const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'complete';
-      const isGlobal = event.eventType === "Global Events";
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-      const didMeet = event.status?.toLowerCase() !== 'cancelled' && event.status?.toLowerCase() !== 'did_not_meet';
-      return isClosed && isGlobal && isNotCell && didMeet;
-    });
-  };
 
   const getFilteredClosedEvents = () => {
     const closedEvents = events.filter(event => {
@@ -555,6 +547,151 @@ const createLeaderSortComparator = (leaderField) => (v1, v2, row1, row2) => {
       event.status?.toLowerCase().includes(searchTerm)
     );
   };
+
+// Update this function in ServiceCheckIn component
+const fetchClosedEventsStats = async () => {
+  const closedEvents = getFilteredClosedEvents();
+  if (closedEvents.length === 0) {
+    setEnrichedClosedEvents([]);
+    return;
+  }
+  
+  setIsLoadingClosedEvents(true);
+  console.log('📊 Fetching stats for closed events:', closedEvents.length);
+  
+  try {
+    const token = localStorage.getItem("token");
+    const eventStatsPromises = closedEvents.map(async (event) => {
+      try {
+        const response = await axios.get(`${BASE_URL}/service-checkin/real-time-data`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          params: { event_id: event.id }
+        });
+        
+        if (response.data.success) {
+          console.log(`✅ Stats for ${event.eventName}:`, {
+            present: response.data.present_count,
+            new: response.data.new_people_count,
+            consolidations: response.data.consolidation_count
+          });
+          
+          // ENHANCE THE DATA BEFORE RETURNING
+          const enhancedData = {
+            id: event.id,
+            eventName: event.eventName,
+            date: event.date,
+            status: event.status,
+            attendance: response.data.present_count || 0,
+            newPeople: response.data.new_people_count || 0,
+            consolidated: response.data.consolidation_count || 0,
+            // Present attendees already have leader fields from backend
+            attendanceData: response.data.present_attendees || [],
+            // Enhance new people data
+            newPeopleData: (response.data.new_people || []).map(person => ({
+              ...person,
+              // Ensure leader fields exist (even if empty)
+              leader1: person.leader1 || "",
+              leader12: person.leader12 || "",
+              leader144: person.leader144 || "",
+              // Ensure all required fields exist
+              name: person.name || "",
+              surname: person.surname || "",
+              email: person.email || "",
+              phone: person.phone || "",
+              gender: person.gender || "",
+              invitedBy: person.invitedBy || ""
+            })),
+            // Enhance consolidation data
+            consolidatedData: (response.data.consolidations || []).map(consolidation => ({
+              ...consolidation,
+              // Ensure all required fields exist
+              person_name: consolidation.person_name || "",
+              person_surname: consolidation.person_surname || "",
+              person_email: consolidation.person_email || "",
+              person_phone: consolidation.person_phone || "",
+              assigned_to: consolidation.assigned_to || "",
+              decision_type: consolidation.decision_type || "Commitment",
+              status: consolidation.status || "active",
+              notes: consolidation.notes || "",
+              // Add leader fields if they exist in consolidation data
+              leader1: consolidation.leader1 || "",
+              leader12: consolidation.leader12 || "",
+              leader144: consolidation.leader144 || ""
+            }))
+          };
+          
+          console.log(`📋 Enhanced data for ${event.eventName}:`, {
+            attendanceCount: enhancedData.attendanceData.length,
+            newPeopleCount: enhancedData.newPeopleData.length,
+            consolidatedCount: enhancedData.consolidatedData.length,
+            sampleNewPerson: enhancedData.newPeopleData[0],
+            sampleConsolidation: enhancedData.consolidatedData[0]
+          });
+          
+          return enhancedData;
+        }
+      } catch (error) {
+        console.warn(`⚠️ Could not fetch stats for event ${event.id}:`, error.message);
+        // Return empty enhanced data if fetch fails
+        return {
+          id: event.id,
+          eventName: event.eventName,
+          date: event.date,
+          status: event.status,
+          attendance: 0,
+          newPeople: 0,
+          consolidated: 0,
+          attendanceData: [],
+          newPeopleData: [],
+          consolidatedData: []
+        };
+      }
+    });
+    
+    const results = await Promise.all(eventStatsPromises);
+    const validResults = results.filter(event => event !== null);
+    
+    // Debug: Check what data we actually got
+    if (validResults.length > 0) {
+      console.log('🎯 Final enriched events data:', validResults);
+      console.log('🔍 Sample new people data structure:', validResults[0]?.newPeopleData?.[0]);
+      console.log('🔍 Sample consolidation data structure:', validResults[0]?.consolidatedData?.[0]);
+      console.log('🔍 Leader fields check:', {
+        newPersonHasLeader1: validResults[0]?.newPeopleData?.[0]?.leader1,
+        consolidationHasLeader1: validResults[0]?.consolidatedData?.[0]?.leader1
+      });
+    }
+    
+    setEnrichedClosedEvents(validResults);
+  } catch (error) {
+    console.error('❌ Error fetching closed events stats:', error);
+    toast.error('Failed to load closed events stats');
+  } finally {
+    setIsLoadingClosedEvents(false);
+  }
+};
+
+// Add this function to manually refresh closed events stats
+const refreshClosedEventsStats = async () => {
+  console.log('🔄 Manually refreshing closed events stats...');
+  await fetchClosedEventsStats();
+  toast.success('Closed events stats refreshed');
+};
+
+// Add this useEffect to fetch stats when event history tab is active or events change
+useEffect(() => {
+  if (activeTab === 1) { // Event History tab is active
+    fetchClosedEventsStats();
+  }
+}, [activeTab, events, eventSearch]); // Re-fetch when tab changes or events/eventSearch changes
+
+// Also fetch when events are initially loaded
+useEffect(() => {
+  if (events.length > 0) {
+    // We'll fetch when tab becomes active instead of immediately
+    console.log('📋 Events loaded, ready to fetch stats when needed');
+  }
+}, [events]);
 
   const handleToggleCheckIn = async (attendee) => {
     if (!currentEventId) {
@@ -984,32 +1121,59 @@ const createLeaderSortComparator = (leaderField) => (v1, v2, row1, row2) => {
   })();
 
   // Event history handlers
-  const handleViewEventDetails = (event, data) => {
-    setEventHistoryDetails({
-      open: true,
-      event: event,
-      type: 'attendance',
-      data: data || []
-    });
-  };
+const handleViewEventDetails = (event, data) => {
+  // If event comes from enrichedClosedEvents, it already has the data arrays
+  // Otherwise, use the provided data
+  const eventData = data || event.attendanceData || [];
+  
+  // Enrich data with leader fields from local cache
+  const enrichedData = eventData.map(attendee => {
+    // Try to find this person in the local attendees cache
+    const fullPerson = attendees.find(a => a._id === (attendee.id || attendee._id));
+    
+    if (fullPerson) {
+      return {
+        ...attendee,
+        leader1: attendee.leader1 || fullPerson.leader1 || "",
+        leader12: attendee.leader12 || fullPerson.leader12 || "",
+        leader144: attendee.leader144 || fullPerson.leader144 || "",
+        gender: attendee.gender || fullPerson.gender || "",
+        invitedBy: attendee.invitedBy || fullPerson.invitedBy || ""
+      };
+    }
+    return attendee;
+  });
+  
+  setEventHistoryDetails({
+    open: true,
+    event: event,
+    type: 'attendance',
+    data: enrichedData
+  });
+};
 
-  const handleViewNewPeople = (event, data) => {
-    setEventHistoryDetails({
-      open: true,
-      event: event,
-      type: 'newPeople',
-      data: data || []
-    });
-  };
 
-  const handleViewConsolidated = (event, data) => {
-    setEventHistoryDetails({
-      open: true,
-      event: event,
-      type: 'consolidated',
-      data: data || []
-    });
-  };
+const handleViewNewPeople = (event, data) => {
+  // Use event's newPeopleData if available, otherwise use provided data
+  const eventData = data || event.newPeopleData || [];
+  setEventHistoryDetails({
+    open: true,
+    event: event,
+    type: 'newPeople',
+    data: eventData
+  });
+};
+
+const handleViewConsolidated = (event, data) => {
+  // Use event's consolidatedData if available, otherwise use provided data
+  const eventData = data || event.consolidatedData || [];
+  setEventHistoryDetails({
+    open: true,
+    event: event,
+    type: 'consolidated',
+    data: eventData
+  });
+};
 
   // Data for display
   const attendeesWithStatus = getAttendeesWithPresentStatus();
@@ -2847,12 +3011,14 @@ useEffect(() => {
 )}
         {activeTab === 1 && (
           <Box sx={{ width: '100%' }}>
-            <EventHistory
-              onViewDetails={handleViewEventDetails}
-              onViewNewPeople={handleViewNewPeople}
-              onViewConverts={handleViewConsolidated}
-              events={getFilteredClosedEvents()}
-            />
+    <EventHistory
+      onViewDetails={handleViewEventDetails}
+      onViewNewPeople={handleViewNewPeople}
+      onViewConverts={handleViewConsolidated}
+      events={enrichedClosedEvents}
+      isLoading={isLoadingClosedEvents}
+      onRefresh={refreshClosedEventsStats}
+    />
           </Box>
         )}
       </Box>
