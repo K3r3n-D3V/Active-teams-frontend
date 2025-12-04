@@ -49,27 +49,45 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
   const fieldMapping = {
-    'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
-    'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
-    'eventLeaderName': ['eventLeaderName', 'Leader', 'eventLeader'],
-    'Email': ['Email', 'eventLeaderEmail', 'email'],
-    'eventLeaderEmail': ['eventLeaderEmail', 'Email', 'email'],
-    'email': ['email', 'Email', 'eventLeaderEmail'],
-    'Address': ['Address', 'location', 'address'],
-    'location': ['location', 'Address', 'address'],
-    'address': ['address', 'Address', 'location'],
-    'Day': ['Day', 'recurring_day'],
-    'recurring_day': ['recurring_day', 'Day'],
-    'Time': ['Time', 'time'],
-    'time': ['time', 'Time'],
-    'Event Name': ['Event Name', 'eventName'],
-    'eventName': ['eventName', 'Event Name'],
-    'Event Type': ['Event Type', 'eventTypeName'],
-    'eventTypeName': ['eventTypeName', 'Event Type'],
-    'leader1': ['leader1'],
-    'leader12': ['leader12'],
-    'Leader at 12': ['Leader at 12'],
-  };
+  'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
+  'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
+  'eventLeaderName': ['eventLeaderName', 'Leader', 'eventLeader'],
+  'leader1': ['leader1'],
+  'leader12': ['leader12'],
+  'Leader at 12': ['Leader at 12'],
+  
+  // Email fields
+  'Email': ['Email', 'eventLeaderEmail', 'email'],
+  'eventLeaderEmail': ['eventLeaderEmail', 'Email', 'email'],
+  'email': ['email', 'Email', 'eventLeaderEmail'],
+  
+  // Location fields
+  'Address': ['Address', 'location', 'address'],
+  'location': ['location', 'Address', 'address'],
+  'address': ['address', 'Address', 'location'],
+  
+  // Day/time fields
+  'Day': ['Day', 'recurring_day'],
+  'recurring_day': ['recurring_day', 'Day'],
+  'Time': ['Time', 'time'],
+  'time': ['time', 'Time'],
+  
+  'Event Name': ['Event Name', 'eventName'],
+  'eventName': ['eventName', 'Event Name'],
+  
+  'Event Type': ['Event Type', 'eventTypeName'],
+  'eventTypeName': ['eventTypeName', 'Event Type'],
+  
+  'status': ['status', 'Status'],
+  'Status': ['Status', 'status'],
+  
+  'description': ['description'],
+  'isTicketed': ['isTicketed'],
+  'isGlobal': ['isGlobal'],
+  'hasPersonSteps': ['hasPersonSteps'],
+  'Reoccurring': ['Reoccurring', 'recurring'],
+  'recurring': ['recurring', 'Reoccurring'],
+};
 
   const cleanEventId = (event) => {
     if (!event) return null;
