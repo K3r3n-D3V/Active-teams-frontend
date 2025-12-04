@@ -1,5 +1,4 @@
-
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -10,6 +9,7 @@ import {
   useTheme,
   useMediaQuery,
   Link,
+  CircularProgress,
 } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
@@ -25,43 +25,65 @@ const initialForm = {
 
 const Login = ({ mode, setMode }) => {
   const [form, setForm] = useState(initialForm);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
+  const [localErrors, setLocalErrors] = useState({});
   const theme = useTheme();
   const navigate = useNavigate();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const { login } = useContext(AuthContext);
+  const { login, loading, isAuthenticated } = useContext(AuthContext);
   const isDark = mode === "dark";
 
+  // Early redirect if already auth'd (no splash)
+  useEffect(() => {
+    if (isAuthenticated && !loading) {
+      console.log('🔄 [Login] Already auth\'d—redirecting to home');
+      navigate('/');
+    }
+  }, [isAuthenticated, loading, navigate]);
+
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    if (localErrors[name]) setLocalErrors({ ...localErrors, [name]: '' });
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    if (!form.email) errors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(form.email)) errors.email = 'Invalid email format';
+    if (!form.password) errors.password = 'Password is required';
+    else if (form.password.length < 6) errors.password = 'Password must be at least 6 characters';
+    setLocalErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
-
-    if (!form.email || !form.password) {
-      setError("Email and password are required.");
-      return;
-    }
-
-    setLoading(true);
+    if (!validateForm()) return;
     try {
       await login(form.email, form.password);
-      setSuccess("Login successful!");
       setForm(initialForm);
-      setTimeout(() => navigate("/"), 500);
     } catch (err) {
-      setError(err.message || "Login failed.");
-    } finally {
-      setLoading(false);
+      console.error('Login error in component:', err);
     }
   };
+
+  // Show loading spinner if initializing (brief splash prevent)
+  if (loading && !isAuthenticated) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: theme.palette.background.default,
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   const inputFieldSx = {
     "& .MuiOutlinedInput-root": {
@@ -138,7 +160,6 @@ const Login = ({ mode, setMode }) => {
           {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
         </IconButton>
       </Box>
-
       <Box
         sx={{
           maxWidth: 450,
@@ -162,11 +183,9 @@ const Login = ({ mode, setMode }) => {
             }}
           />
         </Box>
-
         <Typography variant="h5" fontWeight="bold" mb={3} textAlign="center">
           Login
         </Typography>
-
         <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={2}>
           <TextField
             label="Email Address"
@@ -175,45 +194,45 @@ const Login = ({ mode, setMode }) => {
             value={form.email}
             onChange={handleChange}
             fullWidth
-            error={!!error && !form.email}
-            helperText={!form.email && error ? "Email is required" : ""}
+            error={!!localErrors.email}
+            helperText={localErrors.email}
+            disabled={loading}
             sx={inputFieldSx}
           />
-
           <TextField
             label="Password"
             name="password"
-            type="text"
+            type={showPassword ? "text" : "password"}
             value={form.password}
             onChange={handleChange}
             fullWidth
-            error={!!error && !form.password}
-            helperText={!form.password && error ? "Password is required" : ""}
+            error={!!localErrors.password}
+            helperText={localErrors.password}
+            disabled={loading}
             sx={inputFieldSx}
             InputProps={{
-              style: {
-                fontFamily: "monospace",
-                WebkitTextSecurity:`${showPassword ? "" : "disc"}`
-              },
               endAdornment: (
                 <IconButton
                   onClick={() => setShowPassword((prev) => !prev)}
                   edge="end"
                   sx={{ color: isDark ? "#cccccc" : "#666666" }}
+                  disabled={loading}
                 >
-                  {!showPassword ? <VisibilityOff /> : <Visibility />}
+                  {showPassword ? <Visibility /> : <VisibilityOff />}
                 </IconButton>
               ),
             }}
           />
-
-          {error && <Typography color="error.main" textAlign="center">{error}</Typography>}
-          {success && <Typography color="success.main" textAlign="center">{success}</Typography>}
-
+          {loading && (
+            <Box display="flex" justifyContent="center" mt={1}>
+              <CircularProgress size={24} />
+              <Typography ml={1} variant="body2">Logging in...</Typography>
+            </Box>
+          )}
           <Button
             type="submit"
             variant="contained"
-            disabled={loading}
+            disabled={loading || Object.keys(localErrors).length > 0}
             sx={{
               backgroundColor: "#000",
               color: "#fff",
@@ -224,16 +243,17 @@ const Login = ({ mode, setMode }) => {
               "&:hover": { backgroundColor: "#222" },
             }}
           >
+            {loading ? <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} /> : null}
             {loading ? "Logging In..." : "Login"}
           </Button>
         </Box>
-
         <Box textAlign="center" mt={3}>
           <Link
             component="button"
             variant="body2"
             onClick={() => navigate("/forgot-password")}
             sx={{ textDecoration: "underline", color: "#42a5f5", mb: 1 }}
+            disabled={loading}
           >
             Forgot Password?
           </Link>
@@ -243,6 +263,7 @@ const Login = ({ mode, setMode }) => {
               component="button"
               onClick={() => navigate("/signup")}
               sx={{ textDecoration: "underline", color: "#42a5f5" }}
+              disabled={loading}
             >
               Sign Up
             </Link>

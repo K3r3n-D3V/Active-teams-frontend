@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { Snackbar, Alert } from '@mui/material';
 
 const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -15,11 +16,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [alert, setAlert] = useState({ open: false, message: '', severity: 'info' });
 
   // Helper function to get default avatar based on gender
   const getDefaultAvatar = (userData) => {
     if (!userData) return DEFAULT_AVATARS.neutral;
-    
+
     const gender = userData.gender?.toLowerCase();
     if (gender === 'female') {
       return DEFAULT_AVATARS.female;
@@ -33,14 +35,14 @@ export const AuthProvider = ({ children }) => {
   // Helper to ensure user has profile_picture from multiple possible sources
   const ensureUserWithAvatar = (userData) => {
     if (!userData) return null;
-    
+
     // Check multiple possible sources for profile picture
-    const profilePicture = userData.profile_picture || 
-                          userData.avatarUrl || 
-                          userData.profilePicUrl ||
-                          localStorage.getItem('profilePic') ||
-                          getDefaultAvatar(userData);
-    
+    const profilePicture = userData.profile_picture ||
+      userData.avatarUrl ||
+      userData.profilePicUrl ||
+      localStorage.getItem('profilePic') ||
+      getDefaultAvatar(userData);
+
     return {
       ...userData,
       profile_picture: profilePicture,
@@ -60,12 +62,14 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('leaders');
     setUser(null);
     setIsAuthenticated(false);
+    setAlert({ open: true, message: 'Logged out successfully.', severity: 'info' });
+    // Nav handled in calling component
   }, []);
 
   // Enhanced update profile picture function
   const updateProfilePicture = useCallback((newPictureUrl) => {
     console.log('🔄 Updating profile picture in AuthContext:', newPictureUrl);
-    
+
     if (user) {
       const updatedUser = ensureUserWithAvatar({
         ...user,
@@ -73,14 +77,15 @@ export const AuthProvider = ({ children }) => {
         avatarUrl: newPictureUrl,
         profilePicUrl: newPictureUrl
       });
-      
+
       setUser(updatedUser);
-      
+
       // Update localStorage for both user profile and standalone picture
       localStorage.setItem('userProfile', JSON.stringify(updatedUser));
       localStorage.setItem('profilePic', newPictureUrl);
-      
+
       console.log('✅ Profile picture updated in AuthContext and localStorage');
+      setAlert({ open: true, message: 'Profile picture updated!', severity: 'success' });
     }
   }, [user]);
 
@@ -97,7 +102,6 @@ export const AuthProvider = ({ children }) => {
         }
       }
     };
-
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
@@ -106,33 +110,33 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initializeAuth = () => {
       console.log('🔄 [AuthContext] Initializing auth...');
-      
+
       try {
         const token = localStorage.getItem('token');
         let storedUser = localStorage.getItem('userProfile');
-        
+
         console.log('🔍 [AuthContext] Checking localStorage:', {
           hasToken: !!token,
           hasStoredUser: !!storedUser,
           hasProfilePic: !!localStorage.getItem('profilePic'),
           rawStoredUser: storedUser
         });
-        
+
         if (token && storedUser) {
           try {
             const parsedUser = JSON.parse(storedUser);
             const userWithAvatar = ensureUserWithAvatar(parsedUser);
-            
+
             console.log('✅ [AuthContext] User restored from localStorage:', {
               email: userWithAvatar.email,
               role: userWithAvatar.role,
               hasProfilePicture: !!userWithAvatar.profile_picture,
               profilePicture: userWithAvatar.profile_picture
             });
-            
+
             setUser(userWithAvatar);
             setIsAuthenticated(true);
-            
+
             // Ensure localStorage is consistent
             localStorage.setItem('userProfile', JSON.stringify(userWithAvatar));
             if (userWithAvatar.profile_picture) {
@@ -143,8 +147,8 @@ export const AuthProvider = ({ children }) => {
             logout();
           }
         } else if (token && !storedUser) {
-          console.log('⚠️ [AuthContext] Token exists but no userProfile - this should not happen!');
-          console.log('⚠️ [AuthContext] Logging out to force re-authentication');
+          console.log('⚠ [AuthContext] Token exists but no userProfile - this should not happen!');
+          console.log('⚠ [AuthContext] Logging out to force re-authentication');
           logout();
         } else {
           console.log('❌ [AuthContext] No stored auth found');
@@ -157,83 +161,83 @@ export const AuthProvider = ({ children }) => {
         console.log('✅ [AuthContext] Auth initialization complete, loading set to false');
       }
     };
-
     initializeAuth();
   }, [logout]);
 
   const login = async (email, password) => {
     try {
+      setLoading(true);
       console.log('🔐 [AuthContext] Attempting login for:', email);
       const response = await fetch(`${BACKEND_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Login failed');
       }
-
       const data = await response.json();
-      
+
       console.log('✅ [AuthContext] Login successful, storing data');
       console.log("LOGIN DATA", data);
-      
+
       // FIX: Merge user and leaders data properly
       const mergedUserData = {
         ...data.user,
         ...(data.leaders || {})
       };
-      
+
       // Ensure user has profile picture from multiple sources
       const userWithAvatar = ensureUserWithAvatar(mergedUserData);
-      
+
       console.log('📦 [AuthContext] Prepared user data:', {
         email: userWithAvatar.email,
         role: userWithAvatar.role,
         id: userWithAvatar.id,
         hasProfilePicture: !!userWithAvatar.profile_picture
       });
-      
+
       // Store in localStorage - CRITICAL: Store all data
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('userId', data.user.id);
       localStorage.setItem('userProfile', JSON.stringify(userWithAvatar));
       localStorage.setItem('userRole', data.user.role);
-      
+
       if (data.leaders) {
         localStorage.setItem('leaders', JSON.stringify(data.leaders));
       }
       if (data.isLeader !== undefined) {
         localStorage.setItem('isLeader', JSON.stringify(data.isLeader));
       }
-      
+
       // Also store profile picture separately for easy access
       if (userWithAvatar.profile_picture) {
         localStorage.setItem('profilePic', userWithAvatar.profile_picture);
       }
-
       // Verify localStorage write was successful
       const verifyStore = localStorage.getItem('userProfile');
       console.log('✅ [AuthContext] Verify localStorage write:', {
         stored: !!verifyStore,
         length: verifyStore?.length
       });
-
       setUser(userWithAvatar);
       setIsAuthenticated(true);
-
       console.log('✅ [AuthContext] User state updated:', {
         email: userWithAvatar.email,
         role: userWithAvatar.role,
         hasProfilePicture: !!userWithAvatar.profile_picture
       });
-      
+
+      setAlert({ open: true, message: 'Login Successful!', severity: 'success' });
+
       return data;
     } catch (error) {
       console.error('❌ [AuthContext] Login error:', error);
+      setAlert({ open: true, message: error.message || 'Login failed. Check your credentials.', severity: 'error' });
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -245,13 +249,13 @@ export const AuthProvider = ({ children }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Request failed');
-
+      setAlert({ open: true, message: 'Password reset email sent! Check your inbox.', severity: 'success' });
       return data;
     } catch (error) {
       console.error('Forgot password error:', error);
+      setAlert({ open: true, message: error.message || 'Request failed.', severity: 'error' });
       throw error;
     }
   };
@@ -264,15 +268,21 @@ export const AuthProvider = ({ children }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, new_password: newPassword }),
       });
-
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Reset failed');
-
+      setAlert({ open: true, message: 'Password reset successfully! You can now log in.', severity: 'success' });
       return data;
     } catch (error) {
       console.error('Reset password error:', error);
+      setAlert({ open: true, message: error.message || 'Reset failed.', severity: 'error' });
       throw error;
     }
+  };
+
+  // Handle alert close (ignore clickaway)
+  const closeAlert = (event, reason) => {
+    if (reason === 'clickaway') return;
+    setAlert({ ...alert, open: false });
   };
 
   return (
@@ -290,6 +300,17 @@ export const AuthProvider = ({ children }) => {
       }}
     >
       {children}
+      {/* Global Snackbar - Default MUI styling */}
+      <Snackbar
+        open={alert.open}
+        autoHideDuration={3000}
+        onClose={closeAlert}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert onClose={closeAlert} severity={alert.severity} sx={{ width: '100%' }}>
+          {alert.message}
+        </Alert>
+      </Snackbar>
     </AuthContext.Provider>
   );
 };
