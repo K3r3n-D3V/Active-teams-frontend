@@ -96,8 +96,15 @@ const StatsDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [expandedUsers, setExpandedUsers] = useState([]);
   const [newEventData, setNewEventData] = useState({
-    eventName: '', eventTypeName: '', date: '', eventLeaderName: '', eventLeaderEmail: '',
-    location: '', time: '19:00', description: '', isRecurring: false,
+    eventName: '', 
+    eventTypeName: '', 
+    date: '', 
+    eventLeaderName: '', 
+    eventLeaderEmail: '',
+    location: '', 
+    time: '19:00', 
+    description: '', 
+    isRecurring: false,
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [eventTypes, setEventTypes] = useState([]);
@@ -135,13 +142,16 @@ const StatsDashboard = () => {
     const end = new Date(now);
 
     if (period === 'weekly') {
+      // Monday to Sunday week (backend uses Monday as start)
       const day = now.getDay(); // 0 = Sunday
-      start.setDate(now.getDate() - day);        // Start: Sunday
-      end.setDate(now.getDate() + (6 - day));    // End: Saturday
+      // Adjust to get Monday as start
+      const daysSinceMonday = day === 0 ? 6 : day - 1;
+      start.setDate(now.getDate() - daysSinceMonday); // Start: Monday
+      end.setDate(start.getDate() + 6); // End: Sunday
     } else if (period === 'monthly') {
-      start.setDate(1);                          // First day of month
+      start.setDate(1); // First day of month
       end.setMonth(end.getMonth() + 1);
-      end.setDate(0);                            // Last day of current month
+      end.setDate(0); // Last day of current month
     }
 
     start.setHours(0, 0, 0, 0);
@@ -150,326 +160,132 @@ const StatsDashboard = () => {
     return { start, end };
   };
 
-  // const fetchStats = useCallback(async () => {
-  //   const cacheKey = `statsDashboard_${period}`;
-  //   const cachedData = localStorage.getItem(cacheKey);
+  const fetchStats = useCallback(async (forceRefresh = false) => {
+    const cacheKey = `statsDashboard_${period}`;
     
-  //   if (cachedData && !refreshing) {
-  //     const { data, timestamp } = JSON.parse(cachedData);
-  //     if (Date.now() - timestamp < CACHE_DURATION) {
-  //       setStats({
-  //         ...data,
-  //         loading: false,
-  //         error: null
-  //       });
-  //       return;
-  //     }
-  //   }
-
-  //   try {
-  //     setRefreshing(true);
-  //     setStats(prev => ({ ...prev, loading: true, error: null }));
-  //     const token = localStorage.getItem("token");
-  //     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
-  //     // OPTIMIZATION: Use aggregated endpoints for better performance
-  //     const [overdueResponse, summaryResponse, tasksResponse, usersResponse] = await Promise.all([
-  //       fetch(`${BACKEND_URL}/events/cells?page=1&limit=50&start_date=2025-11-30&status=incomplete`, { headers }),
-  //       fetch(`${BACKEND_URL}/stats/dashboard-summary?period=${period}`, { headers }),
-  //       fetch(`${BACKEND_URL}/tasks/all`, { headers }),
-  //       fetch(`${BACKEND_URL}/api/users`, { headers })
-  //     ]);
-
-  //     // Process responses
-  //     const overdueData = overdueResponse.ok ? await overdueResponse.json() : { events: [] };
-  //     const summaryData = summaryResponse.ok ? await summaryResponse.json() : {};
-  //     const tasksData = tasksResponse.ok ? await tasksResponse.json() : { tasks: [] };
-  //     const usersData = usersResponse.ok ? await usersResponse.json() : { users: [] };
-
-  //     // Extract data
-  //     const allTasks = tasksData.tasks || tasksData.results || tasksData.data || tasksData || [];
-  //     const allUsers = usersData.users || usersData.data || [];
-  //     const overdueCells = overdueData.events || overdueData.data || [];
-
-  //     // Use summary data if available, otherwise calculate
-  //     let overview = summaryData.overview;
-  //     let groupedTasks = summaryData.groupedTasks || [];
-
-  //     if (!overview || !groupedTasks.length) {
-  //       // Fallback: Apply date filter to tasks
-  //       const { start, end } = getDateRange();
-  //       const filteredTasks = allTasks.filter((task) => {
-  //         const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
-  //         if (!rawDate) return false;
-
-  //         const taskDate = new Date(rawDate);
-  //         if (isNaN(taskDate)) return false;
-
-  //         return taskDate >= start && taskDate <= end;
-  //       });
-
-  //       // Create user map
-  //       const userMap = {};
-  //       allUsers.forEach(u => {
-  //         if (u._id) userMap[u._id.toString()] = u;
-  //         if (u.email) userMap[u.email.toLowerCase()] = u;
-  //       });
-
-  //       const getUserFromTask = (task) => {
-  //         if (task.assignedTo) {
-  //           const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
-  //           if (id && userMap[id.toString()]) return userMap[id.toString()];
-  //         }
-  //         if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
-  //           return userMap[task.assignedfor.toLowerCase()];
-  //         }
-  //         return null;
-  //       };
-
-  //       // Group tasks by user
-  //       const taskGroups = {};
-  //       filteredTasks.forEach(task => {
-  //         const user = getUserFromTask(task);
-  //         if (!user) return;
-  //         const key = user._id || user.email;
-  //         if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
-  //         taskGroups[key].tasks.push(task);
-  //       });
-
-  //       groupedTasks = allUsers
-  //         .map(user => {
-  //           const key = user._id || user.email;
-  //           const group = taskGroups[key] || { tasks: [] };
-  //           const tasks = group.tasks;
-  //           const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
-  //           const incomplete = tasks.length - completed;
-
-  //           return {
-  //             user: {
-  //               _id: user._id,
-  //               fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
-  //               email: user.email || '',
-  //             },
-  //             tasks,
-  //             totalCount: tasks.length,
-  //             completedCount: completed,
-  //             incompleteCount: incomplete
-  //           };
-  //         })
-  //         .filter(g => g.tasks.length > 0) // Only show users with tasks
-  //         .sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
-
-  //       overview = {
-  //         total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
-  //         outstanding_cells: overdueCells.length,
-  //         outstanding_tasks: filteredTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
-  //         people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
-  //       };
-  //     }
-
-  //     const newStats = {
-  //       overview,
-  //       events: summaryData.recentEvents || overdueCells,
-  //       overdueCells,
-  //       allTasks: summaryData.recentTasks || allTasks.slice(0, 50),
-  //       allUsers,
-  //       groupedTasks,
-  //       loading: false,
-  //       error: null
-  //     };
-
-  //     setStats(newStats);
-
-  //     // Cache the data
-  //     localStorage.setItem(cacheKey, JSON.stringify({
-  //       data: newStats,
-  //       timestamp: Date.now()
-  //     }));
-
-  //   } catch (err) {
-  //     console.error("Fetch stats error:", err);
-  //     setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
-  //   } finally {
-  //     setRefreshing(false);
-  //     setIsRefreshing(false);
-  //   }
-  // }, [period, refreshing]);
-// In your frontend, update the fetchStats function:
-
-const fetchStats = useCallback(async () => {
-  const cacheKey = `statsDashboard_${period}`;
-  
-  // First, try to get from the cache endpoint
-  try {
-    setRefreshing(true);
-    setStats(prev => ({ ...prev, loading: true, error: null }));
-    
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
-
-    // Use the cache endpoint instead of multiple API calls
-    const cacheResponse = await fetch(`${BACKEND_URL}/cache/dashboard-stats?period=${period}`, { headers });
-    
-    if (!cacheResponse.ok) {
-      throw new Error(`Cache endpoint failed: ${cacheResponse.status}`);
-    }
-    
-    const cacheData = await cacheResponse.json();
-    
-    if (!cacheData.success || !cacheData.data) {
-      throw new Error('Invalid cache data');
-    }
-    
-    const cachedStats = cacheData.data;
-    
-    // Update state with cached data
-    const newStats = {
-      overview: cachedStats.overview || {
-        total_attendance: 0,
-        outstanding_cells: 0,
-        outstanding_tasks: 0,
-        people_behind: 0
-      },
-      events: cachedStats.recentEvents || [],
-      overdueCells: cachedStats.overdueCells || [],
-      allTasks: cachedStats.allTasks || [],
-      allUsers: cachedStats.allUsers || [],
-      groupedTasks: cachedStats.groupedTasks || [],
-      loading: false,
-      error: null
-    };
-    
-    setStats(newStats);
-    
-    // Also store in localStorage for offline use
-    localStorage.setItem(cacheKey, JSON.stringify({
-      data: newStats,
-      timestamp: Date.now()
-    }));
-    
-  } catch (err) {
-    console.error("Fetch stats from cache failed:", err);
-    
-    // Fallback to the old method if cache fails
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
-      const [overdueResponse, tasksResponse, usersResponse] = await Promise.all([
-        fetch(`${BACKEND_URL}/events/cells?page=1&limit=50&start_date=2025-11-30&status=incomplete`, { headers }),
-        fetch(`${BACKEND_URL}/tasks/all`, { headers }),
-        fetch(`${BACKEND_URL}/api/users`, { headers })
-      ]);
-
-      const overdueData = overdueResponse.ok ? await overdueResponse.json() : { events: [] };
-      const tasksData = tasksResponse.ok ? await tasksResponse.json() : { tasks: [] };
-      const usersData = usersResponse.ok ? await usersResponse.json() : { users: [] };
-
-      const allTasks = tasksData.tasks || tasksData.results || tasksData.data || tasksData || [];
-      const allUsers = usersData.users || usersData.data || [];
-      const overdueCells = overdueData.events || overdueData.data || [];
-
-      // Calculate date range
-      const { start, end } = getDateRange();
+    // If not forcing refresh, check cache
+    if (!forceRefresh) {
+      const cachedData = localStorage.getItem(cacheKey);
       
-      // Filter tasks by date like before
-      const filteredTasks = allTasks.filter((task) => {
-        const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
-        if (!rawDate) return false;
-
-        const taskDate = new Date(rawDate);
-        if (isNaN(taskDate)) return false;
-
-        return taskDate >= start && taskDate <= end;
-      });
-
-      // Create user map and group tasks
-      const userMap = {};
-      allUsers.forEach(u => {
-        if (u._id) userMap[u._id.toString()] = u;
-        if (u.email) userMap[u.email.toLowerCase()] = u;
-      });
-
-      const getUserFromTask = (task) => {
-        if (task.assignedTo) {
-          const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
-          if (id && userMap[id.toString()]) return userMap[id.toString()];
+      if (cachedData) {
+        const { data, timestamp } = JSON.parse(cachedData);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          setStats({
+            ...data,
+            loading: false,
+            error: null
+          });
+          return;
         }
-        if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
-          return userMap[task.assignedfor.toLowerCase()];
-        }
-        return null;
+      }
+    }
+
+    try {
+      setRefreshing(true);
+      setIsRefreshing(true);
+      setStats(prev => ({ ...prev, loading: true, error: null }));
+      
+      const token = localStorage.getItem("token");
+      const headers = { 
+        Authorization: `Bearer ${token}`, 
+        'Content-Type': 'application/json' 
       };
 
-      const taskGroups = {};
-      filteredTasks.forEach(task => {
-        const user = getUserFromTask(task);
-        if (!user) return;
-        const key = user._id || user.email;
-        if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
-        taskGroups[key].tasks.push(task);
-      });
+      // Use the new optimized endpoint
+      const response = await fetch(
+        `${BACKEND_URL}/stats/dashboard-optimized?period=${period}&include_details=true`, 
+        { headers }
+      );
 
-      const groupedTasks = allUsers
-        .map(user => {
-          const key = user._id || user.email;
-          const group = taskGroups[key] || { tasks: [] };
-          const tasks = group.tasks;
-          const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
-          const incomplete = tasks.length - completed;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}: Failed to load dashboard data`);
+      }
 
-          return {
-            user: {
-              _id: user._id,
-              fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
-              email: user.email || '',
-            },
-            tasks,
-            totalCount: tasks.length,
-            completedCount: completed,
-            incompleteCount: incomplete
-          };
-        })
-        .filter(g => g.tasks.length > 0)
-        .sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
+      const dashboardData = await response.json();
 
-      const overview = {
-        total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
-        outstanding_cells: overdueCells.length,
-        outstanding_tasks: filteredTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
-        people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
-      };
+      if (!dashboardData.success) {
+        throw new Error('Failed to load dashboard data');
+      }
 
-      const newStats = {
-        overview,
-        events: overdueCells,
-        overdueCells,
-        allTasks: filteredTasks.slice(0, 50),
-        allUsers,
-        groupedTasks,
+      // Transform the backend data to match your frontend structure
+      const transformedData = {
+        overview: {
+          total_attendance: dashboardData.overview?.total_attendance || 0,
+          outstanding_cells: dashboardData.overview?.outstanding_cells || 0,
+          outstanding_tasks: dashboardData.overview?.outstanding_tasks || 0,
+          people_behind: dashboardData.overview?.people_behind || 0,
+          total_tasks: dashboardData.overview?.total_tasks || 0,
+          completed_tasks: dashboardData.overview?.completed_tasks || 0
+        },
+        events: dashboardData.upcoming_events || [],
+        overdueCells: dashboardData.overdue_cells || [],
+        allTasks: [], // Will be populated from grouped_tasks
+        allUsers: [], // Will be extracted from grouped_tasks
+        groupedTasks: dashboardData.grouped_tasks || [],
         loading: false,
         error: null
       };
 
-      setStats(newStats);
+      // Extract tasks and users from grouped_tasks
+      const allTasks = [];
+      const allUsers = new Set();
+      
+      dashboardData.grouped_tasks?.forEach(group => {
+        if (group.user) {
+          allUsers.add({
+            _id: group.user._id,
+            name: group.user.fullName?.split(' ')[0] || '',
+            surname: group.user.fullName?.split(' ')[1] || '',
+            email: group.user.email,
+            fullName: group.user.fullName
+          });
+        }
+        
+        if (group.tasks) {
+          group.tasks.forEach(task => {
+            allTasks.push({
+              ...task,
+              assignedfor: group.user?.email
+            });
+          });
+        }
+      });
+
+      transformedData.allTasks = allTasks;
+      transformedData.allUsers = Array.from(allUsers);
+
+      // Set the transformed data to state
+      setStats(transformedData);
+
+      // Cache the data
       localStorage.setItem(cacheKey, JSON.stringify({
-        data: newStats,
+        data: transformedData,
         timestamp: Date.now()
       }));
 
-    } catch (fallbackErr) {
-      console.error("Fallback fetch error:", fallbackErr);
-      setStats(prev => ({ ...prev, error: fallbackErr.message || 'Failed to load data', loading: false }));
+    } catch (err) {
+      console.error("Fetch stats error:", err);
+      setStats(prev => ({ 
+        ...prev, 
+        error: err.message || 'Failed to load dashboard data', 
+        loading: false 
+      }));
+    } finally {
+      setRefreshing(false);
+      setTimeout(() => setIsRefreshing(false), 1000); // Keep spinning for at least 1 second
     }
-  } finally {
-    setRefreshing(false);
-    setIsRefreshing(false);
-  }
-}, [period, refreshing]);
+  }, [period]);
 
+  // Initial fetch
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  // Fetch when period changes
+  useEffect(() => {
+    fetchStats();
+  }, [period]);
 
   useEffect(() => {
     const fetchEventTypes = async () => {
@@ -506,27 +322,62 @@ const fetchStats = useCallback(async () => {
     setExpandedUsers(prev => prev.includes(key) ? prev.filter(e => e !== key) : [...prev, key]);
   };
 
-  const formatDate = (d) => !d ? 'Not set' : new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const formatDate = (d) => {
+    if (!d) return 'Not set';
+    
+    try {
+      // Check if it's an ISO string (from backend)
+      if (typeof d === 'string' && d.includes('T')) {
+        return new Date(d).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+      }
+      
+      // Fallback for other date formats
+      return new Date(d).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+    } catch (e) {
+      console.error("Date formatting error:", e, d);
+      return 'Invalid date';
+    }
+  };
+
   const formatDisplayDate = (d) => !d ? 'Not set' : new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  const getEventsForDate = (date) => stats.events.filter(e => e.date && new Date(e.date).toISOString().split('T')[0] === date);
+  const getEventsForDate = (date) => {
+    return stats.events.filter(e => {
+      if (!e.date) return false;
+      
+      try {
+        const eventDate = new Date(e.date);
+        const compareDate = new Date(date);
+        
+        return eventDate.toISOString().split('T')[0] === 
+               compareDate.toISOString().split('T')[0];
+      } catch (err) {
+        return false;
+      }
+    });
+  };
 
   const handleCreateEvent = () => {
-    // Get default event type
-    const defaultEventType = eventTypes.length > 0 ? eventTypes[0].name : 'CELLS';
-    
-    // Get current user from localStorage
-    const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
-    
-    setNewEventData(prev => ({ 
-      ...prev, 
-      eventName: `New Event ${new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
-      eventTypeName: prev.eventTypeName || defaultEventType,
+    // Clear all fields - start with empty form
+    setNewEventData({
+      eventName: '', 
+      eventTypeName: eventTypes.length > 0 ? eventTypes[0].name : '', 
       date: selectedDate,
-      eventLeaderName: `${user.name || ''} ${user.surname || ''}`.trim() || 'Unknown Leader',
-      eventLeaderEmail: user.email || '',
-      time: '19:00'
-    }));
+      eventLeaderName: '', 
+      eventLeaderEmail: '',
+      location: '', 
+      time: '19:00', 
+      description: '', 
+      isRecurring: false,
+    });
     setCreateEventModalOpen(true);
   };
 
@@ -538,17 +389,16 @@ const fetchStats = useCallback(async () => {
 
     try {
       const token = localStorage.getItem("token");
-      const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
 
       const payload = {
         eventName: newEventData.eventName.trim(),
-        eventTypeName: newEventData.eventTypeName || 'CELLS',
+        eventTypeName: newEventData.eventTypeName || (eventTypes.length > 0 ? eventTypes[0].name : 'CELLS'),
         date: newEventData.date || selectedDate,
-        time: newEventData.time,
+        time: newEventData.time || '19:00',
         location: newEventData.location || null,
         description: newEventData.description || null,
-        eventLeaderName: newEventData.eventLeaderName || `${user.name || ''} ${user.surname || ''}`.trim() || 'Unknown Leader',
-        eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
+        eventLeaderName: newEventData.eventLeaderName || null,
+        eventLeaderEmail: newEventData.eventLeaderEmail || null,
         isRecurring: newEventData.isRecurring,
         status: 'incomplete',
         created_at: new Date().toISOString(),
@@ -570,33 +420,30 @@ const fetchStats = useCallback(async () => {
 
       setCreateEventModalOpen(false);
       setNewEventData({
-        eventName: '', eventTypeName: '', date: '', eventLeaderName: '', eventLeaderEmail: '',
-        location: '', time: '19:00', description: '', isRecurring: false,
+        eventName: '', 
+        eventTypeName: '', 
+        date: '', 
+        eventLeaderName: '', 
+        eventLeaderEmail: '',
+        location: '', 
+        time: '19:00', 
+        description: '', 
+        isRecurring: false,
       });
 
       setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
-      fetchStats();
       
-      // Clear cache to force fresh data
-      const cacheKey = `statsDashboard_${period}`;
-      localStorage.removeItem(cacheKey);
+      // Force refresh the stats data
+      fetchStats(true);
     } catch (err) {
       console.error("Create event failed:", err);
       setSnackbar({ open: true, message: err.message || 'Failed to create event', severity: 'error' });
     }
   };
 
-  const debouncedRefresh = useCallback(() => {
-    if (isRefreshing) return;
-    
-    setIsRefreshing(true);
-    fetchStats();
-    
-    // Reset after 2 seconds
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 2000);
-  }, [fetchStats, isRefreshing]);
+  const handleRefresh = () => {
+    fetchStats(true); // Force refresh bypassing cache
+  };
 
   const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
     <Paper variant="outlined" sx={{
@@ -622,7 +469,7 @@ const fetchStats = useCallback(async () => {
   if (stats.error) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
-        <Alert severity="error" action={<Button onClick={fetchStats}>Retry</Button>}>
+        <Alert severity="error" action={<Button onClick={handleRefresh}>Retry</Button>}>
           {stats.error}
         </Alert>
       </Box>
@@ -642,8 +489,18 @@ const fetchStats = useCallback(async () => {
           </Select>
         </FormControl>
         <Tooltip title="Refresh">
-          <IconButton onClick={debouncedRefresh} disabled={isRefreshing || refreshing}>
-            <Refresh className={isRefreshing ? "MuiCircularProgress-indeterminate" : ""} />
+          <IconButton 
+            onClick={handleRefresh} 
+            disabled={isRefreshing}
+            sx={{
+              animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+              '@keyframes spin': {
+                '0%': { transform: 'rotate(0deg)' },
+                '100%': { transform: 'rotate(360deg)' }
+              }
+            }}
+          >
+            <Refresh />
           </IconButton>
         </Tooltip>
       </Box>
@@ -656,9 +513,7 @@ const fetchStats = useCallback(async () => {
         </Grid>
         <Grid item xs={6} md={3}>
           {stats.loading ? <StatCardSkeleton /> :
-            <>
-              <StatCard title="Overdue Cells" value={stats.overview?.outstanding_cells || 0} icon={<Warning />} color="warning" />
-            </>
+            <StatCard title="Overdue Cells" value={stats.overview?.outstanding_cells || 0} icon={<Warning />} color="warning" />
           }
         </Grid>
         <Grid item xs={6} md={3}>
@@ -1103,7 +958,7 @@ const fetchStats = useCallback(async () => {
                     </Box>
                   </Box>
 
-                  {/* Events List Container */}
+                  {/* Events List Container - Now scrollable */}
                   <Box sx={{ 
                     flex: 1,
                     display: 'flex',
@@ -1112,7 +967,8 @@ const fetchStats = useCallback(async () => {
                     borderRadius: 2,
                     border: '1px solid',
                     borderColor: 'divider',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    minHeight: 0, // Important for proper scrolling
                   }}>
                     <Box sx={{ 
                       p: 2, 
@@ -1129,37 +985,65 @@ const fetchStats = useCallback(async () => {
                     </Box>
                     
                     {/* Events List - Scrollable */}
-                    <Box flex={1} overflow="auto" p={2}>
+                    <Box 
+                      flex={1} 
+                      overflow="auto" 
+                      sx={{
+                        '&::-webkit-scrollbar': {
+                          width: '6px',
+                        },
+                        '&::-webkit-scrollbar-track': {
+                          backgroundColor: 'transparent',
+                        },
+                        '&::-webkit-scrollbar-thumb': {
+                          backgroundColor: 'rgba(0,0,0,0.2)',
+                          borderRadius: '3px',
+                        },
+                      }}
+                    >
                       {eventsOnSelectedDate.length > 0 ? (
-                        eventsOnSelectedDate.map(e => (
-                          <Card key={e._id} sx={{ 
-                            mb: 1.5, 
-                            p: 2, 
-                            transition: 'all 0.2s',
-                            '&:hover': {
-                              boxShadow: 3,
-                              transform: 'translateY(-1px)'
-                            }
-                          }}>
-                            <Typography variant="subtitle2" fontWeight="medium">
-                              {e.eventName}
-                            </Typography>
-                            <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-                              <Typography variant="caption" color="text.secondary">
-                                {e.eventTypeName}
+                        <Box p={2}>
+                          {eventsOnSelectedDate.map(e => (
+                            <Card 
+                              key={e._id} 
+                              sx={{ 
+                                mb: 1.5, 
+                                p: 2, 
+                                transition: 'all 0.2s',
+                                '&:hover': {
+                                  boxShadow: 3,
+                                  transform: 'translateY(-1px)'
+                                }
+                              }}
+                            >
+                              <Typography variant="subtitle2" fontWeight="medium" noWrap>
+                                {e.eventName}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">•</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {e.time || 'No time set'}
-                              </Typography>
-                            </Box>
-                            {e.location && (
-                              <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                                📍 {e.location}
-                              </Typography>
-                            )}
-                          </Card>
-                        ))
+                              <Box display="flex" alignItems="center" gap={1} mt={0.5} flexWrap="wrap">
+                                <Chip 
+                                  label={e.eventType} 
+                                  size="small" 
+                                  color="primary" 
+                                  variant="outlined"
+                                  sx={{ height: 20, fontSize: '0.7rem' }}
+                                />
+                                <Typography variant="caption" color="text.secondary">
+                                  {e.time || 'No time set'}
+                                </Typography>
+                              </Box>
+                              {e.location && (
+                                <Typography variant="caption" color="text.secondary" display="block" mt={0.5} noWrap>
+                                  📍 {e.location}
+                                </Typography>
+                              )}
+                              {e.eventLeaderName && (
+                                <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
+                                  👤 {e.eventLeaderName}
+                                </Typography>
+                              )}
+                            </Card>
+                          ))}
+                        </Box>
                       ) : (
                         <Box sx={{ 
                           display: 'flex', 
@@ -1167,7 +1051,8 @@ const fetchStats = useCallback(async () => {
                           alignItems: 'center', 
                           justifyContent: 'center', 
                           py: 4,
-                          color: 'text.secondary'
+                          color: 'text.secondary',
+                          height: '100%'
                         }}>
                           <CalendarToday sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
                           <Typography variant="body2">No events scheduled</Typography>
@@ -1192,8 +1077,18 @@ const fetchStats = useCallback(async () => {
       </Paper>
 
       {/* CREATE EVENT MODAL */}
-      <Dialog open={createEventModalOpen} onClose={() => setCreateEventModalOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, boxShadow: 24 } }}>
-        <DialogTitle sx={{ background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`, color: 'white', p: 3 }}>
+      <Dialog 
+        open={createEventModalOpen} 
+        onClose={() => setCreateEventModalOpen(false)} 
+        maxWidth="md" 
+        fullWidth 
+        PaperProps={{ sx: { borderRadius: 3, boxShadow: 24 } }}
+      >
+        <DialogTitle sx={{ 
+          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`, 
+          color: 'white', 
+          p: 3 
+        }}>
           <Box display="flex" alignItems="center" justifyContent="space-between">
             <Box display="flex" alignItems="center" gap={1.5}>
               <Box component="span" sx={{ fontSize: 28 }}>Create New Event</Box>
@@ -1201,20 +1096,40 @@ const fetchStats = useCallback(async () => {
                 <Typography variant="caption" sx={{ opacity: 0.9 }}>{formatDisplayDate(selectedDate)}</Typography>
               </Box>
             </Box>
-            <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: 'white' }}><Close /></IconButton>
+            <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: 'white' }}>
+              <Close />
+            </IconButton>
           </Box>
         </DialogTitle>
         <DialogContent sx={{ p: { xs: 2, sm: 3 }, mt: 2 }}>
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 2, color: 'primary.main', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>EVENT DETAILS</Typography>
+            <Typography variant="subtitle2" sx={{ 
+              mb: 2, 
+              color: 'primary.main', 
+              fontWeight: 600, 
+              textTransform: 'uppercase', 
+              fontSize: '0.75rem', 
+              letterSpacing: 1 
+            }}>
+              EVENT DETAILS
+            </Typography>
             <Grid container spacing={2.5}>
-              <Grid item xs={12}><TextField label="Event Name" value={newEventData.eventName} onChange={e => setNewEventData(p => ({ ...p, eventName: e.target.value }))} fullWidth required /></Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  label="Event Name *" 
+                  value={newEventData.eventName} 
+                  onChange={e => setNewEventData(p => ({ ...p, eventName: e.target.value }))} 
+                  fullWidth 
+                  required 
+                />
+              </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth disabled={eventTypesLoading}>
-                  <InputLabel>Event Type</InputLabel>
+                  <InputLabel>Event Type *</InputLabel>
                   <Select
                     value={newEventData.eventTypeName || ''}
                     onChange={e => setNewEventData(p => ({ ...p, eventTypeName: e.target.value }))}
+                    label="Event Type *"
                   >
                     {eventTypesLoading ? (
                       <MenuItem disabled>Loading event types...</MenuItem>
@@ -1230,30 +1145,105 @@ const fetchStats = useCallback(async () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6}><TextField label="Time" type="time" value={newEventData.time} onChange={e => setNewEventData(p => ({ ...p, time: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
-              <Grid item xs={12}><TextField label="Location" value={newEventData.location} onChange={e => setNewEventData(p => ({ ...p, location: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField 
+                  label="Time" 
+                  type="time" 
+                  value={newEventData.time} 
+                  onChange={e => setNewEventData(p => ({ ...p, time: e.target.value }))} 
+                  fullWidth 
+                  InputLabelProps={{ shrink: true }} 
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  label="Location" 
+                  value={newEventData.location} 
+                  onChange={e => setNewEventData(p => ({ ...p, location: e.target.value }))} 
+                  fullWidth 
+                />
+              </Grid>
             </Grid>
           </Box>
           <Divider sx={{ my: 3 }} />
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 2, color: 'primary.main', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>EVENT LEADER INFORMATION</Typography>
+            <Typography variant="subtitle2" sx={{ 
+              mb: 2, 
+              color: 'primary.main', 
+              fontWeight: 600, 
+              textTransform: 'uppercase', 
+              fontSize: '0.75rem', 
+              letterSpacing: 1 
+            }}>
+              EVENT LEADER INFORMATION
+            </Typography>
             <Grid container spacing={2.5}>
-              <Grid item xs={12}><TextField label="Leader Name" value={newEventData.eventLeaderName} onChange={e => setNewEventData(p => ({ ...p, eventLeaderName: e.target.value }))} fullWidth /></Grid>
-              <Grid item xs={12}><TextField label="Leader Email" type="email" value={newEventData.eventLeaderEmail} onChange={e => setNewEventData(p => ({ ...p, eventLeaderEmail: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  label="Leader Name" 
+                  value={newEventData.eventLeaderName} 
+                  onChange={e => setNewEventData(p => ({ ...p, eventLeaderName: e.target.value }))} 
+                  fullWidth 
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  label="Leader Email" 
+                  type="email" 
+                  value={newEventData.eventLeaderEmail} 
+                  onChange={e => setNewEventData(p => ({ ...p, eventLeaderEmail: e.target.value }))} 
+                  fullWidth 
+                />
+              </Grid>
             </Grid>
           </Box>
           <Divider sx={{ my: 3 }} />
           <Box>
-            <Typography gutterBottom sx={{ mb: 2, color: 'primary.main', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>ADDITIONAL INFORMATION</Typography>
-            <TextField label="Description" value={newEventData.description} onChange={e => setNewEventData(p => ({ ...p, description: e.target.value }))} fullWidth multiline rows={4} />
-            <Box mt={2} p={2} sx={{ backgroundColor: 'rgba(33, 150, 243, 0.08)', borderRadius: 2, border: '1px solid rgba(33, 150, 243, 0.2)' }}>
-              <FormControlLabel control={<Checkbox checked={newEventData.isRecurring} onChange={e => setNewEventData(p => ({ ...p, isRecurring: e.target.checked }))} />} label="Recurring Event" />
+            <Typography variant="subtitle2" sx={{ 
+              mb: 2, 
+              color: 'primary.main', 
+              fontWeight: 600, 
+              textTransform: 'uppercase', 
+              fontSize: '0.75rem', 
+              letterSpacing: 1 
+            }}>
+              ADDITIONAL INFORMATION
+            </Typography>
+            <TextField 
+              label="Description" 
+              value={newEventData.description} 
+              onChange={e => setNewEventData(p => ({ ...p, description: e.target.value }))} 
+              fullWidth 
+              multiline 
+              rows={4} 
+            />
+            <Box mt={2} p={2} sx={{ 
+              backgroundColor: 'rgba(33, 150, 243, 0.08)', 
+              borderRadius: 2, 
+              border: '1px solid rgba(33, 150, 243, 0.2)' 
+            }}>
+              <FormControlLabel 
+                control={
+                  <Checkbox 
+                    checked={newEventData.isRecurring} 
+                    onChange={e => setNewEventData(p => ({ ...p, isRecurring: e.target.checked }))} 
+                  />
+                } 
+                label="Recurring Event (e.g., Weekly Meeting)" 
+              />
             </Box>
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 3, backgroundColor: 'rgba(0,0,0,0.02)' }}>
           <Button onClick={() => setCreateEventModalOpen(false)}>Cancel</Button>
-          <Button variant="contained" startIcon={<Save />} onClick={handleSaveEvent} disabled={!newEventData.eventName}>Create Event</Button>
+          <Button 
+            variant="contained" 
+            startIcon={<Save />} 
+            onClick={handleSaveEvent} 
+            disabled={!newEventData.eventName || !newEventData.eventTypeName}
+          >
+            Create Event
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -1303,7 +1293,7 @@ const fetchStats = useCallback(async () => {
                         {formatDate(cell.date)} — {cell.status?.toUpperCase() || 'INCOMPLETE'}
                       </Typography>
                     </Box>
-                    <Chip label={cell.attendees?.length || 0} size="small" />
+                    <Chip label={cell.attendees_count || 0} size="small" />
                   </Box>
                 </Card>
               ))}
@@ -1316,25 +1306,22 @@ const fetchStats = useCallback(async () => {
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
-        <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={4000} 
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          severity={snackbar.severity} 
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
       </Snackbar>
     </Box>
   );
 };
 
 export default StatsDashboard;
-
-// Add CSS for spinning refresh icon
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  
-  .MuiCircularProgress-indeterminate {
-    animation: spin 1s linear infinite;
-  }
-`;
-document.head.appendChild(style);
