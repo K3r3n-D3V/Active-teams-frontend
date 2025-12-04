@@ -1327,11 +1327,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [commonAttendees, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  // const [alert, setAlert] = useState({
-  //   open: false,
-  //   type: "success",
-  //   message: "",
-  // });
+
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
@@ -1339,7 +1335,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
   const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
-  // const [peopleCache, setPeopleCache] = useState({});
   const [preloadedPeople, setPreloadedPeople] = useState([]);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
@@ -1358,7 +1353,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
 useEffect(() => {
   if (isOpen && event) {
-    console.log("📱 Opening attendance modal");
+    console.log(" Opening attendance modal");
     
     // Get clean ID
     let eventId = event._id || event.id;
@@ -1366,13 +1361,10 @@ useEffect(() => {
       eventId = eventId.split("_")[0];
     }
     
-    // Reset states
     setSearchName("");
     setAssociateSearch("");
     setActiveTab(0);
-    
-    // ==================== IMPORTANT ====================
-    // 1. ALWAYS fetch ALL attendees from database
+
     const fetchAttendees = async () => {
       try {
         const token = localStorage.getItem("token");
@@ -1384,9 +1376,8 @@ useEffect(() => {
         if (response.ok) {
           const data = await response.json();
           const allAttendees = data.persistent_attendees || [];
-          console.log(`📋 Loaded ${allAttendees.length} attendees from database`);
+          console.log(` Loaded ${allAttendees.length} attendees from database`);
           
-          // SET ALL ATTENDEES (people added from Associate tab)
           setPersistentCommonAttendees(allAttendees);
         }
       } catch (error) {
@@ -1417,7 +1408,6 @@ useEffect(() => {
       }
     };
     
-    // Run both
     fetchAttendees();
     loadWeeklyCheckins();
     
@@ -1498,7 +1488,7 @@ useEffect(() => {
     // If no search query, show preloaded people
     if (!q.trim()) {
       if (preloadedPeople.length > 0) {
-        console.log("📋 Showing preloaded people list");
+        console.log(" Showing preloaded people list");
         setPeople(preloadedPeople.slice(0, 50)); // Show first 50 preloaded people
       } else {
         setPeople([]);
@@ -1653,7 +1643,6 @@ const savePersistentCommonAttendeesToDB = async (attendees) => {
   }
 };
 
-
   function getCurrentWeekIdentifier() {
     const now = new Date();
     const year = now.getFullYear();
@@ -1674,106 +1663,6 @@ const savePersistentCommonAttendeesToDB = async (attendees) => {
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   }
-
-  const loadExistingAttendance = async () => {
-    if (!event) return;
-
-    const eventId = event._id || event.id;
-    console.log("🔄 Loading attendance data for event:", eventId);
-
-    const currentWeek = getCurrentWeekIdentifier();
-
-    // ALWAYS start with empty state for new week
-    setCheckedIn({});
-    setDecisions({});
-    setDecisionTypes({});
-    setManualHeadcount("");
-    setDidNotMeet(false);
-
-    console.log(`🆕 NEW WEEK - ${persistentCommonAttendees?.length || 0} names loaded - ALL UNCHECKED`);
-
-    // Only load existing ticks if this week already has attendance data WITH CHECKED-IN ATTENDEES
-    const hasCurrentWeekData =
-      event.attendance &&
-      event.attendance[currentWeek] &&
-      event.attendance[currentWeek].attendees;
-
-    const hasCurrentWeekDidNotMeet =
-      event.attendance &&
-      event.attendance[currentWeek] &&
-      event.attendance[currentWeek].status === "did_not_meet";
-
-    console.log(`📅 Current week: ${currentWeek}`);
-    console.log(`✅ Has current week data: ${hasCurrentWeekData}`);
-    console.log(`❌ Has current week did not meet: ${hasCurrentWeekDidNotMeet}`);
-
-    if (hasCurrentWeekData && !hasCurrentWeekDidNotMeet) {
-      const weekData = event.attendance[currentWeek];
-      const newCheckedIn = {};
-      const newDecisions = {};
-      const newDecisionTypes = {};
-
-      console.log(`Found ${weekData.attendees.length} attendees for week ${currentWeek}`);
-
-      // CRITICAL FIX: Only mark as checked if they were explicitly checked last time
-      weekData.attendees.forEach(attendee => {
-        if (attendee.id && attendee.checked_in) { // DD THIS CHECK
-          newCheckedIn[attendee.id] = true;
-
-          if (attendee.decision) {
-            newDecisions[attendee.id] = true;
-            newDecisionTypes[attendee.id] = attendee.decision;
-          }
-        }
-      });
-
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-
-      console.log(` Loaded: ${Object.keys(newCheckedIn).length} CHECKED attendees for THIS WEEK`);
-    }
-    else if (hasCurrentWeekDidNotMeet) {
-      console.log(" Current week marked as DID NOT MEET");
-      setDidNotMeet(true);
-      setCheckedIn({});
-    }
-    else {
-      console.log(" NEW WEEK - Names listed but NOTHING checked");
-      console.log(` Loaded ${persistentCommonAttendees?.length || 0} names - all UNCHECKED (new week)`);
-    }
-  };
-
- const fetchPersistentAttendees = async (eventId) => {
-  try {
-    // Clean the event ID before using it
-    let cleanEventId = eventId;
-    if (eventId && eventId.includes("_")) {
-      const parts = eventId.split("_");
-      cleanEventId = parts[0];
-    }
-    
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
-
-    console.log(`Fetching persistent attendees for event ID: ${cleanEventId}`);
-    const response = await fetch(`${BACKEND_URL}/events/${cleanEventId}/persistent-attendees`, { headers });
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (data.persistent_attendees && Array.isArray(data.persistent_attendees)) {
-        console.log("Fetched persistent attendees from API:", data.persistent_attendees.length);
-        setPersistentCommonAttendees(data.persistent_attendees);
-        return data.persistent_attendees;
-      }
-    } else {
-      console.error("Failed to fetch persistent attendees:", response.status);
-    }
-  } catch (error) {
-    console.error("Error fetching persistent attendees:", error);
-  }
-  return [];
-};
 
   useEffect(() => {
     const checkScreenSize = () => {

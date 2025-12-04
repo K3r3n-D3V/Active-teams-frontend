@@ -30,7 +30,6 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Warning as WarningIcon,
-  Info as InfoIcon,
   Person as PersonIcon,
   Event as EventIcon,
 } from '@mui/icons-material';
@@ -47,79 +46,74 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [advancedMode, setAdvancedMode] = useState(false);
   const [showAllFields, setShowAllFields] = useState(false);
 
-  // Get backend URL from environment variable
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
-  // Field mapping between old and new structures
   const fieldMapping = {
-    // Person identification fields
     'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
     'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
     'eventLeaderName': ['eventLeaderName', 'Leader', 'eventLeader'],
-    
-    // Contact fields
     'Email': ['Email', 'eventLeaderEmail', 'email'],
     'eventLeaderEmail': ['eventLeaderEmail', 'Email', 'email'],
     'email': ['email', 'Email', 'eventLeaderEmail'],
-    
-    // Location fields
     'Address': ['Address', 'location', 'address'],
     'location': ['location', 'Address', 'address'],
     'address': ['address', 'Address', 'location'],
-    
-    // Day fields
     'Day': ['Day', 'recurring_day'],
     'recurring_day': ['recurring_day', 'Day'],
-    
-    // Time fields
     'Time': ['Time', 'time'],
     'time': ['time', 'Time'],
-    
-    // Event name fields
     'Event Name': ['Event Name', 'eventName'],
     'eventName': ['eventName', 'Event Name'],
-    
-    // Event type fields
     'Event Type': ['Event Type', 'eventTypeName'],
     'eventTypeName': ['eventTypeName', 'Event Type'],
-    
-    // Leader assistant fields
     'leader1': ['leader1'],
     'leader12': ['leader12'],
     'Leader at 12': ['Leader at 12'],
   };
 
+  const cleanEventId = (event) => {
+    if (!event) return null;
+    
+    const cleanEvent = { ...event };
+    
+    if (cleanEvent._id && typeof cleanEvent._id === 'string' && cleanEvent._id.includes('_')) {
+      cleanEvent._id = cleanEvent._id.split('_')[0];
+    }
+    
+    if (cleanEvent.id && typeof cleanEvent.id === 'string' && cleanEvent.id.includes('_')) {
+      cleanEvent.id = cleanEvent.id.split('_')[0];
+    }
+    
+    return cleanEvent;
+  };
+
   useEffect(() => {
     if (event) {
-      console.log("Event data for editing:", event);
+      const cleanEvent = cleanEventId(event);
       
-      // Determine person identifier from the event
+      console.log("Event data for editing (cleaned):", cleanEvent);
+      
       const identifier = 
-        event.Leader || 
-        event.eventLeader || 
-        event.eventLeaderName || 
+        cleanEvent.Leader || 
+        cleanEvent.eventLeader || 
+        cleanEvent.eventLeaderName || 
         '';
       
       setOriginalPersonIdentifier(identifier);
       setPersonIdentifier(identifier);
       
-      // Prepare form data - convert null/undefined to empty string for form inputs
       const initialData = {};
-      
-      // Collect ALL fields from the event (except system fields)
-      Object.keys(event).forEach(key => {
-        // Skip system/internal fields
+      Object.keys(cleanEvent).forEach(key => {
         const systemFields = ['_id', '__v', 'id', 'UUID', 'created_at', 'updated_at', 
                               'persistent_attendees', 'attendees', 'total_attendance',
                               'isEventType', 'eventTypeId', 'last_updated'];
         if (!systemFields.includes(key)) {
-          initialData[key] = event[key] !== undefined && event[key] !== null ? event[key] : '';
+          initialData[key] = cleanEvent[key] !== undefined && cleanEvent[key] !== null ? cleanEvent[key] : '';
         }
       });
       
       setFormData(initialData);
       
-      // Determine which fields can be edited
       const editableFields = Object.keys(initialData).filter(key => 
         !['_id', 'id', '__v', 'UUID', 'created_at', 'updated_at', 
           'persistent_attendees', 'attendees', 'total_attendance',
@@ -130,7 +124,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     }
   }, [event]);
 
-  // Track field changes
   useEffect(() => {
     if (event) {
       const changed = [];
@@ -138,7 +131,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         const originalValue = event[key];
         const newValue = formData[key];
         
-        // Handle comparison (empty string should remove field - null in backend)
         const isEmptyToRemove = (newValue === '' && originalValue !== undefined && originalValue !== null && originalValue !== '');
         const isValueChanged = newValue !== originalValue;
         
@@ -157,45 +149,18 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     }));
   };
 
-  const handleRemoveField = (field) => {
-    // Set to empty string (will be converted to null for backend)
-    setFormData(prev => ({
-      ...prev,
-      [field]: ''
-    }));
-  };
-
-  const detectPersonFields = () => {
-    const personFields = [
-      'Leader', 'eventLeader', 'eventLeaderName',
-      'Email', 'eventLeaderEmail', 'email',
-      'leader1', 'leader12', 'Leader at 12'
-    ];
-    
-    return {
-      changedFields,
-      hasPersonFieldChange: changedFields.some(field => 
-        personFields.includes(field)
-      ),
-      personFields
-    };
-  };
-
   const prepareUpdateData = () => {
     const cleanData = {};
     changedFields.forEach(field => {
       const value = formData[field];
       
-      // Convert empty string to null (for field removal in backend)
       if (value === '') {
         cleanData[field] = null;
       } 
-      // For other values, send as-is (backend will handle)
       else if (value !== undefined && value !== null) {
         cleanData[field] = value;
       }
       
-      // If this field is in mapping, add related fields
       if (fieldMapping[field]) {
         fieldMapping[field].forEach(relatedField => {
           if (relatedField !== field && availableFields.includes(relatedField)) {
@@ -209,11 +174,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       }
     });
     
-    // Special handling for Day field - backend will handle Event Name
-    if (cleanData.Day && (event['Event Name'] || event.eventName)) {
-      console.log("Day changed - backend will handle Event Name update");
-    }
-    
     return cleanData;
   };
 
@@ -221,36 +181,26 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     try {
       setLoading(true);
       
-      // Detect what kind of fields are being changed
-      const fieldAnalysis = detectPersonFields();
-      
-      console.log("Field analysis:", fieldAnalysis);
-      
-      // If no changes, just close
       if (changedFields.length === 0) {
         toast.info("No changes made");
         onClose(false);
         return;
       }
       
-      // Prepare clean data for backend
       const updateData = prepareUpdateData();
       
       console.log("Data for backend:", updateData);
       
       let endpoint, method, body;
       
-      if (editScope === 'person' && originalPersonIdentifier && fieldAnalysis.hasPersonFieldChange) {
-        // Update ALL person's cells
+      if (editScope === 'person' && originalPersonIdentifier) {
         endpoint = `/events/update-person-cells/${encodeURIComponent(originalPersonIdentifier)}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
         
-        // Ask for confirmation
         const confirmed = window.confirm(
-          `WARNING: This will update ALL events for "${originalPersonIdentifier}"\n\n` +
-          `Fields to update: ${changedFields.join(', ')}\n\n` +
-          `Are you sure you want to continue?`
+          `Update all events for "${originalPersonIdentifier}"?\n\n` +
+          `Fields: ${changedFields.join(', ')}`
         );
         
         if (!confirmed) {
@@ -258,14 +208,21 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           return;
         }
       } else {
-        // Update only this single event
-        const identifier = event._id || event.id || event.UUID;
+        let identifier = event._id || event.id || event.UUID;
+        
+        if (identifier && typeof identifier === 'string' && identifier.includes('_')) {
+          const parts = identifier.split('_');
+          identifier = parts[0];
+          console.log(`Extracted ObjectId: ${identifier} from compound ID`);
+        }
+        
         endpoint = `/events/cells/${identifier}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
+        
+        console.log(`Calling single cell endpoint: ${endpoint}`);
       }
       
-      // Call backend API using environment variable
       const response = await fetch(`${BACKEND_URL}${endpoint}`, {
         method: method,
         headers: {
@@ -276,21 +233,28 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        console.error("Backend error response:", errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { detail: errorText };
+        }
+        
         throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
       }
       
       const result = await response.json();
       console.log("Backend response:", result);
       
-      // Show success message
       if (editScope === 'person') {
         toast.success(`Updated ${result.modified_count || result.updated_count || 0} events successfully`);
       } else {
         toast.success('Event updated successfully');
       }
       
-      // Refresh events and close
       if (refreshEvents) {
         refreshEvents();
       }
@@ -307,20 +271,16 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const renderField = (field) => {
     const value = formData[field] || '';
     const isChanged = changedFields.includes(field);
-    const isPersonField = fieldMapping[field] && fieldMapping[field].length > 1;
     
-    // Get field display name
     const displayName = field
       .replace(/([A-Z])/g, ' $1')
       .replace(/_/g, ' ')
       .replace(/^./, str => str.toUpperCase())
       .trim();
     
-    // Determine input type based on field name and value type
     const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
     const fieldLower = field.toLowerCase();
     
-    // Date fields
     if ((fieldLower.includes('date') && !fieldLower.includes('datecaptured') && !fieldLower.includes('datecreated')) || field === 'date') {
       return (
         <Box sx={{ position: 'relative' }}>
@@ -330,7 +290,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {displayName}
-                {isPersonField && <PersonIcon fontSize="small" color="action" />}
                 {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
               </Box>
             }
@@ -344,7 +303,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           {value && (
             <IconButton
               size="small"
-              onClick={() => handleRemoveField(field)}
+              onClick={() => handleChange(field, '')}
               sx={{ position: 'absolute', right: 8, top: 20 }}
             >
               <DeleteIcon fontSize="small" />
@@ -354,7 +313,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       );
     }
     
-    // Time fields
     if (fieldLower.includes('time')) {
       return (
         <Box sx={{ position: 'relative' }}>
@@ -377,7 +335,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           {value && (
             <IconButton
               size="small"
-              onClick={() => handleRemoveField(field)}
+              onClick={() => handleChange(field, '')}
               sx={{ position: 'absolute', right: 8, top: 20 }}
             >
               <DeleteIcon fontSize="small" />
@@ -387,7 +345,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       );
     }
     
-    // Email fields
     if (fieldLower.includes('email')) {
       return (
         <Box sx={{ position: 'relative' }}>
@@ -397,7 +354,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {displayName}
-                {isPersonField && <PersonIcon fontSize="small" color="action" />}
                 {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
               </Box>
             }
@@ -410,7 +366,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           {value && (
             <IconButton
               size="small"
-              onClick={() => handleRemoveField(field)}
+              onClick={() => handleChange(field, '')}
               sx={{ position: 'absolute', right: 8, top: 20 }}
             >
               <DeleteIcon fontSize="small" />
@@ -420,7 +376,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       );
     }
     
-    // Boolean fields (switches)
     if (fieldType === 'boolean') {
       return (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 1 }}>
@@ -446,14 +401,12 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       );
     }
     
-    // Array fields (like recurring_day)
     if (Array.isArray(value)) {
       const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
       return (
         <Box sx={{ mt: 2 }}>
           <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {displayName}
-            {isPersonField && <PersonIcon fontSize="small" color="action" />}
             {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
           </Typography>
           <FormGroup row>
@@ -485,7 +438,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       );
     }
     
-    // Day selection fields (single day)
     if (fieldLower.includes('day') && !fieldLower.includes('recurring') && typeof value === 'string') {
       return (
         <Box sx={{ position: 'relative' }}>
@@ -493,7 +445,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             <InputLabel>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {displayName}
-                {isPersonField && <PersonIcon fontSize="small" color="action" />}
               </Box>
             </InputLabel>
             <Select
@@ -522,7 +473,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       );
     }
     
-    // Status fields
     if (fieldLower === 'status') {
       const statusOptions = ['open', 'closed', 'complete', 'incomplete', 'did_not_meet', 'cancelled'];
       return (
@@ -556,7 +506,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       );
     }
     
-    // Description/long text fields
     if (fieldLower.includes('description') || (typeof value === 'string' && value.length > 50)) {
       return (
         <Box sx={{ position: 'relative' }}>
@@ -579,7 +528,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           {value && (
             <IconButton
               size="small"
-              onClick={() => handleRemoveField(field)}
+              onClick={() => handleChange(field, '')}
               sx={{ position: 'absolute', right: 8, top: 20 }}
             >
               <DeleteIcon fontSize="small" />
@@ -589,7 +538,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       );
     }
     
-    // Default text field
     return (
       <Box sx={{ position: 'relative' }}>
         <TextField
@@ -598,7 +546,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           label={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {displayName}
-              {isPersonField && <PersonIcon fontSize="small" color="action" />}
               {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
             </Box>
           }
@@ -610,7 +557,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         {value && (
           <IconButton
             size="small"
-            onClick={() => handleRemoveField(field)}
+            onClick={() => handleChange(field, '')}
             sx={{ position: 'absolute', right: 8, top: 20 }}
           >
             <DeleteIcon fontSize="small" />
@@ -622,9 +569,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
   if (!event) return null;
   
-  const fieldAnalysis = detectPersonFields();
-  
-  // Categorize fields
   const personFields = availableFields.filter(f => 
     ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email', 
      'leader1', 'leader12', 'Leader at 12'].includes(f)
@@ -647,7 +591,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     ![...personFields, ...eventFields, ...locationFields, ...timeFields].includes(f)
   );
 
-  // Get event name for display
   const eventName = formData.eventName || formData['Event Name'] || 'Unnamed Event';
 
   return (
@@ -666,11 +609,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Person: <strong>{originalPersonIdentifier || 'Unknown'}</strong>
-              {originalPersonIdentifier !== personIdentifier && (
-                <Typography variant="caption" color="warning.main" sx={{ ml: 1 }}>
-                  (Will update: {personIdentifier})
-                </Typography>
-              )}
             </Typography>
           </Box>
           <Button
@@ -685,18 +623,10 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       
       <DialogContent dividers>
         <Box sx={{ pt: 1 }}>
-          {/* Update Scope Selection */}
           <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
             <Typography variant="subtitle2" gutterBottom>
               Update Scope:
             </Typography>
-            
-            {fieldAnalysis.hasPersonFieldChange && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <InfoIcon sx={{ mr: 1 }} />
-                You are editing person-identifying fields. These changes can affect all of this person's events.
-              </Alert>
-            )}
             
             <FormControl fullWidth>
               <Select
@@ -714,7 +644,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                     </Typography>
                   </Box>
                 </MenuItem>
-                <MenuItem value="person" disabled={!fieldAnalysis.hasPersonFieldChange || !originalPersonIdentifier}>
+                <MenuItem value="person" disabled={!originalPersonIdentifier}>
                   <Box>
                     <Typography variant="body2" fontWeight="bold">
                       All Person's Events
@@ -728,17 +658,15 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             </FormControl>
             
             {editScope === 'person' && (
-              <Alert severity="warning" sx={{ mt: 2 }}>
+              <Alert severity="info" sx={{ mt: 2 }}>
                 <WarningIcon sx={{ mr: 1 }} />
-                <strong>Warning:</strong> This will update <strong>ALL</strong> events for <strong>{originalPersonIdentifier}</strong>.
-                This action cannot be undone.
+                This will update all events for <strong>{originalPersonIdentifier}</strong>.
               </Alert>
             )}
           </Box>
           
           <Divider sx={{ my: 2 }} />
           
-          {/* Changed Fields Summary */}
           {changedFields.length > 0 && (
             <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
               <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -746,7 +674,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
                 {changedFields.map(field => {
-                  const isPersonField = fieldAnalysis.personFields.includes(field);
                   const displayField = field
                     .replace(/([A-Z])/g, ' $1')
                     .replace(/_/g, ' ')
@@ -771,17 +698,11 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                       }
                     >
                       <Chip
-                        label={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            {displayField}
-                            {isPersonField ? <PersonIcon fontSize="small" /> : <EventIcon fontSize="small" />}
-                          </Box>
-                        }
+                        label={displayField}
                         size="small"
-                        color={isPersonField ? "warning" : "primary"}
+                        color="primary"
                         variant="outlined"
                         onDelete={() => {
-                          // Revert this field to original value
                           handleChange(field, event[field] !== undefined ? event[field] : '');
                         }}
                       />
@@ -789,21 +710,11 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                   );
                 })}
               </Box>
-              
-              {fieldAnalysis.hasPersonFieldChange && editScope === 'single' && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  You are changing person fields but only updating this event.
-                  Consider using "All Person's Events" to update all {originalPersonIdentifier}'s cells.
-                </Alert>
-              )}
             </Box>
           )}
           
-          {/* Field Categories */}
           {advancedMode ? (
-            // Advanced Mode: Show all fields by category
             <Box>
-              {/* Person Information */}
               {personFields.length > 0 && (
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -819,7 +730,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 </Box>
               )}
               
-              {/* Event Information */}
               {eventFields.length > 0 && (
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -835,7 +745,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 </Box>
               )}
               
-              {/* Location & Time */}
               <Grid container spacing={3}>
                 {locationFields.length > 0 && (
                   <Grid item xs={12} md={6}>
@@ -856,7 +765,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 )}
               </Grid>
               
-              {/* Other Fields (collapsible) */}
               {otherFields.length > 0 && (
                 <Box sx={{ mt: 3 }}>
                   <Button
@@ -881,9 +789,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               )}
             </Box>
           ) : (
-            // Simple Mode: Show only key fields
             <Grid container spacing={2}>
-              {/* Show important fields first */}
               {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email', 
                 'date', 'Date Of Event', 'time', 'Time', 'location', 'Address', 'status', 'Status',
                 'recurring_day', 'Day', 'description', 'leader1', 'leader12', 'Leader at 12']
@@ -903,8 +809,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           <Box>
             {changedFields.length > 0 && (
               <Typography variant="caption" color="text.secondary">
-                {changedFields.length} field(s) changed • 
-                {fieldAnalysis.hasPersonFieldChange ? ' Includes person fields' : ' Event fields only'}
+                {changedFields.length} field(s) changed
               </Typography>
             )}
           </Box>
@@ -936,4 +841,3 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 };
 
 export default EditEventModal;
-

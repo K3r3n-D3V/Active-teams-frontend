@@ -855,9 +855,6 @@ const Events = () => {
     filters,
     forceRefresh,
     showLoader,
-    isLeaderAt12,
-    isAdmin,
-    isRegistrant,
     viewFilter,
     currentUserLeaderAt1
   });
@@ -888,74 +885,65 @@ const Events = () => {
 
     const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
-    // 🔥 FIX #1: REPLACE THIS SECTION (around line 880)
-    // OLD CODE (DELETE THIS):
-    // const params = {
-    //   page: filters.page !== undefined ? filters.page : currentPage,
-    //   limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-    //   start_date: startDateParam,
-    //   ...filters  //  THIS SPREADS ALL PROPERTIES INCLUDING INVALID ONES
-    // };
-
-    // NEW CODE (USE THIS INSTEAD):
+    // Build params safely
     const params = {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
       start_date: startDateParam,
     };
 
-    // Only add valid filters one by one
-    if (filters.status) params.status = filters.status;
-    if (filters.event_type) params.event_type = filters.event_type;
-    if (filters.search) params.search = filters.search;
-    if (filters.personal !== undefined) params.personal = filters.personal;
-    if (filters.leader_at_12_view) params.leader_at_12_view = filters.leader_at_12_view;
-    if (filters.show_personal_cells) params.show_personal_cells = filters.show_personal_cells;
-    if (filters.show_all_authorized) params.show_all_authorized = filters.show_all_authorized;
-    if (filters.include_subordinate_cells) params.include_subordinate_cells = filters.include_subordinate_cells;
-    if (filters.leader_at_1_identifier) params.leader_at_1_identifier = filters.leader_at_1_identifier;
-    if (filters._t) params._t = filters._t;
-
-    // Remove undefined status
-    if (!filters.status && params.status) {
-      delete params.status;
+    // CRITICAL FIX: ALWAYS pass event_type if provided
+    if (filters.event_type) {
+      params.event_type = filters.event_type;
+    } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+      params.event_type = selectedEventTypeFilter;
     }
 
-    const isCellRequest = params.event_type === 'CELLS' || params.event_type === 'all' || !params.event_type;
-    const isEventTypeRequest = !isCellRequest;
+    // Add other filters
+    if (filters.status && filters.status !== 'all') params.status = filters.status;
+    if (filters.search) params.search = filters.search;
+    if (filters.personal !== undefined) params.personal = filters.personal;
+    if (filters._t) params._t = filters._t;
 
-    console.log("Request Type:", {
-      isCellRequest,
-      isEventTypeRequest,
-      event_type: params.event_type,
-      status: params.status
+    // Remove undefined/null
+    Object.keys(params).forEach(key => {
+      if (params[key] === undefined || params[key] === null || params[key] === '') {
+        delete params[key];
+      }
     });
 
-    if (isEventTypeRequest) {
-      console.log("EVENT TYPE MODE - Removing all personal/leader filters");
+    // CRITICAL FIX: Determine endpoint CORRECTLY
+    let endpoint;
+    const eventTypeToUse = params.event_type || selectedEventTypeFilter;
+    
+    // If event_type is explicitly set and NOT "CELLS", use /events/other
+    // If event_type is "CELLS" or "all" or undefined/null, use /events/cells
+    if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
+      endpoint = `${BACKEND_URL}/events/other`;
+      console.log(`🔵 Using OTHER EVENTS endpoint for event type: "${eventTypeToUse}"`);
+      
+      // Remove personal filters for non-cell events
       delete params.personal;
       delete params.leader_at_12_view;
       delete params.show_personal_cells;
       delete params.show_all_authorized;
       delete params.include_subordinate_cells;
       delete params.leader_at_1_identifier;
-
-      if (!filters.status) {
-        delete params.status;
-      }
     } else {
-      console.log("CELL MODE - Applying role-based filters");
-
+      endpoint = `${BACKEND_URL}/events/cells`;
+      console.log("🟢 Using CELLS endpoint");
+      
+      // Apply role-based filters for cells
       if (isRegistrant || isRegularUser) {
         params.personal = true;
       } else if (isLeaderAt12) {
         params.leader_at_12_view = true;
         params.include_subordinate_cells = true;
-
+        
         if (currentUserLeaderAt1) {
           params.leader_at_1_identifier = currentUserLeaderAt1;
         }
-
+        
         if (viewFilter === 'personal') {
           params.show_personal_cells = true;
           params.personal = true;
@@ -965,34 +953,11 @@ const Events = () => {
       }
     }
 
-    // Determine which endpoint to use
-    let endpoint;
-    if (isCellRequest) {
-      endpoint = `${BACKEND_URL}/events/cells`;
-      console.log("Using CELLS endpoint");
-    } else {
-      endpoint = `${BACKEND_URL}/events/other`;
-      console.log("Using OTHER EVENTS endpoint for event type:", params.event_type);
-    }
-
-    // 🔥 FIX #2: ADD THIS SECTION RIGHT HERE (before axios.get)
-    // Clean up undefined/null parameters AND invalid parameters
-    Object.keys(params).forEach(key => {
-      if (params[key] === undefined || params[key] === null || params[key] === '') {
-        delete params[key];
-      }
-      // Remove any invalid boolean parameters
-      if (key === 'isLeaderAt12' || key === 'isAdmin' || key === 'isRegistrant' || 
-          key === 'isRegularUser' || key === 'userRole' || key === 'theme') {
-        console.warn(` Removing invalid parameter: ${key}`);
-        delete params[key];
-      }
-    });
-
-    console.log('Final API call details:', {
+    console.log('Final API call:', {
       endpoint,
-      params: JSON.stringify(params, null, 2),
-      userRole: userRole
+      params,
+      eventTypeToUse,
+      userRole
     });
 
     const cacheKey = getCacheKey({ ...params, userRole, endpoint });
@@ -1014,100 +979,90 @@ const Events = () => {
       }
     }
 
-    console.log("Making fresh API call");
+    console.log("Making fresh API call to:", endpoint);
     const response = await axios.get(endpoint, {
       headers,
       params,
       timeout: 60000
     });
 
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
 
-      console.log('BACKEND RESPONSE:');
-      console.log('Total events:', responseData.total_events);
-      console.log('Events found:', newEvents.length);
+    console.log('API Response:', {
+      endpoint,
+      total_events: responseData.total_events,
+      events_received: newEvents.length,
+      first_event: newEvents[0] ? {
+        name: newEvents[0].eventName,
+        type: newEvents[0].eventType,
+        status: newEvents[0].status,
+        id: newEvents[0]._id
+      } : 'No events'
+    });
 
-      if (newEvents.length > 0) {
-        console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
-          name: e.eventName,
-          type: e.eventType,
-          typeName: e.eventTypeName,
-          status: e.status, // 🔥 CRITICAL: Log the status
-          id: e._id
-        })));
-      } else {
-        console.log('No events returned');
-
-        // Debug for empty results
-        if (isEventTypeRequest) {
-          console.log('Empty results for event type:', params.event_type);
-          console.log('Possible reasons:');
-          console.log('   - No events exist for this event type');
-          console.log('   - Events exist but have different eventType values');
-          console.log('   - Backend filtering issue');
-        }
-      }
-
-      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
-
-      setCachedData(cacheKey, {
-        events: newEvents,
-        total_events: totalEventsCount,
-        total_pages: totalPagesCount
+    // DEBUG: Check if created event is in response
+    if (filters.event_type === 'Global Events' || eventTypeToUse === 'Global Events') {
+      console.log('Looking for Global Events...');
+      newEvents.forEach((event, index) => {
+        console.log(`Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`);
       });
-
-      setEvents(newEvents);
-      setFilteredEvents(newEvents);
-      setTotalEvents(totalEventsCount);
-      setTotalPages(totalPagesCount);
-      if (filters.page !== undefined) setCurrentPage(filters.page);
-
-      console.log("fetchEvents - COMPLETE");
-
-    } catch (err) {
-      console.error("Error fetching events:", err);
-      if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-        toast.warning("Request timeout. Please refresh and try again.");
-      } else if (err.response?.status === 401) {
-        toast.error("Session expired. Logging out...");;
-        localStorage.removeItem("token");
-        localStorage.removeItem("userProfile");
-        setTimeout(() => window.location.href = '/login', 2000);
-      } else {
-        const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
-        toast.error(`Error loading events: ${errorMessage}`);
-      }
-      setEvents([]);
-      setFilteredEvents([]);
-      setTotalEvents(0);
-      setTotalPages(1);
-    } finally {
-      // Only hide loader if we showed it
-      if (showLoader) {
-        setLoading(false);
-        setIsLoading(false);
-      }
     }
-  }, [
-    currentPage,
-    rowsPerPage,
-    selectedStatus,
-    selectedEventTypeFilter,
-    searchQuery,
-    viewFilter,
-    userRole,
-    isLeaderAt12,
-    isAdmin,
-    isRegistrant,
-    currentUserLeaderAt1,
-    getCacheKey,
-    getCachedData,
-    setCachedData,
-    BACKEND_URL,
-    DEFAULT_API_START_DATE
-  ]);
+
+    const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+    const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+
+    setCachedData(cacheKey, {
+      events: newEvents,
+      total_events: totalEventsCount,
+      total_pages: totalPagesCount
+    });
+
+    setEvents(newEvents);
+    setFilteredEvents(newEvents);
+    setTotalEvents(totalEventsCount);
+    setTotalPages(totalPagesCount);
+    if (filters.page !== undefined) setCurrentPage(filters.page);
+
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+      toast.warning("Request timeout. Please refresh and try again.");
+    } else if (err.response?.status === 401) {
+      toast.error("Session expired. Logging out...");
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else {
+      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
+      toast.error(`Error loading events: ${errorMessage}`);
+    }
+    setEvents([]);
+    setFilteredEvents([]);
+    setTotalEvents(0);
+    setTotalPages(1);
+  } finally {
+    if (showLoader) {
+      setLoading(false);
+      setIsLoading(false);
+    }
+  }
+}, [
+  currentPage,
+  rowsPerPage,
+  selectedEventTypeFilter,
+  viewFilter,
+  userRole,
+  isLeaderAt12,
+  isAdmin,
+  isRegistrant,
+  currentUserLeaderAt1,
+  getCacheKey,
+  getCachedData,
+  setCachedData,
+  BACKEND_URL,
+  DEFAULT_API_START_DATE
+]);
 
   const checkEventsForType = async (eventTypeName) => {
     try {
@@ -1773,7 +1728,6 @@ const handleDeleteEvent = useCallback(async (event) => {
   try {
     console.log("[handleSaveEvent] Received event data:", eventData);
 
-    // Use the event ID from the selected event
     const eventIdentifier = selectedEvent?._id || selectedEvent?.id;
 
     if (!eventIdentifier) {
@@ -1877,7 +1831,7 @@ const handleDeleteEvent = useCallback(async (event) => {
     return { success: true, event: updatedEvent };
 
   } catch (error) {
-    console.error("❌ Error saving event:", error);
+    console.error(" Error saving event:", error);
     toast.error(`Failed to update event: ${error.message}`);
     throw error;
   }
@@ -1969,7 +1923,7 @@ const handlePersonEdit = useCallback(async (personName, field, newValue) => {
     }
 
   } catch (error) {
-    console.error("❌ Error updating person cells:", error);
+    console.error(" Error updating person cells:", error);
     
     let errorMessage = "Failed to update person cells";
     if (error.response?.data) {
@@ -2099,7 +2053,7 @@ const handlePersonEdit = useCallback(async (personName, field, newValue) => {
   }, [eventTypes, closeTypeMenu]);
 
   const handleCloseEventTypesModal = useCallback(() => {
-    console.log("🔒 Closing event types modal");
+    console.log(" Closing event types modal");
     setEventTypesModalOpen(false);
 
     setTimeout(() => {
@@ -2125,7 +2079,7 @@ const handleDeleteType = useCallback(async () => {
       throw new Error("No event type name provided for deletion");
     }
 
-    console.log('🗑️ Attempting to delete event type:', typeName);
+    console.log(' Attempting to delete event type:', typeName);
 
     // First, try normal delete
     const encodedTypeName = encodeURIComponent(typeName);
@@ -2169,7 +2123,7 @@ const handleDeleteType = useCallback(async () => {
       }
 
     } catch (error) {
-      console.error("❌ Error deleting event type:", error);
+      console.error(" Error deleting event type:", error);
 
       // Handle 401/unauthorized
       if (error.response?.status === 401) {
@@ -2199,7 +2153,7 @@ const handleDeleteType = useCallback(async () => {
         ).join('\n');
 
         const shouldForceDelete = window.confirm(
-          `❌ Cannot delete "${typeName}"\n\n` +
+          ` Cannot delete "${typeName}"\n\n` +
           `${eventsCount} event(s) are using this event type:\n\n` +
           `${eventsListText}\n` +
           `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ''}\n` +
@@ -2211,9 +2165,8 @@ const handleDeleteType = useCallback(async () => {
         );
 
         if (shouldForceDelete) {
-          console.log('🔥 User confirmed FORCE DELETE');
+          console.log(' User confirmed FORCE DELETE');
           
-          // Call delete with force=true
           try {
             const forceUrl = `${url}?force=true`;
             const forceResponse = await axios.delete(forceUrl, {
@@ -2252,14 +2205,14 @@ const handleDeleteType = useCallback(async () => {
             );
 
           } catch (forceError) {
-            console.error('❌ Force delete failed:', forceError);
+            console.error(' Force delete failed:', forceError);
             toast.error(
               `Failed to force delete: ${forceError.response?.data?.detail || forceError.message}`,
               { autoClose: 7000 }
             );
           }
         } else {
-          console.log('❌ User cancelled force delete');
+          console.log(' User cancelled force delete');
           toast.info('Deletion cancelled', { autoClose: 3000 });
         }
 
@@ -2284,7 +2237,7 @@ const handleDeleteType = useCallback(async () => {
     }
 
   } catch (error) {
-    console.error("❌ Unexpected error:", error);
+    console.error(" Unexpected error:", error);
     toast.error(`Unexpected error: ${error.message}`, { autoClose: 7000 });
     setConfirmDeleteOpen(false);
     setToDeleteType(null);
@@ -2398,7 +2351,7 @@ const handleDeleteType = useCallback(async () => {
 
             console.log(" User has cell - access granted");
           } catch (error) {
-            console.error("❌ Error checking cell status:", error);
+            console.error(" Error checking cell status:", error);
             toast.error("Unable to verify access. Please contact support.");
             //  FIX: Redirect to home instead of /dashboard
             setTimeout(() => window.location.href = '/', 2000);
@@ -2416,7 +2369,7 @@ const handleDeleteType = useCallback(async () => {
           isUser;
 
         if (!hasAccess) {
-          console.log("❌ Access denied for role:", userRole);
+          console.log(" Access denied for role:", userRole);
           toast.warning("You do not have permission to access the Events page");
           //  FIX: Redirect to home instead of /dashboard
           setTimeout(() => window.location.href = '/', 2000);
@@ -2432,7 +2385,7 @@ const handleDeleteType = useCallback(async () => {
           });
         }
       } catch (error) {
-        console.error("❌ Error in access check:", error);
+        console.error(" Error in access check:", error);
         toast.error("Error verifying access");
       }
     };
@@ -2481,7 +2434,7 @@ const handleDeleteType = useCallback(async () => {
 
             console.log(" User has cell - access granted");
           } catch (error) {
-            console.error("❌ Error checking cell status:", error);
+            console.error(" Error checking cell status:", error);
             toast.error("Unable to verify access");
             setTimeout(() => navigate('/', { replace: true }), 2000);
             return;
@@ -2492,14 +2445,14 @@ const handleDeleteType = useCallback(async () => {
         const hasAccess = isAdmin || isAnyLeader || isRegistrant || isUser;
 
         if (!hasAccess) {
-          console.log("❌ Access denied for role:", userRole);
+          console.log(" Access denied for role:", userRole);
           toast.warning("You do not have permission to access this page");
           setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
         } else {
           console.log(" Access granted for role:", userRole);
         }
       } catch (error) {
-        console.error("❌ Error in access check:", error);
+        console.error(" Error in access check:", error);
         toast.error("Error verifying access");
         setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
       }
@@ -2696,7 +2649,7 @@ const handleDeleteType = useCallback(async () => {
           errorData = { detail: `HTTP ${response.status}: ${response.statusText}` };
         }
 
-        console.error("❌ Server error:", errorData);
+        console.error(" Server error:", errorData);
         throw new Error(errorData.detail || `Failed to save event type: ${response.status}`);
       }
 
@@ -2720,7 +2673,7 @@ const handleDeleteType = useCallback(async () => {
       return result;
 
     } catch (error) {
-      console.error(`❌ Error saving event type:`, error);
+      console.error(` Error saving event type:`, error);
       toast.error(`Failed to save event type: ${error.message}`);
       throw error;
     }
@@ -3014,7 +2967,7 @@ const handleDeleteType = useCallback(async () => {
         ...(shouldApplyPersonalFilter && { personal: true }),
       };
 
-      // 🔥 CRITICAL: Always send status parameter when filtering (except for 'all')
+      //  CRITICAL: Always send status parameter when filtering (except for 'all')
       if (statusValue && statusValue !== 'all') {
         fetchParams.status = statusValue;
       }
