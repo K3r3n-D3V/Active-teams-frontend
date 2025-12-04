@@ -3087,39 +3087,42 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           </div>
 
           <div style={styles.contentArea}>
-            {activeTab === 0 && (
-              <>
-              <div style={styles.searchBox}>
-  <Search size={20} style={styles.searchIcon} />
-  <input
-    type="text"
-    placeholder="Search attendees..."
-    value={searchName}
-    onChange={(e) => setSearchName(e.target.value)}
-    style={{
-      width: "100%",
-      padding: "14px 14px 14px 45px",
-      fontSize: 16,
-      borderRadius: 8,
-      border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`, // ✅ LIGHT BORDER
-      backgroundColor: 'transparent !important',
-      background: 'transparent !important',
-      color: isDarkMode ? theme.palette.text.primary : '#000',
-      outline: "none",
-      boxSizing: "border-box",
-    }}
-    onFocus={(e) => {
-      e.target.style.backgroundColor = 'transparent';
-      e.target.style.background = 'transparent';
-      e.target.style.borderColor = isDarkMode ? '#777' : '#999'; 
-    }}
-    onBlur={(e) => {
-      e.target.style.backgroundColor = 'transparent';
-      e.target.style.background = 'transparent';
-      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc'; 
-    }}
-  />
-</div>
+          {activeTab === 0 && (
+  <>
+    <div style={styles.searchBox}>
+      <Search size={20} style={styles.searchIcon} />
+      <input
+        type="text"
+        placeholder="Search attendees..."
+        value={searchName}
+        onChange={(e) => setSearchName(e.target.value)}
+        style={{
+          width: "100%",
+          padding: "14px 14px 14px 45px",
+          fontSize: 16,
+          borderRadius: 8,
+          border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`,
+          backgroundColor: isDarkMode ? 
+            theme.palette.background.default : 
+            theme.palette.background.paper,
+          color: isDarkMode ? theme.palette.text.primary : '#000',
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+        onFocus={(e) => {
+          e.target.style.backgroundColor = isDarkMode ? 
+            theme.palette.action.hover : 
+            theme.palette.background.default;
+          e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+        }}
+        onBlur={(e) => {
+          e.target.style.backgroundColor = isDarkMode ? 
+            theme.palette.background.default : 
+            theme.palette.background.paper;
+          e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+        }}
+      />
+    </div>
                 {isMobile ? (
                   <div>
                     {loading && (
@@ -3621,34 +3624,39 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             {activeTab === 1 && (
               <>
                 <div style={styles.searchBox}>
-                  <Search size={20} style={styles.searchIcon} />
-                  <input
-                    type="text"
-                    placeholder="Search to add person to common attendees..."
-                    value={associateSearch}
-                    onChange={(e) => setAssociateSearch(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "14px 14px 14px 45px",
-                      fontSize: 16,
-                      borderRadius: 8,
-                      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
-                      backgroundColor: 'transparent !important',
-                      background: 'transparent !important',
-                      color: isDarkMode ? theme.palette.text.primary : '#000',
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.backgroundColor = 'transparent';
-                      e.target.style.background = 'transparent';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.backgroundColor = 'transparent';
-                      e.target.style.background = 'transparent';
-                    }}
-                  />
-                </div>
+  <Search size={20} style={styles.searchIcon} />
+  <input
+    type="text"
+    placeholder="Search to add person to common attendees..."
+    value={associateSearch}
+    onChange={(e) => setAssociateSearch(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "14px 14px 14px 45px",
+      fontSize: 16,
+      borderRadius: 8,
+      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
+      backgroundColor: isDarkMode ? 
+        theme.palette.background.default : 
+        theme.palette.background.paper,
+      color: isDarkMode ? theme.palette.text.primary : '#000',
+      outline: "none",
+      boxSizing: "border-box",
+    }}
+    onFocus={(e) => {
+      e.target.style.backgroundColor = isDarkMode ? 
+        theme.palette.action.hover : 
+        theme.palette.background.default;
+      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+    }}
+    onBlur={(e) => {
+      e.target.style.backgroundColor = isDarkMode ? 
+        theme.palette.background.default : 
+        theme.palette.background.paper;
+      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+    }}
+  />
+</div>
                 {isMobile ? (
                   <div>
                     {loading && (
