@@ -7,8 +7,8 @@ import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import Skeleton from "@mui/material/Skeleton";
-import Snackbar from "@mui/material/Snackbar";
+// import Skeleton from "@mui/material/Skeleton";
+// import Snackbar from "@mui/material/Snackbar";
 // import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
 import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment } from "@mui/material";
@@ -659,7 +659,7 @@ const Events = () => {
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
 
-  console.log("🔍 USER ROLE DEBUG:", {
+  console.log(" USER ROLE DEBUG:", {
     currentUser,
     userRole: currentUser?.role,
     userRoleLower: userRole,
@@ -855,9 +855,6 @@ const Events = () => {
     filters,
     forceRefresh,
     showLoader,
-    isLeaderAt12,
-    isAdmin,
-    isRegistrant,
     viewFilter,
     currentUserLeaderAt1
   });
@@ -888,74 +885,65 @@ const Events = () => {
 
     const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
 
-    // 🔥 FIX #1: REPLACE THIS SECTION (around line 880)
-    // OLD CODE (DELETE THIS):
-    // const params = {
-    //   page: filters.page !== undefined ? filters.page : currentPage,
-    //   limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-    //   start_date: startDateParam,
-    //   ...filters  // ⚠️ THIS SPREADS ALL PROPERTIES INCLUDING INVALID ONES
-    // };
-
-    // NEW CODE (USE THIS INSTEAD):
+    // Build params safely
     const params = {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
       start_date: startDateParam,
     };
 
-    // Only add valid filters one by one
-    if (filters.status) params.status = filters.status;
-    if (filters.event_type) params.event_type = filters.event_type;
-    if (filters.search) params.search = filters.search;
-    if (filters.personal !== undefined) params.personal = filters.personal;
-    if (filters.leader_at_12_view) params.leader_at_12_view = filters.leader_at_12_view;
-    if (filters.show_personal_cells) params.show_personal_cells = filters.show_personal_cells;
-    if (filters.show_all_authorized) params.show_all_authorized = filters.show_all_authorized;
-    if (filters.include_subordinate_cells) params.include_subordinate_cells = filters.include_subordinate_cells;
-    if (filters.leader_at_1_identifier) params.leader_at_1_identifier = filters.leader_at_1_identifier;
-    if (filters._t) params._t = filters._t;
-
-    // Remove undefined status
-    if (!filters.status && params.status) {
-      delete params.status;
+    // CRITICAL FIX: ALWAYS pass event_type if provided
+    if (filters.event_type) {
+      params.event_type = filters.event_type;
+    } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+      params.event_type = selectedEventTypeFilter;
     }
 
-    const isCellRequest = params.event_type === 'CELLS' || params.event_type === 'all' || !params.event_type;
-    const isEventTypeRequest = !isCellRequest;
+    // Add other filters
+    if (filters.status && filters.status !== 'all') params.status = filters.status;
+    if (filters.search) params.search = filters.search;
+    if (filters.personal !== undefined) params.personal = filters.personal;
+    if (filters._t) params._t = filters._t;
 
-    console.log("Request Type:", {
-      isCellRequest,
-      isEventTypeRequest,
-      event_type: params.event_type,
-      status: params.status
+    // Remove undefined/null
+    Object.keys(params).forEach(key => {
+      if (params[key] === undefined || params[key] === null || params[key] === '') {
+        delete params[key];
+      }
     });
 
-    if (isEventTypeRequest) {
-      console.log("EVENT TYPE MODE - Removing all personal/leader filters");
+    // CRITICAL FIX: Determine endpoint CORRECTLY
+    let endpoint;
+    const eventTypeToUse = params.event_type || selectedEventTypeFilter;
+    
+    // If event_type is explicitly set and NOT "CELLS", use /events/other
+    // If event_type is "CELLS" or "all" or undefined/null, use /events/cells
+    if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
+      endpoint = `${BACKEND_URL}/events/other`;
+      console.log(`🔵 Using OTHER EVENTS endpoint for event type: "${eventTypeToUse}"`);
+      
+      // Remove personal filters for non-cell events
       delete params.personal;
       delete params.leader_at_12_view;
       delete params.show_personal_cells;
       delete params.show_all_authorized;
       delete params.include_subordinate_cells;
       delete params.leader_at_1_identifier;
-
-      if (!filters.status) {
-        delete params.status;
-      }
     } else {
-      console.log("CELL MODE - Applying role-based filters");
-
+      endpoint = `${BACKEND_URL}/events/cells`;
+      console.log("🟢 Using CELLS endpoint");
+      
+      // Apply role-based filters for cells
       if (isRegistrant || isRegularUser) {
         params.personal = true;
       } else if (isLeaderAt12) {
         params.leader_at_12_view = true;
         params.include_subordinate_cells = true;
-
+        
         if (currentUserLeaderAt1) {
           params.leader_at_1_identifier = currentUserLeaderAt1;
         }
-
+        
         if (viewFilter === 'personal') {
           params.show_personal_cells = true;
           params.personal = true;
@@ -965,34 +953,11 @@ const Events = () => {
       }
     }
 
-    // Determine which endpoint to use
-    let endpoint;
-    if (isCellRequest) {
-      endpoint = `${BACKEND_URL}/events/cells`;
-      console.log("Using CELLS endpoint");
-    } else {
-      endpoint = `${BACKEND_URL}/events/other`;
-      console.log("Using OTHER EVENTS endpoint for event type:", params.event_type);
-    }
-
-    // 🔥 FIX #2: ADD THIS SECTION RIGHT HERE (before axios.get)
-    // Clean up undefined/null parameters AND invalid parameters
-    Object.keys(params).forEach(key => {
-      if (params[key] === undefined || params[key] === null || params[key] === '') {
-        delete params[key];
-      }
-      // Remove any invalid boolean parameters
-      if (key === 'isLeaderAt12' || key === 'isAdmin' || key === 'isRegistrant' || 
-          key === 'isRegularUser' || key === 'userRole' || key === 'theme') {
-        console.warn(`⚠️ Removing invalid parameter: ${key}`);
-        delete params[key];
-      }
-    });
-
-    console.log('Final API call details:', {
+    console.log('Final API call:', {
       endpoint,
-      params: JSON.stringify(params, null, 2),
-      userRole: userRole
+      params,
+      eventTypeToUse,
+      userRole
     });
 
     const cacheKey = getCacheKey({ ...params, userRole, endpoint });
@@ -1014,100 +979,90 @@ const Events = () => {
       }
     }
 
-    console.log("Making fresh API call");
+    console.log("Making fresh API call to:", endpoint);
     const response = await axios.get(endpoint, {
       headers,
       params,
       timeout: 60000
     });
 
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
 
-      console.log('BACKEND RESPONSE:');
-      console.log('Total events:', responseData.total_events);
-      console.log('Events found:', newEvents.length);
+    console.log('API Response:', {
+      endpoint,
+      total_events: responseData.total_events,
+      events_received: newEvents.length,
+      first_event: newEvents[0] ? {
+        name: newEvents[0].eventName,
+        type: newEvents[0].eventType,
+        status: newEvents[0].status,
+        id: newEvents[0]._id
+      } : 'No events'
+    });
 
-      if (newEvents.length > 0) {
-        console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
-          name: e.eventName,
-          type: e.eventType,
-          typeName: e.eventTypeName,
-          status: e.status, // 🔥 CRITICAL: Log the status
-          id: e._id
-        })));
-      } else {
-        console.log('No events returned');
-
-        // Debug for empty results
-        if (isEventTypeRequest) {
-          console.log('Empty results for event type:', params.event_type);
-          console.log('Possible reasons:');
-          console.log('   - No events exist for this event type');
-          console.log('   - Events exist but have different eventType values');
-          console.log('   - Backend filtering issue');
-        }
-      }
-
-      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
-
-      setCachedData(cacheKey, {
-        events: newEvents,
-        total_events: totalEventsCount,
-        total_pages: totalPagesCount
+    // DEBUG: Check if created event is in response
+    if (filters.event_type === 'Global Events' || eventTypeToUse === 'Global Events') {
+      console.log('Looking for Global Events...');
+      newEvents.forEach((event, index) => {
+        console.log(`Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`);
       });
-
-      setEvents(newEvents);
-      setFilteredEvents(newEvents);
-      setTotalEvents(totalEventsCount);
-      setTotalPages(totalPagesCount);
-      if (filters.page !== undefined) setCurrentPage(filters.page);
-
-      console.log("fetchEvents - COMPLETE");
-
-    } catch (err) {
-      console.error("Error fetching events:", err);
-      if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-        toast.warning("Request timeout. Please refresh and try again.");
-      } else if (err.response?.status === 401) {
-        toast.error("Session expired. Logging out...");;
-        localStorage.removeItem("token");
-        localStorage.removeItem("userProfile");
-        setTimeout(() => window.location.href = '/login', 2000);
-      } else {
-        const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
-        toast.error(`Error loading events: ${errorMessage}`);
-      }
-      setEvents([]);
-      setFilteredEvents([]);
-      setTotalEvents(0);
-      setTotalPages(1);
-    } finally {
-      // Only hide loader if we showed it
-      if (showLoader) {
-        setLoading(false);
-        setIsLoading(false);
-      }
     }
-  }, [
-    currentPage,
-    rowsPerPage,
-    selectedStatus,
-    selectedEventTypeFilter,
-    searchQuery,
-    viewFilter,
-    userRole,
-    isLeaderAt12,
-    isAdmin,
-    isRegistrant,
-    currentUserLeaderAt1,
-    getCacheKey,
-    getCachedData,
-    setCachedData,
-    BACKEND_URL,
-    DEFAULT_API_START_DATE
-  ]);
+
+    const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+    const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+
+    setCachedData(cacheKey, {
+      events: newEvents,
+      total_events: totalEventsCount,
+      total_pages: totalPagesCount
+    });
+
+    setEvents(newEvents);
+    setFilteredEvents(newEvents);
+    setTotalEvents(totalEventsCount);
+    setTotalPages(totalPagesCount);
+    if (filters.page !== undefined) setCurrentPage(filters.page);
+
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+      toast.warning("Request timeout. Please refresh and try again.");
+    } else if (err.response?.status === 401) {
+      toast.error("Session expired. Logging out...");
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    } else {
+      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
+      toast.error(`Error loading events: ${errorMessage}`);
+    }
+    setEvents([]);
+    setFilteredEvents([]);
+    setTotalEvents(0);
+    setTotalPages(1);
+  } finally {
+    if (showLoader) {
+      setLoading(false);
+      setIsLoading(false);
+    }
+  }
+}, [
+  currentPage,
+  rowsPerPage,
+  selectedEventTypeFilter,
+  viewFilter,
+  userRole,
+  isLeaderAt12,
+  isAdmin,
+  isRegistrant,
+  currentUserLeaderAt1,
+  getCacheKey,
+  getCachedData,
+  setCachedData,
+  BACKEND_URL,
+  DEFAULT_API_START_DATE
+]);
 
   const checkEventsForType = async (eventTypeName) => {
     try {
@@ -1200,10 +1155,10 @@ const handleStatusFilterChange = useCallback((newStatus) => {
       }
 
       const eventTypesData = await response.json();
-      console.log('🔄 RAW EVENT TYPES FROM API:', eventTypesData);
+      console.log(' RAW EVENT TYPES FROM API:', eventTypesData);
 
       const actualEventTypes = eventTypesData.filter(item => item.isEventType === true);
-      console.log('🔄 FILTERED EVENT TYPES:', actualEventTypes);
+      console.log(' FILTERED EVENT TYPES:', actualEventTypes);
 
       // Don't uppercase here - keep original names for matching
       setEventTypes(actualEventTypes);
@@ -1259,7 +1214,7 @@ const handleStatusFilterChange = useCallback((newStatus) => {
         if (selectedStatus !== 'all') refreshParams.status = selectedStatus;
         if (searchQuery.trim()) refreshParams.search = searchQuery.trim();
 
-        console.log("🔄 Auto-refreshing events with:", refreshParams);
+        console.log(" Auto-refreshing events with:", refreshParams);
         fetchEvents(refreshParams, true);
       }, 300);
 
@@ -1267,49 +1222,6 @@ const handleStatusFilterChange = useCallback((newStatus) => {
       console.error("Error in refreshAfterEventTypeUpdate:", error);
     }
   }, [selectedEventTypeFilter, clearCache, fetchEventTypes, rowsPerPage, selectedStatus, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
-
-  const debugCurrentSituation = async () => {
-    console.log("🐛 DEBUG: Current situation");
-
-    try {
-      const token = localStorage.getItem("token");
-
-      const oldTypeResponse = await axios.get(`${BACKEND_URL}/events/other`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { event_type: "Conference", limit: 10 }
-      });
-
-      const newTypeResponse = await axios.get(`${BACKEND_URL}/events/other`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { event_type: "Conferencetest", limit: 10 }
-      });
-
-      // Test 3: Check all events
-      const allResponse = await axios.get(`${BACKEND_URL}/events/other`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { limit: 50 }
-      });
-
-      console.log("🐛 DEBUG RESULTS:", {
-        oldTypeEvents: oldTypeResponse.data.events?.length,
-        newTypeEvents: newTypeResponse.data.events?.length,
-        allEvents: allResponse.data.events?.length,
-        sampleNewEvents: newTypeResponse.data.events?.map(e => ({
-          name: e.eventName,
-          type: e.eventType,
-          typeName: e.eventTypeName
-        })),
-        sampleAllEvents: allResponse.data.events?.map(e => ({
-          name: e.eventName,
-          type: e.eventType,
-          typeName: e.eventTypeName
-        }))
-      });
-
-    } catch (error) {
-      console.error("🐛 DEBUG Error:", error);
-    }
-  };
 
 
   const getCurrentUserLeaderAt1 = useCallback(async () => {
@@ -1440,12 +1352,12 @@ const handleStatusFilterChange = useCallback((newStatus) => {
 
 
   const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
-    console.log("🚪 Closing create event modal, shouldRefresh:", shouldRefresh);
+    console.log(" Closing create event modal, shouldRefresh:", shouldRefresh);
 
     setCreateEventModalOpen(false);
 
     if (shouldRefresh) {
-      console.log("🔄 Modal requested refresh, forcing complete reload...");
+      console.log(" Modal requested refresh, forcing complete reload...");
 
       clearCache();
       setCurrentPage(1);
@@ -1460,7 +1372,7 @@ const handleStatusFilterChange = useCallback((newStatus) => {
           search: searchQuery.trim() || undefined,
         };
 
-        // ✅ CRITICAL: Determine which endpoint to use based on event type
+        //  CRITICAL: Determine which endpoint to use based on event type
         if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' || !selectedEventTypeFilter) {
           refreshParams.event_type = "CELLS";
 
@@ -1479,7 +1391,7 @@ const handleStatusFilterChange = useCallback((newStatus) => {
           refreshParams.event_type = selectedEventTypeFilter;
         }
 
-        console.log("🔍 Refreshing events after creation:", refreshParams);
+        console.log(" Refreshing events after creation:", refreshParams);
         fetchEvents(refreshParams, true);
       }, 800);
     }
@@ -1579,7 +1491,7 @@ const handleStatusFilterChange = useCallback((newStatus) => {
         { headers }
       );
 
-      console.log("✅ Attendance submitted successfully");
+      console.log(" Attendance submitted successfully");
 
       clearCache();
 
@@ -1630,7 +1542,7 @@ const handleStatusFilterChange = useCallback((newStatus) => {
               })
             };
 
-            console.log("🔄 Refreshing events after attendance WITH status filter:", refreshParams);
+            console.log(" Refreshing events after attendance WITH status filter:", refreshParams);
             await fetchEvents(refreshParams, true, true);
 
           } catch (refreshError) {
@@ -1786,7 +1698,7 @@ const handleDeleteEvent = useCallback(async (event) => {
           }
         }
 
-        console.log("🔄 Refreshing with params after deletion:", refreshParams);
+        console.log(" Refreshing with params after deletion:", refreshParams);
         await fetchEvents(refreshParams, true);
         
         toast.success("Event deleted successfully!");
@@ -1812,91 +1724,88 @@ const handleDeleteEvent = useCallback(async (event) => {
 ]);
 
 
-  const handleSaveEvent = useCallback(async (eventData) => {
-    try {
-      console.log("[handleSaveEvent] Received event data:", eventData);
+ const handleSaveEvent = useCallback(async (eventData) => {
+  try {
+    console.log("[handleSaveEvent] Received event data:", eventData);
 
-      const eventIdentifier = eventData._id || eventData.UUID || eventData.id;
+    const eventIdentifier = selectedEvent?._id || selectedEvent?.id;
 
-      if (!eventIdentifier) {
-        throw new Error("No event identifier (_id or UUID) found");
+    if (!eventIdentifier) {
+      throw new Error("No event identifier found");
+    }
+
+    console.log(" Updating event with identifier:", eventIdentifier);
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      throw new Error("No authentication token found");
+    }
+
+    // Clean the data - remove undefined values
+    const cleanPayload = Object.entries(eventData).reduce((acc, [key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        acc[key] = value;
       }
+      return acc;
+    }, {});
 
-      console.log("🔧 Updating event with identifier:", {
-        identifier: eventIdentifier,
-        type: eventData._id ? '_id' : 'UUID',
-        newName: eventData.eventName
-      });
+    console.log(" Sending payload:", cleanPayload);
 
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
+    // Use the universal endpoint
+    const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
 
-      const headers = {
+    const response = await fetch(endpoint, {
+      method: "PUT",
+      headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
-      };
+      },
+      body: JSON.stringify(cleanPayload),
+    });
 
-      const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
-      console.log("PUT request to:", endpoint);
+    console.log(" Response status:", response.status);
 
-      const cleanPayload = Object.entries(eventData).reduce((acc, [key, value]) => {
-        if (value !== undefined && value !== null) {
-          acc[key] = value;
+    if (!response.ok) {
+      let errorData;
+      let errorMessage;
+
+      try {
+        errorData = await response.json();
+        console.error(" Server error response:", errorData);
+
+        if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        } else if (errorData.detail) {
+          errorMessage = typeof errorData.detail === 'string'
+            ? errorData.detail
+            : JSON.stringify(errorData.detail);
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else {
+          errorMessage = JSON.stringify(errorData);
         }
-        return acc;
-      }, {});
-
-      console.log("Sending payload:", cleanPayload);
-
-      const response = await fetch(endpoint, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify(cleanPayload),
-      });
-
-      console.log(" Response status:", response.status, response.statusText);
-
-      if (!response.ok) {
-        let errorData;
-        let errorMessage;
-
-        try {
-          errorData = await response.json();
-          console.error(" Server error response:", errorData);
-
-          if (typeof errorData === 'string') {
-            errorMessage = errorData;
-          } else if (errorData.detail) {
-            errorMessage = typeof errorData.detail === 'string'
-              ? errorData.detail
-              : JSON.stringify(errorData.detail);
-          } else if (errorData.message) {
-            errorMessage = errorData.message;
-          } else {
-            errorMessage = JSON.stringify(errorData);
-          }
-        } catch (Error) {
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        }
-
-        throw new Error(errorMessage);
+      } catch (parseError) {
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
       }
 
-      const updatedEvent = await response.json();
-      console.log(" Event updated successfully from backend:", updatedEvent);
+      throw new Error(errorMessage);
+    }
 
-      console.log(" Clearing all caches and state...");
-      clearCache();
+    const updatedEvent = await response.json();
+    console.log(" Event updated successfully:", updatedEvent);
 
-      const cacheKeys = Object.keys(localStorage).filter(key => key.includes('events_cache') || key.includes('cache'));
-      cacheKeys.forEach(key => localStorage.removeItem(key));
+    // Clear cache and refresh
+    clearCache();
 
-      await new Promise(resolve => setTimeout(resolve, 300));
+    // Show success message
+    toast.success("Event updated successfully!");
 
-      console.log("🔄 Forcing complete refresh of events...");
+    // Close modal and refresh
+    setEditModalOpen(false);
+    setSelectedEvent(null);
 
+    // Refresh events list
+    setTimeout(() => {
       const refreshParams = {
         page: currentPage,
         limit: rowsPerPage,
@@ -1904,70 +1813,127 @@ const handleDeleteEvent = useCallback(async (event) => {
         _t: Date.now()
       };
 
-      if (selectedStatus && selectedStatus !== 'all') {
-        refreshParams.status = selectedStatus;
-      }
-
-      if (searchQuery && searchQuery.trim()) {
-        refreshParams.search = searchQuery.trim();
-      }
-
-      // ✅ CRITICAL: Determine which endpoint to use
-      if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' || !selectedEventTypeFilter) {
-        refreshParams.event_type = "CELLS";
-
-        if (isLeaderAt12) {
-          refreshParams.leader_at_12_view = true;
-          if (viewFilter === 'personal') {
-            refreshParams.personal_cells_only = true;
-            refreshParams.show_personal_cells = true;
-            refreshParams.show_all_authorized = false;
-          } else {
-            refreshParams.include_subordinate_cells = true;
-            refreshParams.include_global_events = true;
-            refreshParams.show_personal_cells = false;
-            refreshParams.show_all_authorized = true;
-          }
-        } else if (isAdmin && viewFilter === 'personal') {
-          refreshParams.personal = true;
-        }
-      } else {
+      if (selectedEventTypeFilter !== 'all') {
         refreshParams.event_type = selectedEventTypeFilter;
       }
 
-      Object.keys(refreshParams).forEach(key =>
-        refreshParams[key] === undefined && delete refreshParams[key]
-      );
+      if (selectedStatus !== 'all') {
+        refreshParams.status = selectedStatus;
+      }
 
-      console.log("🔍 Refreshing with params:", refreshParams);
+      if (searchQuery.trim()) {
+        refreshParams.search = searchQuery.trim();
+      }
 
-      await fetchEvents(refreshParams, true);
+      fetchEvents(refreshParams, true);
+    }, 500);
 
-      setTimeout(async () => {
-        console.log("🔄 Double-checking with second refresh...");
-        await fetchEvents(refreshParams, true);
-      }, 1000);
-      toast.success("Event updated successfully!");
+    return { success: true, event: updatedEvent };
 
+  } catch (error) {
+    console.error(" Error saving event:", error);
+    toast.error(`Failed to update event: ${error.message}`);
+    throw error;
+  }
+}, [
+  selectedEvent,
+  BACKEND_URL,
+  clearCache,
+  currentPage,
+  rowsPerPage,
+  selectedStatus,
+  selectedEventTypeFilter,
+  searchQuery,
+  fetchEvents,
+  DEFAULT_API_START_DATE
+]);
 
-      return { success: true, event: updatedEvent };
+const handlePersonEdit = useCallback(async (personName, field, newValue) => {
+  try {
+    console.log("👥 Editing ALL cells for person:", {
+      person: personName,
+      field,
+      newValue
+    });
 
-    } catch (error) {
-      console.error(" Error in handleSaveEvent:", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-        fullError: error
-      });
-
-      const errorMessage = error.message || String(error) || "Failed to update event";
-
-      toast.error("Failed to update event");
-
-      throw new Error(errorMessage);
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast.error("Please log in again");
+      return;
     }
-  }, [BACKEND_URL, clearCache, currentPage, rowsPerPage, selectedStatus, searchQuery, selectedEventTypeFilter, userRole, isAdmin, viewFilter, fetchEvents, DEFAULT_API_START_DATE]);
 
+    // Encode person name for URL
+    const encodedPersonName = encodeURIComponent(personName);
+    
+    // Prepare update data
+    const updatePayload = {
+      [field]: newValue
+    };
+
+    console.log(" Updating all person cells:", {
+      person: personName,
+      payload: updatePayload
+    });
+
+    const response = await axios.put(
+      `${BACKEND_URL}/events/update-person-cells/${encodedPersonName}`,
+      updatePayload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (response.status === 200) {
+      const result = response.data;
+      console.log(" Person cells updated:", result);
+      
+      toast.success(`Updated ${result.updated_count} cells for ${personName}`);
+      
+      // Clear cache and refresh data
+      clearCache();
+      
+      // Refresh events list
+      setTimeout(() => {
+        const refreshParams = {
+          page: currentPage,
+          limit: rowsPerPage,
+          start_date: DEFAULT_API_START_DATE,
+          _t: Date.now()
+        };
+
+        if (selectedEventTypeFilter !== 'all') {
+          refreshParams.event_type = selectedEventTypeFilter;
+        }
+
+        if (selectedStatus !== 'all') {
+          refreshParams.status = selectedStatus;
+        }
+
+        if (searchQuery.trim()) {
+          refreshParams.search = searchQuery.trim();
+        }
+
+        fetchEvents(refreshParams, true);
+      }, 500);
+      
+      return result;
+    }
+
+  } catch (error) {
+    console.error(" Error updating person cells:", error);
+    
+    let errorMessage = "Failed to update person cells";
+    if (error.response?.data) {
+      errorMessage = error.response.data.detail || error.response.data.message;
+    }
+    
+    toast.error(`Error: ${errorMessage}`);
+    throw error;
+  }
+}, [BACKEND_URL, clearCache, currentPage, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
 
   const handleCloseEditModal = useCallback(async (shouldRefresh = false) => {
     console.log("Closing edit modal, shouldRefresh:", shouldRefresh);
@@ -2068,13 +2034,13 @@ const handleDeleteEvent = useCallback(async (event) => {
         eventTypeToEdit = type;
       }
 
-      console.log("🔄 Setting editing event type:", eventTypeToEdit);
+      console.log(" Setting editing event type:", eventTypeToEdit);
       closeTypeMenu();
 
-      // ✅ FIXED: Set editing event type BEFORE opening modal
+      //  FIXED: Set editing event type BEFORE opening modal
       setEditingEventType(eventTypeToEdit);
 
-      // ✅ FIXED: Small delay to ensure state is set before modal opens
+      //  FIXED: Small delay to ensure state is set before modal opens
       setTimeout(() => {
         setEventTypesModalOpen(true);
       }, 100);
@@ -2087,7 +2053,7 @@ const handleDeleteEvent = useCallback(async (event) => {
   }, [eventTypes, closeTypeMenu]);
 
   const handleCloseEventTypesModal = useCallback(() => {
-    console.log("🔒 Closing event types modal");
+    console.log(" Closing event types modal");
     setEventTypesModalOpen(false);
 
     setTimeout(() => {
@@ -2113,7 +2079,7 @@ const handleDeleteType = useCallback(async () => {
       throw new Error("No event type name provided for deletion");
     }
 
-    console.log('🗑️ Attempting to delete event type:', typeName);
+    console.log(' Attempting to delete event type:', typeName);
 
     // First, try normal delete
     const encodedTypeName = encodeURIComponent(typeName);
@@ -2127,7 +2093,7 @@ const handleDeleteType = useCallback(async () => {
         }
       });
 
-      console.log('✅ Delete response:', response.data);
+      console.log(' Delete response:', response.data);
 
       if (response.status === 200) {
         // Success - refresh everything
@@ -2157,7 +2123,7 @@ const handleDeleteType = useCallback(async () => {
       }
 
     } catch (error) {
-      console.error("❌ Error deleting event type:", error);
+      console.error(" Error deleting event type:", error);
 
       // Handle 401/unauthorized
       if (error.response?.status === 401) {
@@ -2179,7 +2145,7 @@ const handleDeleteType = useCallback(async () => {
           eventsList = errorData.detail.event_samples || [];
         }
 
-        console.log(`⚠️ ${eventsCount} events are blocking deletion:`, eventsList);
+        console.log(` ${eventsCount} events are blocking deletion:`, eventsList);
 
         // Show detailed dialog with force delete option
         const eventsListText = eventsList.slice(0, 5).map(e => 
@@ -2187,21 +2153,20 @@ const handleDeleteType = useCallback(async () => {
         ).join('\n');
 
         const shouldForceDelete = window.confirm(
-          `❌ Cannot delete "${typeName}"\n\n` +
+          ` Cannot delete "${typeName}"\n\n` +
           `${eventsCount} event(s) are using this event type:\n\n` +
           `${eventsListText}\n` +
           `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ''}\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-          `⚠️ FORCE DELETE OPTION:\n\n` +
+          ` FORCE DELETE OPTION:\n\n` +
           `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
           `Click Cancel to keep everything.\n\n` +
-          `⚠️ THIS ACTION CANNOT BE UNDONE!`
+          ` THIS ACTION CANNOT BE UNDONE!`
         );
 
         if (shouldForceDelete) {
-          console.log('🔥 User confirmed FORCE DELETE');
+          console.log(' User confirmed FORCE DELETE');
           
-          // Call delete with force=true
           try {
             const forceUrl = `${url}?force=true`;
             const forceResponse = await axios.delete(forceUrl, {
@@ -2211,7 +2176,7 @@ const handleDeleteType = useCallback(async () => {
               }
             });
 
-            console.log('✅ Force delete successful:', forceResponse.data);
+            console.log(' Force delete successful:', forceResponse.data);
 
             // Refresh everything
             await fetchEventTypes(true);
@@ -2235,19 +2200,19 @@ const handleDeleteType = useCallback(async () => {
             }
 
             toast.success(
-              `✅ Deleted event type "${typeName}" and ${forceResponse.data.events_deleted || eventsCount} events`,
+              ` Deleted event type "${typeName}" and ${forceResponse.data.events_deleted || eventsCount} events`,
               { autoClose: 5000 }
             );
 
           } catch (forceError) {
-            console.error('❌ Force delete failed:', forceError);
+            console.error(' Force delete failed:', forceError);
             toast.error(
               `Failed to force delete: ${forceError.response?.data?.detail || forceError.message}`,
               { autoClose: 7000 }
             );
           }
         } else {
-          console.log('❌ User cancelled force delete');
+          console.log(' User cancelled force delete');
           toast.info('Deletion cancelled', { autoClose: 3000 });
         }
 
@@ -2272,7 +2237,7 @@ const handleDeleteType = useCallback(async () => {
     }
 
   } catch (error) {
-    console.error("❌ Unexpected error:", error);
+    console.error(" Unexpected error:", error);
     toast.error(`Unexpected error: ${error.message}`, { autoClose: 7000 });
     setConfirmDeleteOpen(false);
     setToDeleteType(null);
@@ -2334,7 +2299,7 @@ const handleDeleteType = useCallback(async () => {
 
       if (!token || !userProfile) {
         toast.error("Please log in to access events");
-        setTimeout(() => window.location.href = '/login', 2000);  // ✅ Redirect to /login, not /dashboard
+        setTimeout(() => window.location.href = '/login', 2000);  //  Redirect to /login, not /dashboard
         return;
       }
 
@@ -2358,7 +2323,7 @@ const handleDeleteType = useCallback(async () => {
           userRole.includes("leader at 1278") ||
           userRole.includes("leader at 1728");
 
-        // ✅ IMPROVED: Check if user role includes "leader" in any form
+        //  IMPROVED: Check if user role includes "leader" in any form
         const isAnyLeader =
           userRole.includes("leader") ||
           isLeaderAt12 ||
@@ -2375,41 +2340,41 @@ const handleDeleteType = useCallback(async () => {
 
             const { hasCell, canAccessEvents } = response.data;
 
-            console.log("🔍 User cell check:", { hasCell, canAccessEvents });
+            console.log(" User cell check:", { hasCell, canAccessEvents });
 
             if (!canAccessEvents || !hasCell) {
               toast.warning("You must have a cell to access the Events page");
-              // ✅ FIX: Redirect to home instead of /dashboard
+              //  FIX: Redirect to home instead of /dashboard
               setTimeout(() => window.location.href = '/', 2000);
               return;
             }
 
-            console.log("✅ User has cell - access granted");
+            console.log(" User has cell - access granted");
           } catch (error) {
-            console.error("❌ Error checking cell status:", error);
+            console.error(" Error checking cell status:", error);
             toast.error("Unable to verify access. Please contact support.");
-            // ✅ FIX: Redirect to home instead of /dashboard
+            //  FIX: Redirect to home instead of /dashboard
             setTimeout(() => window.location.href = '/', 2000);
             return;
           }
         }
 
-        // ✅ BROADENED ACCESS: Allow all types of leaders
+        //  BROADENED ACCESS: Allow all types of leaders
         const hasAccess =
           isAdmin ||
           isLeaderAt12 ||
           isRegistrant ||
           isLeader144or1728 ||
-          isAnyLeader ||  // ✅ This catches any leader role
+          isAnyLeader ||  //  This catches any leader role
           isUser;
 
         if (!hasAccess) {
-          console.log("❌ Access denied for role:", userRole);
+          console.log(" Access denied for role:", userRole);
           toast.warning("You do not have permission to access the Events page");
-          // ✅ FIX: Redirect to home instead of /dashboard
+          //  FIX: Redirect to home instead of /dashboard
           setTimeout(() => window.location.href = '/', 2000);
         } else {
-          console.log("✅ Access granted:", {
+          console.log(" Access granted:", {
             userRole,
             isAdmin,
             isLeaderAt12,
@@ -2420,7 +2385,7 @@ const handleDeleteType = useCallback(async () => {
           });
         }
       } catch (error) {
-        console.error("❌ Error in access check:", error);
+        console.error(" Error in access check:", error);
         toast.error("Error verifying access");
       }
     };
@@ -2439,7 +2404,7 @@ const handleDeleteType = useCallback(async () => {
 
       if (!token || !userProfile) {
         toast.error("Please log in to access events");
-        setTimeout(() => navigate('/login', { replace: true }), 2000);  // ✅ Better approach
+        setTimeout(() => navigate('/login', { replace: true }), 2000);  //  Better approach
         return;
       }
 
@@ -2450,7 +2415,7 @@ const handleDeleteType = useCallback(async () => {
         console.log("🔐 Checking user access:", { userRole });
 
         const isAdmin = userRole === "admin";
-        const isAnyLeader = userRole.includes("leader");  // ✅ Simplified
+        const isAnyLeader = userRole.includes("leader");  //  Simplified
         const isRegistrant = userRole === "registrant";
         const isUser = userRole === "user";
 
@@ -2467,9 +2432,9 @@ const handleDeleteType = useCallback(async () => {
               return;
             }
 
-            console.log("✅ User has cell - access granted");
+            console.log(" User has cell - access granted");
           } catch (error) {
-            console.error("❌ Error checking cell status:", error);
+            console.error(" Error checking cell status:", error);
             toast.error("Unable to verify access");
             setTimeout(() => navigate('/', { replace: true }), 2000);
             return;
@@ -2480,16 +2445,16 @@ const handleDeleteType = useCallback(async () => {
         const hasAccess = isAdmin || isAnyLeader || isRegistrant || isUser;
 
         if (!hasAccess) {
-          console.log("❌ Access denied for role:", userRole);
+          console.log(" Access denied for role:", userRole);
           toast.warning("You do not have permission to access this page");
-          setTimeout(() => navigate('/', { replace: true }), 2000);  // ✅ Navigate to home
+          setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
         } else {
-          console.log("✅ Access granted for role:", userRole);
+          console.log(" Access granted for role:", userRole);
         }
       } catch (error) {
-        console.error("❌ Error in access check:", error);
+        console.error(" Error in access check:", error);
         toast.error("Error verifying access");
-        setTimeout(() => navigate('/', { replace: true }), 2000);  // ✅ Navigate to home
+        setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
       }
     };
 
@@ -2507,7 +2472,7 @@ const handleDeleteType = useCallback(async () => {
 
   useEffect(() => {
     if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-      console.log("🔄 Event type filter changed, auto-refreshing:", selectedEventTypeFilter);
+      console.log(" Event type filter changed, auto-refreshing:", selectedEventTypeFilter);
 
       const refreshParams = {
         page: 1,
@@ -2532,7 +2497,7 @@ const handleDeleteType = useCallback(async () => {
   }, [selectedEventTypeFilter]);
 
   useEffect(() => {
-    console.log("🔍 [CURRENT STATE DEBUG]", {
+    console.log(" [CURRENT STATE DEBUG]", {
       selectedEventTypeFilter,
       eventTypes: eventTypes.map(et => ({ name: et.name, _id: et._id })),
       events: events.map(ev => ({
@@ -2551,7 +2516,7 @@ const handleDeleteType = useCallback(async () => {
 
   useEffect(() => {
     if (isLeaderAt12 && viewFilter === 'personal') {
-      console.log("🔄 Auto-switching Leader at 12 to VIEW ALL mode on initial load");
+      console.log(" Auto-switching Leader at 12 to VIEW ALL mode on initial load");
       setViewFilter('all');
 
       const fetchParams = {
@@ -2617,7 +2582,7 @@ const handleDeleteType = useCallback(async () => {
 
   // Add this useEffect to track filter changes
   useEffect(() => {
-    console.log("🎯 FILTER CHANGE DEBUG:", {
+    console.log(" FILTER CHANGE DEBUG:", {
       selectedEventTypeFilter,
       eventsCount: events.length,
       eventTypes: eventTypes.map(et => et.name)
@@ -2650,19 +2615,19 @@ const handleDeleteType = useCallback(async () => {
           throw new Error("Cannot update: original event type name not found");
         }
 
-        console.log(`🔄 Updating event type from '${identifier}' to '${eventTypeData.name}'`);
+        console.log(` Updating event type from '${identifier}' to '${eventTypeData.name}'`);
 
         // URL encode the OLD name for the endpoint
         const encodedName = encodeURIComponent(identifier);
         url = `${BACKEND_URL}/event-types/${encodedName}`;
         method = 'PUT';
 
-        console.log("🔍 Update URL:", url);
+        console.log(" Update URL:", url);
       } else {
         // Creating new event type
         url = `${BACKEND_URL}/event-types`;
         method = 'POST';
-        console.log("🔍 Create URL:", url);
+        console.log(" Create URL:", url);
       }
 
       const response = await fetch(url, {
@@ -2674,7 +2639,7 @@ const handleDeleteType = useCallback(async () => {
         body: JSON.stringify(eventTypeData)
       });
 
-      console.log("🔍 Response status:", response.status, response.statusText);
+      console.log(" Response status:", response.status, response.statusText);
 
       if (!response.ok) {
         let errorData;
@@ -2684,12 +2649,12 @@ const handleDeleteType = useCallback(async () => {
           errorData = { detail: `HTTP ${response.status}: ${response.statusText}` };
         }
 
-        console.error("❌ Server error:", errorData);
+        console.error(" Server error:", errorData);
         throw new Error(errorData.detail || `Failed to save event type: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log("✅ Event type saved successfully:", result);
+      console.log(" Event type saved successfully:", result);
 
       // Close modal and reset state
       setEventTypesModalOpen(false);
@@ -2700,7 +2665,7 @@ const handleDeleteType = useCallback(async () => {
 
       // Update filter if name changed
       if (oldName && selectedEventTypeFilter === oldName && result.name !== oldName) {
-        console.log(`🔄 Updating filter from '${oldName}' to '${result.name}'`);
+        console.log(` Updating filter from '${oldName}' to '${result.name}'`);
         setSelectedEventTypeFilter(result.name);
       }
 
@@ -2708,7 +2673,7 @@ const handleDeleteType = useCallback(async () => {
       return result;
 
     } catch (error) {
-      console.error(`❌ Error saving event type:`, error);
+      console.error(` Error saving event type:`, error);
       toast.error(`Failed to save event type: ${error.message}`);
       throw error;
     }
@@ -2721,7 +2686,7 @@ const handleDeleteType = useCallback(async () => {
 
   const handleCreateEventType = async (eventTypeData) => {
     try {
-      console.log("🎯 Creating event type:", eventTypeData);
+      console.log(" Creating event type:", eventTypeData);
 
       const token = localStorage.getItem("token");
       const response = await fetch(`${BACKEND_URL}/event-types`, {
@@ -2735,7 +2700,7 @@ const handleDeleteType = useCallback(async () => {
 
       if (response.ok) {
         const newEventType = await response.json();
-        console.log("✅ Event type created successfully:", newEventType);
+        console.log(" Event type created successfully:", newEventType);
 
         // Refresh event types list
         await fetchEventTypes();
@@ -2759,7 +2724,7 @@ const handleDeleteType = useCallback(async () => {
 
   const handleUpdateEventType = async (eventTypeData, eventTypeIdentifier) => {
     try {
-      console.log("🎯 Updating event type:", { eventTypeData, eventTypeIdentifier });
+      console.log(" Updating event type:", { eventTypeData, eventTypeIdentifier });
 
       // Use the original name from the editing event type, not the new name
       const originalEventType = editingEventType || eventTypes.find(et =>
@@ -2771,7 +2736,7 @@ const handleDeleteType = useCallback(async () => {
       }
 
       const originalName = originalEventType.name;
-      console.log("🔍 Original event type name:", originalName);
+      console.log(" Original event type name:", originalName);
 
       const token = localStorage.getItem("token");
 
@@ -2788,7 +2753,7 @@ const handleDeleteType = useCallback(async () => {
 
       if (response.ok) {
         const updatedEventType = await response.json();
-        console.log("✅ Event type updated successfully:", updatedEventType);
+        console.log(" Event type updated successfully:", updatedEventType);
 
         // Refresh event types list
         await fetchEventTypes();
@@ -2896,7 +2861,7 @@ const handleDeleteType = useCallback(async () => {
       endpointType = "other";
     }
 
-    console.log("🔍 Fetching with status filter:", selectedStatus, fetchParams);
+    console.log(" Fetching with status filter:", selectedStatus, fetchParams);
 
     if (endpointType === "cells") {
       if (isAdmin) {
@@ -2960,7 +2925,7 @@ const handleDeleteType = useCallback(async () => {
   ]);
 
   useEffect(() => {
-    console.log("🔍 LEADER AT 12 DEBUG:", {
+    console.log(" LEADER AT 12 DEBUG:", {
       isLeaderAt12,
       currentUserLeaderAt1,
       viewFilter,
@@ -2984,7 +2949,7 @@ const handleDeleteType = useCallback(async () => {
     ];
 
     const handleStatusClick = (statusValue) => {
-      console.log("🎯 Status badge clicked:", statusValue);
+      console.log(" Status badge clicked:", statusValue);
       setSelectedStatus(statusValue);
       setCurrentPage(1);
 
@@ -3002,7 +2967,7 @@ const handleDeleteType = useCallback(async () => {
         ...(shouldApplyPersonalFilter && { personal: true }),
       };
 
-      // 🔥 CRITICAL: Always send status parameter when filtering (except for 'all')
+      //  CRITICAL: Always send status parameter when filtering (except for 'all')
       if (statusValue && statusValue !== 'all') {
         fetchParams.status = statusValue;
       }
@@ -3024,7 +2989,7 @@ const handleDeleteType = useCallback(async () => {
         }
       }
 
-      console.log("🔄 Fetching with status:", statusValue, fetchParams);
+      console.log(" Fetching with status:", statusValue, fetchParams);
       fetchEvents(fetchParams, true, true);
     };
 
@@ -3048,7 +3013,7 @@ const handleDeleteType = useCallback(async () => {
   };
 
 
-  console.log("🔍 DEBUG User Role:", {
+  console.log(" DEBUG User Role:", {
     userRole: userRole,
     isLeaderAt12: isLeaderAt12,
     isAdmin: isAdmin,
@@ -3201,7 +3166,7 @@ const handleDeleteType = useCallback(async () => {
     const canEditEventTypes = isAdmin;
 
     const handleEventTypeClick = (typeValue) => {
-      console.log("🎯 Event type clicked:", typeValue);
+      console.log(" Event type clicked:", typeValue);
 
       setSelectedEventTypeFilter(typeValue);
 
@@ -3250,7 +3215,7 @@ const handleDeleteType = useCallback(async () => {
         delete fetchParams.include_subordinate_cells;
       }
 
-      console.log("🔍 Fetching events with params:", fetchParams);
+      console.log(" Fetching events with params:", fetchParams);
       fetchEvents(fetchParams, true);
     };
 
@@ -3338,7 +3303,7 @@ const handleDeleteType = useCallback(async () => {
     const allTypes = useMemo(() => {
       const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
 
-      // ✅ FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
+      //  FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
       if (isAdmin) {
         // Admin sees everything
         const adminTypes = ["all"];
@@ -3351,7 +3316,7 @@ const handleDeleteType = useCallback(async () => {
         availableTypes.forEach(type => {
           registrantTypes.push(type);
         });
-        console.log("🎯 Registrant event types:", registrantTypes);
+        console.log(" Registrant event types:", registrantTypes);
         return registrantTypes;
       } else if (isLeaderAt12) {
         const leaderTypes = ["all"];
@@ -3493,7 +3458,7 @@ const handleDeleteType = useCallback(async () => {
                   {displayName}
                 </span>
 
-                {/* ✅ FIXED: Show edit menu for admin users */}
+                {/*  FIXED: Show edit menu for admin users */}
                 {showMenu && (
                   <IconButton
                     size="small"
@@ -3512,7 +3477,7 @@ const handleDeleteType = useCallback(async () => {
                       fontSize: '12px',
                       padding: '1px',
                       minWidth: 'auto',
-                      // ✅ Make it always visible on mobile, hover-only on desktop
+                      //  Make it always visible on mobile, hover-only on desktop
                       opacity: isMobileView ? 1 : (isHovered || isActive ? 1 : 0),
                       transition: 'opacity 0.2s ease',
                     }}
