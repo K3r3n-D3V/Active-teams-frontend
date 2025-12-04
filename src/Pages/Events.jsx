@@ -715,7 +715,7 @@ const Events = () => {
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
-  const [isLeaderAt12, setIsLeaderAt12] = useState(false);
+  const [isLeaderAt12, setIsLeaderAt12] = useState();
   const navigate = useNavigate();
 
   const initialViewFilter = useMemo(() => {
@@ -823,13 +823,15 @@ const Events = () => {
     },
   }
 
-  useEffect(() => {
+useEffect(() => {
     const checkLeaderAt12Status = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) {
           return;
         }
+
+        setIsCheckingLeaderStatus(true);
 
         const response = await axios.get(
           `${BACKEND_URL}/check-leader-at-12-status`,
@@ -839,18 +841,31 @@ const Events = () => {
           }
         );
 
-        console.log("Leader at 12 status check:", response.data);
+        console.log(" Leader at 12 status check:", response.data);
+       
         setIsLeaderAt12(response.data.is_leader_at_12);
+        setIsCheckingLeaderStatus(false);
       } catch (error) {
         console.error("Error checking Leader at 12 status:", error);
-        setIsLeaderAt12(false);
+        
+        try {
+          const leaders = JSON.parse(localStorage.getItem("leaders"));
+          const checkIfLeader12 = leaders && !leaders.leaderAt12;
+          
+          console.log(" USING LOCAL STORAGE", checkIfLeader12);
+          setIsLeaderAt12(checkIfLeader12);
+        } catch (parseError) {
+          console.error("Failed to parse leaders from localStorage:", parseError);
+          setIsLeaderAt12(false);
+        } 
+        setIsCheckingLeaderStatus(false);
       }
     };
 
     checkLeaderAt12Status();
   }, [BACKEND_URL]);
 
- const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
+const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
   console.log("fetchEvents - START", {
     filters,
     forceRefresh,
@@ -890,6 +905,7 @@ const Events = () => {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
       start_date: startDateParam,
+      
     };
 
     // CRITICAL FIX: ALWAYS pass event_type if provided
@@ -912,17 +928,14 @@ const Events = () => {
       }
     });
 
-    // CRITICAL FIX: Determine endpoint CORRECTLY
     let endpoint;
     const eventTypeToUse = params.event_type || selectedEventTypeFilter;
     
-    // If event_type is explicitly set and NOT "CELLS", use /events/other
-    // If event_type is "CELLS" or "all" or undefined/null, use /events/cells
+  
     if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
       endpoint = `${BACKEND_URL}/events/other`;
-      console.log(`🔵 Using OTHER EVENTS endpoint for event type: "${eventTypeToUse}"`);
+      console.log(` Using OTHER EVENTS endpoint for event type: "${eventTypeToUse}"`);
       
-      // Remove personal filters for non-cell events
       delete params.personal;
       delete params.leader_at_12_view;
       delete params.show_personal_cells;
@@ -931,7 +944,7 @@ const Events = () => {
       delete params.leader_at_1_identifier;
     } else {
       endpoint = `${BACKEND_URL}/events/cells`;
-      console.log("🟢 Using CELLS endpoint");
+      console.log(" Using CELLS endpoint");
       
       // Apply role-based filters for cells
       if (isRegistrant || isRegularUser) {
@@ -979,15 +992,37 @@ const Events = () => {
       }
     }
 
-    console.log("Making fresh API call to:", endpoint);
+    params.isLeaderAt12 = isLeaderAt12 
+    params.firstName = currentUser.name
+    params.userSurname = currentUser.surname
+
+    console.log("Making fresh API call",params);
     const response = await axios.get(endpoint, {
       headers,
       params,
       timeout: 60000
     });
 
-    const responseData = response.data;
-    const newEvents = responseData.events || responseData.results || [];
+      const responseData = response.data;
+      const newEvents = responseData.events || responseData.results || [];
+
+      console.log('BACKEND RESPONSE:', responseData);
+      console.log('Total events:', responseData.total_events);
+      console.log('Events found:', newEvents.length);
+
+      if (newEvents.length > 0) {
+        console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
+          name: e.eventName,
+          type: e.eventType,
+          typeName: e.eventTypeName,
+          status: e.status, 
+          id: e._id
+        })));
+      } else {
+        console.log('No events returned');
+        console.log('No events found for the current filters');
+        console.log('Filters applied:', params);
+      }
 
     console.log('API Response:', {
       endpoint,
@@ -3022,9 +3057,10 @@ const handleDeleteType = useCallback(async () => {
   });
 
   const ViewFilterButtons = () => {
-    const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus)) &&
+    console.log("IS A LEADER AT 12",isLeaderAt12)
+    const shouldShowToggle = (isAdmin || (isLeaderAt12)) &&
       (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
-
+   
     if (isRegularUser || isRegistrant) {
       return null;
     }
@@ -3042,6 +3078,7 @@ const handleDeleteType = useCallback(async () => {
 
       setViewFilter(newViewFilter);
       setCurrentPage(1);
+      
 
       const fetchParams = {
         page: 1,
@@ -3069,6 +3106,7 @@ const handleDeleteType = useCallback(async () => {
         }
       }
       else if (isLeaderAt12) {
+        
         fetchParams.leader_at_12_view = true;
         fetchParams.include_subordinate_cells = true;
 
