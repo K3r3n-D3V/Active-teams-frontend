@@ -715,7 +715,7 @@ const Events = () => {
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
-  const [isLeaderAt12, setIsLeaderAt12] = useState(false);
+  const [isLeaderAt12, setIsLeaderAt12] = useState();
   const navigate = useNavigate();
 
   const initialViewFilter = useMemo(() => {
@@ -840,10 +840,14 @@ const Events = () => {
         );
 
         console.log("Leader at 12 status check:", response.data);
-        setIsLeaderAt12(response.data.is_leader_at_12);
+       
+        setIsLeaderAt12(response.data.is_leader_at_12)
       } catch (error) {
         console.error("Error checking Leader at 12 status:", error);
-        setIsLeaderAt12(false);
+        const checkIfLeader12= !JSON.parse(localStorage.getItem("leaders")).leaderAt12
+        
+        console.log("USING  LOCAL STORAGE",checkIfLeader12)
+        setIsLeaderAt12(checkIfLeader12);
       }
     };
 
@@ -902,6 +906,7 @@ const Events = () => {
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
       start_date: startDateParam,
+      
     };
 
     // Only add valid filters one by one
@@ -1014,7 +1019,11 @@ const Events = () => {
       }
     }
 
-    console.log("Making fresh API call");
+    params.isLeaderAt12 = isLeaderAt12 
+    params.firstName = currentUser.name
+    params.userSurname = currentUser.surname
+
+    console.log("Making fresh API call",params);
     const response = await axios.get(endpoint, {
       headers,
       params,
@@ -1024,7 +1033,7 @@ const Events = () => {
       const responseData = response.data;
       const newEvents = responseData.events || responseData.results || [];
 
-      console.log('BACKEND RESPONSE:');
+      console.log('BACKEND RESPONSE:', responseData);
       console.log('Total events:', responseData.total_events);
       console.log('Events found:', newEvents.length);
 
@@ -3057,9 +3066,10 @@ const handleDeleteType = useCallback(async () => {
   });
 
   const ViewFilterButtons = () => {
-    const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus)) &&
+    console.log("IS A LEADER AT 12",isLeaderAt12)
+    const shouldShowToggle = (isAdmin || (isLeaderAt12)) &&
       (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
-
+   
     if (isRegularUser || isRegistrant) {
       return null;
     }
@@ -3077,6 +3087,7 @@ const handleDeleteType = useCallback(async () => {
 
       setViewFilter(newViewFilter);
       setCurrentPage(1);
+      
 
       const fetchParams = {
         page: 1,
@@ -3104,6 +3115,7 @@ const handleDeleteType = useCallback(async () => {
         }
       }
       else if (isLeaderAt12) {
+        
         fetchParams.leader_at_12_view = true;
         fetchParams.include_subordinate_cells = true;
 
