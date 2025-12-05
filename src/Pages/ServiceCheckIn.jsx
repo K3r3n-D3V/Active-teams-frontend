@@ -2665,7 +2665,7 @@ const getFilteredEvents = (eventsList = events) => {
         }}>
           <TextField
             size="small"
-            placeholder="Search same as DataGrid (name, phone, email, leaders...)"
+            placeholder="Search..."
             value={modalSearch}
             onChange={(e) => { setModalSearch(e.target.value); setModalPage(0); }}
             fullWidth
@@ -2852,7 +2852,7 @@ const getFilteredEvents = (eventsList = events) => {
         <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
           <TextField
             size="small"
-            placeholder="Search same as DataGrid (name, phone, email, leaders...)"
+            placeholder="Search..."
             value={newPeopleSearch}
             onChange={(e) => { setNewPeopleSearch(e.target.value); setNewPeoplePage(0); }}
             fullWidth
@@ -2978,7 +2978,7 @@ const getFilteredEvents = (eventsList = events) => {
         <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
           <TextField
             size="small"
-            placeholder="Search same as DataGrid (name, phone, email, leaders...)"
+            placeholder="Search..."
             value={consolidatedSearch}
             onChange={(e) => { setConsolidatedSearch(e.target.value); setConsolidatedPage(0); }}
             fullWidth
