@@ -477,29 +477,35 @@ function ServiceCheckIn() {
   };
 
   // Event filtering functions - exclude events that didn't meet
-  const getFilteredEvents = (eventsList = events) => {
-    const filteredEvents = eventsList.filter(event => {
-      const isGlobal = event.isGlobal === true || 
-                      event.eventType === "Global Events" || 
-                      event.eventType === "Event" ||
-                      event.eventType?.toLowerCase().includes("event");
-      const eventStatus = event.status?.toLowerCase() || '';
-      const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
-      const didMeet = eventStatus !== 'cancelled' && eventStatus !== 'did_not_meet';
-      return isGlobal && isNotClosed && didMeet;
-    });
-    return filteredEvents;
-  };
-
-  const getClosedEvents = () => {
-    return events.filter(event => {
-      const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'complete';
-      const isGlobal = event.eventType === "Global Events";
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-      const didMeet = event.status?.toLowerCase() !== 'cancelled' && event.status?.toLowerCase() !== 'did_not_meet';
-      return isClosed && isGlobal && isNotCell && didMeet;
-    });
-  };
+const getFilteredEvents = (eventsList = events) => {
+  // Get today's date in YYYY-MM-DD format
+  const today = new Date();
+  const todayDateString = today.toISOString().split('T')[0]; // "2024-01-19"
+  
+  const filteredEvents = eventsList.filter(event => {
+    const isGlobal = event.isGlobal === true || 
+                    event.eventType === "Global Events" || 
+                    event.eventType === "Event" ||
+                    event.eventType?.toLowerCase().includes("event");
+    
+    const eventStatus = event.status?.toLowerCase() || '';
+    const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
+    const didMeet = eventStatus !== 'cancelled' && eventStatus !== 'did_not_meet';
+    
+    // Check if event date matches today
+    let eventDateString = '';
+    if (event.date) {
+      const eventDate = new Date(event.date);
+      eventDateString = eventDate.toISOString().split('T')[0];
+    }
+    
+    const isForToday = eventDateString === todayDateString;
+    
+    return isGlobal && isNotClosed && didMeet && isForToday;
+  });
+  
+  return filteredEvents;
+};
 
   const getFilteredClosedEvents = () => {
     const closedEvents = events.filter(event => {
