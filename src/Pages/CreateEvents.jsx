@@ -644,73 +644,85 @@ if (!formData.recurringDays || formData.recurringDays.length === 0) {
       px: 2,
     };
 
-  const cardStyle = isModal
-    ? {
-      width: "100%",
-      height: "100%",
-      padding: "1.5rem",
-      borderRadius: 0,
-      boxShadow: "none",
-      backgroundColor: "transparent",
-      maxHeight: "none",
-      overflow: "visible",
-    }
-    : {
-      width: { xs: "100%", sm: "85%", md: "700px" },
-      p: 5,
-      borderRadius: "20px",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-    };
+  // Replace the current cardStyle (around line 530-545)
+const cardStyle = isModal
+  ? {
+    width: "100%",
+    height: "100%",
+    padding: isModal ? "1.5rem" : "0",
+    borderRadius: 0,
+    boxShadow: "none",
+    backgroundColor: "transparent",
+    maxHeight: "none",
+    overflow: "visible",
+  }
+  : {
+    width: { xs: "100%", sm: "90%", md: "750px" },
+    p: { xs: 3, sm: 4, md: 5 },
+    borderRadius: "20px",
+    boxShadow: isDarkMode 
+      ? "0 10px 40px rgba(0,0,0,0.3)" 
+      : "0 10px 40px rgba(0,0,0,0.1)",
+    backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+    border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+    position: "relative",
+    "&:before": isDarkMode ? {
+      content: '""',
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: "4px",
+      background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+      borderTopLeftRadius: "20px",
+      borderTopRightRadius: "20px",
+    } : {}
+  };
 
   const darkModeStyles = {
   textField: {
-    "& .MuiOutlinedInput-root": {
-      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-      color: theme.palette.text.primary,
-      "& fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.divider
-          : "rgba(0, 0, 0, 0.23)",
-      },
-      "&:hover fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.primary.light
-          : "rgba(0, 0, 0, 0.87)",
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: theme.palette.primary.main,
-        boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
-      },
-      "& input": {
-        color: theme.palette.text.primary,
-        WebkitTextFillColor: theme.palette.text.primary,
-      },
-      "& textarea": {
-        color: theme.palette.text.primary,
-      },
+  "& .MuiOutlinedInput-root": {
+    bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#fff",
+    color: theme.palette.text.primary,
+    borderRadius: "10px",
+    transition: "all 0.2s ease",
+    "& fieldset": {
+      borderColor: isDarkMode
+        ? theme.palette.divider
+        : "rgba(0, 0, 0, 0.15)",
+      borderWidth: "1.5px",
     },
-
-    // ✅ Make date/time picker icons white in dark mode
-    "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-      color: isDarkMode ? "#fff" : theme.palette.text.secondary,
+    "&:hover fieldset": {
+      borderColor: isDarkMode
+        ? theme.palette.primary.light
+        : theme.palette.primary.main,
     },
-
-    "& .MuiInputLabel-root": {
-      color: theme.palette.text.secondary,
-      "&.Mui-focused": {
-        color: theme.palette.primary.main,
-      },
-      "&.MuiInputLabel-shrink": {
-        color: theme.palette.text.secondary,
-      },
-    },
-    "& .MuiFormHelperText-root": {
-      color: theme.palette.text.secondary,
-      "&.Mui-error": {
-        color: theme.palette.error.main,
-      },
+    "&.Mui-focused fieldset": {
+      borderColor: theme.palette.primary.main,
+      borderWidth: "2px",
+      boxShadow: `0 0 0 3px ${isDarkMode ? theme.palette.primary.main + '20' : theme.palette.primary.main + '15'}`,
     },
   },
+  
+  // Keep your existing icon styling
+  "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+    color: isDarkMode ? "#fff" : theme.palette.text.secondary,
+  },
+
+  "& .MuiInputLabel-root": {
+    color: theme.palette.text.secondary,
+    fontWeight: 500,
+    "&.Mui-focused": {
+      color: theme.palette.primary.main,
+      fontWeight: 600,
+    },
+  },
+  
+  "& .MuiFormHelperText-root": {
+    marginLeft: "4px",
+    fontSize: "0.75rem",
+  },
+},
 
   autocomplete: {
     "& .MuiOutlinedInput-root": {

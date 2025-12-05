@@ -1,3 +1,4 @@
+// Events.jsx
 import axios from "axios";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "react-router-dom";
@@ -306,16 +307,18 @@ const fabStyles = {
   },
   fabMenuItem: {
     display: "flex",
-    alignItems: "center",
-    gap: "12px",
+    alignItems: "center",        // Keep vertical centering
+    justifyContent: "center",    // Add horizontal centering
+    gap: "8px",                  // Reduce gap for better centering
     background: "#fff",
-    padding: "12px 16px",
+    padding: "12px 20px",        // Increase horizontal padding
     borderRadius: "50px",
     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
     cursor: "pointer",
     whiteSpace: "nowrap",
     transition: "all 0.2s ease",
     border: "1px solid #e0e0e0",
+    minWidth: "140px",           // Add minimum width for consistency
     '&:hover': {
       transform: 'translateY(-2px)',
       boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
@@ -330,12 +333,15 @@ const fabStyles = {
     fontSize: "14px",
     fontWeight: "600",
     color: "#333",
+    textAlign: "center", 
+    paddingLeft: "14%",        // Add text alignment
+    flex: 1,                     // Allow text to take available space
+    margin: "0 auto",            // Center text within flex container
   },
   fabMenuIcon: {
     width: "24px",
     height: "24px",
     borderRadius: "50%",
-    // backgroundColor: "#007bff",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -477,53 +483,61 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
 
     return !shouldExclude;
   });
-  console.log("Sample event",sampleEvent)
-  console.log("filteredFields",filteredFields)
+
   const columns = [];
 
-  columns.push({
-    field: 'overdue',
-    headerName: 'Status',
-    flex: 0.8,
-    minWidth: 100,
-    renderCell: (params) => {
-      const isOverdueEvent = isOverdue(params.row);
-      const status = params.row.status || 'incomplete';
+  // ✅ FIX: Only add Status column for CELLS event types
+  const shouldShowStatusColumn = () => {
+    if (!selectedEventTypeFilter) return false;
+    const normalized = selectedEventTypeFilter.toString().toUpperCase();
+    return normalized === 'ALL' || normalized === 'CELLS';
+  };
 
-      // Only show OVERDUE for Cells
-      if (isOverdueEvent && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
+  if (shouldShowStatusColumn()) {
+    columns.push({
+      field: 'overdue',
+      headerName: 'Status',
+      flex: 0.8,
+      minWidth: 100,
+      renderCell: (params) => {
+        const isOverdueEvent = isOverdue(params.row);
+        const status = params.row.status || 'incomplete';
+
+        // Only show OVERDUE for Cells
+        if (isOverdueEvent && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
+          return (
+            <Box
+              sx={{
+                color: '#dc3545',
+                fontSize: '0.8rem',
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap',
+                textAlign: 'center',
+                width: '100%',
+              }}
+            >
+              OVERDUE
+            </Box>
+          );
+        }
+
         return (
           <Box
             sx={{
-              color: '#dc3545',
+              color: status === 'complete' ? '#28a745' : status === 'did_not_meet' ? '#dc3545' : '#6c757d',
+              fontWeight: '500',
               fontSize: '0.8rem',
-              fontWeight: 'bold',
-              whiteSpace: 'nowrap',
+              textTransform: 'capitalize',
               textAlign: 'center',
               width: '100%',
             }}
           >
-            OVERDUE
+            {status.replace('_', ' ')}
           </Box>
         );
-      }
-console.log("columns",columns)
-      return (
-        <Box
-          sx={{
-            color: status === 'complete' ? '#28a745' : status === 'did_not_meet' ? '#dc3545' : '#6c757d',
-            fontWeight: '500',
-            fontSize: '0.8rem',
-            textTransform: 'capitalize',
-            textAlign: 'center',
-            width: '100%',
-          }}
-        >
-          {status.replace('_', ' ')}
-        </Box>
-      );
-    },
-  });
+      },
+    });
+  }
 
   // Add other filtered fields
   columns.push(...filteredFields.map((key) => ({
@@ -2975,77 +2989,105 @@ const handleDeleteType = useCallback(async () => {
     });
   }, [isLeaderAt12, currentUserLeaderAt1, viewFilter, selectedEventTypeFilter, events]);
 
+const StatusBadges = ({ 
+  selectedStatus, 
+  setSelectedStatus, 
+  setCurrentPage 
+}) => {
+  // Create a helper function to check if we should show badges
+  const shouldShowBadges = () => {
+    if (!selectedEventTypeFilter) return false;
+    
+    // Convert to uppercase for case-insensitive comparison
+    const normalized = selectedEventTypeFilter.toString().toUpperCase();
+    
+    // Show badges only for "all" (which is CELLS) or "CELLS"
+    return normalized === 'ALL' || normalized === 'CELLS';
+  };
 
-  const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
-    const statuses = [
-      { value: 'incomplete', label: 'INCOMPLETE', style: styles.statusBadgeIncomplete },
-      { value: 'complete', label: 'COMPLETE', style: styles.statusBadgeComplete },
-      { value: 'did_not_meet', label: 'DID NOT MEET', style: styles.statusBadgeDidNotMeet }
-    ];
+  // Don't render anything if not showing for CELLS
+  if (!shouldShowBadges()) {
+    console.log("❌ StatusBadges - Not rendering because event type is:", selectedEventTypeFilter);
+    return null;
+  }
 
-    const handleStatusClick = (statusValue) => {
-      console.log("🎯 Status badge clicked:", statusValue);
-      setSelectedStatus(statusValue);
-      setCurrentPage(1);
+  console.log("✅ StatusBadges - Rendering for event type:", selectedEventTypeFilter);
 
-      const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
-        (userRole === "admin" || userRole === "leader at 12");
+  const statuses = [
+    { value: 'incomplete', label: 'INCOMPLETE', style: styles.statusBadgeIncomplete },
+    { value: 'complete', label: 'COMPLETE', style: styles.statusBadgeComplete },
+    { value: 'did_not_meet', label: 'DID NOT MEET', style: styles.statusBadgeDidNotMeet }
+  ];
 
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now(),
-        ...(searchQuery.trim() && { search: searchQuery.trim() }),
-        ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
-        ...(shouldApplyPersonalFilter && { personal: true }),
-      };
+  const handleStatusClick = (statusValue) => {
+    console.log("🎯 Status badge clicked:", statusValue);
+    setSelectedStatus(statusValue);
+    setCurrentPage(1);
 
-      // 🔥 CRITICAL: Always send status parameter when filtering (except for 'all')
-      if (statusValue && statusValue !== 'all') {
-        fetchParams.status = statusValue;
-      }
+    // Only filter by status for CELLS event types
+    if (!shouldShowBadges()) {
+      console.log("⚠️ Status filtering only available for CELLS event type");
+      return;
+    }
 
-      // Leader at 12 params for cells
-      if (isLeaderAt12 && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
-        fetchParams.leader_at_12_view = true;
-        fetchParams.include_subordinate_cells = true;
+    const shouldApplyPersonalFilter =
+      viewFilter === 'personal' &&
+      (userRole === "admin" || userRole === "leader at 12");
 
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === 'personal') {
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          fetchParams.show_all_authorized = true;
-        }
-      }
-
-      console.log("🔄 Fetching with status:", statusValue, fetchParams);
-      fetchEvents(fetchParams, true, true);
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now(),
+      ...(searchQuery.trim() && { search: searchQuery.trim() }),
+      ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
+      ...(shouldApplyPersonalFilter && { personal: true }),
     };
 
-    return (
-      <div style={styles.statusBadgeContainer}>
-        {statuses.map(status => (
-          <button
-            key={status.value}
-            style={{
-              ...styles.statusBadge,
-              ...status.style,
-              ...(selectedStatus === status.value ? styles.statusBadgeActive : {})
-            }}
-            onClick={() => handleStatusClick(status.value)}
-          >
-            {status.label}
-          </button>
-        ))}
-      </div>
-    );
+    // 🔥 CRITICAL: Always send status parameter when filtering (except for 'all')
+    if (statusValue && statusValue !== 'all') {
+      fetchParams.status = statusValue;
+    }
+
+    // Leader at 12 params for cells
+    if (isLeaderAt12 && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
+
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+      }
+
+      if (viewFilter === 'personal') {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+      }
+    }
+
+    console.log("🔄 Fetching with status:", statusValue, fetchParams);
+    fetchEvents(fetchParams, true, true);
   };
+
+  return (
+    <div style={styles.statusBadgeContainer}>
+      {statuses.map(status => (
+        <button
+          key={status.value}
+          style={{
+            ...styles.statusBadge,
+            ...status.style,
+            ...(selectedStatus === status.value ? styles.statusBadgeActive : {})
+          }}
+          onClick={() => handleStatusClick(status.value)}
+        >
+          {status.label}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 
   console.log("🔍 DEBUG User Role:", {
@@ -3057,20 +3099,34 @@ const handleDeleteType = useCallback(async () => {
   });
 
   const ViewFilterButtons = () => {
-    const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus)) &&
-      (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
+  // Create helper function (same logic as StatusBadges)
+  const isCellsEventType = (eventType) => {
+    if (!eventType) return false;
+    const normalized = eventType.toString().toUpperCase();
+    return normalized === 'ALL' || normalized === 'CELLS';
+  };
 
-    if (isRegularUser || isRegistrant) {
-      return null;
-    }
+  const shouldShowToggle = (isAdmin || (isLeaderAt12 && !isCheckingLeaderStatus)) &&
+    isCellsEventType(selectedEventTypeFilter);
 
-    if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all' && selectedEventTypeFilter !== 'CELLS') {
-      return null;
-    }
+  console.log("🔍 ViewFilterButtons - shouldShowToggle:", shouldShowToggle, {
+    selectedEventTypeFilter,
+    isAdmin,
+    isLeaderAt12,
+    isCheckingLeaderStatus
+  });
 
-    if (!shouldShowToggle) {
-      return null;
-    }
+  if (isRegularUser || isRegistrant) {
+    return null;
+  }
+
+  if (selectedEventTypeFilter && !isCellsEventType(selectedEventTypeFilter)) {
+    return null;
+  }
+
+  if (!shouldShowToggle) {
+    return null;
+  }
 
     const handleViewFilterChange = (newViewFilter) => {
       console.log("View filter changing:", newViewFilter);
@@ -3591,159 +3647,178 @@ const handleDeleteType = useCallback(async () => {
       backgroundColor: isDarkMode ? theme.palette.background.default : '#f5f7fa',
     }}>
 
-      <Box sx={{
-        padding: isMobileView ? "1rem" : "1.5rem",
-        borderRadius: "16px",
-        marginBottom: isMobileView ? "0.5rem" : "1rem",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-        flexShrink: 0,
-        backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
+     <Box sx={{
+  padding: isMobileView ? "1rem" : "1.5rem",
+  borderRadius: "16px",
+  marginBottom: isMobileView ? "0.5rem" : "1rem",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+  flexShrink: 0,
+  backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
+}}>
+
+  <EventTypeSelector
+    eventTypes={eventTypes}
+    selectedEventTypeFilter={selectedEventTypeFilter}
+    setSelectedEventTypeFilter={setSelectedEventTypeFilter}
+    fetchEvents={fetchEvents}
+    setCurrentPage={setCurrentPage}
+    rowsPerPage={rowsPerPage}
+    selectedStatus={selectedStatus}
+    searchQuery={searchQuery}
+    viewFilter={viewFilter}
+    userRole={userRole}
+    setSelectedEventTypeObj={setSelectedEventTypeObj}
+    DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
+    isLeaderAt12={isLeaderAt12}
+    isAdmin={isAdmin}
+    isRegistrant={isRegistrant}
+    isRegularUser={isRegularUser}
+    setEditingEventType={setEditingEventType}
+    setEventTypesModalOpen={setEventTypesModalOpen}
+    setToDeleteType={setToDeleteType}
+    setConfirmDeleteOpen={setConfirmDeleteOpen}
+    clearCache={clearCache}
+  />
+  
+  <Box sx={{
+    display: "flex",
+    gap: 2,
+    alignItems: "center",
+    marginBottom: isMobileView ? "0.75rem" : "1.5rem",
+    flexWrap: "wrap",
+    px: 1
+  }}>
+    {/* Search field - keep as-is */}
+    <TextField
+      size="small"
+      placeholder="Search by Event Name, Leader, or Email..."
+      value={searchQuery}
+      onChange={handleSearchChange}
+      onKeyPress={(e) => {
+        if (e.key === 'Enter') {
+          handleSearchSubmit();
+        }
+      }}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchIcon />
+          </InputAdornment>
+        ),
+      }}
+      sx={{
+        flex: 1,
+        minWidth: 200,
+        backgroundColor: 'transparent !important',
+        '& .MuiInputBase-root': {
+          backgroundColor: 'transparent !important',
+        },
+        '& .MuiInputBase-input': {
+          fontSize: isMobileView ? '14px' : '0.95rem',
+          padding: isMobileView ? '0.6rem 0.8rem' : '0.75rem 1rem',
+          color: isDarkMode ? theme.palette.text.primary : '#000',
+          backgroundColor: 'transparent !important',
+        },
+        '& .MuiOutlinedInput-root': {
+          backgroundColor: 'transparent !important',
+          '& fieldset': {
+            borderColor: isDarkMode ? theme.palette.divider : '#ccc',
+            backgroundColor: 'transparent !important',
+          },
+          '&:hover fieldset': {
+            borderColor: isDarkMode ? theme.palette.primary.main : '#007bff',
+          },
+          '&.Mui-focused fieldset': {
+            borderColor: isDarkMode ? theme.palette.primary.main : '#007bff',
+          },
+          '&:hover': {
+            backgroundColor: 'transparent !important',
+          },
+          '&.Mui-focused': {
+            backgroundColor: 'transparent !important',
+          },
+        },
+        '& input': {
+          backgroundColor: 'transparent !important',
+        },
+        '& input:-webkit-autofill': {
+          WebkitBoxShadow: isDarkMode ? '0 0 0 1000px #1a1a1a inset !important' : '0 0 0 1000px white inset !important',
+          WebkitTextFillColor: isDarkMode ? '#fff !important' : '#000 !important',
+        },
+      }}
+    />
+
+    {/* Search button - keep as-is */}
+    <Button
+      variant="contained"
+      onClick={handleSearchSubmit}
+      disabled={loading}
+      sx={{
+        padding: isMobileView ? '0.6rem 1rem' : '0.75rem 1.5rem',
+        fontSize: isMobileView ? '14px' : '0.95rem',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {loading ? '⏳' : 'SEARCH'}
+    </Button>
+
+    {/* Clear all button - keep as-is */}
+    <Button
+      variant="outlined"
+      onClick={clearAllFilters}
+      disabled={loading}
+      sx={{
+        padding: isMobileView ? '0.6rem 1rem' : '0.75rem 1.5rem',
+        fontSize: isMobileView ? '14px' : '0.95rem',
+        whiteSpace: 'nowrap',
+        backgroundColor: '#6c757d',
+        color: 'white',
+        '&:hover': {
+          backgroundColor: '#5a6268',
+        }
+      }}
+    >
+      {loading ? '⏳' : 'CLEAR ALL'}
+    </Button>
+  </Box>
+
+  {/* THIS IS WHERE YOU ADD THE DEBUG BOX */}
+  <Box sx={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '1.5rem',
+    flexWrap: 'wrap',
+    gap: '1rem',
+    px: 1
+  }}>
+    {/* ADD THE DEBUG BOX HERE */}
+    {/* {process.env.NODE_ENV !== 'production' && (
+      <Box sx={{ 
+        backgroundColor: '#ff0000', 
+        color: 'white', 
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontSize: '10px',
+        marginBottom: '4px',
+        width: '100%'
       }}>
-
-        <EventTypeSelector
-          eventTypes={eventTypes}
-          selectedEventTypeFilter={selectedEventTypeFilter}
-          setSelectedEventTypeFilter={setSelectedEventTypeFilter}
-          fetchEvents={fetchEvents}
-          setCurrentPage={setCurrentPage}
-          rowsPerPage={rowsPerPage}
-          selectedStatus={selectedStatus}
-          searchQuery={searchQuery}
-          viewFilter={viewFilter}
-          userRole={userRole}
-          setSelectedEventTypeObj={setSelectedEventTypeObj}
-          DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
-          isLeaderAt12={isLeaderAt12}
-          isAdmin={isAdmin}
-          isRegistrant={isRegistrant}
-          isRegularUser={isRegularUser}
-          setEditingEventType={setEditingEventType}
-          setEventTypesModalOpen={setEventTypesModalOpen}
-          setToDeleteType={setToDeleteType}
-          setConfirmDeleteOpen={setConfirmDeleteOpen}
-          clearCache={clearCache}
-        />
-        <Box sx={{
-          display: "flex",
-          gap: 2,
-          alignItems: "center",
-          marginBottom: isMobileView ? "0.75rem" : "1.5rem",
-          flexWrap: "wrap",
-          px: 1
-        }}>
-          {/* ... TextField (Search) ... */}
-
-
-<TextField
-  size="small"
-  placeholder="Search by Event Name, Leader, or Email..."
-  value={searchQuery}
-  onChange={handleSearchChange}
-  onKeyPress={(e) => {
-    if (e.key === 'Enter') {
-      handleSearchSubmit();
-    }
-  }}
-  InputProps={{
-    startAdornment: (
-      <InputAdornment position="start">
-        <SearchIcon />
-      </InputAdornment>
-    ),
-  }}
-  sx={{
-    flex: 1,
-    minWidth: 200,
-    backgroundColor: 'transparent !important',
-    '& .MuiInputBase-root': {
-      backgroundColor: 'transparent !important',
-    },
-    '& .MuiInputBase-input': {
-      fontSize: isMobileView ? '14px' : '0.95rem',
-      padding: isMobileView ? '0.6rem 0.8rem' : '0.75rem 1rem',
-      color: isDarkMode ? theme.palette.text.primary : '#000',
-      backgroundColor: 'transparent !important',
-    },
-    '& .MuiOutlinedInput-root': {
-      backgroundColor: 'transparent !important',
-      '& fieldset': {
-        borderColor: isDarkMode ? theme.palette.divider : '#ccc',
-        backgroundColor: 'transparent !important',
-      },
-      '&:hover fieldset': {
-        borderColor: isDarkMode ? theme.palette.primary.main : '#007bff',
-      },
-      '&.Mui-focused fieldset': {
-        borderColor: isDarkMode ? theme.palette.primary.main : '#007bff',
-      },
-      '&:hover': {
-        backgroundColor: 'transparent !important',
-      },
-      '&.Mui-focused': {
-        backgroundColor: 'transparent !important',
-      },
-    },
-    '& input': {
-      backgroundColor: 'transparent !important',
-    },
-    '& input:-webkit-autofill': {
-      WebkitBoxShadow: isDarkMode ? '0 0 0 1000px #1a1a1a inset !important' : '0 0 0 1000px white inset !important',
-      WebkitTextFillColor: isDarkMode ? '#fff !important' : '#000 !important',
-    },
-  }}
-/>
-
-          {/* ... Button (Search) ... */}
-          <Button
-            variant="contained"
-            onClick={handleSearchSubmit}
-            disabled={loading}
-            sx={{
-              padding: isMobileView ? '0.6rem 1rem' : '0.75rem 1.5rem',
-              fontSize: isMobileView ? '14px' : '0.95rem',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {loading ? '⏳' : 'SEARCH'}
-          </Button>
-
-          {/* ... Button (Clear All) ... */}
-          <Button
-            variant="outlined"
-            onClick={clearAllFilters}
-            disabled={loading}
-            sx={{
-              padding: isMobileView ? '0.6rem 1rem' : '0.75rem 1.5rem',
-              fontSize: isMobileView ? '14px' : '0.95rem',
-              whiteSpace: 'nowrap',
-              backgroundColor: '#6c757d',
-              color: 'white',
-              '&:hover': {
-                backgroundColor: '#5a6268',
-              }
-            }}
-          >
-            {loading ? '⏳' : 'CLEAR ALL'}
-          </Button>
-        </Box>
-
-        <Box sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1.5rem',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          px: 1
-        }}>
-          <StatusBadges
-            selectedStatus={selectedStatus}
-            setSelectedStatus={setSelectedStatus}
-            setCurrentPage={setCurrentPage}
-          />
-          <ViewFilterButtons />
-        </Box>
+        🔍 DEBUG: Event Type = "{selectedEventTypeFilter}"
+        <br />
+        Type: {typeof selectedEventTypeFilter}
+        <br />
+        Should show badges: {selectedEventTypeFilter?.toString().toUpperCase() === 'ALL' || selectedEventTypeFilter?.toString().toUpperCase() === 'CELLS' ? 'YES' : 'NO'}
       </Box>
+    )} */}
+    
+    <StatusBadges
+      selectedStatus={selectedStatus}
+      setSelectedStatus={setSelectedStatus}
+      setCurrentPage={setCurrentPage}
+    />
+    <ViewFilterButtons />
+  </Box>
+</Box>
 
       {/* ** 3. SCROLLABLE CONTENT AREA (Flex Grow)** */}
       <Box sx={{
@@ -4162,7 +4237,7 @@ const handleDeleteType = useCallback(async () => {
               tabIndex={fabMenuOpen ? 0 : -1}
               aria-label="Create Event Type"
             >
-              <Typography sx={fabStyles.fabMenuLabel}>Create Event Type</Typography>
+              <Typography sx={fabStyles.fabMenuLabel}>Event Type</Typography>
               <Box sx={fabStyles.fabMenuIcon}></Box>
             </Box>
 
