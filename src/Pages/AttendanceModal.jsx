@@ -4,14 +4,11 @@ import {
   ArrowLeft,
   UserPlus,
   Search,
-  CheckCircle,
   ChevronDown,
   X,
   Menu,
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
-import AddPersonDialog from "../components/AddPersonDialog.jsx";
-
 
 let globalPeopleCache = {
   data: [],
@@ -33,7 +30,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     dob: "",
     address: "",
   });
-  // const [alert, setAlert] = useState({ open: false, type: "success", message: "" });
   const [inviterSearch, setInviterSearch] = useState("");
   const [inviterResults, setInviterResults] = useState([]);
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
@@ -526,64 +522,64 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       fontSize: "12px",
       fontWeight: "600",
     },
-  input: {
-  padding: "12px",
-  fontSize: "16px",
-  borderRadius: "8px",
-  border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
-  outline: "none",
-  width: "100%",
-  boxSizing: "border-box",
+    input: {
+      padding: "12px",
+      fontSize: "16px",
+      borderRadius: "8px",
+      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
 
-  // Theme colors
-  backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
-  color: theme.palette.text.primary,
+      // Theme colors
+      backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
+      color: theme.palette.text.primary,
 
-  // Fix for autofill background
-  "&:-webkit-autofill": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
-    WebkitTextFillColor: theme.palette.text.primary,
-    caretColor: theme.palette.text.primary,
-  },
-  
-  "&:-webkit-autofill:focus": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
-    WebkitTextFillColor: theme.palette.text.primary,
-  },
+      // Fix for autofill background
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        caretColor: theme.palette.text.primary,
+      },
 
-  // Remove default autofill styles
-  transition: "background-color 5000s ease-in-out 0s",
-},
+      "&:-webkit-autofill:focus": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+      },
 
-inputError: {
-  padding: "12px",
-  fontSize: "16px",
-  borderRadius: "8px",
-  border: "2px solid #dc3545",
-  outline: "none",
-  width: "100%",
-  boxSizing: "border-box",
+      // Remove default autofill styles
+      transition: "background-color 5000s ease-in-out 0s",
+    },
 
-  // Theme colors
-  backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
-  color: theme.palette.text.primary,
+    inputError: {
+      padding: "12px",
+      fontSize: "16px",
+      borderRadius: "8px",
+      border: "2px solid #dc3545",
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
 
-  // Fix for autofill background in error state
-  "&:-webkit-autofill": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
-    WebkitTextFillColor: theme.palette.text.primary,
-    caretColor: theme.palette.text.primary,
-    border: "2px solid #dc3545",
-  },
-  
-  "&:-webkit-autofill:focus": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
-    WebkitTextFillColor: theme.palette.text.primary,
-    border: "2px solid #dc3545",
-  },
+      // Theme colors
+      backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
+      color: theme.palette.text.primary,
 
-  transition: "background-color 5000s ease-in-out 0s",
-},
+      // Fix for autofill background in error state
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        caretColor: theme.palette.text.primary,
+        border: "2px solid #dc3545",
+      },
+
+      "&:-webkit-autofill:focus": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        border: "2px solid #dc3545",
+      },
+
+      transition: "background-color 5000s ease-in-out 0s",
+    },
     dropdown: {
       position: "absolute",
       top: "100%",
@@ -1110,31 +1106,31 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       display: "flex",
       alignItems: "center",
     },
-input: {
-  padding: "12px 40px 12px 12px",
-  fontSize: "14px",
-  borderRadius: "8px",
-  border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
-  outline: "none",
-  width: "100%",
-  boxSizing: "border-box",
-  background: isDarkMode ? "#2a2a2a" : "#fff",
-  color: isDarkMode ? "#fff" : "#333",
-  
-  // Fix for autofill
-  "&:-webkit-autofill": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#2a2a2a" : "#fff"} inset`,
-    WebkitTextFillColor: isDarkMode ? "#fff" : "#333",
-    caretColor: isDarkMode ? "#fff" : "#333",
-  },
-  
-  "&:-webkit-autofill:focus": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#2a2a2a" : "#fff"} inset`,
-    WebkitTextFillColor: isDarkMode ? "#fff" : "#333",
-  },
-  
-  transition: "background-color 5000s ease-in-out 0s",
-},
+    input: {
+      padding: "12px 40px 12px 12px",
+      fontSize: "14px",
+      borderRadius: "8px",
+      border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
+      background: isDarkMode ? "#2a2a2a" : "#fff",
+      color: isDarkMode ? "#fff" : "#333",
+
+      // Fix for autofill
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#2a2a2a" : "#fff"} inset`,
+        WebkitTextFillColor: isDarkMode ? "#fff" : "#333",
+        caretColor: isDarkMode ? "#fff" : "#333",
+      },
+
+      "&:-webkit-autofill:focus": {
+        WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#2a2a2a" : "#fff"} inset`,
+        WebkitTextFillColor: isDarkMode ? "#fff" : "#333",
+      },
+
+      transition: "background-color 5000s ease-in-out 0s",
+    },
     clearButton: {
       position: "absolute",
       right: "8px",
@@ -1229,7 +1225,7 @@ input: {
                   placeholder={`Type to search...`}
                   autoComplete="off"
                 />
-                
+
                 {/* {leaderSearches[field] && (
                   <button 
                     type="button" 
@@ -1239,7 +1235,7 @@ input: {
                     <X size={14} />
                   </button>
                 )} */}
-                
+
                 {/* {showDropdowns[field] && leaderSearches[field].length > 0 && (
                   <div style={styles.dropdown}>
                     {loadingLeaders && (
@@ -1324,9 +1320,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [openPriceTierDropdown, setOpenPriceTierDropdown] = useState(null);
   const [openPaymentDropdown, setOpenPaymentDropdown] = useState(null);
   const [people, setPeople] = useState([]);
-  const [commonAttendees, setCommonAttendees] = useState([]);
+  const [, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading,] = useState(false);
 
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
@@ -1351,70 +1347,70 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
   const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
-useEffect(() => {
-  if (isOpen && event) {
-    console.log(" Opening attendance modal");
-    
-    // Get clean ID
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
-    
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
+  useEffect(() => {
+    if (isOpen && event) {
+      console.log(" Opening attendance modal");
 
-    const fetchAttendees = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          const allAttendees = data.persistent_attendees || [];
-          console.log(` Loaded ${allAttendees.length} attendees from database`);
-          
-          setPersistentCommonAttendees(allAttendees);
-        }
-      } catch (error) {
-        console.error("Error loading attendees:", error);
+      // Get clean ID
+      let eventId = event._id || event.id;
+      if (eventId && eventId.includes("_")) {
+        eventId = eventId.split("_")[0];
       }
-    };
-    
-    // 2. Load weekly check-in status (who is ticked THIS WEEK only)
-    const loadWeeklyCheckins = () => {
-      const currentWeek = getCurrentWeekIdentifier();
-      const weekAttendance = event.attendance?.[currentWeek];
-      
-      if (weekAttendance && weekAttendance.attendees) {
-        const newCheckedIn = {};
-        
-        // Mark people checked THIS WEEK
-        weekAttendance.attendees.forEach(att => {
-          if (att.id && att.checked_in) {
-            newCheckedIn[att.id] = true;
+
+      setSearchName("");
+      setAssociateSearch("");
+      setActiveTab(0);
+
+      const fetchAttendees = async () => {
+        try {
+          const token = localStorage.getItem("token");
+          const response = await fetch(
+            `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            const allAttendees = data.persistent_attendees || [];
+            console.log(` Loaded ${allAttendees.length} attendees from database`);
+
+            setPersistentCommonAttendees(allAttendees);
           }
-        });
-        
-        setCheckedIn(newCheckedIn);
-        console.log(`✓ Loaded ${Object.keys(newCheckedIn).length} check-ins for this week`);
-      } else {
-        setCheckedIn({});
-        console.log("No check-ins for this week yet");
-      }
-    };
-    
-    fetchAttendees();
-    loadWeeklyCheckins();
-    
-    fetchPeople();
-    setDidNotMeet(event.did_not_meet || false);
-  }
-}, [isOpen, event]);
+        } catch (error) {
+          console.error("Error loading attendees:", error);
+        }
+      };
+
+      // 2. Load weekly check-in status (who is ticked THIS WEEK only)
+      const loadWeeklyCheckins = () => {
+        const currentWeek = get_current_week_identifier();
+        const weekAttendance = event.attendance?.[currentWeek];
+
+        if (weekAttendance && weekAttendance.attendees) {
+          const newCheckedIn = {};
+
+          // Mark people checked THIS WEEK
+          weekAttendance.attendees.forEach(att => {
+            if (att.id && att.checked_in) {
+              newCheckedIn[att.id] = true;
+            }
+          });
+
+          setCheckedIn(newCheckedIn);
+          console.log(`✓ Loaded ${Object.keys(newCheckedIn).length} check-ins for this week`);
+        } else {
+          setCheckedIn({});
+          console.log("No check-ins for this week yet");
+        }
+      };
+
+      fetchAttendees();
+      loadWeeklyCheckins();
+
+      fetchPeople();
+      setDidNotMeet(event.did_not_meet || false);
+    }
+  }, [isOpen, event]);
 
 
 
@@ -1581,74 +1577,65 @@ useEffect(() => {
     }
   };
 
-const savePersistentCommonAttendeesToDB = async (attendees) => {
-  if (!event) return false;
-  
-  // Get clean event ID WITHOUT date suffix
-  let eventId = event._id || event.id;
-  
-  // Remove any date suffix that might be appended
-  if (eventId && eventId.includes("_")) {
-    const parts = eventId.split("_");
-    // Take only the first part (ObjectId)
-    eventId = parts[0];
-    console.log(`Cleaned event ID: ${eventId} (removed date suffix)`);
-  }
-  
-  if (!eventId) {
-    toast.error("No event ID found");
-    return false;
-  }
-  
-  try {
-    const token = localStorage.getItem("token");
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
+  const savePersistentCommonAttendeesToDB = async (attendees) => {
+    if (!event) return false;
 
-    // Format attendees
-    const formattedAttendees = attendees.map(p => ({
-      id: p.id || p._id || "",
-      name: p.fullName || p.name || "",
-      fullName: p.fullName || p.name || "",
-      email: p.email || "",
-      leader12: p.leader12 || "",
-      leader144: p.leader144 || "",
-      phone: p.phone || ""
-    })).filter(p => p.id);
+    let eventId = event._id || event.id;
 
-    console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
-
-    const response = await fetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
-      method: "PUT",
-      headers: headers,
-      body: JSON.stringify({
-        persistent_attendees: formattedAttendees
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to save: ${response.status} - ${errorText}`);
+    if (eventId && eventId.includes("_")) {
+      const parts = eventId.split("_");
+      eventId = parts[0];
+      console.log(`Cleaned event ID: ${eventId} (removed date suffix)`);
     }
 
-    console.log("✅ Attendees saved to database");
-    return true;
-    
-  } catch (error) {
-    console.error("Error saving:", error);
-    toast.error("Failed to save attendees");
-    return false;
-  }
-};
+    if (!eventId) {
+      toast.error("No event ID found");
+      return false;
+    }
 
-  function getCurrentWeekIdentifier() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const week = getWeekNumber(now);
-    return `${year}-W${week.toString().padStart(2, '0')}`;
-  }
+    try {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      // Format attendees
+      const formattedAttendees = attendees.map(p => ({
+        id: p.id || p._id || "",
+        name: p.fullName || p.name || "",
+        fullName: p.fullName || p.name || "",
+        email: p.email || "",
+        leader12: p.leader12 || "",
+        leader144: p.leader144 || "",
+        phone: p.phone || ""
+      })).filter(p => p.id);
+
+      console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
+
+      const response = await fetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
+        method: "PUT",
+        headers: headers,
+        body: JSON.stringify({
+          persistent_attendees: formattedAttendees
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to save: ${response.status} - ${errorText}`);
+      }
+
+      console.log(" Attendees saved to database");
+      return true;
+
+    } catch (error) {
+      console.error("Error saving:", error);
+      toast.error("Failed to save attendees");
+      return false;
+    }
+  };
+
   function get_current_week_identifier() {
     const now = new Date();
     const year = now.getFullYear();
@@ -1674,7 +1661,7 @@ const savePersistentCommonAttendeesToDB = async (attendees) => {
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
- 
+
 
   // Effect: Load preloaded people when modal opens
   useEffect(() => {
@@ -1699,32 +1686,32 @@ const savePersistentCommonAttendeesToDB = async (attendees) => {
     return () => clearTimeout(delay);
   }, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
- const handleCheckIn = (id) => {
-  setCheckedIn(prev => {
-    const isNowChecked = !prev[id];
-    
-    // Update UI state
-    const newState = { ...prev, [id]: isNowChecked };
-    
-    // Note: This check/uncheck only affects WEEKLY attendance
-    // The person stays in the database attendees list regardless
-    
-    if (isNowChecked) {
-      toast.success("Person checked in for this week");
-    } else {
-      // Remove any decisions/payment info when unchecking
-      setDecisions(prevDec => ({ ...prevDec, [id]: false }));
-      setDecisionTypes(prevTypes => {
-        const updated = { ...prevTypes };
-        delete updated[id];
-        return updated;
-      });
-      toast.warning("Person unchecked for this week");
-    }
-    
-    return newState;
-  });
-};
+  const handleCheckIn = (id) => {
+    setCheckedIn(prev => {
+      const isNowChecked = !prev[id];
+
+      // Update UI state
+      const newState = { ...prev, [id]: isNowChecked };
+
+      // Note: This check/uncheck only affects WEEKLY attendance
+      // The person stays in the database attendees list regardless
+
+      if (isNowChecked) {
+        toast.success("Person checked in for this week");
+      } else {
+        // Remove any decisions/payment info when unchecking
+        setDecisions(prevDec => ({ ...prevDec, [id]: false }));
+        setDecisionTypes(prevTypes => {
+          const updated = { ...prevTypes };
+          delete updated[id];
+          return updated;
+        });
+        toast.warning("Person unchecked for this week");
+      }
+
+      return newState;
+    });
+  };
   const handleDecisionTypeSelect = (id, type) => {
     setDecisionTypes((prev) => ({
       ...prev,
@@ -1773,78 +1760,74 @@ const savePersistentCommonAttendeesToDB = async (attendees) => {
     return price - paid;
   };
 
-const saveAllAttendeesToDatabase = async (attendees) => {
-  if (!event) return false;
-  
-  // Get clean event ID
-  let eventId = event._id || event.id;
-  if (eventId && eventId.includes("_")) {
-    eventId = eventId.split("_")[0];
-  }
-  
-  try {
-    const token = localStorage.getItem("token");
-    const response = await fetch(
-      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          persistent_attendees: attendees
-        }),
+  const saveAllAttendeesToDatabase = async (attendees) => {
+    if (!event) return false;
+
+    // Get clean event ID
+    let eventId = event._id || event.id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            persistent_attendees: attendees
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Save failed: ${response.status}`);
       }
-    );
 
-    if (!response.ok) {
-      throw new Error(`Save failed: ${response.status}`);
+      console.log(` Saved ${attendees.length} attendees to database`);
+      return true;
+
+    } catch (error) {
+      console.error(" Failed to save:", error);
+      toast.error("Failed to save attendees list");
+      return false;
     }
-
-    console.log(`✅ Saved ${attendees.length} attendees to database`);
-    return true;
-    
-  } catch (error) {
-    console.error("❌ Failed to save:", error);
-    toast.error("Failed to save attendees list");
-    return false;
-  }
-};
+  };
 
 
-const handleAssociatePerson = async (person) => {
-  const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
-  
-  if (isAlreadyAdded) {
-    // REMOVE from database entirely
-    if (window.confirm(`Remove ${person.fullName}?`)) {
-      const updated = persistentCommonAttendees.filter(p => p.id !== person.id);
-      
-      // Update UI immediately
+  const handleAssociatePerson = async (person) => {
+    const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
+
+    if (isAlreadyAdded) {
+      // REMOVE from database entirely
+      if (window.confirm(`Remove ${person.fullName}?`)) {
+        const updated = persistentCommonAttendees.filter(p => p.id !== person.id);
+
+        // Update UI immediately
+        setPersistentCommonAttendees(updated);
+
+        // SAVE TO DATABASE IMMEDIATELY (ALL attendees list)
+        await saveAllAttendeesToDatabase(updated);
+
+        toast.success(`${person.fullName} removed from attendees list`);
+      }
+    } else {
+      // ADD to database
+      const updated = [...persistentCommonAttendees, person];
       setPersistentCommonAttendees(updated);
-      
-      // SAVE TO DATABASE IMMEDIATELY (ALL attendees list)
+
       await saveAllAttendeesToDatabase(updated);
-      
-      toast.success(`${person.fullName} removed from attendees list`);
+
+      toast.success(`${person.fullName} added to attendees list`);
     }
-  } else {
-    // ADD to database
-    const updated = [...persistentCommonAttendees, person];
-    
-    // Update UI immediately
-    setPersistentCommonAttendees(updated);
-    
-    // SAVE TO DATABASE IMMEDIATELY (ALL attendees list)
-    await saveAllAttendeesToDatabase(updated);
-    
-    toast.success(`${person.fullName} added to attendees list`);
-  }
-};
+  };
 
   const getAllCommonAttendees = () => {
-    // FIX: Add proper null/undefined checks
     const combined = [...(persistentCommonAttendees || [])];
 
     console.log("Getting all common attendees:", {
@@ -1852,7 +1835,6 @@ const handleAssociatePerson = async (person) => {
       combinedCount: combined.length
     });
 
-    // ✅ FIX: Add validation and filtering for invalid entries
     const fixedAttendees = combined
       .filter(persistentAttendee => persistentAttendee != null)
       .map(persistentAttendee => ({
@@ -1902,145 +1884,138 @@ const handleAssociatePerson = async (person) => {
     person.email.toLowerCase().includes(associateSearch.toLowerCase())
   );
 
-const handleSave = async () => {
-  const allPeople = getAllCommonAttendees();
-  console.log("📊 All people for save:", allPeople);
+  const handleSave = async () => {
+    const allPeople = getAllCommonAttendees();
+    console.log(" All people for save:", allPeople);
 
-  const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-  console.log("✅ Checked-in attendees:", attendeesList);
+    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+    console.log(" Checked-in attendees:", attendeesList);
 
-  if (!didNotMeet && attendeesList.length === 0) {
-    toast.error("Please check in at least one attendee before saving.");
-    return;
-  }
-
-  // Get clean event ID
-  let eventId = event?.id || event?._id;
-  if (eventId && eventId.includes("_")) {
-    const parts = eventId.split("_");
-    eventId = parts[0];
-  }
-  
-  if (!eventId) {
-    toast.error("Event ID is missing, cannot submit attendance.");
-    return;
-  }
-
-  try {
-    const selectedAttendees = attendeesList.map((id) => {
-      const person = allPeople.find((p) => p && p.id === id);
-
-      if (!person) {
-        console.warn(`Person with id ${id} not found in allPeople`);
-        return null;
-      }
-
-      const attendee = {
-        id: person.id,
-        name: person.fullName || "",
-        email: person.email || "",
-        fullName: person.fullName || "",
-        leader12: person.leader12 || "",
-        leader144: person.leader144 || "",
-        phone: person.phone || "",
-        time: new Date().toISOString(),
-        decision: decisions[id] ? decisionTypes[id] || "" : "",
-        checked_in: true
-      };
-
-      if (isTicketedEvent) {
-        attendee.priceTier = priceTiers[id]?.name || "";
-        attendee.price = priceTiers[id]?.price || 0;
-        attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-        attendee.memberType = priceTiers[id]?.memberType || "";
-        attendee.paymentMethod = paymentMethods[id] || "";
-        attendee.paid = paidAmounts[id] || 0;
-        attendee.owing = calculateOwing(id);
-      }
-
-      return attendee;
-    }).filter(attendee => attendee !== null);
-
-    console.log("Final selected attendees:", selectedAttendees);
-
-    // IMPORTANT: Use clean event ID in payload
-    const payload = {
-      attendees: didNotMeet ? [] : selectedAttendees,
-      persistent_attendees: allPeople.map(p => ({
-        id: p.id,
-        name: p.fullName,
-        fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone
-      })),
-      leaderEmail: currentUser?.email || "",
-      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-      did_not_meet: didNotMeet,
-      isTicketed: isTicketedEvent,
-      week: getCurrentWeekIdentifier()
-    };
-
-    console.log("💾 Submitting weekly attendance to event ID:", eventId);
-
-    let result;
-
-    if (typeof onSubmit === "function") {
-      result = await onSubmit(payload);
-    } else {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-      }
-
-      result = await response.json();
+    if (!didNotMeet && attendeesList.length === 0) {
+      toast.error("Please check in at least one attendee before saving.");
+      return;
     }
 
-    console.log("Save result:", result);
-
-    if (result && result.success) {
-      toast.success("Attendance saved successfully!");
-
-      if (typeof onClose === "function") {
-        onClose();
-      }
-
-      if (typeof onAttendanceSubmitted === "function") {
-        onAttendanceSubmitted();
-      }
-    } else {
-      throw new Error(result?.message || "Failed to save attendance");
+    // Get clean event ID
+    let eventId = event?.id || event?._id;
+    if (eventId && eventId.includes("_")) {
+      const parts = eventId.split("_");
+      eventId = parts[0];
     }
 
-  } catch (error) {
-    console.error("Error saving attendance:", error);
-    toast.error(error.message || "Failed to save attendance. Please try again.");
-  }
-};
+    if (!eventId) {
+      toast.error("Event ID is missing, cannot submit attendance.");
+      return;
+    }
+
+    try {
+      const selectedAttendees = attendeesList.map((id) => {
+        const person = allPeople.find((p) => p && p.id === id);
+
+        if (!person) {
+          console.warn(`Person with id ${id} not found in allPeople`);
+          return null;
+        }
+
+        const attendee = {
+          id: person.id,
+          name: person.fullName || "",
+          email: person.email || "",
+          fullName: person.fullName || "",
+          leader12: person.leader12 || "",
+          leader144: person.leader144 || "",
+          phone: person.phone || "",
+          time: new Date().toISOString(),
+          decision: decisions[id] ? decisionTypes[id] || "" : "",
+          checked_in: true
+        };
+
+        if (isTicketedEvent) {
+          attendee.priceTier = priceTiers[id]?.name || "";
+          attendee.price = priceTiers[id]?.price || 0;
+          attendee.ageGroup = priceTiers[id]?.ageGroup || "";
+          attendee.memberType = priceTiers[id]?.memberType || "";
+          attendee.paymentMethod = paymentMethods[id] || "";
+          attendee.paid = paidAmounts[id] || 0;
+          attendee.owing = calculateOwing(id);
+        }
+
+        return attendee;
+      }).filter(attendee => attendee !== null);
+
+      console.log("Final selected attendees:", selectedAttendees);
+
+      // IMPORTANT: Use clean event ID in payload
+      const payload = {
+        attendees: didNotMeet ? [] : selectedAttendees,
+        persistent_attendees: allPeople.map(p => ({
+          id: p.id,
+          name: p.fullName,
+          fullName: p.fullName,
+          email: p.email,
+          leader12: p.leader12,
+          leader144: p.leader144,
+          phone: p.phone
+        })),
+        leaderEmail: currentUser?.email || "",
+        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        did_not_meet: didNotMeet,
+        isTicketed: isTicketedEvent,
+        week: get_current_week_identifier()
+      };
+
+      console.log("Submitting weekly attendance to event ID:", eventId);
+
+      let result;
+
+      if (typeof onSubmit === "function") {
+        result = await onSubmit(payload);
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+          method: "PUT",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+        }
+
+        result = await response.json();
+      }
+
+      console.log("Save result:", result);
+
+      if (result && result.success) {
+        toast.success("Attendance saved successfully!");
+
+        if (typeof onClose === "function") {
+          onClose();
+        }
+
+        if (typeof onAttendanceSubmitted === "function") {
+          onAttendanceSubmitted();
+        }
+      } else {
+        throw new Error(result?.message || "Failed to save attendance");
+      }
+
+    } catch (error) {
+      console.error("Error saving attendance:", error);
+      toast.error(error.message || "Failed to save attendance. Please try again.");
+    }
+  };
 
 
 
   const handleSubmitAttendance = (attendanceData) => {
-    console.log("Preparing to submit attendance:");
-    console.log("Event ID:", event?._id);
-    console.log("Did Not Meet:", attendanceData === "did_not_meet");
-    console.log("Checked-in Attendees:", Array.isArray(attendanceData) ? attendanceData.length : 'unknown');
-    console.log("Persistent Attendees:", attendanceData?.all_attendees?.length || 'unknown');
-    console.log("Current Week:", get_current_week_identifier());
-
 
     if (onSubmit) {
       return onSubmit(attendanceData);
@@ -2053,85 +2028,85 @@ const handleSave = async () => {
     setShowDidNotMeetConfirm(true);
   };
 
- const confirmDidNotMeet = async () => {
-  setShowDidNotMeetConfirm(false);
-  setDidNotMeet(true);
-  setCheckedIn({});
-  setDecisions({});
-  setManualHeadcount("");
-  setPriceTiers({});
-  setPaymentMethods({});
-  setPaidAmounts({});
-  
-  try {
-    const eventId = event?.id || event?._id;
-    if (!eventId) {
-      toast.error("Event ID is missing, cannot submit attendance.");
-      return;
-    }
+  const confirmDidNotMeet = async () => {
+    setShowDidNotMeetConfirm(false);
+    setDidNotMeet(true);
+    setCheckedIn({});
+    setDecisions({});
+    setManualHeadcount("");
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
 
-    const allPeople = getAllCommonAttendees();
-    
-    // IMPORTANT: persistent_attendees remain in database
-    // We're just marking this week as "did not meet"
-    const payload = {
-      attendees: [],
-      persistent_attendees: allPeople.map(p => ({
-        id: p.id,
-        fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone
-      })),
-      leaderEmail: currentUser?.email || "",
-      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-      did_not_meet: true,
-      isTicketed: isTicketedEvent,
-      week: getCurrentWeekIdentifier()
-    };
-
-    let result;
-    
-    if (typeof onSubmit === "function") {
-      result = await onSubmit(payload);
-    } else {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await fetch(
-        `${BACKEND_URL}/submit-attendance/${eventId}`,
-        {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(payload),
-        }
-      );
-      result = await response.json();
-      result.success = response.ok;
-    }
-
-    if (result?.success) {
-      toast.success("Event marked as 'Did Not Meet' successfully!");
-
-      if (typeof onAttendanceSubmitted === "function") {
-        onAttendanceSubmitted();
+    try {
+      const eventId = event?.id || event?._id;
+      if (!eventId) {
+        toast.error("Event ID is missing, cannot submit attendance.");
+        return;
       }
 
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    } else {
-      toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+      const allPeople = getAllCommonAttendees();
+
+      // IMPORTANT: persistent_attendees remain in database
+      // We're just marking this week as "did not meet"
+      const payload = {
+        attendees: [],
+        persistent_attendees: allPeople.map(p => ({
+          id: p.id,
+          fullName: p.fullName,
+          email: p.email,
+          leader12: p.leader12,
+          leader144: p.leader144,
+          phone: p.phone
+        })),
+        leaderEmail: currentUser?.email || "",
+        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        did_not_meet: true,
+        isTicketed: isTicketedEvent,
+        week: get_current_week_identifier()
+      };
+
+      let result;
+
+      if (typeof onSubmit === "function") {
+        result = await onSubmit(payload);
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        const response = await fetch(
+          `${BACKEND_URL}/submit-attendance/${eventId}`,
+          {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(payload),
+          }
+        );
+        result = await response.json();
+        result.success = response.ok;
+      }
+
+      if (result?.success) {
+        toast.success("Event marked as 'Did Not Meet' successfully!");
+
+        if (typeof onAttendanceSubmitted === "function") {
+          onAttendanceSubmitted();
+        }
+
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+      } else {
+        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+      }
+    } catch (error) {
+      console.error(" Error marking event as 'Did Not Meet':", error);
+      toast.error("Something went wrong while marking event as 'Did Not Meet'.");
     }
-  } catch (error) {
-    console.error("❌ Error marking event as 'Did Not Meet':", error);
-    toast.error("Something went wrong while marking event as 'Did Not Meet'.");
-  }
-};
+  };
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
@@ -2620,7 +2595,7 @@ const handleSave = async () => {
       transition: "background 0.15s",
     },
 
-    
+
     priceTierButton: {
       display: "flex",
       alignItems: "center",
@@ -2972,42 +2947,42 @@ const handleSave = async () => {
           </div>
 
           <div style={styles.contentArea}>
-          {activeTab === 0 && (
-  <>
-    <div style={styles.searchBox}>
-      <Search size={20} style={styles.searchIcon} />
-      <input
-        type="text"
-        placeholder="Search attendees..."
-        value={searchName}
-        onChange={(e) => setSearchName(e.target.value)}
-        style={{
-          width: "100%",
-          padding: "14px 14px 14px 45px",
-          fontSize: 16,
-          borderRadius: 8,
-          border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`,
-          backgroundColor: isDarkMode ? 
-            theme.palette.background.default : 
-            theme.palette.background.paper,
-          color: isDarkMode ? theme.palette.text.primary : '#000',
-          outline: "none",
-          boxSizing: "border-box",
-        }}
-        onFocus={(e) => {
-          e.target.style.backgroundColor = isDarkMode ? 
-            theme.palette.action.hover : 
-            theme.palette.background.default;
-          e.target.style.borderColor = isDarkMode ? '#777' : '#999';
-        }}
-        onBlur={(e) => {
-          e.target.style.backgroundColor = isDarkMode ? 
-            theme.palette.background.default : 
-            theme.palette.background.paper;
-          e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
-        }}
-      />
-    </div>
+            {activeTab === 0 && (
+              <>
+                <div style={styles.searchBox}>
+                  <Search size={20} style={styles.searchIcon} />
+                  <input
+                    type="text"
+                    placeholder="Search attendees..."
+                    value={searchName}
+                    onChange={(e) => setSearchName(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "14px 14px 14px 45px",
+                      fontSize: 16,
+                      borderRadius: 8,
+                      border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`,
+                      backgroundColor: isDarkMode ?
+                        theme.palette.background.default :
+                        theme.palette.background.paper,
+                      color: isDarkMode ? theme.palette.text.primary : '#000',
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.backgroundColor = isDarkMode ?
+                        theme.palette.action.hover :
+                        theme.palette.background.default;
+                      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.backgroundColor = isDarkMode ?
+                        theme.palette.background.default :
+                        theme.palette.background.paper;
+                      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+                    }}
+                  />
+                </div>
                 {isMobile ? (
                   <div>
                     {loading && (
@@ -3509,39 +3484,39 @@ const handleSave = async () => {
             {activeTab === 1 && (
               <>
                 <div style={styles.searchBox}>
-  <Search size={20} style={styles.searchIcon} />
-  <input
-    type="text"
-    placeholder="Search to add person to common attendees..."
-    value={associateSearch}
-    onChange={(e) => setAssociateSearch(e.target.value)}
-    style={{
-      width: "100%",
-      padding: "14px 14px 14px 45px",
-      fontSize: 16,
-      borderRadius: 8,
-      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
-      backgroundColor: isDarkMode ? 
-        theme.palette.background.default : 
-        theme.palette.background.paper,
-      color: isDarkMode ? theme.palette.text.primary : '#000',
-      outline: "none",
-      boxSizing: "border-box",
-    }}
-    onFocus={(e) => {
-      e.target.style.backgroundColor = isDarkMode ? 
-        theme.palette.action.hover : 
-        theme.palette.background.default;
-      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
-    }}
-    onBlur={(e) => {
-      e.target.style.backgroundColor = isDarkMode ? 
-        theme.palette.background.default : 
-        theme.palette.background.paper;
-      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
-    }}
-  />
-</div>
+                  <Search size={20} style={styles.searchIcon} />
+                  <input
+                    type="text"
+                    placeholder="Search to add person to common attendees..."
+                    value={associateSearch}
+                    onChange={(e) => setAssociateSearch(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "14px 14px 14px 45px",
+                      fontSize: 16,
+                      borderRadius: 8,
+                      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
+                      backgroundColor: isDarkMode ?
+                        theme.palette.background.default :
+                        theme.palette.background.paper,
+                      color: isDarkMode ? theme.palette.text.primary : '#000',
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.backgroundColor = isDarkMode ?
+                        theme.palette.action.hover :
+                        theme.palette.background.default;
+                      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.backgroundColor = isDarkMode ?
+                        theme.palette.background.default :
+                        theme.palette.background.paper;
+                      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+                    }}
+                  />
+                </div>
                 {isMobile ? (
                   <div>
                     {loading && (
@@ -3753,7 +3728,7 @@ const handleSave = async () => {
         </div>
       )}
 
-      
+
 
       <AddPersonToEvents
         isOpen={showAddPersonModal}
@@ -3763,7 +3738,7 @@ const handleSave = async () => {
       />
 
       <style>
-{`
+        {`
   input[type="text"]:focus,
   input[type="text"]:active,
   input[type="text"]:-webkit-autofill,
@@ -3776,11 +3751,11 @@ const handleSave = async () => {
     background: transparent !important;
   }
 `}
-</style>
+      </style>
     </>
-    
+
   );
-  
+
 };
 
 export default AttendanceModal;

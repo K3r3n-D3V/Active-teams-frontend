@@ -38,8 +38,8 @@ import { toast } from 'react-toastify';
 const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
-  const [editScope, setEditScope] = useState('single'); // 'single' or 'person'
-  const [personIdentifier, setPersonIdentifier] = useState('');
+  const [editScope, setEditScope] = useState('single'); 
+  const [, setPersonIdentifier] = useState('');
   const [originalPersonIdentifier, setOriginalPersonIdentifier] = useState('');
   const [availableFields, setAvailableFields] = useState([]);
   const [changedFields, setChangedFields] = useState([]);
