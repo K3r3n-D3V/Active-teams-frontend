@@ -477,8 +477,6 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
 
     return !shouldExclude;
   });
-  console.log("Sample event",sampleEvent)
-  console.log("filteredFields",filteredFields)
   const columns = [];
 
   columns.push({
@@ -507,7 +505,6 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
           </Box>
         );
       }
-console.log("columns",columns)
       return (
         <Box
           sx={{
@@ -579,8 +576,6 @@ const MobileEventCard = ({
   const borderColor = isDark ? theme.palette.divider : '#e9ecef';
 
   const attendeesCount = event.attendees?.length || 0;
-  const persistentAttendeesCount = event.persistent_attendees?.length || 0;
-
   const isCellEvent = selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' || selectedEventTypeFilter === 'Cells';
 
   return (
@@ -659,14 +654,6 @@ const Events = () => {
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
 
-  console.log(" USER ROLE DEBUG:", {
-    currentUser,
-    userRole: currentUser?.role,
-    userRoleLower: userRole,
-    rawUserProfile: localStorage.getItem("userProfile")
-  });
-
-
   const isAdmin = userRole === "admin";
   const isRegistrant = userRole === "registrant";
   const isRegularUser = userRole === "user";
@@ -681,28 +668,26 @@ const Events = () => {
   // State declarations - ALL AT THE TOP
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
-  const [filteredEvents, setFilteredEvents] = useState([]);
-  const [activeFilters, setActiveFilters] = useState({});
+  const [, setFilteredEvents] = useState([]);
+  const [, setActiveFilters] = useState({});
   const [loading, setLoading] = useState(true);
-  const [userCreatedEventTypes, setUserCreatedEventTypes] = useState([]);
+  const [, setUserCreatedEventTypes] = useState([]);
   const [customEventTypes, setCustomEventTypes] = useState([]);
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   // const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState('all');
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [currentSelectedEventType] = useState(() => {
-    return localStorage.getItem("selectedEventType") || '';
-  });
+
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
-  const [hoveredRow, setHoveredRow] = useState(null);
+  // const [hoveredRow, setHoveredRow] = useState(null);
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -782,7 +767,6 @@ const Events = () => {
   const clearCache = useCallback(() => {
     cacheRef.current.data.clear();
     cacheRef.current.timestamp.clear();
-    console.log(" Cache cleared");
   }, []);
 
   const paginatedEvents = useMemo(() => events, [events]);
@@ -840,14 +824,10 @@ useEffect(() => {
             timeout: 10000,
           }
         );
-
-        console.log(" Leader at 12 status check:", response.data);
-       
         setIsLeaderAt12(response.data.is_leader_at_12);
         setIsCheckingLeaderStatus(false);
       } catch (error) {
         console.error("Error checking Leader at 12 status:", error);
-        
         try {
           const leaders = JSON.parse(localStorage.getItem("leaders"));
           const checkIfLeader12 = leaders && !leaders.leaderAt12;
@@ -866,14 +846,6 @@ useEffect(() => {
   }, [BACKEND_URL]);
 
 const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
-  console.log("fetchEvents - START", {
-    filters,
-    forceRefresh,
-    showLoader,
-    viewFilter,
-    currentUserLeaderAt1
-  });
-
   if (showLoader) {
     setLoading(true);
     setIsLoading(true);
@@ -934,7 +906,6 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
   
     if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
       endpoint = `${BACKEND_URL}/events/other`;
-      console.log(` Using OTHER EVENTS endpoint for event type: "${eventTypeToUse}"`);
       
       delete params.personal;
       delete params.leader_at_12_view;
@@ -944,9 +915,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       delete params.leader_at_1_identifier;
     } else {
       endpoint = `${BACKEND_URL}/events/cells`;
-      console.log(" Using CELLS endpoint");
-      
-      // Apply role-based filters for cells
+
       if (isRegistrant || isRegularUser) {
         params.personal = true;
       } else if (isLeaderAt12) {
@@ -966,19 +935,11 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       }
     }
 
-    console.log('Final API call:', {
-      endpoint,
-      params,
-      eventTypeToUse,
-      userRole
-    });
-
     const cacheKey = getCacheKey({ ...params, userRole, endpoint });
 
     if (!forceRefresh) {
       const cachedData = getCachedData(cacheKey);
       if (cachedData) {
-        console.log("Using cached data");
         setEvents(cachedData.events);
         setFilteredEvents(cachedData.events);
         setTotalEvents(cachedData.total_events);
@@ -996,7 +957,6 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
     params.firstName = currentUser.name
     params.userSurname = currentUser.surname
 
-    console.log("Making fresh API call",params);
     const response = await axios.get(endpoint, {
       headers,
       params,
@@ -1005,10 +965,6 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
 
       const responseData = response.data;
       const newEvents = responseData.events || responseData.results || [];
-
-      console.log('BACKEND RESPONSE:', responseData);
-      console.log('Total events:', responseData.total_events);
-      console.log('Events found:', newEvents.length);
 
       if (newEvents.length > 0) {
         console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
@@ -1020,7 +976,6 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
         })));
       } else {
         console.log('No events returned');
-        console.log('No events found for the current filters');
         console.log('Filters applied:', params);
       }
 
@@ -1036,9 +991,7 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       } : 'No events'
     });
 
-    // DEBUG: Check if created event is in response
     if (filters.event_type === 'Global Events' || eventTypeToUse === 'Global Events') {
-      console.log('Looking for Global Events...');
       newEvents.forEach((event, index) => {
         console.log(`Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`);
       });
@@ -2088,7 +2041,6 @@ const handlePersonEdit = useCallback(async (personName, field, newValue) => {
   }, [eventTypes, closeTypeMenu]);
 
   const handleCloseEventTypesModal = useCallback(() => {
-    console.log(" Closing event types modal");
     setEventTypesModalOpen(false);
 
     setTimeout(() => {
@@ -2851,20 +2803,12 @@ const handleDeleteType = useCallback(async () => {
     }
   }, [customEventTypes]);
 
-  useEffect(() => {
-    if (currentSelectedEventType) {
-      localStorage.setItem("selectedEventType", currentSelectedEventType);
-    } else {
-      localStorage.removeItem("selectedEventType");
-    }
-  }, [currentSelectedEventType]);
 
   useEffect(() => {
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
 
   useEffect(() => {
-    // Don't fetch if we're still initializing
     if (eventTypes.length === 0) {
       return;
     }
@@ -2959,23 +2903,6 @@ const handleDeleteType = useCallback(async () => {
     DEFAULT_API_START_DATE
   ]);
 
-  useEffect(() => {
-    console.log(" LEADER AT 12 DEBUG:", {
-      isLeaderAt12,
-      currentUserLeaderAt1,
-      viewFilter,
-      selectedEventTypeFilter,
-      eventsCount: events.length,
-      eventsSample: events.slice(0, 3).map(e => ({
-        name: e.eventName,
-        leader: e.eventLeaderName,
-        leader12: e.leader12,
-        isSubordinate: e.leader12 !== currentUserLeaderAt1
-      }))
-    });
-  }, [isLeaderAt12, currentUserLeaderAt1, viewFilter, selectedEventTypeFilter, events]);
-
-
   const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
     const statuses = [
       { value: 'incomplete', label: 'INCOMPLETE', style: styles.statusBadgeIncomplete },
@@ -2984,7 +2911,6 @@ const handleDeleteType = useCallback(async () => {
     ];
 
     const handleStatusClick = (statusValue) => {
-      console.log(" Status badge clicked:", statusValue);
       setSelectedStatus(statusValue);
       setCurrentPage(1);
 
@@ -3024,7 +2950,6 @@ const handleDeleteType = useCallback(async () => {
         }
       }
 
-      console.log(" Fetching with status:", statusValue, fetchParams);
       fetchEvents(fetchParams, true, true);
     };
 
@@ -3047,17 +2972,8 @@ const handleDeleteType = useCallback(async () => {
     );
   };
 
-
-  console.log(" DEBUG User Role:", {
-    userRole: userRole,
-    isLeaderAt12: isLeaderAt12,
-    isAdmin: isAdmin,
-    selectedEventTypeFilter: selectedEventTypeFilter,
-    shouldShowToggle: (isAdmin || isLeaderAt12) && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')
-  });
-
   const ViewFilterButtons = () => {
-    console.log("IS A LEADER AT 12",isLeaderAt12)
+    console.log("is it a leader at 12 ",isLeaderAt12)
     const shouldShowToggle = (isAdmin || (isLeaderAt12)) &&
       (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
    
@@ -3252,12 +3168,9 @@ const handleDeleteType = useCallback(async () => {
         delete fetchParams.show_all_authorized;
         delete fetchParams.include_subordinate_cells;
       }
-
-      console.log(" Fetching events with params:", fetchParams);
       fetchEvents(fetchParams, true);
     };
 
-    // Optimized mobile styles
     const mobileEventTypeStyles = {
       container: {
         backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
@@ -3354,7 +3267,7 @@ const handleDeleteType = useCallback(async () => {
         availableTypes.forEach(type => {
           registrantTypes.push(type);
         });
-        console.log(" Registrant event types:", registrantTypes);
+      
         return registrantTypes;
       } else if (isLeaderAt12) {
         const leaderTypes = ["all"];
