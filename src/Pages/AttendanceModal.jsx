@@ -1383,7 +1383,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       // 2. Load weekly check-in status (who is ticked THIS WEEK only)
       const loadWeeklyCheckins = () => {
-        const currentWeek = gget_current_week_identifier();
+        const currentWeek = get_current_week_identifier();
         const weekAttendance = event.attendance?.[currentWeek];
 
         if (weekAttendance && weekAttendance.attendees) {
@@ -1580,13 +1580,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const savePersistentCommonAttendeesToDB = async (attendees) => {
     if (!event) return false;
 
-    // Get clean event ID WITHOUT date suffix
     let eventId = event._id || event.id;
 
-    // Remove any date suffix that might be appended
     if (eventId && eventId.includes("_")) {
       const parts = eventId.split("_");
-      // Take only the first part (ObjectId)
       eventId = parts[0];
       console.log(`Cleaned event ID: ${eventId} (removed date suffix)`);
     }
@@ -1639,12 +1636,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  // function gget_current_week_identifier() {
-  //   const now = new Date();
-  //   const year = now.getFullYear();
-  //   const week = getWeekNumber(now);
-  //   return `${year}-W${week.toString().padStart(2, '0')}`;
-  // }
   function get_current_week_identifier() {
     const now = new Date();
     const year = now.getFullYear();
@@ -1970,7 +1961,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
         did_not_meet: didNotMeet,
         isTicketed: isTicketedEvent,
-        week: gget_current_week_identifier()
+        week: get_current_week_identifier()
       };
 
       console.log("Submitting weekly attendance to event ID:", eventId);
@@ -2072,7 +2063,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
         did_not_meet: true,
         isTicketed: isTicketedEvent,
-        week: gget_current_week_identifier()
+        week: get_current_week_identifier()
       };
 
       let result;
