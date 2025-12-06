@@ -57,6 +57,7 @@ const CreateEvents = ({
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isAdmin = user?.role === "admin";
+  console.log("view role", isAdmin)
 
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",

@@ -1629,7 +1629,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         throw new Error(`Failed to save: ${response.status} - ${errorText}`);
       }
 
-      console.log("✅ Attendees saved to database");
+      console.log(" Attendees saved to database");
       return true;
 
     } catch (error) {
@@ -1798,7 +1798,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         throw new Error(`Save failed: ${response.status}`);
       }
 
-      console.log(`✅ Saved ${attendees.length} attendees to database`);
+      console.log(` Saved ${attendees.length} attendees to database`);
       return true;
 
     } catch (error) {
@@ -1828,11 +1828,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     } else {
       // ADD to database
       const updated = [...persistentCommonAttendees, person];
-
-      // Update UI immediately
       setPersistentCommonAttendees(updated);
 
-      // SAVE TO DATABASE IMMEDIATELY (ALL attendees list)
       await saveAllAttendeesToDatabase(updated);
 
       toast.success(`${person.fullName} added to attendees list`);
@@ -1840,7 +1837,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   };
 
   const getAllCommonAttendees = () => {
-    // FIX: Add proper null/undefined checks
     const combined = [...(persistentCommonAttendees || [])];
 
     console.log("Getting all common attendees:", {
@@ -1848,7 +1844,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       combinedCount: combined.length
     });
 
-    // ✅ FIX: Add validation and filtering for invalid entries
     const fixedAttendees = combined
       .filter(persistentAttendee => persistentAttendee != null)
       .map(persistentAttendee => ({
@@ -1900,10 +1895,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
   const handleSave = async () => {
     const allPeople = getAllCommonAttendees();
-    console.log("📊 All people for save:", allPeople);
+    console.log(" All people for save:", allPeople);
 
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    console.log("✅ Checked-in attendees:", attendeesList);
+    console.log(" Checked-in attendees:", attendeesList);
 
     if (!didNotMeet && attendeesList.length === 0) {
       toast.error("Please check in at least one attendee before saving.");
@@ -1978,7 +1973,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         week: gget_current_week_identifier()
       };
 
-      console.log("💾 Submitting weekly attendance to event ID:", eventId);
+      console.log("Submitting weekly attendance to event ID:", eventId);
 
       let result;
 
@@ -2030,13 +2025,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
 
   const handleSubmitAttendance = (attendanceData) => {
-    console.log("Preparing to submit attendance:");
-    console.log("Event ID:", event?._id);
-    console.log("Did Not Meet:", attendanceData === "did_not_meet");
-    console.log("Checked-in Attendees:", Array.isArray(attendanceData) ? attendanceData.length : 'unknown');
-    console.log("Persistent Attendees:", attendanceData?.all_attendees?.length || 'unknown');
-    console.log("Current Week:", get_current_week_identifier());
-
 
     if (onSubmit) {
       return onSubmit(attendanceData);
