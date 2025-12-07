@@ -1296,7 +1296,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [commonAttendees, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  // const [alert, setAlert] = useState({
+  //const [alert, setAlert] = useState({
   //   open: false,
   //   type: "success",
   //   message: "",
