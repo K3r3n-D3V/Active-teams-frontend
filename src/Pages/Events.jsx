@@ -345,7 +345,7 @@ const fabStyles = {
   },
 };
 
-const getEventTypeStyles = (isDarkMode, theme, isMobileView) => ({
+const EventTypeStyles = (isDarkMode, theme, isMobileView) => ({
   container: {
     backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
     borderRadius: "16px",
@@ -647,9 +647,9 @@ const Events = () => {
 
   const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
   const isDarkMode = theme.palette.mode === 'dark';
-  const eventTypeStyles = useMemo(() => {
-    return getEventTypeStyles(isDarkMode, theme);
-  }, [isDarkMode, theme]);
+const eventTypeStyles = useMemo(() => {
+    return EventTypeStyles(isDarkMode, theme, isMobileView);
+}, [isDarkMode, theme, isMobileView]);
 
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
@@ -4134,17 +4134,36 @@ const handleDeleteType = useCallback(async () => {
       />
 
       {selectedEvent && (
-        <AttendanceModal
-          isOpen={attendanceModalOpen}
-          onClose={() => {
-            setAttendanceModalOpen(false);
-            setSelectedEvent(null);
-          }}
-          onSubmit={handleAttendanceSubmit}
-          event={selectedEvent}
-          currentUser={currentUser}
-        />
-      )}
+  <AttendanceModal
+    isOpen={attendanceModalOpen}
+    onClose={() => {
+      setAttendanceModalOpen(false);
+      setSelectedEvent(null);
+    }}
+    onSubmit={handleAttendanceSubmit}
+    event={selectedEvent}
+    currentUser={currentUser}
+    onAttendanceSubmitted={() => {
+      // This callback runs AFTER successful attendance submission
+      console.log(" Attendance submitted successfully, refreshing...");
+      
+      // Refresh the events list
+      const refreshParams = {
+        page: 1,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        _t: Date.now()
+      };
+      
+      if (selectedEventTypeFilter !== 'all') {
+        refreshParams.event_type = selectedEventTypeFilter;
+      }
+      
+      fetchEvents(refreshParams, true);
+    }}
+  />
+)}
+    
       {isAdmin && (
         <EventTypesModal
           key={editingEventType?._id || "create"}

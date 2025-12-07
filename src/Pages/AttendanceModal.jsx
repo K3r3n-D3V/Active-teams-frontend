@@ -452,20 +452,8 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   };
 
   if (!isOpen) return null;
-
-  const getCurrentTheme = () => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) return savedTheme;
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        return 'dark';
-      }
-    }
-    return 'light';
-  };
-
-  const currentTheme = getCurrentTheme();
-  const isDarkMode = currentTheme === 'dark';
+// 
+  // const isDarkMode = currentTheme === 'dark';
 
   const styles = {
     overlay: {
@@ -1945,7 +1933,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       console.log("Final selected attendees:", selectedAttendees);
 
-      // IMPORTANT: Use clean event ID in payload
       const payload = {
         attendees: didNotMeet ? [] : selectedAttendees,
         persistent_attendees: allPeople.map(p => ({
@@ -1965,6 +1952,12 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       };
 
       console.log("Submitting weekly attendance to event ID:", eventId);
+      console.log("SUBMITTING ATTENDANCE FOR SINGLE EVENT:", {
+        eventId: eventId,
+        eventName: event?.eventName,
+        attendees: selectedAttendees.length,
+        didNotMeet: didNotMeet
+      });
 
       let result;
 
@@ -1994,8 +1987,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       console.log("Save result:", result);
 
       if (result && result.success) {
-        toast.success("Attendance saved successfully!");
-
+        
         if (typeof onClose === "function") {
           onClose();
         }
@@ -2013,8 +2005,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-
-
   const handleSubmitAttendance = (attendanceData) => {
 
     if (onSubmit) {
@@ -2028,7 +2018,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     setShowDidNotMeetConfirm(true);
   };
 
-  const confirmDidNotMeet = async () => {
+ const confirmDidNotMeet = async () => {
     setShowDidNotMeetConfirm(false);
     setDidNotMeet(true);
     setCheckedIn({});
@@ -2090,7 +2080,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       }
 
       if (result?.success) {
-        toast.success("Event marked as 'Did Not Meet' successfully!");
+        // REMOVED: toast.success("Event marked as 'Did Not Meet' successfully!");
+        // Let Events.jsx handle the success toast
 
         if (typeof onAttendanceSubmitted === "function") {
           onAttendanceSubmitted();
@@ -2383,7 +2374,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     );
   };
 
-  // Theme-aware styles
   const styles = {
     overlay: {
       position: "fixed",
