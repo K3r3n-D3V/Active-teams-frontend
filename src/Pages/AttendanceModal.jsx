@@ -22,6 +22,7 @@ let globalPeopleCache = {
 const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
 
   const [formData, setFormData] = useState({
     invitedBy: "",
@@ -457,20 +458,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   if (!isOpen) return null;
 
-  const getCurrentTheme = () => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) return savedTheme;
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        return 'dark';
-      }
-    }
-    return 'light';
-  };
-
-  const currentTheme = getCurrentTheme();
-  const isDarkMode = currentTheme === 'dark';
-
   const styles = {
     overlay: {
       position: "fixed",
@@ -526,64 +513,59 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       fontSize: "12px",
       fontWeight: "600",
     },
-  input: {
-  padding: "12px",
-  fontSize: "16px",
-  borderRadius: "8px",
-  border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
-  outline: "none",
-  width: "100%",
-  boxSizing: "border-box",
+    input: {
+      padding: "12px",
+      fontSize: "16px",
+      borderRadius: "8px",
+      border: `1px solid ${theme.palette.divider}`,
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
+      backgroundColor: theme.palette.background.default,
+      color: theme.palette.text.primary,
 
-  // Theme colors
-  backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
-  color: theme.palette.text.primary,
+      // Autofill fix
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        caretColor: theme.palette.text.primary,
+      },
+      
+      "&:-webkit-autofill:focus": {
+        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+      },
 
-  // Fix for autofill background
-  "&:-webkit-autofill": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
-    WebkitTextFillColor: theme.palette.text.primary,
-    caretColor: theme.palette.text.primary,
-  },
-  
-  "&:-webkit-autofill:focus": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
-    WebkitTextFillColor: theme.palette.text.primary,
-  },
+      // Remove default autofill styles
+      transition: "background-color 5000s ease-in-out 0s",
+    },
+    inputError: {
+      padding: "12px",
+      fontSize: "16px",
+      borderRadius: "8px",
+      border: `2px solid ${theme.palette.error.main}`,
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
+      backgroundColor: theme.palette.background.default,
+      color: theme.palette.text.primary,
 
-  // Remove default autofill styles
-  transition: "background-color 5000s ease-in-out 0s",
-},
+      // Autofill fix in error state
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        caretColor: theme.palette.text.primary,
+        border: `2px solid ${theme.palette.error.main}`,
+      },
+      
+      "&:-webkit-autofill:focus": {
+        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        border: `2px solid ${theme.palette.error.main}`,
+      },
 
-inputError: {
-  padding: "12px",
-  fontSize: "16px",
-  borderRadius: "8px",
-  border: "2px solid #dc3545",
-  outline: "none",
-  width: "100%",
-  boxSizing: "border-box",
-
-  // Theme colors
-  backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
-  color: theme.palette.text.primary,
-
-  // Fix for autofill background in error state
-  "&:-webkit-autofill": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
-    WebkitTextFillColor: theme.palette.text.primary,
-    caretColor: theme.palette.text.primary,
-    border: "2px solid #dc3545",
-  },
-  
-  "&:-webkit-autofill:focus": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#1e1e1e" : "#fff"} inset`,
-    WebkitTextFillColor: theme.palette.text.primary,
-    border: "2px solid #dc3545",
-  },
-
-  transition: "background-color 5000s ease-in-out 0s",
-},
+      transition: "background-color 5000s ease-in-out 0s",
+    },
     dropdown: {
       position: "absolute",
       top: "100%",
@@ -671,11 +653,11 @@ inputError: {
               gridTemplateColumns: '1fr 1fr',
               gap: '20px',
               marginBottom: '20px',
-              borderBottom: `1px solid ${isDarkMode ? "#444" : "#e0e0e0"}`,
+              borderBottom: `1px solid ${theme.palette.divider}`,
               paddingBottom: '10px'
             }}>
-              <div style={{ fontWeight: '600', color: isDarkMode ? "#ccc" : "#333" }}>NEW PERSON INFO</div>
-              <div style={{ fontWeight: '600', color: isDarkMode ? "#ccc" : "#333" }}>LEADER INFO</div>
+              <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>NEW PERSON INFO</div>
+              <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>LEADER INFO</div>
             </div>
 
             <div style={styles.inputGroup}>
@@ -722,7 +704,7 @@ inputError: {
                       onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
                     >
                       <div style={{ fontWeight: "500" }}>{person.fullName}</div>
-                      <div style={{ fontSize: "12px", color: isDarkMode ? "#999" : "#666" }}>
+                      <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
                         {person.email}
                         {person.leader1 && <span> • L@1: {person.leader1}</span>}
                         {person.leader12 && <span> • L@12: {person.leader12}</span>}
@@ -876,6 +858,7 @@ inputError: {
           personData={formData}
           preloadedPeople={preloadedPeople}
           autoFilledLeaders={autoFilledLeaders}
+          theme={theme}
         />
       )}
 
@@ -884,7 +867,7 @@ inputError: {
   );
 };
 
-const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
+const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders, theme }) => {
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
@@ -912,7 +895,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
-  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
 
   useEffect(() => {
     if (isOpen && autoFilledLeaders) {
@@ -1030,20 +1013,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
     onSubmit(finalLeaderInfo);
   };
 
-  const getCurrentTheme = () => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) return savedTheme;
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        return 'dark';
-      }
-    }
-    return 'light';
-  };
-
-  const currentTheme = getCurrentTheme();
-  const isDarkMode = currentTheme === 'dark';
-
   const leaderLabels = {
     leader1: "Leader @1",
     leader12: "Leader @12",
@@ -1066,14 +1035,14 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       backdropFilter: "blur(8px)",
     },
     modal: {
-      background: isDarkMode ? "#1e1e1e" : "#fff",
+      background: theme.palette.background.paper,
       borderRadius: "12px",
       width: "100%",
       maxWidth: "500px",
       maxHeight: "80vh",
       overflowY: "auto",
       padding: "24px",
-      color: isDarkMode ? "#fff" : "#333",
+      color: theme.palette.text.primary,
       boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
     },
     title: {
@@ -1102,7 +1071,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       fontSize: "14px",
       fontWeight: "500",
       marginBottom: "6px",
-      color: isDarkMode ? "#ccc" : "#555",
+      color: theme.palette.text.secondary,
       display: "block",
     },
     inputContainer: {
@@ -1110,37 +1079,37 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       display: "flex",
       alignItems: "center",
     },
-input: {
-  padding: "12px 40px 12px 12px",
-  fontSize: "14px",
-  borderRadius: "8px",
-  border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
-  outline: "none",
-  width: "100%",
-  boxSizing: "border-box",
-  background: isDarkMode ? "#2a2a2a" : "#fff",
-  color: isDarkMode ? "#fff" : "#333",
-  
-  // Fix for autofill
-  "&:-webkit-autofill": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#2a2a2a" : "#fff"} inset`,
-    WebkitTextFillColor: isDarkMode ? "#fff" : "#333",
-    caretColor: isDarkMode ? "#fff" : "#333",
-  },
-  
-  "&:-webkit-autofill:focus": {
-    WebkitBoxShadow: `0 0 0px 1000px ${isDarkMode ? "#2a2a2a" : "#fff"} inset`,
-    WebkitTextFillColor: isDarkMode ? "#fff" : "#333",
-  },
-  
-  transition: "background-color 5000s ease-in-out 0s",
-},
+    input: {
+      padding: "12px 40px 12px 12px",
+      fontSize: "14px",
+      borderRadius: "8px",
+      border: `1px solid ${theme.palette.divider}`,
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
+      backgroundColor: theme.palette.background.default,
+      color: theme.palette.text.primary,
+      
+      // Autofill fix
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+        caretColor: theme.palette.text.primary,
+      },
+      
+      "&:-webkit-autofill:focus": {
+        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+        WebkitTextFillColor: theme.palette.text.primary,
+      },
+      
+      transition: "background-color 5000s ease-in-out 0s",
+    },
     clearButton: {
       position: "absolute",
       right: "8px",
       background: "none",
       border: "none",
-      color: isDarkMode ? "#999" : "#999",
+      color: theme.palette.text.secondary,
       cursor: "pointer",
       padding: "4px",
       borderRadius: "4px",
@@ -1151,8 +1120,8 @@ input: {
       left: 0,
       right: 0,
       marginTop: "4px",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
-      border: `1px solid ${isDarkMode ? "#444" : "#ddd"}`,
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1003,
@@ -1162,14 +1131,14 @@ input: {
     dropdownItem: {
       padding: "10px 12px",
       cursor: "pointer",
-      borderBottom: `1px solid ${isDarkMode ? "#3a3a3a" : "#f0f0f0"}`,
-      color: isDarkMode ? "#fff" : "#333",
-      background: isDarkMode ? "#2a2a2a" : "#fff",
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      color: theme.palette.text.primary,
+      background: theme.palette.background.default,
       fontSize: "14px",
     },
     dropdownEmpty: {
       padding: "12px",
-      color: isDarkMode ? "#999" : "#999",
+      color: theme.palette.text.secondary,
       textAlign: "center",
       fontSize: "14px",
     },
@@ -1180,8 +1149,8 @@ input: {
     },
     backBtn: {
       background: "transparent",
-      border: `1px solid ${isDarkMode ? "#555" : "#ddd"}`,
-      color: isDarkMode ? "#ccc" : "#666",
+      border: `1px solid ${theme.palette.divider}`,
+      color: theme.palette.text.secondary,
       padding: "12px 20px",
       borderRadius: "8px",
       cursor: "pointer",
@@ -1194,7 +1163,7 @@ input: {
       gap: '6px',
     },
     submitBtn: {
-      background: "#6366f1",
+      background: theme.palette.primary.main,
       color: "#fff",
       border: "none",
       padding: "12px 20px",
@@ -1248,8 +1217,8 @@ input: {
                           <div style={{ 
                             width: '14px', 
                             height: '14px', 
-                            border: `2px solid ${isDarkMode ? '#555' : '#ddd'}`,
-                            borderTop: `2px solid #6366f1`,
+                            border: `2px solid ${theme.palette.divider}`,
+                            borderTop: `2px solid ${theme.palette.primary.main}`,
                             borderRadius: '50%',
                             animation: 'spin 1s linear infinite'
                           }} />
@@ -1265,8 +1234,8 @@ input: {
                         key={person.id}
                         style={styles.dropdownItem}
                         onClick={() => handleLeaderSelect(person, field)}
-                        onMouseEnter={(e) => e.target.style.background = isDarkMode ? "#3a3a3a" : "#f5f5f5"}
-                        onMouseLeave={(e) => e.target.style.background = isDarkMode ? "#2a2a2a" : "#fff"}
+                        onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
+                        onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
                       >
                         {person.fullName}
                       </div>
