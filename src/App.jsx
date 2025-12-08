@@ -26,6 +26,7 @@ import SplashScreen from "./components/SplashScreen";
 
 import withAuthCheck from "./components/withAuthCheck";
 import Admin from "./Pages/Admin";
+import NotFound from "./Pages/NotFound"
 
 // Wrap protected pages WITH ROLES
 const ProtectedHome = withAuthCheck(Home, ['admin', 'leader', 'user', 'registrant']);
@@ -51,93 +52,76 @@ function App() {
   const [splashFinished, setSplashFinished] = useState(false);
 
   const noLayoutRoutes = ["/login", "/signup", "/forgot-password", "/reset-password"];
-  const hideLayout = noLayoutRoutes.includes(location.pathname);
+
+  // Routes that use the sidebar/topbar
+  const sidebarRoutes = [
+    "/", "/admin", "/profile", "/people", "/events", "/stats",
+    "/create-events", "/edit-event", "/attendance", "/event-details",
+    "/service-check-in", "/daily-tasks", "/event-payment"
+  ];
+
+  // TRUE when the current route SHOULD NOT show sidebar/topbar
+  const hideLayout =
+    noLayoutRoutes.includes(location.pathname) ||
+    !sidebarRoutes.some((r) => location.pathname.startsWith(r));
+
+  // Debug (optional)
+  useEffect(() => {
+    console.log("Layout hidden:", hideLayout, "path:", location.pathname);
+  }, [hideLayout, location.pathname]);
+
+  const handleSplashFinish = () => setSplashFinished(true);
 
   useEffect(() => {
-    console.log('🔍 Debug Info:', {
-      user: !!user,
-      userRole: user?.role,
-      loading,
-      showSplash,
-      splashFinished,
-      currentPath: location.pathname,
-      shouldRedirect: !loading && !user && !showSplash
-    });
-  }, [user, loading, showSplash, splashFinished, location.pathname]);
-
-  // Handle splash screen completion
-  const handleSplashFinish = () => {
-    console.log('✅ Splash animation finished');
-    setSplashFinished(true);
-  };
-
-  // Hide splash only when BOTH splash animation AND auth loading are complete
-  useEffect(() => {
-    if (splashFinished && !loading) {
-      console.log('✅ Both splash and auth complete, hiding splash screen');
-      setShowSplash(false);
-    }
+    if (splashFinished && !loading) setShowSplash(false);
   }, [splashFinished, loading]);
 
-  // Show splash screen while either splash animation OR auth is loading
   if (showSplash || loading) {
-    return (
-      <SplashScreen
-        onFinish={handleSplashFinish}
-        duration={6000}
-      />
-    );
+    return <SplashScreen onFinish={handleSplashFinish} duration={6000} />;
   }
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
 
+      {/* Hide Topbar on NotFound *//}
       {user && !hideLayout && <TopbarProfile />}
-      
+
       <div style={{ display: "flex" }}>
+        {/*  Hide Sidebar on NotFound */}
         {user && !hideLayout && <Sidebar mode={mode} setMode={setMode} />}
-        
+
         <div style={{ flexGrow: 1 }}>
           <Routes>
             {/* Public routes */}
             <Route 
               path="/login" 
-              element={
-                !user ? (
-                  <Login mode={mode} setMode={setMode} />
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              } 
+              element={!user ? <Login mode={mode} setMode={setMode} /> : <Navigate to="/" replace />}
             />
             <Route 
               path="/signup" 
-              element={
-                !user ? (
-                  <Signup mode={mode} setMode={setMode} />
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              } 
+              element={!user ? <Signup mode={mode} setMode={setMode} /> : <Navigate to="/" replace />}
             />
             <Route path="/forgot-password" element={<ForgotPassword mode={mode} />} />
             <Route path="/reset-password" element={<ResetPassword mode={mode} />} />
 
-            {/* Protected routes with role restrictions */}
+            {/* Protected routes */}
             <Route path="/" element={<ProtectedHome />} />
             <Route path="/admin" element={<ProtectedAdmin />} />
-            <Route path="/profile" element={<ProtectedProfile title="Profile" />} />
-            <Route path="/people" element={<ProtectedPeople title="People" />} />
-            <Route path="/events" element={<ProtectedEvents title="Events" />} />
-            <Route path="/stats" element={<ProtectedStats title="Stats" />} />
-            <Route path="/create-events" element={<ProtectedCreateEvents title="Create Events" />} />
-            <Route path="/edit-event/:id" element={<ProtectedCreateEvents title="Create Events Edit" />} />
-            <Route path="/attendance" element={<ProtectedAttendance title="Attendance Modal" />} />
-            <Route path="/event-details" element={<ProtectedEventDetails title="event-details-screen" />} />
-            <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
-            <Route path="/daily-tasks" element={<ProtectedDailyTasks title="Daily Tasks" />} />
-            <Route path="/event-payment/:eventId" element={<EventRegistrationForm title="Event register" />} />
+            <Route path="/profile" element={<ProtectedProfile />} />
+            <Route path="/people" element={<ProtectedPeople />} />
+            <Route path="/events" element={<ProtectedEvents />} />
+            <Route path="/stats" element={<ProtectedStats />} />
+            <Route path="/create-events" element={<ProtectedCreateEvents />} />
+            <Route path="/edit-event/:id" element={<ProtectedCreateEvents />} />
+            <Route path="/attendance" element={<ProtectedAttendance />} />
+            <Route path="/event-details" element={<ProtectedEventDetails />} />
+            <Route path="/service-check-in" element={<ProtectedCheckIn />} />
+            <Route path="/daily-tasks" element={<ProtectedDailyTasks />} />
+            <Route path="/event-payment/:eventId" element={<EventRegistrationForm />} />
+
+            {/* FULL SCREEN 404 PAGE */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
       </div>
