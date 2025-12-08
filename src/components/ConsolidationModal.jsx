@@ -23,7 +23,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const [recipient, setRecipient] = useState(null); 
   const [assignedTo, setAssignedTo] = useState("");
   const [dateTime, setDateTime] = useState("");
-  const [taskStage, setTaskStage] = useState("");
+  const [taskStage, setTaskStage] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const [recipients, setRecipients] = useState([]);
@@ -104,7 +104,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       setDateTime(dayjs().format("YYYY/MM/DD, HH:mm"));
       setRecipient(null);
       setAssignedTo("");
-      setTaskStage("");
+      setTaskStage(true);
       setRecipients([]);
       setSearchQuery("");
       setError("");
@@ -363,7 +363,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       // Reset form
       setRecipient(null);
       setAssignedTo("");
-      setTaskStage("");
+      setTaskStage(true);
       setAlreadyConsolidated(false);
       
     } catch (err) {
