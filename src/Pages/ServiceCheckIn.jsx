@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import {
   Box,
   Typography,
@@ -52,6 +52,8 @@ import EventHistory from "../components/EventHistory";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import DownloadIcon from '@mui/icons-material/Download';
+import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -61,6 +63,8 @@ let eventsCacheTimestamp = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 function ServiceCheckIn() {
+  const { authFetch } = useContext(AuthContext);
+  
   // State management
   const [attendees, setAttendees] = useState([]);
   const [currentEventId, setCurrentEventId] = useState("");
@@ -76,11 +80,10 @@ function ServiceCheckIn() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [consolidationOpen, setConsolidationOpen] = useState(false);
   const [sortModel, setSortModel] = useState([
-    { field: 'isNew', sort: 'desc' }, // 🆕 New people first
+    { field: 'isNew', sort: 'desc' },
     { field: 'name', sort: 'asc' }
   ]);
 
-  // Real-time data state
   const [realTimeData, setRealTimeData] = useState(null);
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
@@ -88,8 +91,6 @@ function ServiceCheckIn() {
   const [isLoadingConsolidated, setIsLoadingConsolidated] = useState(false);
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Modal states
   const [modalSearch, setModalSearch] = useState("");
   const [modalPage, setModalPage] = useState(0);
   const [modalRowsPerPage, setModalRowsPerPage] = useState(100);
@@ -100,6 +101,11 @@ function ServiceCheckIn() {
   const [consolidatedPage, setConsolidatedPage] = useState(0);
   const [consolidatedRowsPerPage, setConsolidatedRowsPerPage] = useState(100);
   const [activeTab, setActiveTab] = useState(0);
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    open: false,
+    personId: null,
+    personName: ''
+  });
 
   const [eventHistoryDetails, setEventHistoryDetails] = useState({
     open: false,
@@ -278,23 +284,26 @@ function ServiceCheckIn() {
     return leaderValue1.localeCompare(leaderValue2);
   };
 
-  // Enhanced real-time data fetching
+  // Enhanced real-time data fetching using authFetch
   const fetchRealTimeEventData = async (eventId) => {
     if (!eventId) return null;
-    
+
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/service-checkin/real-time-data`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        params: { event_id: eventId }
+      const response = await authFetch(`${BASE_URL}/service-checkin/real-time-data?event_id=${eventId}`, {
+        method: "GET",
       });
-      
-      if (response.data.success) {
-        return response.data;
+
+      if (!response.ok) {
+        console.error("❌ Failed to fetch real-time event data, status:", response.status);
+        return null;
       }
+
+      const data = await response.json();
+      if (data.success) return data;
+
       return null;
     } catch (error) {
-      console.error('❌ Error fetching real-time event data:', error);
+      console.error("❌ Error fetching real-time event data:", error);
       return null;
     }
   };
@@ -310,8 +319,10 @@ function ServiceCheckIn() {
     try {
       console.log("🔄 Performing full refresh from database for event:", currentEventId);
       
-      // Refresh people cache
-      await axios.post(`${BASE_URL}/cache/people/refresh`);
+      // Refresh people cache using authFetch
+      await authFetch(`${BASE_URL}/cache/people/refresh`, {
+        method: "POST",
+      });
       
       // Get the REAL data from the database
       const data = await fetchRealTimeEventData(currentEventId);
@@ -326,10 +337,57 @@ function ServiceCheckIn() {
         // 🔥 COMPLETELY REPLACE all state with fresh database data
         setRealTimeData(data);
         
-        // Also refresh the attendees list from cache
-        const cacheResponse = await axios.get(`${BASE_URL}/cache/people`);
-        if (cacheResponse.data.success && cacheResponse.data.cached_data) {
-          const people = cacheResponse.data.cached_data.map((p) => ({
+        // Also refresh the attendees list from cache using authFetch
+        const cacheResponse = await authFetch(`${BASE_URL}/cache/people`);
+        if (cacheResponse.ok) {
+          const cacheData = await cacheResponse.json();
+          if (cacheData.success && cacheData.cached_data) {
+            const people = cacheData.cached_data.map((p) => ({
+              _id: p._id,
+              name: p.Name || "",
+              surname: p.Surname || "",
+              email: p.Email || "",
+              phone: p.Number || "",
+              leader1: p["Leader @1"] || "",
+              leader12: p["Leader @12"] || "",
+              leader144: p["Leader @144"] || "",
+              gender: p.Gender || "",
+              address: p.Address || "",
+              birthday: p.Birthday || "",
+              invitedBy: p.InvitedBy || "",
+              stage: p.Stage || "",
+              fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
+            }));
+            
+            setAttendees(people);
+          }
+        }
+        
+        toast.success(`Refresh complete! Present: ${data.present_count}, New: ${data.new_people_count}, Consolidated: ${data.consolidation_count}`);
+      } else {
+        throw new Error('Failed to fetch real-time data from database');
+      }
+
+    } catch (error) {
+      console.error("❌ Error in real-time refresh:", error);
+      toast.error("Failed to refresh data from database");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Fetch all people for the main database using authFetch
+  const fetchAllPeople = async () => {
+    setIsLoadingPeople(true);
+    try {
+      console.log('🔄 Fetching people data from cache...');
+      
+      const response = await authFetch(`${BASE_URL}/cache/people`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.cached_data) {
+          const people = data.cached_data.map((p) => ({
             _id: p._id,
             name: p.Name || "",
             surname: p.Surname || "",
@@ -346,53 +404,14 @@ function ServiceCheckIn() {
             fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
           }));
           
+          console.log(`✅ Loaded ${people.length} people from cache`);
           setAttendees(people);
+          setHasDataLoaded(true);
+        } else {
+          throw new Error('No people data available in cache');
         }
-        
-        toast.success(`Refresh complete! Present: ${data.present_count}, New: ${data.new_people_count}, Consolidated: ${data.consolidation_count}`);
       } else {
-        throw new Error('Failed to fetch real-time data from database');
-      }
-
-    } catch (error) {
-      console.error("❌ Error in real-time refresh:", error);
-      toast.error("Failed to refresh data from database");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  // Fetch all people for the main database
-  const fetchAllPeople = async () => {
-    setIsLoadingPeople(true);
-    try {
-      console.log('🔄 Fetching people data from cache...');
-      
-      const response = await axios.get(`${BASE_URL}/cache/people`);
-      
-      if (response.data.success && response.data.cached_data) {
-        const people = response.data.cached_data.map((p) => ({
-          _id: p._id,
-          name: p.Name || "",
-          surname: p.Surname || "",
-          email: p.Email || "",
-          phone: p.Number || "",
-          leader1: p["Leader @1"] || "",
-          leader12: p["Leader @12"] || "",
-          leader144: p["Leader @144"] || "",
-          gender: p.Gender || "",
-          address: p.Address || "",
-          birthday: p.Birthday || "",
-          invitedBy: p.InvitedBy || "",
-          stage: p.Stage || "",
-          fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
-        }));
-        
-        console.log(`✅ Loaded ${people.length} people from cache`);
-        setAttendees(people);
-        setHasDataLoaded(true);
-      } else {
-        throw new Error('No people data available in cache');
+        throw new Error('Failed to fetch people data');
       }
     } catch (err) {
       console.error('❌ Error fetching people:', err);
@@ -402,7 +421,7 @@ function ServiceCheckIn() {
     }
   };
 
-  // Fetch events - with caching to prevent unnecessary reloads
+  // Fetch events - with caching to prevent unnecessary reloads, using authFetch
   const fetchEvents = async (forceRefresh = false) => {
     // Check cache first
     const now = Date.now();
@@ -422,15 +441,9 @@ function ServiceCheckIn() {
 
     setIsLoadingEvents(true);
     try {
-      const token = localStorage.getItem('token');
       console.log('🔄 Fetching events...');
       
-      const response = await fetch(`${BASE_URL}/events/global`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await authFetch(`${BASE_URL}/events/global`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -477,35 +490,35 @@ function ServiceCheckIn() {
   };
 
   // Event filtering functions - exclude events that didn't meet
-const getFilteredEvents = (eventsList = events) => {
-  // Get today's date in YYYY-MM-DD format
-  const today = new Date();
-  const todayDateString = today.toISOString().split('T')[0]; // "2024-01-19"
-  
-  const filteredEvents = eventsList.filter(event => {
-    const isGlobal = event.isGlobal === true || 
-                    event.eventType === "Global Events" || 
-                    event.eventType === "Event" ||
-                    event.eventType?.toLowerCase().includes("event");
+  const getFilteredEvents = (eventsList = events) => {
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date();
+    const todayDateString = today.toISOString().split('T')[0]; // "2024-01-19"
     
-    const eventStatus = event.status?.toLowerCase() || '';
-    const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
-    const didMeet = eventStatus !== 'cancelled' && eventStatus !== 'did_not_meet';
+    const filteredEvents = eventsList.filter(event => {
+      const isGlobal = event.isGlobal === true || 
+                      event.eventType === "Global Events" || 
+                      event.eventType === "Event" ||
+                      event.eventType?.toLowerCase().includes("event");
+      
+      const eventStatus = event.status?.toLowerCase() || '';
+      const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
+      const didMeet = eventStatus !== 'cancelled' && eventStatus !== 'did_not_meet';
+      
+      // Check if event date matches today
+      let eventDateString = '';
+      if (event.date) {
+        const eventDate = new Date(event.date);
+        eventDateString = eventDate.toISOString().split('T')[0];
+      }
+      
+      const isForToday = eventDateString === todayDateString;
+      
+      return isGlobal && isNotClosed && didMeet && isForToday;
+    });
     
-    // Check if event date matches today
-    let eventDateString = '';
-    if (event.date) {
-      const eventDate = new Date(event.date);
-      eventDateString = eventDate.toISOString().split('T')[0];
-    }
-    
-    const isForToday = eventDateString === todayDateString;
-    
-    return isGlobal && isNotClosed && didMeet && isForToday;
-  });
-  
-  return filteredEvents;
-};
+    return filteredEvents;
+  };
 
   const getFilteredClosedEvents = () => {
     const closedEvents = events.filter(event => {
@@ -537,7 +550,6 @@ const getFilteredEvents = (eventsList = events) => {
     }
 
     try {
-      const token = localStorage.getItem("token");
       const isCurrentlyPresent = realTimeData?.present_attendees?.some(a => 
         a.id === attendee._id || a._id === attendee._id
       );
@@ -545,37 +557,44 @@ const getFilteredEvents = (eventsList = events) => {
       
       if (!isCurrentlyPresent) {
         // Check in as attendee
-        const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
-          event_id: currentEventId,
-          person_data: {
-            id: attendee._id,
-            name: attendee.name,
-            fullName: fullName,
-            email: attendee.email,
-            phone: attendee.phone,
-            leader12: attendee.leader12
-          },
-          type: "attendee"
-        }, {
-          headers: { 'Authorization': `Bearer ${token}` }
+        const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
+          method: "POST",
+          body: JSON.stringify({
+            event_id: currentEventId,
+            person_data: {
+              id: attendee._id,
+              name: attendee.name,
+              fullName: fullName,
+              email: attendee.email,
+              phone: attendee.phone,
+              leader12: attendee.leader12
+            },
+            type: "attendee"
+          }),
         });
 
-        if (response.data.success) {
-          toast.success(`${fullName} checked in successfully`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            toast.success(`${fullName} checked in successfully`);
+          }
         }
       } else {
         // Remove from check-in
-        const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          data: {
+        const response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
+          method: "DELETE",
+          body: JSON.stringify({
             event_id: currentEventId,
             person_id: attendee._id,
             type: "attendees"
-          }
+          }),
         });
 
-        if (response.data.success) {
-          toast.info(`${fullName} removed from check-in`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            toast.info(`${fullName} removed from check-in`);
+          }
         }
       }
 
@@ -587,7 +606,7 @@ const getFilteredEvents = (eventsList = events) => {
 
     } catch (err) {
       console.error("Error in toggle check-in:", err);
-      toast.error(err.response?.data?.detail || err.message);
+      toast.error(err.message || "Failed to toggle check-in");
     }
   };
 
@@ -611,8 +630,6 @@ const getFilteredEvents = (eventsList = events) => {
     }
 
     try {
-      const token = localStorage.getItem("token");
-      
       if (editingPerson) {
         const updatedPersonData = {
           name: formData.name,
@@ -627,13 +644,16 @@ const getFilteredEvents = (eventsList = events) => {
           stage: formData.stage || "Win"
         };
 
-        const updateResponse = await axios.patch(
+        const updateResponse = await authFetch(
           `${BASE_URL}/people/${editingPerson._id}`,
-          updatedPersonData,
-          { headers: { Authorization: `Bearer ${token}` } }
+          {
+            method: "PATCH",
+            body: JSON.stringify(updatedPersonData),
+          }
         );
 
-        if (updateResponse.data) {
+        if (updateResponse.ok) {
+          const data = await updateResponse.json();
           toast.success(`${formData.name} ${formData.surname} updated successfully`);
 
           // Update DataGrid immediately
@@ -657,98 +677,105 @@ const getFilteredEvents = (eventsList = events) => {
       const fullName = `${formData.name} ${formData.surname}`.trim();
 
       // Step 1: Add this new person as a FIRST TIME attendee
-      const response = await axios.post(
+      const response = await authFetch(
         `${BASE_URL}/service-checkin/checkin`,
         {
-          event_id: currentEventId,
-          person_data: {
-            id: newPersonData._id,
+          method: "POST",
+          body: JSON.stringify({
+            event_id: currentEventId,
+            person_data: {
+              id: newPersonData._id,
+              name: newPersonData.Name || formData.name,
+              surname: newPersonData.Surname || formData.surname,
+              email: newPersonData.Email || formData.email,
+              phone: newPersonData.Number || formData.phone,
+              gender: newPersonData.Gender || formData.gender,
+              invitedBy: newPersonData.InvitedBy || formData.invitedBy,
+              stage: "First Time"
+            },
+            type: "new_person"
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          toast.success(`${fullName} added as new person successfully`);
+
+          // Close dialog + reset form
+          setOpenDialog(false);
+          setEditingPerson(null);
+          setFormData(emptyForm);
+
+          // 🔥 CRITICAL FIX: Immediately update the real-time data state
+          setRealTimeData(prev => {
+            if (!prev) return prev;
+            
+            const updatedNewPeople = [...(prev.new_people || []), data.new_person];
+            
+            return {
+              ...prev,
+              new_people: updatedNewPeople,
+              new_people_count: updatedNewPeople.length,
+              // Also update the consolidation count if this was a consolidation
+              ...(data.consolidation_count && {
+                consolidation_count: data.consolidation_count
+              })
+            };
+          });
+
+          // Refresh cache using authFetch
+          try {
+            await authFetch(`${BASE_URL}/cache/people/refresh`, {
+              method: "POST",
+            });
+            console.log("✅ Cache refreshed after adding new person");
+          } catch (cacheError) {
+            console.warn("⚠️ Cache refresh failed:", cacheError);
+          }
+
+          // Create the new person object for DataGrid
+          const newPersonForGrid = {
+            _id: newPersonData._id,
             name: newPersonData.Name || formData.name,
             surname: newPersonData.Surname || formData.surname,
             email: newPersonData.Email || formData.email,
             phone: newPersonData.Number || formData.phone,
             gender: newPersonData.Gender || formData.gender,
             invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-            stage: "First Time"
-          },
-          type: "new_person"
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.success) {
-        toast.success(`${fullName} added as new person successfully`);
-
-        // Close dialog + reset form
-        setOpenDialog(false);
-        setEditingPerson(null);
-        setFormData(emptyForm);
-
-        // 🔥 CRITICAL FIX: Immediately update the real-time data state
-        setRealTimeData(prev => {
-          if (!prev) return prev;
-          
-          const updatedNewPeople = [...(prev.new_people || []), response.data.new_person];
-          
-          return {
-            ...prev,
-            new_people: updatedNewPeople,
-            new_people_count: updatedNewPeople.length,
-            // Also update the consolidation count if this was a consolidation
-            ...(response.data.consolidation_count && {
-              consolidation_count: response.data.consolidation_count
-            })
+            leader1: formData.leader1 || "",
+            leader12: formData.leader12 || "",
+            leader144: formData.leader144 || "",
+            stage: "First Time",
+            fullName: fullName,
+            address: "",
+            birthday: "",
+            occupation: "",
+            cellGroup: "",
+            zone: "",
+            homeAddress: "",
+            isNew: true,
+            present: false
           };
-        });
 
-        // Refresh cache
-        try {
-          await axios.post(`${BASE_URL}/cache/people/refresh`);
-          console.log("✅ Cache refreshed after adding new person");
-        } catch (cacheError) {
-          console.warn("⚠️ Cache refresh failed:", cacheError);
+          // Add directly to DataGrid attendees
+          setAttendees(prev => [newPersonForGrid, ...prev]);
+
+          // Clear search so the new person is visible immediately
+          setSearch("");
+
+          const freshData = await fetchRealTimeEventData(currentEventId);
+          if (freshData) {
+            setRealTimeData(freshData);
+          }
+
+          console.log("✅ New person added to DataGrid and counts updated immediately");
         }
-
-        // Create the new person object for DataGrid
-        const newPersonForGrid = {
-          _id: newPersonData._id,
-          name: newPersonData.Name || formData.name,
-          surname: newPersonData.Surname || formData.surname,
-          email: newPersonData.Email || formData.email,
-          phone: newPersonData.Number || formData.phone,
-          gender: newPersonData.Gender || formData.gender,
-          invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-          leader1: formData.leader1 || "",
-          leader12: formData.leader12 || "",
-          leader144: formData.leader144 || "",
-          stage: "First Time",
-          fullName: fullName,
-          address: "",
-          birthday: "",
-          occupation: "",
-          cellGroup: "",
-          zone: "",
-          homeAddress: "",
-          isNew: true,
-          present: false
-        };
-
-        // Add directly to DataGrid attendees
-        setAttendees(prev => [newPersonForGrid, ...prev]);
-
-        // Clear search so the new person is visible immediately
-        setSearch("");
-
-        const freshData = await fetchRealTimeEventData(currentEventId);
-        if (freshData) {
-          setRealTimeData(freshData);
-        }
-
-        console.log("✅ New person added to DataGrid and counts updated immediately");
       }
     } catch (error) {
       console.error("❌ Error saving person:", error);
-      toast.error(error.response?.data?.detail || "Failed to save person");
+      toast.error(error.message || "Failed to save person");
     }
   };
 
@@ -794,18 +821,12 @@ const getFilteredEvents = (eventsList = events) => {
 
     setIsClosingEvent(true);
     try {
-      const token = localStorage.getItem("token");
-      
-      // Try PATCH first
-      const response = await fetch(`${BASE_URL}/events/${currentEventId}`, {
+      // Try PATCH first using authFetch
+      const response = await authFetch(`${BASE_URL}/events/${currentEventId}`, {
         method: "PATCH",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           status: "complete"
-        })
+        }),
       });
 
       if (!response.ok) {
@@ -851,26 +872,33 @@ const getFilteredEvents = (eventsList = events) => {
   };
 
   const handleEditClick = (person) => {
+    console.log("Editing person data:", person);
+    
     setEditingPerson(person);
     setFormData({
       name: person.name || "",
       surname: person.surname || "",
-      dob: person.dob || person.dateOfBirth || "",
-      homeAddress: person.homeAddress || "",
+      dob: person.dob || person.dateOfBirth || person.birthday || "",
+      homeAddress: person.homeAddress || person.address || "",
       email: person.email || "",
-      phone: person.phone || "",
+      phone: person.phone || person.Number || "",
       gender: person.gender || "",
       invitedBy: person.invitedBy || "",
       leader1: person.leader1 || "",
       leader12: person.leader12 || "",
       leader144: person.leader144 || "",
+      stage: person.stage || "Win"
     });
     setOpenDialog(true);
   };
 
-  const handleDelete = async (personId) => {
+  // Update handleDelete function to use authFetch
+  const handleDelete = async (personId, personName) => {
     try {
-      const res = await fetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
+      const res = await authFetch(`${BASE_URL}/people/${personId}`, { 
+        method: "DELETE" 
+      });
+      
       if (!res.ok) {
         const errorData = await res.json();
         toast.error(`Delete failed: ${errorData.detail}`);
@@ -904,20 +932,64 @@ const getFilteredEvents = (eventsList = events) => {
         };
       });
 
-      // Refresh cache to ensure consistency
+      // Refresh cache to ensure consistency using authFetch
       try {
-        await axios.post(`${BASE_URL}/cache/people/refresh`);
+        await authFetch(`${BASE_URL}/cache/people/refresh`, {
+          method: "POST",
+        });
         console.log("✅ Cache refreshed after deletion");
       } catch (cacheError) {
         console.warn("⚠️ Cache refresh failed:", cacheError);
       }
 
-      toast.success("Person deleted successfully");
+      toast.success(`"${personName}" deleted successfully`);
       
     } catch (err) {
       console.error(err);
       toast.error("An error occurred while deleting the person");
+    } finally {
+      setDeleteConfirmation({ open: false, personId: null, personName: '' });
     }
+  };
+
+  const downloadCSV = (data, filename) => {
+    if (!data || data.length === 0) {
+      toast.error("No data to download");
+      return;
+    }
+
+    // Get headers from first object
+    const headers = Object.keys(data[0]);
+    
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => 
+        headers.map(header => {
+          const value = row[header];
+          // Handle values that might contain commas or quotes
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value || '';
+        }).join(',')
+      )
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success(`Downloaded ${data.length} records`);
   };
 
   const handleAddPersonClick = () => {
@@ -985,7 +1057,7 @@ const getFilteredEvents = (eventsList = events) => {
     });
   };
 
-  // ========== NEW: SEARCH FILTERING FUNCTIONS ==========
+  // ========== SEARCH FILTERING FUNCTIONS ==========
   
   // Main filtering function - used by DataGrid
   const filterPeople = (people, searchTerm) => {
@@ -1064,11 +1136,6 @@ const getFilteredEvents = (eventsList = events) => {
     }
     
     return filtered;
-  };
-
-  // Helper function to get full person data for present attendees
-  const getFullPersonData = (attendeeId) => {
-    return attendees.find(att => att._id === attendeeId) || {};
   };
 
   // Data for display
@@ -1368,70 +1435,100 @@ const getFilteredEvents = (eventsList = events) => {
       {
         field: 'actions',
         headerName: isSmDown ? 'Actions' : 'Actions',
-        flex: 0.8, // Increased flex for larger buttons
-        minWidth: 120, // Increased from 80 to 120 for larger buttons
+        flex: 0.8, 
+        minWidth: 120,
         sortable: false,
         filterable: false,
-        renderCell: (params) => (
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center' }}>
-            <Tooltip title="Delete">
-              <IconButton 
-                size="medium" // Changed from small to medium
-                color="error" 
-                onClick={() => handleDelete(params.row._id)} 
-                sx={{ 
-                  padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                  '&:hover': {
-                    backgroundColor: theme.palette.error.main + '20',
-                    transform: 'scale(1.1)'
-                  },
-                  transition: 'transform 0.2s'
-                }}
-              >
-                <DeleteIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Edit">
-              <IconButton 
-                size="medium" // Changed from small to medium
-                color="primary" 
-                onClick={() => handleEditClick(params.row)} 
-                sx={{ 
-                  padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                  '&:hover': {
-                    backgroundColor: theme.palette.primary.main + '20',
-                    transform: 'scale(1.1)'
-                  },
-                  transition: 'transform 0.2s'
-                }}
-              >
-                <EditIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={params.row.present ? "Checked in" : "Check in"}>
-              <IconButton
-                size="medium" // Changed from small to medium
-                color="success"
-                disabled={!currentEventId}
-                onClick={() => handleToggleCheckIn(params.row)}
-                sx={{ 
-                  padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                  '&:hover': {
-                    backgroundColor: theme.palette.success.main + '20',
-                    transform: 'scale(1.1)'
-                  },
-                  transition: 'transform 0.2s',
-                  opacity: currentEventId ? 1 : 0.5
-                }}
-              >
-                {params.row.present ? 
-                  <CheckCircleIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} /> : 
-                  <CheckCircleOutlineIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
-                }
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        )
+        renderCell: (params) => {
+          const fullName = `${params.row.name || ''} ${params.row.surname || ''}`.trim();
+          const isDisabled = !currentEventId;
+          
+          return (
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Tooltip title={isDisabled ? "Please select an event first" : "Delete"}>
+                <span>
+                  <IconButton 
+                    size="medium"
+                    color={isDisabled ? "default" : "error"}
+                    onClick={() => {
+                      if (!isDisabled) {
+                        setDeleteConfirmation({
+                          open: true,
+                          personId: params.row._id,
+                          personName: fullName
+                        });
+                      }
+                    }}
+                    disabled={isDisabled}
+                    sx={{ 
+                      padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
+                      '&:hover': !isDisabled ? {
+                        backgroundColor: theme.palette.error.main + '20',
+                        transform: 'scale(1.1)'
+                      } : {},
+                      transition: 'transform 0.2s',
+                      opacity: isDisabled ? 0.5 : 1,
+                      color: isDisabled ? 'text.disabled' : ''
+                    }}
+                  >
+                    <DeleteIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              
+              <Tooltip title={isDisabled ? "Please select an event first" : "Edit"}>
+                <span>
+                  <IconButton 
+                    size="medium"
+                    color={isDisabled ? "default" : "primary"}
+                    onClick={() => {
+                      if (!isDisabled) handleEditClick(params.row);
+                    }}
+                    disabled={isDisabled}
+                    sx={{ 
+                      padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
+                      '&:hover': !isDisabled ? {
+                        backgroundColor: theme.palette.primary.main + '20',
+                        transform: 'scale(1.1)'
+                      } : {},
+                      transition: 'transform 0.2s',
+                      opacity: isDisabled ? 0.5 : 1,
+                      color: isDisabled ? 'text.disabled' : ''
+                    }}
+                  >
+                    <EditIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              
+              <Tooltip title={isDisabled ? "Please select an event first" : (params.row.present ? "Checked in" : "Check in")}>
+                <span>
+                  <IconButton
+                    size="medium"
+                    color={isDisabled ? "default" : "success"}
+                    disabled={isDisabled}
+                    onClick={() => !isDisabled && handleToggleCheckIn(params.row)}
+                    sx={{ 
+                      padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
+                      '&:hover': !isDisabled ? {
+                        backgroundColor: theme.palette.success.main + '20',
+                        transform: 'scale(1.1)'
+                      } : {},
+                      transition: 'transform 0.2s',
+                      opacity: isDisabled ? 0.5 : 1,
+                      color: isDisabled ? 'text.disabled' : ''
+                    }}
+                  >
+                    {params.row.present ? 
+                      <CheckCircleIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} /> : 
+                      <CheckCircleOutlineIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
+                    }
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Stack>
+          );
+        }
       }
     ];
 
@@ -1450,55 +1547,79 @@ const getFilteredEvents = (eventsList = events) => {
 
   const mainColumns = getMainColumns();
 
-  // Update StatsCard to be more compact
+  // StatsCard Component
   const StatsCard = ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
     <Paper
       variant="outlined"
       sx={{
-        p: getResponsiveValue(1, 1.5, 2, 2.5, 2.5), // Reduced padding
+        p: getResponsiveValue(1, 1.5, 2, 2.5, 2.5),
         textAlign: "center",
         cursor: disabled ? "default" : "pointer",
-        boxShadow: 2, // Reduced from 3
-        minHeight: '80px', // Reduced from 100px
+        boxShadow: isSmDown ? 1 : 2,
+        minHeight: isSmDown ? '70px' : '80px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        "&:hover": disabled ? {} : { boxShadow: 4, transform: "translateY(-2px)" }, // Reduced from 6
+        alignItems: 'center',
+        backgroundColor: 'background.paper',
+        border: isSmDown ? `1px solid ${theme.palette.divider}` : 'none',
+        "&:hover": disabled || isSmDown ? {} : { 
+          boxShadow: 4, 
+          transform: "translateY(-2px)" 
+        },
         transition: "all 0.2s",
         opacity: disabled ? 0.6 : 1,
-        backgroundColor: 'background.paper',
       }}
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
     >
-      <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={0.5}>
-        {React.cloneElement(icon, { 
-          color: disabled ? "disabled" : color,
-          sx: { fontSize: getResponsiveValue(18, 20, 24, 28, 28) } // Reduced icon size
-        })}
+      <Stack 
+        direction={isSmDown ? "row" : "column"} 
+        alignItems="center" 
+        justifyContent={isSmDown ? "space-between" : "center"}
+        spacing={isSmDown ? 0 : 1}
+        sx={{ width: '100%' }}
+      >
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center',
+          gap: isSmDown ? 1 : 0.5
+        }}>
+          {React.cloneElement(icon, { 
+            color: disabled ? "disabled" : color,
+            sx: { 
+              fontSize: getResponsiveValue(16, 18, 20, 24, 24),
+              opacity: disabled ? 0.5 : 1
+            }
+          })}
+          <Typography 
+            variant={isSmDown ? "body1" : getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
+            fontWeight={isSmDown ? 600 : 600}
+            color={disabled ? "text.disabled" : `${color}.main`}
+            sx={{ 
+              fontSize: isSmDown ? "0.9rem" : getResponsiveValue("0.9rem", "1rem", "1.2rem", "1.3rem", "1.3rem"),
+              ml: isSmDown ? 1 : 0
+            }}
+          >
+            {count}
+          </Typography>
+        </Box>
+        
         <Typography 
-          variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
-          fontWeight={600} 
+          variant={isSmDown ? "body2" : getResponsiveValue("caption", "body2", "body2", "body1", "body1")}
           color={disabled ? "text.disabled" : `${color}.main`}
-          sx={{ fontSize: getResponsiveValue("0.9rem", "1rem", "1.2rem", "1.3rem", "1.3rem") }} // Reduced font size
+          sx={{ 
+            fontSize: isSmDown ? "0.8rem" : getResponsiveValue("0.7rem", "0.8rem", "0.9rem", "1rem", "1rem"),
+            mt: isSmDown ? 0 : 0.5,
+            opacity: disabled ? 0.7 : 1
+          }}
         >
-          {count}
+          {title}
         </Typography>
       </Stack>
-      <Typography 
-        variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} 
-        color={disabled ? "text.disabled" : `${color}.main`}
-        sx={{ fontSize: getResponsiveValue("0.7rem", "0.8rem", "0.9rem", "1rem", "1rem") }} // Reduced font size
-      >
-        {title}
-        {disabled && (
-          <Typography variant="caption" display="block" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
-            Select event
-          </Typography>
-        )}
-      </Typography>
     </Paper>
   );
 
+  // AttendeeCard Component
   const AttendeeCard = ({ attendee, showNumber, index }) => (
     <Card
       variant="outlined"
@@ -1528,7 +1649,7 @@ const getFilteredEvents = (eventsList = events) => {
           <IconButton onClick={() => handleEditClick(attendee)} color="primary" size="medium">
             <EditIcon />
           </IconButton>
-          <IconButton onClick={() => handleDelete(attendee._id)} color="error" size="medium">
+          <IconButton onClick={() => handleDelete(attendee._id, `${attendee.name} ${attendee.surname}`)} color="error" size="medium">
             <DeleteIcon />
           </IconButton>
           <IconButton onClick={() => handleToggleCheckIn(attendee)} color="success" disabled={!currentEventId} size="medium">
@@ -1556,7 +1677,7 @@ const getFilteredEvents = (eventsList = events) => {
     </Card>
   );
 
-  // Updated PresentAttendeeCard - Clear name and surname display
+  // PresentAttendeeCard Component
   const PresentAttendeeCard = ({ attendee, showNumber, index }) => {
     // Get full person data to access all fields
     const fullPersonData = attendees.find(att => att._id === (attendee.id || attendee._id)) || attendee;
@@ -1682,6 +1803,7 @@ const getFilteredEvents = (eventsList = events) => {
     );
   };
 
+  // NewPersonCard Component
   const NewPersonCard = ({ person, showNumber, index }) => (
     <Card
       variant="outlined"
@@ -1735,6 +1857,7 @@ const getFilteredEvents = (eventsList = events) => {
     </Card>
   );
 
+  // ConsolidatedPersonCard Component
   const ConsolidatedPersonCard = ({ person, showNumber, index }) => {
     const decisionType = person.decision_type || person.consolidation_type || "Commitment";
     const displayDecisionType = decisionType || 'Commitment';
@@ -1826,6 +1949,7 @@ const getFilteredEvents = (eventsList = events) => {
     );
   };
 
+  // EventHistoryDetailsModal Component
   const EventHistoryDetailsModal = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(0);
@@ -2033,19 +2157,77 @@ const getFilteredEvents = (eventsList = events) => {
             />
           </Box>
         </DialogContent>
+
         <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
           <Button
-            onClick={() => setEventHistoryDetails(prev => ({ ...prev, open: false }))}
             variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={() => {
+              const dataToDownload = modalFilteredAttendees.map(attendee => ({
+                Name: attendee.name || '',
+                Surname: attendee.surname || '',
+                Email: attendee.email || '',
+                Phone: attendee.phone || '',
+                'Leader @1': attendee.leader1 || '',
+                'Leader @12': attendee.leader12 || '',
+                'Leader @144': attendee.leader144 || '',
+                CheckIn_Time: attendee.time || '',
+                Status: 'Present'
+              }));
+              downloadCSV(dataToDownload, `Present_Attendees_${currentEventId?.eventName || 'Event'}`);
+            }}
+            size={isSmDown ? "small" : "medium"}
+            disabled={modalFilteredAttendees.length === 0}
+          >
+            Download CSV
+          </Button>
+          <Button 
+            onClick={() => setModalOpen(false)} 
+            variant="outlined" 
             size={isSmDown ? "small" : "medium"}
           >
             Close
           </Button>
         </DialogActions>
+
       </Dialog>
     );
   };
 
+  // DeleteConfirmationModal Component
+  const DeleteConfirmationModal = () => (
+    <Dialog
+      open={deleteConfirmation.open}
+      onClose={() => setDeleteConfirmation({ open: false, personId: null, personName: '' })}
+      maxWidth="xs"
+      fullWidth
+    >
+      <DialogTitle>Confirm Delete</DialogTitle>
+      <DialogContent>
+        <Typography>
+          Are you sure you want to delete <strong>{deleteConfirmation.personName}</strong>? 
+          This action cannot be undone.
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button 
+          onClick={() => setDeleteConfirmation({ open: false, personId: null, personName: '' })}
+          color="primary"
+        >
+          Cancel
+        </Button>
+        <Button 
+          onClick={() => handleDelete(deleteConfirmation.personId, deleteConfirmation.personName)}
+          color="error"
+          variant="contained"
+        >
+          Delete
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  // SkeletonLoader Component
   const SkeletonLoader = () => (
     <Box p={containerPadding} sx={{ 
       width: '100%', 
@@ -2088,14 +2270,13 @@ const getFilteredEvents = (eventsList = events) => {
             sx={{ 
               boxShadow: 2,
               '& .MuiSelect-select': {
-                py: isSmDown ? 0.5 : 1, // Reduced padding
-                fontSize: getResponsiveValue('0.8rem', '0.9rem', '1rem', '1rem', '1rem') // Smaller font
+                py: isSmDown ? 0.5 : 1,
+                fontSize: getResponsiveValue('0.8rem', '0.9rem', '1rem', '1rem', '1rem')
               }
             }}
           ></Select>
         </Grid>
         </Grid>
-
 
       <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, p: 1, minHeight: '48px' }}>
         <Stack direction="row" spacing={2}>
@@ -2253,7 +2434,16 @@ const getFilteredEvents = (eventsList = events) => {
       maxWidth: '100vw',
       overflowX: 'hidden'
     }}>
-      <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
+      <ToastContainer 
+        position={isSmDown ? "top-center" : "top-right"} 
+        autoClose={3000} 
+        hideProgressBar={isSmDown}
+        style={{
+          marginTop: isSmDown ? '60px' : '20px',
+          zIndex: 9999
+        }}
+      />
+      <DeleteConfirmationModal />
 
       {/* Stats Cards */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
@@ -2262,7 +2452,7 @@ const getFilteredEvents = (eventsList = events) => {
             title="Present"
             count={presentCount}
             icon={<GroupIcon />}
-            color="primary" // Blue
+            color="primary"
             onClick={() => { 
               if (currentEventId) {
                 setModalOpen(true); 
@@ -2278,7 +2468,7 @@ const getFilteredEvents = (eventsList = events) => {
             title="New People"
             count={newPeopleCount}
             icon={<PersonAddAltIcon />}
-            color="success" // Green
+            color="success"
             onClick={() => { 
               if (currentEventId) {
                 setNewPeopleModalOpen(true); 
@@ -2294,7 +2484,7 @@ const getFilteredEvents = (eventsList = events) => {
             title="Consolidated"
             count={consolidationCount}
             icon={<MergeIcon />}
-            color="secondary" // Purple
+            color="secondary"
             onClick={() => { 
               if (currentEventId) {
                 setConsolidatedModalOpen(true); 
@@ -2307,7 +2497,7 @@ const getFilteredEvents = (eventsList = events) => {
         </Grid>
       </Grid>
 
-      {/* Controls - Updated for mobile full width */}
+      {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={isSmDown ? 12 : 6} md={4}>
           <Select
@@ -2453,163 +2643,162 @@ const getFilteredEvents = (eventsList = events) => {
           <Tabs
             value={activeTab}
             onChange={(e, newValue) => setActiveTab(newValue)}
-                sx={{ 
-      borderBottom: 1, 
-      borderColor: 'divider',
-      minHeight: '36px', // Reduced height
-      '& .MuiTab-root': {
-        py: 0.5, // Reduced padding
-        fontSize: getResponsiveValue('0.7rem', '0.8rem', '0.9rem', '1rem', '1rem')
-      }
-    }}
-
+            sx={{ 
+              borderBottom: 1, 
+              borderColor: 'divider',
+              minHeight: '36px',
+              '& .MuiTab-root': {
+                py: 0.5,
+                fontSize: getResponsiveValue('0.7rem', '0.8rem', '0.9rem', '1rem', '1rem')
+              }
+            }}
           >
             <Tab label="All Attendees" />
             <Tab label="Event History" />
           </Tabs>
         </Paper>
-{activeTab === 0 && (
-  <Box sx={{ width: '100%', height: '100%' }}>
-    <Paper 
-      variant="outlined" 
-      sx={{ 
-        boxShadow: 3,
-        overflow: 'hidden',
-        width: '100%',
-        height: isMdDown ? `calc(100vh - ${containerPadding * 8 + 280}px)` : 650, // Increased from 500 to 650
-        minHeight: isMdDown ? 500 : 650, // Increased from 400/500 to 500/650
-        maxHeight: isMdDown ? '650px' : 700, // Increased from 550/500 to 650/700
-      }}
-    >
-      <DataGrid
-        rows={sortedFilteredAttendees ?? attendees}
-        columns={mainColumns}
-        pagination
-        paginationModel={{
-          page: page,
-          pageSize: rowsPerPage,
-        }}
-        onPaginationModelChange={(model) => {
-          setPage(model.page);
-          setRowsPerPage(model.pageSize);
-        }}
-        rowCount={filteredAttendees.length}
-        pageSizeOptions={[25, 50, 100]}
-        slots={{
-          toolbar: GridToolbar,
-        }}
-        slotProps={{
-          toolbar: {
-            showQuickFilter: true,
-            quickFilterProps: { debounceMs: 500 },
-          },
-        }}
-        disableRowSelectionOnClick
-        sortModel={sortModel}
-        onSortModelChange={(model) => {
-          setPage(0);
-          setSortModel(model);
-        }}
-        getRowId={(row) => row._id}
-        sx={{
-          width: '100%',
-          height: 'calc(100% - 1px)', // Slightly smaller to fit within Paper
-          '& .MuiDataGrid-root': {
-            border: 'none',
-            width: '100%',
-            height: '100%',
-          },
-          '& .MuiDataGrid-main': {
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%'
-          },
-          '& .MuiDataGrid-virtualScroller': {
-            width: '100% !important',
-            minWidth: '100%',
-            flex: 1,
-            height: '100% !important',
-          },
-          '& .MuiDataGrid-row': {
-            width: '100% !important',
-          },
-          '& .MuiDataGrid-cell': {
-            display: 'flex',
-            alignItems: 'center',
-            padding: isXsDown ? '2px 4px' : (isSmDown ? '2px 3px' : '4px 6px'),
-            fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
-            minWidth: '40px',
-          },
-          '& .MuiDataGrid-columnHeaders': {
-            width: '100% !important',
-            backgroundColor: theme.palette.action.hover,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          },
-          '& .MuiDataGrid-columnHeader': {
-            fontWeight: 600,
-            minWidth: '40px',
-            fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
-            padding: isXsDown ? '4px 2px' : (isSmDown ? '4px 2px' : '6px 4px'),
-            '& .MuiDataGrid-iconButtonContainer': {
-              visibility: 'visible !important',
-            },
-            '& .MuiDataGrid-sortIcon': {
-              opacity: 1,
-            },
-          },
-          '& .MuiDataGrid-row:hover': {
-            backgroundColor: theme.palette.action.hover,
-          },
-          '& .MuiDataGrid-toolbarContainer': {
-            padding: isXsDown ? '4px 2px' : (isSmDown ? '8px 4px' : '12px 8px'),
-            minHeight: 'auto',
-            width: '100%',
-            borderBottom: `1px solid ${theme.palette.divider}`,
-            '& .MuiOutlinedInput-root': {
-              fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
-            }
-          },
-          // Ensure the footer is visible
-          '& .MuiDataGrid-footerContainer': {
-            display: 'flex',
-            borderTop: `1px solid ${theme.palette.divider}`,
-            backgroundColor: theme.palette.background.paper,
-            minHeight: '52px',
-          },
-          '& .MuiDataGrid-virtualScrollerContent': {
-            width: '100% !important',
-            height: '100% !important',
-          },
-          '& .MuiDataGrid-scrollbar--vertical': {
-            width: '8px !important',
-          },
-          // Mobile-specific optimizations
-          ...(isSmDown && {
-            '& .MuiDataGrid-columnHeader': {
-              padding: '4px 2px',
-              fontSize: '0.7rem',
-              minWidth: '40px',
-            },
-            '& .MuiDataGrid-cell': {
-              padding: '2px 4px',
-              fontSize: '0.7rem',
-              minWidth: '40px',
-            },
-            '& .MuiDataGrid-columnSeparator': {
-              display: 'none',
-            },
-            '& .MuiDataGrid-toolbarContainer': {
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              gap: 1
-            }
-          }),
-        }}
-      />
-    </Paper>
-  </Box>
-)}
+
+        {activeTab === 0 && (
+          <Box sx={{ width: '100%', height: '100%' }}>
+            <Paper 
+              variant="outlined" 
+              sx={{ 
+                boxShadow: 3,
+                overflow: 'hidden',
+                width: '100%',
+                height: isMdDown ? `calc(100vh - ${containerPadding * 8 + 280}px)` : 650,
+                minHeight: isMdDown ? 500 : 650,
+                maxHeight: isMdDown ? '650px' : 700,
+              }}
+            >
+              <DataGrid
+                rows={sortedFilteredAttendees ?? attendees}
+                columns={mainColumns}
+                pagination
+                paginationModel={{
+                  page: page,
+                  pageSize: rowsPerPage,
+                }}
+                onPaginationModelChange={(model) => {
+                  setPage(model.page);
+                  setRowsPerPage(model.pageSize);
+                }}
+                rowCount={filteredAttendees.length}
+                pageSizeOptions={[25, 50, 100]}
+                slots={{
+                  toolbar: GridToolbar,
+                }}
+                slotProps={{
+                  toolbar: {
+                    showQuickFilter: true,
+                    quickFilterProps: { debounceMs: 500 },
+                  },
+                }}
+                disableRowSelectionOnClick
+                sortModel={sortModel}
+                onSortModelChange={(model) => {
+                  setPage(0);
+                  setSortModel(model);
+                }}
+                getRowId={(row) => row._id}
+                sx={{
+                  width: '100%',
+                  height: 'calc(100% - 1px)',
+                  '& .MuiDataGrid-root': {
+                    border: 'none',
+                    width: '100%',
+                    height: '100%',
+                  },
+                  '& .MuiDataGrid-main': {
+                    width: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%'
+                  },
+                  '& .MuiDataGrid-virtualScroller': {
+                    width: '100% !important',
+                    minWidth: '100%',
+                    flex: 1,
+                    height: '100% !important',
+                  },
+                  '& .MuiDataGrid-row': {
+                    width: '100% !important',
+                  },
+                  '& .MuiDataGrid-cell': {
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: isXsDown ? '2px 4px' : (isSmDown ? '2px 3px' : '4px 6px'),
+                    fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
+                    minWidth: '40px',
+                  },
+                  '& .MuiDataGrid-columnHeaders': {
+                    width: '100% !important',
+                    backgroundColor: theme.palette.action.hover,
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                  },
+                  '& .MuiDataGrid-columnHeader': {
+                    fontWeight: 600,
+                    minWidth: '40px',
+                    fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
+                    padding: isXsDown ? '4px 2px' : (isSmDown ? '4px 2px' : '6px 4px'),
+                    '& .MuiDataGrid-iconButtonContainer': {
+                      visibility: 'visible !important',
+                    },
+                    '& .MuiDataGrid-sortIcon': {
+                      opacity: 1,
+                    },
+                  },
+                  '& .MuiDataGrid-row:hover': {
+                    backgroundColor: theme.palette.action.hover,
+                  },
+                  '& .MuiDataGrid-toolbarContainer': {
+                    padding: isXsDown ? '4px 2px' : (isSmDown ? '8px 4px' : '12px 8px'),
+                    minHeight: 'auto',
+                    width: '100%',
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
+                    }
+                  },
+                  '& .MuiDataGrid-footerContainer': {
+                    display: 'flex',
+                    borderTop: `1px solid ${theme.palette.divider}`,
+                    backgroundColor: theme.palette.background.paper,
+                    minHeight: '52px',
+                  },
+                  '& .MuiDataGrid-virtualScrollerContent': {
+                    width: '100% !important',
+                    height: '100% !important',
+                  },
+                  '& .MuiDataGrid-scrollbar--vertical': {
+                    width: '8px !important',
+                  },
+                  ...(isSmDown && {
+                    '& .MuiDataGrid-columnHeader': {
+                      padding: '4px 2px',
+                      fontSize: '0.7rem',
+                      minWidth: '40px',
+                    },
+                    '& .MuiDataGrid-cell': {
+                      padding: '2px 4px',
+                      fontSize: '0.7rem',
+                      minWidth: '40px',
+                    },
+                    '& .MuiDataGrid-columnSeparator': {
+                      display: 'none',
+                    },
+                    '& .MuiDataGrid-toolbarContainer': {
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 1
+                    }
+                  }),
+                }}
+              />
+            </Paper>
+          </Box>
+        )}
+
         {activeTab === 1 && (
           <Box sx={{ width: '100%' }}>
             <EventHistory
@@ -2823,6 +3012,28 @@ const getFilteredEvents = (eventsList = events) => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+          <Button 
+            variant="outlined" 
+            startIcon={<DownloadIcon />}
+            onClick={() => {
+              const dataToDownload = modalFilteredAttendees.map(attendee => ({
+                Name: attendee.name || '',
+                Surname: attendee.surname || '',
+                Email: attendee.email || '',
+                Phone: attendee.phone || '',
+                'Leader @1': attendee.leader1 || '',
+                'Leader @12': attendee.leader12 || '',
+                'Leader @144': attendee.leader144 || '',
+                CheckIn_Time: attendee.time || '',
+                Status: 'Present'
+              }));
+              downloadCSV(dataToDownload, `Present_Attendees_${currentEventId}`);
+            }}
+            size={isSmDown ? "small" : "medium"}
+            disabled={modalFilteredAttendees.length === 0}
+          >
+            Download CSV
+          </Button>
           <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
             Close
           </Button>
