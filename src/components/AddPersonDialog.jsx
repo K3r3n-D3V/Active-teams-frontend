@@ -212,6 +212,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     setFormData(prev => ({
       ...prev,
       invitedBy: label,
+      gender: person?.["Gender"] || "",
       leader1: person?.["Leader @1"] || "",
       leader12: person?.["Leader @12"] || "",
       leader144: person?.["Leader @144"] || ""
@@ -244,70 +245,93 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       .slice(0, 50);
   }, []);
 
-  const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
-    const currentValue = formData[name] || "";
-    
-    return (
-      <Autocomplete
-        freeSolo
-        disabled={disabled || isSubmitting || isLoadingPeople}
-        options={peopleOptions}
-        getOptionLabel={(option) => {
-          if (typeof option === "string") return option;
-          return option.label;
-        }}
-        filterOptions={filterOptions}
-        value={
-          peopleOptions.find(option => 
-            option.label === currentValue
-          ) || 
-          (currentValue ? { label: currentValue } : null)
+  const renderAutocomplete = (
+  name,
+  label,
+  isInvite = false,
+  disabled = false,
+  required = false
+) => {
+  const currentValue = formData[name] || "";
+
+  return (
+    <Autocomplete
+      freeSolo
+      disabled={disabled || isSubmitting || isLoadingPeople}
+      options={peopleOptions}
+      getOptionLabel={(option) => {
+        if (typeof option === "string") return option;
+        return option.label;
+      }}
+      filterOptions={filterOptions}
+      value={
+        peopleOptions.find(option => option.label === currentValue) ||
+        (currentValue ? { label: currentValue } : null)
+      }
+      onChange={(e, newValue) => {
+        if (isInvite) {
+          handleInvitedByChange(newValue);
+        } else {
+          const value = newValue
+            ? (typeof newValue === "string" ? newValue : newValue.label)
+            : "";
+
+          setFormData(prev => ({ ...prev, [name]: value }));
+
+          if (value && !showLeaderFields) {
+            setShowLeaderFields(true);
+          }
         }
-        onChange={(e, newValue) => {
-          if (isInvite) {
-            handleInvitedByChange(newValue);
-          } else {
-            const value = newValue ? (typeof newValue === "string" ? newValue : newValue.label) : "";
-            setFormData(prev => ({ ...prev, [name]: value }));
-            
-            // Show leader fields when any leader field gets data
-            if (value && !showLeaderFields) {
-              setShowLeaderFields(true);
-            }
+
+        // Required validation
+        if (required) {
+          setErrors(prev => ({
+            ...prev,
+            [name]: newValue ? "" : `${label} is required`,
+          }));
+        }
+      }}
+      onInputChange={(e, newInputValue, reason) => {
+        handleSearchInputChange(name, newInputValue);
+
+        if (reason === "input") {
+          setFormData(prev => ({ ...prev, [name]: newInputValue }));
+
+          if (newInputValue && !showLeaderFields) {
+            setShowLeaderFields(true);
           }
-        }}
-        onInputChange={(e, newInputValue, reason) => {
-          handleSearchInputChange(name, newInputValue);
-          
-          if (reason === "input") {
-            setFormData(prev => ({ ...prev, [name]: newInputValue }));
-            
-            // Show leader fields when user starts typing in a leader field
-            if (newInputValue && !showLeaderFields) {
-              setShowLeaderFields(true);
-            }
-          }
-        }}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label={label}
-            error={!!errors[name]}
-            helperText={errors[name]}
-            margin="normal"
-            fullWidth
-            sx={uniformInputSx}
-          />
-        )}
-        loading={isLoadingPeople}
-        loadingText="Loading people..."
-        noOptionsText="No matches found"
-        blurOnSelect
-        clearOnBlur
-        handleHomeEndKeys
-      />
-    );
-  };
+        }
+
+        // Required validation on typing
+        if (required) {
+          setErrors(prev => ({
+            ...prev,
+            [name]: newInputValue ? "" : `${label} is required`,
+          }));
+        }
+      }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={label}
+          required={required}
+          error={!!errors[name]}
+          helperText={errors[name]}
+          margin="normal"
+          fullWidth
+          sx={uniformInputSx}
+        />
+      )}
+      loading={isLoadingPeople}
+      loadingText="Loading people..."
+      noOptionsText="No matches found"
+      blurOnSelect
+      clearOnBlur
+      handleHomeEndKeys
+    />
+  );
+};
+
 
   const renderTextField = (name, label, options = {}) => {
     const { select, selectOptions, type, required, helperText } = options;
@@ -465,7 +489,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
             type: 'date', 
             required: true 
           })}
-          {renderAutocomplete('invitedBy', 'Invited By', true, false)}
+          {renderAutocomplete('invitedBy', 'Invited By', true, false, true)}
           {renderTextField('address', 'Home Address *', { 
             required: true 
           })}
