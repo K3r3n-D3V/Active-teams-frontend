@@ -194,97 +194,263 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     return cleanData;
   };
 
-  const handleSubmit = async () => {
-    try {
-      setLoading(true);
+  // const handleSubmit = async () => {
+  //   try {
+  //     setLoading(true);
       
-      if (changedFields.length === 0) {
-        toast.info("No changes made");
-        onClose(false);
+  //     if (changedFields.length === 0) {
+  //       toast.info("No changes made");
+  //       onClose(false);
+  //       return;
+  //     }
+      
+  //     const updateData = prepareUpdateData();
+      
+  //     console.log("Data for backend:", updateData);
+      
+  //     let endpoint, method, body;
+      
+  //     if (editScope === 'person' && originalPersonIdentifier) {
+  //       endpoint = `/events/update-person-cells/${encodeURIComponent(originalPersonIdentifier)}`;
+  //       method = 'PUT';
+  //       body = JSON.stringify(updateData);
+        
+  //       const confirmed = window.confirm(
+  //         `Update all events for "${originalPersonIdentifier}"?\n\n` +
+  //         `Fields: ${changedFields.join(', ')}`
+  //       );
+        
+  //       if (!confirmed) {
+  //         setLoading(false);
+  //         return;
+  //       }
+  //     } else {
+  //       let identifier = event._id || event.id || event.UUID;
+        
+  //       if (identifier && typeof identifier === 'string' && identifier.includes('_')) {
+  //         const parts = identifier.split('_');
+  //         identifier = parts[0];
+  //         console.log(`Extracted ObjectId: ${identifier} from compound ID`);
+  //       }
+        
+  //       endpoint = `/events/cells/${identifier}`;
+  //       method = 'PUT';
+  //       body = JSON.stringify(updateData);
+        
+  //       console.log(`Calling single cell endpoint: ${endpoint}`);
+  //     }
+      
+  //     const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+  //       method: method,
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         'Authorization': `Bearer ${token}`
+  //       },
+  //       body: body
+  //     });
+      
+  //     if (!response.ok) {
+  //       const errorText = await response.text();
+  //       console.error("Backend error response:", errorText);
+        
+  //       let errorData;
+  //       try {
+  //         errorData = JSON.parse(errorText);
+  //       } catch {
+  //         errorData = { detail: errorText };
+  //       }
+        
+  //       throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+  //     }
+      
+  //     const result = await response.json();
+  //     console.log("Backend response:", result);
+      
+  //     if (editScope === 'person') {
+  //       toast.success(`Updated ${result.modified_count || result.updated_count || 0} events successfully`);
+  //     } else {
+  //       toast.success('Event updated successfully');
+  //     }
+      
+  //     if (refreshEvents) {
+  //       refreshEvents();
+  //     }
+  //     onClose(true);
+      
+  //   } catch (error) {
+  //     console.error("Error saving:", error);
+  //     toast.error(`Failed to save: ${error.message || error}`);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+const handleSubmit = async () => {
+  try {
+    setLoading(true);
+    
+    if (changedFields.length === 0) {
+      toast.info("No changes made");
+      onClose(false);
+      return;
+    }
+    
+    // VALIDATION: Check if required fields are being emptied
+    const requiredFields = [
+      'eventName', 'Event Name',
+      'eventLeader', 'Leader', 'eventLeaderName',
+      'location', 'Address', 'address',
+      'eventLeaderEmail', 'Email', 'email',
+      'description'
+    ];
+    
+    let validationErrors = [];
+    
+    // Check if any required field is being changed to empty
+    changedFields.forEach(field => {
+      if (requiredFields.includes(field)) {
+        const newValue = formData[field];
+        const originalValue = event[field];
+        
+        // If the field had a value before and now it's empty
+        if (originalValue && originalValue !== '' && (newValue === '' || newValue === null || newValue === undefined)) {
+          const displayName = field
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/_/g, ' ')
+            .replace(/^./, str => str.toUpperCase())
+            .trim();
+          
+          validationErrors.push(`${displayName} cannot be empty`);
+        }
+      }
+    });
+    
+    // Check if essential fields are missing completely
+    const essentialFields = ['eventName', 'eventLeader', 'location', 'eventLeaderEmail', 'description'];
+    essentialFields.forEach(field => {
+      if (!formData[field] || formData[field] === '') {
+        // If this field exists in available fields and is empty
+        if (availableFields.includes(field) && !validationErrors.includes(`${field} cannot be empty`)) {
+          const displayName = field
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/_/g, ' ')
+            .replace(/^./, str => str.toUpperCase())
+            .trim();
+          
+          validationErrors.push(`${displayName} is required`);
+        }
+      }
+    });
+    
+    if (validationErrors.length > 0) {
+      toast.error(`Validation errors:\n${validationErrors.join('\n')}`);
+      setLoading(false);
+      return;
+    }
+    
+    const updateData = prepareUpdateData();
+    
+    // Additional check: Ensure required fields are not null in updateData
+    const requiredFieldCheck = ['eventName', 'eventLeader', 'location', 'eventLeaderEmail', 'description'];
+    requiredFieldCheck.forEach(field => {
+      const allFieldNames = fieldMapping[field] || [field];
+      
+      // Check if any of the related field names are being set to null
+      allFieldNames.forEach(fieldName => {
+        if (updateData[fieldName] === null) {
+          const displayName = fieldName
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/_/g, ' ')
+            .replace(/^./, str => str.toUpperCase())
+            .trim();
+          
+          toast.error(`Cannot save: ${displayName} cannot be empty`);
+          throw new Error(`Required field ${fieldName} cannot be empty`);
+        }
+      });
+    });
+    
+    console.log("Data for backend:", updateData);
+    
+    let endpoint, method, body;
+    
+    if (editScope === 'person' && originalPersonIdentifier) {
+      endpoint = `/events/update-person-cells/${encodeURIComponent(originalPersonIdentifier)}`;
+      method = 'PUT';
+      body = JSON.stringify(updateData);
+      
+      const confirmed = window.confirm(
+        `Update all events for "${originalPersonIdentifier}"?\n\n` +
+        `Fields: ${changedFields.join(', ')}`
+      );
+      
+      if (!confirmed) {
+        setLoading(false);
         return;
       }
+    } else {
+      let identifier = event._id || event.id || event.UUID;
       
-      const updateData = prepareUpdateData();
-      
-      console.log("Data for backend:", updateData);
-      
-      let endpoint, method, body;
-      
-      if (editScope === 'person' && originalPersonIdentifier) {
-        endpoint = `/events/update-person-cells/${encodeURIComponent(originalPersonIdentifier)}`;
-        method = 'PUT';
-        body = JSON.stringify(updateData);
-        
-        const confirmed = window.confirm(
-          `Update all events for "${originalPersonIdentifier}"?\n\n` +
-          `Fields: ${changedFields.join(', ')}`
-        );
-        
-        if (!confirmed) {
-          setLoading(false);
-          return;
-        }
-      } else {
-        let identifier = event._id || event.id || event.UUID;
-        
-        if (identifier && typeof identifier === 'string' && identifier.includes('_')) {
-          const parts = identifier.split('_');
-          identifier = parts[0];
-          console.log(`Extracted ObjectId: ${identifier} from compound ID`);
-        }
-        
-        endpoint = `/events/cells/${identifier}`;
-        method = 'PUT';
-        body = JSON.stringify(updateData);
-        
-        console.log(`Calling single cell endpoint: ${endpoint}`);
+      if (identifier && typeof identifier === 'string' && identifier.includes('_')) {
+        const parts = identifier.split('_');
+        identifier = parts[0];
+        console.log(`Extracted ObjectId: ${identifier} from compound ID`);
       }
       
-      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: body
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Backend error response:", errorText);
-        
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { detail: errorText };
-        }
-        
-        throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+      if (!identifier) {
+        throw new Error("No event identifier found");
       }
       
-      const result = await response.json();
-      console.log("Backend response:", result);
+      endpoint = `/events/${identifier}`;
+      method = 'PUT';
+      body = JSON.stringify(updateData);
       
-      if (editScope === 'person') {
-        toast.success(`Updated ${result.modified_count || result.updated_count || 0} events successfully`);
-      } else {
-        toast.success('Event updated successfully');
-      }
-      
-      if (refreshEvents) {
-        refreshEvents();
-      }
-      onClose(true);
-      
-    } catch (error) {
-      console.error("Error saving:", error);
-      toast.error(`Failed to save: ${error.message || error}`);
-    } finally {
-      setLoading(false);
+      console.log(`Calling universal events endpoint: ${endpoint}`);
     }
-  };
-
+    
+    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: body
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Backend error response:", errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { detail: errorText };
+      }
+      
+      throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log("Backend response:", result);
+    
+    if (editScope === 'person') {
+      toast.success(`Updated ${result.modified_count || result.updated_count || 0} events successfully`);
+    } else {
+      toast.success('Event updated successfully');
+    }
+    
+    if (refreshEvents) {
+      refreshEvents();
+    }
+    onClose(true);
+    
+  } catch (error) {
+    console.error("Error saving:", error);
+    toast.error(`Failed to save: ${error.message || error}`);
+  } finally {
+    setLoading(false);
+  }
+};
   const renderField = (field) => {
     const value = formData[field] || '';
     const isChanged = changedFields.includes(field);

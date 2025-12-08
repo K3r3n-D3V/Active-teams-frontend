@@ -845,6 +845,212 @@ useEffect(() => {
     checkLeaderAt12Status();
   }, [BACKEND_URL]);
 
+// const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
+//   if (showLoader) {
+//     setLoading(true);
+//     setIsLoading(true);
+//   }
+
+//   try {
+//     const token = localStorage.getItem("token");
+//     if (!token) {
+//       toast.error("Please log in again");
+//       setTimeout(() => window.location.href = '/login', 2000);
+//       setEvents([]);
+//       setFilteredEvents([]);
+//       if (showLoader) {
+//         setLoading(false);
+//         setIsLoading(false);
+//       }
+//       return;
+//     }
+
+//     const headers = {
+//       Authorization: `Bearer ${token}`,
+//       'Content-Type': 'application/json'
+//     };
+
+//     const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
+
+//     // Build params safely
+//     const params = {
+//       page: filters.page !== undefined ? filters.page : currentPage,
+//       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+//       start_date: startDateParam,
+      
+//     };
+
+//     // CRITICAL FIX: ALWAYS pass event_type if provided
+//     if (filters.event_type) {
+//       params.event_type = filters.event_type;
+//     } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+//       params.event_type = selectedEventTypeFilter;
+//     }
+
+//     // Add other filters
+//     if (filters.status && filters.status !== 'all') params.status = filters.status;
+//     if (filters.search) params.search = filters.search;
+//     if (filters.personal !== undefined) params.personal = filters.personal;
+//     if (filters._t) params._t = filters._t;
+
+//     // Remove undefined/null
+//     Object.keys(params).forEach(key => {
+//       if (params[key] === undefined || params[key] === null || params[key] === '') {
+//         delete params[key];
+//       }
+//     });
+
+//     let endpoint;
+//     const eventTypeToUse = params.event_type || selectedEventTypeFilter;
+    
+  
+//     if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
+//       endpoint = `${BACKEND_URL}/events/other`;
+      
+//       delete params.personal;
+//       delete params.leader_at_12_view;
+//       delete params.show_personal_cells;
+//       delete params.show_all_authorized;
+//       delete params.include_subordinate_cells;
+//       delete params.leader_at_1_identifier;
+//     } else {
+//       endpoint = `${BACKEND_URL}/events/cells`;
+
+//       if (isRegistrant || isRegularUser) {
+//         params.personal = true;
+//       } else if (isLeaderAt12) {
+//         params.leader_at_12_view = true;
+//         params.include_subordinate_cells = true;
+        
+//         if (currentUserLeaderAt1) {
+//           params.leader_at_1_identifier = currentUserLeaderAt1;
+//         }
+        
+//         if (viewFilter === 'personal') {
+//           params.show_personal_cells = true;
+//           params.personal = true;
+//         } else {
+//           params.show_all_authorized = true;
+//         }
+//       }
+//     }
+
+//     const cacheKey = getCacheKey({ ...params, userRole, endpoint });
+
+//     if (!forceRefresh) {
+//       const cachedData = getCachedData(cacheKey);
+//       if (cachedData) {
+//         setEvents(cachedData.events);
+//         setFilteredEvents(cachedData.events);
+//         setTotalEvents(cachedData.total_events);
+//         setTotalPages(cachedData.total_pages);
+//         if (filters.page !== undefined) setCurrentPage(filters.page);
+//         if (showLoader) {
+//           setLoading(false);
+//           setIsLoading(false);
+//         }
+//         return;
+//       }
+//     }
+
+//     params.isLeaderAt12 = isLeaderAt12 
+//     params.firstName = currentUser.name
+//     params.userSurname = currentUser.surname
+
+//     const response = await axios.get(endpoint, {
+//       headers,
+//       params,
+//       timeout: 60000
+//     });
+
+//       const responseData = response.data;
+//       const newEvents = responseData.events || responseData.results || [];
+
+//       if (newEvents.length > 0) {
+//         console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
+//           name: e.eventName,
+//           type: e.eventType,
+//           typeName: e.eventTypeName,
+//           status: e.status, 
+//           id: e._id
+//         })));
+//       } else {
+//         console.log('No events returned');
+//         console.log('Filters applied:', params);
+//       }
+
+//     console.log('API Response:', {
+//       endpoint,
+//       total_events: responseData.total_events,
+//       events_received: newEvents.length,
+//       first_event: newEvents[0] ? {
+//         name: newEvents[0].eventName,
+//         type: newEvents[0].eventType,
+//         status: newEvents[0].status,
+//         id: newEvents[0]._id
+//       } : 'No events'
+//     });
+
+//     if (filters.event_type === 'Global Events' || eventTypeToUse === 'Global Events') {
+//       newEvents.forEach((event, index) => {
+//         console.log(`Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`);
+//       });
+//     }
+
+//     const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+//     const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+
+//     setCachedData(cacheKey, {
+//       events: newEvents,
+//       total_events: totalEventsCount,
+//       total_pages: totalPagesCount
+//     });
+
+//     setEvents(newEvents);
+//     setFilteredEvents(newEvents);
+//     setTotalEvents(totalEventsCount);
+//     setTotalPages(totalPagesCount);
+//     if (filters.page !== undefined) setCurrentPage(filters.page);
+
+//   } catch (err) {
+//     console.error("Error fetching events:", err);
+//     if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+//       toast.warning("Request timeout. Please refresh and try again.");
+//     } else if (err.response?.status === 401) {
+//       toast.error("Session expired. Logging out...");
+//       localStorage.removeItem("token");
+//       localStorage.removeItem("userProfile");
+//       setTimeout(() => window.location.href = '/login', 2000);
+//     } else {
+//       const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
+//       toast.error(`Error loading events: ${errorMessage}`);
+//     }
+//     setEvents([]);
+//     setFilteredEvents([]);
+//     setTotalEvents(0);
+//     setTotalPages(1);
+//   } finally {
+//     if (showLoader) {
+//       setLoading(false);
+//       setIsLoading(false);
+//     }
+//   }
+// }, [
+//   currentPage,
+//   rowsPerPage,
+//   selectedEventTypeFilter,
+//   viewFilter,
+//   userRole,
+//   isLeaderAt12,
+//   isAdmin,
+//   isRegistrant,
+//   currentUserLeaderAt1,
+//   getCacheKey,
+//   getCachedData,
+//   setCachedData,
+//   BACKEND_URL,
+//   DEFAULT_API_START_DATE
+// ]);
 const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
   if (showLoader) {
     setLoading(true);
@@ -877,36 +1083,110 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       page: filters.page !== undefined ? filters.page : currentPage,
       limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
       start_date: startDateParam,
-      
     };
 
-    // CRITICAL FIX: ALWAYS pass event_type if provided
-    if (filters.event_type) {
-      params.event_type = filters.event_type;
-    } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-      params.event_type = selectedEventTypeFilter;
-    }
-
-    // Add other filters
-    if (filters.status && filters.status !== 'all') params.status = filters.status;
-    if (filters.search) params.search = filters.search;
-    if (filters.personal !== undefined) params.personal = filters.personal;
-    if (filters._t) params._t = filters._t;
-
-    // Remove undefined/null
-    Object.keys(params).forEach(key => {
-      if (params[key] === undefined || params[key] === null || params[key] === '') {
-        delete params[key];
-      }
-    });
-
     let endpoint;
-    const eventTypeToUse = params.event_type || selectedEventTypeFilter;
+    const eventTypeToUse = filters.event_type || selectedEventTypeFilter;
     
-  
-    if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
-      endpoint = `${BACKEND_URL}/events/other`;
+    // CRITICAL FIX: When "all" is selected, we need to get ALL events (CELLS + other event types)
+    if (eventTypeToUse === 'all') {
+      // For "all", we need to fetch BOTH CELLS and other events
+      console.log("Fetching ALL events (both CELLS and other event types)");
       
+      // First, fetch CELLS events
+      const cellsParams = {
+        ...params,
+        // Don't send event_type for CELLS endpoint
+      };
+      
+      if (isRegistrant || isRegularUser) {
+        cellsParams.personal = true;
+      } else if (isLeaderAt12) {
+        cellsParams.leader_at_12_view = true;
+        cellsParams.include_subordinate_cells = true;
+        
+        if (currentUserLeaderAt1) {
+          cellsParams.leader_at_1_identifier = currentUserLeaderAt1;
+        }
+        
+        if (viewFilter === 'personal') {
+          cellsParams.show_personal_cells = true;
+          cellsParams.personal = true;
+        } else {
+          cellsParams.show_all_authorized = true;
+        }
+      }
+      
+      // Remove any event_type parameter for CELLS
+      delete cellsParams.event_type;
+      
+      // Fetch CELLS events
+      const cellsResponse = await axios.get(`${BACKEND_URL}/events/cells`, {
+        headers,
+        params: cellsParams,
+        timeout: 60000
+      });
+      
+      // Then, fetch other event types
+      const otherParams = {
+        ...params,
+        // Don't send personal filters for other events
+      };
+      
+      // Remove personal filters for other events
+      delete otherParams.personal;
+      delete otherParams.leader_at_12_view;
+      delete otherParams.show_personal_cells;
+      delete otherParams.show_all_authorized;
+      delete otherParams.include_subordinate_cells;
+      delete otherParams.leader_at_1_identifier;
+      
+      // Fetch other events (all types except CELLS)
+      let otherEvents = [];
+      try {
+        const otherResponse = await axios.get(`${BACKEND_URL}/events/other`, {
+          headers,
+          params: { ...otherParams, event_type: 'all' }, // Ask for all non-CELLS events
+          timeout: 60000
+        });
+        otherEvents = otherResponse.data.events || otherResponse.data.results || [];
+      } catch (error) {
+        console.log("No other events found or error fetching other events:", error.message);
+      }
+      
+      const cellsEvents = cellsResponse.data.events || cellsResponse.data.results || [];
+      const newEvents = [...cellsEvents, ...otherEvents];
+      
+      // Process the combined results
+      const totalEventsCount = (cellsResponse.data.total_events || cellsEvents.length) + otherEvents.length;
+      const totalPagesCount = Math.ceil(totalEventsCount / rowsPerPage) || 1;
+      
+      // Cache and update state
+      const cacheKey = getCacheKey({ ...params, userRole, endpoint: 'combined' });
+      setCachedData(cacheKey, {
+        events: newEvents,
+        total_events: totalEventsCount,
+        total_pages: totalPagesCount
+      });
+      
+      setEvents(newEvents);
+      setFilteredEvents(newEvents);
+      setTotalEvents(totalEventsCount);
+      setTotalPages(totalPagesCount);
+      if (filters.page !== undefined) setCurrentPage(filters.page);
+      
+      if (showLoader) {
+        setLoading(false);
+        setIsLoading(false);
+      }
+      return;
+      
+    } else if (eventTypeToUse && eventTypeToUse !== 'CELLS') {
+      // For specific non-CELLS event types
+      endpoint = `${BACKEND_URL}/events/other`;
+      params.event_type = eventTypeToUse;
+      
+      // Remove personal filters for non-CELLS events
       delete params.personal;
       delete params.leader_at_12_view;
       delete params.show_personal_cells;
@@ -914,8 +1194,13 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       delete params.include_subordinate_cells;
       delete params.leader_at_1_identifier;
     } else {
+      // For CELLS events specifically
       endpoint = `${BACKEND_URL}/events/cells`;
-
+      
+      // Don't send event_type for CELLS endpoint
+      delete params.event_type;
+      
+      // Apply role-based filters for CELLS
       if (isRegistrant || isRegularUser) {
         params.personal = true;
       } else if (isLeaderAt12) {
@@ -935,6 +1220,19 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       }
     }
 
+    // Add other filters
+    if (filters.status && filters.status !== 'all') params.status = filters.status;
+    if (filters.search) params.search = filters.search;
+    if (filters.personal !== undefined) params.personal = filters.personal;
+    if (filters._t) params._t = filters._t;
+
+    // Remove undefined/null
+    Object.keys(params).forEach(key => {
+      if (params[key] === undefined || params[key] === null || params[key] === '') {
+        delete params[key];
+      }
+    });
+
     const cacheKey = getCacheKey({ ...params, userRole, endpoint });
 
     if (!forceRefresh) {
@@ -953,9 +1251,9 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       }
     }
 
-    params.isLeaderAt12 = isLeaderAt12 
-    params.firstName = currentUser.name
-    params.userSurname = currentUser.surname
+    params.isLeaderAt12 = isLeaderAt12;
+    params.firstName = currentUser.name;
+    params.userSurname = currentUser.surname;
 
     const response = await axios.get(endpoint, {
       headers,
@@ -963,21 +1261,8 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
       timeout: 60000
     });
 
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
-
-      if (newEvents.length > 0) {
-        console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
-          name: e.eventName,
-          type: e.eventType,
-          typeName: e.eventTypeName,
-          status: e.status, 
-          id: e._id
-        })));
-      } else {
-        console.log('No events returned');
-        console.log('Filters applied:', params);
-      }
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
 
     console.log('API Response:', {
       endpoint,
@@ -990,12 +1275,6 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
         id: newEvents[0]._id
       } : 'No events'
     });
-
-    if (filters.event_type === 'Global Events' || eventTypeToUse === 'Global Events') {
-      newEvents.forEach((event, index) => {
-        console.log(`Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`);
-      });
-    }
 
     const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
     const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
@@ -3282,13 +3561,21 @@ const handleDeleteType = useCallback(async () => {
       }
     }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser]);
 
-    const getDisplayName = (type) => {
-      if (!type) return "";
-      if (type === "all") {
-        return "ALL CELLS";
-      }
-      return typeof type === "string" ? type : type.name || String(type);
-    };
+    // const getDisplayName = (type) => {
+    //   if (!type) return "";
+    //   if (type === "all") {
+    //     return "ALL CELLS";
+    //   }
+    //   return typeof type === "string" ? type : type.name || String(type);
+    // };
+    // In EventTypeSelector component:
+const getDisplayName = (type) => {
+  if (!type) return "";
+  if (type === "all") {
+    return "ALL EVENTS"; // Changed from "ALL CELLS"
+  }
+  return typeof type === "string" ? type : type.name || String(type);
+};
 
     const getTypeValue = (type) => {
       if (type === "all") return "all";
@@ -3364,12 +3651,18 @@ const handleDeleteType = useCallback(async () => {
                   "Your Cells"}
           </div>
 
-          <div style={mobileEventTypeStyles.selectedTypeDisplay}>
+          {/* <div style={mobileEventTypeStyles.selectedTypeDisplay}>
             <span>•</span>
             <span>
               {selectedEventTypeFilter === 'all' && isLeaderAt12 ? "ALL CELLS" : getDisplayName(selectedEventTypeFilter)}
             </span>
-          </div>
+          </div> */}
+          <div style={mobileEventTypeStyles.selectedTypeDisplay}>
+  <span>•</span>
+  <span>
+    {selectedEventTypeFilter === 'all' ? "ALL EVENTS" : getDisplayName(selectedEventTypeFilter)}
+  </span>
+</div>
 
           {isMobileView && (
             <button
