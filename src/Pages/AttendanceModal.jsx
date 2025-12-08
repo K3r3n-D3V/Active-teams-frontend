@@ -513,59 +513,64 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       fontSize: "12px",
       fontWeight: "600",
     },
-    input: {
-      padding: "12px",
-      fontSize: "16px",
-      borderRadius: "8px",
-      border: `1px solid ${theme.palette.divider}`,
-      outline: "none",
-      width: "100%",
-      boxSizing: "border-box",
-      backgroundColor: theme.palette.background.default,
-      color: theme.palette.text.primary,
+  input: {
+  padding: "12px",
+  fontSize: "16px",
+  borderRadius: "8px",
+  border: `1px solid ${theme.palette.divider}`,
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
 
-      // Autofill fix
-      "&:-webkit-autofill": {
-        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
-        WebkitTextFillColor: theme.palette.text.primary,
-        caretColor: theme.palette.text.primary,
-      },
-      
-      "&:-webkit-autofill:focus": {
-        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
-        WebkitTextFillColor: theme.palette.text.primary,
-      },
+  // Theme colors
+  backgroundColor: theme.palette.background.default,
+  color: theme.palette.text.primary,
 
-      // Remove default autofill styles
-      transition: "background-color 5000s ease-in-out 0s",
-    },
-    inputError: {
-      padding: "12px",
-      fontSize: "16px",
-      borderRadius: "8px",
-      border: `2px solid ${theme.palette.error.main}`,
-      outline: "none",
-      width: "100%",
-      boxSizing: "border-box",
-      backgroundColor: theme.palette.background.default,
-      color: theme.palette.text.primary,
+  // Fix for autofill background
+  "&:-webkit-autofill": {
+    WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+    WebkitTextFillColor: theme.palette.text.primary,
+    caretColor: theme.palette.text.primary,
+  },
+  
+  "&:-webkit-autofill:focus": {
+    WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+    WebkitTextFillColor: theme.palette.text.primary,
+  },
 
-      // Autofill fix in error state
-      "&:-webkit-autofill": {
-        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
-        WebkitTextFillColor: theme.palette.text.primary,
-        caretColor: theme.palette.text.primary,
-        border: `2px solid ${theme.palette.error.main}`,
-      },
-      
-      "&:-webkit-autofill:focus": {
-        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
-        WebkitTextFillColor: theme.palette.text.primary,
-        border: `2px solid ${theme.palette.error.main}`,
-      },
+  // Remove default autofill styles
+  transition: "background-color 5000s ease-in-out 0s",
+},
 
-      transition: "background-color 5000s ease-in-out 0s",
-    },
+inputError: {
+  padding: "12px",
+  fontSize: "16px",
+  borderRadius: "8px",
+  border: "2px solid #dc3545",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+
+  // Theme colors
+  backgroundColor: theme.palette.background.default,
+  color: theme.palette.text.primary,
+
+  // Fix for autofill background in error state
+  "&:-webkit-autofill": {
+    WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+    WebkitTextFillColor: theme.palette.text.primary,
+    caretColor: theme.palette.text.primary,
+    border: "2px solid #dc3545",
+  },
+  
+  "&:-webkit-autofill:focus": {
+    WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+    WebkitTextFillColor: theme.palette.text.primary,
+    border: "2px solid #dc3545",
+  },
+
+  transition: "background-color 5000s ease-in-out 0s",
+},
     dropdown: {
       position: "absolute",
       top: "100%",
@@ -858,7 +863,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
           personData={formData}
           preloadedPeople={preloadedPeople}
           autoFilledLeaders={autoFilledLeaders}
-          theme={theme}
         />
       )}
 
@@ -867,7 +871,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   );
 };
 
-const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders, theme }) => {
+const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
@@ -895,6 +899,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   const [loadingLeaders, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
+  const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
   useEffect(() => {
@@ -1026,13 +1031,12 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       left: 0,
       right: 0,
       bottom: 0,
-      background: isDarkMode ? "rgba(0,0,0,0.8)" : "rgba(0,0,0,0.6)",
+      background: "rgba(0,0,0,0.5)",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
       zIndex: 10002,
       padding: "20px",
-      backdropFilter: "blur(8px)",
     },
     modal: {
       background: theme.palette.background.paper,
@@ -1071,7 +1075,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       fontSize: "14px",
       fontWeight: "500",
       marginBottom: "6px",
-      color: theme.palette.text.secondary,
+      color: theme.palette.text.primary,
       display: "block",
     },
     inputContainer: {
@@ -1079,31 +1083,31 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       display: "flex",
       alignItems: "center",
     },
-    input: {
-      padding: "12px 40px 12px 12px",
-      fontSize: "14px",
-      borderRadius: "8px",
-      border: `1px solid ${theme.palette.divider}`,
-      outline: "none",
-      width: "100%",
-      boxSizing: "border-box",
-      backgroundColor: theme.palette.background.default,
-      color: theme.palette.text.primary,
-      
-      // Autofill fix
-      "&:-webkit-autofill": {
-        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
-        WebkitTextFillColor: theme.palette.text.primary,
-        caretColor: theme.palette.text.primary,
-      },
-      
-      "&:-webkit-autofill:focus": {
-        WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
-        WebkitTextFillColor: theme.palette.text.primary,
-      },
-      
-      transition: "background-color 5000s ease-in-out 0s",
-    },
+input: {
+  padding: "12px 40px 12px 12px",
+  fontSize: "14px",
+  borderRadius: "8px",
+  border: `1px solid ${theme.palette.divider}`,
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+  background: theme.palette.background.default,
+  color: theme.palette.text.primary,
+  
+  // Fix for autofill
+  "&:-webkit-autofill": {
+    WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+    WebkitTextFillColor: theme.palette.text.primary,
+    caretColor: theme.palette.text.primary,
+  },
+  
+  "&:-webkit-autofill:focus": {
+    WebkitBoxShadow: `0 0 0px 1000px ${theme.palette.background.default} inset`,
+    WebkitTextFillColor: theme.palette.text.primary,
+  },
+  
+  transition: "background-color 5000s ease-in-out 0s",
+},
     clearButton: {
       position: "absolute",
       right: "8px",
@@ -1150,7 +1154,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
     backBtn: {
       background: "transparent",
       border: `1px solid ${theme.palette.divider}`,
-      color: theme.palette.text.secondary,
+      color: theme.palette.text.primary,
       padding: "12px 20px",
       borderRadius: "8px",
       cursor: "pointer",
