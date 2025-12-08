@@ -751,6 +751,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
               <input
                 type="tel"
                 value={formData.mobile}
+                maxLength={10}
                 onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
                 onBlur={() => setTouched({ ...touched, mobile: true })}
                 style={showError('mobile') ? styles.inputError : styles.input}
