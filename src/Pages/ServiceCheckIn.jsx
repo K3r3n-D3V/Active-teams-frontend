@@ -931,13 +931,14 @@ const getFilteredEvents = (eventsList = events) => {
   };
 
   const getAttendeesWithPresentStatus = () => {
-    const presentAttendeeIds = realTimeData?.present_attendees?.map(a => a.id || a._id) || [];
-    const newPeopleIds = realTimeData?.new_people?.map(np => np.id) || [];
+  const presentAttendeeIds = (realTimeData?.present_attendees || []).map(a => a.id || a._id);
+  const newPeopleIds = (realTimeData?.new_people || []).map(np => np.id || np._id);
+    
     
     return attendees.map((attendee) => ({
       ...attendee,
       present: presentAttendeeIds.includes(attendee._id),
-      isNew: newPeopleIds.includes(attendee._id), // 🆕 Mark as new person
+      isNew: attendee.stage === "First Time" || newPeopleIds.includes(attendee._id), // 🆕 Mark as new person
       id: attendee._id,
     }));
   };
@@ -1198,9 +1199,12 @@ const getFilteredEvents = (eventsList = events) => {
           return sort.sort === 'desc' ? -comparison : comparison;
         });
       }
-    } else {
+    }
+    {
       // Default sorting: new people first, then alphabetically
+      console.log(result.find((i)=>{return i.isNew === true}))
       result.sort((a, b) => {
+        
         // New people first
         if (a.isNew && !b.isNew) return -1;
         if (!a.isNew && b.isNew) return 1;
