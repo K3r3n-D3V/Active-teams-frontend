@@ -79,6 +79,7 @@ function ServiceCheckIn() {
     { field: 'isNew', sort: 'desc' }, // 🆕 New people first
     { field: 'name', sort: 'asc' }
   ]);
+  const [newPersonAdded,setNewPersonAdded] = useState(false)
 
   // Real-time data state
   const [realTimeData, setRealTimeData] = useState(null);
@@ -739,11 +740,12 @@ const getFilteredEvents = (eventsList = events) => {
         // Clear search so the new person is visible immediately
         setSearch("");
 
+
         const freshData = await fetchRealTimeEventData(currentEventId);
         if (freshData) {
           setRealTimeData(freshData);
         }
-
+        setNewPersonAdded(true)
         console.log("✅ New person added to DataGrid and counts updated immediately");
       }
     } catch (error) {
@@ -929,13 +931,14 @@ const getFilteredEvents = (eventsList = events) => {
   };
 
   const getAttendeesWithPresentStatus = () => {
-    const presentAttendeeIds = realTimeData?.present_attendees?.map(a => a.id || a._id) || [];
-    const newPeopleIds = realTimeData?.new_people?.map(np => np.id) || [];
+  const presentAttendeeIds = (realTimeData?.present_attendees || []).map(a => a.id || a._id);
+  const newPeopleIds = (realTimeData?.new_people || []).map(np => np.id || np._id);
+    
     
     return attendees.map((attendee) => ({
       ...attendee,
       present: presentAttendeeIds.includes(attendee._id),
-      isNew: newPeopleIds.includes(attendee._id), // 🆕 Mark as new person
+      isNew: attendee.stage === "First Time" || newPeopleIds.includes(attendee._id), // 🆕 Mark as new person
       id: attendee._id,
     }));
   };
@@ -1171,8 +1174,9 @@ const getFilteredEvents = (eventsList = events) => {
     
     return filterPeopleWithPriority(attendeesWithStatus, search);
   })();
+  
 
-  // Apply sorting to filtered attendees based on sortModel
+  // Apply sorting to filtered attendees based on sortModel 
   const sortedFilteredAttendees = (() => {
     const result = [...filteredAttendees];
     
@@ -1195,9 +1199,12 @@ const getFilteredEvents = (eventsList = events) => {
           return sort.sort === 'desc' ? -comparison : comparison;
         });
       }
-    } else {
+    }
+    {
       // Default sorting: new people first, then alphabetically
+      console.log(result.find((i)=>{return i.isNew === true}))
       result.sort((a, b) => {
+        
         // New people first
         if (a.isNew && !b.isNew) return -1;
         if (!a.isNew && b.isNew) return 1;
