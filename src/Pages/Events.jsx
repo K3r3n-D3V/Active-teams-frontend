@@ -2808,100 +2808,99 @@ const handleDeleteType = useCallback(async () => {
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
 
-  useEffect(() => {
-    if (eventTypes.length === 0) {
-      return;
-    }
+useEffect(() => {
+  if (eventTypes.length === 0) {
+    return;
+  }
 
-    const fetchParams = {
-      page: currentPage,
-      limit: rowsPerPage,
-      start_date: DEFAULT_API_START_DATE
-    };
+  const fetchParams = {
+    page: currentPage,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE
+  };
 
-    if (selectedStatus && selectedStatus !== 'all') {
-      fetchParams.status = selectedStatus;
-    }
+  if (selectedStatus && selectedStatus !== 'all') {
+    fetchParams.status = selectedStatus;
+  }
 
-    if (searchQuery.trim()) {
-      fetchParams.search = searchQuery.trim();
-    }
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
 
-    let endpointType = "cells";
+  let endpointType = "cells";
 
-    if (selectedEventTypeFilter === 'all') {
-      fetchParams.event_type = "CELLS";
-      endpointType = "cells";
-    } else if (selectedEventTypeFilter === 'CELLS') {
-      fetchParams.event_type = "CELLS";
-      endpointType = "cells";
-    } else {
-      fetchParams.event_type = selectedEventTypeFilter;
-      endpointType = "other";
-    }
+  if (selectedEventTypeFilter === 'all') {
+    fetchParams.event_type = "CELLS";
+    endpointType = "cells";
+  } else if (selectedEventTypeFilter === 'CELLS') {
+    fetchParams.event_type = "CELLS";
+    endpointType = "cells";
+  } else {
+    fetchParams.event_type = selectedEventTypeFilter;
+    endpointType = "other";
+  }
 
-    console.log(" Fetching with status filter:", selectedStatus, fetchParams);
+  console.log("🔵 Fetching with status filter:", selectedStatus, fetchParams);
 
-    if (endpointType === "cells") {
-      if (isAdmin) {
-        if (viewFilter === 'personal') {
-          fetchParams.personal = true;
-        }
-      } else if (isRegistrant || isRegularUser) {
+  if (endpointType === "cells") {
+    if (isAdmin) {
+      if (viewFilter === 'personal') {
         fetchParams.personal = true;
-      } else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
+      }
+    } else if (isRegistrant || isRegularUser) {
+      fetchParams.personal = true;
+    } else if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
 
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === 'personal') {
-          // PERSONAL: Only their own cell
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          // VIEW ALL: Only disciples' cells
-          fetchParams.show_all_authorized = true;
-          fetchParams.include_subordinate_cells = true;
-        }
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
       }
 
-    } else {
-      console.log("Loading event type data for:", selectedEventTypeFilter);
-
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
-      delete fetchParams.leader_at_1_identifier;
-
-      console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
+      if (viewFilter === 'personal') {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+        fetchParams.include_subordinate_cells = true;
+      }
     }
+  } else {
+    delete fetchParams.personal;
+    delete fetchParams.leader_at_12_view;
+    delete fetchParams.show_personal_cells;
+    delete fetchParams.show_all_authorized;
+    delete fetchParams.include_subordinate_cells;
+    delete fetchParams.leader_at_1_identifier;
+  }
 
-    Object.keys(fetchParams).forEach(key =>
-      fetchParams[key] === undefined && delete fetchParams[key]
-    );
+  Object.keys(fetchParams).forEach(key =>
+    fetchParams[key] === undefined && delete fetchParams[key]
+  );
 
-    console.log("FINAL API call params:", fetchParams);
+  console.log("FINAL API call params:", fetchParams);
+  
+  const timeoutId = setTimeout(() => {
     fetchEvents(fetchParams, true);
-  }, [
-    selectedEventTypeFilter,
-    selectedStatus,
-    viewFilter,
-    currentPage,
-    rowsPerPage,
-    searchQuery,
-    eventTypes.length,
-    isLeaderAt12,
-    isAdmin,
-    isRegularUser,
-    isRegistrant,
-    currentUserLeaderAt1,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
+  }, 100);
+
+  return () => clearTimeout(timeoutId);
+  
+}, [
+  selectedEventTypeFilter,
+  selectedStatus, 
+  viewFilter,
+  currentPage,
+  rowsPerPage,
+  searchQuery,
+  eventTypes.length,
+  isLeaderAt12,
+  isAdmin,
+  isRegularUser,
+  isRegistrant,
+  currentUserLeaderAt1,
+  fetchEvents,
+  DEFAULT_API_START_DATE
+]);
 
   const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
     const statuses = [
