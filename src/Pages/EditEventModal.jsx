@@ -35,7 +35,7 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
-const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole }) => {
+const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [editScope, setEditScope] = useState('single'); 
@@ -87,28 +87,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
   'Reoccurring': ['Reoccurring', 'recurring'],
   'recurring': ['recurring', 'Reoccurring'],
 };
-
-  // Global disabled fields for all users (week identifier, original event id, event type, leaders fields)
-  const globalDisabledFields = [
-    'week', 'weekIdentifier', 'originalEventId', 'Event Type', 'eventTypeName',
-    'Leader', 'eventLeader', 'eventLeaderName', 'leader1', 'leader12', 'Leader at 12'
-  ];
-
-  // Additional disables for leader144
-  const getAdditionalDisabledFields = () => {
-    if (userRole?.toLowerCase() === 'leader144') {
-      return ['Leader', 'eventLeader', 'leader1', 'week', 'weekIdentifier']; // already in global, but ensure
-    }
-    return [];
-  };
-
-  const allDisabledFields = [...globalDisabledFields, ...getAdditionalDisabledFields()];
-
-  const normalizedUserRole = userRole?.toLowerCase() || '';
-  const canEdit = normalizedUserRole === 'admin' || normalizedUserRole === 'leader1';
-
-  // Debug log
-  console.log('User Role:', userRole, 'Normalized:', normalizedUserRole, 'Can Edit:', canEdit);
 
   const cleanEventId = (event) => {
     if (!event) return null;
@@ -173,16 +151,15 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
         const isEmptyToRemove = (newValue === '' && originalValue !== undefined && originalValue !== null && originalValue !== '');
         const isValueChanged = newValue !== originalValue;
         
-        if ((isEmptyToRemove || isValueChanged) && canEdit && !allDisabledFields.includes(key)) {
+        if (isEmptyToRemove || isValueChanged) {
           changed.push(key);
         }
       });
       setChangedFields(changed);
     }
-  }, [formData, event, canEdit, allDisabledFields]);
+  }, [formData, event]);
 
   const handleChange = (field, value) => {
-    if (!canEdit || allDisabledFields.includes(field)) return; // Prevent changes if not editable or field disabled
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -218,10 +195,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
   };
 
   const handleSubmit = async () => {
-    if (!canEdit) {
-      toast.error("You do not have permission to edit events.");
-      return;
-    }
     try {
       setLoading(true);
       
@@ -315,7 +288,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
   const renderField = (field) => {
     const value = formData[field] || '';
     const isChanged = changedFields.includes(field);
-    const isFieldDisabled = allDisabledFields.includes(field) || !canEdit;
     
     const displayName = field
       .replace(/([A-Z])/g, ' $1')
@@ -325,17 +297,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
     
     const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
     const fieldLower = field.toLowerCase();
-    
-    // Comment out delete icons for all fields as per previous request
-    // {value && (
-    //   <IconButton
-    //     size="small"
-    //     onClick={() => handleChange(field, '')}
-    //     sx={{ position: 'absolute', right: 8, top: 20 }}
-    //   >
-    //     <DeleteIcon fontSize="small" />
-    //   </IconButton>
-    // )}
     
     if ((fieldLower.includes('date') && !fieldLower.includes('datecaptured') && !fieldLower.includes('datecreated')) || field === 'date') {
       return (
@@ -355,8 +316,16 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             InputLabelProps={{ shrink: true }}
             error={isChanged}
             helperText={isChanged ? "Changed" : ""}
-            disabled={isFieldDisabled}
           />
+          {value && (
+            <IconButton
+              size="small"
+              onClick={() => handleChange(field, '')}
+              sx={{ position: 'absolute', right: 8, top: 20 }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          )}
         </Box>
       );
     }
@@ -379,8 +348,16 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             InputLabelProps={{ shrink: true }}
             error={isChanged}
             helperText={isChanged ? "Changed" : ""}
-            disabled={isFieldDisabled}
           />
+          {value && (
+            <IconButton
+              size="small"
+              onClick={() => handleChange(field, '')}
+              sx={{ position: 'absolute', right: 8, top: 20 }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          )}
         </Box>
       );
     }
@@ -402,8 +379,16 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             onChange={(e) => handleChange(field, e.target.value)}
             error={isChanged}
             helperText={isChanged ? "Changed" : ""}
-            disabled={isFieldDisabled}
           />
+          {value && (
+            <IconButton
+              size="small"
+              onClick={() => handleChange(field, '')}
+              sx={{ position: 'absolute', right: 8, top: 20 }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          )}
         </Box>
       );
     }
@@ -417,7 +402,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
                 checked={!!value}
                 onChange={(e) => handleChange(field, e.target.checked)}
                 color={isChanged ? "warning" : "primary"}
-                disabled={isFieldDisabled}
               />
             }
             label={
@@ -427,10 +411,9 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
               </Box>
             }
           />
-          {/* Comment out delete icon for boolean */}
-          {/* <IconButton size="small" onClick={() => handleChange(field, false)}>
+          <IconButton size="small" onClick={() => handleChange(field, false)}>
             <DeleteIcon fontSize="small" />
-          </IconButton> */}
+          </IconButton>
         </Box>
       );
     }
@@ -457,7 +440,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
                       handleChange(field, newValue);
                     }}
                     size="small"
-                    disabled={isFieldDisabled}
                   />
                 }
                 label={day.substring(0, 3)}
@@ -465,7 +447,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             ))}
           </FormGroup>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-            <Button size="small" onClick={() => handleChange(field, [])} disabled={isFieldDisabled}>
+            <Button size="small" onClick={() => handleChange(field, [])}>
               Clear All
             </Button>
           </Box>
@@ -486,7 +468,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
               value={value || ''}
               label={displayName}
               onChange={(e) => handleChange(field, e.target.value)}
-              disabled={isFieldDisabled}
             >
               <MenuItem value="">None</MenuItem>
               {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -496,8 +477,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             </Select>
             {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
           </FormControl>
-          {/* Comment out delete icon for day select */}
-          {/* {value && (
+          {value && (
             <IconButton
               size="small"
               onClick={() => handleChange(field, '')}
@@ -505,7 +485,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             >
               <DeleteIcon fontSize="small" />
             </IconButton>
-          )} */}
+          )}
         </Box>
       );
     }
@@ -520,7 +500,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
               value={value || ''}
               label="Status"
               onChange={(e) => handleChange(field, e.target.value)}
-              disabled={isFieldDisabled}
             >
               <MenuItem value="">None</MenuItem>
               {statusOptions.map(status => (
@@ -531,8 +510,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             </Select>
             {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
           </FormControl>
-          {/* Comment out delete icon for status select */}
-          {/* {value && (
+          {value && (
             <IconButton
               size="small"
               onClick={() => handleChange(field, '')}
@@ -540,7 +518,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             >
               <DeleteIcon fontSize="small" />
             </IconButton>
-          )} */}
+          )}
         </Box>
       );
     }
@@ -563,10 +541,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             rows={3}
             error={isChanged}
             helperText={isChanged ? "Changed" : ""}
-            disabled={isFieldDisabled}
           />
-          {/* Comment out delete icon for description */}
-          {/* {value && (
+          {value && (
             <IconButton
               size="small"
               onClick={() => handleChange(field, '')}
@@ -574,7 +550,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             >
               <DeleteIcon fontSize="small" />
             </IconButton>
-          )} */}
+          )}
         </Box>
       );
     }
@@ -594,10 +570,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
           onChange={(e) => handleChange(field, e.target.value)}
           error={isChanged}
           helperText={isChanged ? "Changed" : ""}
-          disabled={isFieldDisabled}
         />
-        {/* Comment out delete icon for general fields */}
-        {/* {value && (
+        {value && (
           <IconButton
             size="small"
             onClick={() => handleChange(field, '')}
@@ -605,7 +579,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
           >
             <DeleteIcon fontSize="small" />
           </IconButton>
-        )} */}
+        )}
       </Box>
     );
   };
@@ -654,27 +628,18 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
               Person: <strong>{originalPersonIdentifier || 'Unknown'}</strong>
             </Typography>
           </Box>
-          {/* Comment out advanced mode button if not canEdit */}
-          {canEdit ? (
-            <Button
-              size="small"
-              onClick={() => setAdvancedMode(!advancedMode)}
-              startIcon={advancedMode ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            >
-              {advancedMode ? 'Simple' : 'Advanced'}
-            </Button>
-          ) : null}
+          <Button
+            size="small"
+            onClick={() => setAdvancedMode(!advancedMode)}
+            startIcon={advancedMode ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          >
+            {advancedMode ? 'Simple' : 'Advanced'}
+          </Button>
         </Box>
       </DialogTitle>
       
       <DialogContent dividers>
         <Box sx={{ pt: 1 }}>
-          {/* Add view-only alert if not canEdit */}
-          {!canEdit && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              You do not have permission to edit this data. Fields are view-only.
-            </Alert>
-          )}
           <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
             <Typography variant="subtitle2" gutterBottom>
               Update Scope:
@@ -685,7 +650,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
                 value={editScope}
                 onChange={(e) => setEditScope(e.target.value)}
                 size="small"
-                disabled={!canEdit}
               >
                 <MenuItem value="single">
                   <Box>
@@ -697,7 +661,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
                     </Typography>
                   </Box>
                 </MenuItem>
-                <MenuItem value="person" disabled={!originalPersonIdentifier || !canEdit}>
+                <MenuItem value="person" disabled={!originalPersonIdentifier}>
                   <Box>
                     <Typography variant="body2" fontWeight="bold">
                       All Person's Events
@@ -720,8 +684,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
           
           <Divider sx={{ my: 2 }} />
           
-          {/* Comment out changed fields box if not canEdit */}
-          {changedFields.length > 0 && canEdit && (
+          {changedFields.length > 0 && (
             <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
               <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 Fields to update ({changedFields.length}):
@@ -821,17 +784,14 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
               
               {otherFields.length > 0 && (
                 <Box sx={{ mt: 3 }}>
-                  {/* Comment out show all fields button if not canEdit */}
-                  {canEdit ? (
-                    <Button
-                      fullWidth
-                      onClick={() => setShowAllFields(!showAllFields)}
-                      startIcon={showAllFields ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                      size="small"
-                    >
-                      {showAllFields ? 'Hide' : 'Show'} Other Fields ({otherFields.length})
-                    </Button>
-                  ) : null}
+                  <Button
+                    fullWidth
+                    onClick={() => setShowAllFields(!showAllFields)}
+                    startIcon={showAllFields ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    size="small"
+                  >
+                    {showAllFields ? 'Hide' : 'Show'} Other Fields ({otherFields.length})
+                  </Button>
                   
                   <Collapse in={showAllFields}>
                     <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -864,8 +824,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'background.default' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
           <Box>
-            {/* Comment out changed fields count if not canEdit */}
-            {changedFields.length > 0 && canEdit && (
+            {changedFields.length > 0 && (
               <Typography variant="caption" color="text.secondary">
                 {changedFields.length} field(s) changed
               </Typography>
@@ -883,7 +842,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents, userRole
             <Button 
               onClick={handleSubmit} 
               variant="contained" 
-              disabled={loading || changedFields.length === 0 || !canEdit}
+              disabled={loading || changedFields.length === 0}
               color={editScope === 'person' ? 'warning' : 'primary'}
               startIcon={loading ? <CircularProgress size={20} /> : null}
             >

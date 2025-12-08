@@ -360,13 +360,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
           expiry: 5 * 60 * 1000
         };
 
-        // setAlert({
-        //   open: true,
-        //   type: "success",
-        //   message: "Person added successfully!",
-        // })
-        // toast.success("Person added successfully!");;
-
         if (typeof onPersonAdded === "function") {
           onPersonAdded(data.person || data);
         }
@@ -1154,49 +1147,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
                   autoComplete="off"
                 />
 
-                {/* {leaderSearches[field] && (
-                  <button 
-                    type="button" 
-                    style={styles.clearButton}
-                    onClick={() => handleClearField(field)}
-                  >
-                    <X size={14} />
-                  </button>
-                )} */}
-
-                {/* {showDropdowns[field] && leaderSearches[field].length > 0 && (
-                  <div style={styles.dropdown}>
-                    {loadingLeaders && (
-                      <div style={styles.dropdownEmpty}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                          <div style={{ 
-                            width: '14px', 
-                            height: '14px', 
-                            border: `2px solid ${theme.palette.divider}`,
-                            borderTop: `2px solid ${theme.palette.primary.main}`,
-                            borderRadius: '50%',
-                            animation: 'spin 1s linear infinite'
-                          }} />
-                          Searching...
-                        </div>
-                      </div>
-                    )}
-                    {!loadingLeaders && leaderResults[field].length === 0 && (
-                      <div style={styles.dropdownEmpty}>No results found</div>
-                    )}
-                    {!loadingLeaders && leaderResults[field].map((person) => (
-                      <div
-                        key={person.id}
-                        style={styles.dropdownItem}
-                        onClick={() => handleLeaderSelect(person, field)}
-                        onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
-                        onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
-                      >
-                        {person.fullName}
-                      </div>
-                    ))}
-                  </div>
-                )} */}
               </div>
             </div>
           ))}
@@ -1232,8 +1182,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
     </div>
   );
 };
-
-// import { toast } from "react-toastify";
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
   const [searchName, setSearchName] = useState("");
@@ -1355,7 +1303,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       console.log("Using cached people data in AttendanceModal");
       setPreloadedPeople(window.globalPeopleCache.data);
 
-      // Auto-populate the people list with preloaded data
       if (activeTab === 1 && !associateSearch.trim()) {
         setPeople(window.globalPeopleCache.data.slice(0, 50));
       }
@@ -1400,7 +1347,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       setPreloadedPeople(formatted);
       console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
 
-      // Auto-populate the people list with fresh data
       if (activeTab === 1 && !associateSearch.trim()) {
         setPeople(formatted.slice(0, 50));
       }
@@ -3655,9 +3601,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           </div>
         </div>
       )}
-
-
-
       <AddPersonToEvents
         isOpen={showAddPersonModal}
         onClose={() => setShowAddPersonModal(false)}
