@@ -2439,7 +2439,7 @@ function ServiceCheckIn() {
         autoClose={3000} 
         hideProgressBar={isSmDown}
         style={{
-          marginTop: isSmDown ? '60px' : '20px',
+          marginTop: isSmDown ? '0px' : '20px',
           zIndex: 9999
         }}
       />
