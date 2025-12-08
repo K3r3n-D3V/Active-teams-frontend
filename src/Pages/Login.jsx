@@ -1,4 +1,3 @@
-
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -17,6 +16,8 @@ import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import darkLogo from "../assets/active-teams.png";
 import { AuthContext } from "../contexts/AuthContext";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 
 const initialForm = {
   email: "",
@@ -29,6 +30,7 @@ const Login = ({ mode, setMode }) => {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [toastOpen, setToastOpen] = useState(false);
 
   const theme = useTheme();
   const navigate = useNavigate();
@@ -53,14 +55,24 @@ const Login = ({ mode, setMode }) => {
     setLoading(true);
     try {
       await login(form.email, form.password);
-      setSuccess("Login successful!");
+
+      // This is the magic part you're asking for
+      setSuccess("Login successful! Redirecting...");
       setForm(initialForm);
-      setTimeout(() => navigate("/"), 500);
+      setToastOpen(true); // Triggers the toast!
+
+      setTimeout(() => {
+        navigate("/");
+      }, 2000); // 2 seconds so they can enjoy the toast
     } catch (err) {
       setError(err.message || "Login failed.");
     } finally {
       setLoading(false);
     }
+  };
+  const handleToastClose = (event, reason) => {
+    if (reason === "clickaway") return;
+    setToastOpen(false);
   };
 
   const inputFieldSx = {
@@ -84,8 +96,12 @@ const Login = ({ mode, setMode }) => {
       color: isDark ? "#ffffff" : "#000000",
       bgcolor: "transparent !important",
       "&:-webkit-autofill": {
-        WebkitBoxShadow: isDark ? "0 0 0 100px #1a1a1a inset !important" : "0 0 0 100px #f8f9fa inset !important",
-        WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
+        WebkitBoxShadow: isDark
+          ? "0 0 0 100px #1a1a1a inset !important"
+          : "0 0 0 100px #f8f9fa inset !important",
+        WebkitTextFillColor: isDark
+          ? "#ffffff !important"
+          : "#000000 !important",
         transition: "background-color 5000s ease-in-out 0s",
       },
       "&:focus": {
@@ -167,7 +183,13 @@ const Login = ({ mode, setMode }) => {
           Login
         </Typography>
 
-        <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={2}>
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          display="flex"
+          flexDirection="column"
+          gap={2}
+        >
           <TextField
             label="Email Address"
             name="email"
@@ -193,7 +215,7 @@ const Login = ({ mode, setMode }) => {
             InputProps={{
               style: {
                 fontFamily: "monospace",
-                WebkitTextSecurity:`${showPassword ? "" : "disc"}`
+                WebkitTextSecurity: `${showPassword ? "" : "disc"}`,
               },
               endAdornment: (
                 <IconButton
@@ -207,8 +229,16 @@ const Login = ({ mode, setMode }) => {
             }}
           />
 
-          {error && <Typography color="error.main" textAlign="center">{error}</Typography>}
-          {success && <Typography color="success.main" textAlign="center">{success}</Typography>}
+          {error && (
+            <Typography color="error.main" textAlign="center">
+              {error}
+            </Typography>
+          )}
+          {success && (
+            <Typography color="success.main" textAlign="center">
+              {success}
+            </Typography>
+          )}
 
           <Button
             type="submit"
@@ -249,6 +279,32 @@ const Login = ({ mode, setMode }) => {
           </Typography>
         </Box>
       </Box>
+      
+      <Snackbar
+        open={toastOpen}
+        autoHideDuration={4000}
+        onClose={handleToastClose}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        sx={{ mt: 6 }} // pushes it below any fixed header if you have one
+      >
+        <Alert
+          onClose={handleToastClose}
+          severity="success"
+          variant="filled"
+          sx={{
+            width: "100%",
+            fontWeight: "bold",
+            fontSize: "1.1rem",
+            boxShadow: 10,
+            bgcolor: "#1e7e34",
+            "& .MuiAlert-icon": {
+              fontSize: "28px",
+            },
+          }}
+        >
+          Successfully logged in, Welcome Back!
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
