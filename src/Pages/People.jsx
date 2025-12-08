@@ -519,17 +519,27 @@ export const PeopleSection = () => {
     }
   };
 
-  const updatePersonInCache = useCallback((personId, updates) => {
-    setAllPeople(prev => {
-      const updated = prev.map(person =>
-        String(person._id) === String(personId)
-          ? { ...person, ...updates }
-          : person
-      );
-      globalPeopleCache = updated;
-      return updated;
+ const updatePersonInCache = useCallback((personId, updates) => {
+  setAllPeople(prev => {
+    const updated = prev.map(person => {
+      if (String(person._id) === String(personId)) {
+        // Merge updates with existing person data instead of replacing
+        return {
+          ...person,  // Keep all existing data
+          ...updates,  // Apply updates on top
+          // Ensure leaders object is properly merged
+          leaders: updates.leaders ? {
+            ...person.leaders,
+            ...updates.leaders
+          } : person.leaders
+        };
+      }
+      return person;
     });
-  }, []);
+    globalPeopleCache = updated;
+    return updated;
+  });
+}, []);
 
   const addPersonToCache = useCallback((newPerson) => {
     setAllPeople(prev => {
@@ -585,35 +595,45 @@ export const PeopleSection = () => {
     setIsModalOpen(true);
   };
 
-  const handleSaveFromDialog = (savedPerson) => {
-    const mappedPerson = {
-      _id: savedPerson._id || editingPerson?._id,
-      name: savedPerson.name || '',
-      surname: savedPerson.surname || '',
-      gender: savedPerson.gender || '',
-      dob: savedPerson.dob || '',
-      location: savedPerson.address || '',
-      email: savedPerson.email || '',
-      phone: savedPerson.number || '',
-      Stage: savedPerson.stage || 'Win',
-      lastUpdated: new Date().toISOString(),
-      invitedBy: savedPerson.invitedBy || '',
-      leaders: {
-        leader1: savedPerson.invitedBy || '',
-        leader12: savedPerson.leader12 || '',
-        leader144: savedPerson.leader144 || '',
-        leader1728: savedPerson.leader1728 || ''
-      }
-    };
-
-    if (editingPerson) {
-      updatePersonInCache(editingPerson._id, mappedPerson);
-      setSnackbar({ open: true, message: 'Person updated successfully', severity: 'success' });
-    } else {
-      addPersonToCache(mappedPerson);
-      setSnackbar({ open: true, message: 'Person added successfully', severity: 'success' });
+// FIXED: handleSaveFromDialog function
+const handleSaveFromDialog = (savedPerson) => {
+  // Prepare the mapped person data
+  const mappedPerson = {
+    name: savedPerson.name || '',
+    surname: savedPerson.surname || '',
+    gender: savedPerson.gender || '',
+    dob: savedPerson.dob || '',
+    location: savedPerson.address || '',
+    email: savedPerson.email || '',
+    phone: savedPerson.number || '',
+    Stage: savedPerson.stage || 'Win',
+    lastUpdated: new Date().toISOString(),
+    invitedBy: savedPerson.invitedBy || '',
+    leaders: {
+      leader1: savedPerson.invitedBy || '',
+      leader12: savedPerson.leader12 || '',
+      leader144: savedPerson.leader144 || '',
+      leader1728: savedPerson.leader1728 || ''
     }
   };
+
+  if (editingPerson) {
+    // Update existing person - merge with existing data
+    updatePersonInCache(editingPerson._id, mappedPerson);
+    setSnackbar({ open: true, message: 'Person updated successfully', severity: 'success' });
+  } else {
+    // Add new person - include the _id
+    const newPerson = {
+      _id: savedPerson._id,
+      ...mappedPerson
+    };
+    addPersonToCache(newPerson);
+    setSnackbar({ open: true, message: 'Person added successfully', severity: 'success' });
+  }
+  
+  // Close the dialog after saving
+  handleCloseDialog();
+};
 
   const handleCloseDialog = () => {
     setIsModalOpen(false);
