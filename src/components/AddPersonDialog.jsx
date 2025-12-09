@@ -323,7 +323,8 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         select={select}
         disabled={isSubmitting}
         value={currentValue}
-        onChange={handleInputChange}
+        onChange={select?handleInputChange:()=>{}}
+        onSelect={handleInputChange}
         error={!!errors[name]}
         helperText={errors[name] || helperText}
         InputLabelProps={{ 
@@ -343,7 +344,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const validate = () => {
     const newErrors = {};
     const requiredFields = [
-      'name', 'surname', 'dob', 'address', 'email', 'number', 'gender'
+      'name', 'surname', 'dob', 'address', 'email', 'number', 'gender', 'invitedBy'
     ];
     
     requiredFields.forEach((field) => {
