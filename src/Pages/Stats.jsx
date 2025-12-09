@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Grid, Typography, Card, CardContent, LinearProgress, Chip, IconButton, Button,
   FormControl, InputLabel, Select, MenuItem, Alert, Avatar, useTheme, useMediaQuery,
@@ -27,9 +27,10 @@ const StatsDashboard = () => {
     if (isMdDown) return md;
     return lg !== undefined ? lg : xl;
   };
-  const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
+  
+  const containerPadding = getResponsiveValue(1, 1.5, 2, 2.5, 2.5); // Reduced padding
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
-  const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
+  const cardSpacing = getResponsiveValue(1, 1.5, 2, 2, 2); // Reduced spacing
   
   const [stats, setStats] = useState({
     overview: null,
@@ -42,7 +43,8 @@ const StatsDashboard = () => {
     error: null
   });
 
-  const [period, setPeriod] = useState('weekly');
+  const [period] = useState('weekly'); // Removed period state change functionality
+  const [taskFilter, setTaskFilter] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -57,32 +59,66 @@ const StatsDashboard = () => {
   const [eventTypes, setEventTypes] = useState([]);
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
   const [overdueModalOpen, setOverdueModalOpen] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+  const CACHE_DURATION = 5 * 60 * 1000;
 
-  const getDateRange = () => {
+  const getDateRange = useCallback(() => {
     const now = new Date();
     const start = new Date(now);
     const end = new Date(now);
 
-    if (period === 'weekly') {
-      const day = now.getDay(); // 0 = Sunday
-      start.setDate(now.getDate() - day);        // Start: Sunday
-      end.setDate(now.getDate() + (6 - day));    // End: Saturday
-    } else if (period === 'monthly') {
-      start.setDate(1);                          // First day of month
-      end.setMonth(end.getMonth() + 1);
-      end.setDate(0);                            // Last day of current month
-    }
+    // Always use weekly (removed period switching)
+    const day = now.getDay();
+    start.setDate(now.getDate() - day);
+    end.setDate(now.getDate() + (6 - day));
 
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
 
     return { start, end };
-  };
+  }, []);
+
+  const getTaskFilterDateRange = useCallback((filter) => {
+    const now = new Date();
+    const start = new Date();
+    const end = new Date();
+    
+    switch(filter) {
+      case 'lastWeek':
+        start.setDate(now.getDate() - 7 - now.getDay());
+        end.setDate(start.getDate() + 6);
+        break;
+      case 'lastMonth':
+        start.setMonth(now.getMonth() - 1);
+        start.setDate(1);
+        end.setMonth(now.getMonth() - 1);
+        end.setDate(new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate());
+        break;
+      case 'thisWeek':
+        start.setDate(now.getDate() - now.getDay());
+        end.setDate(start.getDate() + 6);
+        break;
+      case 'thisMonth':
+        start.setDate(1);
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(0);
+        break;
+      case 'all':
+      default:
+        start.setFullYear(now.getFullYear() - 1);
+        end.setFullYear(now.getFullYear() + 1);
+        break;
+    }
+    
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    
+    return { start, end };
+  }, []);
 
   const fetchStats = useCallback(async () => {
-    const cacheKey = `statsDashboard_${period}`;
+    const cacheKey = `statsDashboard_${period}_${taskFilter}`;
     const cachedData = localStorage.getItem(cacheKey);
     
     if (cachedData && !refreshing) {
@@ -93,6 +129,7 @@ const StatsDashboard = () => {
           loading: false,
           error: null
         });
+        setInitialLoad(false);
         return;
       }
     }
@@ -100,132 +137,46 @@ const StatsDashboard = () => {
     try {
       setRefreshing(true);
       setStats(prev => ({ ...prev, loading: true, error: null }));
+      
       const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
-      // === 1. Fetch Overdue/Incomplete Cells ===
-      let allCellEvents = [];
-      let page = 1;
-      while (true) {
-        const res = await fetch(`${BACKEND_URL}/events/cells?page=${page}&limit=100&start_date=2025-11-30`, { headers });
-        if (!res.ok) break;
-        const data = await res.json();
-        const events = data.events || data.data || [];
-        allCellEvents.push(...events);
-        if (events.length < 100) break;
-        page++;
-      }
-
-      const overdueCells = allCellEvents.filter(e => {
-        const s = (e.status || '').toString().toLowerCase().trim();
-        return s === 'overdue' || s === 'incomplete';
-      });
-
-      // 2. Fetch Tasks + Apply Date Filter
-      let allTasks = [];
-      try {
-        const res = await fetch(`${BACKEND_URL}/tasks/all`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          const rawTasks = data.tasks || data.results || data.data || data || [];
-
-          const { start, end } = getDateRange();
-
-          const filteredTasks = rawTasks.filter((task) => {
-            const rawDate = task.date || task.followup_date || task.createdAt || task.dueDate;
-            if (!rawDate) return false;
-
-            const taskDate = new Date(rawDate);
-            if (isNaN(taskDate)) return false;
-
-            return taskDate >= start && taskDate <= end;
-          });
-
-          allTasks = filteredTasks;
-        }
-      } catch (e) {
-        console.error("Tasks failed", e);
-      }
-
-      // 3. Fetch Users
-      let allUsers = [];
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/users`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          allUsers = data.users || data.data || [];
-        }
-      } catch (e) {
-        console.error("Users failed", e);
-      }
-
-      const userMap = {};
-      allUsers.forEach(u => {
-        if (u._id) userMap[u._id.toString()] = u;
-        if (u.email) userMap[u.email.toLowerCase()] = u;
-      });
-
-      const getUserFromTask = (task) => {
-        if (task.assignedTo) {
-          const id = typeof task.assignedTo === 'object' ? task.assignedTo._id || task.assignedTo.id : task.assignedTo;
-          if (id && userMap[id.toString()]) return userMap[id.toString()];
-        }
-        if (task.assignedfor && userMap[task.assignedfor.toLowerCase()]) {
-          return userMap[task.assignedfor.toLowerCase()];
-        }
-        return null;
+      const headers = { 
+        Authorization: `Bearer ${token}`, 
+        'Content-Type': 'application/json' 
       };
 
-      const taskGroups = {};
-      allTasks.forEach(task => {
-        const user = getUserFromTask(task);
-        if (!user) return;
-        const key = user._id || user.email;
-        if (!taskGroups[key]) taskGroups[key] = { user, tasks: [] };
-        taskGroups[key].tasks.push(task);
-      });
+      const { start: periodStart, end: periodEnd } = getDateRange();
+      const { start: taskStart, end: taskEnd } = getTaskFilterDateRange(taskFilter);
+      
+      const periodStartDate = periodStart.toISOString().split('T')[0];
+      const periodEndDate = periodEnd.toISOString().split('T')[0];
+      const taskStartDate = taskStart.toISOString().split('T')[0];
+      const taskEndDate = taskEnd.toISOString().split('T')[0];
 
-      const groupedTasks = allUsers.map(user => {
-        const key = user._id || user.email;
-        const group = taskGroups[key] || { tasks: [] };
-        const tasks = group.tasks;
-        const completed = tasks.filter(t => ['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length;
-        const incomplete = tasks.length - completed;
+      const response = await fetch(
+        `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}&task_filter=${taskFilter}&task_start=${taskStartDate}&task_end=${taskEndDate}&period_start=${periodStartDate}&period_end=${periodEndDate}`, 
+        { headers }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-        return {
-          user: {
-            _id: user._id,
-            fullName: `${user.name || ''} ${user.surname || ''}`.trim() || user.email?.split('@')[0] || 'Unknown',
-            email: user.email || '',
-          },
-          tasks,
-          totalCount: tasks.length,
-          completedCount: completed,
-          incompleteCount: incomplete
-        };
-      }).sort((a, b) => a.user.fullName.localeCompare(b.user.fullName));
-
-      const overview = {
-        total_attendance: overdueCells.reduce((s, e) => s + (e.attendees?.length || 0), 0),
-        outstanding_cells: overdueCells.length,
-        outstanding_tasks: allTasks.filter(t => !['completed', 'done', 'closed'].includes((t.status || '').toLowerCase())).length,
-        people_behind: groupedTasks.filter(g => g.incompleteCount > 0).length,
-      };
+      const data = await response.json();
 
       const newStats = {
-        overview,
-        events: overdueCells,
-        overdueCells,
-        allTasks,
-        allUsers,
-        groupedTasks,
+        overview: data.overview,
+        events: data.overdueCells || [],
+        overdueCells: data.overdueCells || [],
+        allTasks: data.allTasks || [],
+        allUsers: data.allUsers || [],
+        groupedTasks: data.groupedTasks || [],
         loading: false,
         error: null
       };
 
       setStats(newStats);
-
-      // Cache the data
+      setInitialLoad(false);
+      
       localStorage.setItem(cacheKey, JSON.stringify({
         data: newStats,
         timestamp: Date.now()
@@ -233,15 +184,98 @@ const StatsDashboard = () => {
 
     } catch (err) {
       console.error("Fetch stats error:", err);
-      setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
+      
+      try {
+        const token = localStorage.getItem("token");
+        const headers = { 
+          Authorization: `Bearer ${token}`, 
+          'Content-Type': 'application/json' 
+        };
+        
+        const quickResponse = await fetch(`${BACKEND_URL}/stats/dashboard-quick?period=${period}`, { headers });
+        if (quickResponse.ok) {
+          const quickData = await quickResponse.json();
+          
+          const tasksResponse = await fetch(`${BACKEND_URL}/tasks/all-optimized?period=${period}&limit=200`, { headers });
+          const tasksData = tasksResponse.ok ? await tasksResponse.json() : { tasks: [] };
+          
+          const tasksByUser = {};
+          tasksData.tasks?.forEach(task => {
+            const assignedTo = task.assignedfor;
+            if (assignedTo) {
+              if (!tasksByUser[assignedTo]) {
+                tasksByUser[assignedTo] = {
+                  tasks: [],
+                  completed: 0,
+                  incomplete: 0
+                };
+              }
+              
+              tasksByUser[assignedTo].tasks.push(task);
+              const status = (task.status || '').toLowerCase();
+              if (['completed', 'done', 'closed'].includes(status)) {
+                tasksByUser[assignedTo].completed++;
+              } else {
+                tasksByUser[assignedTo].incomplete++;
+              }
+            }
+          });
+          
+          const groupedTasks = Object.entries(tasksByUser).map(([email, data]) => ({
+            user: {
+              _id: email,
+              fullName: email.split('@')[0],
+              email: email
+            },
+            tasks: data.tasks,
+            totalCount: data.tasks.length,
+            completedCount: data.completed,
+            incompleteCount: data.incomplete
+          }));
+          
+          const newStats = {
+            overview: quickData.overview,
+            events: quickData.overdueCellsSample || [],
+            overdueCells: quickData.overdueCellsSample || [],
+            allTasks: tasksData.tasks || [],
+            allUsers: [],
+            groupedTasks: groupedTasks,
+            loading: false,
+            error: null
+          };
+          
+          setStats(newStats);
+          localStorage.setItem(cacheKey, JSON.stringify({
+            data: newStats,
+            timestamp: Date.now()
+          }));
+        } else {
+          throw err;
+        }
+      } catch (fallbackErr) {
+        console.error("Fallback also failed:", fallbackErr);
+        setStats(prev => ({ 
+          ...prev, 
+          error: err.message || 'Failed to load data', 
+          loading: false 
+        }));
+      }
+      
+      setInitialLoad(false);
     } finally {
       setRefreshing(false);
     }
-  }, [period, refreshing]);
+  }, [period, refreshing, getDateRange, getTaskFilterDateRange, taskFilter]);
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  useEffect(() => {
+    if (!initialLoad) {
+      fetchStats();
+    }
+  }, [taskFilter]);
 
   useEffect(() => {
     const fetchEventTypes = async () => {
@@ -274,19 +308,33 @@ const StatsDashboard = () => {
     fetchEventTypes();
   }, []);
 
-  const toggleExpand = (key) => {
-    setExpandedUsers(prev => prev.includes(key) ? prev.filter(e => e !== key) : [...prev, key]);
-  };
+  const toggleExpand = useCallback((key) => {
+    setExpandedUsers(prev => 
+      prev.includes(key) ? prev.filter(e => e !== key) : [...prev, key]
+    );
+  }, []);
 
-  const formatDate = (d) => !d ? 'Not set' : new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const formatDisplayDate = (d) => !d ? 'Not set' : new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const formatDate = useCallback((d) => !d ? 'Not set' : new Date(d).toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  }), []);
 
-  const getEventsForDate = (date) => stats.events.filter(e => e.date && new Date(e.date).toISOString().split('T')[0] === date);
+  const formatDisplayDate = useCallback((d) => !d ? 'Not set' : new Date(d).toLocaleDateString('en-US', { 
+    month: 'long', 
+    day: 'numeric', 
+    year: 'numeric' 
+  }), []);
 
-  const handleCreateEvent = () => {
+  const getEventsForDate = useCallback((date) => 
+    stats.events.filter(e => e.date && new Date(e.date).toISOString().split('T')[0] === date),
+    [stats.events]
+  );
+
+  const handleCreateEvent = useCallback(() => {
     setNewEventData(prev => ({ ...prev, date: selectedDate }));
     setCreateEventModalOpen(true);
-  };
+  }, [selectedDate]);
 
   const handleSaveEvent = async () => {
     if (!newEventData.eventName.trim()) {
@@ -335,8 +383,7 @@ const StatsDashboard = () => {
       setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
       fetchStats();
       
-      // Clear cache to force fresh data
-      const cacheKey = `statsDashboard_${period}`;
+      const cacheKey = `statsDashboard_${period}_${taskFilter}`;
       localStorage.removeItem(cacheKey);
     } catch (err) {
       console.error("Create event failed:", err);
@@ -344,7 +391,7 @@ const StatsDashboard = () => {
     }
   };
 
-  const EnhancedCalendar = () => {
+  const EnhancedCalendar = useMemo(() => {
     const eventCounts = {};
     stats.events.forEach(e => {
       if (e.date) {
@@ -354,9 +401,22 @@ const StatsDashboard = () => {
     });
 
     const today = new Date().toISOString().split('T')[0];
-    const goToPreviousMonth = () => setCurrentMonth(prev => { const m = new Date(prev); m.setMonth(m.getMonth() - 1); return m; });
-    const goToNextMonth = () => setCurrentMonth(prev => { const m = new Date(prev); m.setMonth(m.getMonth() + 1); return m; });
-    const goToToday = () => { setCurrentMonth(new Date()); setSelectedDate(today); };
+    const goToPreviousMonth = () => setCurrentMonth(prev => { 
+      const m = new Date(prev); 
+      m.setMonth(m.getMonth() - 1); 
+      return m; 
+    });
+    
+    const goToNextMonth = () => setCurrentMonth(prev => { 
+      const m = new Date(prev); 
+      m.setMonth(m.getMonth() + 1); 
+      return m; 
+    });
+    
+    const goToToday = () => { 
+      setCurrentMonth(new Date()); 
+      setSelectedDate(today); 
+    };
 
     const getDaysInMonth = () => {
       const year = currentMonth.getFullYear();
@@ -364,11 +424,14 @@ const StatsDashboard = () => {
       const firstDay = new Date(year, month, 1).getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const days = [];
+      
       for (let i = 0; i < firstDay; i++) days.push(null);
+      
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = new Date(year, month, day).toISOString().split('T')[0];
         days.push({
-          day, date: dateStr,
+          day, 
+          date: dateStr,
           eventCount: eventCounts[dateStr] || 0,
           isToday: dateStr === today,
           isSelected: dateStr === selectedDate
@@ -376,75 +439,132 @@ const StatsDashboard = () => {
       }
       return days;
     };
+    
     const days = getDaysInMonth();
+
     return (
       <Box>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant={titleVariant} fontWeight="bold">
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+          <Typography variant="h6" fontWeight="medium">
             {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </Typography>
-          <Box display="flex" gap={1}>
-            <IconButton size="small" onClick={goToPreviousMonth}><ChevronLeft /></IconButton>
-            <Button size="small" variant="outlined" onClick={goToToday}>Today</Button>
-            <IconButton size="small" onClick={goToNextMonth}><ChevronRight /></IconButton>
+          <Box display="flex" gap={0.5}>
+            <IconButton size="small" onClick={goToPreviousMonth} sx={{ p: 0.5 }}><ChevronLeft fontSize="small" /></IconButton>
+            <Button size="small" variant="outlined" onClick={goToToday} sx={{ px: 1, py: 0.25, fontSize: '0.75rem' }}>Today</Button>
+            <IconButton size="small" onClick={goToNextMonth} sx={{ p: 0.5 }}><ChevronRight fontSize="small" /></IconButton>
           </Box>
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, mb: 1, backgroundColor: 'background.paper', borderRadius: 2, overflow: 'hidden', boxShadow: 1 }}>
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(7, 1fr)', 
+          gap: 0.25, 
+          mb: 1, 
+          backgroundColor: 'background.paper', 
+          borderRadius: 1.5, 
+          overflow: 'hidden', 
+          boxShadow: 0 
+        }}>
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
-            <Box key={i} sx={{ py: 1.5, textAlign: 'center', fontWeight: 'bold', fontSize: { xs: '0.75rem', sm: '0.875rem' }, color: 'text.primary', backgroundColor: i === 0 || i === 6 ? 'action.hover' : 'transparent', borderRight: i < 6 ? '1px solid' : 'none', borderColor: 'divider' }}>
+            <Box key={i} sx={{ 
+              py: 1, 
+              textAlign: 'center', 
+              fontWeight: 'medium', 
+              fontSize: '0.7rem', 
+              color: 'text.primary', 
+              backgroundColor: i === 0 || i === 6 ? 'action.hover' : 'transparent', 
+              borderRight: i < 6 ? '1px solid' : 'none', 
+              borderColor: 'divider' 
+            }}>
               {isSmDown ? day[0] : day}
             </Box>
           ))}
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
-          {days.map((d, i) => !d ? <Box key={`empty-${i}`} sx={{ height: 52 }} /> : (
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.25 }}>
+          {days.map((d, i) => !d ? <Box key={`empty-${i}`} sx={{ height: 42 }} /> : (
             <Box
               key={d.date}
               onClick={() => setSelectedDate(d.date)}
               sx={{
-                height: 52, borderRadius: 2, cursor: 'pointer',
+                height: 42, 
+                borderRadius: 1.5, 
+                cursor: 'pointer',
                 backgroundColor: d.isSelected ? 'primary.main' : d.isToday ? 'primary.50' : 'background.default',
                 color: d.isSelected ? 'white' : d.isToday ? 'primary.main' : 'text.primary',
-                border: d.isToday && !d.isSelected ? '2px solid' : '1px solid',
+                border: d.isToday && !d.isSelected ? '1px solid' : 'none',
                 borderColor: d.isToday && !d.isSelected ? 'primary.main' : 'divider',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                position: 'relative', transition: 'all 0.2s ease',
-                '&:hover': { backgroundColor: d.isSelected ? 'primary.dark' : 'action.hover', transform: 'translateY(-2px)', boxShadow: 4 }
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                position: 'relative', 
+                transition: 'all 0.2s ease',
+                '&:hover': { 
+                  backgroundColor: d.isSelected ? 'primary.dark' : 'action.hover', 
+                  transform: 'translateY(-1px)', 
+                  boxShadow: 2 
+                }
               }}
             >
-              <Typography variant="body2" fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'}>{d.day}</Typography>
+              <Typography variant="caption" fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'} sx={{ fontSize: '0.75rem' }}>
+                {d.day}
+              </Typography>
               {d.eventCount > 0 && (
-                <Box sx={{ position: 'absolute', bottom: 6, width: 8, height: 8, borderRadius: '50%', bgcolor: d.isSelected ? 'white' : 'primary.main', boxShadow: 1 }} />
+                <Box sx={{ 
+                  position: 'absolute', 
+                  bottom: 4, 
+                  width: 6, 
+                  height: 6, 
+                  borderRadius: '50%', 
+                  bgcolor: d.isSelected ? 'white' : 'primary.main', 
+                  boxShadow: 0 
+                }} />
               )}
             </Box>
           ))}
         </Box>
       </Box>
     );
-  };
+  }, [stats.events, currentMonth, selectedDate, isSmDown]);
 
-  const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
+  const StatCard = React.memo(({ title, value, subtitle, icon, color = 'primary' }) => (
     <Paper variant="outlined" sx={{
-      p: getResponsiveValue(1.5, 2, 2.5, 3, 3),
+      p: getResponsiveValue(1, 1.5, 1.5, 2, 2),
       textAlign: "center",
-      boxShadow: 3,
+      boxShadow: 1,
       height: '100%',
-      borderTop: `4px solid ${theme.palette[color].main}`,
+      borderTop: `3px solid ${theme.palette[color].main}`,
       transition: 'all 0.2s',
-      '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }
+      '&:hover': { boxShadow: 3, transform: 'translateY(-1px)' }
     }}>
-      <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={1}>
-        <Avatar sx={{ bgcolor: `${color}.main` }}>{icon}</Avatar>
-        <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={`${color}.main`}>
+      <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={0.5}>
+        <Avatar sx={{ bgcolor: `${color}.main`, width: 32, height: 32 }}>{icon}</Avatar>
+        <Typography variant="h5" fontWeight={600} color={`${color}.main`}>
           {value}
         </Typography>
       </Stack>
-      <Typography variant="body1" color="text.secondary">{title}</Typography>
+      <Typography variant="body2" color="text.secondary">{title}</Typography>
       {subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography>}
     </Paper>
-  );
+  ));
+
+  if (initialLoad && stats.loading) {
+    return (
+      <Box p={containerPadding} maxWidth="1400px" mx="auto" mt={8}>
+        <Grid container spacing={cardSpacing} mb={3}>
+          {[...Array(3)].map((_, i) => (
+            <Grid item xs={6} md={4} key={i}>
+              <Skeleton variant="rectangular" height={100} />
+            </Grid>
+          ))}
+        </Grid>
+        <Box mt={3}>
+          <Skeleton variant="rectangular" height={350} />
+        </Box>
+      </Box>
+    );
+  }
 
   if (stats.error) {
     return (
@@ -457,62 +577,70 @@ const StatsDashboard = () => {
   }
 
   const eventsOnSelectedDate = getEventsForDate(selectedDate);
+  
   return (
     <Box p={containerPadding} maxWidth="1400px" mx="auto" mt={8}>
-      <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} gap={2}>
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>Period</InputLabel>
-          <Select value={period} onChange={e => setPeriod(e.target.value)}>
-            <MenuItem value="weekly">Weekly</MenuItem>
-            <MenuItem value="monthly">Monthly</MenuItem>
-          </Select>
-        </FormControl>
-        <Tooltip title="Refresh"><IconButton onClick={fetchStats} disabled={refreshing}><Refresh /></IconButton></Tooltip>
+      {/* Removed period dropdown - only refresh button remains */}
+      <Box display="flex" justifyContent="flex-end" alignItems="center" mb={2} gap={1}>
+        <Tooltip title="Refresh">
+          <IconButton onClick={fetchStats} disabled={refreshing} size="small">
+            <Refresh fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Box>
 
-      {(stats.loading || refreshing) && <LinearProgress sx={{ mb: 2 }} />}
+      {(stats.loading || refreshing) && <LinearProgress sx={{ mb: 1.5 }} />}
 
-      <Grid container spacing={cardSpacing} mb={4}>
-        <Grid item xs={6} md={3}>
-          {stats.loading ? <Skeleton variant="rectangular" height={140} /> : <StatCard title="Total Attendance" value={stats.overview?.total_attendance || 0} icon={<People />} color="primary" />}
+      {/* Removed "People Behind" card - now only 3 cards */}
+      <Grid container spacing={cardSpacing} mb={3}>
+        <Grid item xs={6} md={4}>
+          {stats.loading ? <Skeleton variant="rectangular" height={100} /> : 
+            <StatCard title="Total Attendance" value={stats.overview?.total_attendance || 0} icon={<People />} color="primary" />
+          }
         </Grid>
-        <Grid item xs={6} md={3}>
-          {stats.loading ? <Skeleton variant="rectangular" height={140} /> :
+        <Grid item xs={6} md={4}>
+          {stats.loading ? <Skeleton variant="rectangular" height={100} /> :
             <>
               <StatCard title="Overdue Cells" value={stats.overview?.outstanding_cells || 0} icon={<Warning />} color="warning" />
             </>
           }
         </Grid>
-        <Grid item xs={6} md={3}>
-          {stats.loading ? <Skeleton variant="rectangular" height={140} /> : <StatCard title="Incomplete Tasks" value={stats.overview?.outstanding_tasks || 0} icon={<Task />} color="secondary" />}
-        </Grid>
-        <Grid item xs={6} md={3}>
-          {stats.loading ? <Skeleton variant="rectangular" height={140} /> : <StatCard title="People Behind" value={stats.overview?.people_behind || 0} icon={<Warning />} color="error" />}
+        <Grid item xs={6} md={4}>
+          {stats.loading ? <Skeleton variant="rectangular" height={100} /> : 
+            <StatCard title="Incomplete Tasks" value={stats.overview?.outstanding_tasks || 0} icon={<Task />} color="secondary" />
+          }
         </Grid>
       </Grid>
 
-      <Paper variant="outlined" sx={{ mb: 2 }}>
-        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} variant={isSmDown ? "scrollable" : "standard"} centered>
+      <Paper variant="outlined" sx={{ mb: 1.5 }}>
+        <Tabs 
+          value={activeTab} 
+          onChange={(_, v) => setActiveTab(v)} 
+          variant={isSmDown ? "scrollable" : "standard"} 
+          centered
+          sx={{ minHeight: 48 }}
+        >
           <Tab label="Overdue Cells" />
           <Tab label="Tasks" />
           <Tab label="Calendar" />
         </Tabs>
       </Paper>
 
-      <Box minHeight="500px">
+      {/* Reduced container height */}
+      <Box minHeight="400px">
         {activeTab === 0 && (
-          <Paper sx={{ p: 3 }}>
-            <Box display="flex" justifyContent="space-between" mb={2}>
-              <Typography variant="h6">Overdue Cells</Typography>
-              <Chip label={stats.overdueCells.length} color="warning" />
+          <Paper sx={{ p: 2 }}>
+            <Box display="flex" justifyContent="space-between" mb={1.5}>
+              <Typography variant="subtitle1" fontWeight="medium">Overdue Cells</Typography>
+              <Chip label={stats.overdueCells.length} color="warning" size="small" />
             </Box>
             {stats.overdueCells.slice(0, 5).map((c, i) => (
-              <Card key={i} variant="outlined" sx={{ mb: 1.5, p: 2, boxShadow: 2, '&:hover': { boxShadow: 4 } }}>
+              <Card key={i} variant="outlined" sx={{ mb: 1, p: 1.5, boxShadow: 1, '&:hover': { boxShadow: 2 } }}>
                 <Box display="flex" alignItems="center">
-                  <Avatar sx={{ bgcolor: 'warning.main', mr: 2 }}><Warning /></Avatar>
+                  <Avatar sx={{ bgcolor: 'warning.main', mr: 1.5, width: 32, height: 32 }}><Warning fontSize="small" /></Avatar>
                   <Box flex={1}>
-                    <Typography variant="subtitle2" fontWeight="medium" noWrap>{c.eventName || 'Unnamed'}</Typography>
-                    <Typography variant="caption" color="textSecondary" noWrap>
+                    <Typography variant="body2" fontWeight="medium" noWrap>{c.eventName || 'Unnamed'}</Typography>
+                    <Typography variant="caption" color="textSecondary" noWrap sx={{ fontSize: '0.7rem' }}>
                       {formatDate(c.date)} • {c.eventLeaderName || 'No leader'}
                     </Typography>
                   </Box>
@@ -520,117 +648,368 @@ const StatsDashboard = () => {
               </Card>
             ))}
             <Box textAlign="center" mt={1}>
-                <Button
-                  size="small"
-                  variant="text"
-                  color="warning"
-                  startIcon={<Visibility />}
-                  onClick={() => setOverdueModalOpen(true)}
-                  disabled={(stats.overview?.outstanding_cells || 0) === 0}
-                >
-                  View All
-                </Button>
-              </Box>
+              <Button
+                size="small"
+                variant="text"
+                color="warning"
+                startIcon={<Visibility fontSize="small" />}
+                onClick={() => setOverdueModalOpen(true)}
+                disabled={(stats.overview?.outstanding_cells || 0) === 0}
+                sx={{ fontSize: '0.75rem' }}
+              >
+                View All
+              </Button>
+            </Box>
           </Paper>
         )}
+        
         {activeTab === 1 && (
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom mb={3}>
-              All Tasks by Person ({stats.groupedTasks.length} people • {stats.allTasks.length} total)
-            </Typography>
+          <Paper sx={{ 
+            p: 2, 
+            height: 'calc(100vh - 320px)', // Reduced height
+            display: 'flex', 
+            flexDirection: 'column'
+          }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              mb: 2,
+              flexShrink: 0 
+            }}>
+              <Box>
+                <Typography variant="subtitle1" gutterBottom>
+                  All Tasks by Person ({stats.groupedTasks.length} people • {stats.allTasks.length} total)
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+                  <Chip
+                    label="All"
+                    size="small"
+                    color={taskFilter === 'all' ? 'primary' : 'default'}
+                    onClick={() => setTaskFilter('all')}
+                    clickable
+                    sx={{ fontSize: '0.7rem', height: 24 }}
+                  />
+                  <Chip
+                    label="Last Week"
+                    size="small"
+                    color={taskFilter === 'lastWeek' ? 'primary' : 'default'}
+                    onClick={() => setTaskFilter('lastWeek')}
+                    clickable
+                    sx={{ fontSize: '0.7rem', height: 24 }}
+                  />
+                  <Chip
+                    label="Last Month"
+                    size="small"
+                    color={taskFilter === 'lastMonth' ? 'primary' : 'default'}
+                    onClick={() => setTaskFilter('lastMonth')}
+                    clickable
+                    sx={{ fontSize: '0.7rem', height: 24 }}
+                  />
+                  <Chip
+                    label="This Week"
+                    size="small"
+                    color={taskFilter === 'thisWeek' ? 'primary' : 'default'}
+                    onClick={() => setTaskFilter('thisWeek')}
+                    clickable
+                    sx={{ fontSize: '0.7rem', height: 24 }}
+                  />
+                  <Chip
+                    label="This Month"
+                    size="small"
+                    color={taskFilter === 'thisMonth' ? 'primary' : 'default'}
+                    onClick={() => setTaskFilter('thisMonth')}
+                    clickable
+                    sx={{ fontSize: '0.7rem', height: 24 }}
+                  />
+                </Box>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
+                  Showing: {taskFilter === 'all' ? 'All time' : 
+                           taskFilter === 'lastWeek' ? 'Last week' :
+                           taskFilter === 'lastMonth' ? 'Last month' :
+                           taskFilter === 'thisWeek' ? 'This week' : 'This month'}
+                </Typography>
+              </Box>
+            </Box>
 
-            <Stack spacing={3}>
-              {stats.groupedTasks.map(({ user, tasks, totalCount, completedCount, incompleteCount }) => {
-                const key = user.email || user.fullName;
-                const isExpanded = expandedUsers.includes(key);
+            <Box sx={{ 
+              flexGrow: 1, 
+              overflow: 'auto', 
+              pr: 1,
+              '&::-webkit-scrollbar': {
+                width: '6px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: '#f1f1f1',
+                borderRadius: '3px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: '#888',
+                borderRadius: '3px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: '#555',
+              },
+            }}>
+              <Stack spacing={1.5}>
+                {stats.groupedTasks.map(({ user, tasks, totalCount, completedCount, incompleteCount }) => {
+                  const key = user.email || user.fullName;
+                  const isExpanded = expandedUsers.includes(key);
 
-                return (
-                  <Box key={key} sx={{ Whom: 3, backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', boxShadow: 3, overflow: 'hidden', transition: 'all 0.2s', '&:hover': { boxShadow: 6 } }}>
-                    <Box
-                      sx={{ p: 3, cursor: 'pointer', backgroundColor: incompleteCount > 0 ? 'error.50' : 'transparent', '&:hover': { backgroundColor: 'action.hover' } }}
-                      onClick={() => toggleExpand(key)}
-                    >
-                      <Box display="flex" alignItems="center" justifyContent="space-between">
-                        <Box display="flex" alignItems="center" gap={2.5}>
-                          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56, fontSize: '1.5rem', fontWeight: 'bold' }}>
-                            {user.fullName.charAt(0).toUpperCase()}
-                          </Avatar>
-                          <Box>
-                            <Typography variant="h6" fontWeight="bold">{user.fullName}</Typography>
-                            <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
-                              {totalCount} task{totalCount !== 1 ? 's' : ''} → {completedCount} completed
-                              {incompleteCount > 0 && ` • ${incompleteCount} behind`}
-                              {incompleteCount === 0 && totalCount > 0 && ' — ALL DONE!'}
-                            </Typography>
+                  return (
+                    <Box key={key} sx={{ 
+                      backgroundColor: 'background.paper', 
+                      border: '1px solid', 
+                      borderColor: 'divider', 
+                      boxShadow: 1, 
+                      overflow: 'hidden', 
+                      transition: 'all 0.2s', 
+                      '&:hover': { boxShadow: 2 } 
+                    }}>
+                      <Box
+                        sx={{ 
+                          p: 1.5, 
+                          cursor: 'pointer', 
+                          backgroundColor: incompleteCount > 0 ? 'error.50' : 'transparent', 
+                          '&:hover': { backgroundColor: 'action.hover' } 
+                        }}
+                        onClick={() => toggleExpand(key)}
+                      >
+                        <Box display="flex" alignItems="center" justifyContent="space-between">
+                          <Box display="flex" alignItems="center" gap={1.5}>
+                            {/* Reduced avatar size */}
+                            <Avatar sx={{ 
+                              bgcolor: 'primary.main', 
+                              width: 40, 
+                              height: 40, 
+                              fontSize: '1rem', 
+                              fontWeight: 'bold' 
+                            }}>
+                              {user.fullName.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Box>
+                              {/* Reduced text sizes */}
+                              <Typography variant="body2" fontWeight="medium">{user.fullName}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {totalCount} task{totalCount !== 1 ? 's' : ''} • {completedCount} completed
+                                {/* {incompleteCount > 0 && ` • ${incompleteCount} behind`} */}
+                                {incompleteCount === 0 && totalCount > 0 && ' — ALL DONE!'}
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <IconButton size="small" sx={{ p: 0.5 }}>
+                              <ExpandMore sx={{ 
+                                transition: 'transform 0.2s ease', 
+                                transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' 
+                              }} />
+                            </IconButton>
                           </Box>
                         </Box>
-                        <Box display="flex" alignItems="center" gap={2}>
-                          {incompleteCount > 0 && <Chip label={`${incompleteCount} behind`} color="error" size="medium" sx={{ fontWeight: 'bold', px: 2, height: 36 }} />}
-                          <IconButton size="small">
-                            <ExpandMore sx={{ transition: 'transform 0.2s ease', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-                          </IconButton>
-                        </Box>
                       </Box>
-                    </Box>
 
-                    <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                      <Box sx={{ px: 3, pb: 3, pt: 1, backgroundColor: 'grey.50' }}>
-                        <Divider sx={{ mb: 2 }} />
-                        {tasks.length === 0 ? (
-                          <Typography color="text.secondary" fontStyle="italic">No tasks assigned</Typography>
-                        ) : (
-                          <Stack spacing={1.5}>
-                            {tasks.map(task => (
-                              <Box key={task._id} sx={{ p: 2, borderRadius: 2, backgroundColor: 'background.paper', border: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Box>
-                                  <Typography variant="body2" fontWeight="medium">{task.name || task.taskType || 'Untitled Task'}</Typography>
-                                  {task.contacted_person?.name && <Typography variant="caption" color="text.secondary">Contact: {task.contacted_person.name}</Typography>}
+                      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                        <Box sx={{ px: 1.5, pb: 1.5, pt: 1, backgroundColor: 'grey.50' }}>
+                          <Divider sx={{ mb: 1.5 }} />
+                          {tasks.length === 0 ? (
+                            <Typography color="text.secondary" fontStyle="italic" variant="caption">No tasks assigned</Typography>
+                          ) : (
+                            <Stack spacing={1}>
+                              {tasks.map(task => (
+                                <Box key={task._id} sx={{ 
+                                  p: 1.5, 
+                                  borderRadius: 1.5, 
+                                  backgroundColor: 'background.paper', 
+                                  border: '1px solid', 
+                                  borderColor: 'divider', 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between', 
+                                  alignItems: 'center' 
+                                }}>
+                                  <Box>
+                                    <Typography variant="caption" fontWeight="medium">
+                                      {task.name || task.taskType || 'Untitled Task'}
+                                    </Typography>
+                                    {task.contacted_person?.name && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                                        Contact: {task.contacted_person.name}
+                                      </Typography>
+                                    )}
+                                    {task.followup_date && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontSize: '0.7rem' }}>
+                                        Due: {formatDate(task.followup_date)}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                  <Chip
+                                    label={task.status || 'Pending'}
+                                    size="small"
+                                    color={['completed', 'done'].includes(task.status?.toLowerCase()) ? 'success' : 
+                                           task.status?.toLowerCase() === 'overdue' ? 'error' : 'warning'}
+                                    sx={{ fontSize: '0.7rem', height: 22 }}
+                                  />
                                 </Box>
-                                <Chip
-                                  label={task.status || 'Pending'}
-                                  size="small"
-                                  color={['completed', 'done'].includes(task.status?.toLowerCase()) ? 'success' : task.status?.toLowerCase() === 'overdue' ? 'error' : 'warning'}
-                                />
-                              </Box>
-                            ))}
-                          </Stack>
-                        )}
-                      </Box>
-                    </Collapse>
+                              ))}
+                            </Stack>
+                          )}
+                        </Box>
+                      </Collapse>
+                    </Box>
+                  );
+                })}
+                
+                {stats.groupedTasks.length === 0 && !stats.loading && (
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 6, 
+                    color: 'text.secondary',
+                    border: '2px dashed',
+                    borderColor: 'divider',
+                    borderRadius: 1.5
+                  }}>
+                    <Task sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
+                    <Typography variant="body1">No tasks found</Typography>
+                    <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                      {taskFilter === 'all' ? 'No tasks have been assigned yet.' :
+                       `No tasks found for ${taskFilter === 'lastWeek' ? 'last week' :
+                        taskFilter === 'lastMonth' ? 'last month' :
+                        taskFilter === 'thisWeek' ? 'this week' : 'this month'}.`}
+                    </Typography>
                   </Box>
-                );
-              })}
-            </Stack>
+                )}
+              </Stack>
+            </Box>
           </Paper>
         )}
 
         {activeTab === 2 && (
-          <Paper sx={{ p: 3 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-              <Typography variant="h6">Event Calendar</Typography>
-              <Button variant="contained" startIcon={<Add />} onClick={handleCreateEvent}>
+          <Paper sx={{ 
+            p: 2, 
+            height: 'calc(100vh - 390px)', // Same reduced height as tasks tab
+            display: 'flex', 
+            flexDirection: 'column'
+          }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              mb: 2,
+              flexShrink: 0 
+            }}>
+              <Typography variant="subtitle1">Event Calendar</Typography>
+              <Button variant="contained" startIcon={<Add />} size="small" onClick={handleCreateEvent}>
                 Create Event
               </Button>
             </Box>
-            <Box display="flex" flexDirection={isSmDown ? "column" : "row"} gap={4}>
-              <Box flex={1}><EnhancedCalendar /></Box>
-              <Box flex={1}>
-                <Typography variant="subtitle1" gutterBottom>Events on {formatDisplayDate(selectedDate)}</Typography>
-                {eventsOnSelectedDate.length > 0 ? eventsOnSelectedDate.map(e => (
-                  <Card key={e._id} sx={{ mb: 1, p: 2 }}>
-                    <Typography variant="subtitle2">{e.eventName}</Typography>
-                    <Typography variant="caption">{e.eventTypeName} • {e.time}</Typography>
-                  </Card>
-                )) : <Typography color="textSecondary">No events scheduled</Typography>}
+            
+            <Box sx={{ 
+              flexGrow: 1, 
+              overflow: 'hidden',
+              display: 'flex', 
+              flexDirection: isSmDown ? "column" : "row", 
+              gap: 2 
+            }}>
+              <Box sx={{ 
+                flex: 1, 
+                overflow: 'auto',
+                pr: 1,
+                '&::-webkit-scrollbar': {
+                  width: '6px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  background: '#f1f1f1',
+                  borderRadius: '3px',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  background: '#888',
+                  borderRadius: '3px',
+                },
+                '&::-webkit-scrollbar-thumb:hover': {
+                  background: '#555',
+                },
+              }}>
+                {EnhancedCalendar}
+              </Box>
+              
+              <Box sx={{ 
+                flex: 1, 
+                overflow: 'auto',
+                pr: 1 
+              }}>
+                <Typography variant="body1" gutterBottom sx={{ fontWeight: 'medium' }}>
+                  Events on {formatDisplayDate(selectedDate)}
+                </Typography>
+                {eventsOnSelectedDate.length > 0 ? (
+                  <Stack spacing={1}>
+                    {eventsOnSelectedDate.map(e => (
+                      <Card key={e._id} sx={{ 
+                        p: 1.5, 
+                        boxShadow: 1,
+                        transition: 'all 0.2s',
+                        '&:hover': { 
+                          boxShadow: 2, 
+                          transform: 'translateY(-1px)' 
+                        }
+                      }}>
+                        <Typography variant="body2" fontWeight="medium">{e.eventName}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                          <Chip 
+                            label={e.eventTypeName} 
+                            size="small" 
+                            color="primary" 
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem', height: 22 }}
+                          />
+                          <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
+                            {e.time} • {e.location || 'No location'}
+                          </Typography>
+                        </Box>
+                        {e.eventLeaderName && (
+                          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5, fontSize: '0.7rem' }}>
+                            Leader: {e.eventLeaderName}
+                          </Typography>
+                        )}
+                      </Card>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 6, 
+                    color: 'text.secondary',
+                    border: '2px dashed',
+                    borderColor: 'divider',
+                    borderRadius: 1.5,
+                    mt: 1
+                  }}>
+                    <Event sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
+                    <Typography variant="body2">No events scheduled for this date</Typography>
+                    <Button 
+                      variant="outlined" 
+                      size="small" 
+                      startIcon={<Add />} 
+                      onClick={handleCreateEvent}
+                      sx={{ mt: 1.5, fontSize: '0.75rem' }}
+                    >
+                      Create Event
+                    </Button>
+                  </Box>
+                )}
               </Box>
             </Box>
           </Paper>
         )}
       </Box>
 
-      {/* CREATE EVENT MODAL */}
+      {/* CREATE EVENT MODAL - unchanged except for minor spacing adjustments */}
       <Dialog open={createEventModalOpen} onClose={() => setCreateEventModalOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, boxShadow: 24 } }}>
-        <DialogTitle sx={{ background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`, color: 'white', p: 3 }}>
+        <DialogTitle sx={{ 
+          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`, 
+          color: 'white', 
+          p: 3 
+        }}>
           <Box display="flex" alignItems="center" justifyContent="space-between">
             <Box display="flex" alignItems="center" gap={1.5}>
               <Box component="span" sx={{ fontSize: 28 }}>Create New Event</Box>
@@ -638,14 +1017,33 @@ const StatsDashboard = () => {
                 <Typography variant="caption" sx={{ opacity: 0.9 }}>{formatDisplayDate(selectedDate)}</Typography>
               </Box>
             </Box>
-            <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: 'white' }}><Close /></IconButton>
+            <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: 'white' }}>
+              <Close />
+            </IconButton>
           </Box>
         </DialogTitle>
         <DialogContent sx={{ p: { xs: 2, sm: 3 }, mt: 2 }}>
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 2, color: 'primary.main', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>EVENT DETAILS</Typography>
+            <Typography variant="subtitle2" sx={{ 
+              mb: 2, 
+              color: 'primary.main', 
+              fontWeight: 600, 
+              textTransform: 'uppercase', 
+              fontSize: '0.75rem', 
+              letterSpacing: 1 
+            }}>
+              EVENT DETAILS
+            </Typography>
             <Grid container spacing={2.5}>
-              <Grid item xs={12}><TextField label="Event Name" value={newEventData.eventName} onChange={e => setNewEventData(p => ({ ...p, eventName: e.target.value }))} fullWidth required /></Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  label="Event Name" 
+                  value={newEventData.eventName} 
+                  onChange={e => setNewEventData(p => ({ ...p, eventName: e.target.value }))} 
+                  fullWidth 
+                  required 
+                />
+              </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth disabled={eventTypesLoading}>
                   <InputLabel>Event Type</InputLabel>
@@ -667,30 +1065,100 @@ const StatsDashboard = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6}><TextField label="Time" type="time" value={newEventData.time} onChange={e => setNewEventData(p => ({ ...p, time: e.target.value }))} fullWidth InputLabelProps={{ shrink: true }} /></Grid>
-              <Grid item xs={12}><TextField label="Location" value={newEventData.location} onChange={e => setNewEventData(p => ({ ...p, location: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField 
+                  label="Time" 
+                  type="time" 
+                  value={newEventData.time} 
+                  onChange={e => setNewEventData(p => ({ ...p, time: e.target.value }))} 
+                  fullWidth 
+                  InputLabelProps={{ shrink: true }} 
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  label="Location" 
+                  value={newEventData.location} 
+                  onChange={e => setNewEventData(p => ({ ...p, location: e.target.value }))} 
+                  fullWidth 
+                />
+              </Grid>
             </Grid>
           </Box>
           <Divider sx={{ my: 3 }} />
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 2, color: 'primary.main', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>EVENT LEADER INFORMATION</Typography>
+            <Typography variant="subtitle2" sx={{ 
+              mb: 2, 
+              color: 'primary.main', 
+              fontWeight: 600, 
+              textTransform: 'uppercase', 
+              fontSize: '0.75rem', 
+              letterSpacing: 1 
+            }}>
+              EVENT LEADER INFORMATION
+            </Typography>
             <Grid container spacing={2.5}>
-              <Grid item xs={12}><TextField label="Leader Name" value={newEventData.eventLeaderName} onChange={e => setNewEventData(p => ({ ...p, eventLeaderName: e.target.value }))} fullWidth /></Grid>
-              <Grid item xs={12}><TextField label="Leader Email" type="email" value={newEventData.eventLeaderEmail} onChange={e => setNewEventData(p => ({ ...p, eventLeaderEmail: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  label="Leader Name" 
+                  value={newEventData.eventLeaderName} 
+                  onChange={e => setNewEventData(p => ({ ...p, eventLeaderName: e.target.value }))} 
+                  fullWidth 
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField 
+                  label="Leader Email" 
+                  type="email" 
+                  value={newEventData.eventLeaderEmail} 
+                  onChange={e => setNewEventData(p => ({ ...p, eventLeaderEmail: e.target.value }))} 
+                  fullWidth 
+                />
+              </Grid>
             </Grid>
           </Box>
           <Divider sx={{ my: 3 }} />
           <Box>
-            <Typography gutterBottom sx={{ mb: 2, color: 'primary.main', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>ADDITIONAL INFORMATION</Typography>
-            <TextField label="Description" value={newEventData.description} onChange={e => setNewEventData(p => ({ ...p, description: e.target.value }))} fullWidth multiline rows={4} />
-            <Box mt={2} p={2} sx={{ backgroundColor: 'rgba(33, 150, 243, 0.08)', borderRadius: 2, border: '1px solid rgba(33, 150, 243, 0.2)' }}>
-              <FormControlLabel control={<Checkbox checked={newEventData.isRecurring} onChange={e => setNewEventData(p => ({ ...p, isRecurring: e.target.checked }))} />} label="Recurring Event" />
+            <Typography gutterBottom sx={{ 
+              mb: 2, 
+              color: 'primary.main', 
+              fontWeight: 600, 
+              textTransform: 'uppercase', 
+              fontSize: '0.75rem', 
+              letterSpacing: 1 
+            }}>
+              ADDITIONAL INFORMATION
+            </Typography>
+            <TextField 
+              label="Description" 
+              value={newEventData.description} 
+              onChange={e => setNewEventData(p => ({ ...p, description: e.target.value }))} 
+              fullWidth 
+              multiline 
+              rows={4} 
+            />
+            <Box mt={2} p={2} sx={{ 
+              backgroundColor: 'rgba(33, 150, 243, 0.08)', 
+              borderRadius: 2, 
+              border: '1px solid rgba(33, 150, 243, 0.2)' 
+            }}>
+              <FormControlLabel 
+                control={
+                  <Checkbox 
+                    checked={newEventData.isRecurring} 
+                    onChange={e => setNewEventData(p => ({ ...p, isRecurring: e.target.checked }))} 
+                  />
+                } 
+                label="Recurring Event" 
+              />
             </Box>
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 3, backgroundColor: 'rgba(0,0,0,0.02)' }}>
           <Button onClick={() => setCreateEventModalOpen(false)}>Cancel</Button>
-          <Button variant="contained" startIcon={<Save />} onClick={handleSaveEvent} disabled={!newEventData.eventName}>Create Event</Button>
+          <Button variant="contained" startIcon={<Save />} onClick={handleSaveEvent} disabled={!newEventData.eventName}>
+            Create Event
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -698,7 +1166,8 @@ const StatsDashboard = () => {
       <Dialog open={overdueModalOpen} onClose={() => setOverdueModalOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{
           background: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
-          color: 'white', p: 3
+          color: 'white', 
+          p: 3
         }}>
           <Box display="flex" alignItems="center" justifyContent="space-between">
             <Box display="flex" alignItems="center" gap={2}>
@@ -753,10 +1222,13 @@ const StatsDashboard = () => {
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={4000} 
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+      >
         <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
-
     </Box>
   );
 };
