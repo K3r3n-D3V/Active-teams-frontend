@@ -26,8 +26,9 @@ import SplashScreen from "./components/SplashScreen";
 
 import withAuthCheck from "./components/withAuthCheck";
 import Admin from "./Pages/Admin";
+import NotFound from "./Pages/NotFound";
 
-// Wrap protected pages WITH ROLES
+// Wrap protected pages WITH ROLES//
 const ProtectedHome = withAuthCheck(Home, ['admin', 'leader', 'user', 'registrant']);
 const ProtectedProfile = withAuthCheck(Profile, ['admin', 'leader', 'user', 'registrant']);
 const ProtectedPeople = withAuthCheck(People, ['admin', 'leader']);
@@ -138,7 +139,11 @@ function App() {
             <Route path="/service-check-in" element={<ProtectedCheckIn title="Service Check-in" />} />
             <Route path="/daily-tasks" element={<ProtectedDailyTasks title="Daily Tasks" />} />
             <Route path="/event-payment/:eventId" element={<EventRegistrationForm title="Event register" />} />
+            <Route path="*" element={<NotFound />} />
+
           </Routes>
+
+          
         </div>
       </div>
     </ThemeProvider>
