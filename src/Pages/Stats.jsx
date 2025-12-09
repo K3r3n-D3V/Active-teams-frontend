@@ -10,8 +10,10 @@ import Collapse from '@mui/material/Collapse';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import {
   People, CellTower, Task, Warning, Groups, Refresh, Add, CalendarToday, Close,
-  Visibility, ChevronLeft, ChevronRight, Save, CheckCircle, Event
+  Visibility, ChevronLeft, ChevronRight, Save, CheckCircle, Event, Download
 } from '@mui/icons-material';
+import { toast } from 'react-toastify';
+import * as XLSX from 'xlsx';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -39,13 +41,12 @@ const StatsDashboard = () => {
     allTasks: [],
     allUsers: [],
     groupedTasks: [],
-    loading: true,
+    loading: false,
     error: null,
     dateRange: { start: '', end: '' }
   });
 
   const [period, setPeriod] = useState('today');
-  const [taskFilter, setTaskFilter] = useState('today');
   const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -61,6 +62,8 @@ const StatsDashboard = () => {
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
   const [overdueModalOpen, setOverdueModalOpen] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [isChangingPeriod, setIsChangingPeriod] = useState(false);
 
   const CACHE_DURATION = 5 * 60 * 1000;
 
@@ -101,93 +104,334 @@ const StatsDashboard = () => {
     return null;
   }, [CACHE_DURATION]);
 
-  // Updated to match DailyTasks period calculation
   const getPeriodRange = useCallback((periodType) => {
     const now = new Date();
-    const start = new Date();
-    const end = new Date();
-    
-    // Reset to beginning of day
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
     
     const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const currentDate = now.getDate();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
     
-    // TODAY
     if (periodType === 'today') {
-      // Already set to today's date by default
+      const start = new Date(now);
+      const end = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
       return { start, end };
     }
     
-    // THIS WEEK (Monday to Sunday)
     if (periodType === 'thisWeek') {
-      // Get Monday of current week
+      // Calculate Monday of current week
       const monday = new Date(now);
-      monday.setDate(now.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
-      start.setTime(monday.getTime());
+      const day = monday.getDay();
+      const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+      monday.setDate(diff);
+      monday.setHours(0, 0, 0, 0);
       
-      // Get Sunday of current week
-      const sunday = new Date(start);
-      sunday.setDate(start.getDate() + 6);
-      end.setTime(sunday.getTime());
+      // Calculate Sunday of current week
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+      
+      return { start: monday, end: sunday };
     }
     
-    // THIS MONTH
     else if (periodType === 'thisMonth') {
-      // First day of current month
-      start.setDate(1);
-      
-      // Last day of current month
-      end.setMonth(currentMonth + 1);
-      end.setDate(0);
-    }
-    
-    // PREVIOUS 7 DAYS
-    else if (periodType === 'previous7') {
-      end.setTime(now.getTime()); // Today
-      start.setTime(now.getTime() - (6 * 24 * 60 * 60 * 1000)); // 7 days ago (including today)
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
+      return { start, end };
     }
     
-    // PREVIOUS WEEK (complete last week, Monday to Sunday)
+    else if (periodType === 'previous7') {
+      const end = new Date(now);
+      const start = new Date(now);
+      start.setDate(end.getDate() - 6);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
+    
     else if (periodType === 'previousWeek') {
-      const lastWeek = new Date(now);
-      lastWeek.setDate(now.getDate() - 7);
-      const lastWeekDay = lastWeek.getDay();
+      // Go back 7 days from now
+      const lastWeekDate = new Date(now);
+      lastWeekDate.setDate(now.getDate() - 7);
       
-      // Get Monday of last week
-      const monday = new Date(lastWeek);
-      monday.setDate(lastWeek.getDate() - (lastWeekDay === 0 ? 6 : lastWeekDay - 1));
-      start.setTime(monday.getTime());
+      // Calculate Monday of previous week
+      const monday = new Date(lastWeekDate);
+      const day = monday.getDay();
+      const diff = monday.getDate() - day + (day === 0 ? -6 : 1);
+      monday.setDate(diff);
+      monday.setHours(0, 0, 0, 0);
       
-      // Get Sunday of last week
-      const sunday = new Date(start);
-      sunday.setDate(start.getDate() + 6);
-      end.setTime(sunday.getTime());
+      // Calculate Sunday of previous week
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+      
+      return { start: monday, end: sunday };
     }
     
-    // PREVIOUS MONTH (complete last month)
     else if (periodType === 'previousMonth') {
-      // First day of last month
-      start.setMonth(currentMonth - 1);
-      start.setDate(1);
-      
-      // Last day of last month
-      end.setMonth(currentMonth);
-      end.setDate(0);
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
     }
     
+    // Default to today
+    const start = new Date(now);
+    const end = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
     return { start, end };
   }, []);
 
-  const fetchStats = useCallback(async () => {
+  const filterDataByPeriod = useCallback((data, dateField = 'date') => {
+    if (!data || data.length === 0) return data;
+    
+    const { start, end } = getPeriodRange(period);
+    
+    return data.filter(item => {
+      if (!item[dateField]) return false;
+      
+      const itemDate = new Date(item[dateField]);
+      if (isNaN(itemDate.getTime())) return false;
+      
+      return itemDate >= start && itemDate <= end;
+    });
+  }, [period, getPeriodRange]);
+
+  const filteredTasks = useMemo(() => {
+    return filterDataByPeriod(stats.allTasks, 'followup_date');
+  }, [stats.allTasks, filterDataByPeriod]);
+
+  const filteredOverdueCells = useMemo(() => {
+    return filterDataByPeriod(stats.overdueCells);
+  }, [stats.overdueCells, filterDataByPeriod]);
+
+  const filteredEvents = useMemo(() => {
+    return filterDataByPeriod(stats.events);
+  }, [stats.events, filterDataByPeriod]);
+
+  // Excel Download Function
+  const downloadFilteredStats = () => {
+    try {
+      const currentPeriod = getPeriodDisplayText(period);
+      const today = new Date().toISOString().split('T')[0];
+      
+      let dataToExport = [];
+      let sheetName = '';
+      let fileName = '';
+      
+      // Determine which data to export based on active tab
+      if (activeTab === 0) {
+        // Overdue Cells
+        if (!filteredOverdueCells || filteredOverdueCells.length === 0) {
+          toast.info("No overdue cells data to download for the selected period.");
+          return;
+        }
+        
+        dataToExport = filteredOverdueCells.map(cell => ({
+          "Event ID": cell._id || "",
+          "Event Name": cell.eventName || "Unnamed",
+          "Event Type": cell.eventTypeName || "",
+          "Date": cell.date ? formatDateForExcel(cell.date) : "",
+          "Time": cell.time || "",
+          "Location": cell.location || "",
+          "Event Leader": cell.eventLeaderName || "",
+          "Leader Email": cell.eventLeaderEmail || "",
+          "Status": cell.status || "incomplete",
+          "Description": cell.description || "",
+          "Attendees Count": cell.attendees ? cell.attendees.length : 0,
+          "Is Recurring": cell.isRecurring ? "Yes" : "No",
+          "Created At": cell.created_at ? formatDateForExcel(cell.created_at) : "",
+          "Updated At": cell.updated_at ? formatDateForExcel(cell.updated_at) : ""
+        }));
+        
+        sheetName = "Overdue_Cells";
+        fileName = `overdue_cells_${currentPeriod.toLowerCase().replace(/\s+/g, '_')}_${today}.xlsx`;
+        
+      } else if (activeTab === 1) {
+        // Tasks
+        if (!filteredTasks || filteredTasks.length === 0) {
+          toast.info("No tasks data to download for the selected period.");
+          return;
+        }
+        
+        dataToExport = filteredTasks.map(task => ({
+          "Task ID": task._id || "",
+          "Task Name": task.name || task.taskType || "Untitled Task",
+          "Task Type": task.type || "",
+          "Contact Person": task.contacted_person?.name || "",
+          "Contact Phone": task.contacted_person?.phone || task.contacted_person?.Number || "",
+          "Contact Email": task.contacted_person?.email || "",
+          "Assigned To": task.assignedfor || task.name || "",
+          "Assigned For": task.assignedfor || "",
+          "Due Date": task.followup_date ? formatDateForExcel(task.followup_date) : "",
+          "Status": task.status || "pending",
+          "Task Stage": task.taskStage || "",
+          "Created At": task.created_at ? formatDateForExcel(task.created_at) : "",
+          "Updated At": task.updated_at ? formatDateForExcel(task.updated_at) : "",
+          "Member ID": task.memberID || "",
+          "Task Description": task.description || ""
+        }));
+        
+        sheetName = "Tasks";
+        fileName = `tasks_${currentPeriod.toLowerCase().replace(/\s+/g, '_')}_${today}.xlsx`;
+        
+      } else if (activeTab === 2) {
+        // Events/Calendar
+        if (!filteredEvents || filteredEvents.length === 0) {
+          toast.info("No events data to download for the selected period.");
+          return;
+        }
+        
+        dataToExport = filteredEvents.map(event => ({
+          "Event ID": event._id || "",
+          "Event Name": event.eventName || "",
+          "Event Type": event.eventTypeName || "",
+          "Date": event.date ? formatDateForExcel(event.date) : "",
+          "Time": event.time || "",
+          "Location": event.location || "",
+          "Event Leader": event.eventLeaderName || "",
+          "Leader Email": event.eventLeaderEmail || "",
+          "Description": event.description || "",
+          "Status": event.status || "incomplete",
+          "Is Recurring": event.isRecurring ? "Yes" : "No",
+          "Created At": event.created_at ? formatDateForExcel(event.created_at) : "",
+          "Updated At": event.updated_at ? formatDateForExcel(event.updated_at) : ""
+        }));
+        
+        sheetName = "Events";
+        fileName = `events_${currentPeriod.toLowerCase().replace(/\s+/g, '_')}_${today}.xlsx`;
+      }
+      
+      if (dataToExport.length === 0) {
+        toast.info("No data to download for the selected period.");
+        return;
+      }
+      
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Create worksheet from data
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      
+      // Add header styling
+      const headerRange = XLSX.utils.decode_range(ws['!ref']);
+      for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+        const address = XLSX.utils.encode_cell({ r: headerRange.s.r, c: C });
+        if (!ws[address]) continue;
+        ws[address].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4F81BD" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }
+      
+      // Set column widths
+      const colWidths = [];
+      const headers = Object.keys(dataToExport[0]);
+      
+      headers.forEach((header, colIndex) => {
+        let maxLength = header.length;
+        
+        dataToExport.forEach(row => {
+          const cellValue = String(row[header] || '');
+          if (cellValue.length > maxLength) {
+            maxLength = cellValue.length;
+          }
+        });
+        
+        // Set width (minimum 10, maximum 50 characters)
+        const width = Math.min(Math.max(maxLength + 2, 10), 50);
+        colWidths.push({ wch: width });
+      });
+      
+      ws['!cols'] = colWidths;
+      
+      // Add auto-filter to headers
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range(headerRange) };
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      
+      // Generate Excel file
+      const wbout = XLSX.write(wb, { 
+        bookType: 'xlsx', 
+        type: 'binary',
+        bookSST: false 
+      });
+      
+      // Convert to array buffer
+      const buffer = new ArrayBuffer(wbout.length);
+      const view = new Uint8Array(buffer);
+      for (let i = 0; i < wbout.length; ++i) {
+        view[i] = wbout.charCodeAt(i) & 0xFF;
+      }
+      
+      // Create blob and download
+      const blob = new Blob([buffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+      
+      toast.success(`Downloaded ${dataToExport.length} records (${sheetName})`);
+      
+    } catch (error) {
+      console.error("Error downloading Excel file:", error);
+      toast.error("Error creating Excel file: " + error.message);
+    }
+  };
+  
+  // Helper function to format dates for Excel
+  const formatDateForExcel = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      
+      // Excel-friendly format: YYYY-MM-DD HH:MM
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
+    } catch (e) {
+      console.warn("Date formatting error:", e, "for date:", dateStr);
+      return dateStr;
+    }
+  };
+
+  const fetchStats = useCallback(async (forceRefresh = false) => {
     const cacheKey = `statsDashboard_${period}`;
     
-    if (!refreshing) {
+    // Don't fetch if we're already refreshing
+    if (refreshing && !forceRefresh) return;
+    
+    if (!forceRefresh && !refreshing) {
       const cachedData = getCache(cacheKey);
       if (cachedData) {
         setStats({
@@ -196,6 +440,8 @@ const StatsDashboard = () => {
           error: null
         });
         setInitialLoad(false);
+        setIsDataLoaded(true);
+        setIsChangingPeriod(false);
         return;
       }
     }
@@ -210,9 +456,16 @@ const StatsDashboard = () => {
         'Content-Type': 'application/json' 
       };
 
-      // Use the same period for both overview and tasks (task_filter removed)
+      // Get date range for debugging
+      const dateRange = getPeriodRange(period);
+      const startDate = dateRange.start.toISOString().split('T')[0];
+      const endDate = dateRange.end.toISOString().split('T')[0];
+      
+      console.log(`Fetching stats for period: ${period}`);
+      console.log(`Date range: ${startDate} to ${endDate}`);
+
       const response = await fetch(
-        `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}`, 
+        `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}&start_date=${startDate}&end_date=${endDate}`, 
         { headers }
       );
       
@@ -229,13 +482,18 @@ const StatsDashboard = () => {
         allTasks: data.allTasks || [],
         allUsers: data.allUsers || [],
         groupedTasks: data.groupedTasks || [],
-        dateRange: data.date_range || { start: '', end: '' },
+        dateRange: {
+          start: startDate,
+          end: endDate
+        },
         loading: false,
         error: null
       };
 
       setStats(newStats);
       setInitialLoad(false);
+      setIsDataLoaded(true);
+      setIsChangingPeriod(false);
       setCache(cacheKey, newStats);
 
     } catch (err) {
@@ -248,35 +506,26 @@ const StatsDashboard = () => {
           'Content-Type': 'application/json' 
         };
         
-        // Fallback to quick endpoint
+        const dateRange = getPeriodRange(period);
+        const startDate = dateRange.start.toISOString().split('T')[0];
+        const endDate = dateRange.end.toISOString().split('T')[0];
+        
         const quickResponse = await fetch(`${BACKEND_URL}/stats/dashboard-quick?period=${period}`, { headers });
         if (quickResponse.ok) {
           const quickData = await quickResponse.json();
           
-          // Try to get tasks with same period
-          const tasksResponse = await fetch(`${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}&limit=50`, { headers });
+          const tasksResponse = await fetch(
+            `${BACKEND_URL}/tasks?start_date=${startDate}&end_date=${endDate}&limit=100`,
+            { headers }
+          );
           let tasksData = { allTasks: [], groupedTasks: [] };
           
           if (tasksResponse.ok) {
             const comprehensiveData = await tasksResponse.json();
             tasksData = {
-              allTasks: comprehensiveData.allTasks || [],
+              allTasks: comprehensiveData.tasks || comprehensiveData || [],
               groupedTasks: comprehensiveData.groupedTasks || []
             };
-          } else {
-            // If comprehensive fails, try tasks directly
-            const { start, end } = getPeriodRange(period);
-            const startDate = start.toISOString().split('T')[0];
-            const endDate = end.toISOString().split('T')[0];
-            
-            const altTasksResponse = await fetch(
-              `${BACKEND_URL}/tasks?start_date=${startDate}&end_date=${endDate}&limit=100`,
-              { headers }
-            );
-            if (altTasksResponse.ok) {
-              const altTasksData = await altTasksResponse.json();
-              tasksData.allTasks = altTasksData.tasks || altTasksData || [];
-            }
           }
           
           const newStats = {
@@ -293,12 +542,18 @@ const StatsDashboard = () => {
             allTasks: tasksData.allTasks,
             allUsers: [],
             groupedTasks: tasksData.groupedTasks || [],
-            dateRange: quickData.date_range || { start: '', end: '' },
+            dateRange: {
+              start: startDate,
+              end: endDate
+            },
             loading: false,
             error: null
           };
           
           setStats(newStats);
+          setInitialLoad(false);
+          setIsDataLoaded(true);
+          setIsChangingPeriod(false);
           setCache(cacheKey, newStats);
         } else {
           throw err;
@@ -310,6 +565,8 @@ const StatsDashboard = () => {
           error: err.message || 'Failed to load data', 
           loading: false 
         }));
+        setIsDataLoaded(true);
+        setIsChangingPeriod(false);
       }
       
       setInitialLoad(false);
@@ -318,15 +575,31 @@ const StatsDashboard = () => {
     }
   }, [period, refreshing, getPeriodRange, getCache, setCache]);
 
+  // Only fetch data on initial load or when period changes
   useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  useEffect(() => {
-    if (!initialLoad && period !== taskFilter) {
-      setTaskFilter(period);
+    if (!isDataLoaded) {
+      fetchStats();
     }
-  }, [period, initialLoad, taskFilter]);
+  }, [isDataLoaded, fetchStats]);
+
+  // Handle period change
+  const handlePeriodChange = (e) => {
+    const newPeriod = e.target.value;
+    setPeriod(newPeriod);
+    setIsChangingPeriod(true);
+    
+    // Clear cache for the new period and fetch fresh data
+    const cacheKey = `statsDashboard_${newPeriod}`;
+    localStorage.removeItem(cacheKey);
+    
+    // Fetch new data
+    fetchStats(true);
+  };
+
+  // Handle tab changes - no data fetching
+  const handleTabChange = (_, newValue) => {
+    setActiveTab(newValue);
+  };
 
   useEffect(() => {
     const fetchEventTypes = async () => {
@@ -378,8 +651,8 @@ const StatsDashboard = () => {
   }), []);
 
   const getEventsForDate = useCallback((date) => 
-    stats.events.filter(e => e.date && new Date(e.date).toISOString().split('T')[0] === date),
-    [stats.events]
+    filteredEvents.filter(e => e.date && new Date(e.date).toISOString().split('T')[0] === date),
+    [filteredEvents]
   );
 
   const handleCreateEvent = useCallback(() => {
@@ -432,10 +705,8 @@ const StatsDashboard = () => {
       });
 
       setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
-      fetchStats();
+      fetchStats(true);
       
-      const cacheKey = `statsDashboard_${period}`;
-      localStorage.removeItem(cacheKey);
     } catch (err) {
       console.error("Create event failed:", err);
       setSnackbar({ open: true, message: err.message || 'Failed to create event', severity: 'error' });
@@ -444,7 +715,7 @@ const StatsDashboard = () => {
 
   const EnhancedCalendar = useMemo(() => {
     const eventCounts = {};
-    stats.events.forEach(e => {
+    filteredEvents.forEach(e => {
       if (e.date) {
         const d = e.date.split('T')[0];
         eventCounts[d] = (eventCounts[d] || 0) + 1;
@@ -577,7 +848,7 @@ const StatsDashboard = () => {
         </Box>
       </Box>
     );
-  }, [stats.events, currentMonth, selectedDate, isSmDown]);
+  }, [filteredEvents, currentMonth, selectedDate, isSmDown]);
 
   const StatCard = React.memo(({ title, value, subtitle, icon, color = 'primary' }) => (
     <Paper variant="outlined" sx={{
@@ -672,11 +943,6 @@ const StatsDashboard = () => {
           <>
             <Box sx={{ mb: 2 }}>
               <Skeleton width={200} height={24} sx={{ mb: 1 }} />
-              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                {['Today', 'This Week', 'This Month', 'Previous 7 Days'].map((label, i) => (
-                  <Skeleton key={i} width={60} height={24} sx={{ borderRadius: '12px' }} />
-                ))}
-              </Box>
             </Box>
             
             <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
@@ -758,14 +1024,15 @@ const StatsDashboard = () => {
     </Box>
   );
 
+  // Only show skeleton on initial load
   if (initialLoad && stats.loading) {
     return <SkeletonLoader />;
   }
 
-  if (stats.error) {
+  if (stats.error && !isDataLoaded) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
-        <Alert severity="error" action={<Button onClick={fetchStats}>Retry</Button>}>
+        <Alert severity="error" action={<Button onClick={() => fetchStats(true)}>Retry</Button>}>
           {stats.error}
         </Alert>
       </Box>
@@ -793,29 +1060,50 @@ const StatsDashboard = () => {
             <Select
               value={period}
               label="Period"
-              onChange={(e) => setPeriod(e.target.value)}
+              onChange={handlePeriodChange}
+              disabled={refreshing || isChangingPeriod}
             >
-              <MenuItem value="today">Today</MenuItem>
-              <MenuItem value="thisWeek">This Week</MenuItem>
-              <MenuItem value="thisMonth">This Month</MenuItem>
+              <MenuItem value="thisWeek">Today</MenuItem>
+              <MenuItem value="thisMonth">This week</MenuItem>
+              <MenuItem value="today">This month</MenuItem>
               <MenuItem value="previous7">Previous 7 Days</MenuItem>
               <MenuItem value="previousWeek">Previous Week</MenuItem>
               <MenuItem value="previousMonth">Previous Month</MenuItem>
             </Select>
           </FormControl>
           <Tooltip title="Refresh">
-            <IconButton onClick={fetchStats} disabled={refreshing} size="small">
+            <IconButton 
+              onClick={() => fetchStats(true)} 
+              disabled={refreshing || isChangingPeriod} 
+              size="small"
+            >
               <Refresh fontSize="small" />
             </IconButton>
+          </Tooltip>
+          <Tooltip title={`Download ${activeTab === 0 ? 'Overdue Cells' : activeTab === 1 ? 'Tasks' : 'Events'} for ${getPeriodDisplayText(period)}`}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<Download fontSize="small" />}
+              onClick={downloadFilteredStats}
+              disabled={refreshing || isChangingPeriod}
+              sx={{ 
+                textTransform: 'none',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Download Data
+            </Button>
           </Tooltip>
         </Box>
       </Box>
 
-      {(stats.loading || refreshing) && <LinearProgress sx={{ mb: 1.5 }} />}
+      {/* Show loading indicator when refreshing OR changing period */}
+      {(stats.loading || refreshing || isChangingPeriod) && <LinearProgress sx={{ mb: 1.5 }} />}
 
       <Grid container spacing={cardSpacing} mb={3}>
         <Grid item xs={6} md={4}>
-          {stats.loading ? (
+          {stats.loading && !isDataLoaded ? (
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -828,7 +1116,7 @@ const StatsDashboard = () => {
           )}
         </Grid>
         <Grid item xs={6} md={4}>
-          {stats.loading ? (
+          {stats.loading && !isDataLoaded ? (
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -839,15 +1127,15 @@ const StatsDashboard = () => {
           ) : (
             <StatCard 
               title="Overdue Cells" 
-              value={stats.overview?.outstanding_cells || 0} 
+              value={filteredOverdueCells.length || 0} 
               subtitle={`${getPeriodDisplayText(period)}`}
               icon={<Warning />} 
               color="warning" 
             />
           )}
         </Grid>
-        {/* <Grid item xs={6} md={4}>
-          {stats.loading ? (
+        <Grid item xs={6} md={4}>
+          {stats.loading && !isDataLoaded ? (
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -857,27 +1145,27 @@ const StatsDashboard = () => {
             </Paper>
           ) : (
             <StatCard 
-              title="Incomplete Tasks" 
-              value={stats.overview?.outstanding_tasks || 0} 
+              title="Tasks" 
+              value={filteredTasks.length || 0} 
               subtitle={`${getPeriodDisplayText(period)}`}
               icon={<Task />} 
               color="secondary" 
             />
           )}
-        </Grid> */}
+        </Grid>
       </Grid>
 
       <Paper variant="outlined" sx={{ mb: 1.5 }}>
         <Tabs 
           value={activeTab} 
-          onChange={(_, v) => setActiveTab(v)} 
+          onChange={handleTabChange}
           variant={isSmDown ? "scrollable" : "standard"} 
           centered
           sx={{ minHeight: 48 }}
         >
-          <Tab label="Overdue Cells" />
-          <Tab label="Tasks" />
-          <Tab label="Calendar" />
+          <Tab label={`Overdue Cells (${filteredOverdueCells.length})`} />
+          <Tab label={`Tasks (${filteredTasks.length})`} />
+          <Tab label={`Calendar (${filteredEvents.length})`} />
         </Tabs>
       </Paper>
 
@@ -885,10 +1173,17 @@ const StatsDashboard = () => {
         {activeTab === 0 && (
           <Paper sx={{ p: 2 }}>
             <Box display="flex" justifyContent="space-between" mb={1.5}>
-              <Typography variant="subtitle1" fontWeight="medium">Overdue Cells</Typography>
-              <Chip label={stats.overdueCells.length} color="warning" size="small" />
+              <Typography variant="subtitle1" fontWeight="medium">
+                Overdue Cells ({filteredOverdueCells.length})
+              </Typography>
+              <Chip 
+                label={`${getPeriodDisplayText(period)}`} 
+                color="warning" 
+                size="small" 
+                variant="outlined"
+              />
             </Box>
-            {stats.overdueCells.slice(0, 5).map((c, i) => (
+            {filteredOverdueCells.slice(0, 5).map((c, i) => (
               <Card key={i} variant="outlined" sx={{ mb: 1, p: 1.5, boxShadow: 1, '&:hover': { boxShadow: 2 } }}>
                 <Box display="flex" alignItems="center">
                   <Avatar sx={{ bgcolor: 'warning.main', mr: 1.5, width: 32, height: 32 }}><Warning fontSize="small" /></Avatar>
@@ -908,7 +1203,7 @@ const StatsDashboard = () => {
                 color="warning"
                 startIcon={<Visibility fontSize="small" />}
                 onClick={() => setOverdueModalOpen(true)}
-                disabled={(stats.overview?.outstanding_cells || 0) === 0}
+                disabled={filteredOverdueCells.length === 0}
                 sx={{ fontSize: '0.75rem' }}
               >
                 View All
@@ -933,79 +1228,11 @@ const StatsDashboard = () => {
             }}>
               <Box>
                 <Typography variant="subtitle1" gutterBottom>
-                  All Tasks by Person ({stats.groupedTasks.length} people • {stats.allTasks.length} total)
+                  All Tasks by Person ({stats.groupedTasks.length} people • {filteredTasks.length} total)
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Showing tasks for: {getPeriodDisplayText(period)}
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-                  <Chip
-                    label="Today"
-                    size="small"
-                    color={taskFilter === 'today' ? 'primary' : 'default'}
-                    onClick={() => {
-                      setPeriod('today');
-                      setTaskFilter('today');
-                    }}
-                    clickable
-                    sx={{ fontSize: '0.7rem', height: 24 }}
-                  />
-                  <Chip
-                    label="This Week"
-                    size="small"
-                    color={taskFilter === 'thisWeek' ? 'primary' : 'default'}
-                    onClick={() => {
-                      setPeriod('thisWeek');
-                      setTaskFilter('thisWeek');
-                    }}
-                    clickable
-                    sx={{ fontSize: '0.7rem', height: 24 }}
-                  />
-                  <Chip
-                    label="This Month"
-                    size="small"
-                    color={taskFilter === 'thisMonth' ? 'primary' : 'default'}
-                    onClick={() => {
-                      setPeriod('thisMonth');
-                      setTaskFilter('thisMonth');
-                    }}
-                    clickable
-                    sx={{ fontSize: '0.7rem', height: 24 }}
-                  />
-                  <Chip
-                    label="Previous 7 Days"
-                    size="small"
-                    color={taskFilter === 'previous7' ? 'primary' : 'default'}
-                    onClick={() => {
-                      setPeriod('previous7');
-                      setTaskFilter('previous7');
-                    }}
-                    clickable
-                    sx={{ fontSize: '0.7rem', height: 24 }}
-                  />
-                  <Chip
-                    label="Previous Week"
-                    size="small"
-                    color={taskFilter === 'previousWeek' ? 'primary' : 'default'}
-                    onClick={() => {
-                      setPeriod('previousWeek');
-                      setTaskFilter('previousWeek');
-                    }}
-                    clickable
-                    sx={{ fontSize: '0.7rem', height: 24 }}
-                  />
-                  <Chip
-                    label="Previous Month"
-                    size="small"
-                    color={taskFilter === 'previousMonth' ? 'primary' : 'default'}
-                    onClick={() => {
-                      setPeriod('previousMonth');
-                      setTaskFilter('previousMonth');
-                    }}
-                    clickable
-                    sx={{ fontSize: '0.7rem', height: 24 }}
-                  />
-                </Box>
               </Box>
               <Box>
                 <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
@@ -1172,7 +1399,9 @@ const StatsDashboard = () => {
               mb: 2,
               flexShrink: 0 
             }}>
-              <Typography variant="subtitle1">Event Calendar</Typography>
+              <Typography variant="subtitle1">
+                Event Calendar ({filteredEvents.length} events)
+              </Typography>
               <Button variant="contained" startIcon={<Add />} size="small" onClick={handleCreateEvent}>
                 Create Event
               </Button>
@@ -1448,7 +1677,7 @@ const StatsDashboard = () => {
               <Warning sx={{ fontSize: 32 }} />
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Overdue / Incomplete Cells ({stats.overdueCells.length})
+                  Overdue / Incomplete Cells ({filteredOverdueCells.length})
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Cells that need attention
@@ -1462,13 +1691,13 @@ const StatsDashboard = () => {
         </DialogTitle>
 
         <DialogContent dividers sx={{ p: 3 }}>
-          {stats.overdueCells.length === 0 ? (
+          {filteredOverdueCells.length === 0 ? (
             <Typography color="text.secondary" align="center" py={4}>
               No overdue cells — great job!
             </Typography>
           ) : (
             <Stack spacing={2}>
-              {stats.overdueCells.map((cell) => (
+              {filteredOverdueCells.map((cell) => (
                 <Card key={cell._id} variant="outlined" sx={{ p: 2, backgroundColor: 'error.50' }}>
                   <Box display="flex" alignItems="center" gap={2}>
                     <Avatar sx={{ bgcolor: 'warning.main' }}><Warning /></Avatar>
