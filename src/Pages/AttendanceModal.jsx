@@ -125,75 +125,179 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     }
   };
 
+  // const fetchInviters = async (searchTerm) => {
+  //   if (!searchTerm || searchTerm.length < 1) {
+  //     setInviterResults([]);
+  //     return;
+  //   }
+
+  //   try {
+  //     setLoadingInviters(true);
+
+  //     const filteredFromCache = preloadedPeople.filter(person =>
+  //       person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //       person.email.toLowerCase().includes(searchTerm.toLowerCase())
+  //     );
+
+  //     if (filteredFromCache.length > 0) {
+  //       setInviterResults(filteredFromCache.slice(0, 20));
+  //     } else {
+  //       const token = localStorage.getItem("token");
+  //       const headers = { Authorization: `Bearer ${token}` };
+
+  //       const params = new URLSearchParams();
+  //       params.append("name", searchTerm);
+  //       params.append("perPage", "20");
+
+  //       const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+  //       const data = await res.json();
+  //       const peopleArray = data.people || data.results || [];
+
+  //       // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
+  //       const formatted = peopleArray.map((p) => {
+  //         const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
+  //         const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
+  //         const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
+  //         const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+
+  //         return {
+  //           id: p._id,
+  //           fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+  //           email: p.Email || p.email || "",
+  //           leader1: leader1,
+  //           leader12: leader12,
+  //           leader144: leader144,
+  //           leader1728: leader1728,
+  //           phone: p.Number || p.Phone || p.phone || "",
+  //         };
+  //       });
+
+  //       setInviterResults(formatted);
+  //       console.log("Inviter search results for '" + searchTerm + "':", formatted);
+  //     }
+  //   } catch (err) {
+  //     console.error("Error fetching inviters:", err);
+  //   } finally {
+  //     setLoadingInviters(false);
+  //   }
+  // };
   const fetchInviters = async (searchTerm) => {
-    if (!searchTerm || searchTerm.length < 1) {
+  if (!searchTerm || searchTerm.length < 1) {
+    setInviterResults([]);
+    return;
+  }
+
+  try {
+    setLoadingInviters(true);
+    
+    const parts = searchTerm.trim().split(/\s+/);
+    const name = parts[0];
+    const surname = parts.slice(1).join(" ");
+    
+    // First try filtering from cache with better logic
+    const filteredFromCache = preloadedPeople.filter(person => {
+      const fullNameLower = person.fullName.toLowerCase();
+      const searchLower = searchTerm.toLowerCase();
+      
+      // Check if matches full search term
+      if (fullNameLower.includes(searchLower)) {
+        return true;
+      }
+      
+      // Check name and surname separately
+      const personName = (person.rawData?.Name || person.rawData?.name || "").toLowerCase();
+      const personSurname = (person.rawData?.Surname || person.rawData?.surname || "").toLowerCase();
+      
+      const matchesName = personName.includes(name.toLowerCase());
+      const matchesSurname = !surname || personSurname.includes(surname.toLowerCase());
+      
+      return matchesName && matchesSurname;
+    });
+
+    if (filteredFromCache.length > 0) {
+      setInviterResults(filteredFromCache.slice(0, 20));
+    } else {
+      // If not in cache, fetch from API with proper filtering
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const params = new URLSearchParams();
+      params.append("name", name);
+      params.append("perPage", "50");
+
+      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+      const data = await res.json();
+      const peopleArray = data.people || data.results || [];
+      
+      // Apply name and surname filtering
+      const filteredPeople = peopleArray.filter(p => {
+        const personName = (p.Name || p.name || "").toLowerCase();
+        const personSurname = (p.Surname || p.surname || "").toLowerCase();
+        
+        const matchesName = personName.includes(name.toLowerCase());
+        const matchesSurname = !surname || personSurname.includes(surname.toLowerCase());
+        
+        return matchesName && matchesSurname;
+      });
+
+      // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
+      const formatted = filteredPeople.map((p) => {
+        const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
+        const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
+        const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
+        const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+
+        return {
+          id: p._id,
+          fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+          email: p.Email || p.email || "",
+          leader1: leader1,
+          leader12: leader12,
+          leader144: leader144,
+          leader1728: leader1728,
+          phone: p.Number || p.Phone || p.phone || "",
+          rawData: p // Keep raw data for better filtering
+        };
+      });
+
+      setInviterResults(formatted);
+      console.log("Inviter search results for '" + searchTerm + "':", formatted);
+    }
+  } catch (err) {
+    console.error("Error fetching inviters:", err);
+    toast.error("Error searching people: " + err.message);
+  } finally {
+    setLoadingInviters(false);
+  }
+};
+
+  // useEffect(() => {
+  //   const delay = setTimeout(() => {
+  //     if (inviterSearch.length >= 1) {
+  //       fetchInviters(inviterSearch);
+  //     } else {
+  //       setInviterResults([]);
+  //     }
+  //   }, 150);
+
+  //   return () => clearTimeout(delay);
+  // }, [inviterSearch]);
+// Update the useEffect to trigger search on any change
+useEffect(() => {
+  const delay = setTimeout(() => {
+    if (inviterSearch.length >= 1) {
+      fetchInviters(inviterSearch);
+    } else {
       setInviterResults([]);
-      return;
-    }
-
-    try {
-      setLoadingInviters(true);
-
-      const filteredFromCache = preloadedPeople.filter(person =>
-        person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        person.email.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-
-      if (filteredFromCache.length > 0) {
-        setInviterResults(filteredFromCache.slice(0, 20));
-      } else {
-        const token = localStorage.getItem("token");
-        const headers = { Authorization: `Bearer ${token}` };
-
-        const params = new URLSearchParams();
-        params.append("name", searchTerm);
-        params.append("perPage", "20");
-
-        const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-        const data = await res.json();
-        const peopleArray = data.people || data.results || [];
-
-        // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
-        const formatted = peopleArray.map((p) => {
-          const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
-          const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
-          const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-          const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
-
-          return {
-            id: p._id,
-            fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-            email: p.Email || p.email || "",
-            leader1: leader1,
-            leader12: leader12,
-            leader144: leader144,
-            leader1728: leader1728,
-            phone: p.Number || p.Phone || p.phone || "",
-          };
-        });
-
-        setInviterResults(formatted);
-        console.log("Inviter search results for '" + searchTerm + "':", formatted);
+      // Optionally show recent people when empty
+      if (preloadedPeople.length > 0) {
+        setInviterResults(preloadedPeople.slice(0, 10));
       }
-    } catch (err) {
-      console.error("Error fetching inviters:", err);
-    } finally {
-      setLoadingInviters(false);
     }
-  };
+  }, 200);
 
-  useEffect(() => {
-    const delay = setTimeout(() => {
-      if (inviterSearch.length >= 1) {
-        fetchInviters(inviterSearch);
-      } else {
-        setInviterResults([]);
-      }
-    }, 150);
-
-    return () => clearTimeout(delay);
-  }, [inviterSearch]);
-
+  return () => clearTimeout(delay);
+}, [inviterSearch]);
   const handleInviterSelect = (person) => {
     console.log("Selected inviter:", person.fullName);
     setFormData({ ...formData, invitedBy: person.fullName });
@@ -687,12 +791,22 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
                   setShowInviterDropdown(true);
                   setTouched({ ...touched, invitedBy: true });
                 }}
+                // onFocus={() => {
+                //   setShowInviterDropdown(true);
+                //   if (inviterSearch.length === 0 && preloadedPeople.length > 0) {
+                //     setInviterResults(preloadedPeople.slice(0, 10));
+                //   }
+                // }}
                 onFocus={() => {
-                  setShowInviterDropdown(true);
-                  if (inviterSearch.length === 0 && preloadedPeople.length > 0) {
-                    setInviterResults(preloadedPeople.slice(0, 10));
-                  }
-                }}
+  setShowInviterDropdown(true);
+  if (inviterSearch.length === 0 && preloadedPeople.length > 0) {
+    // Show recent people when field is focused and empty
+    setInviterResults(preloadedPeople.slice(0, 10));
+  } else if (inviterSearch.length >= 1) {
+    // Trigger search if there's already text
+    fetchInviters(inviterSearch);
+  }
+}}
                 onBlur={() => setTouched({ ...touched, invitedBy: true })}
                 style={showError('invitedBy') ? styles.inputError : styles.input}
                 placeholder="Start typing to search..."
@@ -1480,74 +1594,142 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       console.error("Error pre-loading people in AttendanceModal:", err);
     }
   };
+  // const fetchPeople = async (q = "") => {
+  //   // If no search query, show preloaded people
+  //   if (!q.trim()) {
+  //     if (preloadedPeople.length > 0) {
+  //       console.log(" Showing preloaded people list");
+  //       setPeople(preloadedPeople.slice(0, 50)); // Show first 50 preloaded people
+  //     } else {
+  //       setPeople([]);
+  //     }
+  //     return;
+  //   }
+
+  //   const parts = q.trim().split(/\s+/);
+  //   const name = parts[0];
+  //   const surname = parts.slice(1).join(" ");
+
+  //   try {
+  //     const token = localStorage.getItem("token");
+  //     const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+  //       headers: { Authorization: `Bearer ${token}` },
+  //     });
+
+  //     if (!res.ok) throw new Error("Failed to fetch people");
+
+  //     const data = await res.json();
+
+  //     let filtered = (data?.results || data?.people || []).filter(p =>
+  //       p.Name.toLowerCase().includes(name.toLowerCase()) &&
+  //       (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+  //     );
+
+  //     // Sort the results
+  //     filtered.sort((a, b) => {
+  //       const nameA = (a.Name || "").toLowerCase();
+  //       const nameB = (b.Name || "").toLowerCase();
+  //       const surnameA = (a.Surname || "").toLowerCase();
+  //       const surnameB = (b.Surname || "").toLowerCase();
+
+  //       if (nameA < nameB) return -1;
+  //       if (nameA > nameB) return 1;
+  //       if (surnameA < surnameB) return -1;
+  //       if (surnameA > surnameB) return 1;
+  //       return 0;
+  //     });
+
+  //     // Format the results consistently
+  //     const formatted = filtered.map((p) => ({
+  //       id: p._id,
+  //       fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+  //       email: p.Email || p.email || "",
+  //       leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+  //       leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+  //       leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
+  //       phone: p.Number || p.Phone || p.phone || "",
+  //     }));
+
+  //     setPeople(formatted);
+  //   } catch (err) {
+  //     console.error("Error fetching people:", err);
+  //     toast.error(err.message);
+  //     // Fallback to preloaded people if search fails
+  //     if (preloadedPeople.length > 0) {
+  //       setPeople(preloadedPeople.slice(0, 50));
+  //     } else {
+  //       setPeople([]);
+  //     }
+  //   }
+  // };
   const fetchPeople = async (q = "") => {
-    // If no search query, show preloaded people
-    if (!q.trim()) {
-      if (preloadedPeople.length > 0) {
-        console.log(" Showing preloaded people list");
-        setPeople(preloadedPeople.slice(0, 50)); // Show first 50 preloaded people
-      } else {
-        setPeople([]);
-      }
-      return;
+  // If no search query, show preloaded people
+  if (!q.trim()) {
+    if (preloadedPeople.length > 0) {
+      console.log(" Showing preloaded people list");
+      setPeople(preloadedPeople.slice(0, 50));
+    } else {
+      setPeople([]);
     }
+    return;
+  }
 
-    const parts = q.trim().split(/\s+/);
-    const name = parts[0];
-    const surname = parts.slice(1).join(" ");
+  const parts = q.trim().split(/\s+/);
+  const name = parts[0];
+  const surname = parts.slice(1).join(" ");
 
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      if (!res.ok) throw new Error("Failed to fetch people");
+    if (!res.ok) throw new Error("Failed to fetch people");
 
-      const data = await res.json();
+    const data = await res.json();
 
-      let filtered = (data?.results || data?.people || []).filter(p =>
-        p.Name.toLowerCase().includes(name.toLowerCase()) &&
-        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
-      );
+    let filtered = (data?.results || data?.people || []).filter(p =>
+      p.Name.toLowerCase().includes(name.toLowerCase()) &&
+      (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+    );
 
-      // Sort the results
-      filtered.sort((a, b) => {
-        const nameA = (a.Name || "").toLowerCase();
-        const nameB = (b.Name || "").toLowerCase();
-        const surnameA = (a.Surname || "").toLowerCase();
-        const surnameB = (b.Surname || "").toLowerCase();
+    // Sort the results
+    filtered.sort((a, b) => {
+      const nameA = (a.Name || "").toLowerCase();
+      const nameB = (b.Name || "").toLowerCase();
+      const surnameA = (a.Surname || "").toLowerCase();
+      const surnameB = (b.Surname || "").toLowerCase();
 
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        if (surnameA < surnameB) return -1;
-        if (surnameA > surnameB) return 1;
-        return 0;
-      });
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      if (surnameA < surnameB) return -1;
+      if (surnameA > surnameB) return 1;
+      return 0;
+    });
 
-      // Format the results consistently
-      const formatted = filtered.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
-        phone: p.Number || p.Phone || p.phone || "",
-      }));
+    // Format the results consistently
+    const formatted = filtered.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+      leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+      leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
+      phone: p.Number || p.Phone || p.phone || "",
+    }));
 
-      setPeople(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message);
-      // Fallback to preloaded people if search fails
-      if (preloadedPeople.length > 0) {
-        setPeople(preloadedPeople.slice(0, 50));
-      } else {
-        setPeople([]);
-      }
+    setPeople(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    toast.error(err.message);
+    // Fallback to preloaded people if search fails
+    if (preloadedPeople.length > 0) {
+      setPeople(preloadedPeople.slice(0, 50));
+    } else {
+      setPeople([]);
     }
-  };
+  }
+};
 
   const fetchCommonAttendees = async (cellId) => {
     try {
@@ -1760,45 +1942,92 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     return price - paid;
   };
 
-  const saveAllAttendeesToDatabase = async (attendees) => {
-    if (!event) return false;
+  // const saveAllAttendeesToDatabase = async (attendees) => {
+  //   if (!event) return false;
 
-    // Get clean event ID
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
+  //   // Get clean event ID
+  //   let eventId = event._id || event.id;
+  //   if (eventId && eventId.includes("_")) {
+  //     eventId = eventId.split("_")[0];
+  //   }
+
+  //   try {
+  //     const token = localStorage.getItem("token");
+  //     const response = await fetch(
+  //       `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+  //       {
+  //         method: "PUT",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //           Authorization: `Bearer ${token}`,
+  //         },
+  //         body: JSON.stringify({
+  //           persistent_attendees: attendees
+  //         }),
+  //       }
+  //     );
+
+  //     if (!response.ok) {
+  //       throw new Error(`Save failed: ${response.status}`);
+  //     }
+
+  //     console.log(` Saved ${attendees.length} attendees to database`);
+  //     return true;
+
+  //   } catch (error) {
+  //     console.error(" Failed to save:", error);
+  //     toast.error("Failed to save attendees list");
+  //     return false;
+  //   }
+  // };
+const saveAllAttendeesToDatabase = async (attendees) => {
+  if (!event) return false;
+
+  let eventId = event._id || event.id;
+  if (eventId && eventId.includes("_")) {
+    eventId = eventId.split("_")[0];
+  }
+
+  try {
+    const token = localStorage.getItem("token");
+    const formattedAttendees = attendees.map(p => ({
+      id: p.id || p._id || "",
+      name: p.fullName || p.name || "",
+      fullName: p.fullName || p.name || "",
+      email: p.email || "",
+      leader12: p.leader12 || "",
+      leader144: p.leader144 || "",
+      phone: p.phone || ""
+    })).filter(p => p.id);
+
+    console.log(`📤 Saving ${formattedAttendees.length} attendees to event ${eventId}`);
+
+    // Option 1: Use the same endpoint as weekly attendance
+    const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        persistent_attendees: formattedAttendees,
+        week: get_current_week_identifier()
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Save failed: ${response.status}`);
     }
 
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            persistent_attendees: attendees
-          }),
-        }
-      );
+    console.log("✅ Attendees saved successfully");
+    return true;
 
-      if (!response.ok) {
-        throw new Error(`Save failed: ${response.status}`);
-      }
-
-      console.log(` Saved ${attendees.length} attendees to database`);
-      return true;
-
-    } catch (error) {
-      console.error(" Failed to save:", error);
-      toast.error("Failed to save attendees list");
-      return false;
-    }
-  };
-
+  } catch (error) {
+    console.error("❌ Failed to save:", error);
+    toast.error("Failed to save attendees list");
+    return false;
+  }
+};
 
   const handleAssociatePerson = async (person) => {
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
@@ -1874,16 +2103,59 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     .filter((id) => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
 
-  const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
-    person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
-    person.email.toLowerCase().includes(searchName.toLowerCase())
-  );
+  // const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
+  //   person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
+  //   person.email.toLowerCase().includes(searchName.toLowerCase())
+  // );
+  const filteredCommonAttendees = getAllCommonAttendees().filter(person => {
+  if (!searchName.trim()) return true;
+  
+  const searchLower = searchName.toLowerCase().trim();
+  const searchParts = searchLower.split(/\s+/);
+  const namePart = searchParts[0];
+  const surnamePart = searchParts.slice(1).join(" ");
+  
+  const fullNameLower = person.fullName.toLowerCase();
+  const emailLower = person.email.toLowerCase();
+  
+  // Check if matches full name or email
+  const matchesFullNameOrEmail = 
+    fullNameLower.includes(searchLower) || 
+    emailLower.includes(searchLower);
+  
+  // Also check if matches name and surname separately
+  const matchesName = person.fullName.toLowerCase().includes(namePart);
+  const matchesSurname = !surnamePart || person.fullName.toLowerCase().includes(surnamePart);
+  
+  return matchesFullNameOrEmail || (matchesName && matchesSurname);
+});
 
-  const filteredPeople = people.filter(person =>
-    person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
-    person.email.toLowerCase().includes(associateSearch.toLowerCase())
-  );
-
+  // const filteredPeople = people.filter(person =>
+  //   person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
+  //   person.email.toLowerCase().includes(associateSearch.toLowerCase())
+  // );
+const filteredPeople = people.filter(person => {
+  if (!associateSearch.trim()) return true;
+  
+  const searchLower = associateSearch.toLowerCase().trim();
+  const searchParts = searchLower.split(/\s+/);
+  const namePart = searchParts[0];
+  const surnamePart = searchParts.slice(1).join(" ");
+  
+  const fullNameLower = person.fullName.toLowerCase();
+  const emailLower = person.email.toLowerCase();
+  
+  // Check if matches full name or email
+  const matchesFullNameOrEmail = 
+    fullNameLower.includes(searchLower) || 
+    emailLower.includes(searchLower);
+  
+  // Also check if matches name and surname separately
+  const matchesName = person.fullName.toLowerCase().includes(namePart);
+  const matchesSurname = !surnamePart || person.fullName.toLowerCase().includes(surnamePart);
+  
+  return matchesFullNameOrEmail || (matchesName && matchesSurname);
+});
   const handleSave = async () => {
     const allPeople = getAllCommonAttendees();
     console.log(" All people for save:", allPeople);
