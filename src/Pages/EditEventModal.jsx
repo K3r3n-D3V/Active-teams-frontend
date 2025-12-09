@@ -454,8 +454,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const renderField = (field) => {
     const value = formData[field] || '';
     const isChanged = changedFields.includes(field);
-    const isDisabled = isFieldDisabled(field); // From new code
-    const disabledReason = getDisabledReason(field); // From new code
+    const isDisabled = isFieldDisabled(field); 
+    const disabledReason = getDisabledReason(field); 
     
     const displayName = field
       .replace(/([A-Z])/g, ' $1')
@@ -466,7 +466,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
     const fieldLower = field.toLowerCase();
     
-    // Add lock icon for disabled fields (from new code)
     const labelContent = (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {displayName}
@@ -475,7 +474,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       </Box>
     );
     
-    // Create tooltip wrapper for disabled fields (from new code)
     const FieldWrapper = ({ children }) => {
       if (isDisabled && disabledReason) {
         return (
@@ -506,17 +504,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 readOnly: isDisabled,
               }}
             />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
+           
           </Box>
         </FieldWrapper>
       );
@@ -541,17 +529,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 readOnly: isDisabled,
               }}
             />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
+            
           </Box>
         </FieldWrapper>
       );
