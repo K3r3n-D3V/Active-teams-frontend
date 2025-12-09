@@ -886,6 +886,32 @@ const Events = () => {
     if (!dt) return false;
     return dt >= start && dt <= end;
   };
+const isOverdue = useCallback((event) => {
+  if (!event) return false;
+  const did_not_meet = !!event.did_not_meet;
+  const hasAttendees = Array.isArray(event.attendees) && event.attendees.length > 0;
+  const status = (event.status || event.Status || "").toString().toLowerCase().trim();
+  const isMissedRecurrent = !!event.is_recurring && event.recurrent_status === "missed";
+
+  // Treat these as not-overdue
+  if (
+    hasAttendees ||
+    ["complete", "completed", "closed"].includes(status) ||
+    status === "did_not_meet" ||
+    did_not_meet ||
+    isMissedRecurrent
+  ) {
+    return false;
+  }
+   if (!event?.date) return false;
+
+  const eventDate = new Date(event.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  eventDate.setHours(0, 0, 0, 0);
+
+  return eventDate < today;
+}, []);
 
   // determine if event matches the selected status tab
   const matchesStatusFilter = useCallback(
@@ -917,7 +943,7 @@ const Events = () => {
   );
 
   // apply combined status + dateRange filtering client-side
-  var paginatedEvents = useMemo(() => {
+  const paginatedEvents = useMemo(() => {
     if (!events || events.length === 0) return [];
 
     const today = new Date();
@@ -1007,7 +1033,6 @@ const Events = () => {
     cacheRef.current.timestamp.clear();
   }, []);
 
-  var paginatedEvents = useMemo(() => events, [events]);
   const startIndex = useMemo(() => {
     return totalEvents > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
   }, [currentPage, rowsPerPage, totalEvents]);
@@ -3033,31 +3058,31 @@ const Events = () => {
     checkAuth();
   }, []);
 
-  const isOverdue = useCallback((event) => {
-    const did_not_meet = event.did_not_meet || false;
-    const hasAttendees = event.attendees && event.attendees.length > 0;
-    const status = (event.status || event.Status || "").toLowerCase().trim();
-    const isMissedRecurrent =
-      event.is_recurring && event.recurrent_status === "missed";
+  // const isOverdue = useCallback((event) => {
+  //   const did_not_meet = event.did_not_meet || false;
+  //   const hasAttendees = event.attendees && event.attendees.length > 0;
+  //   const status = (event.status || event.Status || "").toLowerCase().trim();
+  //   const isMissedRecurrent =
+  //     event.is_recurring && event.recurrent_status === "missed";
 
-    if (
-      hasAttendees ||
-      status === "complete" ||
-      status === "closed" ||
-      status === "did_not_meet" ||
-      did_not_meet ||
-      isMissedRecurrent
-    ) {
-      return false;
-    }
-    if (!event?.date) return false;
-    const eventDate = new Date(event.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
+  //   if (
+  //     hasAttendees ||
+  //     status === "complete" ||
+  //     status === "closed" ||
+  //     status === "did_not_meet" ||
+  //     did_not_meet ||
+  //     isMissedRecurrent
+  //   ) {
+  //     return false;
+  //   }
+  //   if (!event?.date) return false;
+  //   const eventDate = new Date(event.date);
+  //   const today = new Date();
+  //   today.setHours(0, 0, 0, 0);
+  //   eventDate.setHours(0, 0, 0, 0);
 
-    return eventDate < today;
-  }, []);
+  //   return eventDate < today;
+  // }, []);
 
   // Add this useEffect to track filter changes
   useEffect(() => {
