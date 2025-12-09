@@ -803,64 +803,89 @@ function ServiceCheckIn() {
     }
   };
 
-  const handleSaveAndCloseEvent = async () => {
-    if (!currentEventId) {
-      toast.error("Please select an event first");
-      return;
+const handleSaveAndCloseEvent = async () => {
+  if (!currentEventId) {
+    toast.error("Please select an event first");
+    return;
+  }
+
+  const currentEvent = events.find(event => event.id === currentEventId);
+  if (!currentEvent) {
+    toast.error("Selected event not found");
+    return;
+  }
+
+  if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  setIsClosingEvent(true);
+  try {
+    // Use the close endpoint instead of generic PATCH
+    const response = await authFetch(`${BASE_URL}/events/${currentEventId}/close`, {
+      method: "PATCH",
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const currentEvent = events.find(event => event.id === currentEventId);
-    if (!currentEvent) {
-      toast.error("Selected event not found");
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    setIsClosingEvent(true);
-    try {
-      // Try PATCH first using authFetch
-      const response = await authFetch(`${BASE_URL}/events/${currentEventId}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          status: "complete"
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      setEvents(prev => prev.map(event =>
-        event.id === currentEventId ? { ...event, status: "complete" } : event
-      ));
-
-      // Update cache
-      if (eventsCache) {
-        eventsCache = eventsCache.map(event =>
-          event.id === currentEventId ? { ...event, status: "complete" } : event
-        );
-      }
-
+    const result = await response.json();
+    
+    // Check if the event was already closed
+    if (result.already_closed) {
+      toast.info(result.message || "Event was already closed");
+    } else {
       toast.success(result.message || `Event "${currentEvent.eventName}" closed successfully!`);
-      setRealTimeData(null);
-      setCurrentEventId("");
-      
-      setTimeout(() => {
-        fetchEvents(true); // Force refresh events
-      }, 500);
-      
-    } catch (error) {
-      console.error("❌ ERROR in event closure process:", error);
-      toast.error("Event may still be open in the database. Please check.");
-    } finally {
-      setIsClosingEvent(false);
     }
-  };
+
+    // Update the event status in state
+    setEvents(prev => prev.map(event =>
+      event.id === currentEventId ? { ...event, status: "complete" } : event
+    ));
+
+    // Update cache
+    if (eventsCache) {
+      eventsCache = eventsCache.map(event =>
+        event.id === currentEventId ? { ...event, status: "complete" } : event
+      );
+    }
+
+    // Add the closing details to the event if available
+    if (result.closed_by && result.closed_at) {
+      setEvents(prev => prev.map(event =>
+        event.id === currentEventId ? { 
+          ...event, 
+          status: "complete",
+          closed_by: result.closed_by,
+          closed_at: result.closed_at
+        } : event
+      ));
+    }
+
+    setRealTimeData(null);
+    setCurrentEventId("");
+    
+    // Optional: Refresh events to get latest data
+    setTimeout(() => {
+      fetchEvents(true);
+    }, 500);
+    
+  } catch (error) {
+    console.error("❌ ERROR in event closure process:", error);
+    
+    // More specific error message based on error type
+    if (error.message.includes("404")) {
+      toast.error("Event not found. It may have been deleted.");
+    } else if (error.message.includes("400")) {
+      toast.error("Invalid event ID.");
+    } else {
+      toast.error("Failed to close event. Please try again.");
+    }
+  } finally {
+    setIsClosingEvent(false);
+  }
+};
 
   // UI Handlers
   const handleConsolidationClick = () => {
@@ -1141,91 +1166,113 @@ function ServiceCheckIn() {
   // Data for display
   const attendeesWithStatus = getAttendeesWithPresentStatus();
 
-  // PRESENT Attendees Modal filtering
-  const modalFilteredAttendees = (() => {
-    // Get full person data for each present attendee
-    const fullPresentAttendees = (realTimeData?.present_attendees || []).map(a => {
-      const fullPerson = attendees.find(att => att._id === (a.id || a._id)) || {};
-      return {
-        ...fullPerson,
-        ...a,
-        name: a.name || fullPerson.name || '',
-        surname: a.surname || fullPerson.surname || '',
-        email: a.email || fullPerson.email || '',
-        phone: a.phone || fullPerson.phone || '',
-        leader1: a.leader1 || fullPerson.leader1 || '',
-        leader12: a.leader12 || fullPerson.leader12 || '',
-        leader144: a.leader144 || fullPerson.leader144 || '',
-        id: a.id || a._id,
-        _id: a.id || a._id
-      };
-    });
-    
-    if (!modalSearch.trim()) return fullPresentAttendees;
-    
-    return filterPeopleWithPriority(fullPresentAttendees, modalSearch);
-  })();
+// PRESENT Attendees Modal filtering - UPDATED FOR ALPHABETICAL ORDER
+const modalFilteredAttendees = (() => {
+  // Get full person data for each present attendee
+  const fullPresentAttendees = (realTimeData?.present_attendees || []).map(a => {
+    const fullPerson = attendees.find(att => att._id === (a.id || a._id)) || {};
+    return {
+      ...fullPerson,
+      ...a,
+      name: a.name || fullPerson.name || '',
+      surname: a.surname || fullPerson.surname || '',
+      email: a.email || fullPerson.email || '',
+      phone: a.phone || fullPerson.phone || '',
+      leader1: a.leader1 || fullPerson.leader1 || '',
+      leader12: a.leader12 || fullPerson.leader12 || '',
+      leader144: a.leader144 || fullPerson.leader144 || '',
+      id: a.id || a._id,
+      _id: a.id || a._id
+    };
+  });
+  
+  // Sort alphabetically by name and surname
+  const sortedAttendees = [...fullPresentAttendees].sort((a, b) => {
+    const nameA = `${a.name || ''} ${a.surname || ''}`.toLowerCase().trim();
+    const nameB = `${b.name || ''} ${b.surname || ''}`.toLowerCase().trim();
+    return nameA.localeCompare(nameB);
+  });
+  
+  if (!modalSearch.trim()) return sortedAttendees;
+  
+  // Filter and maintain alphabetical order
+  return filterPeopleWithPriority(sortedAttendees, modalSearch);
+})();
 
   const modalPaginatedAttendees = modalFilteredAttendees.slice(
     modalPage * modalRowsPerPage,
     modalPage * modalRowsPerPage + modalRowsPerPage
   );
 
-  // NEW PEOPLE Modal filtering
-  const newPeopleFilteredList = (() => {
-    if (!newPeopleSearch.trim()) return realTimeData?.new_people || [];
-    
-    // Create full person objects for new people
-    const fullNewPeople = (realTimeData?.new_people || []).map(np => {
-      const fullPerson = attendees.find(att => att._id === np.id) || {};
-      return {
-        ...fullPerson,
-        ...np,
-        name: np.name || fullPerson.name || '',
-        surname: np.surname || fullPerson.surname || '',
-        email: np.email || fullPerson.email || '',
-        phone: np.phone || fullPerson.phone || '',
-        invitedBy: np.invitedBy || fullPerson.invitedBy || '',
-        gender: np.gender || fullPerson.gender || '',
-        occupation: np.occupation || fullPerson.occupation || ''
-      };
-    });
-    
-    return filterPeople(fullNewPeople, newPeopleSearch);
-  })();
+// NEW PEOPLE Modal filtering - UPDATED FOR ALPHABETICAL ORDER
+const newPeopleFilteredList = (() => {
+  // Create full person objects for new people
+  const fullNewPeople = (realTimeData?.new_people || []).map(np => {
+    const fullPerson = attendees.find(att => att._id === np.id) || {};
+    return {
+      ...fullPerson,
+      ...np,
+      name: np.name || fullPerson.name || '',
+      surname: np.surname || fullPerson.surname || '',
+      email: np.email || fullPerson.email || '',
+      phone: np.phone || fullPerson.phone || '',
+      invitedBy: np.invitedBy || fullPerson.invitedBy || '',
+      gender: np.gender || fullPerson.gender || '',
+      occupation: np.occupation || fullPerson.occupation || ''
+    };
+  });
+  
+  // Sort alphabetically by name and surname
+  const sortedNewPeople = [...fullNewPeople].sort((a, b) => {
+    const nameA = `${a.name || ''} ${a.surname || ''}`.toLowerCase().trim();
+    const nameB = `${b.name || ''} ${b.surname || ''}`.toLowerCase().trim();
+    return nameA.localeCompare(nameB);
+  });
+  
+  if (!newPeopleSearch.trim()) return sortedNewPeople;
+  
+  return filterPeople(sortedNewPeople, newPeopleSearch);
+})();
 
   const newPeoplePaginatedList = newPeopleFilteredList.slice(
     newPeoplePage * newPeopleRowsPerPage,
     newPeoplePage * newPeopleRowsPerPage + newPeopleRowsPerPage
   );
 
-  // CONSOLIDATED Modal filtering
-  const filteredConsolidatedPeople = (() => {
-    if (!consolidatedSearch.trim()) return realTimeData?.consolidations || [];
+// CONSOLIDATED Modal filtering - UPDATED FOR ALPHABETICAL ORDER
+const filteredConsolidatedPeople = (() => {
+  // Create full person objects for consolidated people
+  const fullConsolidatedPeople = (realTimeData?.consolidations || []).map(cons => {
+    // Try to find the person in attendees list
+    const foundPerson = attendees.find(att => 
+      att._id === cons.person_id || 
+      (att.name === cons.person_name && att.surname === cons.person_surname)
+    );
     
-    // Create full person objects for consolidated people
-    const fullConsolidatedPeople = (realTimeData?.consolidations || []).map(cons => {
-      // Try to find the person in attendees list
-      const foundPerson = attendees.find(att => 
-        att._id === cons.person_id || 
-        (att.name === cons.person_name && att.surname === cons.person_surname)
-      );
-      
-      return {
-        ...foundPerson,
-        ...cons,
-        person_name: cons.person_name || foundPerson?.name || '',
-        person_surname: cons.person_surname || foundPerson?.surname || '',
-        person_email: cons.person_email || foundPerson?.email || '',
-        person_phone: cons.person_phone || foundPerson?.phone || '',
-        assigned_to: cons.assigned_to || cons.assignedTo || '',
-        decision_type: cons.decision_type || cons.consolidation_type || '',
-        notes: cons.notes || ''
-      };
-    });
-    
-    return filterPeople(fullConsolidatedPeople, consolidatedSearch);
-  })();
+    return {
+      ...foundPerson,
+      ...cons,
+      person_name: cons.person_name || foundPerson?.name || '',
+      person_surname: cons.person_surname || foundPerson?.surname || '',
+      person_email: cons.person_email || foundPerson?.email || '',
+      person_phone: cons.person_phone || foundPerson?.phone || '',
+      assigned_to: cons.assigned_to || cons.assignedTo || '',
+      decision_type: cons.decision_type || cons.consolidation_type || '',
+      notes: cons.notes || ''
+    };
+  });
+  
+  // Sort alphabetically by person name and surname
+  const sortedConsolidatedPeople = [...fullConsolidatedPeople].sort((a, b) => {
+    const nameA = `${a.person_name || ''} ${a.person_surname || ''}`.toLowerCase().trim();
+    const nameB = `${b.person_name || ''} ${b.person_surname || ''}`.toLowerCase().trim();
+    return nameA.localeCompare(nameB);
+  });
+  
+  if (!consolidatedSearch.trim()) return sortedConsolidatedPeople;
+  
+  return filterPeople(sortedConsolidatedPeople, consolidatedSearch);
+})();
 
   const consolidatedPaginatedList = filteredConsolidatedPeople.slice(
     consolidatedPage * consolidatedRowsPerPage,
@@ -1547,77 +1594,57 @@ function ServiceCheckIn() {
 
   const mainColumns = getMainColumns();
 
-  // StatsCard Component
-  const StatsCard = ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: getResponsiveValue(1, 1.5, 2, 2.5, 2.5),
-        textAlign: "center",
-        cursor: disabled ? "default" : "pointer",
-        boxShadow: isSmDown ? 1 : 2,
-        minHeight: isSmDown ? '70px' : '80px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'background.paper',
-        border: isSmDown ? `1px solid ${theme.palette.divider}` : 'none',
-        "&:hover": disabled || isSmDown ? {} : { 
-          boxShadow: 4, 
-          transform: "translateY(-2px)" 
-        },
-        transition: "all 0.2s",
-        opacity: disabled ? 0.6 : 1,
-      }}
-      onClick={disabled ? undefined : onClick}
-    >
-      <Stack 
-        direction={isSmDown ? "row" : "column"} 
-        alignItems="center" 
-        justifyContent={isSmDown ? "space-between" : "center"}
-        spacing={isSmDown ? 0 : 1}
-        sx={{ width: '100%' }}
+// StatsCard Component
+const StatsCard = ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
+  <Paper
+    variant="outlined"
+    sx={{
+      p: getResponsiveValue(1, 1.5, 2, 2.5, 2.5), // Reduced padding
+      textAlign: "center",
+      cursor: disabled ? "default" : "pointer",
+      boxShadow: 2, // Reduced from 3
+      minHeight: '80px', // Reduced from 100px
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      "&:hover": disabled ? {} : { 
+        boxShadow: 4, 
+        transform: "translateY(-2px)" 
+      },
+      transition: "all 0.2s",
+      opacity: disabled ? 0.6 : 1,
+      backgroundColor: 'background.paper',
+    }}
+    onClick={onClick}
+  >
+    <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={0.5}>
+      {React.cloneElement(icon, { 
+        color: disabled ? "disabled" : color,
+        sx: { fontSize: getResponsiveValue(18, 20, 24, 28, 28) } // Reduced icon size
+      })}
+      <Typography 
+        variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
+        fontWeight={600} 
+        color={disabled ? "text.disabled" : `${color}.main`}
+        sx={{ fontSize: getResponsiveValue("0.9rem", "1rem", "1.2rem", "1.3rem", "1.3rem") }} // Reduced font size
       >
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center',
-          gap: isSmDown ? 1 : 0.5
-        }}>
-          {React.cloneElement(icon, { 
-            color: disabled ? "disabled" : color,
-            sx: { 
-              fontSize: getResponsiveValue(16, 18, 20, 24, 24),
-              opacity: disabled ? 0.5 : 1
-            }
-          })}
-          <Typography 
-            variant={isSmDown ? "body1" : getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
-            fontWeight={isSmDown ? 600 : 600}
-            color={disabled ? "text.disabled" : `${color}.main`}
-            sx={{ 
-              fontSize: isSmDown ? "0.9rem" : getResponsiveValue("0.9rem", "1rem", "1.2rem", "1.3rem", "1.3rem"),
-              ml: isSmDown ? 1 : 0
-            }}
-          >
-            {count}
-          </Typography>
-        </Box>
-        
-        <Typography 
-          variant={isSmDown ? "body2" : getResponsiveValue("caption", "body2", "body2", "body1", "body1")}
-          color={disabled ? "text.disabled" : `${color}.main`}
-          sx={{ 
-            fontSize: isSmDown ? "0.8rem" : getResponsiveValue("0.7rem", "0.8rem", "0.9rem", "1rem", "1rem"),
-            mt: isSmDown ? 0 : 0.5,
-            opacity: disabled ? 0.7 : 1
-          }}
-        >
-          {title}
+        {count}
+      </Typography>
+    </Stack>
+    <Typography 
+      variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} 
+      color={disabled ? "text.disabled" : `${color}.main`}
+      sx={{ fontSize: getResponsiveValue("0.7rem", "0.8rem", "0.9rem", "1rem", "1rem") }} // Reduced font size
+    >
+      {title}
+      {disabled && (
+        <Typography variant="caption" display="block" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
+          Select event
         </Typography>
-      </Stack>
-    </Paper>
-  );
+      )}
+    </Typography>
+  </Paper>
+);
 
   // AttendeeCard Component
   const AttendeeCard = ({ attendee, showNumber, index }) => (
@@ -1704,10 +1731,7 @@ function ServiceCheckIn() {
           flexDirection: 'column',
           justifyContent: 'space-between',
           "&:last-child": { mb: 0 },
-          border: `2px solid ${theme.palette.primary.main}`,
-          backgroundColor: isDarkMode 
-            ? theme.palette.primary.dark + "1a" 
-            : theme.palette.primary.light + "0a",
+          backgroundColor: 'background.paper', 
         }}
       >
         <CardContent sx={{ 
@@ -1873,10 +1897,7 @@ function ServiceCheckIn() {
           flexDirection: 'column',
           justifyContent: 'space-between',
           "&:last-child": { mb: 0 },
-          border: `2px solid ${theme.palette.secondary.main}`,
-          backgroundColor: isDarkMode 
-            ? theme.palette.secondary.dark + "1a" 
-            : theme.palette.secondary.light + "0a",
+          backgroundColor: 'background.paper',
         }}
       >
         <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
