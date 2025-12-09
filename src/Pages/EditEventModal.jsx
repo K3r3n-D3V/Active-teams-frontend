@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -19,21 +19,31 @@ import {
   Divider,
   Chip,
   CircularProgress,
-  IconButton,
+  // IconButton, // Commented out - not used in new code
   Tooltip,
   Checkbox,
   FormGroup,
   Collapse,
 } from '@mui/material';
 import {
-  Delete as DeleteIcon,
+  // Delete as DeleteIcon, // Commented out - not used in new code
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Warning as WarningIcon,
   Person as PersonIcon,
   Event as EventIcon,
+  Lock as LockIcon, // Added from new code
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
+
+// Define user role constants (from new code)
+const USER_ROLES = {
+  ADMIN: 'admin',
+  LEADER_1: 'leader1',
+  LEADER_144: 'leader144',
+  REGISTRANT: 'registrant',
+  USER: 'user'
+};
 
 const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [formData, setFormData] = useState({});
@@ -45,48 +55,171 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [changedFields, setChangedFields] = useState([]);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [showAllFields, setShowAllFields] = useState(false);
-
+  
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  
+  // Get user role from localStorage (from Profile component logic - new code)
+  const [loggedInUserRole, setLoggedInUserRole] = useState(() => {
+    try {
+      const storedProfile = localStorage.getItem("userProfile");
+      if (storedProfile) {
+        const parsed = JSON.parse(storedProfile);
+        const role = parsed.role || "user";
+        console.log("🔐 EditEventModal: Logged-in user role:", role);
+        return role;
+      }
+    } catch (e) {
+      console.error("Failed to parse stored profile:", e);
+    }
+    return "user";
+  });
+
+  // Helper functions to check user role (from Profile component - new code)
+  const isAdmin = loggedInUserRole === USER_ROLES.ADMIN;
+  const isLeader1 = loggedInUserRole === USER_ROLES.LEADER_1;
+  const isLeader144 = loggedInUserRole === USER_ROLES.LEADER_144;
+  const isRegistrant = loggedInUserRole === USER_ROLES.REGISTRANT;
+  const isRegularUser = loggedInUserRole === USER_ROLES.USER;
+  
+  // Check if user has edit permission (Admin or Leader 1 only - new code)
+  const hasEditPermission = isAdmin || isLeader1;
+  
+  // Field mapping for related fields
   const fieldMapping = {
-  'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
-  'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
-  'eventLeaderName': ['eventLeaderName', 'Leader', 'eventLeader'],
-  'leader1': ['leader1'],
-  'leader12': ['leader12'],
-  'Leader at 12': ['Leader at 12'],
-  
-  // Email fields
-  'Email': ['Email', 'eventLeaderEmail', 'email'],
-  'eventLeaderEmail': ['eventLeaderEmail', 'Email', 'email'],
-  'email': ['email', 'Email', 'eventLeaderEmail'],
-  
-  // Location fields
-  'Address': ['Address', 'location', 'address'],
-  'location': ['location', 'Address', 'address'],
-  'address': ['address', 'Address', 'location'],
-  
-  // Day/time fields
-  'Day': ['Day', 'recurring_day'],
-  'recurring_day': ['recurring_day', 'Day'],
-  'Time': ['Time', 'time'],
-  'time': ['time', 'Time'],
-  
-  'Event Name': ['Event Name', 'eventName'],
-  'eventName': ['eventName', 'Event Name'],
-  
-  'Event Type': ['Event Type', 'eventTypeName'],
-  'eventTypeName': ['eventTypeName', 'Event Type'],
-  
-  'status': ['status', 'Status'],
-  'Status': ['Status', 'status'],
-  
-  'description': ['description'],
-  'isTicketed': ['isTicketed'],
-  'isGlobal': ['isGlobal'],
-  'hasPersonSteps': ['hasPersonSteps'],
-  'Reoccurring': ['Reoccurring', 'recurring'],
-  'recurring': ['recurring', 'Reoccurring'],
-};
+    'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
+    'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
+    'eventLeaderName': ['eventLeaderName', 'Leader', 'eventLeader'],
+    'leader1': ['leader1'],
+    'leader12': ['leader12'],
+    'Leader at 12': ['Leader at 12'],
+    
+    // Email fields
+    'Email': ['Email', 'eventLeaderEmail', 'email'],
+    'eventLeaderEmail': ['eventLeaderEmail', 'Email', 'email'],
+    'email': ['email', 'Email', 'eventLeaderEmail'],
+    
+    // Location fields
+    'Address': ['Address', 'location', 'address'],
+    'location': ['location', 'Address', 'address'],
+    'address': ['address', 'Address', 'location'],
+    
+    // Day/time fields
+    'Day': ['Day', 'recurring_day'],
+    'recurring_day': ['recurring_day', 'Day'],
+    'Time': ['Time', 'time'],
+    'time': ['time', 'Time'],
+    
+    'Event Name': ['Event Name', 'eventName'],
+    'eventName': ['eventName', 'Event Name'],
+    
+    'Event Type': ['Event Type', 'eventTypeName'],
+    'eventTypeName': ['eventTypeName', 'Event Type'],
+    
+    'status': ['status', 'Status'],
+    'Status': ['Status', 'status'],
+    
+    'description': ['description'],
+    'isTicketed': ['isTicketed'],
+    'isGlobal': ['isGlobal'],
+    'hasPersonSteps': ['hasPersonSteps'],
+    'Reoccurring': ['Reoccurring', 'recurring'],
+    'recurring': ['recurring', 'Reoccurring'],
+  };
+
+  const getFieldPermissions = useCallback((field) => {
+    const fieldLower = field.toLowerCase();
+    
+    // Check for week identifier fields (ALWAYS disabled for everyone)
+    const isWeekIdentifier = fieldLower.includes('week') && 
+                           (fieldLower.includes('identifier') || 
+                            fieldLower.includes('id'));
+    
+    // Check for original event ID fields (ALWAYS disabled for everyone)
+    const isOriginalEventId = (fieldLower.includes('original') && 
+                              fieldLower.includes('event') && 
+                              fieldLower.includes('id')) ||
+                             fieldLower === 'originaleventid' ||
+                             fieldLower === 'original_event_id';
+    
+    // Check for event type fields
+    const isEventType = fieldLower.includes('event') && 
+                       (fieldLower.includes('type') || 
+                        fieldLower === 'eventtype');
+    
+    // Check for leader fields
+    const isLeaderField = fieldLower.includes('leader') || 
+                         fieldLower.includes('eventleader') ||
+                         fieldLower === 'leader1' ||
+                         fieldLower === 'leader12' ||
+                         fieldLower.includes('leader at');
+    
+    // Special case for "Leader at 144" specific fields
+    const isLeader144Field = fieldLower.includes('144') || 
+                            fieldLower.includes('leader_at_144') ||
+                            fieldLower === 'leader144';
+    
+    // Permission logic
+    if (isWeekIdentifier || isOriginalEventId) {
+      // Always disabled for ALL users
+      return { disabled: true, reason: 'This field cannot be edited' };
+    }
+    
+    if (isEventType) {
+      // Only Admin and Leader 1 can edit event type
+      if (!hasEditPermission) {
+        return { 
+          disabled: true, 
+          reason: 'Event type can only be edited by administrators and Leader 1' 
+        };
+      }
+    }
+    
+    if (isLeaderField) {
+      if (isLeader144) {
+        // Leader at 144 cannot edit ANY leader fields (requirement 6)
+        return { 
+          disabled: true, 
+          reason: 'Leader at 144 cannot edit leader fields' 
+        };
+      }
+      
+      if (!hasEditPermission) {
+        // Non-admin/non-leader1 users cannot edit leader fields
+        return { 
+          disabled: true, 
+          reason: 'Leader fields can only be edited by administrators and Leader 1' 
+        };
+      }
+    }
+    
+    // If none of the above conditions apply, field is editable
+    return { disabled: false, reason: null };
+  }, [hasEditPermission, isLeader144]);
+
+  const isFieldDisabled = useCallback((field) => {
+    return getFieldPermissions(field).disabled;
+  }, [getFieldPermissions]);
+
+  const getDisabledReason = useCallback((field) => {
+    return getFieldPermissions(field).reason;
+  }, [getFieldPermissions]);
+
+  // Get display role with proper formatting for multiple roles (from Profile component - new code)
+  const getUserRole = useCallback(() => {
+    if (!loggedInUserRole) return "User";
+    
+    const roleStr = String(loggedInUserRole).trim();
+    const roles = roleStr
+      .split(/[\/,\s|]+/)
+      .map(role => role.trim())
+      .filter(role => role.length > 0)
+      .map(role => role.charAt(0).toUpperCase() + role.slice(1).toLowerCase());
+    
+    const uniqueRoles = [...new Set(roles)];
+    if (uniqueRoles.length === 0) return "User";
+    
+    return uniqueRoles.join(" / ");
+  }, [loggedInUserRole]);
 
   const cleanEventId = (event) => {
     if (!event) return null;
@@ -160,6 +293,13 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   }, [formData, event]);
 
   const handleChange = (field, value) => {
+    // Check field permissions (from new code)
+    const permissions = getFieldPermissions(field);
+    if (permissions.disabled) {
+      toast.warning(permissions.reason);
+      return;
+    }
+    
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -169,6 +309,12 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const prepareUpdateData = () => {
     const cleanData = {};
     changedFields.forEach(field => {
+      // Check if user has permission to edit this field (from new code)
+      if (isFieldDisabled(field)) {
+        console.warn(`No permission to edit ${field}`);
+        return;
+      }
+      
       const value = formData[field];
       
       if (value === '') {
@@ -181,6 +327,11 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       if (fieldMapping[field]) {
         fieldMapping[field].forEach(relatedField => {
           if (relatedField !== field && availableFields.includes(relatedField)) {
+            // Check permission for related field too (from new code)
+            if (isFieldDisabled(relatedField)) {
+              return;
+            }
+            
             if (value === '') {
               cleanData[relatedField] = null;
             } else {
@@ -201,6 +352,21 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       if (changedFields.length === 0) {
         toast.info("No changes made");
         onClose(false);
+        return;
+      }
+      
+      // Check if user has permission to edit any of the changed fields (from new code)
+      const unauthorizedFields = changedFields.filter(field => isFieldDisabled(field));
+      if (unauthorizedFields.length > 0) {
+        toast.error(`You don't have permission to modify: ${unauthorizedFields.join(', ')}`);
+        setLoading(false);
+        return;
+      }
+      
+      // Check if user can use "person" scope (Admin only - from new code)
+      if (editScope === 'person' && !isAdmin) {
+        toast.error('Only administrators can update all events for a person');
+        setLoading(false);
         return;
       }
       
@@ -288,6 +454,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const renderField = (field) => {
     const value = formData[field] || '';
     const isChanged = changedFields.includes(field);
+    const isDisabled = isFieldDisabled(field); // From new code
+    const disabledReason = getDisabledReason(field); // From new code
     
     const displayName = field
       .replace(/([A-Z])/g, ' $1')
@@ -298,250 +466,328 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
     const fieldLower = field.toLowerCase();
     
+    // Add lock icon for disabled fields (from new code)
+    const labelContent = (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {displayName}
+        {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
+        {isDisabled && <LockIcon fontSize="small" color="disabled" />}
+      </Box>
+    );
+    
+    // Create tooltip wrapper for disabled fields (from new code)
+    const FieldWrapper = ({ children }) => {
+      if (isDisabled && disabledReason) {
+        return (
+          <Tooltip title={disabledReason} arrow>
+            <Box>{children}</Box>
+          </Tooltip>
+        );
+      }
+      return children;
+    };
+    
     if ((fieldLower.includes('date') && !fieldLower.includes('datecaptured') && !fieldLower.includes('datecreated')) || field === 'date') {
       return (
-        <Box sx={{ position: 'relative' }}>
-          <TextField
-            fullWidth
-            margin="normal"
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {displayName}
-                {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-              </Box>
-            }
-            type="datetime-local"
-            value={value ? new Date(value).toISOString().slice(0, 16) : ''}
-            onChange={(e) => handleChange(field, e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            error={isChanged}
-            helperText={isChanged ? "Changed" : ""}
-          />
-          {value && (
-            <IconButton
-              size="small"
-              onClick={() => handleChange(field, '')}
-              sx={{ position: 'absolute', right: 8, top: 20 }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-        </Box>
+        <FieldWrapper key={field}>
+          <Box sx={{ position: 'relative' }}>
+            <TextField
+              fullWidth
+              margin="normal"
+              label={labelContent}
+              type="datetime-local"
+              value={value ? new Date(value).toISOString().slice(0, 16) : ''}
+              onChange={(e) => handleChange(field, e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              error={isChanged}
+              helperText={isChanged ? "Changed" : ""}
+              disabled={isDisabled}
+              InputProps={{
+                readOnly: isDisabled,
+              }}
+            />
+            {/* Commented out old delete icon functionality
+            {value && (
+              <IconButton
+                size="small"
+                onClick={() => handleChange(field, '')}
+                sx={{ position: 'absolute', right: 8, top: 20 }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            )}
+            */}
+          </Box>
+        </FieldWrapper>
       );
     }
     
     if (fieldLower.includes('time')) {
       return (
-        <Box sx={{ position: 'relative' }}>
-          <TextField
-            fullWidth
-            margin="normal"
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {displayName}
-                {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-              </Box>
-            }
-            type="time"
-            value={value || ''}
-            onChange={(e) => handleChange(field, e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            error={isChanged}
-            helperText={isChanged ? "Changed" : ""}
-          />
-          {value && (
-            <IconButton
-              size="small"
-              onClick={() => handleChange(field, '')}
-              sx={{ position: 'absolute', right: 8, top: 20 }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-        </Box>
+        <FieldWrapper key={field}>
+          <Box sx={{ position: 'relative' }}>
+            <TextField
+              fullWidth
+              margin="normal"
+              label={labelContent}
+              type="time"
+              value={value || ''}
+              onChange={(e) => handleChange(field, e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              error={isChanged}
+              helperText={isChanged ? "Changed" : ""}
+              disabled={isDisabled}
+              InputProps={{
+                readOnly: isDisabled,
+              }}
+            />
+            {/* Commented out old delete icon functionality
+            {value && (
+              <IconButton
+                size="small"
+                onClick={() => handleChange(field, '')}
+                sx={{ position: 'absolute', right: 8, top: 20 }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            )}
+            */}
+          </Box>
+        </FieldWrapper>
       );
     }
     
     if (fieldLower.includes('email')) {
       return (
-        <Box sx={{ position: 'relative' }}>
-          <TextField
-            fullWidth
-            margin="normal"
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {displayName}
-                {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-              </Box>
-            }
-            type="email"
-            value={value}
-            onChange={(e) => handleChange(field, e.target.value)}
-            error={isChanged}
-            helperText={isChanged ? "Changed" : ""}
-          />
-          {value && (
-            <IconButton
-              size="small"
-              onClick={() => handleChange(field, '')}
-              sx={{ position: 'absolute', right: 8, top: 20 }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-        </Box>
+        <FieldWrapper key={field}>
+          <Box sx={{ position: 'relative' }}>
+            <TextField
+              fullWidth
+              margin="normal"
+              label={labelContent}
+              type="email"
+              value={value}
+              onChange={(e) => handleChange(field, e.target.value)}
+              error={isChanged}
+              helperText={isChanged ? "Changed" : ""}
+              disabled={isDisabled}
+              InputProps={{
+                readOnly: isDisabled,
+              }}
+            />
+            {/* Commented out old delete icon functionality
+            {value && (
+              <IconButton
+                size="small"
+                onClick={() => handleChange(field, '')}
+                sx={{ position: 'absolute', right: 8, top: 20 }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            )}
+            */}
+          </Box>
+        </FieldWrapper>
       );
     }
     
     if (fieldType === 'boolean') {
       return (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 1 }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={!!value}
-                onChange={(e) => handleChange(field, e.target.checked)}
-                color={isChanged ? "warning" : "primary"}
-              />
-            }
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography>{displayName}</Typography>
-                {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-              </Box>
-            }
-          />
-          <IconButton size="small" onClick={() => handleChange(field, false)}>
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Box>
+        <FieldWrapper key={field}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 1 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={!!value}
+                  onChange={(e) => handleChange(field, e.target.checked)}
+                  color={isChanged ? "warning" : "primary"}
+                  disabled={isDisabled}
+                />
+              }
+              label={labelContent}
+            />
+            {/* Commented out old delete icon functionality
+            <IconButton size="small" onClick={() => handleChange(field, false)}>
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+            */}
+          </Box>
+        </FieldWrapper>
       );
     }
     
     if (Array.isArray(value)) {
       const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
       return (
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {displayName}
-            {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-          </Typography>
-          <FormGroup row>
-            {days.map(day => (
-              <FormControlLabel
-                key={day}
-                control={
-                  <Checkbox
-                    checked={value.includes(day)}
-                    onChange={(e) => {
-                      const newValue = e.target.checked
-                        ? [...value, day]
-                        : value.filter(d => d !== day);
-                      handleChange(field, newValue);
-                    }}
-                    size="small"
-                  />
-                }
-                label={day.substring(0, 3)}
-              />
-            ))}
-          </FormGroup>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-            <Button size="small" onClick={() => handleChange(field, [])}>
-              Clear All
-            </Button>
+        <FieldWrapper key={field}>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {displayName}
+              {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
+              {isDisabled && <LockIcon fontSize="small" color="disabled" />} {/* From new code */}
+            </Typography>
+            <FormGroup row>
+              {days.map(day => (
+                <FormControlLabel
+                  key={day}
+                  control={
+                    <Checkbox
+                      checked={value.includes(day)}
+                      onChange={(e) => {
+                        if (isDisabled) return; // From new code
+                        const newValue = e.target.checked
+                          ? [...value, day]
+                          : value.filter(d => d !== day);
+                        handleChange(field, newValue);
+                      }}
+                      size="small"
+                      disabled={isDisabled} // From new code
+                    />
+                  }
+                  label={day.substring(0, 3)}
+                />
+              ))}
+            </FormGroup>
+            {!isDisabled && ( // From new code - conditionally show clear button
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                <Button size="small" onClick={() => handleChange(field, [])}>
+                  Clear All
+                </Button>
+              </Box>
+            )}
           </Box>
-        </Box>
+        </FieldWrapper>
       );
     }
     
     if (fieldLower.includes('day') && !fieldLower.includes('recurring') && typeof value === 'string') {
       return (
-        <Box sx={{ position: 'relative' }}>
-          <FormControl fullWidth margin="normal" error={isChanged}>
-            <InputLabel>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {displayName}
-              </Box>
-            </InputLabel>
-            <Select
-              value={value || ''}
-              label={displayName}
-              onChange={(e) => handleChange(field, e.target.value)}
-            >
-              <MenuItem value="">None</MenuItem>
-              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                .map(day => (
-                  <MenuItem key={day} value={day}>{day}</MenuItem>
-                ))}
-            </Select>
-            {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
-          </FormControl>
-          {value && (
-            <IconButton
-              size="small"
-              onClick={() => handleChange(field, '')}
-              sx={{ position: 'absolute', right: 8, top: 20 }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-        </Box>
+        <FieldWrapper key={field}>
+          <Box sx={{ position: 'relative' }}>
+            <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
+              <InputLabel>
+                {labelContent}
+              </InputLabel>
+              <Select
+                value={value || ''}
+                label={displayName}
+                onChange={(e) => handleChange(field, e.target.value)}
+                disabled={isDisabled}
+              >
+                <MenuItem value="">None</MenuItem>
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                  .map(day => (
+                    <MenuItem key={day} value={day}>{day}</MenuItem>
+                  ))}
+              </Select>
+              {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
+            </FormControl>
+            {/* Commented out old delete icon functionality
+            {value && (
+              <IconButton
+                size="small"
+                onClick={() => handleChange(field, '')}
+                sx={{ position: 'absolute', right: 8, top: 20 }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            )}
+            */}
+          </Box>
+        </FieldWrapper>
       );
     }
     
     if (fieldLower === 'status') {
       const statusOptions = ['open', 'closed', 'complete', 'incomplete', 'did_not_meet', 'cancelled'];
       return (
-        <Box sx={{ position: 'relative' }}>
-          <FormControl fullWidth margin="normal" error={isChanged}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={value || ''}
-              label="Status"
-              onChange={(e) => handleChange(field, e.target.value)}
-            >
-              <MenuItem value="">None</MenuItem>
-              {statusOptions.map(status => (
-                <MenuItem key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-                </MenuItem>
-              ))}
-            </Select>
-            {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
-          </FormControl>
-          {value && (
-            <IconButton
-              size="small"
-              onClick={() => handleChange(field, '')}
-              sx={{ position: 'absolute', right: 8, top: 20 }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-        </Box>
+        <FieldWrapper key={field}>
+          <Box sx={{ position: 'relative' }}>
+            <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={value || ''}
+                label="Status"
+                onChange={(e) => handleChange(field, e.target.value)}
+                disabled={isDisabled}
+              >
+                <MenuItem value="">None</MenuItem>
+                {statusOptions.map(status => (
+                  <MenuItem key={status} value={status}>
+                    {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+                  </MenuItem>
+                ))}
+              </Select>
+              {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
+            </FormControl>
+            {/* Commented out old delete icon functionality
+            {value && (
+              <IconButton
+                size="small"
+                onClick={() => handleChange(field, '')}
+                sx={{ position: 'absolute', right: 8, top: 20 }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            )}
+            */}
+          </Box>
+        </FieldWrapper>
       );
     }
     
     if (fieldLower.includes('description') || (typeof value === 'string' && value.length > 50)) {
       return (
+        <FieldWrapper key={field}>
+          <Box sx={{ position: 'relative' }}>
+            <TextField
+              fullWidth
+              margin="normal"
+              label={labelContent}
+              value={value}
+              onChange={(e) => handleChange(field, e.target.value)}
+              multiline
+              rows={3}
+              error={isChanged}
+              helperText={isChanged ? "Changed" : ""}
+              disabled={isDisabled}
+              InputProps={{
+                readOnly: isDisabled,
+              }}
+            />
+            {/* Commented out old delete icon functionality
+            {value && (
+              <IconButton
+                size="small"
+                onClick={() => handleChange(field, '')}
+                sx={{ position: 'absolute', right: 8, top: 20 }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            )}
+            */}
+          </Box>
+        </FieldWrapper>
+      );
+    }
+    
+    return (
+      <FieldWrapper key={field}>
         <Box sx={{ position: 'relative' }}>
           <TextField
             fullWidth
             margin="normal"
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {displayName}
-                {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-              </Box>
-            }
+            label={labelContent}
             value={value}
             onChange={(e) => handleChange(field, e.target.value)}
-            multiline
-            rows={3}
             error={isChanged}
             helperText={isChanged ? "Changed" : ""}
+            disabled={isDisabled}
+            InputProps={{
+              readOnly: isDisabled,
+            }}
           />
+          {/* Commented out old delete icon functionality
           {value && (
             <IconButton
               size="small"
@@ -551,36 +797,9 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               <DeleteIcon fontSize="small" />
             </IconButton>
           )}
+          */}
         </Box>
-      );
-    }
-    
-    return (
-      <Box sx={{ position: 'relative' }}>
-        <TextField
-          fullWidth
-          margin="normal"
-          label={
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {displayName}
-              {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-            </Box>
-          }
-          value={value}
-          onChange={(e) => handleChange(field, e.target.value)}
-          error={isChanged}
-          helperText={isChanged ? "Changed" : ""}
-        />
-        {value && (
-          <IconButton
-            size="small"
-            onClick={() => handleChange(field, '')}
-            sx={{ position: 'absolute', right: 8, top: 20 }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        )}
-      </Box>
+      </FieldWrapper>
     );
   };
 
@@ -605,7 +824,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   );
   
   const otherFields = availableFields.filter(f => 
-    ![...personFields, ...eventFields, ...locationFields, ...timeFields].includes(f)
+    ![...personFields, ...eventFields, ...locationFields, ...timeFields].includes(f) && f !== 'Status'
   );
 
   const eventName = formData.eventName || formData['Event Name'] || 'Unnamed Event';
@@ -626,6 +845,9 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Person: <strong>{originalPersonIdentifier || 'Unknown'}</strong>
+              <Typography variant="caption" color="info.main" sx={{ ml: 2 }}> {/* From new code */}
+                (Logged in as: {getUserRole()}) {/* From new code */}
+              </Typography>
             </Typography>
           </Box>
           <Button
@@ -640,6 +862,14 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       
       <DialogContent dividers>
         <Box sx={{ pt: 1 }}>
+          {!hasEditPermission && ( // From new code
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <LockIcon fontSize="small" sx={{ mr: 1 }} />
+              Some fields are restricted to administrators and Leader 1 only. 
+              Locked fields <LockIcon fontSize="small" color="disabled" /> cannot be modified.
+            </Alert>
+          )}
+          
           <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
             <Typography variant="subtitle2" gutterBottom>
               Update Scope:
@@ -650,6 +880,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 value={editScope}
                 onChange={(e) => setEditScope(e.target.value)}
                 size="small"
+                disabled={editScope === 'person' && !isAdmin} // From new code
               >
                 <MenuItem value="single">
                   <Box>
@@ -661,13 +892,14 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                     </Typography>
                   </Box>
                 </MenuItem>
-                <MenuItem value="person" disabled={!originalPersonIdentifier}>
+                <MenuItem value="person" disabled={!originalPersonIdentifier || !isAdmin}> {/* Modified with !isAdmin */}
                   <Box>
                     <Typography variant="body2" fontWeight="bold">
                       All Person's Events
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       Update all {originalPersonIdentifier}'s events
+                      {!isAdmin && " (Admin only)"} {/* From new code */}
                     </Typography>
                   </Box>
                 </MenuItem>
@@ -678,6 +910,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               <Alert severity="info" sx={{ mt: 2 }}>
                 <WarningIcon sx={{ mr: 1 }} />
                 This will update all events for <strong>{originalPersonIdentifier}</strong>.
+                {!isAdmin && " This feature requires administrator privileges."} {/* From new code */}
               </Alert>
             )}
           </Box>
@@ -698,6 +931,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                   
                   const originalValue = event[field];
                   const newValue = formData[field];
+                  const isDisabled = isFieldDisabled(field); // From new code
                   
                   return (
                     <Tooltip 
@@ -711,17 +945,26 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                           <Typography variant="caption">
                             <strong>To:</strong> {newValue !== '' ? JSON.stringify(newValue) : '(remove field)'}
                           </Typography>
+                          {isDisabled && ( // From new code
+                            <>
+                              <br />
+                              <Typography variant="caption" color="error">
+                                {getDisabledReason(field)}
+                              </Typography>
+                            </>
+                          )}
                         </Box>
                       }
                     >
                       <Chip
                         label={displayField}
                         size="small"
-                        color="primary"
+                        color={isDisabled ? "error" : "primary"} // Modified from new code
                         variant="outlined"
                         onDelete={() => {
                           handleChange(field, event[field] !== undefined ? event[field] : '');
                         }}
+                        icon={isDisabled ? <LockIcon fontSize="small" /> : undefined} // From new code
                       />
                     </Tooltip>
                   );
@@ -808,7 +1051,9 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           ) : (
             <Grid container spacing={2}>
               {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email', 
-                'date', 'Date Of Event', 'time', 'Time', 'location', 'Address', 'status', 'Status',
+                'date', 'Date Of Event', 'time', 'Time', 'location', 'Address', 
+                'status', // Keep only one status field
+                // 'Status', // Commented out duplicate status field
                 'recurring_day', 'Day', 'description', 'leader1', 'leader12', 'Leader at 12']
                 .filter(field => availableFields.includes(field))
                 .map(field => (
@@ -827,6 +1072,11 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             {changedFields.length > 0 && (
               <Typography variant="caption" color="text.secondary">
                 {changedFields.length} field(s) changed
+                {changedFields.some(f => isFieldDisabled(f)) && ( // From new code
+                  <Typography variant="caption" color="warning.main" sx={{ ml: 1 }}>
+                    (Some fields require higher permissions)
+                  </Typography>
+                )}
               </Typography>
             )}
           </Box>
@@ -842,7 +1092,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             <Button 
               onClick={handleSubmit} 
               variant="contained" 
-              disabled={loading || changedFields.length === 0}
+              disabled={loading || changedFields.length === 0 || changedFields.some(f => isFieldDisabled(f))} // Modified from new code
               color={editScope === 'person' ? 'warning' : 'primary'}
               startIcon={loading ? <CircularProgress size={20} /> : null}
             >
