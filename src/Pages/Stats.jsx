@@ -42,7 +42,7 @@ const StatsDashboard = () => {
     error: null
   });
 
-  const [period, setPeriod] = useState('weekly');
+  const [period, setPeriod] = useState('this-week');
   const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -61,25 +61,36 @@ const StatsDashboard = () => {
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
 
   const getDateRange = () => {
-    const now = new Date();
-    const start = new Date(now);
-    const end = new Date(now);
+  const now = new Date();
+  let start = new Date();
+  let end = new Date();
 
-    if (period === 'weekly') {
-      const day = now.getDay(); // 0 = Sunday
-      start.setDate(now.getDate() - day);        // Start: Sunday
-      end.setDate(now.getDate() + (6 - day));    // End: Saturday
-    } else if (period === 'monthly') {
-      start.setDate(1);                          // First day of month
-      end.setMonth(end.getMonth() + 1);
-      end.setDate(0);                            // Last day of current month
-    }
+  if (period === 'this-week') {
+    const day = now.getDay();
+    start = new Date(now);
+    start.setDate(now.getDate() - day);
+    end = new Date(now);
+    end.setDate(now.getDate() + (6 - day));
+  } else if (period === 'last-week') {
+    const day = now.getDay();
+    start = new Date(now);
+    start.setDate(now.getDate() - day - 7); // Go back to previous Sunday
+    end = new Date(start);
+    end.setDate(start.getDate() + 6);       // Saturday of last week
+  } else if (period === 'this-month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of current month
+  } else if (period === 'last-month') {
+    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    end = new Date(now.getFullYear(), now.getMonth(), 0); // Last day of previous month
+  }
 
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+  // Set time boundaries
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
 
-    return { start, end };
-  };
+  return { start, end };
+};
 
   const fetchStats = useCallback(async () => {
     const cacheKey = `statsDashboard_${period}`;
@@ -460,11 +471,13 @@ const StatsDashboard = () => {
   return (
     <Box p={containerPadding} maxWidth="1400px" mx="auto" mt={8}>
       <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} gap={2}>
-        <FormControl size="small" sx={{ minWidth: 120 }}>
+        <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>Period</InputLabel>
           <Select value={period} onChange={e => setPeriod(e.target.value)}>
-            <MenuItem value="weekly">Weekly</MenuItem>
-            <MenuItem value="monthly">Monthly</MenuItem>
+            <MenuItem value="this-week">This Week</MenuItem>
+            <MenuItem value="last-week">Last Week</MenuItem>
+            <MenuItem value="this-month">This Month</MenuItem>
+            <MenuItem value="last-month">Last Month</MenuItem>
           </Select>
         </FormControl>
         <Tooltip title="Refresh"><IconButton onClick={fetchStats} disabled={refreshing}><Refresh /></IconButton></Tooltip>
