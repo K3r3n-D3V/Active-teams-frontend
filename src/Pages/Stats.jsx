@@ -42,7 +42,7 @@ const StatsDashboard = () => {
     error: null
   });
 
-  const [period, setPeriod] = useState('weekly');
+  const [period, setPeriod] = useState('this-week');
   const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -61,25 +61,36 @@ const StatsDashboard = () => {
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
 
   const getDateRange = () => {
-    const now = new Date();
-    const start = new Date(now);
-    const end = new Date(now);
+  const now = new Date();
+  let start = new Date();
+  let end = new Date();
 
-    if (period === 'weekly') {
-      const day = now.getDay(); // 0 = Sunday
-      start.setDate(now.getDate() - day);        // Start: Sunday
-      end.setDate(now.getDate() + (6 - day));    // End: Saturday
-    } else if (period === 'monthly') {
-      start.setDate(1);                          // First day of month
-      end.setMonth(end.getMonth() + 1);
-      end.setDate(0);                            // Last day of current month
-    }
+  if (period === 'this-week') {
+    const day = now.getDay();
+    start = new Date(now);
+    start.setDate(now.getDate() - day);
+    end = new Date(now);
+    end.setDate(now.getDate() + (6 - day));
+  } else if (period === 'last-week') {
+    const day = now.getDay();
+    start = new Date(now);
+    start.setDate(now.getDate() - day - 7); // Go back to previous Sunday
+    end = new Date(start);
+    end.setDate(start.getDate() + 6);       // Saturday of last week
+  } else if (period === 'this-month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of current month
+  } else if (period === 'last-month') {
+    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    end = new Date(now.getFullYear(), now.getMonth(), 0); // Last day of previous month
+  }
 
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+  // Set time boundaries
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
 
-    return { start, end };
-  };
+  return { start, end };
+};
 
   const fetchStats = useCallback(async () => {
     const cacheKey = `statsDashboard_${period}`;
@@ -343,87 +354,176 @@ const StatsDashboard = () => {
       setSnackbar({ open: true, message: err.message || 'Failed to create event', severity: 'error' });
     }
   };
+const EnhancedCalendar = () => {
+  // Count events per day
+  const eventCounts = {};
+  stats.events.forEach(e => {
+    if (e.date) {
+      const d = e.date.split('T')[0];
+      eventCounts[d] = (eventCounts[d] || 0) + 1;
+    }
+  });
 
-  const EnhancedCalendar = () => {
-    const eventCounts = {};
-    stats.events.forEach(e => {
-      if (e.date) {
-        const d = e.date.split('T')[0];
-        eventCounts[d] = (eventCounts[d] || 0) + 1;
-      }
-    });
+  const todayISO = new Date().toISOString().split('T')[0]; // e.g. "2025-12-09"
 
-    const today = new Date().toISOString().split('T')[0];
-    const goToPreviousMonth = () => setCurrentMonth(prev => { const m = new Date(prev); m.setMonth(m.getMonth() - 1); return m; });
-    const goToNextMonth = () => setCurrentMonth(prev => { const m = new Date(prev); m.setMonth(m.getMonth() + 1); return m; });
-    const goToToday = () => { setCurrentMonth(new Date()); setSelectedDate(today); };
+  const goToPreviousMonth = () => setCurrentMonth(prev => {
+    const m = new Date(prev);
+    m.setMonth(m.getMonth() - 1);
+    return m;
+  });
 
-    const getDaysInMonth = () => {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
-      const firstDay = new Date(year, month, 1).getDay();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const days = [];
-      for (let i = 0; i < firstDay; i++) days.push(null);
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = new Date(year, month, day).toISOString().split('T')[0];
-        days.push({
-          day, date: dateStr,
-          eventCount: eventCounts[dateStr] || 0,
-          isToday: dateStr === today,
-          isSelected: dateStr === selectedDate
-        });
-      }
-      return days;
-    };
-    const days = getDaysInMonth();
-    return (
-      <Box>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant={titleVariant} fontWeight="bold">
-            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </Typography>
-          <Box display="flex" gap={1}>
-            <IconButton size="small" onClick={goToPreviousMonth}><ChevronLeft /></IconButton>
-            <Button size="small" variant="outlined" onClick={goToToday}>Today</Button>
-            <IconButton size="small" onClick={goToNextMonth}><ChevronRight /></IconButton>
+  const goToNextMonth = () => setCurrentMonth(prev => {
+    const m = new Date(prev);
+    m.setMonth(m.getMonth() + 1);
+    return m;
+  });
+
+  const goToToday = () => {
+    setCurrentMonth(new Date());
+    setSelectedDate(todayISO);
+  };
+
+  const getDaysInMonth = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+
+    const firstDayOfMonth = new Date(year, month, 1);
+    // 0 = Sunday → we want Monday = 0 → shift Sunday to the end
+    const firstWeekday = firstDayOfMonth.getDay(); // 0=Sun … 6=Sat
+    const mondayOffset = firstWeekday === 0 ? 6 : firstWeekday - 1; // empty cells before the 1st
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const days = [];
+
+    // Empty cells for the days before the 1st
+    for (let i = 0; i < mondayOffset; i++) {
+      days.push(null);
+    }
+
+    // Actual days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+      days.push({
+        day,
+        date: dateStr,
+        eventCount: eventCounts[dateStr] || 0,
+        isToday: dateStr === todayISO,
+        isSelected: dateStr === selectedDate,
+      });
+    }
+
+    return days;
+  };
+
+  const days = getDaysInMonth();
+
+  return (
+    <Box>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant={titleVariant} fontWeight="bold">
+          {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        </Typography>
+        <Box display="flex" gap={1}>
+          <IconButton size="small" onClick={goToPreviousMonth}><ChevronLeft /></IconButton>
+          <Button size="small" variant="outlined" onClick={goToToday}>Today</Button>
+          <IconButton size="small" onClick={goToNextMonth}><ChevronRight /></IconButton>
+        </Box>
+      </Box>
+
+      {/* Weekday headers – Monday first */}
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(7, 1fr)',
+        gap: 0.5,
+        mb: 1,
+        backgroundColor: 'background.paper',
+        borderRadius: 2,
+        overflow: 'hidden',
+        boxShadow: 1
+      }}>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
+          <Box
+            key={day}
+            sx={{
+              py: 1.5,
+              textAlign: 'center',
+              fontWeight: 'bold',
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              color: 'text.primary',
+              backgroundColor: i >= 5 ? 'action.hover' : 'transparent',
+              borderRight: i < 6 ? '1px solid' : 'none',
+              borderColor: 'divider'
+            }}
+          >
+            {isSmDown ? day[0] : day}
           </Box>
-        </Box>
+        ))}
+      </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, mb: 1, backgroundColor: 'background.paper', borderRadius: 2, overflow: 'hidden', boxShadow: 1 }}>
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
-            <Box key={i} sx={{ py: 1.5, textAlign: 'center', fontWeight: 'bold', fontSize: { xs: '0.75rem', sm: '0.875rem' }, color: 'text.primary', backgroundColor: i === 0 || i === 6 ? 'action.hover' : 'transparent', borderRight: i < 6 ? '1px solid' : 'none', borderColor: 'divider' }}>
-              {isSmDown ? day[0] : day}
-            </Box>
-          ))}
-        </Box>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
-          {days.map((d, i) => !d ? <Box key={`empty-${i}`} sx={{ height: 52 }} /> : (
+      {/* Calendar grid */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
+        {days.map((d, i) =>
+          !d ? (
+            <Box key={`empty-${i}`} sx={{ height: 52 }} />
+          ) : (
             <Box
               key={d.date}
               onClick={() => setSelectedDate(d.date)}
               sx={{
-                height: 52, borderRadius: 2, cursor: 'pointer',
-                backgroundColor: d.isSelected ? 'primary.main' : d.isToday ? 'primary.50' : 'background.default',
+                height: 52,
+                borderRadius: 2,
+                cursor: 'pointer',
+                backgroundColor: d.isSelected
+                  ? 'primary.main'
+                  : d.isToday
+                  ? 'primary.100'
+                  : 'background.default',
                 color: d.isSelected ? 'white' : d.isToday ? 'primary.main' : 'text.primary',
                 border: d.isToday && !d.isSelected ? '2px solid' : '1px solid',
                 borderColor: d.isToday && !d.isSelected ? 'primary.main' : 'divider',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                position: 'relative', transition: 'all 0.2s ease',
-                '&:hover': { backgroundColor: d.isSelected ? 'primary.dark' : 'action.hover', transform: 'translateY(-2px)', boxShadow: 4 }
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  backgroundColor: d.isSelected ? 'primary.dark' : 'action.hover',
+                  transform: 'translateY(-2px)',
+                  boxShadow: 4,
+                },
               }}
             >
-              <Typography variant="body2" fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'}>{d.day}</Typography>
+              <Typography
+                variant="body2"
+                fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'}
+              >
+                {d.day}
+              </Typography>
+
+              {/* Dot indicator for events */}
               {d.eventCount > 0 && (
-                <Box sx={{ position: 'absolute', bottom: 6, width: 8, height: 8, borderRadius: '50%', bgcolor: d.isSelected ? 'white' : 'primary.main', boxShadow: 1 }} />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 6,
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: d.isSelected ? 'white' : 'primary.main',
+                    boxShadow: 1,
+                  }}
+                />
               )}
             </Box>
-          ))}
-        </Box>
+          )
+        )}
       </Box>
-    );
-  };
+    </Box>
+  );
+};
 
   const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
     <Paper variant="outlined" sx={{
@@ -460,11 +560,13 @@ const StatsDashboard = () => {
   return (
     <Box p={containerPadding} maxWidth="1400px" mx="auto" mt={8}>
       <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3} gap={2}>
-        <FormControl size="small" sx={{ minWidth: 120 }}>
+        <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>Period</InputLabel>
           <Select value={period} onChange={e => setPeriod(e.target.value)}>
-            <MenuItem value="weekly">Weekly</MenuItem>
-            <MenuItem value="monthly">Monthly</MenuItem>
+            <MenuItem value="this-week">This Week</MenuItem>
+            <MenuItem value="last-week">Last Week</MenuItem>
+            <MenuItem value="this-month">This Month</MenuItem>
+            <MenuItem value="last-month">Last Month</MenuItem>
           </Select>
         </FormControl>
         <Tooltip title="Refresh"><IconButton onClick={fetchStats} disabled={refreshing}><Refresh /></IconButton></Tooltip>
