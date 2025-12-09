@@ -456,11 +456,25 @@ export default function Profile() {
     return Object.keys(n).length === 0;
   };
 
-  const handleChange = (field) => (e) => {
-    const value = e.target.value;
-    setForm((prev) => ({ ...prev, [field]: value }));
-    setErrors((prev) => ({ ...prev, [field]: undefined }));
-  };
+const handleChange = (field) => (e) => {
+  let value = e.target.value;
+
+  if (field === "phone") {
+    value = value.replace(/\D/g, ""); // only numbers
+
+    // Force the phone number to start with 0
+    if (value.length > 0 && value[0] !== "0") {
+      value = "0" + value.slice(1);
+    }
+
+    value = value.slice(0, 10); // max 10 digits
+  }
+
+  setForm((prev) => ({ ...prev, [field]: value }));
+};
+
+
+
 
   const handleCancel = () => {
     setForm({ ...originalForm });
@@ -860,16 +874,31 @@ export default function Profile() {
                   <TextField value={form.address || ""} onChange={handleChange("address")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
                 </Grid>
 
-                {/* Phone Number */}
+                {/* Phone Number */}    
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                    Phone Number
-                  </Typography>
-                  <TextField value={form.phone || ""} onChange={handleChange("phone")} fullWidth error={!!errors.phone} helperText={errors.phone} sx={commonFieldSx} />
+                <Typography
+                variant="body2"
+                sx={{
+                mb: 1,
+                fontWeight: 600,
+                color: isDark ? "#cccccc" : "#666666",
+                }}
+                >
+                Phone Number
+                </Typography>
+                <TextField
+                value={form.phone || ""}
+                onChange={handleChange("phone")}
+                fullWidth
+                error={!!errors.phone}
+                helperText={errors.phone}
+                sx={commonFieldSx}
+                inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+                />
+
                 </Grid>
 
 
-               
                 {/* Invited By */}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
