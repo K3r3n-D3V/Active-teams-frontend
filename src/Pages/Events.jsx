@@ -965,6 +965,17 @@ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showL
 
       const responseData = response.data;
       const newEvents = responseData.events || responseData.results || [];
+      console.log("🔍 DEBUG: Checking event IDs from API:");
+newEvents.forEach((event, i) => {
+  if (event._id && event._id.includes('_')) {
+    console.log(`⚠️ Event ${i} has date suffix in _id:`, {
+      original_id: event._id,
+      cleaned_id: event._id.split('_')[0],
+      eventName: event.eventName,
+      date: event.date
+    });
+  }
+});
 
       if (newEvents.length > 0) {
         console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
@@ -1632,85 +1643,141 @@ const handleStatusFilterChange = useCallback((newStatus) => {
   }, []);
 
 const handleDeleteEvent = useCallback(async (event) => {
-  if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.delete(`${BACKEND_URL}/events/${event._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+  console.log("=== DELETE EVENT DEBUG ===");
+  console.log("1. Original event._id:", event._id);
+  
+  // Clean the ID - remove any date suffix (_2025-12-09 etc.)
+  let eventId = event._id;
+  
+  // If the ID contains an underscore with date, split it
+  if (eventId && eventId.includes('_')) {
+    const parts = eventId.split('_');
+    eventId = parts[0]; // Take only the first part (the actual ObjectId)
+    console.log("2. Cleaned ID (removed date suffix):", eventId);
+    console.log("3. Original had suffix:", eventId !== event._id ? "YES" : "NO");
+  }
+  
+  console.log("4. Final ID for deletion:", eventId);
+  console.log("5. Event name:", event.eventName);
+  
+  if (!eventId) {
+    console.error("❌ ERROR: No ID found!");
+    toast.error("Cannot delete: Event ID not found");
+    return;
+  }
 
-      if (response.status === 200) {
-        console.log("Event deleted successfully, refreshing with current filters...");
-        
-        const refreshParams = {
-          page: currentPage,
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now()
-        };
+  const confirmMessage = `Are you sure you want to delete "${event.eventName || 'this event'}"?`;
+  
+  if (!window.confirm(confirmMessage)) {
+    return;
+  }
 
-        if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-          refreshParams.event_type = selectedEventTypeFilter;
-        } else {
-          refreshParams.event_type = "CELLS";
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast.error("Authentication required");
+      return;
+    }
+
+    console.log(`6. Sending DELETE to: ${BACKEND_URL}/events/${eventId}`);
+    
+    const response = await axios.delete(
+      `${BACKEND_URL}/events/${eventId}`,
+      {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-
-        // Keep status filter
-        if (selectedStatus && selectedStatus !== 'all') {
-          refreshParams.status = selectedStatus;
-        }
-
-        // Keep search query
-        if (searchQuery && searchQuery.trim()) {
-          refreshParams.search = searchQuery.trim();
-        }
-
-        // Apply role-based filters
-        if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
-          if (isLeaderAt12) {
-            refreshParams.leader_at_12_view = true;
-            refreshParams.include_subordinate_cells = true;
-            
-            if (currentUserLeaderAt1) {
-              refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-            }
-            
-            if (viewFilter === 'personal') {
-              refreshParams.show_personal_cells = true;
-              refreshParams.personal = true;
-            } else {
-              refreshParams.show_all_authorized = true;
-            }
-          } else if (isAdmin && viewFilter === 'personal') {
-            refreshParams.personal = true;
-          }
-        }
-
-        console.log(" Refreshing with params after deletion:", refreshParams);
-        await fetchEvents(refreshParams, true);
-        
-        toast.success("Event deleted successfully!");
       }
-    } catch (error) {
-      console.error("Error deleting event:", error);
-      toast.error("Failed to delete event");
+    );
+
+    console.log("7. Delete successful:", response.data);
+    
+    if (response.status === 200) {
+      toast.success("Event deleted successfully!");
+      
+      // Refresh the events list
+      const refreshParams = {
+        page: 1, // Reset to first page
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        _t: Date.now()
+      };
+
+      // Apply current filters
+      if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+        refreshParams.event_type = selectedEventTypeFilter;
+      } else {
+        refreshParams.event_type = "CELLS";
+      }
+
+      if (selectedStatus && selectedStatus !== 'all') {
+        refreshParams.status = selectedStatus;
+      }
+
+      if (searchQuery && searchQuery.trim()) {
+        refreshParams.search = searchQuery.trim();
+      }
+
+      // Role-based filters
+      if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
+        if (isLeaderAt12) {
+          refreshParams.leader_at_12_view = true;
+          refreshParams.include_subordinate_cells = true;
+          
+          if (currentUserLeaderAt1) {
+            refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+          }
+          
+          if (viewFilter === 'personal') {
+            refreshParams.show_personal_cells = true;
+            refreshParams.personal = true;
+          } else {
+            refreshParams.show_all_authorized = true;
+          }
+        } else if (isAdmin && viewFilter === 'personal') {
+          refreshParams.personal = true;
+        }
+      }
+
+      console.log("8. Refreshing events with params:", refreshParams);
+      await fetchEvents(refreshParams, true);
+    }
+
+  } catch (error) {
+    console.error("❌ DELETE ERROR DETAILS:");
+    console.error("- Error message:", error.message);
+    console.error("- Status code:", error.response?.status);
+    console.error("- Error data:", error.response?.data);
+    console.error("- Request URL:", error.config?.url);
+    console.error("- Request method:", error.config?.method);
+    
+    if (error.response?.status === 404) {
+      toast.error(`Event not found. ID: ${eventId}`);
+    } else if (error.response?.status === 400) {
+      toast.error(`Invalid request: ${error.response.data?.detail || 'Bad request'}`);
+    } else if (error.response?.status === 401) {
+      toast.error("Unauthorized - Please login again");
+    } else if (error.response?.status === 403) {
+      toast.error("You don't have permission to delete this event");
+    } else {
+      toast.error(`Failed to delete event: ${error.message}`);
     }
   }
 }, [
-  BACKEND_URL, 
-  currentPage, 
-  rowsPerPage, 
-  selectedEventTypeFilter, 
-  selectedStatus, 
-  searchQuery, 
-  isLeaderAt12, 
-  isAdmin, 
-  viewFilter, 
-  currentUserLeaderAt1, 
-  fetchEvents, 
+  BACKEND_URL,
+  currentPage,
+  rowsPerPage,
+  selectedEventTypeFilter,
+  selectedStatus,
+  searchQuery,
+  isLeaderAt12,
+  isAdmin,
+  viewFilter,
+  currentUserLeaderAt1,
+  fetchEvents,
   DEFAULT_API_START_DATE
 ]);
-
 
  const handleSaveEvent = useCallback(async (eventData) => {
   try {
@@ -3808,11 +3875,15 @@ const handleDeleteType = useCallback(async () => {
               ) : (
                 <Box sx={{ height: 'calc(100vh - 450px)', minHeight: '500px' }}>
                   <DataGrid
-                    rows={paginatedEvents.map((event, idx) => ({
-                      id: event._id || idx,
-                      ...event,
-                    }))}
-
+                    rows={paginatedEvents.map((event, idx) => {
+  // Ensure clean ID
+  const cleanId = event._id ? event._id.split('_')[0] : idx;
+  return {
+    id: cleanId,
+    ...event,
+    _id: cleanId, // Ensure _id is also clean
+  };
+})}
                     columns={[
                       ...generateDynamicColumns(paginatedEvents, isOverdue, selectedEventTypeFilter),
                       {
