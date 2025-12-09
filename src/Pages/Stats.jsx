@@ -354,87 +354,176 @@ const StatsDashboard = () => {
       setSnackbar({ open: true, message: err.message || 'Failed to create event', severity: 'error' });
     }
   };
+const EnhancedCalendar = () => {
+  // Count events per day
+  const eventCounts = {};
+  stats.events.forEach(e => {
+    if (e.date) {
+      const d = e.date.split('T')[0];
+      eventCounts[d] = (eventCounts[d] || 0) + 1;
+    }
+  });
 
-  const EnhancedCalendar = () => {
-    const eventCounts = {};
-    stats.events.forEach(e => {
-      if (e.date) {
-        const d = e.date.split('T')[0];
-        eventCounts[d] = (eventCounts[d] || 0) + 1;
-      }
-    });
+  const todayISO = new Date().toISOString().split('T')[0]; // e.g. "2025-12-09"
 
-    const today = new Date().toISOString().split('T')[0];
-    const goToPreviousMonth = () => setCurrentMonth(prev => { const m = new Date(prev); m.setMonth(m.getMonth() - 1); return m; });
-    const goToNextMonth = () => setCurrentMonth(prev => { const m = new Date(prev); m.setMonth(m.getMonth() + 1); return m; });
-    const goToToday = () => { setCurrentMonth(new Date()); setSelectedDate(today); };
+  const goToPreviousMonth = () => setCurrentMonth(prev => {
+    const m = new Date(prev);
+    m.setMonth(m.getMonth() - 1);
+    return m;
+  });
 
-    const getDaysInMonth = () => {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
-      const firstDay = new Date(year, month, 1).getDay();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const days = [];
-      for (let i = 0; i < firstDay; i++) days.push(null);
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = new Date(year, month, day).toISOString().split('T')[0];
-        days.push({
-          day, date: dateStr,
-          eventCount: eventCounts[dateStr] || 0,
-          isToday: dateStr === today,
-          isSelected: dateStr === selectedDate
-        });
-      }
-      return days;
-    };
-    const days = getDaysInMonth();
-    return (
-      <Box>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant={titleVariant} fontWeight="bold">
-            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </Typography>
-          <Box display="flex" gap={1}>
-            <IconButton size="small" onClick={goToPreviousMonth}><ChevronLeft /></IconButton>
-            <Button size="small" variant="outlined" onClick={goToToday}>Today</Button>
-            <IconButton size="small" onClick={goToNextMonth}><ChevronRight /></IconButton>
+  const goToNextMonth = () => setCurrentMonth(prev => {
+    const m = new Date(prev);
+    m.setMonth(m.getMonth() + 1);
+    return m;
+  });
+
+  const goToToday = () => {
+    setCurrentMonth(new Date());
+    setSelectedDate(todayISO);
+  };
+
+  const getDaysInMonth = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+
+    const firstDayOfMonth = new Date(year, month, 1);
+    // 0 = Sunday → we want Monday = 0 → shift Sunday to the end
+    const firstWeekday = firstDayOfMonth.getDay(); // 0=Sun … 6=Sat
+    const mondayOffset = firstWeekday === 0 ? 6 : firstWeekday - 1; // empty cells before the 1st
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const days = [];
+
+    // Empty cells for the days before the 1st
+    for (let i = 0; i < mondayOffset; i++) {
+      days.push(null);
+    }
+
+    // Actual days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+      days.push({
+        day,
+        date: dateStr,
+        eventCount: eventCounts[dateStr] || 0,
+        isToday: dateStr === todayISO,
+        isSelected: dateStr === selectedDate,
+      });
+    }
+
+    return days;
+  };
+
+  const days = getDaysInMonth();
+
+  return (
+    <Box>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant={titleVariant} fontWeight="bold">
+          {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        </Typography>
+        <Box display="flex" gap={1}>
+          <IconButton size="small" onClick={goToPreviousMonth}><ChevronLeft /></IconButton>
+          <Button size="small" variant="outlined" onClick={goToToday}>Today</Button>
+          <IconButton size="small" onClick={goToNextMonth}><ChevronRight /></IconButton>
+        </Box>
+      </Box>
+
+      {/* Weekday headers – Monday first */}
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(7, 1fr)',
+        gap: 0.5,
+        mb: 1,
+        backgroundColor: 'background.paper',
+        borderRadius: 2,
+        overflow: 'hidden',
+        boxShadow: 1
+      }}>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
+          <Box
+            key={day}
+            sx={{
+              py: 1.5,
+              textAlign: 'center',
+              fontWeight: 'bold',
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              color: 'text.primary',
+              backgroundColor: i >= 5 ? 'action.hover' : 'transparent',
+              borderRight: i < 6 ? '1px solid' : 'none',
+              borderColor: 'divider'
+            }}
+          >
+            {isSmDown ? day[0] : day}
           </Box>
-        </Box>
+        ))}
+      </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, mb: 1, backgroundColor: 'background.paper', borderRadius: 2, overflow: 'hidden', boxShadow: 1 }}>
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
-            <Box key={i} sx={{ py: 1.5, textAlign: 'center', fontWeight: 'bold', fontSize: { xs: '0.75rem', sm: '0.875rem' }, color: 'text.primary', backgroundColor: i === 0 || i === 6 ? 'action.hover' : 'transparent', borderRight: i < 6 ? '1px solid' : 'none', borderColor: 'divider' }}>
-              {isSmDown ? day[0] : day}
-            </Box>
-          ))}
-        </Box>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
-          {days.map((d, i) => !d ? <Box key={`empty-${i}`} sx={{ height: 52 }} /> : (
+      {/* Calendar grid */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
+        {days.map((d, i) =>
+          !d ? (
+            <Box key={`empty-${i}`} sx={{ height: 52 }} />
+          ) : (
             <Box
               key={d.date}
               onClick={() => setSelectedDate(d.date)}
               sx={{
-                height: 52, borderRadius: 2, cursor: 'pointer',
-                backgroundColor: d.isSelected ? 'primary.main' : d.isToday ? 'primary.50' : 'background.default',
+                height: 52,
+                borderRadius: 2,
+                cursor: 'pointer',
+                backgroundColor: d.isSelected
+                  ? 'primary.main'
+                  : d.isToday
+                  ? 'primary.100'
+                  : 'background.default',
                 color: d.isSelected ? 'white' : d.isToday ? 'primary.main' : 'text.primary',
                 border: d.isToday && !d.isSelected ? '2px solid' : '1px solid',
                 borderColor: d.isToday && !d.isSelected ? 'primary.main' : 'divider',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                position: 'relative', transition: 'all 0.2s ease',
-                '&:hover': { backgroundColor: d.isSelected ? 'primary.dark' : 'action.hover', transform: 'translateY(-2px)', boxShadow: 4 }
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  backgroundColor: d.isSelected ? 'primary.dark' : 'action.hover',
+                  transform: 'translateY(-2px)',
+                  boxShadow: 4,
+                },
               }}
             >
-              <Typography variant="body2" fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'}>{d.day}</Typography>
+              <Typography
+                variant="body2"
+                fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'}
+              >
+                {d.day}
+              </Typography>
+
+              {/* Dot indicator for events */}
               {d.eventCount > 0 && (
-                <Box sx={{ position: 'absolute', bottom: 6, width: 8, height: 8, borderRadius: '50%', bgcolor: d.isSelected ? 'white' : 'primary.main', boxShadow: 1 }} />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 6,
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: d.isSelected ? 'white' : 'primary.main',
+                    boxShadow: 1,
+                  }}
+                />
               )}
             </Box>
-          ))}
-        </Box>
+          )
+        )}
       </Box>
-    );
-  };
+    </Box>
+  );
+};
 
   const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
     <Paper variant="outlined" sx={{
