@@ -2973,6 +2973,16 @@ const handleDeleteType = useCallback(async () => {
   };
 
   const ViewFilterButtons = () => {
+
+    const isLeader144or1728 =
+          userRole.includes("leader at 144") ||
+          userRole.includes("leader at 1278") ||
+          userRole.includes("leader at 1728");
+
+  //If the user is ANY kind of leader, do not show this UI
+  if (isLeader144or1728) {
+    return null;
+  }
     console.log("is it a leader at 12 ",isLeaderAt12)
     const shouldShowToggle = (isAdmin || (isLeaderAt12)) &&
       (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
@@ -3251,36 +3261,36 @@ const handleDeleteType = useCallback(async () => {
       },
     };
 
-    const allTypes = useMemo(() => {
-      const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
+  const allTypes = useMemo(() => {
+  const availableTypes = eventTypes
+    .map(t => t.name || t)
+    .filter(name => name && name !== "all");
 
-      //  FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
-      if (isAdmin) {
-        // Admin sees everything
-        const adminTypes = ["all"];
-        availableTypes.forEach(type => {
-          adminTypes.push(type);
-        });
-        return adminTypes;
-      } else if (isRegistrant) {
-        const registrantTypes = ["all"];
-        availableTypes.forEach(type => {
-          registrantTypes.push(type);
-        });
-      
-        return registrantTypes;
-      } else if (isLeaderAt12) {
-        const leaderTypes = ["all"];
-        availableTypes.forEach(type => {
-          leaderTypes.push(type);
-        });
-        return leaderTypes;
-      } else if (isRegularUser) {
-        return ["all"];
-      } else {
-        return ["all"];
-      }
-    }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser]);
+  if (isAdmin) {
+    const adminTypes = ["all"];
+    availableTypes.forEach(type => adminTypes.push(type));
+    return adminTypes;
+  }
+
+  if (isRegistrant) {
+    const registrantTypes = ["all"];
+    availableTypes.forEach(type => registrantTypes.push(type));
+    return registrantTypes;
+  }
+
+  //Leaders ONLY see cell types
+  if (isLeaderAt12) {
+    const leader12Types = ["all"];
+    availableTypes.forEach(type => leader12Types.push(type));
+    return leader12Types;
+  }
+
+  if (isRegularUser) {
+    return ["all"];
+  }
+
+  return ["all"];
+}, [eventTypes, isAdmin, isRegistrant, isLeaderAt12, isRegularUser]);
 
     const getDisplayName = (type) => {
       if (!type) return "";
