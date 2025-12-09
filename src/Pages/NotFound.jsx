@@ -201,7 +201,7 @@ const NotFound = () => {
 
           {/* Secondary Button */}
           <a
-            href="/help-support"
+            href="https://activemediahelpdesk.netlify.app/"
             style={{
               padding: "15px 35px",
               fontSize: 16,
@@ -232,7 +232,7 @@ const NotFound = () => {
           backdropFilter: "blur(10px)",
         }}
       >
-        © 2025 The Active Church. All rights reserved.
+        © 2025 The Active Church. All rights reserved. 
       </footer>
     </div>
   );
