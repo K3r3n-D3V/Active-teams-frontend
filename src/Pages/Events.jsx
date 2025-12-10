@@ -1091,7 +1091,6 @@ newEvents.forEach((event, i) => {
     }
   };
 
- 
 const handleStatusFilterChange = useCallback((newStatus) => {
   console.log("Status filter changing to:", newStatus);
 
@@ -1105,9 +1104,9 @@ const handleStatusFilterChange = useCallback((newStatus) => {
   const fetchParams = {
     page: 1,
     limit: rowsPerPage,
-    status: newStatus !== 'all' ? newStatus : undefined,
     start_date: DEFAULT_API_START_DATE,
     _t: Date.now(),
+    // PRESERVE SEARCH QUERY
     ...(searchQuery.trim() && { search: searchQuery.trim() }),
     ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
     ...(shouldApplyPersonalFilter && { personal: true }),
@@ -1122,23 +1121,24 @@ const handleStatusFilterChange = useCallback((newStatus) => {
     })
   };
 
-  if (newStatus === 'all') {
-    delete fetchParams.status;
+  // Add status filter if not 'all'
+  if (newStatus && newStatus !== 'all') {
+    fetchParams.status = newStatus;
   }
 
   console.log("Fetching with status params:", fetchParams);
   fetchEvents(fetchParams, true, false); 
-},  [
-    viewFilter,
-    userRole,
-    rowsPerPage,
-    searchQuery,
-    selectedEventTypeFilter,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
+}, [
+  viewFilter,
+  userRole,
+  rowsPerPage,
+  searchQuery,  
+  selectedEventTypeFilter,
+  isLeaderAt12,
+  currentUserLeaderAt1,
+  fetchEvents,
+  DEFAULT_API_START_DATE
+]);
 
   const fetchEventTypes = useCallback(async () => {
     try {
@@ -1265,7 +1265,7 @@ const handleStatusFilterChange = useCallback((newStatus) => {
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, DEFAULT_API_START_DATE]);
 
 
- const handleSearchSubmit = useCallback(() => {
+const handleSearchSubmit = useCallback(() => {
   const trimmedSearch = searchQuery.trim();
 
   let shouldApplyPersonalFilter = undefined;
@@ -1279,12 +1279,13 @@ const handleStatusFilterChange = useCallback((newStatus) => {
     page: 1,
     limit: rowsPerPage,
     status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : "CELLS", 
     search: trimmedSearch || undefined,
     personal: shouldApplyPersonalFilter,
     start_date: DEFAULT_API_START_DATE
   }, true, false);
-}, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
+}, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]); 
+
   const handleRowsPerPageChange = useCallback((e) => {
     const newRowsPerPage = Number(e.target.value);
     setRowsPerPage(newRowsPerPage);
@@ -2211,7 +2212,7 @@ const handleDeleteType = useCallback(async () => {
           `${eventsCount} event(s) are using this event type:\n\n` +
           `${eventsListText}\n` +
           `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ''}\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `━\n\n` +
           ` FORCE DELETE OPTION:\n\n` +
           `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
           `Click Cancel to keep everything.\n\n` +
@@ -2349,7 +2350,7 @@ const handleDeleteType = useCallback(async () => {
       const token = localStorage.getItem("token");
       const userProfile = localStorage.getItem("userProfile");
 
-      console.log("🔐 ACCESS CHECK:", { token: !!token, userProfile: !!userProfile });
+      console.log(" ACCESS CHECK:", { token: !!token, userProfile: !!userProfile });
 
       if (!token || !userProfile) {
         toast.error("Please log in to access events");
@@ -2362,7 +2363,7 @@ const handleDeleteType = useCallback(async () => {
         const userRole = currentUser?.role?.toLowerCase() || "";
         const email = currentUser?.email || "";
 
-        console.log("🔐 Checking user access:", { userRole, email });
+        console.log(" Checking user access:", { userRole, email });
 
         const isAdmin = userRole === "admin";
         const isLeaderAt12 =
@@ -2466,7 +2467,7 @@ const handleDeleteType = useCallback(async () => {
         const currentUser = JSON.parse(userProfile);
         const userRole = currentUser?.role?.toLowerCase() || "";
 
-        console.log("🔐 Checking user access:", { userRole });
+        console.log(" Checking user access:", { userRole });
 
         const isAdmin = userRole === "admin";
         const isAnyLeader = userRole.includes("leader");  //  Simplified
@@ -2875,100 +2876,101 @@ const handleDeleteType = useCallback(async () => {
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
 
-  useEffect(() => {
-    if (eventTypes.length === 0) {
-      return;
-    }
+useEffect(() => {
+  if (eventTypes.length === 0) {
+    return;
+  }
 
-    const fetchParams = {
-      page: currentPage,
-      limit: rowsPerPage,
-      start_date: DEFAULT_API_START_DATE
-    };
+  const fetchParams = {
+    page: currentPage,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE
+  };
 
-    if (selectedStatus && selectedStatus !== 'all') {
-      fetchParams.status = selectedStatus;
-    }
+  // PRESERVE SEARCH QUERY
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
 
-    if (searchQuery.trim()) {
-      fetchParams.search = searchQuery.trim();
-    }
+  if (selectedStatus && selectedStatus !== 'all') {
+    fetchParams.status = selectedStatus;
+  }
 
-    let endpointType = "cells";
+  let endpointType = "cells";
 
-    if (selectedEventTypeFilter === 'all') {
-      fetchParams.event_type = "CELLS";
-      endpointType = "cells";
-    } else if (selectedEventTypeFilter === 'CELLS') {
-      fetchParams.event_type = "CELLS";
-      endpointType = "cells";
-    } else {
-      fetchParams.event_type = selectedEventTypeFilter;
-      endpointType = "other";
-    }
+  if (selectedEventTypeFilter === 'all') {
+    fetchParams.event_type = "CELLS";
+    endpointType = "cells";
+  } else if (selectedEventTypeFilter === 'CELLS') {
+    fetchParams.event_type = "CELLS";
+    endpointType = "cells";
+  } else {
+    fetchParams.event_type = selectedEventTypeFilter;
+    endpointType = "other";
+  }
 
-    console.log(" Fetching with status filter:", selectedStatus, fetchParams);
+  console.log(" Fetching with status filter:", selectedStatus, fetchParams);
 
-    if (endpointType === "cells") {
-      if (isAdmin) {
-        if (viewFilter === 'personal') {
-          fetchParams.personal = true;
-        }
-      } else if (isRegistrant || isRegularUser) {
+  if (endpointType === "cells") {
+    if (isAdmin) {
+      if (viewFilter === 'personal') {
         fetchParams.personal = true;
-      } else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
+      }
+    } else if (isRegistrant || isRegularUser) {
+      fetchParams.personal = true;
+    } else if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
 
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === 'personal') {
-          // PERSONAL: Only their own cell
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          // VIEW ALL: Only disciples' cells
-          fetchParams.show_all_authorized = true;
-          fetchParams.include_subordinate_cells = true;
-        }
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
       }
 
-    } else {
-      console.log("Loading event type data for:", selectedEventTypeFilter);
-
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
-      delete fetchParams.leader_at_1_identifier;
-
-      console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
+      if (viewFilter === 'personal') {
+        // PERSONAL: Only their own cell
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        // VIEW ALL: Only disciples' cells
+        fetchParams.show_all_authorized = true;
+        fetchParams.include_subordinate_cells = true;
+      }
     }
 
-    Object.keys(fetchParams).forEach(key =>
-      fetchParams[key] === undefined && delete fetchParams[key]
-    );
+  } else {
+    console.log("Loading event type data for:", selectedEventTypeFilter);
 
-    console.log("FINAL API call params:", fetchParams);
-    fetchEvents(fetchParams, true);
-  }, [
-    selectedEventTypeFilter,
-    selectedStatus,
-    viewFilter,
-    currentPage,
-    rowsPerPage,
-    searchQuery,
-    eventTypes.length,
-    isLeaderAt12,
-    isAdmin,
-    isRegularUser,
-    isRegistrant,
-    currentUserLeaderAt1,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
+    delete fetchParams.personal;
+    delete fetchParams.leader_at_12_view;
+    delete fetchParams.show_personal_cells;
+    delete fetchParams.show_all_authorized;
+    delete fetchParams.include_subordinate_cells;
+    delete fetchParams.leader_at_1_identifier;
+
+    console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
+  }
+
+  Object.keys(fetchParams).forEach(key =>
+    fetchParams[key] === undefined && delete fetchParams[key]
+  );
+
+  console.log("FINAL API call params:", fetchParams);
+  fetchEvents(fetchParams, true);
+}, [
+  selectedEventTypeFilter,
+  selectedStatus,
+  viewFilter,
+  currentPage,
+  rowsPerPage,
+  searchQuery,  
+  eventTypes.length,
+  isLeaderAt12,
+  isAdmin,
+  isRegularUser,
+  isRegistrant,
+  currentUserLeaderAt1,
+  fetchEvents,
+  DEFAULT_API_START_DATE
+]);
 
   const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
     const statuses = [
@@ -3040,6 +3042,16 @@ const handleDeleteType = useCallback(async () => {
   };
 
   const ViewFilterButtons = () => {
+
+    const isLeader144or1728 =
+          userRole.includes("leader at 144") ||
+          userRole.includes("leader at 1278") ||
+          userRole.includes("leader at 1728");
+
+  //If the user is ANY kind of leader, do not show this UI
+  if (isLeader144or1728) {
+    return null;
+  }
     console.log("is it a leader at 12 ",isLeaderAt12)
     const shouldShowToggle = (isAdmin || (isLeaderAt12)) &&
       (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
@@ -3186,57 +3198,59 @@ const handleDeleteType = useCallback(async () => {
 
     const canEditEventTypes = isAdmin;
 
-    const handleEventTypeClick = (typeValue) => {
-      console.log(" Event type clicked:", typeValue);
+const handleEventTypeClick = (typeValue) => {
+  console.log(" Event type clicked:", typeValue);
 
-      setSelectedEventTypeFilter(typeValue);
+  setSelectedEventTypeFilter(typeValue);
+  setCurrentPage(1);
 
-      setCurrentPage(1);
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE,
+    event_type: typeValue === 'all' ? "CELLS" : typeValue,
+    _t: Date.now() // Cache buster
+  };
 
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        event_type: typeValue === 'all' ? "CELLS" : typeValue,
-        _t: Date.now() // Cache buster
-      };
+  // KEEP THE EXISTING SEARCH QUERY
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
 
-      if (selectedStatus !== 'all') {
-        fetchParams.status = selectedStatus;
+  // KEEP THE EXISTING STATUS FILTER
+  if (selectedStatus !== 'all') {
+    fetchParams.status = selectedStatus;
+  }
+
+  if (typeValue === 'all' || typeValue === 'CELLS') {
+    if (isAdmin) {
+      if (viewFilter === 'personal') {
+        fetchParams.personal = true;
       }
+    } else if (isRegistrant || isRegularUser) {
+      fetchParams.personal = true;
+    } else if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
 
-      if (searchQuery.trim()) {
-        fetchParams.search = searchQuery.trim();
-      }
-
-      if (typeValue === 'all' || typeValue === 'CELLS') {
-        if (isAdmin) {
-          if (viewFilter === 'personal') {
-            fetchParams.personal = true;
-          }
-        } else if (isRegistrant || isRegularUser) {
-          fetchParams.personal = true;
-        } else if (isLeaderAt12) {
-          fetchParams.leader_at_12_view = true;
-          fetchParams.include_subordinate_cells = true;
-
-          if (viewFilter === 'personal') {
-            fetchParams.show_personal_cells = true;
-            fetchParams.personal = true;
-          } else {
-            fetchParams.show_all_authorized = true;
-          }
-        }
+      if (viewFilter === 'personal') {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
       } else {
-        // For other event types, remove personal filters
-        delete fetchParams.personal;
-        delete fetchParams.leader_at_12_view;
-        delete fetchParams.show_personal_cells;
-        delete fetchParams.show_all_authorized;
-        delete fetchParams.include_subordinate_cells;
+        fetchParams.show_all_authorized = true;
       }
-      fetchEvents(fetchParams, true);
-    };
+    }
+  } else {
+    // For other event types, remove personal filters
+    delete fetchParams.personal;
+    delete fetchParams.leader_at_12_view;
+    delete fetchParams.show_personal_cells;
+    delete fetchParams.show_all_authorized;
+    delete fetchParams.include_subordinate_cells;
+  }
+  
+  fetchEvents(fetchParams, true);
+};
 
     const mobileEventTypeStyles = {
       container: {
@@ -3318,36 +3332,36 @@ const handleDeleteType = useCallback(async () => {
       },
     };
 
-    const allTypes = useMemo(() => {
-      const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
+  const allTypes = useMemo(() => {
+  const availableTypes = eventTypes
+    .map(t => t.name || t)
+    .filter(name => name && name !== "all");
 
-      //  FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
-      if (isAdmin) {
-        // Admin sees everything
-        const adminTypes = ["all"];
-        availableTypes.forEach(type => {
-          adminTypes.push(type);
-        });
-        return adminTypes;
-      } else if (isRegistrant) {
-        const registrantTypes = ["all"];
-        availableTypes.forEach(type => {
-          registrantTypes.push(type);
-        });
-      
-        return registrantTypes;
-      } else if (isLeaderAt12) {
-        const leaderTypes = ["all"];
-        availableTypes.forEach(type => {
-          leaderTypes.push(type);
-        });
-        return leaderTypes;
-      } else if (isRegularUser) {
-        return ["all"];
-      } else {
-        return ["all"];
-      }
-    }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser]);
+  if (isAdmin) {
+    const adminTypes = ["all"];
+    availableTypes.forEach(type => adminTypes.push(type));
+    return adminTypes;
+  }
+
+  if (isRegistrant) {
+    const registrantTypes = ["all"];
+    availableTypes.forEach(type => registrantTypes.push(type));
+    return registrantTypes;
+  }
+
+  //Leaders ONLY see cell types
+  if (isLeaderAt12) {
+    const leader12Types = ["all"];
+    availableTypes.forEach(type => leader12Types.push(type));
+    return leader12Types;
+  }
+
+  if (isRegularUser) {
+    return ["all"];
+  }
+
+  return ["all"];
+}, [eventTypes, isAdmin, isRegistrant, isLeaderAt12, isRegularUser]);
 
     const getDisplayName = (type) => {
       if (!type) return "";
