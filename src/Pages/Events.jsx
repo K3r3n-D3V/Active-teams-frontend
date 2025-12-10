@@ -4026,6 +4026,7 @@ const handleEventTypeClick = (typeValue) => {
             <Box sx={{
               ...styles.paginationContainer,
               flexShrink: 0,
+              justifyContent: 'space-around',
               backgroundColor: isDarkMode ? theme.palette.background.paper : '#f8f9fa',
               borderTop: `1px solid ${isDarkMode ? theme.palette.divider : '#e9ecef'}`,
             }}>
