@@ -65,6 +65,11 @@ const StatsDashboard = () => {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [isChangingPeriod, setIsChangingPeriod] = useState(false);
 
+  const periodRef = React.useRef(period);
+  useEffect(() => {
+    periodRef.current = period;
+  }, [period]);
+
   const CACHE_DURATION = 5 * 60 * 1000;
 
   const setCache = useCallback((key, data) => {
@@ -425,155 +430,135 @@ const StatsDashboard = () => {
     }
   };
 
-  const fetchStats = useCallback(async (forceRefresh = false) => {
-    const cacheKey = `statsDashboard_${period}`;
-    
-    // Don't fetch if we're already refreshing
-    if (refreshing && !forceRefresh) return;
-    
-    if (!forceRefresh && !refreshing) {
-      const cachedData = getCache(cacheKey);
-      if (cachedData) {
-        setStats({
-          ...cachedData,
-          loading: false,
-          error: null
-        });
-        setInitialLoad(false);
-        setIsDataLoaded(true);
-        setIsChangingPeriod(false);
-        return;
-      }
+const fetchStats = useCallback(async (forceRefresh = false) => {
+  const currentPeriod = periodRef.current;   // ← This is always up-to-date!
+  const cacheKey = `statsDashboard_${currentPeriod}`;
+
+  if (refreshing && !forceRefresh) return;
+
+  if (!forceRefresh && !refreshing) {
+    const cachedData = getCache(cacheKey);
+    if (cachedData) {
+      setStats({
+        ...cachedData,
+        loading: false,
+        error: null
+      });
+      setInitialLoad(false);
+      setIsDataLoaded(true);
+      setIsChangingPeriod(false);
+      return;
+    }
+  }
+
+  try {
+    setRefreshing(true);
+    setStats(prev => ({ ...prev, loading: true, error: null }));
+
+    const token = localStorage.getItem("token");
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    const dateRange = getPeriodRange(currentPeriod);
+    const startDate = dateRange.start.toISOString().split('T')[0];
+    const endDate = dateRange.end.toISOString().split('T')[0];
+
+    console.log(`Fetching stats for period: ${currentPeriod}`);
+    console.log(`Date range: ${startDate} to ${endDate}`);
+
+    const response = await fetch(
+      `${BACKEND_URL}/stats/dashboard-comprehensive?period=${currentPeriod}&start_date=${startDate}&end_date=${endDate}`,
+      { headers }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    try {
-      setRefreshing(true);
-      setStats(prev => ({ ...prev, loading: true, error: null }));
-      
-      const token = localStorage.getItem("token");
-      const headers = { 
-        Authorization: `Bearer ${token}`, 
-        'Content-Type': 'application/json' 
-      };
+    const data = await response.json();
+    const newStats = {
+      overview: data.overview,
+      events: data.overdueCells || [],
+      overdueCells: data.overdueCells || [],
+      allTasks: data.allTasks || [],
+      allUsers: data.allUsers || [],
+      groupedTasks: data.groupedTasks || [],
+      dateRange: { start: startDate, end: endDate },
+      loading: false,
+      error: null
+    };
 
-      // Get date range for debugging
-      const dateRange = getPeriodRange(period);
+    setStats(newStats);
+    setInitialLoad(false);
+    setIsDataLoaded(true);
+    setIsChangingPeriod(false);
+    setCache(cacheKey, newStats);
+  } catch (err) {
+    console.error("Fetch stats error:", err);
+
+    // Fallback logic (also use currentPeriod)
+    try {
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+      const dateRange = getPeriodRange(currentPeriod);
       const startDate = dateRange.start.toISOString().split('T')[0];
       const endDate = dateRange.end.toISOString().split('T')[0];
-      
-      console.log(`Fetching stats for period: ${period}`);
-      console.log(`Date range: ${startDate} to ${endDate}`);
 
-      const response = await fetch(
-        `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}&start_date=${startDate}&end_date=${endDate}`, 
-        { headers }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const quickResponse = await fetch(`${BACKEND_URL}/stats/dashboard-quick?period=${currentPeriod}`, { headers });
+      if (!quickResponse.ok) throw err;
+
+      const quickData = await quickResponse.json();
+      const tasksResponse = await fetch(`${BACKEND_URL}/tasks?start_date=${startDate}&end_date=${endDate}&limit=100`, { headers });
+
+      let tasksData = { allTasks: [], groupedTasks: [] };
+      if (tasksResponse.ok) {
+        const comp = await tasksResponse.json();
+        tasksData = {
+          allTasks: comp.tasks || comp || [],
+          groupedTasks: comp.groupedTasks || []
+        };
       }
 
-      const data = await response.json();
-
-      const newStats = {
-        overview: data.overview,
-        events: data.overdueCells || [],
-        overdueCells: data.overdueCells || [],
-        allTasks: data.allTasks || [],
-        allUsers: data.allUsers || [],
-        groupedTasks: data.groupedTasks || [],
-        dateRange: {
-          start: startDate,
-          end: endDate
+      const fallbackStats = {
+        overview: {
+          total_attendance: 0,
+          outstanding_cells: quickData.overdueCells || 0,
+          outstanding_tasks: quickData.taskCount || 0,
+          people_behind: 0,
+          total_users: 0,
+          total_tasks: tasksData.allTasks.length
         },
+        events: [],
+        overdueCells: [],
+        allTasks: tasksData.allTasks,
+        allUsers: [],
+        groupedTasks: tasksData.groupedTasks || [],
+        dateRange: { start: startDate, end: endDate },
         loading: false,
         error: null
       };
 
-      setStats(newStats);
-      setInitialLoad(false);
+      setStats(fallbackStats);
       setIsDataLoaded(true);
       setIsChangingPeriod(false);
-      setCache(cacheKey, newStats);
-
-    } catch (err) {
-      console.error("Fetch stats error:", err);
-      
-      try {
-        const token = localStorage.getItem("token");
-        const headers = { 
-          Authorization: `Bearer ${token}`, 
-          'Content-Type': 'application/json' 
-        };
-        
-        const dateRange = getPeriodRange(period);
-        const startDate = dateRange.start.toISOString().split('T')[0];
-        const endDate = dateRange.end.toISOString().split('T')[0];
-        
-        const quickResponse = await fetch(`${BACKEND_URL}/stats/dashboard-quick?period=${period}`, { headers });
-        if (quickResponse.ok) {
-          const quickData = await quickResponse.json();
-          
-          const tasksResponse = await fetch(
-            `${BACKEND_URL}/tasks?start_date=${startDate}&end_date=${endDate}&limit=100`,
-            { headers }
-          );
-          let tasksData = { allTasks: [], groupedTasks: [] };
-          
-          if (tasksResponse.ok) {
-            const comprehensiveData = await tasksResponse.json();
-            tasksData = {
-              allTasks: comprehensiveData.tasks || comprehensiveData || [],
-              groupedTasks: comprehensiveData.groupedTasks || []
-            };
-          }
-          
-          const newStats = {
-            overview: {
-              total_attendance: 0,
-              outstanding_cells: quickData.overdueCells || 0,
-              outstanding_tasks: quickData.taskCount || 0,
-              people_behind: 0,
-              total_users: 0,
-              total_tasks: tasksData.allTasks.length
-            },
-            events: [],
-            overdueCells: [],
-            allTasks: tasksData.allTasks,
-            allUsers: [],
-            groupedTasks: tasksData.groupedTasks || [],
-            dateRange: {
-              start: startDate,
-              end: endDate
-            },
-            loading: false,
-            error: null
-          };
-          
-          setStats(newStats);
-          setInitialLoad(false);
-          setIsDataLoaded(true);
-          setIsChangingPeriod(false);
-          setCache(cacheKey, newStats);
-        } else {
-          throw err;
-        }
-      } catch (fallbackErr) {
-        console.error("Fallback also failed:", fallbackErr);
-        setStats(prev => ({ 
-          ...prev, 
-          error: err.message || 'Failed to load data', 
-          loading: false 
-        }));
-        setIsDataLoaded(true);
-        setIsChangingPeriod(false);
-      }
-      
-      setInitialLoad(false);
-    } finally {
-      setRefreshing(false);
+      setCache(cacheKey, fallbackStats);
+    } catch (fallbackErr) {
+      setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
+      setIsDataLoaded(true);
+      setIsChangingPeriod(false);
     }
-  }, [period, refreshing, getPeriodRange, getCache, setCache]);
+  } finally {
+    setRefreshing(false);
+  }
+}, [
+  refreshing,
+  getPeriodRange,
+  getCache,
+  setCache
+]);
 
   // Only fetch data on initial load or when period changes
   useEffect(() => {
@@ -584,13 +569,15 @@ const StatsDashboard = () => {
 
   // Handle period change
   const handlePeriodChange = (e) => {
+
+    if (refreshing || isChangingPeriod) return;
+
     const newPeriod = e.target.value;
+    localStorage.removeItem(`statsDashboard_${period}`);        
+    localStorage.removeItem(`statsDashboard_${newPeriod}`);     
     setPeriod(newPeriod);
     setIsChangingPeriod(true);
     
-    // Clear cache for the new period and fetch fresh data
-    const cacheKey = `statsDashboard_${newPeriod}`;
-    localStorage.removeItem(cacheKey);
     
     // Fetch new data
     fetchStats(true);
@@ -1061,11 +1048,11 @@ const StatsDashboard = () => {
               value={period}
               label="Period"
               onChange={handlePeriodChange}
-              disabled={refreshing || isChangingPeriod}
+              disabled={refreshing}
             >
-              <MenuItem value="thisWeek">Today</MenuItem>
-              <MenuItem value="thisMonth">This week</MenuItem>
-              <MenuItem value="today">This month</MenuItem>
+              <MenuItem value="today">Today</MenuItem>
+              <MenuItem value="thisWeek">This week</MenuItem>
+              <MenuItem value="thisMonth">This month</MenuItem>
               <MenuItem value="previous7">Previous 7 Days</MenuItem>
               <MenuItem value="previousWeek">Previous Week</MenuItem>
               <MenuItem value="previousMonth">Previous Month</MenuItem>
