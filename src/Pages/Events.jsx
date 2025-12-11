@@ -1279,13 +1279,12 @@ const handleSearchSubmit = useCallback(() => {
     page: 1,
     limit: rowsPerPage,
     status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : "CELLS", 
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
     search: trimmedSearch || undefined,
     personal: shouldApplyPersonalFilter,
     start_date: DEFAULT_API_START_DATE
   }, true, false);
-}, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]); 
-
+}, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
   const handleRowsPerPageChange = useCallback((e) => {
     const newRowsPerPage = Number(e.target.value);
     setRowsPerPage(newRowsPerPage);
@@ -1349,7 +1348,6 @@ const handleSearchSubmit = useCallback(() => {
     setSelectedEvent(event);
     setAttendanceModalOpen(true);
   }, []);
-
 
   const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
     console.log(" Closing create event modal, shouldRefresh:", shouldRefresh);
@@ -1447,7 +1445,7 @@ const handleSearchSubmit = useCallback(() => {
   }, [viewFilter, userRole, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
 
 
-  const handleAttendanceSubmit = useCallback(async (data) => {
+ const handleAttendanceSubmit = useCallback(async (data) => {
     try {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
