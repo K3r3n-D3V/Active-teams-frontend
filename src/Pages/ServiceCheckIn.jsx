@@ -342,7 +342,7 @@ function ServiceCheckIn() {
           }
         }
 
-        toast.success(`Refresh complete! Present: ${data.present_count}, New: ${data.new_people_count}, Consolidated: ${data.consolidation_count}`);
+        toast.success(`Refresh complete!`);
       } else {
         throw new Error('Failed to fetch real-time data from database');
       }
