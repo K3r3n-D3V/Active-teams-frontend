@@ -640,6 +640,10 @@ const MobileEventCard = ({
     </div>
   );
 };
+const isValidObjectId = (id) => {
+  if (!id || typeof id !== 'string') return false;
+  return /^[0-9a-fA-F]{24}$/.test(id);
+};
 
 const Events = () => {
   const location = useLocation();
@@ -1091,6 +1095,7 @@ newEvents.forEach((event, i) => {
     }
   };
 
+ 
 const handleStatusFilterChange = useCallback((newStatus) => {
   console.log("Status filter changing to:", newStatus);
 
@@ -1104,9 +1109,9 @@ const handleStatusFilterChange = useCallback((newStatus) => {
   const fetchParams = {
     page: 1,
     limit: rowsPerPage,
+    status: newStatus !== 'all' ? newStatus : undefined,
     start_date: DEFAULT_API_START_DATE,
     _t: Date.now(),
-    // PRESERVE SEARCH QUERY
     ...(searchQuery.trim() && { search: searchQuery.trim() }),
     ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
     ...(shouldApplyPersonalFilter && { personal: true }),
@@ -1121,24 +1126,23 @@ const handleStatusFilterChange = useCallback((newStatus) => {
     })
   };
 
-  // Add status filter if not 'all'
-  if (newStatus && newStatus !== 'all') {
-    fetchParams.status = newStatus;
+  if (newStatus === 'all') {
+    delete fetchParams.status;
   }
 
   console.log("Fetching with status params:", fetchParams);
   fetchEvents(fetchParams, true, false); 
-}, [
-  viewFilter,
-  userRole,
-  rowsPerPage,
-  searchQuery,  
-  selectedEventTypeFilter,
-  isLeaderAt12,
-  currentUserLeaderAt1,
-  fetchEvents,
-  DEFAULT_API_START_DATE
-]);
+},  [
+    viewFilter,
+    userRole,
+    rowsPerPage,
+    searchQuery,
+    selectedEventTypeFilter,
+    isLeaderAt12,
+    currentUserLeaderAt1,
+    fetchEvents,
+    DEFAULT_API_START_DATE
+  ]);
 
   const fetchEventTypes = useCallback(async () => {
     try {
@@ -1265,7 +1269,7 @@ const handleStatusFilterChange = useCallback((newStatus) => {
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, DEFAULT_API_START_DATE]);
 
 
-const handleSearchSubmit = useCallback(() => {
+ const handleSearchSubmit = useCallback(() => {
   const trimmedSearch = searchQuery.trim();
 
   let shouldApplyPersonalFilter = undefined;
@@ -1279,13 +1283,12 @@ const handleSearchSubmit = useCallback(() => {
     page: 1,
     limit: rowsPerPage,
     status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : "CELLS", 
+    event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
     search: trimmedSearch || undefined,
     personal: shouldApplyPersonalFilter,
     start_date: DEFAULT_API_START_DATE
   }, true, false);
-}, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]); 
-
+}, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
   const handleRowsPerPageChange = useCallback((e) => {
     const newRowsPerPage = Number(e.target.value);
     setRowsPerPage(newRowsPerPage);
@@ -1446,346 +1449,342 @@ const handleSearchSubmit = useCallback(() => {
     fetchEvents(apiFilters, true);
   }, [viewFilter, userRole, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
 
-
-  const handleAttendanceSubmit = useCallback(async (data) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      const eventId = selectedEvent._id;
-      const eventName = selectedEvent.eventName || 'Event';
-
-      const leaderEmail = currentUser?.email || '';
-      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
-
-      let payload;
-
-      if (data === "did_not_meet") {
-        payload = {
-          attendees: [],
-          all_attendees: [],
-          leaderEmail,
-          leaderName,
-          did_not_meet: true,
-        };
-      } else if (Array.isArray(data)) {
-        payload = {
-          attendees: data,
-          all_attendees: data,
-          leaderEmail,
-          leaderName,
-          did_not_meet: false,
-        };
-      } else {
-        payload = {
-          ...data,
-          leaderEmail,
-          leaderName,
-        };
-      }
-
-      console.log("Sending payload to backend:", JSON.stringify(payload, null, 2));
-
-      const response = await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        payload,
-        { headers }
-      );
-
-      console.log(" Attendance submitted successfully");
-
-      clearCache();
-
-      // Close modal immediately
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-
-      setSnackbar({
-        open: true,
-        message: payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
-
-      // Show toast immediately
-      toast.success(
-        payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`
-      );
-
-      // Refresh events after a delay
-      setTimeout(() => {
-        (async () => {
-          try {
-            const shouldApplyPersonalFilter =
-              viewFilter === 'personal' &&
-              (userRole === "admin" || userRole === "leader at 12");
-
-            const refreshParams = {
-              page: 1,
-              limit: rowsPerPage,
-              start_date: DEFAULT_API_START_DATE,
-              _t: Date.now(),
-              ...(searchQuery.trim() && { search: searchQuery.trim() }),
-              ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
-              ...(selectedStatus !== 'all' && { status: selectedStatus }),
-              ...(shouldApplyPersonalFilter && { personal: true }),
-              ...(isLeaderAt12 && {
-                leader_at_12_view: true,
-                include_subordinate_cells: true,
-                ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
-                ...(viewFilter === 'personal' ?
-                  { show_personal_cells: true, personal: true } :
-                  { show_all_authorized: true }
-                )
-              })
-            };
-
-            console.log(" Refreshing events after attendance WITH status filter:", refreshParams);
-            await fetchEvents(refreshParams, true, true);
-
-          } catch (refreshError) {
-            console.error("Error refreshing events:", refreshError);
-            toast.error("Failed to refresh events list");
-          }
-        })();
-      }, 1000);
-
-      return { success: true, message: "Attendance submitted successfully" };
-
-    } catch (error) {
-      console.error("Error submitting attendance:", error);
-
-      let errorMessage = "Failed to submit attendance";
-      let errData;
-
-      try {
-        errData = error.response?.data;
-      } catch (e) {
-        console.error("Error parsing error response:", e);
-      }
-
-      if (errData) {
-        if (Array.isArray(errData?.errors)) {
-          errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
-        } else {
-          errorMessage = errData.detail || errData.message || JSON.stringify(errData);
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      console.error("Error details:", errorMessage);
-
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
-
-      toast.error(`Error: ${errorMessage}`);
-
-      return { success: false, message: errorMessage };
-    }
-  }, [
-    selectedEvent,
-    currentUser,
-    BACKEND_URL,
-    clearCache,
-    fetchEvents,
-    rowsPerPage,
-    searchQuery,
-    selectedEventTypeFilter,
-    selectedStatus,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    viewFilter,
-    userRole,
-    DEFAULT_API_START_DATE
-  ]);
-
-  const handleEditEvent = useCallback((event) => {
-    console.log("[handleEditEvent] Opening edit modal for event:", {
-      name: event.eventName,
-      _id: event._id,
-      UUID: event.UUID,
-      id: event.id,
-      uuid: event.uuid,
-      allKeys: Object.keys(event)
-    });
-    const eventToEdit = {
-      ...event,
-      _id: event._id || event.id || null,
-      UUID: event.UUID || event.uuid || null,
-    };
-
-    if (!eventToEdit._id && !eventToEdit.UUID) {
-      console.error(" No identifier found in event:", {
-        event,
-        eventToEdit,
-        availableKeys: Object.keys(event)
-      });
-      toast.error("Cannot edit event: Missing identifier. Please refresh and try again.");
-
-      return;
-    }
-
-    console.log(" Event prepared for editing:", {
-      _id: eventToEdit._id,
-      UUID: eventToEdit.UUID,
-      name: eventToEdit.eventName,
-      hasId: !!eventToEdit._id,
-      hasUUID: !!eventToEdit.UUID
-    });
-
-    setSelectedEvent(eventToEdit);
-    setEditModalOpen(true);
-  }, []);
-
-const handleDeleteEvent = useCallback(async (event) => {
-  console.log("=== DELETE EVENT DEBUG ===");
-  console.log("1. Original event._id:", event._id);
-  
-  // Clean the ID - remove any date suffix (_2025-12-09 etc.)
-  let eventId = event._id;
-  
-  // If the ID contains an underscore with date, split it
-  if (eventId && eventId.includes('_')) {
-    const parts = eventId.split('_');
-    eventId = parts[0]; // Take only the first part (the actual ObjectId)
-    console.log("2. Cleaned ID (removed date suffix):", eventId);
-    console.log("3. Original had suffix:", eventId !== event._id ? "YES" : "NO");
-  }
-  
-  console.log("4. Final ID for deletion:", eventId);
-  console.log("5. Event name:", event.eventName);
-  
-  if (!eventId) {
-    console.error("❌ ERROR: No ID found!");
-    toast.error("Cannot delete: Event ID not found");
-    return;
-  }
-
-  const confirmMessage = `Are you sure you want to delete "${event.eventName || 'this event'}"?`;
-  
-  if (!window.confirm(confirmMessage)) {
-    return;
-  }
-
+const handleAttendanceSubmit = useCallback(async (data) => {
   try {
     const token = localStorage.getItem("token");
-    if (!token) {
-      toast.error("Authentication required");
-      return;
+    const headers = { Authorization: `Bearer ${token}` };
+    
+    // CRITICAL: Use the composite ID that includes the date
+    const eventId = selectedEvent._id;
+    const eventName = selectedEvent.eventName || 'Event';
+    const eventDate = selectedEvent.date || ''; // This should be the specific date from the instance
+
+    console.log("Submitting attendance for:", {
+      eventId,
+      eventName,
+      eventDate,
+      dataType: typeof data,
+      isArray: Array.isArray(data)
+    });
+
+    const leaderEmail = currentUser?.email || '';
+    const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
+
+    let payload;
+
+    if (data === "did_not_meet") {
+      payload = {
+        attendees: [],
+        all_attendees: [],
+        leaderEmail,
+        leaderName,
+        did_not_meet: true,
+        event_date: eventDate // Send the specific event date
+      };
+    } else if (Array.isArray(data)) {
+      payload = {
+        attendees: data,
+        all_attendees: data,
+        leaderEmail,
+        leaderName,
+        did_not_meet: false,
+        event_date: eventDate // Send the specific event date
+      };
+    } else {
+      payload = {
+        ...data,
+        leaderEmail,
+        leaderName,
+        event_date: eventDate // Send the specific event date
+      };
     }
 
-    console.log(`6. Sending DELETE to: ${BACKEND_URL}/events/${eventId}`);
-    
-    const response = await axios.delete(
-      `${BACKEND_URL}/events/${eventId}`,
-      {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
+    console.log("Sending payload to backend:", JSON.stringify(payload, null, 2));
+
+    // Send the COMPOSITE ID (includes date) - backend will extract both parts
+    const response = await axios.put(
+      `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+      payload,
+      { headers }
     );
 
-    console.log("7. Delete successful:", response.data);
-    
-    if (response.status === 200) {
-      toast.success("Event deleted successfully!");
-      
-      // Refresh the events list
-      const refreshParams = {
-        page: 1, // Reset to first page
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now()
-      };
+    console.log(" Attendance submitted successfully:", response.data);
 
-      // Apply current filters
-      if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-        refreshParams.event_type = selectedEventTypeFilter;
-      } else {
-        refreshParams.event_type = "CELLS";
-      }
+    clearCache();
 
-      if (selectedStatus && selectedStatus !== 'all') {
-        refreshParams.status = selectedStatus;
-      }
+    // Close modal immediately
+    setAttendanceModalOpen(false);
+    setSelectedEvent(null);
 
-      if (searchQuery && searchQuery.trim()) {
-        refreshParams.search = searchQuery.trim();
-      }
+    setSnackbar({
+      open: true,
+      message: payload.did_not_meet
+        ? `${eventName} marked as 'Did Not Meet'.`
+        : `Successfully captured attendance for ${eventName}`,
+      severity: "success",
+    });
 
-      // Role-based filters
-      if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
-        if (isLeaderAt12) {
-          refreshParams.leader_at_12_view = true;
-          refreshParams.include_subordinate_cells = true;
-          
-          if (currentUserLeaderAt1) {
-            refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-          }
-          
-          if (viewFilter === 'personal') {
-            refreshParams.show_personal_cells = true;
-            refreshParams.personal = true;
-          } else {
-            refreshParams.show_all_authorized = true;
-          }
-        } else if (isAdmin && viewFilter === 'personal') {
-          refreshParams.personal = true;
+    // Show toast immediately
+    toast.success(
+      payload.did_not_meet
+        ? `${eventName} marked as 'Did Not Meet'.`
+        : `Successfully captured attendance for ${eventName}`
+    );
+
+    // Refresh events after a delay
+    setTimeout(() => {
+      (async () => {
+        try {
+          const shouldApplyPersonalFilter =
+            viewFilter === 'personal' &&
+            (userRole === "admin" || userRole === "leader at 12");
+
+          const refreshParams = {
+            page: 1,
+            limit: rowsPerPage,
+            start_date: DEFAULT_API_START_DATE,
+            _t: Date.now(),
+            ...(searchQuery.trim() && { search: searchQuery.trim() }),
+            ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
+            ...(selectedStatus !== 'all' && { status: selectedStatus }),
+            ...(shouldApplyPersonalFilter && { personal: true }),
+            ...(isLeaderAt12 && {
+              leader_at_12_view: true,
+              include_subordinate_cells: true,
+              ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
+              ...(viewFilter === 'personal' ?
+                { show_personal_cells: true, personal: true } :
+                { show_all_authorized: true }
+              )
+            })
+          };
+
+          console.log(" Refreshing events after attendance:", refreshParams);
+          await fetchEvents(refreshParams, true, true);
+
+        } catch (refreshError) {
+          console.error("Error refreshing events:", refreshError);
+          toast.error("Failed to refresh events list");
         }
-      }
+      })();
+    }, 1000);
 
-      console.log("8. Refreshing events with params:", refreshParams);
-      await fetchEvents(refreshParams, true);
-    }
+    return { success: true, message: "Attendance submitted successfully" };
 
   } catch (error) {
-    console.error("❌ DELETE ERROR DETAILS:");
-    console.error("- Error message:", error.message);
-    console.error("- Status code:", error.response?.status);
-    console.error("- Error data:", error.response?.data);
-    console.error("- Request URL:", error.config?.url);
-    console.error("- Request method:", error.config?.method);
-    
-    if (error.response?.status === 404) {
-      toast.error(`Event not found. ID: ${eventId}`);
-    } else if (error.response?.status === 400) {
-      toast.error(`Invalid request: ${error.response.data?.detail || 'Bad request'}`);
-    } else if (error.response?.status === 401) {
-      toast.error("Unauthorized - Please login again");
-    } else if (error.response?.status === 403) {
-      toast.error("You don't have permission to delete this event");
-    } else {
-      toast.error(`Failed to delete event: ${error.message}`);
+    console.error("Error submitting attendance:", error);
+
+    let errorMessage = "Failed to submit attendance";
+    let errData;
+
+    try {
+      errData = error.response?.data;
+    } catch (e) {
+      console.error("Error parsing error response:", e);
     }
+
+    if (errData) {
+      if (Array.isArray(errData?.errors)) {
+        errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+      } else {
+        errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
+    console.error("Error details:", errorMessage);
+
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: "error",
+    });
+
+    toast.error(`Error: ${errorMessage}`);
+
+    return { success: false, message: errorMessage };
   }
 }, [
+  selectedEvent,
+  currentUser,
   BACKEND_URL,
-  currentPage,
+  clearCache,
+  fetchEvents,
   rowsPerPage,
+  searchQuery,
   selectedEventTypeFilter,
   selectedStatus,
-  searchQuery,
   isLeaderAt12,
-  isAdmin,
-  viewFilter,
   currentUserLeaderAt1,
-  fetchEvents,
+  viewFilter,
+  userRole,
   DEFAULT_API_START_DATE
 ]);
 
- const handleSaveEvent = useCallback(async (eventData) => {
+const handleEditEvent = useCallback((event) => {
+  console.log("[handleEditEvent] Opening edit modal for event:", {
+    name: event.eventName,
+    _id: event._id,
+    UUID: event.UUID,
+    id: event.id,
+    uuid: event.uuid,
+    allKeys: Object.keys(event)
+  });
+  
+  // Extract MongoDB ID from composite ID
+  let eventId = event._id;
+  let eventDate = event.date;
+  
+  if (eventId && eventId.includes("_")) {
+    const parts = eventId.split("_");
+    if (parts.length > 0 && isValidObjectId(parts[0])) {
+      eventId = parts[0]; 
+    }
+  }
+  
+  const eventToEdit = {
+    ...event,
+    _id: eventId, 
+    original_composite_id: event._id, 
+    date: eventDate, 
+    UUID: event.UUID || event.uuid || null,
+  };
+
+  if (!eventToEdit._id && !eventToEdit.UUID) {
+    console.error(" No identifier found in event:", {
+      event,
+      eventToEdit,
+      availableKeys: Object.keys(event)
+    });
+    toast.error("Cannot edit event: Missing identifier. Please refresh and try again.");
+    return;
+  }
+
+  console.log(" Event prepared for editing:", {
+    _id: eventToEdit._id,
+    UUID: eventToEdit.UUID,
+    name: eventToEdit.eventName,
+    hasId: !!eventToEdit._id,
+    hasUUID: !!eventToEdit.UUID,
+    date: eventToEdit.date
+  });
+
+  setSelectedEvent(eventToEdit);
+  setEditModalOpen(true);
+}, []);
+
+const handleDeleteEvent = useCallback(async (event) => {
+  if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
+    try {
+      const token = localStorage.getItem("token");
+      
+      let eventId = event._id;
+      if (eventId && eventId.includes("_")) {
+        const parts = eventId.split("_");
+        if (parts.length > 0 && isValidObjectId(parts[0])) {
+          eventId = parts[0]; 
+          console.log("Extracted MongoDB ID for deletion:", eventId);
+        }
+      }
+      
+      console.log("Deleting event:", {
+        name: event.eventName,
+        id: eventId,
+        originalId: event._id
+      });
+
+      const response = await axios.delete(`${BACKEND_URL}/events/${eventId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.status === 200) {
+        console.log("Event deleted successfully, refreshing with current filters...");
+        
+        const refreshParams = {
+          page: currentPage,
+          limit: rowsPerPage,
+          start_date: DEFAULT_API_START_DATE,
+          _t: Date.now()
+        };
+
+        if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+          refreshParams.event_type = selectedEventTypeFilter;
+        } else {
+          refreshParams.event_type = "CELLS";
+        }
+
+        // Keep status filter
+        if (selectedStatus && selectedStatus !== 'all') {
+          refreshParams.status = selectedStatus;
+        }
+
+        // Keep search query
+        if (searchQuery && searchQuery.trim()) {
+          refreshParams.search = searchQuery.trim();
+        }
+
+        // Apply role-based filters
+        if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
+          if (isLeaderAt12) {
+            refreshParams.leader_at_12_view = true;
+            refreshParams.include_subordinate_cells = true;
+            
+            if (currentUserLeaderAt1) {
+              refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+            }
+            
+            if (viewFilter === 'personal') {
+              refreshParams.show_personal_cells = true;
+              refreshParams.personal = true;
+            } else {
+              refreshParams.show_all_authorized = true;
+            }
+          } else if (isAdmin && viewFilter === 'personal') {
+            refreshParams.personal = true;
+          }
+        }
+
+        console.log(" Refreshing with params after deletion:", refreshParams);
+        await fetchEvents(refreshParams, true);
+        
+        toast.success("Event deleted successfully!");
+      }
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      
+      let errorMessage = "Failed to delete event";
+      if (error.response?.data) {
+        errorMessage = error.response.data.detail || error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(`Error: ${errorMessage}`);
+    }
+  }
+}, [
+  BACKEND_URL, 
+  currentPage, 
+  rowsPerPage, 
+  selectedEventTypeFilter, 
+  selectedStatus, 
+  searchQuery, 
+  isLeaderAt12, 
+  isAdmin, 
+  viewFilter, 
+  currentUserLeaderAt1, 
+  fetchEvents, 
+  DEFAULT_API_START_DATE
+]);
+
+const handleSaveEvent = useCallback(async (eventData) => {
   try {
     console.log("[handleSaveEvent] Received event data:", eventData);
 
-    const eventIdentifier = selectedEvent?._id || selectedEvent?.id;
-
+    // Extract MongoDB ID from selectedEvent
+    const eventIdentifier = selectedEvent?._id;
+    
     if (!eventIdentifier) {
       throw new Error("No event identifier found");
     }
@@ -1918,10 +1917,10 @@ const handlePersonEdit = useCallback(async (personName, field, newValue) => {
       return;
     }
 
-    // Encode person name for URL
+    // This function edits ALL cells for a person, not a specific instance
+    // So we don't need to worry about composite IDs here
     const encodedPersonName = encodeURIComponent(personName);
     
-    // Prepare update data
     const updatePayload = {
       [field]: newValue
     };
@@ -1948,10 +1947,8 @@ const handlePersonEdit = useCallback(async (personName, field, newValue) => {
       
       toast.success(`Updated ${result.updated_count} cells for ${personName}`);
       
-      // Clear cache and refresh data
       clearCache();
       
-      // Refresh events list
       setTimeout(() => {
         const refreshParams = {
           page: currentPage,
@@ -2212,7 +2209,7 @@ const handleDeleteType = useCallback(async () => {
           `${eventsCount} event(s) are using this event type:\n\n` +
           `${eventsListText}\n` +
           `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ''}\n` +
-          `━\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
           ` FORCE DELETE OPTION:\n\n` +
           `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
           `Click Cancel to keep everything.\n\n` +
@@ -2350,7 +2347,7 @@ const handleDeleteType = useCallback(async () => {
       const token = localStorage.getItem("token");
       const userProfile = localStorage.getItem("userProfile");
 
-      console.log(" ACCESS CHECK:", { token: !!token, userProfile: !!userProfile });
+      console.log("🔐 ACCESS CHECK:", { token: !!token, userProfile: !!userProfile });
 
       if (!token || !userProfile) {
         toast.error("Please log in to access events");
@@ -2363,7 +2360,7 @@ const handleDeleteType = useCallback(async () => {
         const userRole = currentUser?.role?.toLowerCase() || "";
         const email = currentUser?.email || "";
 
-        console.log(" Checking user access:", { userRole, email });
+        console.log("🔐 Checking user access:", { userRole, email });
 
         const isAdmin = userRole === "admin";
         const isLeaderAt12 =
@@ -2467,7 +2464,7 @@ const handleDeleteType = useCallback(async () => {
         const currentUser = JSON.parse(userProfile);
         const userRole = currentUser?.role?.toLowerCase() || "";
 
-        console.log(" Checking user access:", { userRole });
+        console.log("🔐 Checking user access:", { userRole });
 
         const isAdmin = userRole === "admin";
         const isAnyLeader = userRole.includes("leader");  //  Simplified
@@ -2876,101 +2873,100 @@ const handleDeleteType = useCallback(async () => {
     clearCache();
   }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
 
-useEffect(() => {
-  if (eventTypes.length === 0) {
-    return;
-  }
-
-  const fetchParams = {
-    page: currentPage,
-    limit: rowsPerPage,
-    start_date: DEFAULT_API_START_DATE
-  };
-
-  // PRESERVE SEARCH QUERY
-  if (searchQuery.trim()) {
-    fetchParams.search = searchQuery.trim();
-  }
-
-  if (selectedStatus && selectedStatus !== 'all') {
-    fetchParams.status = selectedStatus;
-  }
-
-  let endpointType = "cells";
-
-  if (selectedEventTypeFilter === 'all') {
-    fetchParams.event_type = "CELLS";
-    endpointType = "cells";
-  } else if (selectedEventTypeFilter === 'CELLS') {
-    fetchParams.event_type = "CELLS";
-    endpointType = "cells";
-  } else {
-    fetchParams.event_type = selectedEventTypeFilter;
-    endpointType = "other";
-  }
-
-  console.log(" Fetching with status filter:", selectedStatus, fetchParams);
-
-  if (endpointType === "cells") {
-    if (isAdmin) {
-      if (viewFilter === 'personal') {
-        fetchParams.personal = true;
-      }
-    } else if (isRegistrant || isRegularUser) {
-      fetchParams.personal = true;
-    } else if (isLeaderAt12) {
-      fetchParams.leader_at_12_view = true;
-
-      if (currentUserLeaderAt1) {
-        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-      }
-
-      if (viewFilter === 'personal') {
-        // PERSONAL: Only their own cell
-        fetchParams.show_personal_cells = true;
-        fetchParams.personal = true;
-      } else {
-        // VIEW ALL: Only disciples' cells
-        fetchParams.show_all_authorized = true;
-        fetchParams.include_subordinate_cells = true;
-      }
+  useEffect(() => {
+    if (eventTypes.length === 0) {
+      return;
     }
 
-  } else {
-    console.log("Loading event type data for:", selectedEventTypeFilter);
+    const fetchParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE
+    };
 
-    delete fetchParams.personal;
-    delete fetchParams.leader_at_12_view;
-    delete fetchParams.show_personal_cells;
-    delete fetchParams.show_all_authorized;
-    delete fetchParams.include_subordinate_cells;
-    delete fetchParams.leader_at_1_identifier;
+    if (selectedStatus && selectedStatus !== 'all') {
+      fetchParams.status = selectedStatus;
+    }
 
-    console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
-  }
+    if (searchQuery.trim()) {
+      fetchParams.search = searchQuery.trim();
+    }
 
-  Object.keys(fetchParams).forEach(key =>
-    fetchParams[key] === undefined && delete fetchParams[key]
-  );
+    let endpointType = "cells";
 
-  console.log("FINAL API call params:", fetchParams);
-  fetchEvents(fetchParams, true);
-}, [
-  selectedEventTypeFilter,
-  selectedStatus,
-  viewFilter,
-  currentPage,
-  rowsPerPage,
-  searchQuery,  
-  eventTypes.length,
-  isLeaderAt12,
-  isAdmin,
-  isRegularUser,
-  isRegistrant,
-  currentUserLeaderAt1,
-  fetchEvents,
-  DEFAULT_API_START_DATE
-]);
+    if (selectedEventTypeFilter === 'all') {
+      fetchParams.event_type = "CELLS";
+      endpointType = "cells";
+    } else if (selectedEventTypeFilter === 'CELLS') {
+      fetchParams.event_type = "CELLS";
+      endpointType = "cells";
+    } else {
+      fetchParams.event_type = selectedEventTypeFilter;
+      endpointType = "other";
+    }
+
+    console.log(" Fetching with status filter:", selectedStatus, fetchParams);
+
+    if (endpointType === "cells") {
+      if (isAdmin) {
+        if (viewFilter === 'personal') {
+          fetchParams.personal = true;
+        }
+      } else if (isRegistrant || isRegularUser) {
+        fetchParams.personal = true;
+      } else if (isLeaderAt12) {
+        fetchParams.leader_at_12_view = true;
+
+        if (currentUserLeaderAt1) {
+          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+        }
+
+        if (viewFilter === 'personal') {
+          // PERSONAL: Only their own cell
+          fetchParams.show_personal_cells = true;
+          fetchParams.personal = true;
+        } else {
+          // VIEW ALL: Only disciples' cells
+          fetchParams.show_all_authorized = true;
+          fetchParams.include_subordinate_cells = true;
+        }
+      }
+
+    } else {
+      console.log("Loading event type data for:", selectedEventTypeFilter);
+
+      delete fetchParams.personal;
+      delete fetchParams.leader_at_12_view;
+      delete fetchParams.show_personal_cells;
+      delete fetchParams.show_all_authorized;
+      delete fetchParams.include_subordinate_cells;
+      delete fetchParams.leader_at_1_identifier;
+
+      console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
+    }
+
+    Object.keys(fetchParams).forEach(key =>
+      fetchParams[key] === undefined && delete fetchParams[key]
+    );
+
+    console.log("FINAL API call params:", fetchParams);
+    fetchEvents(fetchParams, true);
+  }, [
+    selectedEventTypeFilter,
+    selectedStatus,
+    viewFilter,
+    currentPage,
+    rowsPerPage,
+    searchQuery,
+    eventTypes.length,
+    isLeaderAt12,
+    isAdmin,
+    isRegularUser,
+    isRegistrant,
+    currentUserLeaderAt1,
+    fetchEvents,
+    DEFAULT_API_START_DATE
+  ]);
 
   const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
     const statuses = [
@@ -3042,16 +3038,6 @@ useEffect(() => {
   };
 
   const ViewFilterButtons = () => {
-
-    const isLeader144or1728 =
-          userRole.includes("leader at 144") ||
-          userRole.includes("leader at 1278") ||
-          userRole.includes("leader at 1728");
-
-  //If the user is ANY kind of leader, do not show this UI
-  if (isLeader144or1728) {
-    return null;
-  }
     console.log("is it a leader at 12 ",isLeaderAt12)
     const shouldShowToggle = (isAdmin || (isLeaderAt12)) &&
       (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
@@ -3198,59 +3184,57 @@ useEffect(() => {
 
     const canEditEventTypes = isAdmin;
 
-const handleEventTypeClick = (typeValue) => {
-  console.log(" Event type clicked:", typeValue);
+    const handleEventTypeClick = (typeValue) => {
+      console.log(" Event type clicked:", typeValue);
 
-  setSelectedEventTypeFilter(typeValue);
-  setCurrentPage(1);
+      setSelectedEventTypeFilter(typeValue);
 
-  const fetchParams = {
-    page: 1,
-    limit: rowsPerPage,
-    start_date: DEFAULT_API_START_DATE,
-    event_type: typeValue === 'all' ? "CELLS" : typeValue,
-    _t: Date.now() // Cache buster
-  };
+      setCurrentPage(1);
 
-  // KEEP THE EXISTING SEARCH QUERY
-  if (searchQuery.trim()) {
-    fetchParams.search = searchQuery.trim();
-  }
+      const fetchParams = {
+        page: 1,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        event_type: typeValue === 'all' ? "CELLS" : typeValue,
+        _t: Date.now() // Cache buster
+      };
 
-  // KEEP THE EXISTING STATUS FILTER
-  if (selectedStatus !== 'all') {
-    fetchParams.status = selectedStatus;
-  }
-
-  if (typeValue === 'all' || typeValue === 'CELLS') {
-    if (isAdmin) {
-      if (viewFilter === 'personal') {
-        fetchParams.personal = true;
+      if (selectedStatus !== 'all') {
+        fetchParams.status = selectedStatus;
       }
-    } else if (isRegistrant || isRegularUser) {
-      fetchParams.personal = true;
-    } else if (isLeaderAt12) {
-      fetchParams.leader_at_12_view = true;
-      fetchParams.include_subordinate_cells = true;
 
-      if (viewFilter === 'personal') {
-        fetchParams.show_personal_cells = true;
-        fetchParams.personal = true;
+      if (searchQuery.trim()) {
+        fetchParams.search = searchQuery.trim();
+      }
+
+      if (typeValue === 'all' || typeValue === 'CELLS') {
+        if (isAdmin) {
+          if (viewFilter === 'personal') {
+            fetchParams.personal = true;
+          }
+        } else if (isRegistrant || isRegularUser) {
+          fetchParams.personal = true;
+        } else if (isLeaderAt12) {
+          fetchParams.leader_at_12_view = true;
+          fetchParams.include_subordinate_cells = true;
+
+          if (viewFilter === 'personal') {
+            fetchParams.show_personal_cells = true;
+            fetchParams.personal = true;
+          } else {
+            fetchParams.show_all_authorized = true;
+          }
+        }
       } else {
-        fetchParams.show_all_authorized = true;
+        // For other event types, remove personal filters
+        delete fetchParams.personal;
+        delete fetchParams.leader_at_12_view;
+        delete fetchParams.show_personal_cells;
+        delete fetchParams.show_all_authorized;
+        delete fetchParams.include_subordinate_cells;
       }
-    }
-  } else {
-    // For other event types, remove personal filters
-    delete fetchParams.personal;
-    delete fetchParams.leader_at_12_view;
-    delete fetchParams.show_personal_cells;
-    delete fetchParams.show_all_authorized;
-    delete fetchParams.include_subordinate_cells;
-  }
-  
-  fetchEvents(fetchParams, true);
-};
+      fetchEvents(fetchParams, true);
+    };
 
     const mobileEventTypeStyles = {
       container: {
@@ -3332,36 +3316,36 @@ const handleEventTypeClick = (typeValue) => {
       },
     };
 
-  const allTypes = useMemo(() => {
-  const availableTypes = eventTypes
-    .map(t => t.name || t)
-    .filter(name => name && name !== "all");
+    const allTypes = useMemo(() => {
+      const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
 
-  if (isAdmin) {
-    const adminTypes = ["all"];
-    availableTypes.forEach(type => adminTypes.push(type));
-    return adminTypes;
-  }
-
-  if (isRegistrant) {
-    const registrantTypes = ["all"];
-    availableTypes.forEach(type => registrantTypes.push(type));
-    return registrantTypes;
-  }
-
-  //Leaders ONLY see cell types
-  if (isLeaderAt12) {
-    const leader12Types = ["all"];
-    availableTypes.forEach(type => leader12Types.push(type));
-    return leader12Types;
-  }
-
-  if (isRegularUser) {
-    return ["all"];
-  }
-
-  return ["all"];
-}, [eventTypes, isAdmin, isRegistrant, isLeaderAt12, isRegularUser]);
+      //  FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
+      if (isAdmin) {
+        // Admin sees everything
+        const adminTypes = ["all"];
+        availableTypes.forEach(type => {
+          adminTypes.push(type);
+        });
+        return adminTypes;
+      } else if (isRegistrant) {
+        const registrantTypes = ["all"];
+        availableTypes.forEach(type => {
+          registrantTypes.push(type);
+        });
+      
+        return registrantTypes;
+      } else if (isLeaderAt12) {
+        const leaderTypes = ["all"];
+        availableTypes.forEach(type => {
+          leaderTypes.push(type);
+        });
+        return leaderTypes;
+      } else if (isRegularUser) {
+        return ["all"];
+      } else {
+        return ["all"];
+      }
+    }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser]);
 
     const getDisplayName = (type) => {
       if (!type) return "";
