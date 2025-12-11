@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useContext } from "react";
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, Typography, useTheme, MenuItem, Autocomplete,
@@ -15,9 +15,9 @@ import {
   Groups as LeaderIcon
 } from "@mui/icons-material";
 import { LoadingButton } from "@mui/lab";
-import axios from "axios";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -74,6 +74,7 @@ const useDebounce = (value, delay) => {
 export default function AddPersonDialog({ open, onClose, onSave, formData, setFormData, isEdit = false, personId = null }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
+  const { authFetch } = useContext(AuthContext);
   
   const [peopleList, setPeopleList] = useState([]);
   const [errors, setErrors] = useState({});
@@ -154,10 +155,12 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     const fetchAllPeople = async () => {
       setIsLoadingPeople(true);
       try {
-        const response = await axios.get(`${BASE_URL}/cache/people`);
+        // Use authFetch instead of axios
+        const response = await authFetch(`${BASE_URL}/cache/people`);
         
-        if (response.data.success) {
-          const cachedData = response.data.cached_data || [];
+        if (response.ok) {
+          const data = await response.json();
+          const cachedData = data.cached_data || [];
           setPeopleList(cachedData);
         } else {
           await fetchPeopleFallback();
@@ -171,9 +174,11 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
     const fetchPeopleFallback = async () => {
       try {
-        const response = await axios.get(`${BASE_URL}/people/simple?per_page=1000`);
-        if (response.data.success) {
-          setPeopleList(response.data.results || []);
+        // Use authFetch instead of axios
+        const response = await authFetch(`${BASE_URL}/people/simple?per_page=1000`);
+        if (response.ok) {
+          const data = await response.json();
+          setPeopleList(data.results || []);
         }
       } catch (fallbackErr) {
         setPeopleList([]);
@@ -181,7 +186,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     };
 
     fetchAllPeople();
-  }, [open]);
+  }, [open, authFetch]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -380,14 +385,36 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         stage: formData.stage || "Win", 
       };
 
-      let res;
+      let response;
 
       if (isEdit && personId) {
-        res = await axios.patch(`${BASE_URL}/people/${personId}`, payload);
-        onSave({ ...payload, _id: personId });
+        // Use authFetch for PATCH request
+        response = await authFetch(`${BASE_URL}/people/${personId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          onSave({ ...payload, _id: personId });
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Update failed");
+        }
       } else {
-        res = await axios.post(`${BASE_URL}/people`, payload);
-        onSave(res.data);
+        // Use authFetch for POST request
+        response = await authFetch(`${BASE_URL}/people`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          onSave(data);
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Save failed");
+        }
       }
 
       if (!isEdit) {
@@ -395,7 +422,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       }
       onClose();
     } catch (err) {
-      const msg = err.response?.data?.detail || "An error occurred";
+      const msg = err.message || "An error occurred";
       toast.error(`Error: ${msg}`);
     } finally {
       setIsSubmitting(false);

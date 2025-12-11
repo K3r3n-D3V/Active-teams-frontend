@@ -1,4 +1,4 @@
-const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`; // replace with your backend API URL
+const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
 export const login = async (email, password) => {
   const response = await fetch(`${API_BASE_URL}/login`, {
@@ -14,7 +14,7 @@ export const login = async (email, password) => {
     throw new Error(errorData.message || "Login failed");
   }
   
-  return response.json(); // Should return { access_token, refresh_token_id, refresh_token } or similar
+  return response.json();
 };
 
 export const logout = async (accessToken) => {
@@ -49,43 +49,5 @@ export const refreshToken = async (refreshTokenId, refreshTokenValue) => {
     throw new Error(errorData.message || "Token refresh failed");
   }
 
-  return response.json(); // Should return new access and refresh tokens
+  return response.json();
 };
-
-
-// // Add this function to your StatsDashboard component
-// export const calculateOverdueCells = (events) => {
-//   const today = new Date();
-//   today.setHours(0, 0, 0, 0);
-
-//   return events.filter(event => {
-//     // Must match exactly what your Events screen uses
-//     if (!event.eventType) return false;
-    
-//     const eventType = event.eventType.toLowerCase();
-//     const isCellEvent = eventType.includes('cell') || 
-//                        eventType.includes('small group') ||
-//                        eventType.includes('small-group') ||
-//                        eventType.includes('small_groups');
-    
-//     if (!isCellEvent) return false;
-
-//     // Completion logic that matches Events screen
-//     const did_not_meet = event.did_not_meet || false;
-//     const hasAttendees = event.attendees && event.attendees.length > 0;
-//     const status = (event.status || '').toLowerCase().trim();
-    
-//     const isCompleted = hasAttendees || 
-//                        status === 'completed' || 
-//                        status === 'closed' || 
-//                        did_not_meet;
-
-//     if (isCompleted) return false;
-//     if (!event.date) return false;
-    
-//     const eventDate = new Date(event.date);
-//     eventDate.setHours(0, 0, 0, 0);
-    
-//     return eventDate < today;
-//   });
-// };
