@@ -264,6 +264,48 @@ export const AuthProvider = ({ children }) => {
     persistUser(withAvatar);
   };
 
+   const requestPasswordReset = async (email) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || err.message || 'Failed to request password reset');
+      }
+
+      const data = await res.json();
+      return data;
+    } catch (error) {
+      console.error('Password reset request error:', error);
+      throw error;
+    }
+  };
+
+  const resetPassword = async (token, newPassword) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, new_password: newPassword })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || err.message || 'Failed to reset password');
+      }
+
+      const data = await res.json();
+      return data;
+    } catch (error) {
+      console.error('Password reset error:', error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -275,7 +317,9 @@ export const AuthProvider = ({ children }) => {
       updateProfilePicture,
       getDefaultAvatar,
       setUser: setUserAndPersist,
-      attemptRefresh
+      attemptRefresh,
+      requestPasswordReset,
+      resetPassword
     }}>
       {children}
     </AuthContext.Provider>
