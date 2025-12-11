@@ -19,23 +19,20 @@ import {
   Divider,
   Chip,
   CircularProgress,
-  // IconButton, // Commented out - not used in new code
   Tooltip,
   Checkbox,
   FormGroup,
   Collapse,
 } from '@mui/material';
 import {
-  // Delete as DeleteIcon, // Commented out - not used in new code
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Warning as WarningIcon,
   Person as PersonIcon,
   Event as EventIcon,
-  Lock as LockIcon, // Added from new code
+  Lock as LockIcon, 
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
-// Define user role constants (from new code)
 const USER_ROLES = {
   ADMIN: 'admin',
   LEADER_1: 'leader1',
@@ -57,14 +54,13 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
  
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
  
-  // Get user role from localStorage (from Profile component logic - new code)
   const [loggedInUserRole, setLoggedInUserRole] = useState(() => {
     try {
       const storedProfile = localStorage.getItem("userProfile");
       if (storedProfile) {
         const parsed = JSON.parse(storedProfile);
         const role = parsed.role || "user";
-        console.log("🔐 EditEventModal: Logged-in user role:", role);
+        console.log(" EditEventModal: Logged-in user role:", role);
         return role;
       }
     } catch (e) {
@@ -72,7 +68,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     }
     return "user";
   });
-  // Helper functions to check user role (from Profile component - new code)
   const isAdmin = loggedInUserRole === USER_ROLES.ADMIN;
   const isLeader1 = loggedInUserRole === USER_ROLES.LEADER_1;
   const isLeader12 = loggedInUserRole === USER_ROLES.LEADER_12;
@@ -80,10 +75,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const isRegistrant = loggedInUserRole === USER_ROLES.REGISTRANT;
   const isRegularUser = loggedInUserRole === USER_ROLES.USER;
  
-  // Check if user has edit permission (Admin or Leader 1 only - new code)
   const hasEditPermission = isAdmin || isLeader1;
  
-  // Check if user is any type of leader (UPDATE: for email field permissions)
   const isAnyLeader = isAdmin || isLeader1 || isLeader12 || isLeader144;
  
   // Field mapping for related fields
@@ -127,14 +120,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     'Reoccurring': ['Reoccurring', 'recurring'],
     'recurring': ['recurring', 'Reoccurring'],
   };
-  // Permission logic based on requirements (from new code):
-  // 1. Week identifier - disabled for ALL users (registrant, users, leader at 144)
-  // 2. Original event ID - disabled for ALL users
-  // 3. Leader fields - disabled for ALL users except Admin and Leader 1
-  // 4. Event type - disabled for ALL users except Admin and Leader 1
-  // 5. Week identifier specifically for leader at 144 (already covered in point 1)
-  // 6. Leader field for leader at 144 - disabled
-  // 7. UPDATE: Email fields should be editable by ALL leaders (Admin, Leader 1, Leader 144)
+ 
  
   const getFieldPermissions = useCallback((field) => {
     const fieldLower = field.toLowerCase();
@@ -161,12 +147,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                                    fieldLower === 'leader12' ||
                                    fieldLower.includes('leader at 12');
    
-    // // Special case for "Leader at 144" specific fields (commented out - not used)
-    // const isLeader144Field = fieldLower.includes('144') ||
-    //                         fieldLower.includes('leader_at_144') ||
-    //                         fieldLower === 'leader144';
-   
-    // Permission logic
     if (isWeekIdentifier || isOriginalEventId) {
       // Always disabled for ALL users
       return { disabled: true, reason: 'This field cannot be edited' };
@@ -190,7 +170,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       }
      
       if (!hasEditPermission) {
-        // Non-admin/non-leader1 users cannot edit restricted leader fields
         return {
           disabled: true,
           reason: 'Leader fields can only be edited by administrators and Leader 1'
@@ -513,17 +492,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 readOnly: isDisabled,
               }}
             />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
+      
           </Box>
         </FieldWrapper>
       );
@@ -548,17 +517,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 readOnly: isDisabled,
               }}
             />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
+           
           </Box>
         </FieldWrapper>
       );
@@ -582,17 +541,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 readOnly: isDisabled,
               }}
             />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
+            
           </Box>
         </FieldWrapper>
       );
@@ -613,11 +562,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               }
               label={labelContent}
             />
-            {/* Commented out old delete icon functionality
-            <IconButton size="small" onClick={() => handleChange(field, false)}>
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-            */}
+       
           </Box>
         </FieldWrapper>
       );
@@ -631,7 +576,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {displayName}
               {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-              {isDisabled && <LockIcon fontSize="small" color="disabled" />} {/* From new code */}
+              {isDisabled && <LockIcon fontSize="small" color="disabled" />} 
             </Typography>
             <FormGroup row>
               {days.map(day => (
@@ -641,21 +586,21 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                     <Checkbox
                       checked={value.includes(day)}
                       onChange={(e) => {
-                        if (isDisabled) return; // From new code
+                        if (isDisabled) return; 
                         const newValue = e.target.checked
                           ? [...value, day]
                           : value.filter(d => d !== day);
                         handleChange(field, newValue);
                       }}
                       size="small"
-                      disabled={isDisabled} // From new code
+                      disabled={isDisabled} 
                     />
                   }
                   label={day.substring(0, 3)}
                 />
               ))}
             </FormGroup>
-            {!isDisabled && ( // From new code - conditionally show clear button
+            {!isDisabled && ( 
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
                 <Button size="small" onClick={() => handleChange(field, [])}>
                   Clear All
@@ -689,17 +634,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               </Select>
               {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
             </FormControl>
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
+
           </Box>
         </FieldWrapper>
       );
@@ -731,35 +666,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         </FieldWrapper>
       );
     }
-   
-    /* Commenting out duplicate status handling section
-    if (fieldLower === 'status') {
-      const statusOptions = ['open', 'closed', 'complete', 'incomplete', 'did_not_meet', 'cancelled'];
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ position: 'relative' }}>
-            <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={value || ''}
-                label="Status"
-                onChange={(e) => handleChange(field, e.target.value)}
-                disabled={isDisabled}
-              >
-                <MenuItem value="">None</MenuItem>
-                {statusOptions.map(status => (
-                  <MenuItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-                  </MenuItem>
-                ))}
-              </Select>
-              {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
-            </FormControl>
-          </Box>
-        </FieldWrapper>
-      );
-    }
-    */
    
     if (fieldLower.includes('description') || (typeof value === 'string' && value.length > 50)) {
       return (
@@ -780,17 +686,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 readOnly: isDisabled,
               }}
             />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
           </Box>
         </FieldWrapper>
       );
@@ -812,17 +707,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               readOnly: isDisabled,
             }}
           />
-          {/* Commented out old delete icon functionality
-          {value && (
-            <IconButton
-              size="small"
-              onClick={() => handleChange(field, '')}
-              sx={{ position: 'absolute', right: 8, top: 20 }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-          */}
+         
         </Box>
       </FieldWrapper>
     );
@@ -871,8 +756,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Person: <strong>{originalPersonIdentifier || 'Unknown'}</strong>
-              <Typography variant="caption" color="info.main" sx={{ ml: 2 }}> {/* From new code */}
-                (Logged in as: {getUserRole()}) {/* From new code */}
+              <Typography variant="caption" color="info.main" sx={{ ml: 2 }}>
+                (Logged in as: {getUserRole()}) 
               </Typography>
             </Typography>
           </Box>
@@ -888,7 +773,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
      
       <DialogContent dividers>
         <Box sx={{ pt: 1 }}>
-          {!hasEditPermission && ( // From new code
+          {!hasEditPermission && ( 
             <Alert severity="info" sx={{ mb: 2 }}>
               <LockIcon fontSize="small" sx={{ mr: 1 }} />
               Some fields are restricted to administrators and Leader 1 only.
@@ -906,7 +791,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 value={editScope}
                 onChange={(e) => setEditScope(e.target.value)}
                 size="small"
-                disabled={editScope === 'person' && !isAdmin} // From new code
+                disabled={editScope === 'person' && !isAdmin} 
               >
                 <MenuItem value="single">
                   <Box>
@@ -918,14 +803,14 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                     </Typography>
                   </Box>
                 </MenuItem>
-                <MenuItem value="person" disabled={!originalPersonIdentifier || !isAdmin}> {/* Modified with !isAdmin */}
+                <MenuItem value="person" disabled={!originalPersonIdentifier || !isAdmin}> 
                   <Box>
                     <Typography variant="body2" fontWeight="bold">
                       All Person's Events
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       Update all {originalPersonIdentifier}'s events
-                      {!isAdmin && " (Admin only)"} {/* From new code */}
+                      {!isAdmin && " (Admin only)"} 
                     </Typography>
                   </Box>
                 </MenuItem>
@@ -936,7 +821,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               <Alert severity="info" sx={{ mt: 2 }}>
                 <WarningIcon sx={{ mr: 1 }} />
                 This will update all events for <strong>{originalPersonIdentifier}</strong>.
-                {!isAdmin && " This feature requires administrator privileges."} {/* From new code */}
+                {!isAdmin && " This feature requires administrator privileges."}
               </Alert>
             )}
           </Box>
@@ -971,7 +856,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                           <Typography variant="caption">
                             <strong>To:</strong> {newValue !== '' ? JSON.stringify(newValue) : '(remove field)'}
                           </Typography>
-                          {isDisabled && ( // From new code
+                          {isDisabled && ( 
                             <>
                               <br />
                               <Typography variant="caption" color="error">
@@ -985,12 +870,12 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                       <Chip
                         label={displayField}
                         size="small"
-                        color={isDisabled ? "error" : "primary"} // Modified from new code
+                        color={isDisabled ? "error" : "primary"} 
                         variant="outlined"
                         onDelete={() => {
                           handleChange(field, event[field] !== undefined ? event[field] : '');
                         }}
-                        icon={isDisabled ? <LockIcon fontSize="small" /> : undefined} // From new code
+                        icon={isDisabled ? <LockIcon fontSize="small" /> : undefined} 
                       />
                     </Tooltip>
                   );
