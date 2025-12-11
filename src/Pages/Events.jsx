@@ -980,6 +980,7 @@ newEvents.forEach((event, i) => {
     });
   }
 });
+console.log("CELLS FETCHED",responseData)
 
       if (newEvents.length > 0) {
         console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
