@@ -1078,8 +1078,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             <Grid container spacing={2}>
               {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email',
                 'date', 'Date Of Event', 'time', 'Time', 'location', 'Address',
-                'status', // Keep only one status field
-                // 'Status', // Commented out duplicate status field
+                'status', 
                 'recurring_day', 'Day', 'description', 'leader1', 'leader12', 'Leader at 12']
                 .filter(field => availableFields.includes(field))
                 .map(field => (
