@@ -50,7 +50,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         setLoadingRecipients(true);
         setError("");
         
-        // Use authFetch instead of axios
+        
         const response = await authFetch(`${BASE_URL}/people/search?query=${encodeURIComponent(query.trim())}&limit=25&fields=Name,Surname,Phone,Email,Leader @1,Leader @12,Leader @144,Leader @1728,leader1,leader12,leader144,leader1728,Stage,DecisionHistory`);
         
         if (response.ok) {
@@ -221,12 +221,12 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     console.log("📝 Decision type changed to:", event.target.value);
   };
 
-  // FIXED: Simplified leader email lookup using authFetch
+  
   const findLeaderEmail = async (leaderName) => {
     if (!leaderName || leaderName === "No Leader Assigned") return "";
     
     try {
-      // Use authFetch instead of axios
+      
       const response = await authFetch(`${BASE_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`);
       
       if (response.ok) {
@@ -253,7 +253,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
   };
 
-  // FIXED: Enhanced handleFinish with better validation
+  
   const handleFinish = async () => {
     if (!recipient) {
       setError("Please select a person for consolidation");
@@ -283,17 +283,17 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       return;
     }
 
-    // IMPORTANT: Log current check-in status before proceeding
+    
     console.log("🔍 PRE-CONSOLIDATION CHECK - Person status:", {
       name: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
       email: recipient.Email || recipient.email,
-      isCheckedIn: false, // Consolidation should NEVER check people in
+      isCheckedIn: false, 
       action: "Creating consolidation task only"
     });
 
     const decisionType = taskStage.toLowerCase() === 'recommitment' ? 'recommitment' : 'first_time';
     
-    // Get leader's email
+    
     const leaderEmail = await findLeaderEmail(leaderInfo.leader);
     
     const consolidationData = {
@@ -312,7 +312,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         recipient["Leader @144"] || recipient.leader144 || "",
         recipient["Leader @1728"] || recipient.leader1728 || ""
       ],
-      // EXPLICITLY state this is not a check-in
+      
       is_check_in: false,
       attendance_status: "not_checked_in"
     };
@@ -324,7 +324,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     try {
       console.log("🔑 Using authFetch for consolidation creation...");
 
-      // Use authFetch instead of axios for creating consolidation record
+      
       const response = await authFetch(`${BASE_URL}/consolidations`, {
         method: "POST",
         body: JSON.stringify(consolidationData),
@@ -334,7 +334,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         const responseData = await response.json();
         console.log("✅ Consolidation creation response:", responseData);
 
-        // Call onFinish with consolidation data only - NO CHECK-IN
+        
         onFinish({
           ...responseData,
           recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
@@ -346,13 +346,13 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           recipient_email: recipient.Email || recipient.email || "",
           recipient_phone: recipient.Phone || recipient.phone || "",
           leader_email: leaderEmail,
-          // EXPLICITLY mark that this is not a check-in
+          
           isConsolidationOnly: true
         });
         
         onClose();
         
-        // Reset form
+        
         setRecipient(null);
         setAssignedTo("");
         setTaskStage("");
