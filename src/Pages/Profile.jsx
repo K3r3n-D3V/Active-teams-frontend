@@ -1,4 +1,3 @@
-
 import React, {
   useState,
   useCallback,
@@ -31,6 +30,7 @@ import {
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
 import { UserContext } from "../contexts/UserContext.jsx";
+import { AuthContext } from "../contexts/AuthContext.jsx"; // Import AuthContext
 import {
   Edit,
   Save,
@@ -52,8 +52,21 @@ const carouselTexts = [
 /** API helpers */
 const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
+// Updated: Get token from any possible key
 const createAuthenticatedRequest = () => {
-  const token = localStorage.getItem("token");
+  // Try all possible token keys
+  const token = 
+    localStorage.getItem("access_token") || 
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken");
+  
+  console.log("🔐 Token found:", token ? "✓ Yes" : "✗ No");
+  console.log("🔐 Token key used:", 
+    localStorage.getItem("access_token") ? "access_token" :
+    localStorage.getItem("token") ? "token" :
+    localStorage.getItem("accessToken") ? "accessToken" : "None"
+  );
+  
   return axios.create({
     baseURL: BACKEND_URL,
     headers: {
@@ -63,21 +76,223 @@ const createAuthenticatedRequest = () => {
   });
 };
 
-// Enhanced API functions with better error handling
-async function updateUserProfile(data) {
-  const userId = localStorage.getItem("userId");
-  if (!userId) throw new Error("User ID not found");
+// Updated: Handle missing userId and use authFetch
+async function fetchUserProfile(authFetch) {
+  console.log("=== FETCH PROFILE START ===");
+  
+  // If we have authFetch from AuthContext, use it
+  if (authFetch) {
+    try {
+      console.log("🔄 Using authFetch from AuthContext...");
+      
+      // Get userId first
+      let userId = localStorage.getItem("userId");
+      
+      // If no userId in localStorage, check userProfile
+      if (!userId) {
+        const userProfileStr = localStorage.getItem("userProfile");
+        if (userProfileStr) {
+          try {
+            const profile = JSON.parse(userProfileStr);
+            userId = profile.id || profile._id || profile.userId;
+            console.log("Found userId in userProfile:", userId);
+            
+            // Save it to localStorage for future use
+            if (userId) {
+              localStorage.setItem("userId", userId);
+              console.log("✅ Saved userId to localStorage");
+            }
+          } catch (e) {
+            console.error("Failed to parse userProfile:", e);
+          }
+        }
+      }
+      
+      if (!userId) {
+        console.error("❌ CRITICAL: No userId found!");
+        throw new Error("User ID not found. Please log in again.");
+      }
+      
+      console.log(`🔄 Fetching profile for userId: ${userId}`);
+      
+      const response = await authFetch(`${BACKEND_URL}/profile/${userId}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log("✅ Profile fetch successful via authFetch!");
+      console.log("Response data:", data);
+      
+      return data;
+    } catch (error) {
+      console.error("❌ authFetch failed:", error);
+      throw error;
+    }
+  }
+  
+  // Fallback to axios if authFetch not available
+  console.log("🔄 Using axios fallback...");
+  
+  // Get token from any possible key
+  const token = 
+    localStorage.getItem("access_token") || 
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken");
+  
+  console.log("Token exists:", !!token);
+  
+  // Find userId from multiple sources
+  let userId = localStorage.getItem("userId");
+  console.log("userId from localStorage:", userId);
+  
+  // If no userId in localStorage, check userProfile
+  if (!userId) {
+    const userProfileStr = localStorage.getItem("userProfile");
+    if (userProfileStr) {
+      try {
+        const profile = JSON.parse(userProfileStr);
+        userId = profile.id || profile._id || profile.userId;
+        console.log("Found userId in userProfile:", userId);
+        
+        // Save it to localStorage for future use
+        if (userId) {
+          localStorage.setItem("userId", userId);
+          console.log("✅ Saved userId to localStorage");
+        }
+      } catch (e) {
+        console.error("Failed to parse userProfile:", e);
+      }
+    }
+  }
+  
+  // If still no userId, try to extract from token
+  if (!userId && token) {
+    try {
+      // Decode JWT to get user info
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      userId = payload.sub || payload.userId || payload.id;
+      console.log("Extracted userId from token:", userId);
+      
+      if (userId) {
+        localStorage.setItem("userId", userId);
+      }
+    } catch (e) {
+      console.error("Failed to decode token:", e);
+    }
+  }
+  
+  if (!userId) {
+    console.error("❌ CRITICAL: No userId found anywhere!");
+    console.log("Token:", token ? "Exists" : "Missing");
+    console.log("userProfile in localStorage:", localStorage.getItem("userProfile"));
+    throw new Error("User ID not found. Please log in again.");
+  }
+  
+  if (!token) {
+    console.error("❌ CRITICAL: No authentication token found!");
+    throw new Error("Authentication required. Please log in again.");
+  }
+  
+  try {
+    console.log(`🔄 Fetching profile for userId: ${userId}`);
+    
+    const api = createAuthenticatedRequest();
+    const response = await api.get(`/profile/${userId}`);
+    
+    console.log("✅ Profile fetch successful!");
+    console.log("Response data:", response.data);
+    
+    return response.data;
+  } catch (error) {
+    console.error("❌ API call failed:", error);
+    console.error("Status:", error.response?.status);
+    console.error("Error details:", error.response?.data);
+    
+    if (error.response?.status === 401) {
+      // Token expired or invalid
+      console.error("Token is invalid or expired!");
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("token");
+      localStorage.removeItem("accessToken");
+      
+      throw new Error("Session expired. Please log in again.");
+    }
+    
+    if (error.response?.status === 404) {
+      throw new Error("Profile not found. The user may have been deleted.");
+    }
+    
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      error.message ||
+      "Failed to fetch profile";
+    
+    throw new Error(errorMessage);
+  }
+}
+
+// Updated: Use authFetch for profile updates
+async function updateUserProfile(data, authFetch) {
+  console.log("=== UPDATE PROFILE START ===");
+  
+  // Get userId from multiple sources
+  let userId = localStorage.getItem("userId");
+  
+  if (!userId) {
+    const userProfileStr = localStorage.getItem("userProfile");
+    if (userProfileStr) {
+      try {
+        const profile = JSON.parse(userProfileStr);
+        userId = profile.id || profile._id || profile.userId;
+        console.log("Found userId in userProfile:", userId);
+        
+        if (userId) {
+          localStorage.setItem("userId", userId);
+        }
+      } catch (e) {
+        console.error("Failed to parse userProfile:", e);
+      }
+    }
+  }
+  
+  if (!userId) {
+    console.error("❌ No userId found for update!");
+    throw new Error("User ID not found");
+  }
 
   try {
     console.log("🔄 Sending profile update to backend...");
     console.log("📤 Payload:", data);
     console.log("👤 User ID:", userId);
     
-    const api = createAuthenticatedRequest();
-    const response = await api.put(`/profile/${userId}`, data);
-    
-    console.log("✅ Profile update successful:", response.data);
-    return response.data;
+    // Use authFetch if available
+    if (authFetch) {
+      console.log("Using authFetch for update...");
+      const response = await authFetch(`${BACKEND_URL}/profile/${userId}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+      }
+      
+      const responseData = await response.json();
+      console.log("✅ Profile update successful via authFetch:", responseData);
+      return responseData;
+    } else {
+      // Fallback to axios
+      const api = createAuthenticatedRequest();
+      const response = await api.put(`/profile/${userId}`, data);
+      
+      console.log("✅ Profile update successful via axios:", response.data);
+      return response.data;
+    }
   } catch (error) {
     console.error("❌ Profile update failed:", error);
     
@@ -91,47 +306,102 @@ async function updateUserProfile(data) {
   }
 }
 
-async function uploadAvatarFromDataUrl(dataUrl) {
-  const token = localStorage.getItem("token");
+async function uploadAvatarFromDataUrl(dataUrl, authFetch) {
   const userId = localStorage.getItem("userId");
-  if (!token || !userId) throw new Error("Authentication required");
+  
+  if (!userId) {
+    throw new Error("User ID not found");
+  }
 
   const blob = await (await fetch(dataUrl)).blob();
   const form = new FormData();
   form.append("avatar", blob, "avatar.png");
 
-  const res = await fetch(`${BACKEND_URL}/users/${userId}/avatar`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
-  });
-  
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: "Failed to upload avatar" }));
-    throw new Error(error.message || "Failed to upload avatar");
+  try {
+    let response;
+    
+    if (authFetch) {
+      console.log("Using authFetch for avatar upload...");
+      response = await authFetch(`${BACKEND_URL}/users/${userId}/avatar`, {
+        method: "POST",
+        body: form,
+        // authFetch will handle the Authorization header
+      });
+    } else {
+      // Fallback to fetch with token
+      const token = 
+        localStorage.getItem("access_token") || 
+        localStorage.getItem("token") ||
+        localStorage.getItem("accessToken");
+      
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+      
+      response = await fetch(`${BACKEND_URL}/users/${userId}/avatar`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+    }
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Failed to upload avatar" }));
+      throw new Error(error.message || "Failed to upload avatar");
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Avatar upload failed:", error);
+    throw error;
   }
-  
-  return res.json();
 }
 
-async function updatePassword(currentPassword, newPassword) {
-  const token = localStorage.getItem("token");
+async function updatePassword(currentPassword, newPassword, authFetch) {
   const userId = localStorage.getItem("userId");
-  if (!token || !userId) throw new Error("Authentication required");
+  
+  if (!userId) {
+    throw new Error("User ID not found");
+  }
 
   try {
-    const res = await axios.put(`${BACKEND_URL}/users/${userId}/password`, {
-      currentPassword,
-      newPassword
-    }, {
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-    });
+    console.log("Updating password for user:", userId);
+    
+    if (authFetch) {
+      const response = await authFetch(`${BACKEND_URL}/users/${userId}/password`, {
+        method: "PUT",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+      }
+      
+      return response.json();
+    } else {
+      // Fallback to axios
+      const token = 
+        localStorage.getItem("access_token") || 
+        localStorage.getItem("token") ||
+        localStorage.getItem("accessToken");
+      
+      if (!token) throw new Error("Authentication required");
 
-    return res.data;
+      const res = await axios.put(`${BACKEND_URL}/users/${userId}/password`, {
+        currentPassword,
+        newPassword
+      }, {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+      });
+
+      return res.data;
+    }
   } catch (error) {
+    console.error("Password update failed:", error);
     const errorMessage =
       error.response?.data?.detail ||
       error.response?.data?.message ||
@@ -141,31 +411,14 @@ async function updatePassword(currentPassword, newPassword) {
   }
 }
 
-async function fetchUserProfile() {
-  const userId = localStorage.getItem("userId");
-  const token = localStorage.getItem("token");
-  
-  if (!userId || !token) throw new Error("Authentication required");
-
-  try {
-    const api = createAuthenticatedRequest();
-    const response = await api.get(`/profile/${userId}`);
-    return response.data;
-  } catch (error) {
-    const errorMessage =
-      error.response?.data?.detail ||
-      error.response?.data?.message ||
-      error.message ||
-      "Failed to fetch profile";
-    throw new Error(errorMessage);
-  }
-}
-
 export default function Profile() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const { userProfile, setUserProfile, setProfilePic, profilePic } =
     useContext(UserContext);
+  
+  // Get authFetch from AuthContext
+  const { authFetch, logout, isAuthenticated: authIsAuthenticated } = useContext(AuthContext);
 
   // CRITICAL FIX: Store the logged-in user's role separately and NEVER let it change
   const [loggedInUserRole, setLoggedInUserRole] = useState(() => {
@@ -194,11 +447,12 @@ export default function Profile() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   
   //initializing leaders
-  const [leaders,setLeaders] = useState({
-    leaderAt1:"",
-    leaderAt12:"",
-    leaderAt144:"",
-  })
+  const [leaders, setLeaders] = useState({
+    leaderAt1: "",
+    leaderAt12: "",
+    leaderAt144: "",
+  });
+  
   // Initialize form with empty values to prevent undefined errors
   const [form, setForm] = useState({
     name: "",
@@ -306,7 +560,7 @@ export default function Profile() {
       address: profile?.home_address || "",
       phone: profile?.phone_number || "",
       invitedBy: profile?.invited_by || "",
-      leaderAt1:profile?.leaderAt1 || "",
+      leaderAt1: profile?.leaderAt1 || "",
       gender: normalizeGender(profile?.gender || ""),
       currentPassword: "",
       newPassword: "",
@@ -314,12 +568,59 @@ export default function Profile() {
     };
 
     //setting leaders state to localstorage leaders field which was set upon login
-    setLeaders(JSON.parse(localStorage.getItem("leaders")) || {})
+    const savedLeaders = JSON.parse(localStorage.getItem("leaders")) || {};
+    setLeaders(savedLeaders);
 
     setForm(formData);
     setOriginalForm(formData);
     console.log("📝 Form updated with profile data:", formData);
   }, []);
+
+  // Add authentication check at component mount
+  useEffect(() => {
+    const checkAuthentication = () => {
+      console.log("🔐 Authentication Check:");
+      
+      const hasToken = 
+        !!localStorage.getItem("access_token") || 
+        !!localStorage.getItem("token") ||
+        !!localStorage.getItem("accessToken");
+      
+      const hasUserProfile = !!localStorage.getItem("userProfile");
+      
+      console.log("Has token:", hasToken);
+      console.log("Has userProfile:", hasUserProfile);
+      console.log("AuthContext isAuthenticated:", authIsAuthenticated);
+      console.log("AuthContext authFetch available:", !!authFetch);
+      
+      if (!hasToken) {
+        console.error("❌ No token found! User is not logged in.");
+        setSnackbar({
+          open: true,
+          message: "You are not logged in. Redirecting to login...",
+          severity: "warning",
+        });
+        
+        // Redirect to login after 2 seconds
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 2000);
+        return false;
+      } else if (!hasUserProfile) {
+        console.warn("⚠️ Token exists but no userProfile. Will attempt to fetch.");
+      } else {
+        console.log("✅ Authentication check passed.");
+      }
+      
+      return true;
+    };
+    
+    const isAuthenticated = checkAuthentication();
+    
+    if (!isAuthenticated) {
+      setLoadingProfile(false);
+    }
+  }, [authIsAuthenticated, authFetch]);
 
   // FIXED: Load profile data with proper dependency management
   useEffect(() => {
@@ -330,38 +631,75 @@ export default function Profile() {
         setLoadingProfile(true);
         console.log("🔄 Loading profile data...");
 
-        const serverProfile = await fetchUserProfile();
-        
-        if (serverProfile && isMounted) {
-          console.log("📥 Received profile data:", serverProfile);
-          console.log("👤 User role from server:", serverProfile.role);
-          
-          // CRITICAL: Store the logged-in user's role and NEVER change it
-          if (serverProfile.role) {
-            setLoggedInUserRole(serverProfile.role);
-            console.log("🔐 Logged-in user role set to:", serverProfile.role);
+        // Check if we have cached data first
+        const cachedProfile = localStorage.getItem('userProfile');
+        if (cachedProfile && isMounted) {
+          try {
+            const parsed = JSON.parse(cachedProfile);
+            console.log("📦 Using cached profile:", parsed);
+            
+            // Update form immediately with cached data
+            updateFormWithProfile(parsed);
+            
+            // Update context
+            if (setUserProfile) {
+              setUserProfile(parsed);
+            }
+            
+            // Set profile picture
+            const pic = parsed?.profile_picture || null;
+            if (pic && setProfilePic) {
+              setProfilePic(pic);
+            }
+            
+            console.log("✅ Profile loaded from cache");
+          } catch (e) {
+            console.error("Failed to parse cached profile:", e);
           }
+        }
+
+        // THEN: Try to fetch fresh data from server
+        try {
+          const serverProfile = await fetchUserProfile(authFetch);
           
-          setUserProfile(serverProfile);
-          updateFormWithProfile(serverProfile);
-          
-          // Set profile picture
-          const pic = serverProfile?.profile_picture || null;
-          if (pic && setProfilePic) {
-            setProfilePic(pic);
+          if (serverProfile && isMounted) {
+            console.log("📥 Received fresh profile data:", serverProfile);
+            console.log("👤 User role from server:", serverProfile.role);
+            
+            // CRITICAL: Store the logged-in user's role and NEVER change it
+            if (serverProfile.role) {
+              setLoggedInUserRole(serverProfile.role);
+              console.log("🔐 Logged-in user role set to:", serverProfile.role);
+            }
+            
+            // Update with fresh data
+            updateFormWithProfile(serverProfile);
+            
+            if (setUserProfile) {
+              setUserProfile(serverProfile);
+            }
+            
+            // Set profile picture
+            const pic = serverProfile?.profile_picture || null;
+            if (pic && setProfilePic) {
+              setProfilePic(pic);
+            }
+            
+            // Cache data
+            localStorage.setItem("userProfile", JSON.stringify(serverProfile));
+            
+            console.log("✅ Profile updated with fresh data");
           }
-          
-          // Cache data
-          localStorage.setItem("userProfile", JSON.stringify(serverProfile));
-          
-          console.log("✅ Profile loaded successfully");
+        } catch (fetchError) {
+          console.warn("⚠️ Could not fetch fresh profile, using cached:", fetchError.message);
+          // Keep using cached data if fetch fails
         }
       } catch (error) {
-        console.error("❌ Failed to load profile:", error);
+        console.error("❌ Profile loading error:", error);
         if (isMounted) {
           setSnackbar({
             open: true,
-            message: `Failed to load profile: ${error.message}`,
+            message: `Error: ${error.message}`,
             severity: "error",
           });
         }
@@ -372,12 +710,25 @@ export default function Profile() {
       }
     };
 
-    loadProfile();
+    // Only load profile if we have authentication
+    const hasToken = 
+      !!localStorage.getItem("access_token") || 
+      !!localStorage.getItem("token") ||
+      !!localStorage.getItem("accessToken");
+    
+    if (hasToken) {
+      // Delay loading slightly to ensure context is ready
+      setTimeout(() => {
+        loadProfile();
+      }, 100);
+    } else {
+      setLoadingProfile(false);
+    }
 
     return () => {
       isMounted = false;
     };
-  }, []); // Empty dependencies - only load once on mount
+  }, [authFetch]); // Add authFetch as dependency
 
   // FIXED: Track changes properly
   const hasChanges = React.useMemo(() => {
@@ -456,25 +807,22 @@ export default function Profile() {
     return Object.keys(n).length === 0;
   };
 
-const handleChange = (field) => (e) => {
-  let value = e.target.value;
+  const handleChange = (field) => (e) => {
+    let value = e.target.value;
 
-  if (field === "phone") {
-    value = value.replace(/\D/g, ""); // only numbers
+    if (field === "phone") {
+      value = value.replace(/\D/g, ""); // only numbers
 
-    // Force the phone number to start with 0
-    if (value.length > 0 && value[0] !== "0") {
-      value = "0" + value.slice(1);
+      // Force the phone number to start with 0
+      if (value.length > 0 && value[0] !== "0") {
+        value = "0" + value.slice(1);
+      }
+
+      value = value.slice(0, 10); // max 10 digits
     }
 
-    value = value.slice(0, 10); // max 10 digits
-  }
-
-  setForm((prev) => ({ ...prev, [field]: value }));
-};
-
-
-
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleCancel = () => {
     setForm({ ...originalForm });
@@ -482,7 +830,7 @@ const handleChange = (field) => (e) => {
     console.log("❌ Changes cancelled");
   };
 
-  // FIXED: Handle submit with proper state updates
+  // FIXED: Handle submit with proper state updates and authFetch
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log("🔄 Form submission started");
@@ -523,10 +871,12 @@ const handleChange = (field) => (e) => {
           };
 
           console.log("📤 Updating profile with:", profileData);
-          await updateUserProfile(profileData);
+          await updateUserProfile(profileData, authFetch);
           
           const updatedProfile = { ...userProfile, ...profileData };
-          setUserProfile(updatedProfile);
+          if (setUserProfile) {
+            setUserProfile(updatedProfile);
+          }
           localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
           
           profileUpdated = true;
@@ -544,7 +894,7 @@ const handleChange = (field) => (e) => {
       // Handle password update
       if (hasPasswordChange) {
         try {
-          await updatePassword(form.currentPassword, form.newPassword);
+          await updatePassword(form.currentPassword, form.newPassword, authFetch);
           passwordUpdated = true;
           
           // Clear password fields after successful update
@@ -597,7 +947,6 @@ const handleChange = (field) => (e) => {
       });
     }
   };
-  
 
   const onFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -619,7 +968,7 @@ const handleChange = (field) => (e) => {
       const croppedImage = await getCroppedImg(croppingSrc, croppedAreaPixels);
       
       try {
-        const res = await uploadAvatarFromDataUrl(croppedImage);
+        const res = await uploadAvatarFromDataUrl(croppedImage, authFetch);
         const url = res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
         
         if (url) {
@@ -631,7 +980,9 @@ const handleChange = (field) => (e) => {
             avatarUrl: url,
             profilePicUrl: url
           };
-          setUserProfile(updatedProfile);
+          if (setUserProfile) {
+            setUserProfile(updatedProfile);
+          }
           localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
           
           setSnackbar({
@@ -669,43 +1020,42 @@ const handleChange = (field) => (e) => {
 
   const currentCarouselItem = carouselTexts[carouselIndex];
 
- const commonFieldSx = {
-  "& .MuiOutlinedInput-root": {
-    bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
-    height: "56px",
-
-    // KEEP BG DARK EVEN WHEN FOCUSED
-    "&.Mui-focused": {
+  const commonFieldSx = {
+    "& .MuiOutlinedInput-root": {
       bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      height: "56px",
+
+      // KEEP BG DARK EVEN WHEN FOCUSED
+      "&.Mui-focused": {
+        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      },
+
+      "& fieldset": {
+        borderColor: isDark ? "#333333" : "#e0e0e0",
+      },
+      "&:hover fieldset": {
+        borderColor: currentCarouselItem.color,
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: currentCarouselItem.color,
+      },
     },
 
-    "& fieldset": {
-      borderColor: isDark ? "#333333" : "#e0e0e0",
+    // Prevent white autofill background
+    "& input:-webkit-autofill": {
+      WebkitBoxShadow: `0 0 0 1000px ${isDark ? "#1a1a1a" : "#f8f9fa"} inset`,
+      WebkitTextFillColor: isDark ? "#ffffff" : "#000000",
     },
-    "&:hover fieldset": {
-      borderColor: currentCarouselItem.color,
-    },
-    "&.Mui-focused fieldset": {
-      borderColor: currentCarouselItem.color,
-    },
-  },
 
-  // Prevent white autofill background
-  "& input:-webkit-autofill": {
-    WebkitBoxShadow: `0 0 0 1000px ${isDark ? "#1a1a1a" : "#f8f9fa"} inset`,
-    WebkitTextFillColor: isDark ? "#ffffff" : "#000000",
-  },
-
-  "& .MuiInputBase-input": {
-    color: isDark ? "#ffffff" : "#000000",
-    padding: "16px 14px",
-    height: "24px",
-    fontSize: "0.875rem",
-    lineHeight: "1.4375em",
-    background: "transparent !important",
-  }
-};
-
+    "& .MuiInputBase-input": {
+      color: isDark ? "#ffffff" : "#000000",
+      padding: "16px 14px",
+      height: "24px",
+      fontSize: "0.875rem",
+      lineHeight: "1.4375em",
+      background: "transparent !important",
+    }
+  };
 
   // Skeleton loading component
   const ProfileSkeleton = () => (
@@ -745,7 +1095,6 @@ const handleChange = (field) => (e) => {
   if (loadingProfile) {
     return <ProfileSkeleton />;
   }
-  console.log(form)
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: isDark ? "#0a0a0a" : "#f8f9fa", pb: 4 }}>
@@ -804,10 +1153,11 @@ const handleChange = (field) => (e) => {
       <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
         <Card sx={{ bgcolor: isDark ? "#111111" : "#ffffff", borderRadius: 3, boxShadow: isDark ? "0 8px 32px rgba(255,255,255,0.02)" : "0 8px 32px rgba(0,0,0,0.08)", border: `1px solid ${isDark ? "#222222" : "#e0e0e0"}`, }}>
           <CardContent sx={{ p: { xs: 3, sm: 4 }, pt: 4 }}>
+
             {/* Info Banner for Regular Users */}
             {isRegularUser && (
               <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-                Your profile information is managed by church administrators. You can only change your email, number and  password.
+                Your profile information is managed by church administrators. You can only change your email, number and password.
               </Alert>
             )}
 
@@ -913,20 +1263,20 @@ const handleChange = (field) => (e) => {
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Leader@1
                   </Typography>
-                  <TextField value={leaders.leaderAt1|| ""} onChange={handleChange("leader@1")} fullWidth disabled={true} sx={commonFieldSx} />
+                  <TextField value={leaders.leaderAt1 || ""} onChange={handleChange("leader@1")} fullWidth disabled={true} sx={commonFieldSx} />
                 </Grid>
 
                  <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Leader@12
                   </Typography>
-                  <TextField value={leaders.leaderAt12|| ""} onChange={handleChange("leader@12")} fullWidth disabled={true} sx={commonFieldSx} />
+                  <TextField value={leaders.leaderAt12 || ""} onChange={handleChange("leader@12")} fullWidth disabled={true} sx={commonFieldSx} />
                 </Grid>
                  <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Leader@144
                   </Typography>
-                  <TextField value={leaders.leaderAt144|| ""} onChange={handleChange("leader@144")} fullWidth disabled={true} sx={commonFieldSx} />
+                  <TextField value={leaders.leaderAt144 || ""} onChange={handleChange("leader@144")} fullWidth disabled={true} sx={commonFieldSx} />
                 </Grid>
 
 
@@ -975,6 +1325,13 @@ const handleChange = (field) => (e) => {
                 <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
                   {canEditProfile ? "Save Changes" : "Update Password"}
                 </Button>
+                
+                {/* Cancel button only if there are changes */}
+                {hasChanges && (
+                  <Button variant="outlined" onClick={handleCancel} startIcon={<Cancel />} sx={{ borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
+                    Cancel
+                  </Button>
+                )}
               </Box>
             </Box>
           </CardContent>
