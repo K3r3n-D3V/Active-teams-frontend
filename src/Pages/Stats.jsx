@@ -46,6 +46,7 @@ const StatsDashboard = () => {
     dateRange: { start: '', end: '' }
   });
 
+  const [overdueCellsStandalone, setOverdueCellsStandalone] = useState([]);
   const [period, setPeriod] = useState('today');
   const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -64,6 +65,7 @@ const StatsDashboard = () => {
   const [initialLoad, setInitialLoad] = useState(true);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [isChangingPeriod, setIsChangingPeriod] = useState(false);
+  const [overdueCellsLoading, setOverdueCellsLoading] = useState(true);
 
   const periodRef = React.useRef(period);
   useEffect(() => {
@@ -206,6 +208,33 @@ const StatsDashboard = () => {
     });
   }, [period, getPeriodRange]);
 
+ const overdueCellsInPeriod = useMemo(() => {
+  if (!Array.isArray(overdueCellsStandalone)) {
+    console.warn("overdueCellsStandalone is not an array:", overdueCellsStandalone);
+    return [];
+  }
+
+  const { start, end } = getPeriodRange(period);
+  const now = new Date();
+  now.setHours(23, 59, 59, 999);
+
+  return overdueCellsStandalone.filter(event => {
+    if (!event || !event.date) return false;
+
+    const eventDate = new Date(event.date);
+    if (isNaN(eventDate.getTime())) return false;
+
+    const isInPeriod = eventDate >= start && eventDate <= end;
+    const isPast = eventDate <= now;
+    const isIncomplete = !['completed', 'done', 'finished'].includes(
+      (event.status || '').toLowerCase()
+    );
+    const isCellEvent = (event.eventTypeName || '').toLowerCase() === 'cells';
+
+    return isCellEvent && isInPeriod && isPast && isIncomplete;
+  });
+}, [overdueCellsStandalone, period, getPeriodRange]);
+
   const filteredTasks = useMemo(() => {
     return filterDataByPeriod(stats.allTasks, 'followup_date');
   }, [stats.allTasks, filterDataByPeriod]);
@@ -231,12 +260,12 @@ const StatsDashboard = () => {
       // Determine which data to export based on active tab
       if (activeTab === 0) {
         // Overdue Cells
-        if (!filteredOverdueCells || filteredOverdueCells.length === 0) {
+        if (!overdueCellsInPeriod || overdueCellsInPeriod.length === 0){
           toast.info("No overdue cells data to download for the selected period.");
           return;
         }
         
-        dataToExport = filteredOverdueCells.map(cell => ({
+        dataToExport = overdueCellsInPeriod.map(cell => ({
           "Event ID": cell._id || "",
           "Event Name": cell.eventName || "Unnamed",
           "Event Type": cell.eventTypeName || "",
@@ -430,6 +459,57 @@ const StatsDashboard = () => {
     }
   };
 
+const fetchOverdueCellsOnly = useCallback(async () => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.log("No token found");
+      return [];
+    }
+
+    console.log("Fetching overdue cells from:", `${BACKEND_URL}/events/cells`);
+    const res = await fetch(`${BACKEND_URL}/events/cells`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.warn("Overdue cells endpoint failed:", res.status, errorText);
+      return [];
+    }
+
+    const data = await res.json();
+    console.log("Raw /events/cells response:", data);
+
+    // SAFELY extract the array
+    let cells = [];
+
+    if (Array.isArray(data)) {
+      cells = data;
+    } else if (data && Array.isArray(data.overdueCells)) {
+      cells = data.overdueCells;
+    } else if (data && Array.isArray(data.data)) {
+      cells = data.data;
+    } else if (data && typeof data === 'object') {
+      // Fallback: maybe it's wrapped differently
+      const possibleArrays = Object.values(data).filter(Array.isArray);
+      if (possibleArrays.length > 0) {
+        cells = possibleArrays[0];
+        console.log("Found array in unknown structure:", cells);
+      }
+    }
+
+    // Final safety: ensure it's an array
+    return Array.isArray(cells) ? cells : [];
+  } catch (err) {
+    console.warn("Failed to fetch overdue cells:", err);
+    return [];
+  }
+}, []); // You can keep [] now
+
 const fetchStats = useCallback(async (forceRefresh = false) => {
   const currentPeriod = periodRef.current;   // ← This is always up-to-date!
   const cacheKey = `statsDashboard_${currentPeriod}`;
@@ -567,6 +647,14 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     }
   }, [isDataLoaded, fetchStats]);
 
+useEffect(() => {
+  setOverdueCellsLoading(true);
+  fetchOverdueCellsOnly().then(cells => {
+    setOverdueCellsStandalone(cells || []);
+    setOverdueCellsLoading(false);
+  });
+}, [period, fetchOverdueCellsOnly]);
+
   // Handle period change
   const handlePeriodChange = (e) => {
 
@@ -577,7 +665,6 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     localStorage.removeItem(`statsDashboard_${newPeriod}`);     
     setPeriod(newPeriod);
     setIsChangingPeriod(true);
-    
     
     // Fetch new data
     fetchStats(true);
@@ -750,6 +837,11 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     };
     
     const days = getDaysInMonth();
+
+    console.log("%c Overdue cells from /events/cells endpoint:", "color: orange; font-weight: bold", overdueCellsStandalone);
+    console.log("%c Final filtered overdueCellsInPeriod:", "color: red; font-weight: bold", overdueCellsInPeriod);
+    console.log("%c Current period:", "color: blue", period);
+    console.log("%c Period date range:", "color: green", getPeriodRange(period));
 
     return (
       <Box>
@@ -1114,7 +1206,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
           ) : (
             <StatCard 
               title="Overdue Cells" 
-              value={filteredOverdueCells.length || 0} 
+              value={overdueCellsInPeriod.length}
               subtitle={`${getPeriodDisplayText(period)}`}
               icon={<Warning />} 
               color="warning" 
@@ -1150,7 +1242,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
           centered
           sx={{ minHeight: 48 }}
         >
-          <Tab label={`Overdue Cells (${filteredOverdueCells.length})`} />
+          <Tab label={`Overdue Cells (${overdueCellsInPeriod.length})`} />
           <Tab label={`Tasks (${filteredTasks.length})`} />
           <Tab label={`Calendar (${filteredEvents.length})`} />
         </Tabs>
@@ -1161,7 +1253,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
           <Paper sx={{ p: 2 }}>
             <Box display="flex" justifyContent="space-between" mb={1.5}>
               <Typography variant="subtitle1" fontWeight="medium">
-                Overdue Cells ({filteredOverdueCells.length})
+                Overdue Cells ({overdueCellsInPeriod.length})
               </Typography>
               <Chip 
                 label={`${getPeriodDisplayText(period)}`} 
@@ -1170,7 +1262,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
                 variant="outlined"
               />
             </Box>
-            {filteredOverdueCells.slice(0, 5).map((c, i) => (
+            {overdueCellsInPeriod.slice(0, 5).map((c, i) => (
               <Card key={i} variant="outlined" sx={{ mb: 1, p: 1.5, boxShadow: 1, '&:hover': { boxShadow: 2 } }}>
                 <Box display="flex" alignItems="center">
                   <Avatar sx={{ bgcolor: 'warning.main', mr: 1.5, width: 32, height: 32 }}><Warning fontSize="small" /></Avatar>
@@ -1190,7 +1282,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
                 color="warning"
                 startIcon={<Visibility fontSize="small" />}
                 onClick={() => setOverdueModalOpen(true)}
-                disabled={filteredOverdueCells.length === 0}
+                disabled={overdueCellsInPeriod.length === 0}
                 sx={{ fontSize: '0.75rem' }}
               >
                 View All
@@ -1664,7 +1756,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
               <Warning sx={{ fontSize: 32 }} />
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Overdue / Incomplete Cells ({filteredOverdueCells.length})
+                  Overdue / Incomplete Cells ({overdueCellsInPeriod.length})
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Cells that need attention
@@ -1678,13 +1770,13 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
         </DialogTitle>
 
         <DialogContent dividers sx={{ p: 3 }}>
-          {filteredOverdueCells.length === 0 ? (
+          {overdueCellsInPeriod.length === 0 ? (
             <Typography color="text.secondary" align="center" py={4}>
               No overdue cells — great job!
             </Typography>
           ) : (
             <Stack spacing={2}>
-              {filteredOverdueCells.map((cell) => (
+              {overdueCellsInPeriod.map((cell) => (
                 <Card key={cell._id} variant="outlined" sx={{ p: 2, backgroundColor: 'error.50' }}>
                   <Box display="flex" alignItems="center" gap={2}>
                     <Avatar sx={{ bgcolor: 'warning.main' }}><Warning /></Avatar>
