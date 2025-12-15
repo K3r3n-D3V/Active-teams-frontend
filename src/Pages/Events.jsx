@@ -1,6 +1,4 @@
-import axios from "axios";
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from "react";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 import IconButton from "@mui/material/IconButton";
@@ -30,6 +28,7 @@ import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { AuthContext } from "../contexts/AuthContext";
 
 const styles = {
   container: {
@@ -642,7 +641,8 @@ const isValidObjectId = (id) => {
 };
 
 const Events = () => {
-  const location = useLocation();
+  const { authFetch } = useContext(AuthContext);
+
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
   const isDarkMode = theme.palette.mode === 'dark';
@@ -664,7 +664,6 @@ const Events = () => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = '2025-11-30';
 
-  // State declarations - ALL AT THE TOP
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
   const [, setFilteredEvents] = useState([]);
@@ -675,7 +674,7 @@ const Events = () => {
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
-  // const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
+
   const [, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState('all');
@@ -686,14 +685,13 @@ const Events = () => {
 
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
-  // const [hoveredRow, setHoveredRow] = useState(null);
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
-  const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
-  const [typeMenuFor, setTypeMenuFor] = useState(null);
-  const [isCheckingLeaderStatus, setIsCheckingLeaderStatus] = useState(false);
+  const [, setTypeMenuAnchor] = useState(null);
+  const [, setTypeMenuFor] = useState(null);
+  const [, setIsCheckingLeaderStatus] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [toDeleteType, setToDeleteType] = useState(null);
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
@@ -816,7 +814,7 @@ const Events = () => {
 
         setIsCheckingLeaderStatus(true);
 
-        const response = await axios.get(
+        const response = await authFetch(
           `${BACKEND_URL}/check-leader-at-12-status`,
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -956,7 +954,7 @@ const Events = () => {
       params.firstName = currentUser.name
       params.userSurname = currentUser.surname
 
-      const response = await axios.get(endpoint, {
+      const response = await authFetch(endpoint, {
         headers,
         params,
         timeout: 60000
@@ -1065,7 +1063,7 @@ const Events = () => {
   const checkEventsForType = async (eventTypeName) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get(`${BACKEND_URL}/events/other`, {
+      const response = await authFetch(`${BACKEND_URL}/events/other`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           event_type: eventTypeName,
@@ -1225,7 +1223,7 @@ const Events = () => {
   const getCurrentUserLeaderAt1 = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get(
+      const response = await authFetch(
         `${BACKEND_URL}/current-user/leader-at-1`,
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -1474,7 +1472,7 @@ const Events = () => {
           leaderEmail,
           leaderName,
           did_not_meet: true,
-          event_date: eventDate // Send the specific event date
+          event_date: eventDate 
         };
       } else if (Array.isArray(data)) {
         payload = {
@@ -1483,21 +1481,20 @@ const Events = () => {
           leaderEmail,
           leaderName,
           did_not_meet: false,
-          event_date: eventDate // Send the specific event date
+          event_date: eventDate 
         };
       } else {
         payload = {
           ...data,
           leaderEmail,
           leaderName,
-          event_date: eventDate // Send the specific event date
+          event_date: eventDate 
         };
       }
 
       console.log("Sending payload to backend:", JSON.stringify(payload, null, 2));
 
-      // Send the COMPOSITE ID (includes date) - backend will extract both parts
-      const response = await axios.put(
+      const response = await authFetch(
         `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
         payload,
         { headers }
@@ -1689,7 +1686,7 @@ const Events = () => {
           originalId: event._id
         });
 
-        const response = await axios.delete(`${BACKEND_URL}/events/${eventId}`, {
+        const response = await authFetch(`${BACKEND_URL}/events/${eventId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -1925,7 +1922,7 @@ const Events = () => {
         payload: updatePayload
       });
 
-      const response = await axios.put(
+      const response = await authFetch(
         `${BACKEND_URL}/events/update-person-cells/${encodedPersonName}`,
         updatePayload,
         {
@@ -2133,7 +2130,7 @@ const Events = () => {
       const url = `${BACKEND_URL}/event-types/${encodedTypeName}`;
 
       try {
-        const response = await axios.delete(url, {
+        const response = await authFetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -2216,7 +2213,7 @@ const Events = () => {
 
             try {
               const forceUrl = `${url}?force=true`;
-              const forceResponse = await axios.delete(forceUrl, {
+              const forceResponse = await authFetch(forceUrl, {
                 headers: {
                   Authorization: `Bearer ${token}`,
                   'Content-Type': 'application/json'
@@ -2381,7 +2378,7 @@ const Events = () => {
         // Special check for regular users
         if (isUser) {
           try {
-            const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
+            const response = await authFetch(`${BACKEND_URL}/check-leader-status`, {
               headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -2469,7 +2466,7 @@ const Events = () => {
         // Check for regular users
         if (isUser) {
           try {
-            const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
+            const response = await authFetch(`${BACKEND_URL}/check-leader-status`, {
               headers: { Authorization: `Bearer ${token}` }
             });
 
