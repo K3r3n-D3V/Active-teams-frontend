@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useContext,useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -19,22 +19,21 @@ import {
   Divider,
   Chip,
   CircularProgress,
-  // IconButton, // Commented out - not used in new code
   Tooltip,
   Checkbox,
   FormGroup,
   Collapse,
 } from '@mui/material';
 import {
-  // Delete as DeleteIcon, // Commented out - not used in new code
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Warning as WarningIcon,
   Person as PersonIcon,
   Event as EventIcon,
-  Lock as LockIcon, // Added from new code
+  Lock as LockIcon, 
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
+import {AuthContext} from "../contexts/AuthContext"
 // Define user role constants (from new code)
 const USER_ROLES = {
   ADMIN: 'admin',
@@ -54,7 +53,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [changedFields, setChangedFields] = useState([]);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [showAllFields, setShowAllFields] = useState(false);
- 
+  const authFetch = useContext(AuthContext)
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
  
   // Get user role from localStorage (from Profile component logic - new code)
@@ -197,17 +196,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         };
       }
     }
-   
-    // UPDATE: Commenting out email field restrictions to allow all users to edit
-    // if (isEmailField) {
-    // // Email fields can be edited by ALL leaders
-    // if (!isAnyLeader) {
-    // return {
-    // disabled: true,
-    // reason: 'Email fields can only be edited by leaders'
-    // };
-    // }
-    // }
    
     // If none of the above conditions apply, field is editable
     return { disabled: false, reason: null };
@@ -414,7 +402,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         console.log(`Calling single cell endpoint: ${endpoint}`);
       }
      
-      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+      const response = await authFetch(`${BACKEND_URL}${endpoint}`, {
         method: method,
         headers: {
           'Content-Type': 'application/json',
@@ -548,17 +536,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 readOnly: isDisabled,
               }}
             />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
           </Box>
         </FieldWrapper>
       );
@@ -582,17 +559,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 readOnly: isDisabled,
               }}
             />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
           </Box>
         </FieldWrapper>
       );
@@ -613,11 +579,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               }
               label={labelContent}
             />
-            {/* Commented out old delete icon functionality
-            <IconButton size="small" onClick={() => handleChange(field, false)}>
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-            */}
           </Box>
         </FieldWrapper>
       );
@@ -689,17 +650,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               </Select>
               {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
             </FormControl>
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
           </Box>
         </FieldWrapper>
       );
@@ -731,35 +681,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         </FieldWrapper>
       );
     }
-   
-    /* Commenting out duplicate status handling section
-    if (fieldLower === 'status') {
-      const statusOptions = ['open', 'closed', 'complete', 'incomplete', 'did_not_meet', 'cancelled'];
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ position: 'relative' }}>
-            <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={value || ''}
-                label="Status"
-                onChange={(e) => handleChange(field, e.target.value)}
-                disabled={isDisabled}
-              >
-                <MenuItem value="">None</MenuItem>
-                {statusOptions.map(status => (
-                  <MenuItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-                  </MenuItem>
-                ))}
-              </Select>
-              {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
-            </FormControl>
-          </Box>
-        </FieldWrapper>
-      );
-    }
-    */
    
     if (fieldLower.includes('description') || (typeof value === 'string' && value.length > 50)) {
       return (
@@ -780,17 +701,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 readOnly: isDisabled,
               }}
             />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
           </Box>
         </FieldWrapper>
       );
@@ -812,17 +722,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               readOnly: isDisabled,
             }}
           />
-          {/* Commented out old delete icon functionality
-          {value && (
-            <IconButton
-              size="small"
-              onClick={() => handleChange(field, '')}
-              sx={{ position: 'absolute', right: 8, top: 20 }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-          */}
         </Box>
       </FieldWrapper>
     );

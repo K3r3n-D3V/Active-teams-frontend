@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect ,useContext} from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -13,6 +13,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import CreateEvents from './CreateEvents';
 import EventTypesModal from './EventTypesModal';
+import { AuthContext } from '../contexts/AuthContext';
 
 const CreateEventModal = ({ open, onClose, user }) => {
   const theme = useTheme();
@@ -24,7 +25,7 @@ const CreateEventModal = ({ open, onClose, user }) => {
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [eventTypeModalOpen, setEventTypeModalOpen] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
-
+  const authFetch = useContext(AuthContext)
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
   // Fetch event types when modal opens
@@ -37,7 +38,7 @@ const CreateEventModal = ({ open, onClose, user }) => {
   const fetchEventTypes = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${BACKEND_URL}/event-types`, {
+      const response = await authFetch(`${BACKEND_URL}/event-types`, {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
         },
@@ -68,7 +69,7 @@ const handleEventTypeSelect = (eventType) => {
 const handleEventTypeSubmit = async (eventTypeData) => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${BACKEND_URL}/event-types`, {
+    const response = await authFetch(`${BACKEND_URL}/event-types`, {
       method: 'POST',
       headers: {
         'Authorization': token ? `Bearer ${token}` : '',
