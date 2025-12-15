@@ -24,13 +24,11 @@ export default function TopbarProfile() {
   const [isLoading, setIsLoading] = useState(true);
   const open = Boolean(anchorEl);
 
-  // Load user profile on mount and when user changes
   useEffect(() => {
     const initializeProfile = async () => {
       if (isAuthenticated && user) {
         setIsLoading(true);
         try {
-          // If UserContext has a loadUserProfile function, call it
           if (loadUserProfile) {
             await loadUserProfile();
           }
@@ -47,12 +45,10 @@ export default function TopbarProfile() {
     initializeProfile();
   }, [user, isAuthenticated, loadUserProfile]);
 
-  // Get display name
   const getDisplayName = () => {
     return user?.name || user?.email || "Profile";
   };
 
-  // Get initials for avatar fallback
   const getInitials = () => {
     if (user?.name) {
       return user.name[0].toUpperCase();
@@ -62,15 +58,13 @@ export default function TopbarProfile() {
     return "U";
   };
 
-  // Check if using a default avatar (for showing initials)
   const isDefaultAvatar = () => {
     if (!profilePic) return true;
     
-    // Check if it's one of the default avatar URLs
     const defaultAvatarUrls = [
-      "https://cdn-icons-png.flaticon.com/512/6997/6997662.png", // female
-      "https://cdn-icons-png.flaticon.com/512/6997/6997675.png", // male
-      "https://cdn-icons-png.flaticon.com/512/147/147144.png"    // neutral
+      "https://cdn-icons-png.flaticon.com/512/6997/6997662.png",
+      "https://cdn-icons-png.flaticon.com/512/6997/6997675.png",
+      "https://cdn-icons-png.flaticon.com/512/147/147144.png"   
     ];
     
     return defaultAvatarUrls.some(url => profilePic.includes(url));
@@ -101,7 +95,6 @@ export default function TopbarProfile() {
 
   return (
     <>
-      {/* Avatar that navigates to Profile */}
       <Tooltip title={`Go to Profile (${displayName})`}>
         <IconButton
           sx={{ 
@@ -110,7 +103,6 @@ export default function TopbarProfile() {
             right: 48, 
             zIndex: 1200, 
             p: 0,
-            // Add transition for smooth hover effect
             transition: 'transform 0.2s',
             '&:hover': {
               transform: 'scale(1.05)'
@@ -126,20 +118,16 @@ export default function TopbarProfile() {
               height: 40,
               border: `2px solid ${theme.palette.background.paper}`,
               cursor: "pointer",
-              // Only show background color for default avatars with initials
               bgcolor: showInitials ? theme.palette.primary.main : 'transparent',
               boxShadow: theme.shadows[2],
-              // Smooth transition
               transition: 'all 0.2s ease-in-out',
             }}
           >
-            {/* Show initials only for default avatars or while loading */}
             {(showInitials || isLoading) && initials}
           </Avatar>
         </IconButton>
       </Tooltip>
 
-      {/* More Options */}
       <IconButton
         onClick={handleMenuToggle}
         sx={{ 
@@ -171,7 +159,6 @@ export default function TopbarProfile() {
             color: theme.palette.text.primary,
             boxShadow: theme.shadows[6],
             overflow: 'visible',
-            // Arrow effect
             '&::before': {
               content: '""',
               display: 'block',
