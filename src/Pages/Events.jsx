@@ -1220,22 +1220,47 @@ const Events = () => {
   }, [selectedEventTypeFilter, clearCache, fetchEventTypes, rowsPerPage, selectedStatus, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
 
 
-  const getCurrentUserLeaderAt1 = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await authFetch(
-        `${BACKEND_URL}/current-user/leader-at-1`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      return response.data.leader_at_1 || '';
-    } catch (error) {
-      console.error('Error getting current user leader at 1:', error);
+const getCurrentUserLeaderAt1 = useCallback(async () => {
+  try {
+    const token = localStorage.getItem("token");
+    
+    if (!token) {
+      console.error('No token found for leader-at-1 request');
       return '';
     }
-  }, [BACKEND_URL]);
+
+    console.log('Fetching leader at 1 with token:', token.substring(0, 20) + '...');
+    
+    const response = await axios.get(
+      `${BACKEND_URL}/current-user/leader-at-1`,
+      {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    console.log('Leader at 1 response:', response.data);
+    return response.data.leader_at_1 || '';
+    
+  } catch (error) {
+    console.error('Error getting current user leader at 1:', error);
+    
+    // Check if it's an auth error
+    if (error.response?.status === 401) {
+      console.error('Authentication failed for leader-at-1 endpoint');
+      toast.error('Session expired. Please log in again.');
+      
+      localStorage.removeItem("token");
+      localStorage.removeItem("userProfile");
+      setTimeout(() => window.location.href = '/login', 2000);
+    }
+    
+    return '';
+  }
+}, [BACKEND_URL]);
 
   const clearAllFilters = useCallback(() => {
     setSearchQuery('');
@@ -2824,14 +2849,23 @@ const Events = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchCurrentUserLeaderAt1 = async () => {
-      const leaderAt1 = await getCurrentUserLeaderAt1();
-      setCurrentUserLeaderAt1(leaderAt1);
-    };
+useEffect(() => {
+  const fetchCurrentUserLeaderAt1 = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.log('No token, skipping leader-at-1 fetch');
+      setCurrentUserLeaderAt1('');
+      return;
+    }
 
-    fetchCurrentUserLeaderAt1();
-  }, [getCurrentUserLeaderAt1]);
+    console.log('Fetching leader at 1 for current user...');
+    const leaderAt1 = await getCurrentUserLeaderAt1();
+    console.log('Got leader at 1:', leaderAt1);
+    setCurrentUserLeaderAt1(leaderAt1);
+  };
+
+  fetchCurrentUserLeaderAt1();
+}, [getCurrentUserLeaderAt1]);
 
   useEffect(() => {
     fetchEventTypes();
