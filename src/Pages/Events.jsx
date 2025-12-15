@@ -30,8 +30,6 @@ import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import AuthContext from '../contexts/AuthContext'
-
 
 const styles = {
   container: {
@@ -646,7 +644,6 @@ const isValidObjectId = (id) => {
 const Events = () => {
   const location = useLocation();
   const theme = useTheme();
- const {useFetch } = AuthContext();
   const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
   const isDarkMode = theme.palette.mode === 'dark';
   const eventTypeStyles = useMemo(() => {
