@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -13,9 +13,9 @@ import {
 } from "@mui/material";
 import { LoadingButton } from "@mui/lab";
 import dayjs from "dayjs";
-import axios from "axios";
 import Autocomplete from "@mui/material/Autocomplete";
 import { debounce } from "lodash";
+import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -23,7 +23,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const [recipient, setRecipient] = useState(null); 
   const [assignedTo, setAssignedTo] = useState("");
   const [dateTime, setDateTime] = useState("");
-  const [taskStage, setTaskStage] = useState(true);
+  const [taskStage, setTaskStage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [recipients, setRecipients] = useState([]);
@@ -31,6 +31,8 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState("");
   const [alreadyConsolidated, setAlreadyConsolidated] = useState(false);
+
+  const { authFetch } = useContext(AuthContext);
 
   const decisionTypes = [
     "First Time",
@@ -48,20 +50,21 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         setLoadingRecipients(true);
         setError("");
         
-        const res = await axios.get(`${BASE_URL}/people/search`, {
-          params: { 
-            query: query.trim(),
-            limit: 25,
-            fields: "Name,Surname,Phone,Email,Leader @1,Leader @12,Leader @144,Leader @1728,leader1,leader12,leader144,leader1728,Stage,DecisionHistory" 
-          },
-        });
+        // Use authFetch instead of axios
+        const response = await authFetch(`${BASE_URL}/people/search?query=${encodeURIComponent(query.trim())}&limit=25&fields=Name,Surname,Phone,Email,Leader @1,Leader @12,Leader @144,Leader @1728,leader1,leader12,leader144,leader1728,Stage,DecisionHistory`);
         
-        if (res.data && Array.isArray(res.data.results)) {
-          setRecipients(res.data.results);
-        } else if (res.data && Array.isArray(res.data)) {
-          setRecipients(res.data);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && Array.isArray(data.results)) {
+            setRecipients(data.results);
+          } else if (data && Array.isArray(data)) {
+            setRecipients(data);
+          } else {
+            setRecipients([]);
+          }
         } else {
           setRecipients([]);
+          throw new Error("Search request failed");
         }
       } catch (err) {
         console.error("Error fetching recipients:", err);
@@ -71,7 +74,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         setLoadingRecipients(false);
       }
     }, 350),
-    []
+    [authFetch]
   );
 
   const searchLocalAttendees = useCallback((query) => {
@@ -104,7 +107,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       setDateTime(dayjs().format("YYYY/MM/DD, HH:mm"));
       setRecipient(null);
       setAssignedTo("");
-      setTaskStage(true);
+      setTaskStage("");
       setRecipients([]);
       setSearchQuery("");
       setError("");
@@ -218,32 +221,26 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     console.log("📝 Decision type changed to:", event.target.value);
   };
 
-  // FIXED: Simplified leader email lookup without people_cache
+  // FIXED: Simplified leader email lookup using authFetch
   const findLeaderEmail = async (leaderName) => {
     if (!leaderName || leaderName === "No Leader Assigned") return "";
     
     try {
-      const token = localStorage.getItem("token");
-      const searchResponse = await axios.get(`${BASE_URL}/people/search`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        params: {
-          query: leaderName,
-          limit: 5,
-          fields: "Name,Email"
-        }
-      });
+      // Use authFetch instead of axios
+      const response = await authFetch(`${BASE_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`);
       
-      if (searchResponse.data?.results?.length > 0) {
-        const foundLeader = searchResponse.data.results.find(person => 
-          person.Name?.toLowerCase() === leaderName.toLowerCase() ||
-          person.FullName?.toLowerCase() === leaderName.toLowerCase()
-        );
-        
-        if (foundLeader?.Email) {
-          console.log(`✅ Found leader email via API: ${foundLeader.Email}`);
-          return foundLeader.Email;
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.results?.length > 0) {
+          const foundLeader = data.results.find(person => 
+            person.Name?.toLowerCase() === leaderName.toLowerCase() ||
+            person.FullName?.toLowerCase() === leaderName.toLowerCase()
+          );
+          
+          if (foundLeader?.Email) {
+            console.log(`✅ Found leader email via API: ${foundLeader.Email}`);
+            return foundLeader.Email;
+          }
         }
       }
       
@@ -325,67 +322,62 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
-      console.log("🔑 Token available:", !!token);
+      console.log("🔑 Using authFetch for consolidation creation...");
 
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
+      // Use authFetch instead of axios for creating consolidation record
+      const response = await authFetch(`${BASE_URL}/consolidations`, {
+        method: "POST",
+        body: JSON.stringify(consolidationData),
+      });
+      
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log("✅ Consolidation creation response:", responseData);
 
-      // Create consolidation record ONLY
-      const response = await axios.post(`${BASE_URL}/consolidations`, consolidationData, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+        // Call onFinish with consolidation data only - NO CHECK-IN
+        onFinish({
+          ...responseData,
+          recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
+          assignedTo: leaderInfo.leader,
+          taskStage: taskStage,
+          decisionType: decisionType,
+          leaderLevel: leaderInfo.level,
+          task_id: responseData.task_id,
+          recipient_email: recipient.Email || recipient.email || "",
+          recipient_phone: recipient.Phone || recipient.phone || "",
+          leader_email: leaderEmail,
+          // EXPLICITLY mark that this is not a check-in
+          isConsolidationOnly: true
+        });
+        
+        onClose();
+        
+        // Reset form
+        setRecipient(null);
+        setAssignedTo("");
+        setTaskStage("");
+        setAlreadyConsolidated(false);
+      } else {
+        const errorData = await response.json();
+        console.error("❌ Consolidation creation failed:", {
+          status: response.status,
+          data: errorData,
+        });
+        
+        if (errorData && errorData.detail) {
+          setError(`Server error: ${errorData.detail}`);
+        } else {
+          setError(`Server error: ${response.status} - ${errorData?.message || 'Unknown error'}`);
         }
-      });
-      
-      console.log("✅ Consolidation creation response:", response.data);
-
-      // Call onFinish with consolidation data only - NO CHECK-IN
-      onFinish({
-        ...response.data,
-        recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
-        assignedTo: leaderInfo.leader,
-        taskStage: taskStage,
-        decisionType: decisionType,
-        leaderLevel: leaderInfo.level,
-        task_id: response.data.task_id,
-        recipient_email: recipient.Email || recipient.email || "",
-        recipient_phone: recipient.Phone || recipient.phone || "",
-        leader_email: leaderEmail,
-        // EXPLICITLY mark that this is not a check-in
-        isConsolidationOnly: true
-      });
-      
-      onClose();
-      
-      // Reset form
-      setRecipient(null);
-      setAssignedTo("");
-      setTaskStage(true);
-      setAlreadyConsolidated(false);
+      }
       
     } catch (err) {
       console.error("❌ Error creating consolidation:", err);
       
-      if (err.response) {
-        console.error("📡 Server response error:", {
-          status: err.response.status,
-          data: err.response.data,
-        });
-        
-        if (err.response.data && err.response.data.detail) {
-          setError(`Server error: ${err.response.data.detail}`);
-        } else {
-          setError(`Server error: ${err.response.status} - ${err.response.data?.message || 'Unknown error'}`);
-        }
-      } else if (err.request) {
-        console.error("🌐 Network error:", err.request);
-        setError("Network error: Could not connect to server. Please check your connection.");
+      if (err.message) {
+        setError(`Error: ${err.message}`);
       } else {
-        console.error("⚡ Request setup error:", err.message);
-        setError(`Request error: ${err.message}`);
+        setError("An unexpected error occurred. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -463,12 +455,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
             {error}
           </Alert>
         )}
-
-        {/* <Alert severity="info" sx={{ mb: 2 }}>
-          <Typography variant="body2">
-            <strong>Note:</strong> This creates a consolidation task only. It does NOT mark the person as checked in to the event.
-          </Typography>
-        </Alert> */}
 
         <TextField
           label="Task Type"

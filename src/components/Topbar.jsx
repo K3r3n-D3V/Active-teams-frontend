@@ -24,7 +24,7 @@ export default function Topbar() {
           <IconButton sx={{ p: 0 }}>
             <Avatar
               alt="User"
-              src="/profile.jpg" // <-- Optional: place an image in public folder
+              src="/profile.jpg"
               sx={{
                 width: 40,
                 height: 40,

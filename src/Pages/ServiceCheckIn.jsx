@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import {
   Box,
   Typography,
@@ -9,7 +9,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
   TableRow,
   IconButton,
@@ -36,10 +35,8 @@ import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import AddPersonDialog from "../components/AddPersonDialog";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import axios from "axios";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import PersonIcon from "@mui/icons-material/Person";
 import GroupIcon from "@mui/icons-material/Group";
 import { PersonAdd as PersonAddIcon } from "@mui/icons-material";
 import EditIcon from "@mui/icons-material/Edit";
@@ -52,16 +49,20 @@ import EventHistory from "../components/EventHistory";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import DownloadIcon from '@mui/icons-material/Download';
+import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
+import EventHistoryModal from "../components/EventHistoryModal";
+import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
-// Cache for events data
 let eventsCache = null;
 let eventsCacheTimestamp = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000;
 
 function ServiceCheckIn() {
-  // State management
+  const { authFetch } = useContext(AuthContext);
+
   const [attendees, setAttendees] = useState([]);
   const [currentEventId, setCurrentEventId] = useState("");
   const [eventSearch, setEventSearch] = useState("");
@@ -76,21 +77,15 @@ function ServiceCheckIn() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [consolidationOpen, setConsolidationOpen] = useState(false);
   const [sortModel, setSortModel] = useState([
-    { field: 'isNew', sort: 'desc' }, // 🆕 New people first
+    { field: 'isNew', sort: 'desc' },
     { field: 'name', sort: 'asc' }
   ]);
-  const [newPersonAdded,setNewPersonAdded] = useState(false)
-
-  // Real-time data state
   const [realTimeData, setRealTimeData] = useState(null);
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
-  const [isLoadingConsolidated, setIsLoadingConsolidated] = useState(false);
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Modal states
   const [modalSearch, setModalSearch] = useState("");
   const [modalPage, setModalPage] = useState(0);
   const [modalRowsPerPage, setModalRowsPerPage] = useState(100);
@@ -101,8 +96,14 @@ function ServiceCheckIn() {
   const [consolidatedPage, setConsolidatedPage] = useState(0);
   const [consolidatedRowsPerPage, setConsolidatedRowsPerPage] = useState(100);
   const [activeTab, setActiveTab] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    open: false,
+    personId: null,
+    personName: ''
+  });
 
-  const [eventHistoryDetails, setEventHistoryDetails] = useState({
+  const [eventHistoryModal, setEventHistoryModal] = useState({
     open: false,
     event: null,
     type: null,
@@ -142,165 +143,155 @@ function ServiceCheckIn() {
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(0.5, 1, 1.5, 2, 2);
 
-  // Enhanced search priority function
+
   const getSearchPriorityScore = (attendee, searchTerm) => {
     const fullName = `${attendee.name || ''} ${attendee.surname || ''}`.toLowerCase();
     const firstName = (attendee.name || '').toLowerCase();
     const lastName = (attendee.surname || '').toLowerCase();
-    
-    // Check for Vicky or Gavin Enslin
+
+
     const isEnslin = lastName.includes('ensl');
-    
-    // More flexible checks for Vicky
-    const isVicky = firstName.includes('vick') || 
-                    firstName.includes('vic') || 
-                    firstName.includes('vicki') || 
-                    firstName.includes('vicky');
-    
-    // More flexible checks for Gavin  
-    const isGavin = firstName.includes('gav') || 
-                    firstName.includes('gavin') ||
-                    firstName.includes('gaven') ||
-                    firstName.includes('gavyn');
-    
+
+
+    const isVicky = firstName.includes('vick') ||
+      firstName.includes('vic') ||
+      firstName.includes('vicki') ||
+      firstName.includes('vicky');
+
+
+    const isGavin = firstName.includes('gav') ||
+      firstName.includes('gavin') ||
+      firstName.includes('gaven') ||
+      firstName.includes('gavyn');
+
     const isPriorityPerson = isEnslin && (isVicky || isGavin);
-    
-    // If search term contains enslin or vicky/gavin, prioritize these people
+
+
     const searchLower = searchTerm.toLowerCase();
     const isSearchingForEnslin = searchLower.includes('ensl');
-    
-    // More flexible search for Vicky
-    const isSearchingForVicky = searchLower.includes('vick') || 
-                                searchLower.includes('vic') ||
-                                searchLower.includes('vicki') || 
-                                searchLower.includes('vicky');
-    
-    // More flexible search for Gavin
-    const isSearchingForGavin = searchLower.includes('gav') || 
-                                searchLower.includes('gavin') ||
-                                searchLower.includes('gaven') ||
-                                searchLower.includes('gavyn');
-    
+
+
+    const isSearchingForVicky = searchLower.includes('vick') ||
+      searchLower.includes('vic') ||
+      searchLower.includes('vicki') ||
+      searchLower.includes('vicky');
+
+
+    const isSearchingForGavin = searchLower.includes('gav') ||
+      searchLower.includes('gavin') ||
+      searchLower.includes('gaven') ||
+      searchLower.includes('gavyn');
+
     if (isSearchingForEnslin && isPriorityPerson) {
-      // Highest priority: Searching for enslin and person is Vicky/Gavin Enslin
       if (isSearchingForVicky && isVicky) return 100;
       if (isSearchingForGavin && isGavin) return 100;
       return 90;
     }
-    
-    // Lower priority for other matches
     return 0;
   };
 
-  // Enhanced leader column sort comparator - Vicky/Gavin Enslin ALWAYS at top
   const createLeaderSortComparator = (leaderField) => (v1, v2, row1, row2) => {
-    // Get full names and individual names for priority checking
     const fullName1 = `${row1.name || ''} ${row1.surname || ''}`.toLowerCase().trim();
     const fullName2 = `${row2.name || ''} ${row2.surname || ''}`.toLowerCase().trim();
     const firstName1 = (row1.name || '').toLowerCase().trim();
     const firstName2 = (row2.name || '').toLowerCase().trim();
     const surname1 = (row1.surname || '').toLowerCase().trim();
     const surname2 = (row2.surname || '').toLowerCase().trim();
-    
-    // Helper function to check if someone is Vicky or Gavin Enslin
+
     const isPriorityPerson = (firstName, surname, fullName) => {
-      // Check if last name contains "ensl" (Enslin/Ensline)
       const isEnslin = surname.includes('ensl');
-      
-      // Check for Vicky (in first name or full name)
-      // More flexible: check for vick, vic, vicki, vicky
-      const isVicky = firstName.includes('vick') || 
-                      firstName.includes('vic') || 
-                      firstName.includes('vicki') || 
-                      firstName.includes('vicky') ||
-                      fullName.includes('vick') || 
-                      fullName.includes('vic') ||
-                      fullName.includes('vicki') || 
-                      fullName.includes('vicky');
-      
-      // Check for Gavin (in first name or full name)
-      // More flexible: check for gav, gavin, gaven, gavyn, etc.
-      const isGavin = firstName.includes('gav') || 
-                      firstName.includes('gavin') ||
-                      firstName.includes('gaven') ||
-                      firstName.includes('gavyn') ||
-                      fullName.includes('gav') ||
-                      fullName.includes('gavin') ||
-                      fullName.includes('gaven') ||
-                      fullName.includes('gavyn');
-      
-      // Priority: Either is Vicky Enslin OR Gavin Enslin
-      // Make it more flexible - check if they have Enslin AND (Vicky or Gavin)
+
+      const isVicky = firstName.includes('vick') ||
+        firstName.includes('vic') ||
+        firstName.includes('vicki') ||
+        firstName.includes('vicky') ||
+        fullName.includes('vick') ||
+        fullName.includes('vic') ||
+        fullName.includes('vicki') ||
+        fullName.includes('vicky');
+
+      const isGavin = firstName.includes('gav') ||
+        firstName.includes('gavin') ||
+        firstName.includes('gaven') ||
+        firstName.includes('gavyn') ||
+        fullName.includes('gav') ||
+        fullName.includes('gavin') ||
+        fullName.includes('gaven') ||
+        fullName.includes('gavyn');
+
       return isEnslin && (isVicky || isGavin);
     };
-    
-    // Check if each person is priority (Vicky Enslin or Gavin Enslin)
+
     const isPriority1 = isPriorityPerson(firstName1, surname1, fullName1);
     const isPriority2 = isPriorityPerson(firstName2, surname2, fullName2);
-    
-    // ALWAYS put Vicky/Gavin Enslin at the very top - no matter what
+
     if (isPriority1 && !isPriority2) return -1;
     if (!isPriority1 && isPriority2) return 1;
-    
-    // Both are priority (both are Enslin with Vicky/Gavin) - Vicky comes before Gavin
+
     if (isPriority1 && isPriority2) {
-      const isVicky1 = firstName1.includes('vick') || 
-                       firstName1.includes('vic') || 
-                       firstName1.includes('vicki') || 
-                       firstName1.includes('vicky');
-      const isVicky2 = firstName2.includes('vick') || 
-                       firstName2.includes('vic') || 
-                       firstName2.includes('vicki') || 
-                       firstName2.includes('vicky');
+      const isVicky1 = firstName1.includes('vick') ||
+        firstName1.includes('vic') ||
+        firstName1.includes('vicki') ||
+        firstName1.includes('vicky');
+      const isVicky2 = firstName2.includes('vick') ||
+        firstName2.includes('vic') ||
+        firstName2.includes('vicki') ||
+        firstName2.includes('vicky');
       if (isVicky1 && !isVicky2) return -1;
       if (!isVicky1 && isVicky2) return 1;
       return fullName1.localeCompare(fullName2);
     }
-    
-    // New people should appear after priority but before others
+
     const isNew1 = row1.isNew;
     const isNew2 = row2.isNew;
-    
+
     if (isNew1 && !isNew2) return -1;
     if (!isNew1 && isNew2) return 1;
-    
-    // Neither are priority - sort by leader field presence and then alphabetically
+
     const hasLeader1 = Boolean(row1[leaderField] && row1[leaderField].trim());
     const hasLeader2 = Boolean(row2[leaderField] && row2[leaderField].trim());
-    
-    // People with leader values come before people without
+
     if (hasLeader1 && !hasLeader2) return -1;
     if (!hasLeader1 && hasLeader2) return 1;
-    
-    // Both have leader values or both don't - sort alphabetically by the leader value
+
     const leaderValue1 = (row1[leaderField] || '').toLowerCase();
     const leaderValue2 = (row2[leaderField] || '').toLowerCase();
-    
+
     return leaderValue1.localeCompare(leaderValue2);
   };
 
-  // Enhanced real-time data fetching
   const fetchRealTimeEventData = async (eventId) => {
     if (!eventId) return null;
-    
+
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BASE_URL}/service-checkin/real-time-data`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        params: { event_id: eventId }
+      const response = await authFetch(`${BASE_URL}/service-checkin/real-time-data?event_id=${eventId}`, {
+        method: "GET",
       });
-      
-      if (response.data.success) {
-        return response.data;
+
+      if (!response.ok) {
+        console.error("Failed to fetch real-time event data, status:", response.status);
+        return null;
       }
+
+      const data = await response.json();
+      if (data.success) {
+        console.log('Real-time data received:', {
+          presentCount: data.present_count,
+          newPeopleCount: data.new_people_count,
+          consolidationCount: data.consolidation_count,
+          newPeopleArray: data.new_people,
+          consolidationsArray: data.consolidations
+        });
+        return data;
+      }
+
       return null;
     } catch (error) {
-      console.error('❌ Error fetching real-time event data:', error);
+      console.error("Error fetching real-time event data:", error);
       return null;
     }
   };
 
-  // Enhanced refresh function for real-time sync across devices
   const handleFullRefresh = async () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
@@ -309,28 +300,72 @@ function ServiceCheckIn() {
 
     setIsRefreshing(true);
     try {
-      console.log("🔄 Performing full refresh from database for event:", currentEventId);
-      
-      // Refresh people cache
-      await axios.post(`${BASE_URL}/cache/people/refresh`);
-      
-      // Get the REAL data from the database
+      console.log("Performing full refresh from database for event:", currentEventId);
+
+      await authFetch(`${BASE_URL}/cache/people/refresh`, {
+        method: "POST",
+      });
+
       const data = await fetchRealTimeEventData(currentEventId);
-      
+
       if (data) {
-        console.log('✅ Real-time data received from DB:', {
+        console.log('Real-time data received from DB:', {
           present_count: data.present_count,
-          new_people_count: data.new_people_count, 
+          new_people_count: data.new_people_count,
           consolidation_count: data.consolidation_count
         });
-        
-        // 🔥 COMPLETELY REPLACE all state with fresh database data
+
         setRealTimeData(data);
-        
-        // Also refresh the attendees list from cache
-        const cacheResponse = await axios.get(`${BASE_URL}/cache/people`);
-        if (cacheResponse.data.success && cacheResponse.data.cached_data) {
-          const people = cacheResponse.data.cached_data.map((p) => ({
+
+        const cacheResponse = await authFetch(`${BASE_URL}/cache/people`);
+        if (cacheResponse.ok) {
+          const cacheData = await cacheResponse.json();
+          if (cacheData.success && cacheData.cached_data) {
+            const people = cacheData.cached_data.map((p) => ({
+              _id: p._id,
+              name: p.Name || "",
+              surname: p.Surname || "",
+              email: p.Email || "",
+              phone: p.Number || "",
+              leader1: p["Leader @1"] || "",
+              leader12: p["Leader @12"] || "",
+              leader144: p["Leader @144"] || "",
+              gender: p.Gender || "",
+              address: p.Address || "",
+              birthday: p.Birthday || "",
+              invitedBy: p.InvitedBy || "",
+              stage: p.Stage || "",
+              fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
+            }));
+
+            setAttendees(people);
+          }
+        }
+
+        toast.success(`Refresh complete!`);
+      } else {
+        throw new Error('Failed to fetch real-time data from database');
+      }
+
+    } catch (error) {
+      console.error("Error in real-time refresh:", error);
+      toast.error("Failed to refresh data from database");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const fetchAllPeople = async () => {
+    setIsLoadingPeople(true);
+    try {
+      console.log('Fetching people data from cache...');
+
+      const response = await authFetch(`${BASE_URL}/cache/people`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.cached_data) {
+          const people = data.cached_data.map((p) => ({
             _id: p._id,
             name: p.Name || "",
             surname: p.Surname || "",
@@ -346,72 +381,30 @@ function ServiceCheckIn() {
             stage: p.Stage || "",
             fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
           }));
-          
+
+          console.log(`Loaded ${people.length} people from cache`);
           setAttendees(people);
+          setHasDataLoaded(true);
+        } else {
+          throw new Error('No people data available in cache');
         }
-        
-        toast.success(`Refresh complete! Present: ${data.present_count}, New: ${data.new_people_count}, Consolidated: ${data.consolidation_count}`);
       } else {
-        throw new Error('Failed to fetch real-time data from database');
-      }
-
-    } catch (error) {
-      console.error("❌ Error in real-time refresh:", error);
-      toast.error("Failed to refresh data from database");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  // Fetch all people for the main database
-  const fetchAllPeople = async () => {
-    setIsLoadingPeople(true);
-    try {
-      console.log('🔄 Fetching people data from cache...');
-      
-      const response = await axios.get(`${BASE_URL}/cache/people`);
-      
-      if (response.data.success && response.data.cached_data) {
-        const people = response.data.cached_data.map((p) => ({
-          _id: p._id,
-          name: p.Name || "",
-          surname: p.Surname || "",
-          email: p.Email || "",
-          phone: p.Number || "",
-          leader1: p["Leader @1"] || "",
-          leader12: p["Leader @12"] || "",
-          leader144: p["Leader @144"] || "",
-          gender: p.Gender || "",
-          address: p.Address || "",
-          birthday: p.Birthday || "",
-          invitedBy: p.InvitedBy || "",
-          stage: p.Stage || "",
-          fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
-        }));
-        
-        console.log(`✅ Loaded ${people.length} people from cache`);
-        setAttendees(people);
-        setHasDataLoaded(true);
-      } else {
-        throw new Error('No people data available in cache');
+        throw new Error('Failed to fetch people data');
       }
     } catch (err) {
-      console.error('❌ Error fetching people:', err);
+      console.error('Error fetching people:', err);
       toast.error("Failed to load people data. Please refresh the page.");
     } finally {
       setIsLoadingPeople(false);
     }
   };
 
-  // Fetch events - with caching to prevent unnecessary reloads
   const fetchEvents = async (forceRefresh = false) => {
-    // Check cache first
     const now = Date.now();
     if (eventsCache && eventsCacheTimestamp && (now - eventsCacheTimestamp) < CACHE_DURATION && !forceRefresh) {
-      console.log('📋 Using cached events data');
+      console.log('Using cached events data');
       setEvents(eventsCache);
-      
-      // Set current event if not already set
+
       if (!currentEventId && eventsCache.length > 0) {
         const filteredEvents = getFilteredEvents(eventsCache);
         if (filteredEvents.length > 0) {
@@ -423,112 +416,305 @@ function ServiceCheckIn() {
 
     setIsLoadingEvents(true);
     try {
-      const token = localStorage.getItem('token');
-      console.log('🔄 Fetching events...');
-      
-      const response = await fetch(`${BASE_URL}/events/global`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      console.log('Fetching events from API...');
+
+      const response = await authFetch(`${BASE_URL}/events/global`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('📋 RAW Global events response:', data);
-      
+      console.log('RAW Global events API response:', data);
+
       const eventsData = data.events || [];
-      console.log('✅ Processed events:', eventsData);
+      console.log(`Number of raw events from API: ${eventsData.length}`);
 
-      const transformedEvents = eventsData.map(event => ({
-        id: event._id || event.id,
-        eventName: event.eventName || "Unnamed Event",
-        status: (event.status || "open").toLowerCase(),
-        isGlobal: event.isGlobal !== false,
-        isTicketed: event.isTicketed || false,
-        date: event.date || event.createdAt,
-        eventType: event.eventType || "Global Events"
-      }));
+      const peopleResponse = await authFetch(`${BASE_URL}/cache/people`);
+      let peopleList = [];
+      if (peopleResponse.ok) {
+        const peopleData = await peopleResponse.json();
+        if (peopleData.success && peopleData.cached_data) {
+          peopleList = peopleData.cached_data;
+          console.log(`Loaded ${peopleList.length} people for leader mapping`);
+        }
+      }
 
-      console.log('🎯 Final transformed events:', transformedEvents);
-      
-      // Update cache
-      eventsCache = transformedEvents;
+      const findPerson = (id, email) => {
+        if (!id && !email) return null;
+
+        if (id) {
+          const byId = peopleList.find(p => p._id === id || p.id === id);
+          if (byId) return byId;
+        }
+
+        if (email) {
+          const emailLower = email.toLowerCase();
+          const byEmail = peopleList.find(p =>
+            p.Email && p.Email.toLowerCase() === emailLower ||
+            p.email && p.email.toLowerCase() === emailLower
+          );
+          if (byEmail) return byEmail;
+        }
+
+        return null;
+      };
+
+      const transformedEvents = eventsData.map(event => {
+        try {
+          if (!event) {
+            return {
+              id: Math.random().toString(36),
+              eventName: "Invalid Event",
+              status: "unknown",
+              date: new Date().toISOString(),
+              attendance: 0,
+              newPeople: 0,
+              consolidated: 0,
+              attendees: [],
+              new_people: [],
+              consolidations: [],
+              attendanceData: [],
+              newPeopleData: [],
+              consolidatedData: []
+            };
+          }
+
+          const attendeesArray = Array.isArray(event.attendees) ? event.attendees : [];
+          const newPeopleArray = Array.isArray(event.new_people) ? event.new_people : [];
+          const consolidationsArray = Array.isArray(event.consolidations) ? event.consolidations : [];
+
+          const attendanceData = attendeesArray.map(att => {
+            const personId = att.id || att._id || att.person_id;
+            const personEmail = att.email || att.Email;
+            const foundPerson = findPerson(personId, personEmail);
+
+            return {
+              ...att,
+              name: att.name || att.Name || foundPerson?.Name || '',
+              surname: att.surname || att.Surname || foundPerson?.Surname || '',
+              email: att.email || att.Email || foundPerson?.Email || '',
+              phone: att.phone || att.Number || foundPerson?.Number || '',
+              leader1: foundPerson?.["Leader @1"] || att.leader1 || att["Leader @1"] || '',
+              leader12: foundPerson?.["Leader @12"] || att.leader12 || att["Leader @12"] || '',
+              leader144: foundPerson?.["Leader @144"] || att.leader144 || att["Leader @144"] || '',
+              id: personId || Math.random().toString(36),
+              _id: personId,
+              original_data: att
+            };
+          });
+
+          const newPeopleData = newPeopleArray.map(np => {
+            const personId = np.id || np._id || np.person_id;
+            const personEmail = np.email || np.Email;
+            const foundPerson = findPerson(personId, personEmail);
+
+            return {
+              ...np,
+              name: np.name || np.Name || foundPerson?.Name || '',
+              surname: np.surname || np.Surname || foundPerson?.Surname || '',
+              email: np.email || np.Email || foundPerson?.Email || '',
+              phone: np.phone || np.Number || foundPerson?.Number || '',
+              gender: np.gender || np.Gender || foundPerson?.Gender || '',
+              invitedBy: np.invitedBy || np.InvitedBy || foundPerson?.InvitedBy || '',
+              leader1: foundPerson?.["Leader @1"] || np.leader1 || np["Leader @1"] || '',
+              leader12: foundPerson?.["Leader @12"] || np.leader12 || np["Leader @12"] || '',
+              leader144: foundPerson?.["Leader @144"] || np.leader144 || np["Leader @144"] || '',
+              id: personId || Math.random().toString(36),
+              _id: personId,
+              isNew: true,
+              original_data: np
+            };
+          });
+
+          const consolidatedData = consolidationsArray.map(cons => {
+            const personId = cons.person_id || cons.id || cons._id;
+            const personEmail = cons.person_email || cons.email;
+            const foundPerson = findPerson(personId, personEmail);
+
+            return {
+              ...cons,
+              name: cons.person_name || cons.name || foundPerson?.Name || '',
+              surname: cons.person_surname || cons.surname || foundPerson?.Surname || '',
+              person_name: cons.person_name || cons.name || foundPerson?.Name || '',
+              person_surname: cons.person_surname || cons.surname || foundPerson?.Surname || '',
+              person_email: cons.person_email || cons.email || foundPerson?.Email || '',
+              person_phone: cons.person_phone || cons.phone || foundPerson?.Number || '',
+              email: cons.person_email || cons.email || foundPerson?.Email || '',
+              phone: cons.person_phone || cons.phone || foundPerson?.Number || '',
+              assigned_to: cons.assigned_to || cons.assignedTo || '',
+              decision_type: cons.decision_type || cons.consolidation_type || 'Commitment',
+              status: cons.status || 'active',
+              leader1: foundPerson?.["Leader @1"] || cons.leader1 || cons["Leader @1"] || '',
+              leader12: foundPerson?.["Leader @12"] || cons.leader12 || cons["Leader @12"] || '',
+              leader144: foundPerson?.["Leader @144"] || cons.leader144 || cons["Leader @144"] || '',
+              id: personId || Math.random().toString(36),
+              _id: personId,
+              original_data: cons
+            };
+          });
+
+          const attendeesCount = attendanceData.length;
+          const newPeopleCount = newPeopleData.length;
+          const consolidationsCount = consolidatedData.length;
+
+          const totalAttendance = typeof event.total_attendance === 'number'
+            ? event.total_attendance
+            : attendeesCount;
+
+          const transformedEvent = {
+            id: event._id || event.id || Math.random().toString(36),
+            eventName: event.eventName || event.Event_Name || "Unnamed Event",
+            status: (event.status || "open").toLowerCase(),
+            isGlobal: event.isGlobal !== false,
+            isTicketed: event.isTicketed || false,
+            date: event.date || event.createdAt,
+            eventType: event.eventType || "Global Events",
+            closed_by: event.closed_by,
+            closed_at: event.closed_at,
+            attendees: attendeesArray,
+            new_people: newPeopleArray,
+            consolidations: consolidationsArray,
+            total_attendance: totalAttendance,
+            attendance: attendeesCount,
+            newPeople: newPeopleCount,
+            consolidated: consolidationsCount,
+            attendanceData: attendanceData,
+            newPeopleData: newPeopleData,
+            consolidatedData: consolidatedData,
+            location: event.location || event.Location || '',
+            description: event.description || '',
+            UUID: event.UUID || '',
+            created_at: event.created_at,
+            updated_at: event.updated_at
+          };
+
+          if (attendanceData.some(a => a.leader1 || a.leader12 || a.leader144) ||
+            newPeopleData.some(np => np.leader1 || np.leader12 || np.leader144) ||
+            consolidatedData.some(c => c.leader1 || c.leader12 || c.leader144)) {
+            console.log(`Event "${transformedEvent.eventName}" has leader data`);
+          }
+
+          return transformedEvent;
+
+        } catch (error) {
+          console.error('Error transforming event:', error, event);
+          return {
+            id: Math.random().toString(36),
+            eventName: event?.eventName || "Error Event",
+            status: "error",
+            date: new Date().toISOString(),
+            attendance: 0,
+            newPeople: 0,
+            consolidated: 0,
+            attendees: [],
+            new_people: [],
+            consolidations: [],
+            attendanceData: [],
+            newPeopleData: [],
+            consolidatedData: []
+          };
+        }
+      });
+
+      const validEvents = transformedEvents.filter(event =>
+        event && event.status !== "error" && event.eventName !== "Error Event"
+      );
+
+      console.log(`Final transformed events: ${validEvents.length} valid`);
+
+      eventsCache = validEvents;
       eventsCacheTimestamp = now;
-      
-      setEvents(transformedEvents);
 
-      // Set current event if not already set
-      if (!currentEventId && transformedEvents.length > 0) {
-        const filteredEvents = getFilteredEvents(transformedEvents);
+      setEvents(validEvents);
+
+      if (!currentEventId && validEvents.length > 0) {
+        const filteredEvents = getFilteredEvents(validEvents);
         if (filteredEvents.length > 0) {
+          console.log(`Setting current event to: ${filteredEvents[0].eventName}`);
           setCurrentEventId(filteredEvents[0].id);
         }
       }
 
     } catch (err) {
-      console.error('❌ Error fetching global events:', err);
+      console.error('Error fetching global events:', err);
       toast.error("Failed to fetch events. Please try again.");
     } finally {
       setIsLoadingEvents(false);
     }
   };
 
-  // Event filtering functions - exclude events that didn't meet
-const getFilteredEvents = (eventsList = events) => {
-  // Get today's date in YYYY-MM-DD format
-  const today = new Date();
-  const todayDateString = today.toISOString().split('T')[0]; // "2024-01-19"
-  
-  const filteredEvents = eventsList.filter(event => {
-    const isGlobal = event.isGlobal === true || 
-                    event.eventType === "Global Events" || 
-                    event.eventType === "Event" ||
-                    event.eventType?.toLowerCase().includes("event");
-    
-    const eventStatus = event.status?.toLowerCase() || '';
-    const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
-    const didMeet = eventStatus !== 'cancelled' && eventStatus !== 'did_not_meet';
-    
-    // Check if event date matches today
-    let eventDateString = '';
-    if (event.date) {
-      const eventDate = new Date(event.date);
-      eventDateString = eventDate.toISOString().split('T')[0];
-    }
-    
-    const isForToday = eventDateString === todayDateString;
-    
-    return isGlobal && isNotClosed && didMeet && isForToday;
-  });
-  
-  return filteredEvents;
-};
+  const getFilteredEvents = (eventsList = events) => {
+    const today = new Date();
+    const todayDateString = today.toISOString().split('T')[0];
+
+    const filteredEvents = eventsList.filter(event => {
+      const isGlobal = event.isGlobal === true ||
+        event.eventType === "Global Events" ||
+        event.eventType === "Event" ||
+        event.eventType?.toLowerCase().includes("event");
+
+      const eventStatus = event.status?.toLowerCase() || '';
+      const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
+      const didMeet = eventStatus !== 'cancelled' && eventStatus !== 'did_not_meet';
+
+      let eventDateString = '';
+      if (event.date) {
+        const eventDate = new Date(event.date);
+        eventDateString = eventDate.toISOString().split('T')[0];
+      }
+
+      const isForToday = eventDateString === todayDateString;
+
+      return isGlobal && isNotClosed && didMeet && isForToday;
+    });
+
+    return filteredEvents;
+  };
 
   const getFilteredClosedEvents = () => {
-    const closedEvents = events.filter(event => {
-      const isClosed = event.status?.toLowerCase() === 'closed' || event.status?.toLowerCase() === 'complete';
-      const isGlobal = event.eventType === "Global Events" || event.isGlobal === true;
-      const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-      const didMeet = event.status?.toLowerCase() !== 'cancelled' && event.status?.toLowerCase() !== 'did_not_meet';
-      
-      return isClosed && isGlobal && isNotCell && didMeet;
-    });
-    
-    // Apply search filter
-    if (!eventSearch.trim()) {
-      return closedEvents;
+    try {
+      const closedEvents = events.filter(event => {
+        const isClosed = event.status?.toLowerCase() === 'closed' ||
+          event.status?.toLowerCase() === 'complete';
+        const isGlobal = event.eventType === "Global Events" ||
+          event.isGlobal === true ||
+          event.eventTypeName === "Global Events";
+        const isNotCell = event.eventType?.toLowerCase() !== 'cell';
+        const didMeet = event.status?.toLowerCase() !== 'cancelled' &&
+          event.status?.toLowerCase() !== 'did_not_meet';
+
+        return isClosed && isGlobal && isNotCell && didMeet;
+      });
+
+      console.log('Found closed events:', closedEvents.length);
+
+      if (closedEvents.length > 0) {
+        console.log('All closed events:');
+        closedEvents.forEach((event, index) => {
+          console.log(`${index + 1}. "${event.eventName}" - Status: ${event.status} - Attendance: ${event.attendance || 0} - New: ${event.newPeople || 0} - Consolidated: ${event.consolidated || 0}`);
+        });
+      }
+
+      if (!eventSearch.trim()) {
+        return closedEvents;
+      }
+
+      const searchTerm = eventSearch.toLowerCase();
+      const filtered = closedEvents.filter(event =>
+        event.eventName?.toLowerCase().includes(searchTerm) ||
+        (event.date && new Date(event.date).toLocaleDateString().toLowerCase().includes(searchTerm)) ||
+        event.status?.toLowerCase().includes(searchTerm) ||
+        event.closed_by?.toLowerCase().includes(searchTerm)
+      );
+
+      console.log(`Search "${eventSearch}" found ${filtered.length} events`);
+      return filtered;
+
+    } catch (error) {
+      console.error("Error in getFilteredClosedEvents:", error);
+      return [];
     }
-    
-    const searchTerm = eventSearch.toLowerCase();
-    return closedEvents.filter(event => 
-      event.eventName?.toLowerCase().includes(searchTerm) ||
-      event.date?.toLowerCase().includes(searchTerm) ||
-      event.status?.toLowerCase().includes(searchTerm)
-    );
   };
 
   const handleToggleCheckIn = async (attendee) => {
@@ -538,49 +724,54 @@ const getFilteredEvents = (eventsList = events) => {
     }
 
     try {
-      const token = localStorage.getItem("token");
-      const isCurrentlyPresent = realTimeData?.present_attendees?.some(a => 
+      const isCurrentlyPresent = realTimeData?.present_attendees?.some(a =>
         a.id === attendee._id || a._id === attendee._id
       );
       const fullName = `${attendee.name} ${attendee.surname}`.trim();
-      
+
       if (!isCurrentlyPresent) {
-        // Check in as attendee
-        const response = await axios.post(`${BASE_URL}/service-checkin/checkin`, {
-          event_id: currentEventId,
-          person_data: {
-            id: attendee._id,
-            name: attendee.name,
-            fullName: fullName,
-            email: attendee.email,
-            phone: attendee.phone,
-            leader12: attendee.leader12
-          },
-          type: "attendee"
-        }, {
-          headers: { 'Authorization': `Bearer ${token}` }
+
+        const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
+          method: "POST",
+          body: JSON.stringify({
+            event_id: currentEventId,
+            person_data: {
+              id: attendee._id,
+              name: attendee.name,
+              fullName: fullName,
+              email: attendee.email,
+              phone: attendee.phone,
+              leader12: attendee.leader12
+            },
+            type: "attendee"
+          }),
         });
 
-        if (response.data.success) {
-          toast.success(`${fullName} checked in successfully`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            toast.success(`${fullName} checked in successfully`);
+          }
         }
       } else {
-        // Remove from check-in
-        const response = await axios.delete(`${BASE_URL}/service-checkin/remove`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          data: {
+
+        const response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
+          method: "DELETE",
+          body: JSON.stringify({
             event_id: currentEventId,
             person_id: attendee._id,
             type: "attendees"
-          }
+          }),
         });
 
-        if (response.data.success) {
-          toast.info(`${fullName} removed from check-in`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            toast.info(`${fullName} removed from check-in`);
+          }
         }
       }
 
-      // 🔥 CRITICAL: ALWAYS refresh from backend after any change
       const freshData = await fetchRealTimeEventData(currentEventId);
       if (freshData) {
         setRealTimeData(freshData);
@@ -588,7 +779,7 @@ const getFilteredEvents = (eventsList = events) => {
 
     } catch (err) {
       console.error("Error in toggle check-in:", err);
-      toast.error(err.response?.data?.detail || err.message);
+      toast.error(err.message || "Failed to toggle check-in");
     }
   };
 
@@ -612,8 +803,6 @@ const getFilteredEvents = (eventsList = events) => {
     }
 
     try {
-      const token = localStorage.getItem("token");
-      
       if (editingPerson) {
         const updatedPersonData = {
           name: formData.name,
@@ -628,16 +817,18 @@ const getFilteredEvents = (eventsList = events) => {
           stage: formData.stage || "Win"
         };
 
-        const updateResponse = await axios.patch(
+        const updateResponse = await authFetch(
           `${BASE_URL}/people/${editingPerson._id}`,
-          updatedPersonData,
-          { headers: { Authorization: `Bearer ${token}` } }
+          {
+            method: "PATCH",
+            body: JSON.stringify(updatedPersonData),
+          }
         );
 
-        if (updateResponse.data) {
+        if (updateResponse.ok) {
+          const data = await updateResponse.json();
           toast.success(`${formData.name} ${formData.surname} updated successfully`);
 
-          // Update DataGrid immediately
           setAttendees(prev =>
             prev.map(person =>
               person._id === editingPerson._id
@@ -657,100 +848,96 @@ const getFilteredEvents = (eventsList = events) => {
       const newPersonData = responseData.person || responseData;
       const fullName = `${formData.name} ${formData.surname}`.trim();
 
-      // Step 1: Add this new person as a FIRST TIME attendee
-      const response = await axios.post(
+
+      const response = await authFetch(
         `${BASE_URL}/service-checkin/checkin`,
         {
-          event_id: currentEventId,
-          person_data: {
-            id: newPersonData._id,
+          method: "POST",
+          body: JSON.stringify({
+            event_id: currentEventId,
+            person_data: {
+              id: newPersonData._id,
+              name: newPersonData.Name || formData.name,
+              surname: newPersonData.Surname || formData.surname,
+              email: newPersonData.Email || formData.email,
+              phone: newPersonData.Number || formData.phone,
+              gender: newPersonData.Gender || formData.gender,
+              invitedBy: newPersonData.InvitedBy || formData.invitedBy,
+              stage: "First Time"
+            },
+            type: "new_person"
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          toast.success(`${fullName} added as new person successfully`);
+          setOpenDialog(false);
+          setEditingPerson(null);
+          setFormData(emptyForm);
+
+          setRealTimeData(prev => {
+            if (!prev) return prev;
+
+            const updatedNewPeople = [...(prev.new_people || []), data.new_person];
+
+            return {
+              ...prev,
+              new_people: updatedNewPeople,
+              new_people_count: updatedNewPeople.length,
+              ...(data.consolidation_count && {
+                consolidation_count: data.consolidation_count
+              })
+            };
+          });
+
+          try {
+            await authFetch(`${BASE_URL}/cache/people/refresh`, {
+              method: "POST",
+            });
+            console.log("Cache refreshed after adding new person");
+          } catch (cacheError) {
+            console.warn("Cache refresh failed:", cacheError);
+          }
+
+
+          const newPersonForGrid = {
+            _id: newPersonData._id,
             name: newPersonData.Name || formData.name,
             surname: newPersonData.Surname || formData.surname,
             email: newPersonData.Email || formData.email,
             phone: newPersonData.Number || formData.phone,
             gender: newPersonData.Gender || formData.gender,
             invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-            stage: "First Time"
-          },
-          type: "new_person"
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.success) {
-        toast.success(`${fullName} added as new person successfully`);
-
-        // Close dialog + reset form
-        setOpenDialog(false);
-        setEditingPerson(null);
-        setFormData(emptyForm);
-
-        // 🔥 CRITICAL FIX: Immediately update the real-time data state
-        setRealTimeData(prev => {
-          if (!prev) return prev;
-          
-          const updatedNewPeople = [...(prev.new_people || []), response.data.new_person];
-          
-          return {
-            ...prev,
-            new_people: updatedNewPeople,
-            new_people_count: updatedNewPeople.length,
-            // Also update the consolidation count if this was a consolidation
-            ...(response.data.consolidation_count && {
-              consolidation_count: response.data.consolidation_count
-            })
+            leader1: formData.leader1 || "",
+            leader12: formData.leader12 || "",
+            leader144: formData.leader144 || "",
+            stage: "First Time",
+            fullName: fullName,
+            address: "",
+            birthday: "",
+            cellGroup: "",
+            zone: "",
+            homeAddress: "",
+            isNew: true,
+            present: false
           };
-        });
 
-        // Refresh cache
-        try {
-          await axios.post(`${BASE_URL}/cache/people/refresh`);
-          console.log("✅ Cache refreshed after adding new person");
-        } catch (cacheError) {
-          console.warn("⚠️ Cache refresh failed:", cacheError);
+          setAttendees(prev => [newPersonForGrid, ...prev]);
+          setSearch("");
+          const freshData = await fetchRealTimeEventData(currentEventId);
+          if (freshData) {
+            setRealTimeData(freshData);
+          }
+
+          console.log("New person added to DataGrid and counts updated immediately");
         }
-
-        // Create the new person object for DataGrid
-        const newPersonForGrid = {
-          _id: newPersonData._id,
-          name: newPersonData.Name || formData.name,
-          surname: newPersonData.Surname || formData.surname,
-          email: newPersonData.Email || formData.email,
-          phone: newPersonData.Number || formData.phone,
-          gender: newPersonData.Gender || formData.gender,
-          invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-          leader1: formData.leader1 || "",
-          leader12: formData.leader12 || "",
-          leader144: formData.leader144 || "",
-          stage: "First Time",
-          fullName: fullName,
-          address: "",
-          birthday: "",
-          occupation: "",
-          cellGroup: "",
-          zone: "",
-          homeAddress: "",
-          isNew: true,
-          present: false
-        };
-
-        // Add directly to DataGrid attendees
-        setAttendees(prev => [newPersonForGrid, ...prev]);
-
-        // Clear search so the new person is visible immediately
-        setSearch("");
-
-
-        const freshData = await fetchRealTimeEventData(currentEventId);
-        if (freshData) {
-          setRealTimeData(freshData);
-        }
-        setNewPersonAdded(true)
-        console.log("✅ New person added to DataGrid and counts updated immediately");
       }
     } catch (error) {
-      console.error("❌ Error saving person:", error);
-      toast.error(error.response?.data?.detail || "Failed to save person");
+      console.error("Error saving person:", error);
+      toast.error(error.message || "Failed to save person");
     }
   };
 
@@ -758,22 +945,21 @@ const getFilteredEvents = (eventsList = events) => {
     if (!currentEventId) return;
     const fullName = task.recipientName || `${task.person_name || ''} ${task.person_surname || ''}`.trim() || 'Unknown Person';
 
-    console.log("🎯 Recording consolidation in UI for:", fullName);
-    console.log("📋 Consolidation result from modal:", task);
+    console.log("Recording consolidation in UI for:", fullName);
+    console.log("Consolidation result from modal:", task);
 
     try {
       setConsolidationOpen(false);
       toast.success(`${fullName} consolidated successfully`);
-      
-      // 🔥 CRITICAL: ALWAYS refresh from backend after consolidation
+
       const freshData = await fetchRealTimeEventData(currentEventId);
       if (freshData) {
         setRealTimeData(freshData);
-        console.log("✅ Consolidation data refreshed from backend");
+        console.log("Consolidation data refreshed from backend");
       }
-      
+
     } catch (error) {
-      console.error("❌ Error recording consolidation in UI:", error);
+      console.error("Error recording consolidation in UI:", error);
       toast.error("Consolidation created but failed to update display");
     }
   };
@@ -796,18 +982,8 @@ const getFilteredEvents = (eventsList = events) => {
 
     setIsClosingEvent(true);
     try {
-      const token = localStorage.getItem("token");
-      
-      // Try PATCH first
-      const response = await fetch(`${BASE_URL}/events/${currentEventId}`, {
+      const response = await authFetch(`${BASE_URL}/events/${currentEventId}/close`, {
         method: "PATCH",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: "complete"
-        })
       });
 
       if (!response.ok) {
@@ -815,35 +991,56 @@ const getFilteredEvents = (eventsList = events) => {
       }
 
       const result = await response.json();
-      
+
+
+      if (result.already_closed) {
+        toast.info(result.message || "Event was already closed");
+      } else {
+        toast.success(result.message || `Event "${currentEvent.eventName}" closed successfully!`);
+      }
+
       setEvents(prev => prev.map(event =>
         event.id === currentEventId ? { ...event, status: "complete" } : event
       ));
 
-      // Update cache
+
       if (eventsCache) {
         eventsCache = eventsCache.map(event =>
           event.id === currentEventId ? { ...event, status: "complete" } : event
         );
       }
 
-      toast.success(result.message || `Event "${currentEvent.eventName}" closed successfully!`);
+      if (result.closed_by && result.closed_at) {
+        setEvents(prev => prev.map(event =>
+          event.id === currentEventId ? {
+            ...event,
+            status: "complete",
+            closed_by: result.closed_by,
+            closed_at: result.closed_at
+          } : event
+        ));
+      }
+
       setRealTimeData(null);
       setCurrentEventId("");
-      
       setTimeout(() => {
-        fetchEvents(true); // Force refresh events
+        fetchEvents(true);
       }, 500);
-      
+
     } catch (error) {
-      console.error("❌ ERROR in event closure process:", error);
-      toast.error("Event may still be open in the database. Please check.");
+      console.error("ERROR in event closure process:", error);
+      if (error.message.includes("404")) {
+        toast.error("Event not found. It may have been deleted.");
+      } else if (error.message.includes("400")) {
+        toast.error("Invalid event ID.");
+      } else {
+        toast.error("Failed to close event. Please try again.");
+      }
     } finally {
       setIsClosingEvent(false);
     }
   };
 
-  // UI Handlers
   const handleConsolidationClick = () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
@@ -853,73 +1050,113 @@ const getFilteredEvents = (eventsList = events) => {
   };
 
   const handleEditClick = (person) => {
+    console.log("Editing person data:", person);
+
     setEditingPerson(person);
     setFormData({
       name: person.name || "",
       surname: person.surname || "",
-      dob: person.dob || person.dateOfBirth || "",
-      homeAddress: person.homeAddress || "",
+      dob: person.dob || person.dateOfBirth || person.birthday || "",
+      homeAddress: person.homeAddress || person.address || "",
       email: person.email || "",
-      phone: person.phone || "",
+      phone: person.phone || person.Number || "",
       gender: person.gender || "",
       invitedBy: person.invitedBy || "",
       leader1: person.leader1 || "",
       leader12: person.leader12 || "",
       leader144: person.leader144 || "",
+      stage: person.stage || "Win"
     });
     setOpenDialog(true);
   };
 
-  const handleDelete = async (personId) => {
+  const handleDelete = async (personId, personName) => {
+    setIsDeleting(true);
     try {
-      const res = await fetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
+      const res = await authFetch(`${BASE_URL}/people/${personId}`, {
+        method: "DELETE"
+      });
+
       if (!res.ok) {
         const errorData = await res.json();
         toast.error(`Delete failed: ${errorData.detail}`);
         return;
       }
-
-      // 🔥 CRITICAL: Remove from local state immediately for instant UI update
       setAttendees(prev => prev.filter(person => person._id !== personId));
-      
-      // 🔥 Also remove from any real-time data if present
       setRealTimeData(prev => {
         if (!prev) return prev;
-        
+
         return {
           ...prev,
-          // Remove from present attendees
-          present_attendees: (prev.present_attendees || []).filter(a => 
+          present_attendees: (prev.present_attendees || []).filter(a =>
             a.id !== personId && a._id !== personId
           ),
-          // Remove from new people
-          new_people: (prev.new_people || []).filter(np => 
+          new_people: (prev.new_people || []).filter(np =>
             np.id !== personId && np._id !== personId
           ),
-          // Update counts
-          present_count: (prev.present_attendees || []).filter(a => 
+          present_count: (prev.present_attendees || []).filter(a =>
             a.id !== personId && a._id !== personId
           ).length,
-          new_people_count: (prev.new_people || []).filter(np => 
+          new_people_count: (prev.new_people || []).filter(np =>
             np.id !== personId && np._id !== personId
           ).length,
         };
       });
 
-      // Refresh cache to ensure consistency
       try {
-        await axios.post(`${BASE_URL}/cache/people/refresh`);
-        console.log("✅ Cache refreshed after deletion");
+        await authFetch(`${BASE_URL}/cache/people/refresh`, {
+          method: "POST",
+        });
+        console.log("Cache refreshed after deletion");
       } catch (cacheError) {
-        console.warn("⚠️ Cache refresh failed:", cacheError);
+        console.warn("Cache refresh failed:", cacheError);
       }
 
-      toast.success("Person deleted successfully");
-      
+      toast.success(`"${personName}" deleted successfully`);
+
     } catch (err) {
       console.error(err);
       toast.error("An error occurred while deleting the person");
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmation({ open: false, personId: null, personName: '' });
     }
+  };
+
+  const downloadCSV = (data, filename) => {
+    if (!data || data.length === 0) {
+      toast.error("No data to download");
+      return;
+    }
+
+    const headers = Object.keys(data[0]);
+
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row =>
+        headers.map(header => {
+          const value = row[header];
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value || '';
+        }).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success(`Downloaded ${data.length} records`);
   };
 
   const handleAddPersonClick = () => {
@@ -931,14 +1168,13 @@ const getFilteredEvents = (eventsList = events) => {
   };
 
   const getAttendeesWithPresentStatus = () => {
-  const presentAttendeeIds = (realTimeData?.present_attendees || []).map(a => a.id || a._id);
-  const newPeopleIds = (realTimeData?.new_people || []).map(np => np.id || np._id);
-    
-    
+    const presentAttendeeIds = realTimeData?.present_attendees?.map(a => a.id || a._id) || [];
+    const newPeopleIds = realTimeData?.new_people?.map(np => np.id) || [];
+
     return attendees.map((attendee) => ({
       ...attendee,
       present: presentAttendeeIds.includes(attendee._id),
-      isNew: attendee.stage === "First Time" || newPeopleIds.includes(attendee._id), // 🆕 Mark as new person
+      isNew: newPeopleIds.includes(attendee._id),
       id: attendee._id,
     }));
   };
@@ -960,9 +1196,8 @@ const getFilteredEvents = (eventsList = events) => {
     }
   })();
 
-  // Event history handlers
   const handleViewEventDetails = (event, data) => {
-    setEventHistoryDetails({
+    setEventHistoryModal({
       open: true,
       event: event,
       type: 'attendance',
@@ -971,7 +1206,7 @@ const getFilteredEvents = (eventsList = events) => {
   };
 
   const handleViewNewPeople = (event, data) => {
-    setEventHistoryDetails({
+    setEventHistoryModal({
       open: true,
       event: event,
       type: 'newPeople',
@@ -980,7 +1215,7 @@ const getFilteredEvents = (eventsList = events) => {
   };
 
   const handleViewConsolidated = (event, data) => {
-    setEventHistoryDetails({
+    setEventHistoryModal({
       open: true,
       event: event,
       type: 'consolidated',
@@ -988,15 +1223,12 @@ const getFilteredEvents = (eventsList = events) => {
     });
   };
 
-  // ========== NEW: SEARCH FILTERING FUNCTIONS ==========
-  
-  // Main filtering function - used by DataGrid
   const filterPeople = (people, searchTerm) => {
     if (!searchTerm.trim()) return people;
-    
+
     const searchTermLower = searchTerm.toLowerCase().trim();
     const searchTerms = searchTermLower.split(/\s+/);
-    
+
     return people.filter((person) => {
       const searchableText = [
         person.name || '',
@@ -1007,7 +1239,6 @@ const getFilteredEvents = (eventsList = events) => {
         person.leader12 || '',
         person.leader144 || '',
         person.gender || '',
-        person.occupation || '',
         person.cellGroup || '',
         person.zone || '',
         person.invitedBy || '',
@@ -1015,19 +1246,17 @@ const getFilteredEvents = (eventsList = events) => {
         person.homeAddress || '',
         person.stage || ''
       ].join(' ').toLowerCase();
-      
+
       return searchTerms.every(term => searchableText.includes(term));
     });
   };
 
-  // Enhanced filtering with priority scoring (same as DataGrid)
   const filterPeopleWithPriority = (people, searchTerm) => {
     if (!searchTerm.trim()) return people;
-    
+
     const searchTermLower = searchTerm.toLowerCase().trim();
     const searchTerms = searchTermLower.split(/\s+/);
-    
-    // First, filter
+
     const filtered = people.filter((person) => {
       const searchableText = [
         person.name || '',
@@ -1038,7 +1267,6 @@ const getFilteredEvents = (eventsList = events) => {
         person.leader12 || '',
         person.leader144 || '',
         person.gender || '',
-        person.occupation || '',
         person.cellGroup || '',
         person.zone || '',
         person.invitedBy || '',
@@ -1046,40 +1274,28 @@ const getFilteredEvents = (eventsList = events) => {
         person.homeAddress || '',
         person.stage || ''
       ].join(' ').toLowerCase();
-      
+
       return searchTerms.every(term => searchableText.includes(term));
     });
-    
-    // Apply search priority if searching for Vicky/Gavin Enslin
-    if (searchTermLower.includes('ensl') || searchTermLower.includes('vick') || 
-        searchTermLower.includes('vic') || searchTermLower.includes('gav')) {
+
+    if (searchTermLower.includes('ensl') || searchTermLower.includes('vick') ||
+      searchTermLower.includes('vic') || searchTermLower.includes('gav')) {
       return filtered.sort((a, b) => {
         const scoreA = getSearchPriorityScore(a, searchTermLower);
         const scoreB = getSearchPriorityScore(b, searchTermLower);
-        
+
         if (scoreA !== scoreB) {
-          return scoreB - scoreA; // Higher score first
+          return scoreB - scoreA;
         }
-        
-        // Fall back to default sorting
         return `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`);
       });
     }
-    
+
     return filtered;
   };
 
-  // Helper function to get full person data for present attendees
-  const getFullPersonData = (attendeeId) => {
-    return attendees.find(att => att._id === attendeeId) || {};
-  };
-
-  // Data for display
   const attendeesWithStatus = getAttendeesWithPresentStatus();
-
-  // PRESENT Attendees Modal filtering
   const modalFilteredAttendees = (() => {
-    // Get full person data for each present attendee
     const fullPresentAttendees = (realTimeData?.present_attendees || []).map(a => {
       const fullPerson = attendees.find(att => att._id === (a.id || a._id)) || {};
       return {
@@ -1096,22 +1312,20 @@ const getFilteredEvents = (eventsList = events) => {
         _id: a.id || a._id
       };
     });
-    
-    if (!modalSearch.trim()) return fullPresentAttendees;
-    
-    return filterPeopleWithPriority(fullPresentAttendees, modalSearch);
+
+    const sortedAttendees = [...fullPresentAttendees].sort((a, b) => {
+      const nameA = `${a.name || ''} ${a.surname || ''}`.toLowerCase().trim();
+      const nameB = `${b.name || ''} ${b.surname || ''}`.toLowerCase().trim();
+      return nameA.localeCompare(nameB);
+    });
+
+    if (!modalSearch.trim()) return sortedAttendees;
+
+    return filterPeopleWithPriority(sortedAttendees, modalSearch);
   })();
 
-  const modalPaginatedAttendees = modalFilteredAttendees.slice(
-    modalPage * modalRowsPerPage,
-    modalPage * modalRowsPerPage + modalRowsPerPage
-  );
 
-  // NEW PEOPLE Modal filtering
   const newPeopleFilteredList = (() => {
-    if (!newPeopleSearch.trim()) return realTimeData?.new_people || [];
-    
-    // Create full person objects for new people
     const fullNewPeople = (realTimeData?.new_people || []).map(np => {
       const fullPerson = attendees.find(att => att._id === np.id) || {};
       return {
@@ -1123,11 +1337,18 @@ const getFilteredEvents = (eventsList = events) => {
         phone: np.phone || fullPerson.phone || '',
         invitedBy: np.invitedBy || fullPerson.invitedBy || '',
         gender: np.gender || fullPerson.gender || '',
-        occupation: np.occupation || fullPerson.occupation || ''
       };
     });
-    
-    return filterPeople(fullNewPeople, newPeopleSearch);
+
+    const sortedNewPeople = [...fullNewPeople].sort((a, b) => {
+      const nameA = `${a.name || ''} ${a.surname || ''}`.toLowerCase().trim();
+      const nameB = `${b.name || ''} ${b.surname || ''}`.toLowerCase().trim();
+      return nameA.localeCompare(nameB);
+    });
+
+    if (!newPeopleSearch.trim()) return sortedNewPeople;
+
+    return filterPeople(sortedNewPeople, newPeopleSearch);
   })();
 
   const newPeoplePaginatedList = newPeopleFilteredList.slice(
@@ -1135,18 +1356,13 @@ const getFilteredEvents = (eventsList = events) => {
     newPeoplePage * newPeopleRowsPerPage + newPeopleRowsPerPage
   );
 
-  // CONSOLIDATED Modal filtering
   const filteredConsolidatedPeople = (() => {
-    if (!consolidatedSearch.trim()) return realTimeData?.consolidations || [];
-    
-    // Create full person objects for consolidated people
     const fullConsolidatedPeople = (realTimeData?.consolidations || []).map(cons => {
-      // Try to find the person in attendees list
-      const foundPerson = attendees.find(att => 
-        att._id === cons.person_id || 
+      const foundPerson = attendees.find(att =>
+        att._id === cons.person_id ||
         (att.name === cons.person_name && att.surname === cons.person_surname)
       );
-      
+
       return {
         ...foundPerson,
         ...cons,
@@ -1159,8 +1375,16 @@ const getFilteredEvents = (eventsList = events) => {
         notes: cons.notes || ''
       };
     });
-    
-    return filterPeople(fullConsolidatedPeople, consolidatedSearch);
+
+    const sortedConsolidatedPeople = [...fullConsolidatedPeople].sort((a, b) => {
+      const nameA = `${a.person_name || ''} ${a.person_surname || ''}`.toLowerCase().trim();
+      const nameB = `${b.person_name || ''} ${b.person_surname || ''}`.toLowerCase().trim();
+      return nameA.localeCompare(nameB);
+    });
+
+    if (!consolidatedSearch.trim()) return sortedConsolidatedPeople;
+
+    return filterPeople(sortedConsolidatedPeople, consolidatedSearch);
   })();
 
   const consolidatedPaginatedList = filteredConsolidatedPeople.slice(
@@ -1168,22 +1392,23 @@ const getFilteredEvents = (eventsList = events) => {
     consolidatedPage * consolidatedRowsPerPage + consolidatedRowsPerPage
   );
 
-  // Enhanced search with priority for Vicky/Gavin Enslin
+  const modalPaginatedAttendees = modalFilteredAttendees.slice(
+    modalPage * modalRowsPerPage,
+    modalPage * modalRowsPerPage + modalRowsPerPage
+  );
+
   const filteredAttendees = (() => {
     if (!search.trim()) return attendeesWithStatus;
-    
+
     return filterPeopleWithPriority(attendeesWithStatus, search);
   })();
-  
 
-  // Apply sorting to filtered attendees based on sortModel 
   const sortedFilteredAttendees = (() => {
     const result = [...filteredAttendees];
-    
+
     if (sortModel && sortModel.length > 0) {
-      const sort = sortModel[0]; // Get the first sort
-      
-      // Apply custom comparator for leader fields
+      const sort = sortModel[0];
+
       if (sort.field === 'leader1' || sort.field === 'leader12' || sort.field === 'leader144') {
         result.sort((a, b) => {
           const comparator = createLeaderSortComparator(sort.field);
@@ -1191,7 +1416,6 @@ const getFilteredEvents = (eventsList = events) => {
           return sort.sort === 'desc' ? -comparison : comparison;
         });
       } else if (sort.field && sort.field !== 'actions') {
-        // Standard string/field sorting
         result.sort((a, b) => {
           const aVal = (a[sort.field] || '').toString().toLowerCase();
           const bVal = (b[sort.field] || '').toString().toLowerCase();
@@ -1199,35 +1423,28 @@ const getFilteredEvents = (eventsList = events) => {
           return sort.sort === 'desc' ? -comparison : comparison;
         });
       }
-    }
-    {
-      // Default sorting: new people first, then alphabetically
-      console.log(result.find((i)=>{return i.isNew === true}))
+    } else {
       result.sort((a, b) => {
-        
-        // New people first
         if (a.isNew && !b.isNew) return -1;
         if (!a.isNew && b.isNew) return 1;
-        
-        // Then by name alphabetically
         return `${a.name || ''} ${a.surname || ''}`.localeCompare(`${b.name || ''} ${b.surname || ''}`);
       });
     }
-    
+
     return result;
   })();
 
   const paginatedAttendees = filteredAttendees.slice(
-    page * rowsPerPage, 
+    page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
   );
 
-  // Data for display
+
   const presentCount = realTimeData?.present_attendees?.length || 0;
   const newPeopleCount = realTimeData?.new_people_count || 0;
   const consolidationCount = realTimeData?.consolidation_count || 0;
 
-  // Responsive columns with LARGER ACTION BUTTONS
+
   const getMainColumns = () => {
     const baseColumns = [
       {
@@ -1252,10 +1469,10 @@ const getFilteredEvents = (eventsList = events) => {
                   sx={{ fontSize: '0.55rem', height: 14, flexShrink: 0, padding: '0 3px' }}
                 />
               )}
-              <Typography variant="body2" sx={{ 
-                whiteSpace: 'nowrap', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis', 
+              <Typography variant="body2" sx={{
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
                 width: '100%'
               }}>
@@ -1266,19 +1483,19 @@ const getFilteredEvents = (eventsList = events) => {
         }
       },
 
-      // Mobile-optimized columns
-      // On mobile: Show only Name, Leader columns, and Actions
+
+
       ...(isSmDown ? [] : [
-        // Phone - show on medium+ screens
-        { 
-          field: 'phone', 
-          headerName: 'Phone', 
-          flex: 0.8, 
+
+        {
+          field: 'phone',
+          headerName: 'Phone',
+          flex: 0.8,
           minWidth: 100,
           sortable: true,
           renderCell: (params) => (
-            <Typography variant="body2" sx={{ 
-              overflow: 'hidden', 
+            <Typography variant="body2" sx={{
+              overflow: 'hidden',
               textOverflow: 'ellipsis',
               fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
               width: '100%'
@@ -1288,17 +1505,17 @@ const getFilteredEvents = (eventsList = events) => {
           )
         },
 
-        // Email - hide on small and extra small screens
-        { 
-          field: 'email', 
-          headerName: 'Email', 
-          flex: 1, 
+
+        {
+          field: 'email',
+          headerName: 'Email',
+          flex: 1,
           minWidth: 120,
           sortable: true,
           display: isSmDown ? 'none' : 'flex',
           renderCell: (params) => (
-            <Typography variant="body2" sx={{ 
-              overflow: 'hidden', 
+            <Typography variant="body2" sx={{
+              overflow: 'hidden',
               textOverflow: 'ellipsis',
               fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
               width: '100%'
@@ -1309,21 +1526,21 @@ const getFilteredEvents = (eventsList = events) => {
         },
       ]),
 
-      // Show leader fields on ALL screens with compact sizing
-      // Mobile: Only show L1, L12, L144 (shortened headers)
-      // Desktop: Show full headers
-      { 
-        field: 'leader1', 
-        headerName: isXsDown ? 'L1' : (isSmDown ? 'Leader @1' : 'Leader @1'), 
-        flex: 0.6, 
+
+
+
+      {
+        field: 'leader1',
+        headerName: isXsDown ? 'L1' : (isSmDown ? 'Leader @1' : 'Leader @1'),
+        flex: 0.6,
         minWidth: 40,
         sortable: true,
         sortComparator: createLeaderSortComparator('leader1'),
         renderCell: (params) => (
-          <Typography variant="body2" sx={{ 
-            overflow: 'hidden', 
-            textOverflow: 'ellipsis', 
-            fontSize: isXsDown ? '0.65rem' : (isSmDown ? '0.7rem' : '0.9rem'), 
+          <Typography variant="body2" sx={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            fontSize: isXsDown ? '0.65rem' : (isSmDown ? '0.7rem' : '0.9rem'),
             whiteSpace: 'nowrap',
             width: '100%'
           }}>
@@ -1332,18 +1549,18 @@ const getFilteredEvents = (eventsList = events) => {
         )
       },
 
-      { 
-        field: 'leader12', 
-        headerName: isXsDown ? 'L12' : (isSmDown ? 'Leader @12' : 'Leader @12'), 
-        flex: 0.6, 
+      {
+        field: 'leader12',
+        headerName: isXsDown ? 'L12' : (isSmDown ? 'Leader @12' : 'Leader @12'),
+        flex: 0.6,
         minWidth: 70,
         sortable: true,
         sortComparator: createLeaderSortComparator('leader12'),
         renderCell: (params) => (
-          <Typography variant="body2" sx={{ 
-            overflow: 'hidden', 
-            textOverflow: 'ellipsis', 
-            fontSize: isXsDown ? '0.65rem' : (isSmDown ? '0.7rem' : '0.9rem'), 
+          <Typography variant="body2" sx={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            fontSize: isXsDown ? '0.65rem' : (isSmDown ? '0.7rem' : '0.9rem'),
             whiteSpace: 'nowrap',
             width: '100%'
           }}>
@@ -1352,18 +1569,18 @@ const getFilteredEvents = (eventsList = events) => {
         )
       },
 
-      { 
-        field: 'leader144', 
-        headerName: isXsDown ? 'L144' : (isSmDown ? 'Leader @144' : 'Leader @144'), 
-        flex: 0.6, 
+      {
+        field: 'leader144',
+        headerName: isXsDown ? 'L144' : (isSmDown ? 'Leader @144' : 'Leader @144'),
+        flex: 0.6,
         minWidth: 70,
         sortable: true,
         sortComparator: createLeaderSortComparator('leader144'),
         renderCell: (params) => (
-          <Typography variant="body2" sx={{ 
-            overflow: 'hidden', 
-            textOverflow: 'ellipsis', 
-            fontSize: isXsDown ? '0.65rem' : (isSmDown ? '0.7rem' : '0.9rem'), 
+          <Typography variant="body2" sx={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            fontSize: isXsDown ? '0.65rem' : (isSmDown ? '0.7rem' : '0.9rem'),
             whiteSpace: 'nowrap',
             width: '100%'
           }}>
@@ -1375,102 +1592,135 @@ const getFilteredEvents = (eventsList = events) => {
       {
         field: 'actions',
         headerName: isSmDown ? 'Actions' : 'Actions',
-        flex: 0.8, // Increased flex for larger buttons
-        minWidth: 120, // Increased from 80 to 120 for larger buttons
+        flex: 0.8,
+        minWidth: 120,
         sortable: false,
         filterable: false,
-        renderCell: (params) => (
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center' }}>
-            <Tooltip title="Delete">
-              <IconButton 
-                size="medium" // Changed from small to medium
-                color="error" 
-                onClick={() => handleDelete(params.row._id)} 
-                sx={{ 
-                  padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                  '&:hover': {
-                    backgroundColor: theme.palette.error.main + '20',
-                    transform: 'scale(1.1)'
-                  },
-                  transition: 'transform 0.2s'
-                }}
-              >
-                <DeleteIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Edit">
-              <IconButton 
-                size="medium" // Changed from small to medium
-                color="primary" 
-                onClick={() => handleEditClick(params.row)} 
-                sx={{ 
-                  padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                  '&:hover': {
-                    backgroundColor: theme.palette.primary.main + '20',
-                    transform: 'scale(1.1)'
-                  },
-                  transition: 'transform 0.2s'
-                }}
-              >
-                <EditIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={params.row.present ? "Checked in" : "Check in"}>
-              <IconButton
-                size="medium" // Changed from small to medium
-                color="success"
-                disabled={!currentEventId}
-                onClick={() => handleToggleCheckIn(params.row)}
-                sx={{ 
-                  padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                  '&:hover': {
-                    backgroundColor: theme.palette.success.main + '20',
-                    transform: 'scale(1.1)'
-                  },
-                  transition: 'transform 0.2s',
-                  opacity: currentEventId ? 1 : 0.5
-                }}
-              >
-                {params.row.present ? 
-                  <CheckCircleIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} /> : 
-                  <CheckCircleOutlineIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
-                }
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        )
+        renderCell: (params) => {
+          const fullName = `${params.row.name || ''} ${params.row.surname || ''}`.trim();
+          const isDisabled = !currentEventId;
+
+          return (
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Tooltip title={isDisabled ? "Please select an event first" : "Delete"}>
+                <span>
+                  <IconButton
+                    size="medium"
+                    color={isDisabled ? "default" : "error"}
+                    onClick={() => {
+                      if (!isDisabled) {
+                        setDeleteConfirmation({
+                          open: true,
+                          personId: params.row._id,
+                          personName: fullName
+                        });
+                      }
+                    }}
+                    disabled={isDisabled}
+                    sx={{
+                      padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
+                      '&:hover': !isDisabled ? {
+                        backgroundColor: theme.palette.error.main + '20',
+                        transform: 'scale(1.1)'
+                      } : {},
+                      transition: 'transform 0.2s',
+                      opacity: isDisabled ? 0.5 : 1,
+                      color: isDisabled ? 'text.disabled' : ''
+                    }}
+                  >
+                    <DeleteIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
+                  </IconButton>
+                </span>
+              </Tooltip>
+
+              <Tooltip title={isDisabled ? "Please select an event first" : "Edit"}>
+                <span>
+                  <IconButton
+                    size="medium"
+                    color={isDisabled ? "default" : "primary"}
+                    onClick={() => {
+                      if (!isDisabled) handleEditClick(params.row);
+                    }}
+                    disabled={isDisabled}
+                    sx={{
+                      padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
+                      '&:hover': !isDisabled ? {
+                        backgroundColor: theme.palette.primary.main + '20',
+                        transform: 'scale(1.1)'
+                      } : {},
+                      transition: 'transform 0.2s',
+                      opacity: isDisabled ? 0.5 : 1,
+                      color: isDisabled ? 'text.disabled' : ''
+                    }}
+                  >
+                    <EditIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
+                  </IconButton>
+                </span>
+              </Tooltip>
+
+              <Tooltip title={isDisabled ? "Please select an event first" : (params.row.present ? "Checked in" : "Check in")}>
+                <span>
+                  <IconButton
+                    size="medium"
+                    color={isDisabled ? "default" : "success"}
+                    disabled={isDisabled}
+                    onClick={() => !isDisabled && handleToggleCheckIn(params.row)}
+                    sx={{
+                      padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
+                      '&:hover': !isDisabled ? {
+                        backgroundColor: theme.palette.success.main + '20',
+                        transform: 'scale(1.1)'
+                      } : {},
+                      transition: 'transform 0.2s',
+                      opacity: isDisabled ? 0.5 : 1,
+                      color: isDisabled ? 'text.disabled' : ''
+                    }}
+                  >
+                    {params.row.present ?
+                      <CheckCircleIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} /> :
+                      <CheckCircleOutlineIcon sx={{ fontSize: isXsDown ? '18px' : (isSmDown ? '20px' : '24px') }} />
+                    }
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Stack>
+          );
+        }
       }
     ];
 
-    // On mobile (xs/sm), filter to show only: Name, leader columns, and actions
+
     if (isSmDown) {
-      return baseColumns.filter(col => 
-        col.field === 'name' || 
-        col.field === 'leader12' || 
-        col.field === 'leader144' || 
+      return baseColumns.filter(col =>
+        col.field === 'name' ||
+        col.field === 'leader12' ||
+        col.field === 'leader144' ||
         col.field === 'actions'
       );
     }
-    
+
     return baseColumns;
   };
 
   const mainColumns = getMainColumns();
 
-  // Update StatsCard to be more compact
+
   const StatsCard = ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
     <Paper
       variant="outlined"
       sx={{
-        p: getResponsiveValue(1, 1.5, 2, 2.5, 2.5), // Reduced padding
+        p: getResponsiveValue(1, 1.5, 2, 2.5, 2.5),
         textAlign: "center",
         cursor: disabled ? "default" : "pointer",
-        boxShadow: 2, // Reduced from 3
-        minHeight: '80px', // Reduced from 100px
+        boxShadow: 2,
+        minHeight: '80px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        "&:hover": disabled ? {} : { boxShadow: 4, transform: "translateY(-2px)" }, // Reduced from 6
+        "&:hover": disabled ? {} : {
+          boxShadow: 4,
+          transform: "translateY(-2px)"
+        },
         transition: "all 0.2s",
         opacity: disabled ? 0.6 : 1,
         backgroundColor: 'background.paper',
@@ -1478,23 +1728,23 @@ const getFilteredEvents = (eventsList = events) => {
       onClick={onClick}
     >
       <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={0.5}>
-        {React.cloneElement(icon, { 
+        {React.cloneElement(icon, {
           color: disabled ? "disabled" : color,
-          sx: { fontSize: getResponsiveValue(18, 20, 24, 28, 28) } // Reduced icon size
+          sx: { fontSize: getResponsiveValue(18, 20, 24, 28, 28) }
         })}
-        <Typography 
-          variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} 
-          fontWeight={600} 
+        <Typography
+          variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")}
+          fontWeight={600}
           color={disabled ? "text.disabled" : `${color}.main`}
-          sx={{ fontSize: getResponsiveValue("0.9rem", "1rem", "1.2rem", "1.3rem", "1.3rem") }} // Reduced font size
+          sx={{ fontSize: getResponsiveValue("0.9rem", "1rem", "1.2rem", "1.3rem", "1.3rem") }}
         >
           {count}
         </Typography>
       </Stack>
-      <Typography 
-        variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} 
+      <Typography
+        variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")}
         color={disabled ? "text.disabled" : `${color}.main`}
-        sx={{ fontSize: getResponsiveValue("0.7rem", "0.8rem", "0.9rem", "1rem", "1rem") }} // Reduced font size
+        sx={{ fontSize: getResponsiveValue("0.7rem", "0.8rem", "0.9rem", "1rem", "1rem") }}
       >
         {title}
         {disabled && (
@@ -1505,6 +1755,7 @@ const getFilteredEvents = (eventsList = events) => {
       </Typography>
     </Paper>
   );
+
 
   const AttendeeCard = ({ attendee, showNumber, index }) => (
     <Card
@@ -1535,7 +1786,7 @@ const getFilteredEvents = (eventsList = events) => {
           <IconButton onClick={() => handleEditClick(attendee)} color="primary" size="medium">
             <EditIcon />
           </IconButton>
-          <IconButton onClick={() => handleDelete(attendee._id)} color="error" size="medium">
+          <IconButton onClick={() => handleDelete(attendee._id, `${attendee.name} ${attendee.surname}`)} color="error" size="medium">
             <DeleteIcon />
           </IconButton>
           <IconButton onClick={() => handleToggleCheckIn(attendee)} color="success" disabled={!currentEventId} size="medium">
@@ -1563,11 +1814,11 @@ const getFilteredEvents = (eventsList = events) => {
     </Card>
   );
 
-  // Updated PresentAttendeeCard - Clear name and surname display
+
   const PresentAttendeeCard = ({ attendee, showNumber, index }) => {
-    // Get full person data to access all fields
+
     const fullPersonData = attendees.find(att => att._id === (attendee.id || attendee._id)) || attendee;
-    
+
     const mappedAttendee = {
       ...attendee,
       name: attendee.name || fullPersonData.name || 'Unknown',
@@ -1590,22 +1841,19 @@ const getFilteredEvents = (eventsList = events) => {
           flexDirection: 'column',
           justifyContent: 'space-between',
           "&:last-child": { mb: 0 },
-          border: `2px solid ${theme.palette.primary.main}`,
-          backgroundColor: isDarkMode 
-            ? theme.palette.primary.dark + "1a" 
-            : theme.palette.primary.light + "0a",
+          backgroundColor: 'background.paper',
         }}
       >
-        <CardContent sx={{ 
+        <CardContent sx={{
           p: 1.5,
-          flex: 1, 
-          display: 'flex', 
+          flex: 1,
+          display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center'
         }}>
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+          <Box sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'flex-start',
             width: '100%',
             gap: 1
@@ -1617,7 +1865,7 @@ const getFilteredEvents = (eventsList = events) => {
                   {showNumber && `${index}. `}{mappedAttendee.name} {mappedAttendee.surname}
                 </Typography>
               </Box>
-              
+
               {/* Contact Information */}
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1.5 }}>
                 {mappedAttendee.phone && (
@@ -1644,7 +1892,7 @@ const getFilteredEvents = (eventsList = events) => {
                     </Typography>
                   </Box>
                 )}
-                
+
                 {mappedAttendee.leader12 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Typography variant="caption" fontWeight="bold" color="primary">
@@ -1655,7 +1903,7 @@ const getFilteredEvents = (eventsList = events) => {
                     </Typography>
                   </Box>
                 )}
-                
+
                 {mappedAttendee.leader144 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Typography variant="caption" fontWeight="bold" color="primary">
@@ -1671,9 +1919,9 @@ const getFilteredEvents = (eventsList = events) => {
 
             {/* Remove button */}
             <Tooltip title="Remove from check-in">
-              <IconButton 
-                color="error" 
-                size="medium" 
+              <IconButton
+                color="error"
+                size="medium"
                 onClick={() => {
                   const originalAttendee = attendees.find(att => att._id === (attendee.id || attendee._id));
                   if (originalAttendee) handleToggleCheckIn(originalAttendee);
@@ -1689,6 +1937,7 @@ const getFilteredEvents = (eventsList = events) => {
     );
   };
 
+
   const NewPersonCard = ({ person, showNumber, index }) => (
     <Card
       variant="outlined"
@@ -1701,8 +1950,8 @@ const getFilteredEvents = (eventsList = events) => {
         justifyContent: 'space-between',
         "&:last-child": { mb: 0 },
         border: `2px solid ${theme.palette.success.main}`,
-        backgroundColor: isDarkMode 
-          ? theme.palette.success.dark + "1a" 
+        backgroundColor: isDarkMode
+          ? theme.palette.success.dark + "1a"
           : theme.palette.success.light + "0a",
       }}
     >
@@ -1715,37 +1964,25 @@ const getFilteredEvents = (eventsList = events) => {
             {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
             {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
             {person.gender && (
-              <Chip 
-                label={person.gender} 
-                size="small" 
-                variant="outlined" 
-                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }} 
+              <Chip
+                label={person.gender}
+                size="small"
+                variant="outlined"
+                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }}
               />
             )}
           </Box>
         </Box>
 
-        {(person.invitedBy || person.occupation) && (
-          <>
-            <Divider sx={{ my: 1 }} />
-            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
-              {person.invitedBy && (
-                <Chip label={`Invited by: ${person.invitedBy}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
-              )}
-              {person.occupation && (
-                <Chip label={`Work: ${person.occupation}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
-              )}
-            </Stack>
-          </>
-        )}
       </CardContent>
     </Card>
   );
 
+
   const ConsolidatedPersonCard = ({ person, showNumber, index }) => {
     const decisionType = person.decision_type || person.consolidation_type || "Commitment";
     const displayDecisionType = decisionType || 'Commitment';
-    
+
     return (
       <Card
         variant="outlined"
@@ -1757,10 +1994,7 @@ const getFilteredEvents = (eventsList = events) => {
           flexDirection: 'column',
           justifyContent: 'space-between',
           "&:last-child": { mb: 0 },
-          border: `2px solid ${theme.palette.secondary.main}`,
-          backgroundColor: isDarkMode 
-            ? theme.palette.secondary.dark + "1a" 
-            : theme.palette.secondary.light + "0a",
+          backgroundColor: 'background.paper',
         }}
       >
         <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -1794,11 +2028,11 @@ const getFilteredEvents = (eventsList = events) => {
               <Divider sx={{ my: 1 }} />
               <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
                 {person.created_at && (
-                  <Chip 
-                    label={`Date: ${new Date(person.created_at).toLocaleDateString()}`} 
-                    size="small" 
-                    variant="outlined" 
-                    sx={{ fontSize: "0.7rem", height: 20 }} 
+                  <Chip
+                    label={`Date: ${new Date(person.created_at).toLocaleDateString()}`}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: "0.7rem", height: 20 }}
                   />
                 )}
                 <Chip
@@ -1833,231 +2067,54 @@ const getFilteredEvents = (eventsList = events) => {
     );
   };
 
-  const EventHistoryDetailsModal = () => {
-    const [searchTerm, setSearchTerm] = useState("");
-    const [currentPage, setCurrentPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(25);
+  const debugLeaderData = () => {
+    if (events.length > 0) {
+      events.forEach(event => {
+        console.log(`\nEvent: ${event.eventName}`);
 
-    const filteredData = eventHistoryDetails.data.filter(item => {
-      if (!searchTerm.trim()) return true;
-      
-      const searchTerms = searchTerm.toLowerCase().trim().split(/\s+/);
-      
-      const searchableFields = [
-        item.name || '',
-        item.surname || '',
-        item.email || '',
-        item.phone || '',
-        item.leader1 || '',
-        item.leader12 || '',
-        item.leader144 || '',
-        item.occupation || '',
-        item.assigned_to || '',
-        item.decision_type || ''
-      ].map(field => field.toLowerCase());
-      
-      return searchTerms.every(term => 
-        searchableFields.some(field => field.includes(term))
-      );
-    });
 
-    const paginatedData = filteredData.slice(
-      currentPage * rowsPerPage,
-      currentPage * rowsPerPage + rowsPerPage
-    );
+        if (event.attendanceData && event.attendanceData.length > 0) {
+          const withLeaders = event.attendanceData.filter(a => a.leader1 || a.leader12 || a.leader144);
+          console.log(`  Attendance: ${event.attendanceData.length} people, ${withLeaders.length} with leader data`);
+          withLeaders.slice(0, 3).forEach(person => {
+            console.log(`    - ${person.name} ${person.surname}: L1=${person.leader1}, L12=${person.leader12}, L144=${person.leader144}`);
+          });
+        }
 
-    const getModalTitle = () => {
-      const eventName = eventHistoryDetails.event?.eventName || "Event";
-      switch (eventHistoryDetails.type) {
-        case 'attendance':
-          return `Attendance for ${eventName}`;
-        case 'newPeople':
-          return `New People for ${eventName}`;
-        case 'consolidated':
-          return `Consolidated People for ${eventName}`;
-        default:
-          return `Event Details for ${eventName}`;
-      }
-    };
 
-    return (
-      <Dialog
-        open={eventHistoryDetails.open}
-        onClose={() => setEventHistoryDetails(prev => ({ ...prev, open: false }))}
-        fullWidth
-        maxWidth="lg"
-        PaperProps={{
-          sx: {
-            boxShadow: 6,
-            ...(isSmDown && {
-              margin: 2,
-              maxHeight: '80vh',
-              width: 'calc(100% - 32px)',
-            })
-          }
-        }}
-      >
-        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
-          {getModalTitle()}
-          <Typography variant="body2" color="text.secondary">
-            Total: {eventHistoryDetails.data.length}
-          </Typography>
-        </DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
-          <TextField
-            size="small"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(0); }}
-            fullWidth
-            sx={{ mb: 2, boxShadow: 1 }}
-          />
+        if (event.newPeopleData && event.newPeopleData.length > 0) {
+          const withLeaders = event.newPeopleData.filter(np => np.leader1 || np.leader12 || np.leader144);
+          console.log(`  New People: ${event.newPeopleData.length} people, ${withLeaders.length} with leader data`);
+          withLeaders.slice(0, 3).forEach(person => {
+            console.log(`    - ${person.name} ${person.surname}: L1=${person.leader1}, L12=${person.leader12}, L144=${person.leader144}`);
+          });
+        }
 
-          {isSmDown ? (
-            <Box>
-              {paginatedData.map((item, idx) => (
-                <Card key={item._id || item.id || idx} variant="outlined" sx={{ mb: 1, boxShadow: 2, minHeight: '120px' }}>
-                  <CardContent sx={{ p: 1.5 }}>
-                    <Typography variant="subtitle2" fontWeight={600}>
-                      {item.name} {item.surname}
-                    </Typography>
-                    {item.email && <Typography variant="body2" color="text.secondary">{item.email}</Typography>}
-                    {item.phone && <Typography variant="body2" color="text.secondary">{item.phone}</Typography>}
-                    {eventHistoryDetails.type === 'consolidated' ? (
-                      <>
-                        <Chip
-                          label={item.decision_type || item.consolidation_type || 'Commitment'}
-                          size="small"
-                          sx={{ mt: 0.5 }}
-                          color={(item.decision_type || item.consolidation_type) === 'Recommitment' ? 'primary' : 'secondary'}
-                        />
-                        <Typography variant="body2" sx={{ mt: 0.5 }}>
-                          Assigned to: {item.assigned_to || item.assignedTo || 'Not assigned'}
-                        </Typography>
-                      </>
-                    ) : (
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5} mt={0.5}>
-                        {item.leader1 && (
-                          <Chip label={`@1: ${item.leader1}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                        )}
-                        {item.leader12 && (
-                          <Chip label={`@12: ${item.leader12}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                        )}
-                        {item.leader144 && (
-                          <Chip label={`@144: ${item.leader144}`} size="small" sx={{ fontSize: "0.6rem", height: 18 }} />
-                        )}
-                      </Stack>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-              {paginatedData.length === 0 && (
-                <Typography variant="body2" color="text.secondary" textAlign="center" py={2}>
-                  No matching data
-                </Typography>
-              )}
-            </Box>
-          ) : (
-            <Table size="small" stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-                  {eventHistoryDetails.type !== 'consolidated' ? (
-                    <>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @1</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @12</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Leader @144</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Occupation</TableCell>
-                    </>
-                  ) : (
-                    <>
-                      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    </>
-                  )}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {paginatedData.map((item, idx) => (
-                  <TableRow key={item._id || item.id || idx} hover>
-                    <TableCell>{currentPage * rowsPerPage + idx + 1}</TableCell>
-                    <TableCell>{item.name} {item.surname}</TableCell>
-                    <TableCell>{item.email || "—"}</TableCell>
-                    <TableCell>{item.phone || "—"}</TableCell>
-                    {eventHistoryDetails.type !== 'consolidated' ? (
-                      <>
-                        <TableCell>{item.leader1 || "—"}</TableCell>
-                        <TableCell>{item.leader12 || "—"}</TableCell>
-                        <TableCell>{item.leader144 || "—"}</TableCell>
-                        <TableCell>{item.occupation || "—"}</TableCell>
-                      </>
-                    ) : (
-                      <>
-                        <TableCell>
-                          <Chip
-                            label={item.decision_type || item.consolidation_type || 'Commitment'}
-                            size="small"
-                            color={(item.decision_type || item.consolidation_type) === 'Recommitment' ? 'primary' : 'secondary'}
-                            variant="filled"
-                          />
-                        </TableCell>
-                        <TableCell>{item.assigned_to || item.assignedTo || "Not assigned"}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={item.status || 'Active'}
-                            size="small"
-                            color={item.status === 'completed' ? 'success' : 'default'}
-                          />
-                        </TableCell>
-                      </>
-                    )}
-                  </TableRow>
-                ))}
-                {paginatedData.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={eventHistoryDetails.type === 'consolidated' ? 7 : 8} align="center">
-                      No matching data
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
 
-          <Box mt={1}>
-            <TablePagination
-              component="div"
-              count={filteredData.length}
-              page={currentPage}
-              onPageChange={(e, newPage) => setCurrentPage(newPage)}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setCurrentPage(0); }}
-              rowsPerPageOptions={[25, 50, 100]}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button
-            onClick={() => setEventHistoryDetails(prev => ({ ...prev, open: false }))}
-            variant="outlined"
-            size={isSmDown ? "small" : "medium"}
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-    );
+        if (event.consolidatedData && event.consolidatedData.length > 0) {
+          const withLeaders = event.consolidatedData.filter(c => c.leader1 || c.leader12 || c.leader144);
+          console.log(`  Consolidated: ${event.consolidatedData.length} people, ${withLeaders.length} with leader data`);
+          withLeaders.slice(0, 3).forEach(person => {
+            console.log(`    - ${person.name || person.person_name} ${person.surname || person.person_surname}: L1=${person.leader1}, L12=${person.leader12}, L144=${person.leader144}`);
+          });
+        }
+      });
+    }
   };
 
+
+  useEffect(() => {
+    if (events.length > 0 && activeTab === 1) {
+      debugLeaderData();
+    }
+  }, [events, activeTab]);
+
+
   const SkeletonLoader = () => (
-    <Box p={containerPadding} sx={{ 
-      width: '100%', 
-      margin: "0 auto", 
-      mt: 4, 
+    <Box p={containerPadding} sx={{
+      width: '100%',
+      margin: "0 auto",
+      mt: 4,
       minHeight: "100vh",
       maxWidth: '100vw',
       overflowX: 'hidden'
@@ -2092,17 +2149,16 @@ const getFilteredEvents = (eventsList = events) => {
             onChange={(e) => setCurrentEventId(e.target.value)}
             displayEmpty
             fullWidth
-            sx={{ 
+            sx={{
               boxShadow: 2,
               '& .MuiSelect-select': {
-                py: isSmDown ? 0.5 : 1, // Reduced padding
-                fontSize: getResponsiveValue('0.8rem', '0.9rem', '1rem', '1rem', '1rem') // Smaller font
+                py: isSmDown ? 0.5 : 1,
+                fontSize: getResponsiveValue('0.8rem', '0.9rem', '1rem', '1rem', '1rem')
               }
             }}
           ></Select>
         </Grid>
-        </Grid>
-
+      </Grid>
 
       <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, p: 1, minHeight: '48px' }}>
         <Stack direction="row" spacing={2}>
@@ -2158,82 +2214,82 @@ const getFilteredEvents = (eventsList = events) => {
     </Box>
   );
 
-  // Effects - optimized to prevent unnecessary reloads
+
   useEffect(() => {
     if (currentEventId) {
-      // Fetch real-time data when event changes - ALWAYS FROM DATABASE
+
       const loadRealTimeData = async () => {
-        console.log("🔄 Event changed, loading fresh data from database...");
+        console.log("Event changed, loading fresh data from database...");
         const data = await fetchRealTimeEventData(currentEventId);
         if (data) {
           setRealTimeData(data);
-          console.log("✅ Loaded fresh data from DB:", {
+          console.log("Loaded fresh data from DB:", {
             present: data.present_count,
             new: data.new_people_count,
             consolidations: data.consolidation_count
           });
         }
       };
-      
+
       loadRealTimeData();
     } else {
       setRealTimeData(null);
     }
   }, [currentEventId]);
 
-  // Add this to your useEffect section
+
   useEffect(() => {
     if (!currentEventId) return;
 
-    // Refresh data immediately when event changes
+
     const loadData = async () => {
       const data = await fetchRealTimeEventData(currentEventId);
       if (data) {
         setRealTimeData(data);
       }
     };
-    
+
     loadData();
 
-    // Set up interval to refresh every 3 seconds
+
     const interval = setInterval(loadData, 3000);
-    
+
     return () => clearInterval(interval);
   }, [currentEventId]);
 
-  // Initial load - only once with proper loading states
+
   const hasInitialized = useRef(false);
-  
+
   useEffect(() => {
     if (!hasInitialized.current) {
       console.log('🚀 Service Check-In mounted - fetching fresh data from backend...');
       hasInitialized.current = true;
-      
-      // Show loading state for events
+
+
       setIsLoadingEvents(true);
-      
-      // Fetch both in parallel but show proper loading states
+
+
       fetchEvents();
       fetchAllPeople();
     }
   }, []);
 
-  // Debug useEffect to check Gavin Enslin detection
+
   useEffect(() => {
     if (attendees.length > 0 && search.includes('gav')) {
-      console.log('🔍 Searching for Gavin Enslin...');
-      
+      console.log('Searching for Gavin Enslin...');
+
       const potentialGavins = attendees.filter(person => {
         const fullName = `${person.name || ''} ${person.surname || ''}`.toLowerCase();
         const firstName = (person.name || '').toLowerCase();
         const surname = (person.surname || '').toLowerCase();
-        
+
         const isEnslin = surname.includes('ensl');
         const isGavin = firstName.includes('gav') || fullName.includes('gav');
-        
+
         return isEnslin && isGavin;
       });
-      
+
       console.log('👤 Potential Gavin Enslin matches:', potentialGavins.map(p => ({
         name: p.name,
         surname: p.surname,
@@ -2246,21 +2302,36 @@ const getFilteredEvents = (eventsList = events) => {
     }
   }, [attendees, search]);
 
-  // Render
+
   if ((!hasDataLoaded && isLoadingPeople) || (attendees.length === 0 && isLoadingPeople)) {
     return <SkeletonLoader />;
   }
 
   return (
-    <Box p={containerPadding} sx={{ 
-      width: '100%', 
-      margin: "0 auto", 
-      mt: 6, 
+    <Box p={containerPadding} sx={{
+      width: '100%',
+      margin: "0 auto",
+      mt: 6,
       minHeight: "100vh",
       maxWidth: '100vw',
       overflowX: 'hidden'
     }}>
-      <ToastContainer position={isSmDown ? "bottom-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} />
+      <ToastContainer
+        position={isSmDown ? "top-center" : "top-right"}
+        autoClose={3000}
+        hideProgressBar={isSmDown}
+        style={{
+          marginTop: isSmDown ? '0px' : '20px',
+          zIndex: 9999
+        }}
+      />
+      <DeleteConfirmationModal
+        open={deleteConfirmation.open}
+        onClose={() => setDeleteConfirmation({ open: false, personId: null, personName: '' })}
+        onConfirm={() => handleDelete(deleteConfirmation.personId, deleteConfirmation.personName)}
+        personName={deleteConfirmation.personName}
+        isLoading={isDeleting}
+      />
 
       {/* Stats Cards */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
@@ -2269,12 +2340,12 @@ const getFilteredEvents = (eventsList = events) => {
             title="Present"
             count={presentCount}
             icon={<GroupIcon />}
-            color="primary" // Blue
-            onClick={() => { 
+            color="primary"
+            onClick={() => {
               if (currentEventId) {
-                setModalOpen(true); 
-                setModalSearch(""); 
-                setModalPage(0); 
+                setModalOpen(true);
+                setModalSearch("");
+                setModalPage(0);
               }
             }}
             disabled={!currentEventId}
@@ -2285,12 +2356,12 @@ const getFilteredEvents = (eventsList = events) => {
             title="New People"
             count={newPeopleCount}
             icon={<PersonAddAltIcon />}
-            color="success" // Green
-            onClick={() => { 
+            color="success"
+            onClick={() => {
               if (currentEventId) {
-                setNewPeopleModalOpen(true); 
-                setNewPeopleSearch(""); 
-                setNewPeoplePage(0); 
+                setNewPeopleModalOpen(true);
+                setNewPeopleSearch("");
+                setNewPeoplePage(0);
               }
             }}
             disabled={!currentEventId}
@@ -2301,12 +2372,12 @@ const getFilteredEvents = (eventsList = events) => {
             title="Consolidated"
             count={consolidationCount}
             icon={<MergeIcon />}
-            color="secondary" // Purple
-            onClick={() => { 
+            color="secondary"
+            onClick={() => {
               if (currentEventId) {
-                setConsolidatedModalOpen(true); 
-                setConsolidatedSearch(""); 
-                setConsolidatedPage(0); 
+                setConsolidatedModalOpen(true);
+                setConsolidatedSearch("");
+                setConsolidatedPage(0);
               }
             }}
             disabled={!currentEventId}
@@ -2314,7 +2385,7 @@ const getFilteredEvents = (eventsList = events) => {
         </Grid>
       </Grid>
 
-      {/* Controls - Updated for mobile full width */}
+      {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={isSmDown ? 12 : 6} md={4}>
           <Select
@@ -2347,7 +2418,7 @@ const getFilteredEvents = (eventsList = events) => {
             )}
           </Select>
         </Grid>
-        
+
         <Grid item xs={12} sm={isSmDown ? 12 : 6} md={5}>
           {activeTab === 0 ? (
             <TextField
@@ -2369,11 +2440,11 @@ const getFilteredEvents = (eventsList = events) => {
             />
           )}
         </Grid>
-        
+
         <Grid item xs={12} md={3}>
-          <Stack 
-            direction="row" 
-            spacing={2} 
+          <Stack
+            direction="row"
+            spacing={2}
             justifyContent={isMdDown ? "center" : "flex-end"}
             sx={{ mt: isSmDown ? 2 : 0 }}
           >
@@ -2423,7 +2494,7 @@ const getFilteredEvents = (eventsList = events) => {
                       cursor: currentEventId ? "pointer" : "not-allowed",
                       transition: "all 0.2s",
                       backgroundColor: theme.palette.warning.main,
-                      "&:hover": currentEventId ? { 
+                      "&:hover": currentEventId ? {
                         transform: "translateY(-2px)",
                         boxShadow: 4,
                         backgroundColor: theme.palette.warning.dark,
@@ -2436,7 +2507,7 @@ const getFilteredEvents = (eventsList = events) => {
               </Tooltip>
               <Tooltip title={currentEventId ? "Refresh All Data" : "Please select an event first"}>
                 <span>
-                  <IconButton 
+                  <IconButton
                     onClick={handleFullRefresh}
                     color="primary"
                     disabled={!currentEventId || isRefreshing}
@@ -2460,163 +2531,162 @@ const getFilteredEvents = (eventsList = events) => {
           <Tabs
             value={activeTab}
             onChange={(e, newValue) => setActiveTab(newValue)}
-                sx={{ 
-      borderBottom: 1, 
-      borderColor: 'divider',
-      minHeight: '36px', // Reduced height
-      '& .MuiTab-root': {
-        py: 0.5, // Reduced padding
-        fontSize: getResponsiveValue('0.7rem', '0.8rem', '0.9rem', '1rem', '1rem')
-      }
-    }}
-
+            sx={{
+              borderBottom: 1,
+              borderColor: 'divider',
+              minHeight: '36px',
+              '& .MuiTab-root': {
+                py: 0.5,
+                fontSize: getResponsiveValue('0.7rem', '0.8rem', '0.9rem', '1rem', '1rem')
+              }
+            }}
           >
             <Tab label="All Attendees" />
             <Tab label="Event History" />
           </Tabs>
         </Paper>
-{activeTab === 0 && (
-  <Box sx={{ width: '100%', height: '100%' }}>
-    <Paper 
-      variant="outlined" 
-      sx={{ 
-        boxShadow: 3,
-        overflow: 'hidden',
-        width: '100%',
-        height: isMdDown ? `calc(100vh - ${containerPadding * 8 + 280}px)` : 650, // Increased from 500 to 650
-        minHeight: isMdDown ? 500 : 650, // Increased from 400/500 to 500/650
-        maxHeight: isMdDown ? '650px' : 700, // Increased from 550/500 to 650/700
-      }}
-    >
-      <DataGrid
-        rows={sortedFilteredAttendees ?? attendees}
-        columns={mainColumns}
-        pagination
-        paginationModel={{
-          page: page,
-          pageSize: rowsPerPage,
-        }}
-        onPaginationModelChange={(model) => {
-          setPage(model.page);
-          setRowsPerPage(model.pageSize);
-        }}
-        rowCount={filteredAttendees.length}
-        pageSizeOptions={[25, 50, 100]}
-        slots={{
-          toolbar: GridToolbar,
-        }}
-        slotProps={{
-          toolbar: {
-            showQuickFilter: true,
-            quickFilterProps: { debounceMs: 500 },
-          },
-        }}
-        disableRowSelectionOnClick
-        sortModel={sortModel}
-        onSortModelChange={(model) => {
-          setPage(0);
-          setSortModel(model);
-        }}
-        getRowId={(row) => row._id}
-        sx={{
-          width: '100%',
-          height: 'calc(100% - 1px)', // Slightly smaller to fit within Paper
-          '& .MuiDataGrid-root': {
-            border: 'none',
-            width: '100%',
-            height: '100%',
-          },
-          '& .MuiDataGrid-main': {
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%'
-          },
-          '& .MuiDataGrid-virtualScroller': {
-            width: '100% !important',
-            minWidth: '100%',
-            flex: 1,
-            height: '100% !important',
-          },
-          '& .MuiDataGrid-row': {
-            width: '100% !important',
-          },
-          '& .MuiDataGrid-cell': {
-            display: 'flex',
-            alignItems: 'center',
-            padding: isXsDown ? '2px 4px' : (isSmDown ? '2px 3px' : '4px 6px'),
-            fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
-            minWidth: '40px',
-          },
-          '& .MuiDataGrid-columnHeaders': {
-            width: '100% !important',
-            backgroundColor: theme.palette.action.hover,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          },
-          '& .MuiDataGrid-columnHeader': {
-            fontWeight: 600,
-            minWidth: '40px',
-            fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
-            padding: isXsDown ? '4px 2px' : (isSmDown ? '4px 2px' : '6px 4px'),
-            '& .MuiDataGrid-iconButtonContainer': {
-              visibility: 'visible !important',
-            },
-            '& .MuiDataGrid-sortIcon': {
-              opacity: 1,
-            },
-          },
-          '& .MuiDataGrid-row:hover': {
-            backgroundColor: theme.palette.action.hover,
-          },
-          '& .MuiDataGrid-toolbarContainer': {
-            padding: isXsDown ? '4px 2px' : (isSmDown ? '8px 4px' : '12px 8px'),
-            minHeight: 'auto',
-            width: '100%',
-            borderBottom: `1px solid ${theme.palette.divider}`,
-            '& .MuiOutlinedInput-root': {
-              fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
-            }
-          },
-          // Ensure the footer is visible
-          '& .MuiDataGrid-footerContainer': {
-            display: 'flex',
-            borderTop: `1px solid ${theme.palette.divider}`,
-            backgroundColor: theme.palette.background.paper,
-            minHeight: '52px',
-          },
-          '& .MuiDataGrid-virtualScrollerContent': {
-            width: '100% !important',
-            height: '100% !important',
-          },
-          '& .MuiDataGrid-scrollbar--vertical': {
-            width: '8px !important',
-          },
-          // Mobile-specific optimizations
-          ...(isSmDown && {
-            '& .MuiDataGrid-columnHeader': {
-              padding: '4px 2px',
-              fontSize: '0.7rem',
-              minWidth: '40px',
-            },
-            '& .MuiDataGrid-cell': {
-              padding: '2px 4px',
-              fontSize: '0.7rem',
-              minWidth: '40px',
-            },
-            '& .MuiDataGrid-columnSeparator': {
-              display: 'none',
-            },
-            '& .MuiDataGrid-toolbarContainer': {
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              gap: 1
-            }
-          }),
-        }}
-      />
-    </Paper>
-  </Box>
-)}
+
+        {activeTab === 0 && (
+          <Box sx={{ width: '100%', height: '100%' }}>
+            <Paper
+              variant="outlined"
+              sx={{
+                boxShadow: 3,
+                overflow: 'hidden',
+                width: '100%',
+                height: isMdDown ? `calc(100vh - ${containerPadding * 8 + 280}px)` : 650,
+                minHeight: isMdDown ? 500 : 650,
+                maxHeight: isMdDown ? '650px' : 700,
+              }}
+            >
+              <DataGrid
+                rows={sortedFilteredAttendees ?? attendees}
+                columns={mainColumns}
+                pagination
+                paginationModel={{
+                  page: page,
+                  pageSize: rowsPerPage,
+                }}
+                onPaginationModelChange={(model) => {
+                  setPage(model.page);
+                  setRowsPerPage(model.pageSize);
+                }}
+                rowCount={filteredAttendees.length}
+                pageSizeOptions={[25, 50, 100]}
+                slots={{
+                  toolbar: GridToolbar,
+                }}
+                slotProps={{
+                  toolbar: {
+                    showQuickFilter: true,
+                    quickFilterProps: { debounceMs: 500 },
+                  },
+                }}
+                disableRowSelectionOnClick
+                sortModel={sortModel}
+                onSortModelChange={(model) => {
+                  setPage(0);
+                  setSortModel(model);
+                }}
+                getRowId={(row) => row._id}
+                sx={{
+                  width: '100%',
+                  height: 'calc(100% - 1px)',
+                  '& .MuiDataGrid-root': {
+                    border: 'none',
+                    width: '100%',
+                    height: '100%',
+                  },
+                  '& .MuiDataGrid-main': {
+                    width: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%'
+                  },
+                  '& .MuiDataGrid-virtualScroller': {
+                    width: '100% !important',
+                    minWidth: '100%',
+                    flex: 1,
+                    height: '100% !important',
+                  },
+                  '& .MuiDataGrid-row': {
+                    width: '100% !important',
+                  },
+                  '& .MuiDataGrid-cell': {
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: isXsDown ? '2px 4px' : (isSmDown ? '2px 3px' : '4px 6px'),
+                    fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
+                    minWidth: '40px',
+                  },
+                  '& .MuiDataGrid-columnHeaders': {
+                    width: '100% !important',
+                    backgroundColor: theme.palette.action.hover,
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                  },
+                  '& .MuiDataGrid-columnHeader': {
+                    fontWeight: 600,
+                    minWidth: '40px',
+                    fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.65rem' : '0.8rem'),
+                    padding: isXsDown ? '4px 2px' : (isSmDown ? '4px 2px' : '6px 4px'),
+                    '& .MuiDataGrid-iconButtonContainer': {
+                      visibility: 'visible !important',
+                    },
+                    '& .MuiDataGrid-sortIcon': {
+                      opacity: 1,
+                    },
+                  },
+                  '& .MuiDataGrid-row:hover': {
+                    backgroundColor: theme.palette.action.hover,
+                  },
+                  '& .MuiDataGrid-toolbarContainer': {
+                    padding: isXsDown ? '4px 2px' : (isSmDown ? '8px 4px' : '12px 8px'),
+                    minHeight: 'auto',
+                    width: '100%',
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
+                    }
+                  },
+                  '& .MuiDataGrid-footerContainer': {
+                    display: 'flex',
+                    borderTop: `1px solid ${theme.palette.divider}`,
+                    backgroundColor: theme.palette.background.paper,
+                    minHeight: '52px',
+                  },
+                  '& .MuiDataGrid-virtualScrollerContent': {
+                    width: '100% !important',
+                    height: '100% !important',
+                  },
+                  '& .MuiDataGrid-scrollbar--vertical': {
+                    width: '8px !important',
+                  },
+                  ...(isSmDown && {
+                    '& .MuiDataGrid-columnHeader': {
+                      padding: '4px 2px',
+                      fontSize: '0.7rem',
+                      minWidth: '40px',
+                    },
+                    '& .MuiDataGrid-cell': {
+                      padding: '2px 4px',
+                      fontSize: '0.7rem',
+                      minWidth: '40px',
+                    },
+                    '& .MuiDataGrid-columnSeparator': {
+                      display: 'none',
+                    },
+                    '& .MuiDataGrid-toolbarContainer': {
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 1
+                    }
+                  }),
+                }}
+              />
+            </Paper>
+          </Box>
+        )}
+
         {activeTab === 1 && (
           <Box sx={{ width: '100%' }}>
             <EventHistory
@@ -2624,6 +2694,12 @@ const getFilteredEvents = (eventsList = events) => {
               onViewNewPeople={handleViewNewPeople}
               onViewConverts={handleViewConsolidated}
               events={getFilteredClosedEvents()}
+              searchTerm={eventSearch}
+              isLoading={isLoadingEvents}
+              onRefresh={() => {
+                console.log('Refreshing event history...');
+                fetchEvents(true);
+              }}
             />
           </Box>
         )}
@@ -2640,9 +2716,6 @@ const getFilteredEvents = (eventsList = events) => {
         personId={editingPerson?._id || null}
         currentEventId={currentEventId}
       />
-
-      {/* Event History Details Modal */}
-      <EventHistoryDetailsModal />
 
       {/* PRESENT Attendees Modal */}
       <Dialog
@@ -2665,10 +2738,10 @@ const getFilteredEvents = (eventsList = events) => {
         <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
           Attendees Present: {presentCount}
         </DialogTitle>
-        <DialogContent dividers sx={{ 
+        <DialogContent dividers sx={{
           maxHeight: isSmDown ? 600 : 700,
-          overflowY: "auto", 
-          p: isSmDown ? 1 : 2 
+          overflowY: "auto",
+          p: isSmDown ? 1 : 2
         }}>
           <TextField
             size="small"
@@ -2692,11 +2765,11 @@ const getFilteredEvents = (eventsList = events) => {
               {isSmDown ? (
                 <Box>
                   {modalPaginatedAttendees.map((a, idx) => (
-                    <PresentAttendeeCard 
-                      key={a.id || a._id} 
-                      attendee={a} 
-                      showNumber={true} 
-                      index={modalPage * modalRowsPerPage + idx + 1} 
+                    <PresentAttendeeCard
+                      key={a.id || a._id}
+                      attendee={a}
+                      showNumber={true}
+                      index={modalPage * modalRowsPerPage + idx + 1}
                     />
                   ))}
                   {modalPaginatedAttendees.length === 0 && (
@@ -2721,25 +2794,21 @@ const getFilteredEvents = (eventsList = events) => {
                   </TableHead>
                   <TableBody>
                     {modalPaginatedAttendees.map((a, idx) => {
-                      // For present attendees, we need to get the full person data to access all fields
                       const fullPersonData = attendees.find(att => att._id === (a.id || a._id)) || a;
-                      
-                      // Create a properly mapped attendee with all fields
                       const mappedAttendee = {
                         ...a,
-                        // Name fields - ensure we have both name and surname
                         name: a.name || fullPersonData.name || 'Unknown',
                         surname: a.surname || fullPersonData.surname || '',
-                        // Contact fields
+
                         phone: a.phone || fullPersonData.phone || '',
                         email: a.email || fullPersonData.email || '',
-                        // Leader fields
+
                         leader1: a.leader1 || fullPersonData.leader1 || '',
                         leader12: a.leader12 || fullPersonData.leader12 || '',
                         leader144: a.leader144 || fullPersonData.leader144 || '',
                       };
 
-                      // Create full name display
+
                       const fullName = `${mappedAttendee.name} ${mappedAttendee.surname}`.trim();
 
                       return (
@@ -2784,9 +2853,9 @@ const getFilteredEvents = (eventsList = events) => {
                           </TableCell>
                           <TableCell align="center">
                             <Tooltip title="Remove from check-in">
-                              <IconButton 
-                                color="error" 
-                                size="medium" 
+                              <IconButton
+                                color="error"
+                                size="medium"
                                 onClick={() => {
                                   const attendee = attendees.find(att => att._id === (a.id || a._id));
                                   if (attendee) handleToggleCheckIn(attendee);
@@ -2830,6 +2899,28 @@ const getFilteredEvents = (eventsList = events) => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={() => {
+              const dataToDownload = modalFilteredAttendees.map(attendee => ({
+                Name: attendee.name || '',
+                Surname: attendee.surname || '',
+                Email: attendee.email || '',
+                Phone: attendee.phone || '',
+                'Leader @1': attendee.leader1 || '',
+                'Leader @12': attendee.leader12 || '',
+                'Leader @144': attendee.leader144 || '',
+                CheckIn_Time: attendee.time || '',
+                Status: 'Present'
+              }));
+              downloadCSV(dataToDownload, `Present_Attendees_${currentEventId}`);
+            }}
+            size={isSmDown ? "small" : "medium"}
+            disabled={modalFilteredAttendees.length === 0}
+          >
+            Download
+          </Button>
           <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
             Close
           </Button>
@@ -2879,11 +2970,11 @@ const getFilteredEvents = (eventsList = events) => {
               {isSmDown ? (
                 <Box>
                   {newPeoplePaginatedList.map((a, idx) => (
-                    <NewPersonCard 
-                      key={a.id || a._id} 
-                      person={a} 
-                      showNumber={true} 
-                      index={newPeoplePage * newPeopleRowsPerPage + idx + 1} 
+                    <NewPersonCard
+                      key={a.id || a._id}
+                      person={a}
+                      showNumber={true}
+                      index={newPeoplePage * newPeopleRowsPerPage + idx + 1}
                     />
                   ))}
                   {newPeoplePaginatedList.length === 0 && (
@@ -2906,7 +2997,7 @@ const getFilteredEvents = (eventsList = events) => {
                   </TableHead>
                   <TableBody>
                     {newPeoplePaginatedList.map((a, idx) => {
-                      // Map the data to ensure consistent field names
+
                       const mappedPerson = {
                         ...a,
                         name: a.name || '',
@@ -3032,7 +3123,7 @@ const getFilteredEvents = (eventsList = events) => {
                   </TableHead>
                   <TableBody>
                     {consolidatedPaginatedList.map((person, idx) => {
-                      // Map the data to ensure consistent field names
+
                       const mappedPerson = {
                         ...person,
                         person_name: person.person_name || '',
@@ -3123,6 +3214,13 @@ const getFilteredEvents = (eventsList = events) => {
           </Button>
         </DialogActions>
       </Dialog>
+      <EventHistoryModal
+        open={eventHistoryModal.open}
+        onClose={() => setEventHistoryModal({ open: false, event: null, type: null, data: [] })}
+        event={eventHistoryModal.event}
+        type={eventHistoryModal.type}
+        data={eventHistoryModal.data}
+      />
 
       <ConsolidationModal
         open={consolidationOpen}
