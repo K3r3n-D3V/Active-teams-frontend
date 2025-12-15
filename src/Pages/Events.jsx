@@ -7,9 +7,6 @@ import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
-// import Skeleton from "@mui/material/Skeleton";
-// import Snackbar from "@mui/material/Snackbar";
-// import Alert from "@mui/material/Alert";
 import Tooltip from "@mui/material/Tooltip";
 import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment } from "@mui/material";
 import { DataGrid, GridToolbar } from '@mui/x-data-grid';
@@ -33,6 +30,7 @@ import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import AuthContext from '../contexts/AuthContext'
 
 
 const styles = {
@@ -648,7 +646,7 @@ const isValidObjectId = (id) => {
 const Events = () => {
   const location = useLocation();
   const theme = useTheme();
-
+ const {useFetch } = AuthContext();
   const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
   const isDarkMode = theme.palette.mode === 'dark';
   const eventTypeStyles = useMemo(() => {
