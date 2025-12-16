@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from 'react';
+import { AuthContext } from "../contexts/AuthContext";
 import {
   Box, Container, Paper, Typography, TextField, Button, Select, MenuItem,
   FormControl, InputLabel, Table, TableBody, TableCell, TableContainer,
@@ -23,6 +24,8 @@ let globalDataLoaded = false;
 
 export default function AdminDashboard() {
   const theme = useTheme();
+  const { authFetch } = useContext(AuthContext);
+  
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
@@ -120,17 +123,8 @@ export default function AdminDashboard() {
     setError(null);
     
     try {
-      const token = localStorage.getItem('authToken') || localStorage.getItem('token') || localStorage.getItem('access_token');
-      
-      if (!token) {
-        throw new Error('No authentication token found. Please log in as an admin.');
-      }
-
-      const response = await fetch(`${API_BASE_URL}/admin/users`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const response = await authFetch(`${API_BASE_URL}/admin/users`, {
+        method: 'GET'
       });
 
       if (!response.ok) {
@@ -176,7 +170,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [API_BASE_URL]);
+  }, [API_BASE_URL, authFetch]);
 
   // Manual refresh function - forces reload
   const handleManualRefresh = useCallback(async () => {
@@ -210,8 +204,6 @@ export default function AdminDashboard() {
     setCreatingUser(true);
     
     try {
-      const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-      
       const payload = {
         name: userData.name,
         surname: userData.surname,
@@ -231,12 +223,8 @@ export default function AdminDashboard() {
 
       console.log('Creating user with payload:', payload);
 
-      const response = await fetch(`${API_BASE_URL}/admin/users`, {
+      const response = await authFetch(`${API_BASE_URL}/admin/users`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify(payload)
       });
 
@@ -267,14 +255,8 @@ export default function AdminDashboard() {
     setUpdatingRole(true);
     
     try {
-      const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-      
-      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/role`, {
+      const response = await authFetch(`${API_BASE_URL}/admin/users/${userId}/role`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({ role: newRole })
       });
 
@@ -311,14 +293,8 @@ export default function AdminDashboard() {
     setDeletingUser(true);
     
     try {
-      const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-      
-      const response = await fetch(`${API_BASE_URL}/admin/users/${selectedUser.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const response = await authFetch(`${API_BASE_URL}/admin/users/${selectedUser.id}`, {
+        method: 'DELETE'
       });
 
       if (!response.ok) {
@@ -534,19 +510,6 @@ export default function AdminDashboard() {
 
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-      {/* <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: cardSpacing }}>
-        <Typography variant={titleVariant} fontWeight="bold" color="text.primary">User Management</Typography>
-        {globalDataLoaded && (
-          <Chip 
-            icon={<Circle sx={{ fontSize: 12 }} />} 
-            label="Data Cached" 
-            color="success" 
-            variant="outlined"
-            size="small"
-          />
-        )}
-      </Stack> */}
-
       {/* Statistics Cards */}
       <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
         {[
@@ -625,73 +588,59 @@ export default function AdminDashboard() {
 
         {activeTab === 0 && (
           <Box sx={{ p: getResponsiveValue(1, 2, 3, 3, 3) }}>
-         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
-<TextField
-  fullWidth
-  placeholder="Search users..."
-  value={searchTerm}
-  onChange={(e) => setSearchTerm(e.target.value)}
-  InputProps={{
-    startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
-  }}
-  sx={{
-    '& .MuiOutlinedInput-root': {
-      backgroundColor: theme.palette.background.paper,
-      boxShadow: 1,
-      borderRadius: 1,
-      '& fieldset': {
-        borderColor: theme.palette.divider,
-      },
-      '&:hover fieldset': {
-        borderColor: theme.palette.primary.main,
-      },
-      '&.Mui-focused fieldset': {
-        borderColor: theme.palette.primary.main,
-      },
-      // Target the actual input element
-      '& input': {
-        backgroundColor: 'transparent !important',
-        '&:-webkit-autofill': {
-          WebkitBoxShadow: `0 0 0 1000px ${theme.palette.background.paper} inset !important`,
-          WebkitTextFillColor: `${theme.palette.text.primary} !important`,
-          caretColor: `${theme.palette.text.primary} !important`,
-          borderRadius: '4px',
-        },
-        '&:-webkit-autofill:hover': {
-          WebkitBoxShadow: `0 0 0 1000px ${theme.palette.background.paper} inset !important`,
-          WebkitTextFillColor: `${theme.palette.text.primary} !important`,
-        },
-        '&:-webkit-autofill:focus': {
-          WebkitBoxShadow: `0 0 0 1000px ${theme.palette.background.paper} inset !important`,
-          WebkitTextFillColor: `${theme.palette.text.primary} !important`,
-        },
-      },
-    },
-    '& input:-webkit-autofill': {
-      WebkitBoxShadow: `0 0 0 1000px ${theme.palette.background.paper} inset !important`,
-      WebkitTextFillColor: `${theme.palette.text.primary} !important`,
-      caretColor: `${theme.palette.text.primary} !important`,
-    },
-  }}
-  size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-/>
-  <FormControl sx={{ minWidth: getResponsiveValue('100%', 200, 200, 200, 200) }}>
-    <InputLabel>Filter Role</InputLabel>
-    <Select 
-      value={selectedRole} 
-      label="Filter Role" 
-      onChange={(e) => setSelectedRole(e.target.value)}
-      sx={{ boxShadow: 1, borderRadius: 1 }}
-      size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-    >
-      <MenuItem value="all">All Roles</MenuItem>
-      <MenuItem value="admin">Admin</MenuItem>
-      <MenuItem value="leader">Leader</MenuItem>
-      <MenuItem value="user">User</MenuItem>
-      <MenuItem value="registrant">Registrant</MenuItem>
-    </Select>
-  </FormControl>
-</Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
+              <TextField
+                fullWidth
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 1,
+                    borderRadius: 1,
+                    '& fieldset': {
+                      borderColor: theme.palette.divider,
+                    },
+                    '&:hover fieldset': {
+                      borderColor: theme.palette.primary.main,
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: theme.palette.primary.main,
+                    },
+                    '& input': {
+                      backgroundColor: 'transparent !important',
+                      '&:-webkit-autofill': {
+                        WebkitBoxShadow: `0 0 0 1000px ${theme.palette.background.paper} inset !important`,
+                        WebkitTextFillColor: `${theme.palette.text.primary} !important`,
+                        caretColor: `${theme.palette.text.primary} !important`,
+                        borderRadius: '4px',
+                      },
+                    },
+                  },
+                }}
+                size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+              />
+              <FormControl sx={{ minWidth: getResponsiveValue('100%', 200, 200, 200, 200) }}>
+                <InputLabel>Filter Role</InputLabel>
+                <Select 
+                  value={selectedRole} 
+                  label="Filter Role" 
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  sx={{ boxShadow: 1, borderRadius: 1 }}
+                  size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+                >
+                  <MenuItem value="all">All Roles</MenuItem>
+                  <MenuItem value="admin">Admin</MenuItem>
+                  <MenuItem value="leader">Leader</MenuItem>
+                  <MenuItem value="user">User</MenuItem>
+                  <MenuItem value="registrant">Registrant</MenuItem>
+                </Select>
+              </FormControl>
+            </Stack>
 
             {isMdDown ? (
               /* Mobile Card View */

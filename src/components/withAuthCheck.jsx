@@ -6,7 +6,7 @@ import { Block } from "@mui/icons-material";
 
 const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false) => {
   return function AuthenticatedComponent(props) {
-    const { user, loading } = useContext(AuthContext);
+    const { user, loading, authFetch } = useContext(AuthContext);
     const location = useLocation();
     const [hasCell, setHasCell] = useState(false);
     const [cellLoading, setCellLoading] = useState(true);
@@ -16,12 +16,16 @@ const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false
       const checkUserCell = async () => {
         if (requiresCell && user?.role === 'user') {
           try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/check-leader-status`, {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            });
+            const response = await authFetch(
+              `${import.meta.env.VITE_BACKEND_URL}/check-leader-status`
+            );
+            
+            if (!response.ok) {
+              console.error('Failed to check leader status:', response.status);
+              setHasCell(false);
+              return;
+            }
+            
             const data = await response.json();
             setHasCell(data.hasCell || false);
           } catch (error) {
@@ -38,7 +42,7 @@ const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false
       if (user) {
         checkUserCell();
       }
-    }, [user, requiresCell]);
+    }, [user, requiresCell, authFetch]);
 
     // Show loading indicator while auth is being initialized
     if (loading || (requiresCell && cellLoading)) {
