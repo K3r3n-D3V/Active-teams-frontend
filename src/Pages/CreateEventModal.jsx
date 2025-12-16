@@ -13,11 +13,11 @@ import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import CreateEvents from './CreateEvents';
 import EventTypesModal from './EventTypesModal';
-
+import {AuthContext} from "../contexts/AuthContext"
 const CreateEventModal = ({ open, onClose, user }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-  
+  const authFetch = useContext(AuthContext)
   // State for event type selection
   const [eventTypes, setEventTypes] = useState([]);
   const [selectedEventType, setSelectedEventType] = useState(null);
@@ -37,7 +37,7 @@ const CreateEventModal = ({ open, onClose, user }) => {
   const fetchEventTypes = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${BACKEND_URL}/event-types`, {
+      const response = await authFetch(`${BACKEND_URL}/event-types`, {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
         },
@@ -68,7 +68,7 @@ const handleEventTypeSelect = (eventType) => {
 const handleEventTypeSubmit = async (eventTypeData) => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${BACKEND_URL}/event-types`, {
+    const response = await authFetch(`${BACKEND_URL}/event-types`, {
       method: 'POST',
       headers: {
         'Authorization': token ? `Bearer ${token}` : '',
