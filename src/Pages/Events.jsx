@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from "react";
+import axios from "axios";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 import IconButton from "@mui/material/IconButton";
@@ -29,6 +30,7 @@ import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
+
 
 const styles = {
   container: {
@@ -560,8 +562,8 @@ const MobileEventCard = ({
   theme,
   styles,
   isAdmin,
-  isLeaderAt12,
-  currentUserLeaderAt1,
+  // isLeaderAt12,
+  // currentUserLeaderAt1,
   selectedEventTypeFilter
 }) => {
   if (!theme) {
@@ -804,43 +806,55 @@ const Events = () => {
     },
   }
 
-  useEffect(() => {
-    const checkLeaderAt12Status = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          return;
-        }
-
-        setIsCheckingLeaderStatus(true);
-
-        const response = await authFetch(
-          `${BACKEND_URL}/check-leader-at-12-status`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            timeout: 10000,
-          }
-        );
-        setIsLeaderAt12(response.data.is_leader_at_12);
-        setIsCheckingLeaderStatus(false);
-      } catch (error) {
-        console.error("Error checking Leader at 12 status:", error);
-        try {
-          const leaders = JSON.parse(localStorage.getItem("leaders"));
-          const checkIfLeader12 = leaders && !leaders.leaderAt12;
-
-          console.log(" USING LOCAL STORAGE", checkIfLeader12);
-          setIsLeaderAt12(checkIfLeader12);
-        } catch (parseError) {
-          console.error("Failed to parse leaders from localStorage:", parseError);
-          setIsLeaderAt12(false);
-        }
-        setIsCheckingLeaderStatus(false);
+useEffect(() => {
+  const checkLeaderAt12Status = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        return;
       }
-    };
 
-    checkLeaderAt12Status();
-  }, [BACKEND_URL]);
+      setIsCheckingLeaderStatus(true);
+
+      const response = await authFetch(
+        `${BACKEND_URL}/check-leader-at-12-status`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000,
+        }
+      );
+
+      // FIX: Parse the response properly
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to check leader status`);
+      }
+
+      // FIX: Get data from JSON, not response.data
+      const data = await response.json();
+      setIsLeaderAt12(data.is_leader_at_12);
+      setIsCheckingLeaderStatus(false);
+      
+    } catch (error) {
+      console.error("Error checking Leader at 12 status:", error);
+      
+      // Fallback to localStorage
+      try {
+        const leaders = JSON.parse(localStorage.getItem("leaders") || "{}");
+        const checkIfLeader12 = leaders && leaders.leaderAt12;
+        
+        console.log("📦 USING LOCAL STORAGE", checkIfLeader12);
+        setIsLeaderAt12(checkIfLeader12 || false);
+      } catch (parseError) {
+        console.error("Failed to parse leaders from localStorage:", parseError);
+        setIsLeaderAt12(false);
+      }
+      
+      setIsCheckingLeaderStatus(false);
+    }
+  };
+
+  checkLeaderAt12Status();
+}, [BACKEND_URL, authFetch]);
 
   const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
     if (showLoader) {
@@ -849,7 +863,7 @@ const Events = () => {
     }
 
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       if (!token) {
         toast.error("Please log in again");
         setTimeout(() => window.location.href = '/login', 2000);
@@ -965,7 +979,7 @@ const Events = () => {
       console.log("🔍 DEBUG: Checking event IDs from API:");
       newEvents.forEach((event, i) => {
         if (event._id && event._id.includes('_')) {
-          console.log(`⚠️ Event ${i} has date suffix in _id:`, {
+          console.log(` Event ${i} has date suffix in _id:`, {
             original_id: event._id,
             cleaned_id: event._id.split('_')[0],
             eventName: event.eventName,
@@ -1026,7 +1040,7 @@ const Events = () => {
         toast.warning("Request timeout. Please refresh and try again.");
       } else if (err.response?.status === 401) {
         toast.error("Session expired. Logging out...");
-        localStorage.removeItem("token");
+      localStorage.removeItem("access_token");
         localStorage.removeItem("userProfile");
         setTimeout(() => window.location.href = '/login', 2000);
       } else {
@@ -1060,86 +1074,99 @@ const Events = () => {
     DEFAULT_API_START_DATE
   ]);
 
-  const checkEventsForType = async (eventTypeName) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await authFetch(`${BACKEND_URL}/events/other`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: {
-          event_type: eventTypeName,
-          limit: 100
-        }
-      });
-
-      console.log(`Events using "${eventTypeName}":`, {
-        count: response.data.events?.length || 0,
-        events: response.data.events?.map(e => ({
-          id: e._id,
-          name: e.eventName,
-          type: e.eventType,
-          typeName: e.eventTypeName
-        }))
-      });
-
-      return response.data.events || [];
-    } catch (error) {
-      console.error('Error checking events for type:', error);
-      return [];
+const checkEventsForType = async (eventTypeName) => {
+  try {
+    const token = localStorage.getItem("access_token");
+    
+    const params = new URLSearchParams({
+      event_type: eventTypeName,
+      limit: 100
+    });
+    
+    const response = await authFetch(`${BACKEND_URL}/events/other?${params}`, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: Failed to fetch events`);
     }
+    
+    // Parse JSON response
+    const data = await response.json();
+    
+    console.log(`Events using "${eventTypeName}":`, {
+      count: data.events?.length || 0,
+      events: data.events?.map(e => ({
+        id: e._id,
+        name: e.eventName,
+        type: e.eventType,
+        typeName: e.eventTypeName
+      }))
+    });
+    
+    return data.events || [];
+    
+  } catch (error) {
+    console.error('Error checking events for type:', error);
+    return [];
+  }
+};
+
+
+const handleStatusFilterChange = useCallback((newStatus) => {
+  console.log("Status filter changing to:", newStatus);
+
+  setSelectedStatus(newStatus);
+  setCurrentPage(1);
+
+  const shouldApplyPersonalFilter =
+    viewFilter === 'personal' &&
+    (userRole === "admin" || userRole === "leader at 12");
+
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    status: newStatus !== 'all' ? newStatus : undefined,
+    start_date: DEFAULT_API_START_DATE,
+    _t: Date.now(),
+    ...(searchQuery.trim() && { search: searchQuery.trim() }),
+    ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
+    ...(shouldApplyPersonalFilter && { personal: true }),
+    ...(isLeaderAt12 && {
+      leader_at_12_view: true,
+      include_subordinate_cells: true,
+      ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
+      ...(viewFilter === 'personal' ?
+        { show_personal_cells: true, personal: true } :
+        { show_all_authorized: true }
+      )
+    })
   };
 
+  if (newStatus === 'all') {
+    delete fetchParams.status;
+  }
 
-  const handleStatusFilterChange = useCallback((newStatus) => {
-    console.log("Status filter changing to:", newStatus);
-
-    setSelectedStatus(newStatus);
-    setCurrentPage(1);
-
-    const shouldApplyPersonalFilter =
-      viewFilter === 'personal' &&
-      (userRole === "admin" || userRole === "leader at 12");
-
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage,
-      status: newStatus !== 'all' ? newStatus : undefined,
-      start_date: DEFAULT_API_START_DATE,
-      _t: Date.now(),
-      ...(searchQuery.trim() && { search: searchQuery.trim() }),
-      ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
-      ...(shouldApplyPersonalFilter && { personal: true }),
-      ...(isLeaderAt12 && {
-        leader_at_12_view: true,
-        include_subordinate_cells: true,
-        ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
-        ...(viewFilter === 'personal' ?
-          { show_personal_cells: true, personal: true } :
-          { show_all_authorized: true }
-        )
-      })
-    };
-
-    if (newStatus === 'all') {
-      delete fetchParams.status;
-    }
-
-    console.log("Fetching with status params:", fetchParams);
-    fetchEvents(fetchParams, true, false);
-  }, [
-    viewFilter,
-    userRole,
-    rowsPerPage,
-    searchQuery,
-    selectedEventTypeFilter,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
+  console.log("Fetching with status params:", fetchParams);
+  fetchEvents(fetchParams, true, false);
+}, [
+  viewFilter,
+  userRole,
+  rowsPerPage,
+  searchQuery,
+  selectedEventTypeFilter,
+  isLeaderAt12,
+  currentUserLeaderAt1,
+  fetchEvents,
+  DEFAULT_API_START_DATE
+]);
 
   const fetchEventTypes = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const response = await fetch(`${BACKEND_URL}/event-types`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1222,43 +1249,28 @@ const Events = () => {
 
 const getCurrentUserLeaderAt1 = useCallback(async () => {
   try {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("access_token");
     
     if (!token) {
-      console.error('No token found for leader-at-1 request');
-      return '';
+      console.log(' No token found in localStorage');
+      return ''; 
     }
 
-    console.log('Fetching leader at 1 with token:', token.substring(0, 20) + '...');
-    
-    const response = await axios.get(
+    const response = await authFetch(
       `${BACKEND_URL}/current-user/leader-at-1`,
-      {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 10000
-      }
+      { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    console.log('Leader at 1 response:', response.data);
     return response.data.leader_at_1 || '';
     
   } catch (error) {
-    console.error('Error getting current user leader at 1:', error);
+    console.error(' Error getting current user leader at 1:', error);
     
-    // Check if it's an auth error
-    if (error.response?.status === 401) {
-      console.error('Authentication failed for leader-at-1 endpoint');
-      toast.error('Session expired. Please log in again.');
-      
-      localStorage.removeItem("token");
-      localStorage.removeItem("userProfile");
-      setTimeout(() => window.location.href = '/login', 2000);
-    }
+
+    const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+    const leaders = JSON.parse(localStorage.getItem("leaders") || "{}");
     
-    return '';
+    return leaders.leaderAt1 || userProfile.name || '';
   }
 }, [BACKEND_URL]);
 
@@ -1469,13 +1481,12 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
   const handleAttendanceSubmit = useCallback(async (data) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      // CRITICAL: Use the composite ID that includes the date
       const eventId = selectedEvent._id;
       const eventName = selectedEvent.eventName || 'Event';
-      const eventDate = selectedEvent.date || ''; // This should be the specific date from the instance
+      const eventDate = selectedEvent.date || ''; 
 
       console.log("Submitting attendance for:", {
         eventId,
@@ -1649,7 +1660,6 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
       allKeys: Object.keys(event)
     });
 
-    // Extract MongoDB ID from composite ID
     let eventId = event._id;
     let eventDate = event.date;
 
@@ -1694,7 +1704,7 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
   const handleDeleteEvent = useCallback(async (event) => {
     if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("access_token");
 
         let eventId = event._id;
         if (eventId && eventId.includes("_")) {
@@ -1808,12 +1818,11 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
       console.log(" Updating event with identifier:", eventIdentifier);
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       if (!token) {
         throw new Error("No authentication token found");
       }
 
-      // Clean the data - remove undefined values
       const cleanPayload = Object.entries(eventData).reduce((acc, [key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
           acc[key] = value;
@@ -1823,7 +1832,6 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
       console.log(" Sending payload:", cleanPayload);
 
-      // Use the universal endpoint
       const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
 
       const response = await fetch(endpoint, {
@@ -1928,14 +1936,11 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
         newValue
       });
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       if (!token) {
         toast.error("Please log in again");
         return;
       }
-
-      // This function edits ALL cells for a person, not a specific instance
-      // So we don't need to worry about composite IDs here
       const encodedPersonName = encodeURIComponent(personName);
 
       const updatePayload = {
@@ -2107,10 +2112,7 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
       console.log(" Setting editing event type:", eventTypeToEdit);
       closeTypeMenu();
 
-      //  FIXED: Set editing event type BEFORE opening modal
       setEditingEventType(eventTypeToEdit);
-
-      //  FIXED: Small delay to ensure state is set before modal opens
       setTimeout(() => {
         setEventTypesModalOpen(true);
       }, 100);
@@ -2132,7 +2134,7 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
   const handleDeleteType = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
 
       if (!token) {
         toast.error("Please log in again");
@@ -2150,7 +2152,6 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
       console.log(' Attempting to delete event type:', typeName);
 
-      // First, try normal delete
       const encodedTypeName = encodeURIComponent(typeName);
       const url = `${BACKEND_URL}/event-types/${encodedTypeName}`;
 
@@ -2194,16 +2195,14 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
       } catch (error) {
         console.error(" Error deleting event type:", error);
 
-        // Handle 401/unauthorized
         if (error.response?.status === 401) {
           toast.error("Session expired. Logging out...");
-          localStorage.removeItem("token");
+        localStorage.removeItem("access_token");
           localStorage.removeItem("userProfile");
           setTimeout(() => window.location.href = '/login', 2000);
           return;
         }
 
-        // Handle 400 - Events exist
         if (error.response?.status === 400) {
           const errorData = error.response.data;
           let eventsCount = 0;
@@ -2216,7 +2215,6 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
           console.log(` ${eventsCount} events are blocking deletion:`, eventsList);
 
-          // Show detailed dialog with force delete option
           const eventsListText = eventsList.slice(0, 5).map(e =>
             `• ${e.name} (${e.date || 'No date'}) - Status: ${e.status}`
           ).join('\n');
@@ -2226,7 +2224,7 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
             `${eventsCount} event(s) are using this event type:\n\n` +
             `${eventsListText}\n` +
             `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ''}\n` +
-            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `━n\n` +
             ` FORCE DELETE OPTION:\n\n` +
             `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
             `Click Cancel to keep everything.\n\n` +
@@ -2247,7 +2245,6 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
               console.log(' Force delete successful:', forceResponse.data);
 
-              // Refresh everything
               await fetchEventTypes(true);
               setConfirmDeleteOpen(false);
               setToDeleteType(null);
@@ -2356,181 +2353,111 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
     setSearchQuery(value);
   }, []);
 
-  useEffect(() => {
-    const checkAccess = async () => {
-      // Wait for auth to initialize
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const token = localStorage.getItem("token");
-      const userProfile = localStorage.getItem("userProfile");
-
-      console.log("🔐 ACCESS CHECK:", { token: !!token, userProfile: !!userProfile });
-
-      if (!token || !userProfile) {
-        toast.error("Please log in to access events");
-        setTimeout(() => window.location.href = '/login', 2000);  //  Redirect to /login, not /dashboard
-        return;
-      }
-
-      try {
-        const currentUser = JSON.parse(userProfile);
-        const userRole = currentUser?.role?.toLowerCase() || "";
-        const email = currentUser?.email || "";
-
-        console.log("🔐 Checking user access:", { userRole, email });
-
-        const isAdmin = userRole === "admin";
-        const isLeaderAt12 =
-          userRole.includes("leader at 12") ||
-          userRole.includes("leader@12") ||
-          userRole.includes("leader @12") ||
-          userRole.includes("leader at12") ||
-          userRole === "leader at 12";
-        const isRegistrant = userRole === "registrant";
-        const isLeader144or1728 =
-          userRole.includes("leader at 144") ||
-          userRole.includes("leader at 1278") ||
-          userRole.includes("leader at 1728");
-
-        //  IMPROVED: Check if user role includes "leader" in any form
-        const isAnyLeader =
-          userRole.includes("leader") ||
-          isLeaderAt12 ||
-          isLeader144or1728;
-
-        const isUser = userRole === "user";
-
-        // Special check for regular users
-        if (isUser) {
-          try {
-            const response = await authFetch(`${BACKEND_URL}/check-leader-status`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-
-            const { hasCell, canAccessEvents } = response.data;
-
-            console.log(" User cell check:", { hasCell, canAccessEvents });
-
-            if (!canAccessEvents || !hasCell) {
-              toast.warning("You must have a cell to access the Events page");
-              //  FIX: Redirect to home instead of /dashboard
-              setTimeout(() => window.location.href = '/', 2000);
-              return;
-            }
-
-            console.log(" User has cell - access granted");
-          } catch (error) {
-            console.error(" Error checking cell status:", error);
-            toast.error("Unable to verify access. Please contact support.");
-            //  FIX: Redirect to home instead of /dashboard
+useEffect(() => {
+  const checkAccess = async () => {
+    // Wait for auth to initialize
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const token = localStorage.getItem("access_token");
+    const userProfile = localStorage.getItem("userProfile");
+    
+    console.log(" ACCESS CHECK:", { token: !!token, userProfile: !!userProfile });
+    
+    if (!token || !userProfile) {
+      toast.error("Please log in to access events");
+      setTimeout(() => window.location.href = '/login', 2000);
+      return;
+    }
+    
+    try {
+      const currentUser = JSON.parse(userProfile);
+      const userRole = currentUser?.role?.toLowerCase() || "";
+      const email = currentUser?.email || "";
+      
+      console.log(" Checking user access:", { userRole, email });
+      
+      const isAdmin = userRole === "admin";
+      const isLeaderAt12 =
+        userRole.includes("leader at 12") ||
+        userRole.includes("leader@12") ||
+        userRole.includes("leader @12") ||
+        userRole.includes("leader at12") ||
+        userRole === "leader at 12";
+      const isRegistrant = userRole === "registrant";
+      const isLeader144or1728 =
+        userRole.includes("leader at 144") ||
+        userRole.includes("leader at 1278") ||
+        userRole.includes("leader at 1728");
+      
+      const isAnyLeader =
+        userRole.includes("leader") ||
+        isLeaderAt12 ||
+        isLeader144or1728;
+      
+      const isUser = userRole === "user";
+      
+      // Special check for regular users
+      if (isUser) {
+        try {
+          const response = await authFetch(`${BACKEND_URL}/check-leader-status`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          const { hasCell, canAccessEvents } = response.data;
+          
+          console.log("User cell check:", { hasCell, canAccessEvents });
+          
+          if (!canAccessEvents || !hasCell) {
+            toast.warning("You must have a cell to access the Events page");
             setTimeout(() => window.location.href = '/', 2000);
             return;
           }
-        }
-
-        //  BROADENED ACCESS: Allow all types of leaders
-        const hasAccess =
-          isAdmin ||
-          isLeaderAt12 ||
-          isRegistrant ||
-          isLeader144or1728 ||
-          isAnyLeader ||  //  This catches any leader role
-          isUser;
-
-        if (!hasAccess) {
-          console.log(" Access denied for role:", userRole);
-          toast.warning("You do not have permission to access the Events page");
-          //  FIX: Redirect to home instead of /dashboard
-          setTimeout(() => window.location.href = '/', 2000);
-        } else {
-          console.log(" Access granted:", {
-            userRole,
-            isAdmin,
-            isLeaderAt12,
-            isRegistrant,
-            isLeader144or1728,
-            isAnyLeader,
-            isUser
-          });
-        }
-      } catch (error) {
-        console.error(" Error in access check:", error);
-        toast.error("Error verifying access");
-      }
-    };
-
-    checkAccess();
-  }, [currentUser?.email, currentUser?.role, BACKEND_URL]);
-
-
-
-  useEffect(() => {
-    const checkAccess = async () => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const token = localStorage.getItem("token");
-      const userProfile = localStorage.getItem("userProfile");
-
-      if (!token || !userProfile) {
-        toast.error("Please log in to access events");
-        setTimeout(() => navigate('/login', { replace: true }), 2000);  //  Better approach
-        return;
-      }
-
-      try {
-        const currentUser = JSON.parse(userProfile);
-        const userRole = currentUser?.role?.toLowerCase() || "";
-
-        console.log("🔐 Checking user access:", { userRole });
-
-        const isAdmin = userRole === "admin";
-        const isAnyLeader = userRole.includes("leader");  //  Simplified
-        const isRegistrant = userRole === "registrant";
-        const isUser = userRole === "user";
-
-        // Check for regular users
-        if (isUser) {
-          try {
-            const response = await authFetch(`${BACKEND_URL}/check-leader-status`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (!response.data.canAccessEvents || !response.data.hasCell) {
-              toast.warning("You must have a cell to access the Events page");
-              setTimeout(() => navigate('/', { replace: true }), 2000);
-              return;
-            }
-
-            console.log(" User has cell - access granted");
-          } catch (error) {
-            console.error(" Error checking cell status:", error);
-            toast.error("Unable to verify access");
-            setTimeout(() => navigate('/', { replace: true }), 2000);
-            return;
+          
+          console.log("User has cell - access granted");
+        } catch (error) {
+          console.error(" Error checking cell status:", error);
+          
+          if (error.response?.status === 401) {
+            toast.error("Session expired. Please log in again.");
+            setTimeout(() => window.location.href = '/login', 2000);
+          } else {
+            console.warn(" Could not verify cell status, allowing access");
           }
+          return;
         }
-
-        // Check access
-        const hasAccess = isAdmin || isAnyLeader || isRegistrant || isUser;
-
-        if (!hasAccess) {
-          console.log(" Access denied for role:", userRole);
-          toast.warning("You do not have permission to access this page");
-          setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
-        } else {
-          console.log(" Access granted for role:", userRole);
-        }
-      } catch (error) {
-        console.error(" Error in access check:", error);
-        toast.error("Error verifying access");
-        setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
       }
-    };
-
-    checkAccess();
-  }, [currentUser?.email, currentUser?.role, BACKEND_URL, navigate]);
-
-
+      
+      const hasAccess =
+        isAdmin ||
+        isLeaderAt12 ||
+        isRegistrant ||
+        isLeader144or1728 ||
+        isAnyLeader ||
+        isUser;
+      
+      if (!hasAccess) {
+        console.log(" Access denied for role:", userRole);
+        toast.warning("You do not have permission to access the Events page");
+        setTimeout(() => window.location.href = '/', 2000);
+      } else {
+        console.log("Access granted:", {
+          userRole,
+          isAdmin,
+          isLeaderAt12,
+          isRegistrant,
+          isLeader144or1728,
+          isAnyLeader,
+          isUser
+        });
+      }
+    } catch (error) {
+      console.error(" Error in access check:", error);
+      toast.error("Error verifying access");
+    }
+  };
+  
+  checkAccess();
+}, [currentUser?.email, currentUser?.role, BACKEND_URL, authFetch]);
 
   useEffect(() => {
     if (eventTypes.length > 0 && !selectedEventTypeFilter) {
@@ -2578,11 +2505,6 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
     });
   }, [selectedEventTypeFilter, eventTypes, events]);
 
-
-
-
-
-
   useEffect(() => {
     if (isLeaderAt12 && viewFilter === 'personal') {
       console.log(" Auto-switching Leader at 12 to VIEW ALL mode on initial load");
@@ -2605,17 +2527,16 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
         }
       }
 
-      // Small delay to ensure state is updated
       setTimeout(() => {
         fetchEvents(fetchParams, true);
       }, 100);
     }
-  }, [isLeaderAt12]); // Only depend on isLeaderAt12, not viewFilter
+  }, [isLeaderAt12]); 
 
 
   useEffect(() => {
     const checkAuth = () => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const userProfile = localStorage.getItem("userProfile");
 
       if (!token || !userProfile) {
@@ -2649,7 +2570,6 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
   }, []);
 
 
-  // Add this useEffect to track filter changes
   useEffect(() => {
     console.log(" FILTER CHANGE DEBUG:", {
       selectedEventTypeFilter,
@@ -2658,17 +2578,15 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
     });
   }, [selectedEventTypeFilter, events, eventTypes]);
 
-
-
   const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       if (!token) {
         throw new Error("No authentication token found");
       }
 
       const oldName = editingEventType?.name;
-      console.log("💾 Saving event type:", {
+      console.log(" Saving event type:", {
         eventTypeData,
         eventTypeId,
         oldName,
@@ -2678,7 +2596,6 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
       let url, method;
 
       if (eventTypeId || editingEventType) {
-        // Editing existing event type - use the OLD name for the URL
         const identifier = oldName;
         if (!identifier) {
           throw new Error("Cannot update: original event type name not found");
@@ -2686,14 +2603,12 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
         console.log(` Updating event type from '${identifier}' to '${eventTypeData.name}'`);
 
-        // URL encode the OLD name for the endpoint
         const encodedName = encodeURIComponent(identifier);
         url = `${BACKEND_URL}/event-types/${encodedName}`;
         method = 'PUT';
 
         console.log(" Update URL:", url);
       } else {
-        // Creating new event type
         url = `${BACKEND_URL}/event-types`;
         method = 'POST';
         console.log(" Create URL:", url);
@@ -2724,15 +2639,10 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
       const result = await response.json();
       console.log(" Event type saved successfully:", result);
-
-      // Close modal and reset state
       setEventTypesModalOpen(false);
       setEditingEventType(null);
-
-      // Refresh event types list
       await fetchEventTypes();
 
-      // Update filter if name changed
       if (oldName && selectedEventTypeFilter === oldName && result.name !== oldName) {
         console.log(` Updating filter from '${oldName}' to '${result.name}'`);
         setSelectedEventTypeFilter(result.name);
@@ -2757,7 +2667,7 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
     try {
       console.log(" Creating event type:", eventTypeData);
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const response = await fetch(`${BACKEND_URL}/event-types`, {
         method: 'POST',
         headers: {
@@ -2795,7 +2705,6 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
     try {
       console.log(" Updating event type:", { eventTypeData, eventTypeIdentifier });
 
-      // Use the original name from the editing event type, not the new name
       const originalEventType = editingEventType || eventTypes.find(et =>
         et._id === eventTypeIdentifier || et.name === eventTypeIdentifier
       );
@@ -2807,7 +2716,7 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
       const originalName = originalEventType.name;
       console.log(" Original event type name:", originalName);
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
 
       // URL encode the ORIGINAL event type name for the API endpoint
       const encodedName = encodeURIComponent(originalName);
@@ -2824,15 +2733,11 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
         const updatedEventType = await response.json();
         console.log(" Event type updated successfully:", updatedEventType);
 
-        // Refresh event types list
         await fetchEventTypes();
 
-        // Update the selected filter if the name changed
         if (selectedEventTypeFilter === originalName && eventTypeData.name !== originalName) {
           setSelectedEventTypeFilter(eventTypeData.name);
         }
-
-        // Show success message
         toast.success('Event type updated successfully!');
 
         return updatedEventType;
@@ -2851,20 +2756,25 @@ const getCurrentUserLeaderAt1 = useCallback(async () => {
 
 useEffect(() => {
   const fetchCurrentUserLeaderAt1 = async () => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("access_token");
     if (!token) {
-      console.log('No token, skipping leader-at-1 fetch');
+      console.log(' No token, skipping leader at 1 fetch');
       setCurrentUserLeaderAt1('');
       return;
     }
 
-    console.log('Fetching leader at 1 for current user...');
-    const leaderAt1 = await getCurrentUserLeaderAt1();
-    console.log('Got leader at 1:', leaderAt1);
-    setCurrentUserLeaderAt1(leaderAt1);
+    try {
+      const leaderAt1 = await getCurrentUserLeaderAt1();
+      setCurrentUserLeaderAt1(leaderAt1);
+    } catch (error) {
+      console.error('Error fetching leader at 1:', error);
+      setCurrentUserLeaderAt1('');
+    }
   };
 
-  fetchCurrentUserLeaderAt1();
+  setTimeout(() => {
+    fetchCurrentUserLeaderAt1();
+  }, 500);
 }, [getCurrentUserLeaderAt1]);
 
   useEffect(() => {
@@ -3019,12 +2929,10 @@ useEffect(() => {
         ...(shouldApplyPersonalFilter && { personal: true }),
       };
 
-      //  CRITICAL: Always send status parameter when filtering (except for 'all')
       if (statusValue && statusValue !== 'all') {
         fetchParams.status = statusValue;
       }
 
-      // Leader at 12 params for cells
       if (isLeaderAt12 && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
         fetchParams.leader_at_12_view = true;
         fetchParams.include_subordinate_cells = true;
@@ -3188,8 +3096,8 @@ useEffect(() => {
     selectedStatus,
     searchQuery,
     viewFilter,
-    userRole,
-    setSelectedEventTypeObj,
+    // userRole,
+    // setSelectedEventTypeObj,
     DEFAULT_API_START_DATE,
     isLeaderAt12,
     isAdmin,
@@ -3345,9 +3253,7 @@ useEffect(() => {
     const allTypes = useMemo(() => {
       const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
 
-      //  FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
       if (isAdmin) {
-        // Admin sees everything
         const adminTypes = ["all"];
         availableTypes.forEach(type => {
           adminTypes.push(type);
@@ -3443,7 +3349,6 @@ useEffect(() => {
 
     return (
       <div style={mobileEventTypeStyles.container}>
-        {/* Header Row - Always visible */}
         <div
           style={mobileEventTypeStyles.headerRow}
           onClick={() => isMobileView && setIsCollapsed(!isCollapsed)}
@@ -3500,7 +3405,6 @@ useEffect(() => {
                   {displayName}
                 </span>
 
-                {/*  FIXED: Show edit menu for admin users */}
                 {showMenu && (
                   <IconButton
                     size="small"
@@ -3638,9 +3542,6 @@ useEffect(() => {
           flexWrap: "wrap",
           px: 1
         }}>
-          {/* ... TextField (Search) ... */}
-
-
           <TextField
             size="small"
             placeholder="Search by Event Name, Leader, or Email..."

@@ -53,7 +53,7 @@ const carouselTexts = [
 const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
 const createAuthenticatedRequest = () => {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token");
   return axios.create({
     baseURL: BACKEND_URL,
     headers: {
@@ -92,7 +92,7 @@ async function updateUserProfile(data) {
 }
 
 async function uploadAvatarFromDataUrl(dataUrl) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token");
   const userId = localStorage.getItem("userId");
   if (!token || !userId) throw new Error("Authentication required");
 
@@ -115,7 +115,7 @@ async function uploadAvatarFromDataUrl(dataUrl) {
 }
 
 async function updatePassword(currentPassword, newPassword) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token");
   const userId = localStorage.getItem("userId");
   if (!token || !userId) throw new Error("Authentication required");
 
@@ -143,7 +143,7 @@ async function updatePassword(currentPassword, newPassword) {
 
 async function fetchUserProfile() {
   const userId = localStorage.getItem("userId");
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token");
   
   if (!userId || !token) throw new Error("Authentication required");
 
