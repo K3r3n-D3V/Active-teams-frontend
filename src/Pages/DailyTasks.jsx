@@ -1,4 +1,4 @@
-import React, { useContext ,useEffect, useState } from "react";
+import React, { useContext,useEffect, useState } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import * as XLSX from 'xlsx';
@@ -55,6 +55,7 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
         >
           ×
         </button>
+
         <div style={{ marginTop: "8px" }}>
           {children}
         </div>
@@ -66,7 +67,7 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 export default function DailyTasks() {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-
+  
   const [tasks, setTasks] = useState([]);
   const [taskTypes, setTaskTypes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -76,14 +77,12 @@ export default function DailyTasks() {
   const [formType, setFormType] = useState("");
   const [dateRange, setDateRange] = useState("today");
   const [filterType, setFilterType] = useState("all");
-
   const [storedUser, setStoredUser] = useState(() =>
     JSON.parse(localStorage.getItem("userProfile") || "{}")
   );
-
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [addingTaskType, setAddingTaskType] = useState(false);
-
+  
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
   const getCurrentDateTime = () => {
@@ -100,6 +99,7 @@ export default function DailyTasks() {
     assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
     dueDate: getCurrentDateTime(),
     status: "Open",
+    taskStage: "Open",
   });
 
   const [taskData, setTaskData] = useState(getInitialTaskData());
@@ -114,11 +114,9 @@ export default function DailyTasks() {
   };
 
   const isSameDay = (date1, date2) => {
-    return (
-      date1.getFullYear() === date2.getFullYear() &&
-      date1.getMonth() === date2.getMonth() &&
-      date1.getDate() === date2.getDate()
-    );
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
   };
 
   const isDateInRange = (date, startDate, endDate) => {
@@ -168,8 +166,6 @@ export default function DailyTasks() {
 
   const { authFetch } = useContext(AuthContext);
 
-  // ==================== API Functions ====================
-
   const fetchTaskTypes = async () => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -178,6 +174,7 @@ export default function DailyTasks() {
       const res = await authFetch(`${API_URL}/tasktypes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (!res.ok) throw new Error("Failed to fetch task types");
       const data = await res.json();
       setTaskTypes(Array.isArray(data) ? data : data.taskTypes || []);
@@ -189,7 +186,8 @@ export default function DailyTasks() {
 
   const createTaskType = async () => {
     if (!newTaskTypeName.trim()) {
-      toast.warning("Please enter a task type name");
+     toast.warning("Please enter a task type name");
+;
       return;
     }
 
@@ -206,8 +204,12 @@ export default function DailyTasks() {
         },
         body: JSON.stringify({ name: newTaskTypeName.trim() }),
       });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to create task type');
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to create task type');
+      }
 
       setTaskTypes([...taskTypes, data.taskType || data]);
       setNewTaskTypeName("");
@@ -215,20 +217,25 @@ export default function DailyTasks() {
     } catch (err) {
       console.error("Error creating task type:", err.message);
       toast.error("Failed to create task type: " + err.message);
+;
     } finally {
       setAddingTaskType(false);
     }
   };
 
-  const fetchUserTasks = async () => {
+  const fetchUserTasks = async (userId) => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token) {
+      console.log("No token found, skipping fetch");
+      return;
+    }
 
     try {
       setLoading(true);
       const res = await authFetch(`${API_URL}/tasks?user_email=${storedUser.email}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
 
@@ -238,12 +245,13 @@ export default function DailyTasks() {
         date: task.date || task.followup_date,
         status: (task.status || "Open").toLowerCase(),
         taskName: task.name || task.taskName,
-        type: task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call"),
+        type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
       }));
+
       setTasks(normalizedTasks);
     } catch (err) {
       console.error("Error fetching user tasks:", err.message);
-      toast.error(err.message);
+      toast.error(err.message);;
     } finally {
       setLoading(false);
     }
@@ -251,16 +259,19 @@ export default function DailyTasks() {
 
   const fetchPeople = async (q) => {
     if (!q.trim()) return setSearchResults([]);
+
     const parts = q.trim().split(/\s+/);
     const name = parts[0];
     const surname = parts.slice(1).join(" ");
 
-    const token = localStorage.getItem("token");
     try {
+      const token = localStorage.getItem("token");
       const res = await authFetch(`${API_URL}/people?name=${encodeURIComponent(name)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (!res.ok) throw new Error("Failed to fetch people");
+
       const data = await res.json();
 
       let filtered = (data?.results || []).filter(p =>
@@ -273,6 +284,7 @@ export default function DailyTasks() {
         const nameB = b.Name.toLowerCase();
         const surnameA = (a.Surname || "").toLowerCase();
         const surnameB = (b.Surname || "").toLowerCase();
+
         if (nameA < nameB) return -1;
         if (nameA > nameB) return 1;
         if (surnameA < surnameB) return -1;
@@ -282,26 +294,28 @@ export default function DailyTasks() {
 
       setSearchResults(filtered);
     } catch (err) {
-      toast.error(err.message);
+      console.error("Error fetching people:", err);
+      toast.error(err.message);;
       setSearchResults([]);
     }
   };
 
   const fetchAssigned = async (q) => {
     if (!q.trim()) return setAssignedResults([]);
-    const token = localStorage.getItem("token");
     try {
+      const token = localStorage.getItem("token");
       const res = await authFetch(`${API_URL}/assigned?name=${encodeURIComponent(q.trim())}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setAssignedResults(data.results || []);
     } catch (err) {
-      toast.error(err.message);
+      console.error("Error fetching assigned people:", err);
+      toast.error(err.message);;
     }
   };
 
-  const createTask = async (taskPayload) => {
+    const createTask = async (taskPayload) => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
@@ -314,71 +328,54 @@ export default function DailyTasks() {
         },
         body: JSON.stringify(taskPayload),
       });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to create task');
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to create task');
+      }
 
       if (data.task) {
-        setTasks((prev) => [{
-          ...data.task,
-          assignedTo: data.task.assignedfor,
-          date: data.task.followup_date,
-          status: (data.task.status || "Open").toLowerCase(),
-          taskName: data.task.name,
-          type: data.task.type,
-        }, ...prev]);
+        setTasks((prev) => [
+          {
+            ...data.task,
+            assignedTo: data.task.assignedfor,
+            date: data.task.followup_date,
+            status: (data.task.status || "Open").toLowerCase(),
+            taskName: data.task.name,
+            type: data.task.type,
+          },
+          ...prev,
+        ]);
       }
+
       return data;
     } catch (err) {
+      console.error("Error creating task:", err.message);
       throw err;
     }
   };
 
-  const updateTask = async (taskId, updatedData) => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    try {
-      const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(updatedData),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update task");
-
-      setTasks((prev) =>
-        prev.map((t) =>
-          t._id === taskId ? { ...t, ...data.updatedTask, date: data.updatedTask.followup_date } : t
-        )
-      );
-      handleClose();
-    } catch (err) {
-      toast.error("Failed to update task: " + err.message);
-    }
-  };
-
-  // ==================== Effects ====================
-
   useEffect(() => {
     const handleStorageChange = () => {
       const freshUser = JSON.parse(localStorage.getItem("userProfile") || "{}");
-      setStoredUser(freshUser);
+      const userId = freshUser?.userId || freshUser?.id;
+      if (userId) {
+        setStoredUser(freshUser);
+        fetchUserTasks(userId);
+      }
     };
 
     window.addEventListener('storage', handleStorageChange);
 
-    if (storedUser?.email) {
-      fetchUserTasks();
+    const userId = storedUser?.userId || storedUser?.id;
+    if (userId) {
+      fetchUserTasks(userId);
       fetchTaskTypes();
     }
 
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [storedUser?.email]);
-
-  // ==================== Handlers ====================
+  }, []);
 
   const handleOpen = (type) => {
     setFormType(type);
@@ -403,51 +400,77 @@ export default function DailyTasks() {
     setTaskData({ ...taskData, [name]: value });
   };
 
+  const updateTask = async (taskId, updatedData) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedData),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update task");
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t._id === taskId ? { ...t, ...data.updatedTask, date: data.updatedTask.followup_date } : t
+        )
+      );
+      
+      handleClose();
+    } catch (err) {
+      console.error("Error updating task:", err.message);
+      toast.error("Failed to update task: " + err.message);
+    }
+  };
+
   const handleEdit = (task) => {
     if (task.status?.toLowerCase() === "completed") {
       toast.info("This task has been marked as completed and cannot be edited.");
+;
       return;
     }
 
     setSelectedTask(task);
     setFormType(task.type);
     setIsModalOpen(true);
-
-    const personName = task.contacted_person?.name || "";
-    const nameParts = personName.trim().split(" ");
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
-
     setTaskData({
       taskType: task.taskType || "",
       recipient: {
-        Name: firstName,
-        Surname: lastName,
-        Phone: task.contacted_person?.Number || task.contacted_person?.phone || "",
+        Name: task.contacted_person?.name?.split(" ")[0] || "",
+        Surname: task.contacted_person?.name?.split(" ")[1] || "",
+        Phone: task.contacted_person?.Number || "",
         Email: task.contacted_person?.email || "",
       },
-      recipientDisplay: personName,
-      assignedTo: task.name || storedUser.name || "",
-      dueDate: task.date ? new Date(task.date).toISOString().slice(0, 16) : getCurrentDateTime(),
-      status: task.status || "Open",
+      recipientDisplay: task.contacted_person?.name || "",
+      assignedTo: task.name || storedUser.name,
+      dueDate: formatDateTime(task.date),
+      status: task.status,
+      taskStage: task.status,
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
       if (!storedUser?.id) throw new Error("Logged-in user ID not found");
 
       const person = taskData.recipient;
+
       if (!person || !person.Name) {
-        throw new Error("Please select a valid recipient.");
+        throw new Error("Person details not found. Please select a valid recipient.");
       }
 
       const taskPayload = {
         memberID: storedUser.id,
-        name: taskData.assignedTo || `${storedUser.name} ${storedUser.surname}`.trim(),
+        name: taskData.assignedTo || storedUser.name,
         taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
           name: `${person.Name} ${person.Surname || ""}`.trim(),
@@ -455,52 +478,56 @@ export default function DailyTasks() {
           email: person.Email || "",
         },
         followup_date: new Date(taskData.dueDate).toISOString(),
-        status: taskData.status || "Open",
+        status: taskData.taskStage || "Open",
         type: formType || "call",
         assignedfor: storedUser.email,
       };
 
+      console.log("Task payload being sent:", JSON.stringify(taskPayload, null, 2));
+
       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
-        toast.success("Task updated successfully!");
+        toast.info(`Task for ${person.Name} ${person.Surname} updated successfully!`);
+;
       } else {
         await createTask(taskPayload);
-        toast.success(`Task for ${person.Name} ${person.Surname || ""} created!`);
+        toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
+;
       }
 
       handleClose();
     } catch (err) {
-      toast.error("Failed to save task: " + err.message);
+      console.error("Error adding task:", err.message);
+      toast.error("Failed to create task: " + err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ==================== Filtering ====================
-
   const filteredTasks = tasks.filter((task) => {
     const taskDate = parseDate(task.date);
     if (!taskDate) return false;
 
-    const matchesType =
+    let matchesType =
       filterType === "all" ||
       task.type === filterType ||
       (filterType === "consolidation" && task.taskType === "consolidation");
 
     let matchesDate = true;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     if (dateRange === "today") {
       matchesDate = isSameDay(taskDate, today);
     } else if (dateRange === "thisWeek") {
-      const start = getStartOfWeek(today);
-      const end = getEndOfWeek(today);
-      matchesDate = isDateInRange(taskDate, start, end);
+      const startOfWeek = getStartOfWeek(today);
+      const endOfWeek = getEndOfWeek(today);
+      matchesDate = isDateInRange(taskDate, startOfWeek, endOfWeek);
     } else if (dateRange === "thisMonth") {
-      const start = getStartOfMonth(today);
-      const end = getEndOfMonth(today);
-      matchesDate = isDateInRange(taskDate, start, end);
+      const startOfMonth = getStartOfMonth(today);
+      const endOfMonth = getEndOfMonth(today);
+      matchesDate = isDateInRange(taskDate, startOfMonth, endOfMonth);
     } else if (dateRange === "previous7") {
       const sevenDaysAgo = new Date(today);
       sevenDaysAgo.setDate(today.getDate() - 6);

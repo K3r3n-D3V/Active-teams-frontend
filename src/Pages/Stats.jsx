@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Grid, Typography, Card, CardContent, LinearProgress, Chip, IconButton, Button,
   FormControl, InputLabel, Select, MenuItem, Alert, Avatar, useTheme, useMediaQuery,
@@ -14,6 +14,7 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import * as XLSX from 'xlsx';
+import { AuthContext } from "../contexts/AuthContext";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -430,6 +431,8 @@ const StatsDashboard = () => {
     }
   };
 
+  const { authFetch } = useContext(AuthContext);
+
 const fetchStats = useCallback(async (forceRefresh = false) => {
   const currentPeriod = periodRef.current;   // ← This is always up-to-date!
   const cacheKey = `statsDashboard_${currentPeriod}`;
@@ -468,7 +471,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     console.log(`Fetching stats for period: ${currentPeriod}`);
     console.log(`Date range: ${startDate} to ${endDate}`);
 
-    const response = await fetch(
+    const response = await authFetch(
       `${BACKEND_URL}/stats/dashboard-comprehensive?period=${currentPeriod}&start_date=${startDate}&end_date=${endDate}`,
       { headers }
     );
@@ -507,11 +510,11 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       const startDate = dateRange.start.toISOString().split('T')[0];
       const endDate = dateRange.end.toISOString().split('T')[0];
 
-      const quickResponse = await fetch(`${BACKEND_URL}/stats/dashboard-quick?period=${currentPeriod}`, { headers });
+      const quickResponse = await authFetch(`${BACKEND_URL}/stats/dashboard-quick?period=${currentPeriod}`, { headers });
       if (!quickResponse.ok) throw err;
 
       const quickData = await quickResponse.json();
-      const tasksResponse = await fetch(`${BACKEND_URL}/tasks?start_date=${startDate}&end_date=${endDate}&limit=100`, { headers });
+      const tasksResponse = await authFetch(`${BACKEND_URL}/tasks?start_date=${startDate}&end_date=${endDate}&limit=100`, { headers });
 
       let tasksData = { allTasks: [], groupedTasks: [] };
       if (tasksResponse.ok) {
@@ -592,7 +595,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     const fetchEventTypes = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch(`${BACKEND_URL}/event-types`, {
+        const res = await authFetch(`${BACKEND_URL}/event-types`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -671,7 +674,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
         created_at: new Date().toISOString(),
       };
 
-      const res = await fetch(`${BACKEND_URL}/events`, {
+      const res = await authFetch(`${BACKEND_URL}/events`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
