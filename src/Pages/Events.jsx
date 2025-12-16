@@ -353,6 +353,110 @@ const fabStyles = {
     fontWeight: "bold",
   },
 };
+const StatusBadges = ({
+  selectedStatus,
+  setSelectedStatus,
+  setCurrentPage,
+  viewFilter,
+  userRole,
+  rowsPerPage,
+  searchQuery,
+  selectedEventTypeFilter,
+  isLeaderAt12,
+  currentUserLeaderAt1,
+  fetchEvents,
+  DEFAULT_API_START_DATE,
+  styles,
+}) => {
+  const statuses = [
+    {
+      value: "incomplete",
+      label: "INCOMPLETE",
+      style: styles.statusBadgeIncomplete,
+    },
+    {
+      value: "complete",
+      label: "COMPLETE",
+      style: styles.statusBadgeComplete,
+    },
+    {
+      value: "did_not_meet",
+      label: "DID NOT MEET",
+      style: styles.statusBadgeDidNotMeet,
+    },
+  ];
+
+  const handleStatusClick = (statusValue) => {
+    console.log("Status filter changing to:", statusValue);
+
+    setSelectedStatus(statusValue);
+    setCurrentPage(1);
+
+    const shouldApplyPersonalFilter =
+      viewFilter === "personal" &&
+      (userRole === "admin" || userRole === "leader at 12");
+
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now(),
+      ...(searchQuery.trim() && { search: searchQuery.trim() }),
+      ...(selectedEventTypeFilter !== "all" && {
+        event_type: selectedEventTypeFilter,
+      }),
+      ...(shouldApplyPersonalFilter && { personal: true }),
+    };
+
+    // Only add status if it's not "all"
+    if (statusValue && statusValue !== "all") {
+      fetchParams.status = statusValue;
+    }
+
+    if (
+      isLeaderAt12 &&
+      (selectedEventTypeFilter === "all" ||
+        selectedEventTypeFilter === "CELLS")
+    ) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
+
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+      }
+
+      if (viewFilter === "personal") {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+      }
+    }
+
+    console.log("Fetching with status params:", fetchParams);
+    fetchEvents(fetchParams, true, true);
+  };
+
+  return (
+    <div style={styles.statusBadgeContainer}>
+      {statuses.map((status) => (
+        <button
+          key={status.value}
+          style={{
+            ...styles.statusBadge,
+            ...status.style,
+            ...(selectedStatus === status.value
+              ? styles.statusBadgeActive
+              : {}),
+          }}
+          onClick={() => handleStatusClick(status.value)}
+        >
+          {status.label}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 const getEventTypeStyles = (isDarkMode, theme, isMobileView) => ({
   container: {
@@ -565,8 +669,8 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
               status === "complete"
                 ? "#28a745"
                 : status === "did_not_meet"
-                ? "#dc3545"
-                : "#6c757d",
+                  ? "#dc3545"
+                  : "#6c757d",
             fontWeight: "500",
             fontSize: "0.8rem",
             textTransform: "capitalize",
@@ -943,386 +1047,311 @@ const Events = () => {
     checkLeaderAt12Status();
   }, [BACKEND_URL, authFetch]);
 
-  const fetchEvents = useCallback(
-    async (filters = {}, forceRefresh = false, showLoader = true) => {
-      // Keep a stable "lastParamsForCache" so the catch/fallback can build a cacheKey
-      // even if the try block throws before `params` is fully constructed.
-      const lastParamsForCache = {
-        page: filters.page !== undefined ? filters.page : currentPage,
-        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        start_date: filters.start_date || DEFAULT_API_START_DATE,
-      };
+const fetchEvents = useCallback(
+  async (filters = {}, forceRefresh = false, showLoader = true) => {
+    const lastParamsForCache = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      start_date: filters.start_date || DEFAULT_API_START_DATE,
+    };
 
-      let params = null; // will be set inside try; fallback will use lastParamsForCache
+    let params = null;
 
-      if (showLoader) {
-        setLoading(true);
-        setIsLoading(true);
+    if (showLoader) {
+      setLoading(true);
+      setIsLoading(true);
+    }
+
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        toast.error("Please log in again");
+        setTimeout(() => (window.location.href = "/login"), 2000);
+        setEvents([]);
+        setFilteredEvents([]);
+        if (showLoader) {
+          setLoading(false);
+          setIsLoading(false);
+        }
+        return;
       }
 
-      try {
-        const token = localStorage.getItem("access_token");
-        if (!token) {
-          toast.error("Please log in again");
-          setTimeout(() => (window.location.href = "/login"), 2000);
-          setEvents([]);
-          setFilteredEvents([]);
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+
+      // Initialize params from lastParamsForCache
+      params = { ...lastParamsForCache };
+
+      // CRITICAL FIX: ALWAYS pass event_type if provided
+      if (filters.event_type) {
+        params.event_type = filters.event_type;
+      } else if (
+        selectedEventTypeFilter &&
+        selectedEventTypeFilter !== "all"
+      ) {
+        params.event_type = selectedEventTypeFilter;
+      }
+
+      // Add other filters
+      if (filters.status && filters.status !== "all")
+        params.status = filters.status;
+      if (filters.search) params.search = filters.search;
+      if (filters.personal !== undefined) params.personal = filters.personal;
+      if (filters._t) params._t = filters._t;
+
+      // Remove undefined/null
+      Object.keys(params).forEach((key) => {
+        if (
+          params[key] === undefined ||
+          params[key] === null ||
+          params[key] === ""
+        ) {
+          delete params[key];
+        }
+      });
+
+      let endpoint = null;
+      const eventTypeToUse = params.event_type || selectedEventTypeFilter;
+
+      if (
+        eventTypeToUse &&
+        eventTypeToUse.toUpperCase() !== "CELLS" &&
+        eventTypeToUse !== "all"
+      ) {
+        endpoint = `${BACKEND_URL}/events/other`;
+
+        delete params.personal;
+        delete params.leader_at_12_view;
+        delete params.show_personal_cells;
+        delete params.show_all_authorized;
+        delete params.include_subordinate_cells;
+        delete params.leader_at_1_identifier;
+      } else {
+        endpoint = `${BACKEND_URL}/events/cells`;
+
+        if (isRegistrant || isRegularUser) {
+          params.personal = true;
+        } else if (isLeaderAt12) {
+          params.leader_at_12_view = true;
+          params.include_subordinate_cells = true;
+
+          if (currentUserLeaderAt1) {
+            params.leader_at_1_identifier = currentUserLeaderAt1;
+          }
+
+          if (viewFilter === "personal") {
+            params.show_personal_cells = true;
+            params.personal = true;
+          } else {
+            params.show_all_authorized = true;
+          }
+        }
+      }
+
+      const cacheKey = getCacheKey({ ...params, userRole, endpoint });
+
+      if (!forceRefresh) {
+        const cachedData = getCachedData(cacheKey);
+        if (cachedData) {
+          setEvents(cachedData.events);
+          setFilteredEvents(cachedData.events);
+          setTotalEvents(cachedData.total_events);
+          setTotalPages(cachedData.total_pages);
+          if (filters.page !== undefined) setCurrentPage(filters.page);
           if (showLoader) {
             setLoading(false);
             setIsLoading(false);
           }
           return;
         }
+      }
 
-        const headers = {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        };
+      params.isLeaderAt12 = isLeaderAt12;
+      params.firstName = currentUser.name;
+      params.userSurname = currentUser.surname;
 
-        // Initialize params from lastParamsForCache (so catch can reference a sensible base)
-        params = { ...lastParamsForCache };
+      const response = await authFetch(endpoint, {
+        headers,
+        params,
+        timeout: 60000,
+      });
 
-        // CRITICAL FIX: ALWAYS pass event_type if provided
-        if (filters.event_type) {
-          params.event_type = filters.event_type;
-        } else if (
-          selectedEventTypeFilter &&
-          selectedEventTypeFilter !== "all"
-        ) {
-          params.event_type = selectedEventTypeFilter;
-        }
-
-        // Add other filters
-        if (filters.status && filters.status !== "all")
-          params.status = filters.status;
-        if (filters.search) params.search = filters.search;
-        if (filters.personal !== undefined) params.personal = filters.personal;
-        if (filters._t) params._t = filters._t;
-
-        // Remove undefined/null
-        Object.keys(params).forEach((key) => {
-          if (
-            params[key] === undefined ||
-            params[key] === null ||
-            params[key] === ""
-          ) {
-            delete params[key];
-          }
-        });
-
-        // ensure endpoint is defined in outer scope so catch/fallback can reference it
-        let endpoint = null;
-        const eventTypeToUse = params.event_type || selectedEventTypeFilter;
-
-        if (
-          eventTypeToUse &&
-          eventTypeToUse.toUpperCase() !== "CELLS" &&
-          eventTypeToUse !== "all"
-        ) {
-          endpoint = `${BACKEND_URL}/events/other`;
-
-          delete params.personal;
-          delete params.leader_at_12_view;
-          delete params.show_personal_cells;
-          delete params.show_all_authorized;
-          delete params.include_subordinate_cells;
-          delete params.leader_at_1_identifier;
-        } else {
-          endpoint = `${BACKEND_URL}/events/cells`;
-
-          if (isRegistrant || isRegularUser) {
-            params.personal = true;
-          } else if (isLeaderAt12) {
-            params.leader_at_12_view = true;
-            params.include_subordinate_cells = true;
-
-            if (currentUserLeaderAt1) {
-              params.leader_at_1_identifier = currentUserLeaderAt1;
-            }
-
-            if (viewFilter === "personal") {
-              params.show_personal_cells = true;
-              params.personal = true;
-            } else {
-              params.show_all_authorized = true;
-            }
-          }
-        }
-
-        const cacheKey = getCacheKey({ ...params, userRole, endpoint });
-
-        if (!forceRefresh) {
-          const cachedData = getCachedData(cacheKey);
-          if (cachedData) {
-            setEvents(cachedData.events);
-            setFilteredEvents(cachedData.events);
-            setTotalEvents(cachedData.total_events);
-            setTotalPages(cachedData.total_pages);
-            if (filters.page !== undefined) setCurrentPage(filters.page);
-            if (showLoader) {
-              setLoading(false);
-              setIsLoading(false);
-            }
-            return;
-          }
-        }
-
-        params.isLeaderAt12 = isLeaderAt12;
-        params.firstName = currentUser.name;
-        params.userSurname = currentUser.surname;
-
-        const response = await authFetch(endpoint, {
-          headers,
-          params,
-          timeout: 60000,
-        });
-
-        // Normalize response shape (supports axios-like and fetch-like authFetch)
-        let responseData = null;
-        if (!response) {
-          throw new Error("No response from authFetch");
-        }
-        if (response.data !== undefined) {
-          // axios style
-          responseData = response.data;
-        } else if (typeof response.json === "function") {
-          // fetch Response
-          try {
-            responseData = await response.json();
-          } catch (e) {
-            // fallback to the raw object
-            responseData = response;
-          }
-        } else {
-          // already a plain object
+      // Normalize response shape
+      let responseData = null;
+      if (!response) {
+        throw new Error("No response from authFetch");
+      }
+      if (response.data !== undefined) {
+        responseData = response.data;
+      } else if (typeof response.json === "function") {
+        try {
+          responseData = await response.json();
+        } catch (e) {
           responseData = response;
         }
+      } else {
+        responseData = response;
+      }
 
-        const newEvents =
-          (responseData &&
-            (responseData.events ||
-              responseData.results ||
-              responseData.data)) ||
-          [];
-        console.log("🔍 DEBUG: Checking event IDs from API:");
-        // --- STATUS FILTERING: ensure UI matches selectedStatus ---
-        const normalizeStatus = (s) =>
-          String(s || "")
-            .toLowerCase()
-            .trim()
-            .replace(/\s/g, "_");
+      const newEvents =
+        (responseData &&
+          (responseData.events ||
+            responseData.results ||
+            responseData.data)) ||
+        [];
+      
+      console.log("🔍 DEBUG: Checking event IDs from API:");
 
-        const isCellEvent = (ev) => {
-          const et =
-            ev.eventType ||
-            ev.EventType ||
-            ev.eventTypeName ||
-            ev["Event Type"] ||
-            "";
-          return String(et).toLowerCase().includes("cell");
-        };
+      // ============================================================================
+      // KEY FIX: REMOVED FRONTEND STATUS FILTERING
+      // The backend already filters by status correctly, so we just use the events as-is
+      // ============================================================================
+      const effectiveEvents = newEvents;
+      // ============================================================================
 
-        const isOverdueEvent = (ev) => {
-          try {
-            if (ev.did_not_meet) return false;
-            const hasAttendees = !!(ev.attendees && ev.attendees.length > 0);
-            const status = normalizeStatus(ev.status || ev.Status);
-            if (
-              hasAttendees ||
-              status === "complete" ||
-              status === "closed" ||
-              status === "did_not_meet"
-            )
-              return false;
-            if (!ev?.date) return false;
-            const eventDate = new Date(ev.date);
-            if (isNaN(eventDate.getTime())) return false;
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            eventDate.setHours(0, 0, 0, 0);
-            return eventDate < today;
-          } catch (e) {
-            return false;
-          }
-        };
-        // derive filtered list based on selectedStatus (server may not always return exactly what we expect)
-        let eventsToUse = newEvents;
-        if (selectedStatus && selectedStatus !== "all") {
-          const st = normalizeStatus(selectedStatus);
-          if (st === "incomplete") {
-            eventsToUse = newEvents.filter((ev) => {
-              const s = normalizeStatus(ev.status || ev.Status);
-              if (s === "incomplete") return true;
-              // include overdue cells as incomplete
-              if (isCellEvent(ev) && isOverdueEvent(ev)) return true;
-              return false;
-            });
-          } else if (st === "complete") {
-            eventsToUse = newEvents.filter(
-              (ev) => normalizeStatus(ev.status || ev.Status) === "complete"
-            );
-          } else if (st === "did_not_meet" || st === "didnotmeet") {
-            eventsToUse = newEvents.filter(
-              (ev) =>
-                normalizeStatus(ev.status || ev.Status) === "did_not_meet" ||
-                !!ev.did_not_meet
-            );
-          } else {
-            // generic exact-match fallback
-            eventsToUse = newEvents.filter(
-              (ev) => normalizeStatus(ev.status || ev.Status) === st
-            );
-          }
-        }
-
-        // Use eventsToUse for caching / UI
-        const effectiveEvents = eventsToUse;
-        // --- end status filtering ---
-
-        newEvents.forEach((event, i) => {
-          if (event._id && event._id.includes("_")) {
-            console.log(` Event ${i} has date suffix in _id:`, {
-              original_id: event._id,
-              cleaned_id: event._id.split("_")[0],
-              eventName: event.eventName,
-              date: event.date,
-            });
-          }
-        });
-
-        if (newEvents.length > 0) {
-          console.log(
-            "Events sample:",
-            newEvents.slice(0, 3).map((e) => ({
-              name: e.eventName,
-              type: e.eventType,
-              typeName: e.eventTypeName,
-              status: e.status,
-              id: e._id,
-            }))
-          );
-        } else {
-          console.log("No events returned");
-          console.log("Filters applied:", params);
-        }
-
-        console.log("API Response:", {
-          endpoint,
-          total_events: responseData.total_events,
-          events_received: newEvents.length,
-          first_event: newEvents[0]
-            ? {
-                name: newEvents[0].eventName,
-                type: newEvents[0].eventType,
-                status: newEvents[0].status,
-                id: newEvents[0]._id,
-              }
-            : "No events",
-        });
-
-        if (
-          filters.event_type === "Global Events" ||
-          eventTypeToUse === "Global Events"
-        ) {
-          newEvents.forEach((event, index) => {
-            console.log(
-              `Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`
-            );
+      newEvents.forEach((event, i) => {
+        if (event._id && event._id.includes("_")) {
+          console.log(` Event ${i} has date suffix in _id:`, {
+            original_id: event._id,
+            cleaned_id: event._id.split("_")[0],
+            eventName: event.eventName,
+            date: event.date,
           });
         }
+      });
 
-        const totalEventsCount =
-          (responseData &&
-            (responseData.total_events ||
-              responseData.total ||
-              responseData.count)) ||
-          effectiveEvents.length;
-        const totalPagesCount =
-          (responseData &&
-            (responseData.total_pages ||
-              Math.ceil(totalEventsCount / rowsPerPage))) ||
-          Math.ceil(totalEventsCount / rowsPerPage);
+      if (newEvents.length > 0) {
+        console.log(
+          "Events sample:",
+          newEvents.slice(0, 3).map((e) => ({
+            name: e.eventName,
+            type: e.eventType,
+            typeName: e.eventTypeName,
+            status: e.status,
+            id: e._id,
+          }))
+        );
+      } else {
+        console.log("No events returned");
+        console.log("Filters applied:", params);
+      }
 
-        setCachedData(cacheKey, {
-          events: effectiveEvents,
-          total_events: totalEventsCount,
-          total_pages: totalPagesCount,
-        });
-
-        setEvents(effectiveEvents);
-        setFilteredEvents(effectiveEvents);
-        setTotalEvents(totalEventsCount);
-        setTotalPages(totalPagesCount);
-        if (filters.page !== undefined) setCurrentPage(filters.page);
-      } catch (err) {
-        console.error("Error fetching events:", err);
-        if (axios.isCancel(err) || err.code === "ECONNABORTED") {
-          toast.warning("Request timeout. Please refresh and try again.");
-        } else if (err.response?.status === 401) {
-          toast.error("Session expired. Logging out...");
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("userProfile");
-          setTimeout(() => (window.location.href = "/login"), 2000);
-        } else {
-          // network error (no response) or other error
-          const errorMessage =
-            err.response?.data?.detail ||
-            err.response?.data?.message ||
-            err.message ||
-            "Please check your connection and try again.";
-          console.error("fetchEvents error message:", errorMessage);
-          toast.error(`Error loading events: ${errorMessage}`);
-
-          // Try to use cached data if available
-          try {
-            // If params/endpoint aren't set because the try threw early, use fallbacks
-            const safeParams = params || lastParamsForCache;
-            const safeEndpoint = endpoint || `${BACKEND_URL}/events/cells`;
-            const cacheKey = getCacheKey({
-              ...safeParams,
-              userRole,
-              endpoint: safeEndpoint,
-            });
-            const cached = getCachedData(cacheKey);
-            if (cached && cached.events) {
-              console.log("Using cached events due to network failure");
-              setEvents(cached.events);
-              setFilteredEvents(cached.events);
-              setTotalEvents(cached.total_events || cached.events.length);
-              setTotalPages(cached.total_pages || 1);
-              return;
+      console.log("API Response:", {
+        endpoint,
+        total_events: responseData.total_events,
+        events_received: newEvents.length,
+        first_event: newEvents[0]
+          ? {
+              name: newEvents[0].eventName,
+              type: newEvents[0].eventType,
+              status: newEvents[0].status,
+              id: newEvents[0]._id,
             }
-          } catch (cacheErr) {
-            console.error("Cache fallback failed:", cacheErr);
+          : "No events",
+      });
+
+      if (
+        filters.event_type === "Global Events" ||
+        eventTypeToUse === "Global Events"
+      ) {
+        newEvents.forEach((event, index) => {
+          console.log(
+            `Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`
+          );
+        });
+      }
+
+      const totalEventsCount =
+        (responseData &&
+          (responseData.total_events ||
+            responseData.total ||
+            responseData.count)) ||
+        effectiveEvents.length;
+      const totalPagesCount =
+        (responseData &&
+          (responseData.total_pages ||
+            Math.ceil(totalEventsCount / rowsPerPage))) ||
+        Math.ceil(totalEventsCount / rowsPerPage);
+
+      setCachedData(cacheKey, {
+        events: effectiveEvents,
+        total_events: totalEventsCount,
+        total_pages: totalPagesCount,
+      });
+
+      setEvents(effectiveEvents);
+      setFilteredEvents(effectiveEvents);
+      setTotalEvents(totalEventsCount);
+      setTotalPages(totalPagesCount);
+      if (filters.page !== undefined) setCurrentPage(filters.page);
+    } catch (err) {
+      console.error("Error fetching events:", err);
+      if (axios.isCancel(err) || err.code === "ECONNABORTED") {
+        toast.warning("Request timeout. Please refresh and try again.");
+      } else if (err.response?.status === 401) {
+        toast.error("Session expired. Logging out...");
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("userProfile");
+        setTimeout(() => (window.location.href = "/login"), 2000);
+      } else {
+        const errorMessage =
+          err.response?.data?.detail ||
+          err.response?.data?.message ||
+          err.message ||
+          "Please check your connection and try again.";
+        console.error("fetchEvents error message:", errorMessage);
+        toast.error(`Error loading events: ${errorMessage}`);
+
+        // Try to use cached data if available
+        try {
+          const safeParams = params || lastParamsForCache;
+          const safeEndpoint = endpoint || `${BACKEND_URL}/events/cells`;
+          const cacheKey = getCacheKey({
+            ...safeParams,
+            userRole,
+            endpoint: safeEndpoint,
+          });
+          const cached = getCachedData(cacheKey);
+          if (cached && cached.events) {
+            console.log("Using cached events due to network failure");
+            setEvents(cached.events);
+            setFilteredEvents(cached.events);
+            setTotalEvents(cached.total_events || cached.events.length);
+            setTotalPages(cached.total_pages || 1);
+            return;
           }
-        }
-        // final fallback: leave previous events in place, but update counts if none
-        setTotalEvents((prev) => prev || 0);
-        setTotalPages((prev) => prev || 1);
-      } finally {
-        if (showLoader) {
-          setLoading(false);
-          setIsLoading(false);
+        } catch (cacheErr) {
+          console.error("Cache fallback failed:", cacheErr);
         }
       }
-    },
-    [
-      currentPage,
-      rowsPerPage,
-      selectedEventTypeFilter,
-      viewFilter,
-      userRole,
-      isLeaderAt12,
-      isAdmin,
-      isRegistrant,
-      currentUserLeaderAt1,
-      getCacheKey,
-      getCachedData,
-      setCachedData,
-      BACKEND_URL,
-      DEFAULT_API_START_DATE,
-    ]
-  );
+      setTotalEvents((prev) => prev || 0);
+      setTotalPages((prev) => prev || 1);
+    } finally {
+      if (showLoader) {
+        setLoading(false);
+        setIsLoading(false);
+      }
+    }
+  },
+  [
+    currentPage,
+    rowsPerPage,
+    selectedEventTypeFilter,
+    viewFilter,
+    userRole,
+    isLeaderAt12,
+    isAdmin,
+    isRegistrant,
+    currentUserLeaderAt1,
+    getCacheKey,
+    getCachedData,
+    setCachedData,
+    BACKEND_URL,
+    DEFAULT_API_START_DATE,
+  ]
+);
 
   const checkEventsForType = async (eventTypeName) => {
     try {
@@ -1367,59 +1396,70 @@ const Events = () => {
     }
   };
 
-  const handleStatusFilterChange = useCallback(
-    (newStatus) => {
-      console.log("Status filter changing to:", newStatus);
+ const handleStatusFilterChange = useCallback(
+  (newStatus) => {
+    console.log("Status filter changing to:", newStatus);
 
-      setSelectedStatus(newStatus);
-      setCurrentPage(1);
+    setSelectedStatus(newStatus);
+    setCurrentPage(1);
 
-      const shouldApplyPersonalFilter =
-        viewFilter === "personal" &&
-        (userRole === "admin" || userRole === "leader at 12");
+    const shouldApplyPersonalFilter =
+      viewFilter === "personal" &&
+      (userRole === "admin" || userRole === "leader at 12");
 
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        status: newStatus !== "all" ? newStatus : undefined,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now(),
-        ...(searchQuery.trim() && { search: searchQuery.trim() }),
-        ...(selectedEventTypeFilter !== "all" && {
-          event_type: selectedEventTypeFilter,
-        }),
-        ...(shouldApplyPersonalFilter && { personal: true }),
-        ...(isLeaderAt12 && {
-          leader_at_12_view: true,
-          include_subordinate_cells: true,
-          ...(currentUserLeaderAt1 && {
-            leader_at_1_identifier: currentUserLeaderAt1,
-          }),
-          ...(viewFilter === "personal"
-            ? { show_personal_cells: true, personal: true }
-            : { show_all_authorized: true }),
-        }),
-      };
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now(),
+      ...(searchQuery.trim() && { search: searchQuery.trim() }),
+      ...(selectedEventTypeFilter !== "all" && {
+        event_type: selectedEventTypeFilter,
+      }),
+      ...(shouldApplyPersonalFilter && { personal: true }),
+    };
 
-      if (newStatus === "all") {
-        delete fetchParams.status;
+    // Only add status if not "all"
+    if (newStatus && newStatus !== "all") {
+      fetchParams.status = newStatus;
+    }
+
+    if (
+      isLeaderAt12 &&
+      (selectedEventTypeFilter === "all" ||
+        selectedEventTypeFilter === "CELLS")
+    ) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
+
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
       }
 
-      console.log("Fetching with status params:", fetchParams);
-      fetchEvents(fetchParams, true, false);
-    },
-    [
-      viewFilter,
-      userRole,
-      rowsPerPage,
-      searchQuery,
-      selectedEventTypeFilter,
-      isLeaderAt12,
-      currentUserLeaderAt1,
-      fetchEvents,
-      DEFAULT_API_START_DATE,
-    ]
-  );
+      if (viewFilter === "personal") {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+      }
+    }
+
+    console.log("Fetching with status params:", fetchParams);
+    fetchEvents(fetchParams, true, false);
+  },
+  [
+    viewFilter,
+    userRole,
+    rowsPerPage,
+    searchQuery,
+    selectedEventTypeFilter,
+    isLeaderAt12,
+    currentUserLeaderAt1,
+    fetchEvents,
+    DEFAULT_API_START_DATE,
+  ]
+);
+
 
   const fetchEventTypes = useCallback(async () => {
     try {
@@ -2132,12 +2172,12 @@ const Events = () => {
               refreshParams.event_type = "CELLS";
             }
 
-            // Keep status filter
+            //  status filter
             if (selectedStatus && selectedStatus !== "all") {
               refreshParams.status = selectedStatus;
             }
 
-            // Keep search query
+            //  search query
             if (searchQuery && searchQuery.trim()) {
               refreshParams.search = searchQuery.trim();
             }
@@ -2626,7 +2666,7 @@ const Events = () => {
 
           toast.success(
             response.data.message ||
-              `Event type "${typeName}" deleted successfully!`
+            `Event type "${typeName}" deleted successfully!`
           );
         }
       } catch (error) {
@@ -2665,16 +2705,15 @@ const Events = () => {
 
           const shouldForceDelete = window.confirm(
             ` Cannot delete "${typeName}"\n\n` +
-              `${eventsCount} event(s) are using this event type:\n\n` +
-              `${eventsListText}\n` +
-              `${
-                eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ""
-              }\n` +
-              `━n\n` +
-              ` FORCE DELETE OPTION:\n\n` +
-              `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
-              `Click Cancel to keep everything.\n\n` +
-              ` THIS ACTION CANNOT BE UNDONE!`
+            `${eventsCount} event(s) are using this event type:\n\n` +
+            `${eventsListText}\n` +
+            `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ""
+            }\n` +
+            `━n\n` +
+            ` FORCE DELETE OPTION:\n\n` +
+            `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
+            `Click Cancel to keep everything.\n\n` +
+            ` THIS ACTION CANNOT BE UNDONE!`
           );
 
           if (shouldForceDelete) {
@@ -2699,7 +2738,7 @@ const Events = () => {
               if (
                 selectedEventTypeFilter === typeName ||
                 selectedEventTypeFilter?.toUpperCase() ===
-                  typeName.toUpperCase()
+                typeName.toUpperCase()
               ) {
                 setSelectedEventTypeFilter("all");
                 setSelectedEventTypeObj(null);
@@ -2718,16 +2757,14 @@ const Events = () => {
               }
 
               toast.success(
-                ` Deleted event type "${typeName}" and ${
-                  forceResponse.data.events_deleted || eventsCount
+                ` Deleted event type "${typeName}" and ${forceResponse.data.events_deleted || eventsCount
                 } events`,
                 { autoClose: 5000 }
               );
             } catch (forceError) {
               console.error(" Force delete failed:", forceError);
               toast.error(
-                `Failed to force delete: ${
-                  forceError.response?.data?.detail || forceError.message
+                `Failed to force delete: ${forceError.response?.data?.detail || forceError.message
                 }`,
                 { autoClose: 7000 }
               );
@@ -3422,96 +3459,7 @@ const Events = () => {
     DEFAULT_API_START_DATE,
   ]);
 
-  const StatusBadges = ({
-    selectedStatus,
-    setSelectedStatus,
-    setCurrentPage,
-  }) => {
-    const statuses = [
-      {
-        value: "incomplete",
-        label: "INCOMPLETE",
-        style: styles.statusBadgeIncomplete,
-      },
-      {
-        value: "complete",
-        label: "COMPLETE",
-        style: styles.statusBadgeComplete,
-      },
-      {
-        value: "did_not_meet",
-        label: "DID NOT MEET",
-        style: styles.statusBadgeDidNotMeet,
-      },
-    ];
 
-    const handleStatusClick = (statusValue) => {
-      setSelectedStatus(statusValue);
-      setCurrentPage(1);
-
-      const shouldApplyPersonalFilter =
-        viewFilter === "personal" &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now(),
-        ...(searchQuery.trim() && { search: searchQuery.trim() }),
-        ...(selectedEventTypeFilter !== "all" && {
-          event_type: selectedEventTypeFilter,
-        }),
-        ...(shouldApplyPersonalFilter && { personal: true }),
-      };
-
-      if (statusValue && statusValue !== "all") {
-        fetchParams.status = statusValue;
-      }
-
-      if (
-        isLeaderAt12 &&
-        (selectedEventTypeFilter === "all" ||
-          selectedEventTypeFilter === "CELLS")
-      ) {
-        fetchParams.leader_at_12_view = true;
-        fetchParams.include_subordinate_cells = true;
-
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === "personal") {
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          fetchParams.show_all_authorized = true;
-        }
-      }
-
-      fetchEvents(fetchParams, true, true);
-    };
-
-    return (
-      <div style={styles.statusBadgeContainer}>
-        {statuses.map((status) => (
-          <button
-            key={status.value}
-            style={{
-              ...styles.statusBadge,
-              ...status.style,
-              ...(selectedStatus === status.value
-                ? styles.statusBadgeActive
-                : {}),
-            }}
-            onClick={() => handleStatusClick(status.value)}
-          >
-            {status.label}
-          </button>
-        ))}
-      </div>
-    );
-  };
 
   const ViewFilterButtons = () => {
     console.log("is it a leader at 12 ", isLeaderAt12);
@@ -3767,9 +3715,8 @@ const Events = () => {
       typeCard: {
         padding: isMobileView ? "0.4rem 0.6rem" : "0.6rem 0.8rem",
         borderRadius: "8px",
-        border: `1px solid ${
-          isDarkMode ? theme.palette.divider : "transparent"
-        }`,
+        border: `1px solid ${isDarkMode ? theme.palette.divider : "transparent"
+          }`,
         backgroundColor: isDarkMode
           ? theme.palette.background.default
           : "white",
@@ -3877,8 +3824,8 @@ const Events = () => {
 
         const typeToDelete = exactEventType
           ? exactEventType.name ||
-            exactEventType.eventType ||
-            exactEventType.eventTypeName
+          exactEventType.eventType ||
+          exactEventType.eventTypeName
           : selectedTypeForMenu;
 
         console.log(" Final type to delete:", typeToDelete);
@@ -3911,10 +3858,10 @@ const Events = () => {
             {isAdmin
               ? "Event Types"
               : isRegistrant
-              ? "Event Types"
-              : isLeaderAt12
-              ? "Cells & Events"
-              : "Your Cells"}
+                ? "Event Types"
+                : isLeaderAt12
+                  ? "Cells & Events"
+                  : "Your Cells"}
           </div>
 
           <div style={mobileEventTypeStyles.selectedTypeDisplay}>
@@ -4229,6 +4176,16 @@ const Events = () => {
             selectedStatus={selectedStatus}
             setSelectedStatus={setSelectedStatus}
             setCurrentPage={setCurrentPage}
+            viewFilter={viewFilter}
+            userRole={userRole}
+            rowsPerPage={rowsPerPage}
+            searchQuery={searchQuery}
+            selectedEventTypeFilter={selectedEventTypeFilter}
+            isLeaderAt12={isLeaderAt12}
+            currentUserLeaderAt1={currentUserLeaderAt1}
+            fetchEvents={fetchEvents}
+            DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
+            styles={styles}
           />
           <ViewFilterButtons />
         </Box>
@@ -4305,9 +4262,8 @@ const Events = () => {
             <Box
               sx={{
                 padding: "1rem",
-                borderTop: `1px solid ${
-                  isDarkMode ? theme.palette.divider : "#e9ecef"
-                }`,
+                borderTop: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"
+                  }`,
                 backgroundColor: isDarkMode
                   ? theme.palette.background.paper
                   : "#f8f9fa",
@@ -4520,9 +4476,8 @@ const Events = () => {
                         color: isDarkMode ? "#fff" : "#333",
                         fontWeight: 600,
                         fontSize: "0.875rem",
-                        borderBottom: `2px solid ${
-                          isDarkMode ? "#333" : "#ddd"
-                        }`,
+                        borderBottom: `2px solid ${isDarkMode ? "#333" : "#ddd"
+                          }`,
                         minHeight: "52px !important",
                       },
                       "& .MuiDataGrid-columnHeader": {
@@ -4539,11 +4494,10 @@ const Events = () => {
                       },
                       "& .MuiDataGrid-cell": {
                         alignItems: "center",
-                        borderBottom: `1px solid ${
-                          isDarkMode
+                        borderBottom: `1px solid ${isDarkMode
                             ? "rgba(255,255,255,0.1)"
                             : "rgba(0,0,0,0.08)"
-                        }`,
+                          }`,
                         color: isDarkMode
                           ? theme.palette.text.primary
                           : "#212529",
@@ -4565,9 +4519,8 @@ const Events = () => {
                       "& .MuiDataGrid-toolbarContainer": {
                         backgroundColor: isDarkMode ? "#1a1a1a" : "#f5f5f5",
                         padding: "12px 16px",
-                        borderBottom: `1px solid ${
-                          isDarkMode ? "#333" : "#ddd"
-                        }`,
+                        borderBottom: `1px solid ${isDarkMode ? "#333" : "#ddd"
+                          }`,
                       },
                       "& .MuiDataGrid-menuIcon": {
                         color: isDarkMode ? "#fff" : "#666",
@@ -4592,9 +4545,8 @@ const Events = () => {
                 backgroundColor: isDarkMode
                   ? theme.palette.background.paper
                   : "#f8f9fa",
-                borderTop: `1px solid ${
-                  isDarkMode ? theme.palette.divider : "#e9ecef"
-                }`,
+                borderTop: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"
+                  }`,
               }}
             >
               <Box

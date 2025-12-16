@@ -278,36 +278,55 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const authFetch = useCallback(async (url, options = {}) => {
-    const makeRequest = async (token) => {
-      const headers = {
-        ...(options.headers || {}),
-        'Content-Type': 'application/json'
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      return fetch(url, { ...options, headers });
+const authFetch = useCallback(async (url, options = {}) => {
+  const makeRequest = async (token) => {
+    const headers = {
+      ...(options.headers || {}),
+      'Content-Type': 'application/json'
     };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const accessToken = localStorage.getItem(KEY_ACCESS);
-
-    if (accessToken && isTokenExpired(accessToken)) {
-      const refreshed = await attemptRefresh();
-      if (!refreshed) return new Response(null, { status: 401, statusText: 'Unauthorized' });
+    const response = await fetch(url, { ...options, headers });
+    
+    // ✅ ADD THIS BLOCK - Parse and return in expected format
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error = new Error(errorData.detail || `HTTP ${response.status}`);
+      error.response = { status: response.status, data: errorData };
+      throw error;
     }
+    
+    const data = await response.json();
+    
+    // Return in the format your Events.jsx expects
+    return {
+      status: response.status,
+      ok: response.ok,
+      data: data  // ← This is the key change
+    };
+  };
 
-    let tokenToUse = localStorage.getItem(KEY_ACCESS);
-    let res = await makeRequest(tokenToUse);
+  const accessToken = localStorage.getItem('access_token');
 
-    if (res.status !== 401) return res;
-
+  if (accessToken && isTokenExpired(accessToken)) {
     const refreshed = await attemptRefresh();
-    if (!refreshed) return res; // still failing
+    if (!refreshed) {
+      return { status: 401, ok: false, data: null };
+    }
+  }
 
-    tokenToUse = localStorage.getItem(KEY_ACCESS);
-    res = await makeRequest(tokenToUse);
-    return res;
-  }, [refreshInProgress, attemptRefresh]);
+  let tokenToUse = localStorage.getItem('access_token');
+  let res = await makeRequest(tokenToUse);
+
+  if (res.status !== 401) return res;
+
+  const refreshed = await attemptRefresh();
+  if (!refreshed) return res;
+
+  tokenToUse = localStorage.getItem('access_token');
+  res = await makeRequest(tokenToUse);
+  return res;
+}, [refreshInProgress, attemptRefresh]);
 
   // Initialize auth from localStorage on mount
   useEffect(() => {
