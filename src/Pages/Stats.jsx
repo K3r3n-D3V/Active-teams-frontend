@@ -1,16 +1,15 @@
-import React, { useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box, Grid, Typography, Card, CardContent, LinearProgress, Chip, IconButton, Button,
   FormControl, InputLabel, Select, MenuItem, Alert, Avatar, useTheme, useMediaQuery,
   Skeleton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Snackbar,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  Checkbox, FormControlLabel, Stack, Divider, Tooltip, Tabs, Tab
+  Paper, Checkbox, FormControlLabel, Stack, Divider, Tooltip, Tabs, Tab
 } from '@mui/material';
 import Collapse from '@mui/material/Collapse';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import {
-  People, CellTower, Task, Warning, Groups, Refresh, Add, CalendarToday, Close,
-  Visibility, ChevronLeft, ChevronRight, Save, CheckCircle, Event, Download
+  People, Task, Warning, Refresh, Add, CalendarToday, Close,
+  Visibility, ChevronLeft, ChevronRight, Save, Event, Download
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import * as XLSX from 'xlsx';
@@ -32,7 +31,6 @@ const StatsDashboard = () => {
   };
   
   const containerPadding = getResponsiveValue(1, 1.5, 2, 2.5, 2.5);
-  const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 1.5, 2, 2, 2);
   
   const [stats, setStats] = useState({
@@ -48,7 +46,6 @@ const StatsDashboard = () => {
   });
 
   const [period, setPeriod] = useState('today');
-  const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
@@ -62,58 +59,12 @@ const StatsDashboard = () => {
   const [eventTypes, setEventTypes] = useState([]);
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
   const [overdueModalOpen, setOverdueModalOpen] = useState(false);
-  const [initialLoad, setInitialLoad] = useState(true);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const [isChangingPeriod, setIsChangingPeriod] = useState(false);
 
-  const periodRef = React.useRef(period);
-  useEffect(() => {
-    periodRef.current = period;
-  }, [period]);
-
-  const CACHE_DURATION = 5 * 60 * 1000;
-
-  const setCache = useCallback((key, data) => {
-    try {
-      const cacheKeys = Object.keys(localStorage).filter(k => k.startsWith('statsDashboard_'));
-      if (cacheKeys.length > 10) {
-        cacheKeys.slice(0, -10).forEach(k => localStorage.removeItem(k));
-      }
-      
-      localStorage.setItem(key, JSON.stringify({
-        data,
-        timestamp: Date.now(),
-        size: JSON.stringify(data).length
-      }));
-    } catch (error) {
-      console.warn('Cache storage failed, clearing old cache:', error);
-      Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('statsDashboard_')) {
-          localStorage.removeItem(k);
-        }
-      });
-    }
-  }, []);
-
-  const getCache = useCallback((key) => {
-    const cached = localStorage.getItem(key);
-    if (!cached) return null;
-    
-    try {
-      const parsed = JSON.parse(cached);
-      if (Date.now() - parsed.timestamp < CACHE_DURATION) {
-        return parsed.data;
-      }
-    } catch (error) {
-      console.warn('Cache read error:', error);
-    }
-    return null;
-  }, [CACHE_DURATION]);
+  const { authFetch } = useContext(AuthContext);
+  const isFetchingRef = useRef(false);
 
   const getPeriodRange = useCallback((periodType) => {
     const now = new Date();
-    
-    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
     
     if (periodType === 'today') {
       const start = new Date(now);
@@ -124,14 +75,12 @@ const StatsDashboard = () => {
     }
     
     if (periodType === 'thisWeek') {
-      // Calculate Monday of current week
       const monday = new Date(now);
       const day = monday.getDay();
-      const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+      const diff = monday.getDate() - day + (day === 0 ? -6 : 1);
       monday.setDate(diff);
       monday.setHours(0, 0, 0, 0);
       
-      // Calculate Sunday of current week
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
       sunday.setHours(23, 59, 59, 999);
@@ -157,18 +106,15 @@ const StatsDashboard = () => {
     }
     
     else if (periodType === 'previousWeek') {
-      // Go back 7 days from now
       const lastWeekDate = new Date(now);
       lastWeekDate.setDate(now.getDate() - 7);
       
-      // Calculate Monday of previous week
       const monday = new Date(lastWeekDate);
       const day = monday.getDay();
       const diff = monday.getDate() - day + (day === 0 ? -6 : 1);
       monday.setDate(diff);
       monday.setHours(0, 0, 0, 0);
       
-      // Calculate Sunday of previous week
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
       sunday.setHours(23, 59, 59, 999);
@@ -184,7 +130,6 @@ const StatsDashboard = () => {
       return { start, end };
     }
     
-    // Default to today
     const start = new Date(now);
     const end = new Date(now);
     start.setHours(0, 0, 0, 0);
@@ -229,9 +174,7 @@ const StatsDashboard = () => {
       let sheetName = '';
       let fileName = '';
       
-      // Determine which data to export based on active tab
       if (activeTab === 0) {
-        // Overdue Cells
         if (!filteredOverdueCells || filteredOverdueCells.length === 0) {
           toast.info("No overdue cells data to download for the selected period.");
           return;
@@ -258,7 +201,6 @@ const StatsDashboard = () => {
         fileName = `overdue_cells_${currentPeriod.toLowerCase().replace(/\s+/g, '_')}_${today}.xlsx`;
         
       } else if (activeTab === 1) {
-        // Tasks
         if (!filteredTasks || filteredTasks.length === 0) {
           toast.info("No tasks data to download for the selected period.");
           return;
@@ -286,7 +228,6 @@ const StatsDashboard = () => {
         fileName = `tasks_${currentPeriod.toLowerCase().replace(/\s+/g, '_')}_${today}.xlsx`;
         
       } else if (activeTab === 2) {
-        // Events/Calendar
         if (!filteredEvents || filteredEvents.length === 0) {
           toast.info("No events data to download for the selected period.");
           return;
@@ -317,13 +258,9 @@ const StatsDashboard = () => {
         return;
       }
       
-      // Create workbook
       const wb = XLSX.utils.book_new();
-      
-      // Create worksheet from data
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       
-      // Add header styling
       const headerRange = XLSX.utils.decode_range(ws['!ref']);
       for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
         const address = XLSX.utils.encode_cell({ r: headerRange.s.r, c: C });
@@ -341,7 +278,6 @@ const StatsDashboard = () => {
         };
       }
       
-      // Set column widths
       const colWidths = [];
       const headers = Object.keys(dataToExport[0]);
       
@@ -355,34 +291,27 @@ const StatsDashboard = () => {
           }
         });
         
-        // Set width (minimum 10, maximum 50 characters)
         const width = Math.min(Math.max(maxLength + 2, 10), 50);
         colWidths.push({ wch: width });
       });
       
       ws['!cols'] = colWidths;
-      
-      // Add auto-filter to headers
       ws['!autofilter'] = { ref: XLSX.utils.encode_range(headerRange) };
       
-      // Add worksheet to workbook
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
       
-      // Generate Excel file
       const wbout = XLSX.write(wb, { 
         bookType: 'xlsx', 
         type: 'binary',
         bookSST: false 
       });
       
-      // Convert to array buffer
       const buffer = new ArrayBuffer(wbout.length);
       const view = new Uint8Array(buffer);
       for (let i = 0; i < wbout.length; ++i) {
         view[i] = wbout.charCodeAt(i) & 0xFF;
       }
       
-      // Create blob and download
       const blob = new Blob([buffer], { 
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
       });
@@ -396,7 +325,6 @@ const StatsDashboard = () => {
       document.body.appendChild(link);
       link.click();
       
-      // Cleanup
       setTimeout(() => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
@@ -410,14 +338,12 @@ const StatsDashboard = () => {
     }
   };
   
-  // Helper function to format dates for Excel
   const formatDateForExcel = (dateStr) => {
     if (!dateStr) return '';
     try {
       const date = new Date(dateStr);
       if (isNaN(date.getTime())) return dateStr;
       
-      // Excel-friendly format: YYYY-MM-DD HH:MM
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
@@ -431,52 +357,51 @@ const StatsDashboard = () => {
     }
   };
 
-  const { user, authFetch } = useContext(AuthContext);
-
+// Update the fetchStats function to handle token refresh gracefully
 const fetchStats = useCallback(async (forceRefresh = false) => {
-  const currentPeriod = periodRef.current;   // ← This is always up-to-date!
-  const cacheKey = `statsDashboard_${currentPeriod}`;
-
-  if (refreshing && !forceRefresh) return;
-
-  if (!forceRefresh && !refreshing) {
-    const cachedData = getCache(cacheKey);
-    if (cachedData) {
-      setStats({
-        ...cachedData,
-        loading: false,
-        error: null
-      });
-      setInitialLoad(false);
-      setIsDataLoaded(true);
-      setIsChangingPeriod(false);
-      return;
-    }
+  if (isFetchingRef.current) {
+    console.log('Stats fetch already in progress');
+    return;
   }
 
-  try {
-    setRefreshing(true);
-    setStats(prev => ({ ...prev, loading: true, error: null }));
+  isFetchingRef.current = true;
+  setStats(prev => ({ ...prev, loading: true, error: null }));
 
-    const dateRange = getPeriodRange(currentPeriod);
+  try {
+    const dateRange = getPeriodRange(period);
     const startDate = dateRange.start.toISOString().split('T')[0];
     const endDate = dateRange.end.toISOString().split('T')[0];
 
-    console.log(`Fetching stats for period: ${currentPeriod}`);
+    console.log(`Fetching stats for period: ${period}`);
     console.log(`Date range: ${startDate} to ${endDate}`);
 
+    // Using authFetch which should handle token refresh automatically
     const response = await authFetch(
-      `${BACKEND_URL}/stats/dashboard-comprehensive?period=${currentPeriod}&start_date=${startDate}&end_date=${endDate}`,
+      `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}&start_date=${startDate}&end_date=${endDate}`,
+      {
+        // Add retry configuration
+        retryOnAuthFailure: true,
+        maxRetries: 1
+      }
     );
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const errorText = await response.text();
+      
+      // Don't set error for 401 - authFetch should handle refresh
+      if (response.status === 401) {
+        console.log('Token expired, refresh should be triggered by authFetch');
+        // Continue with fallback or show loading state
+        throw new Error('Authentication required');
+      }
+      
+      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
     }
 
     const data = await response.json();
     const newStats = {
       overview: data.overview,
-      events: data.overdueCells || [],
+      events: data.events || [],
       overdueCells: data.overdueCells || [],
       allTasks: data.allTasks || [],
       allUsers: data.allUsers || [],
@@ -487,20 +412,28 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     };
 
     setStats(newStats);
-    setInitialLoad(false);
-    setIsDataLoaded(true);
-    setIsChangingPeriod(false);
-    setCache(cacheKey, newStats);
+    
   } catch (err) {
     console.error("Fetch stats error:", err);
 
-    // Fallback logic (also use currentPeriod)
+    // Only show error if it's not an auth issue
+    if (err.message === 'Authentication required' || err.message.includes('401')) {
+      // Keep loading state while token refreshes
+      setStats(prev => ({ 
+        ...prev, 
+        loading: false,
+        error: null
+      }));
+      return;
+    }
+
+    // Try fallback endpoint
     try {
-      const dateRange = getPeriodRange(currentPeriod);
+      const dateRange = getPeriodRange(period);
       const startDate = dateRange.start.toISOString().split('T')[0];
       const endDate = dateRange.end.toISOString().split('T')[0];
 
-      const quickResponse = await authFetch(`${BACKEND_URL}/stats/dashboard-quick?period=${currentPeriod}`);
+      const quickResponse = await authFetch(`${BACKEND_URL}/stats/dashboard-quick?period=${period}`);
       if (!quickResponse.ok) throw err;
 
       const quickData = await quickResponse.json();
@@ -535,51 +468,62 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       };
 
       setStats(fallbackStats);
-      setIsDataLoaded(true);
-      setIsChangingPeriod(false);
-      setCache(cacheKey, fallbackStats);
     } catch (fallbackErr) {
-      setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
-      setIsDataLoaded(true);
-      setIsChangingPeriod(false);
+      console.error("Fallback fetch also failed:", fallbackErr);
+      setStats(prev => ({ 
+        ...prev, 
+        error: err.message || 'Failed to load data. Please try refreshing.', 
+        loading: false 
+      }));
     }
   } finally {
-    setRefreshing(false);
+    isFetchingRef.current = false;
   }
-}, [
-  refreshing,
-  getPeriodRange,
-  getCache,
-  setCache
-]);
+}, [period, getPeriodRange, authFetch]);
 
-  // Only fetch data on initial load or when period changes
-  useEffect(() => {
-    if (!isDataLoaded) {
-      fetchStats();
-    }
-  }, [isDataLoaded, fetchStats]);
+// Also add a refresh button handler that forces a refresh
+const handleRefreshWithRetry = async () => {
+  try {
+    setStats(prev => ({ ...prev, loading: true, error: null }));
+    
+    // Clear any cached tokens or auth state if needed
+    localStorage.removeItem('token_refresh_in_progress');
+    
+    // Wait a moment for any auth state to clear
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Retry the fetch
+    await fetchStats(true);
+  } catch (err) {
+    console.error('Refresh failed:', err);
+  }
+};
+
+// Update the refresh button in the JSX:
+<Tooltip title="Refresh">
+  <IconButton 
+    onClick={handleRefreshWithRetry} 
+    disabled={stats.loading} 
+    size="small"
+  >
+    <Refresh fontSize="small" />
+  </IconButton>
+</Tooltip>
 
   // Handle period change
   const handlePeriodChange = (e) => {
-
-    if (refreshing || isChangingPeriod) return;
+    if (isFetchingRef.current) return;
 
     const newPeriod = e.target.value;
-    localStorage.removeItem(`statsDashboard_${period}`);        
-    localStorage.removeItem(`statsDashboard_${newPeriod}`);     
     setPeriod(newPeriod);
-    setIsChangingPeriod(true);
     
-    
-    // Fetch new data
-    fetchStats(true);
+    // Fetch new data for the new period
+    fetchStats();
   };
 
-  // Handle tab changes - no data fetching
-  const handleTabChange = (_, newValue) => {
-    setActiveTab(newValue);
-  };
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   useEffect(() => {
     const fetchEventTypes = async () => {
@@ -607,7 +551,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     };
 
     fetchEventTypes();
-  }, []);
+  }, [authFetch]);
 
   const toggleExpand = useCallback((key) => {
     setExpandedUsers(prev => 
@@ -662,6 +606,9 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
 
       const res = await authFetch(`${BACKEND_URL}/events`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(payload)
       });
 
@@ -677,7 +624,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       });
 
       setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
-      fetchStats(true);
+      fetchStats();
       
     } catch (err) {
       console.error("Create event failed:", err);
@@ -996,15 +943,14 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     </Box>
   );
 
-  // Only show skeleton on initial load
-  if (initialLoad && stats.loading) {
+  if (stats.loading && !stats.overview) {
     return <SkeletonLoader />;
   }
 
-  if (stats.error && !isDataLoaded) {
+  if (stats.error && !stats.overview) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
-        <Alert severity="error" action={<Button onClick={() => fetchStats(true)}>Retry</Button>}>
+        <Alert severity="error" action={<Button onClick={() => fetchStats()}>Retry</Button>}>
           {stats.error}
         </Alert>
       </Box>
@@ -1033,7 +979,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
               value={period}
               label="Period"
               onChange={handlePeriodChange}
-              disabled={refreshing}
+              disabled={stats.loading}
             >
               <MenuItem value="today">Today</MenuItem>
               <MenuItem value="thisWeek">This week</MenuItem>
@@ -1045,8 +991,8 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
           </FormControl>
           <Tooltip title="Refresh">
             <IconButton 
-              onClick={() => fetchStats(true)} 
-              disabled={refreshing || isChangingPeriod} 
+              onClick={() => fetchStats()} 
+              disabled={stats.loading} 
               size="small"
             >
               <Refresh fontSize="small" />
@@ -1058,7 +1004,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
               size="small"
               startIcon={<Download fontSize="small" />}
               onClick={downloadFilteredStats}
-              disabled={refreshing || isChangingPeriod}
+              disabled={stats.loading}
               sx={{ 
                 textTransform: 'none',
                 whiteSpace: 'nowrap'
@@ -1070,12 +1016,11 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
         </Box>
       </Box>
 
-      {/* Show loading indicator when refreshing OR changing period */}
-      {(stats.loading || refreshing || isChangingPeriod) && <LinearProgress sx={{ mb: 1.5 }} />}
+      {stats.loading && <LinearProgress sx={{ mb: 1.5 }} />}
 
       <Grid container spacing={cardSpacing} mb={3}>
         <Grid item xs={6} md={4}>
-          {stats.loading && !isDataLoaded ? (
+          {stats.loading && !stats.overview ? (
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -1088,7 +1033,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
           )}
         </Grid>
         <Grid item xs={6} md={4}>
-          {stats.loading && !isDataLoaded ? (
+          {stats.loading && !stats.overview ? (
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -1107,7 +1052,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
           )}
         </Grid>
         <Grid item xs={6} md={4}>
-          {stats.loading && !isDataLoaded ? (
+          {stats.loading && !stats.overview ? (
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -1130,7 +1075,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       <Paper variant="outlined" sx={{ mb: 1.5 }}>
         <Tabs 
           value={activeTab} 
-          onChange={handleTabChange}
+          onChange={(_, newValue) => setActiveTab(newValue)}
           variant={isSmDown ? "scrollable" : "standard"} 
           centered
           sx={{ minHeight: 48 }}
