@@ -157,28 +157,28 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     });
 
     if (leader1728 && leader1728.trim()) {
-      console.log(" Assigning to highest leader: Leader @1728:", leader1728);
+      console.log("✅ Assigning to highest leader: Leader @1728:", leader1728);
       return { 
         leader: leader1728, 
         level: 1728,
         hasLeader: true
       };
     } else if (leader144 && leader144.trim()) {
-      console.log(" Assigning to highest leader: Leader @144:", leader144);
+      console.log("✅ Assigning to highest leader: Leader @144:", leader144);
       return { 
         leader: leader144, 
         level: 144,
         hasLeader: true
       };
     } else if (leader12 && leader12.trim()) {
-      console.log(" Assigning to highest leader: Leader @12:", leader12);
+      console.log("✅ Assigning to highest leader: Leader @12:", leader12);
       return { 
         leader: leader12, 
         level: 12,
         hasLeader: true
       };
     } else if (leader1 && leader1.trim()) {
-      console.log(" Assigning to highest leader: Leader @1:", leader1);
+      console.log("✅ Assigning to highest leader: Leader @1:", leader1);
       return { 
         leader: leader1, 
         level: 1,
@@ -238,7 +238,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           );
           
           if (foundLeader?.Email) {
-            console.log(` Found leader email via API: ${foundLeader.Email}`);
+            console.log(`✅ Found leader email via API: ${foundLeader.Email}`);
             return foundLeader.Email;
           }
         }
@@ -332,7 +332,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       
       if (response.ok) {
         const responseData = await response.json();
-        console.log(" Consolidation creation response:", responseData);
+        console.log("✅ Consolidation creation response:", responseData);
 
         
         onFinish({

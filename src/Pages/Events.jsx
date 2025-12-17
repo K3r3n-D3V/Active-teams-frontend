@@ -1,5 +1,5 @@
 import axios from "axios";
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback , useContext} from "react";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 import IconButton from "@mui/material/IconButton";
@@ -28,91 +28,10 @@ import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { AuthContext } from "../contexts/AuthContext";
 
-const isTokenExpired = (token) => {
-  if (!token) return true;
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return true;
-    
-    const payload = JSON.parse(atob(parts[1]));
-    if (!payload.exp) return true;
-    
-    const expiresIn = (payload.exp * 1000) - Date.now();
-    return expiresIn < 300000; 
-  } catch (e) {
-    console.error('Error checking token expiry:', e);
-    return true;
-  }
-};
-const refreshTokenForEvents = async () => {
-  try {
-    const refreshToken = localStorage.getItem("refresh_token");
-    const refreshTokenId = localStorage.getItem("refresh_token_id");
-    
-    if (!refreshToken || !refreshTokenId) {
-      console.log('No refresh tokens found');
-      return false;
-    }
 
-    console.log('🔄 Auto-refreshing token for Events...');
 
-    const response = await fetch(`${BACKEND_URL}/refresh-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        refresh_token: refreshToken, 
-        refresh_token_id: refreshTokenId 
-      })
-    });
-
-    if (!response.ok) {
-      console.error('Token refresh failed');
-      return false;
-    }
-
-    const data = await response.json();
-    
-    // Store new tokens
-    localStorage.setItem("access_token", data.access_token);
-    localStorage.setItem("token", data.access_token); 
-    localStorage.setItem("refresh_token", data.refresh_token);
-    localStorage.setItem("refresh_token_id", data.refresh_token_id);
-    
-    console.log(' Token refreshed successfully');
-    return true;
-  } catch (error) {
-    console.error('Error refreshing token:', error);
-    return false;
-  }
-};
-
-const ensureValidToken = async () => {
-  const token = localStorage.getItem("token");
-  
-  if (!token) {
-    console.log('No token found');
-    return false;
-  }
-
-  if (isTokenExpired(token)) {
-    console.log('Token expired or expiring soon, attempting refresh...');
-    const refreshed = await refreshTokenForEvents();
-    
-    if (!refreshed) {
-      console.log('Token refresh failed - logging out');
-      localStorage.removeItem("token");
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("refresh_token_id");
-      localStorage.removeItem("userProfile");
-      window.location.href = '/login';
-      return false;
-    }
-  }
-
-  return true;
-};
 
 const styles = {
   container: {
@@ -415,7 +334,6 @@ const fabStyles = {
     width: "24px",
     height: "24px",
     borderRadius: "50%",
-    // backgroundColor: "#007bff",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -524,7 +442,6 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
   const filteredFields = Object.keys(sampleEvent).filter((key) => {
     const keyLower = key.toLowerCase();
 
-    // Fields to exclude
     const excludedFields = [
       'persistent_attendees', 'uuid', 'did_not_meet', 'status',
       'week_identifier', 'attendees', '_id', 'isoverdue', 'attendance', 'location',
@@ -539,7 +456,6 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       excluded.toLowerCase() === keyLower
     );
 
-    // Also exclude fields that contain these words
     const containsOverdue = keyLower.includes('overdue');
     const containsDisplayDate = keyLower.includes('display') && keyLower.includes('date');
     const containsOriginated = keyLower.includes('originated');
@@ -568,7 +484,6 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       const isOverdueEvent = isOverdue(params.row);
       const status = params.row.status || 'incomplete';
 
-      // Only show OVERDUE for Cells
       if (isOverdueEvent && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
         return (
           <Box
@@ -602,7 +517,6 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     },
   });
 
-  // Add other filtered fields
   columns.push(...filteredFields.map((key) => ({
     field: key,
     headerName: key
@@ -720,12 +634,14 @@ const MobileEventCard = ({
     </div>
   );
 };
+
 const isValidObjectId = (id) => {
   if (!id || typeof id !== 'string') return false;
   return /^[0-9a-fA-F]{24}$/.test(id);
 };
 
 const Events = () => {
+    const { authFetch } = useContext(AuthContext);
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
   const isDarkMode = theme.palette.mode === 'dark';
@@ -739,10 +655,6 @@ const Events = () => {
   const isAdmin = userRole === "admin";
   const isRegistrant = userRole === "registrant";
   const isRegularUser = userRole === "user";
-  const isOtherLeader =
-    userRole.includes("leader at 144") ||
-    userRole.includes("leader at 1278") ||
-    userRole.includes("leader at 1728");
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = '2025-11-30';
@@ -757,7 +669,6 @@ const Events = () => {
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
-  // const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
   const [, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState('all');
@@ -792,7 +703,7 @@ const Events = () => {
       return 'all';
     }
     return 'all';
-  }, [userRole, isLeaderAt12, isRegularUser, isRegistrant]);
+  }, [isLeaderAt12, isRegularUser, isRegistrant, isAdmin]);
 
   const [viewFilter, setViewFilter] = useState(initialViewFilter);
   const [filterOptions, setFilterOptions] = useState({
@@ -805,9 +716,8 @@ const Events = () => {
     data: new Map(),
     timestamp: new Map(),
     CACHE_DURATION: 24 * 60 * 60 * 1000
- });
+  });
 
-  // Helper Functions
   const getCacheKey = useCallback((params) => {
     return JSON.stringify({
       page: params.page,
@@ -860,255 +770,177 @@ const Events = () => {
     return ['all', ...eventTypes.map(t => typeof t === 'string' ? t : t.name)];
   }, [eventTypes]);
 
-  const themedStyles = {
-    container: {
-      ...styles.container,
-      backgroundColor: isDarkMode ? theme.palette.background.default : '#f5f7fa',
-    },
-    topSection: {
-      ...styles.topSection,
-      backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
-      color: isDarkMode ? theme.palette.text.primary : '#212529',
-    },
-    tr: {
-      borderBottom: "1px solid",
-      borderColor: isDarkMode ? theme.palette.divider : '#e9ecef',
-      transition: "background-color 0.2s ease",
-    },
-    trHover: {
-      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#f8f9fa',
-    },
-    td: {
-      padding: "1rem",
-      fontSize: "0.9rem",
-      verticalAlign: "top",
-      color: isDarkMode ? theme.palette.text.primary : '#212529',
-    },
-  }
+  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
 
-  useEffect(() => {
-    const checkLeaderAt12Status = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) {
+    if (showLoader) {
+      setLoading(true);
+      setIsLoading(true);
+    }
+
+    try {
+       const token = 
+    localStorage.getItem("access_token") 
+
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
+
+      const params = {
+        page: filters.page !== undefined ? filters.page : currentPage,
+        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+        start_date: startDateParam,
+      };
+
+      if (filters.event_type) {
+        params.event_type = filters.event_type;
+      } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+        params.event_type = selectedEventTypeFilter;
+      }
+
+      if (filters.status && filters.status !== 'all') params.status = filters.status;
+      if (filters.search) params.search = filters.search;
+      if (filters.personal !== undefined) params.personal = filters.personal;
+      if (filters._t) params._t = filters._t;
+
+      Object.keys(params).forEach(key => {
+        if (params[key] === undefined || params[key] === null || params[key] === '') {
+          delete params[key];
+        }
+      });
+
+      let endpoint;
+      const eventTypeToUse = params.event_type || selectedEventTypeFilter;
+
+      if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
+        endpoint = `${BACKEND_URL}/events/other`;
+        delete params.personal;
+        delete params.leader_at_12_view;
+        delete params.show_personal_cells;
+        delete params.show_all_authorized;
+        delete params.include_subordinate_cells;
+        delete params.leader_at_1_identifier;
+      } else {
+        endpoint = `${BACKEND_URL}/events/cells`;
+
+        if (isRegistrant || isRegularUser) {
+          params.personal = true;
+        } else if (isLeaderAt12) {
+          params.leader_at_12_view = true;
+          params.include_subordinate_cells = true;
+
+          if (currentUserLeaderAt1) {
+            params.leader_at_1_identifier = currentUserLeaderAt1;
+          }
+
+          if (viewFilter === 'personal') {
+            params.show_personal_cells = true;
+            params.personal = true;
+          } else {
+            params.show_all_authorized = true;
+          }
+        }
+      }
+
+      const cacheKey = getCacheKey({ ...params, userRole, endpoint });
+
+      if (!forceRefresh) {
+        const cachedData = getCachedData(cacheKey);
+        if (cachedData) {
+          setEvents(cachedData.events);
+          setTotalEvents(cachedData.total_events);
+          setTotalPages(cachedData.total_pages);
+          if (filters.page !== undefined) setCurrentPage(filters.page);
+          if (showLoader) {
+            setLoading(false);
+            setIsLoading(false);
+          }
           return;
         }
-
-        setIsCheckingLeaderStatus(true);
-
-        const response = await axios.get(
-          `${BACKEND_URL}/check-leader-at-12-status`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            timeout: 10000,
-          }
-        );
-        setIsLeaderAt12(response.data.is_leader_at_12);
-        setIsCheckingLeaderStatus(false);
-      } catch (error) {
-        console.error("Error checking Leader at 12 status:", error);
-        try {
-          const leaders = JSON.parse(localStorage.getItem("leaders"));
-          const checkIfLeader12 = leaders && !leaders.leaderAt12;
-
-          console.log(" USING LOCAL STORAGE", checkIfLeader12);
-          setIsLeaderAt12(checkIfLeader12);
-        } catch (parseError) {
-          console.error("Failed to parse leaders from localStorage:", parseError);
-          setIsLeaderAt12(false);
-        }
-        setIsCheckingLeaderStatus(false);
       }
-    };
 
-    checkLeaderAt12Status();
-  }, [BACKEND_URL]);
+      params.isLeaderAt12 = isLeaderAt12;
+      params.firstName = currentUser.name;
+      params.userSurname = currentUser.surname;
 
- const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
-  const hasValidToken = await ensureValidToken();
-  if (!hasValidToken) {
-    setLoading(false);
-    setIsLoading(false);
-    return;
-  }
+      const response = await axios.get(endpoint, {
+        headers,
+        params,
+        timeout: 60000
+      });
 
-  if (showLoader) {
-    setLoading(true);
-    setIsLoading(true);
-  }
+      const responseData = response.data;
+      const newEvents = responseData.events || responseData.results || [];
 
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      toast.error("Please log in again");
-      setTimeout(() => window.location.href = '/login', 2000);
+      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+
+      setCachedData(cacheKey, {
+        events: newEvents,
+        total_events: totalEventsCount,
+        total_pages: totalPagesCount
+      });
+
+      setEvents(newEvents);
+      setTotalEvents(totalEventsCount);
+      setTotalPages(totalPagesCount);
+      if (filters.page !== undefined) setCurrentPage(filters.page);
+
+    } catch (err) {
+      console.error("Error fetching events:", err);
+      
+      if (err.response?.status === 401) {
+        const refreshed = await refreshTokenForEvents();
+        
+        if (refreshed) {
+          return fetchEvents(filters, forceRefresh, showLoader);
+        } else {
+          toast.error("Session expired. Logging out...");
+          localStorage.removeItem("token");
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          localStorage.removeItem("refresh_token_id");
+          localStorage.removeItem("userProfile");
+          setTimeout(() => window.location.href = '/login', 2000);
+        }
+      } else if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+        toast.warning("Request timeout. Please refresh and try again.");
+      } else {
+        const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
+        toast.error(`Error loading events: ${errorMessage}`);
+      }
+      
       setEvents([]);
-      setFilteredEvents([]);
+      setTotalEvents(0);
+      setTotalPages(1);
+    } finally {
       if (showLoader) {
         setLoading(false);
         setIsLoading(false);
       }
-      return;
     }
+  }, [
+    currentPage,
+    rowsPerPage,
+    selectedEventTypeFilter,
+    viewFilter,
+    userRole,
+    isLeaderAt12,
+    isAdmin,
+    isRegistrant,
+    currentUserLeaderAt1,
+    getCacheKey,
+    getCachedData,
+    setCachedData,
+    BACKEND_URL,
+    DEFAULT_API_START_DATE,
+    currentUser,
+    isRegularUser
+  ]);
 
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-
-    const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
-
-    const params = {
-      page: filters.page !== undefined ? filters.page : currentPage,
-      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-      start_date: startDateParam,
-    };
-
-    if (filters.event_type) {
-      params.event_type = filters.event_type;
-    } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-      params.event_type = selectedEventTypeFilter;
-    }
-
-    if (filters.status && filters.status !== 'all') params.status = filters.status;
-    if (filters.search) params.search = filters.search;
-    if (filters.personal !== undefined) params.personal = filters.personal;
-    if (filters._t) params._t = filters._t;
-
-    Object.keys(params).forEach(key => {
-      if (params[key] === undefined || params[key] === null || params[key] === '') {
-        delete params[key];
-      }
-    });
-
-    let endpoint;
-    const eventTypeToUse = params.event_type || selectedEventTypeFilter;
-
-    if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
-      endpoint = `${BACKEND_URL}/events/other`;
-      delete params.personal;
-      delete params.leader_at_12_view;
-      delete params.show_personal_cells;
-      delete params.show_all_authorized;
-      delete params.include_subordinate_cells;
-      delete params.leader_at_1_identifier;
-    } else {
-      endpoint = `${BACKEND_URL}/events/cells`;
-
-      if (isRegistrant || isRegularUser) {
-        params.personal = true;
-      } else if (isLeaderAt12) {
-        params.leader_at_12_view = true;
-        params.include_subordinate_cells = true;
-
-        if (currentUserLeaderAt1) {
-          params.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === 'personal') {
-          params.show_personal_cells = true;
-          params.personal = true;
-        } else {
-          params.show_all_authorized = true;
-        }
-      }
-    }
-
-    const cacheKey = getCacheKey({ ...params, userRole, endpoint });
-
-    if (!forceRefresh) {
-      const cachedData = getCachedData(cacheKey);
-      if (cachedData) {
-        setEvents(cachedData.events);
-        setFilteredEvents(cachedData.events);
-        setTotalEvents(cachedData.total_events);
-        setTotalPages(cachedData.total_pages);
-        if (filters.page !== undefined) setCurrentPage(filters.page);
-        if (showLoader) {
-          setLoading(false);
-          setIsLoading(false);
-        }
-        return;
-      }
-    }
-
-    params.isLeaderAt12 = isLeaderAt12;
-    params.firstName = currentUser.name;
-    params.userSurname = currentUser.surname;
-
-    const response = await axios.get(endpoint, {
-      headers,
-      params,
-      timeout: 60000
-    });
-
-    const responseData = response.data;
-    const newEvents = responseData.events || responseData.results || [];
-
-    const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-    const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
-
-    setCachedData(cacheKey, {
-      events: newEvents,
-      total_events: totalEventsCount,
-      total_pages: totalPagesCount
-    });
-
-    setEvents(newEvents);
-    setFilteredEvents(newEvents);
-    setTotalEvents(totalEventsCount);
-    setTotalPages(totalPagesCount);
-    if (filters.page !== undefined) setCurrentPage(filters.page);
-
-  } catch (err) {
-    console.error("Error fetching events:", err);
-    
-    if (err.response?.status === 401) {
-      const refreshed = await refreshTokenForEvents();
-      
-      if (refreshed) {
-        return fetchEvents(filters, forceRefresh, showLoader);
-      } else {
-        toast.error("Session expired. Logging out...");
-        localStorage.removeItem("token");
-        localStorage.removeItem("userProfile");
-        setTimeout(() => window.location.href = '/login', 2000);
-      }
-    } else if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-      toast.warning("Request timeout. Please refresh and try again.");
-    } else {
-      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
-      toast.error(`Error loading events: ${errorMessage}`);
-    }
-    
-    setEvents([]);
-    setFilteredEvents([]);
-    setTotalEvents(0);
-    setTotalPages(1);
-  } finally {
-    if (showLoader) {
-      setLoading(false);
-      setIsLoading(false);
-    }
-  }
-}, [
-  currentPage,
-  rowsPerPage,
-  selectedEventTypeFilter,
-  viewFilter,
-  userRole,
-  isLeaderAt12,
-  isAdmin,
-  isRegistrant,
-  currentUserLeaderAt1,
-  getCacheKey,
-  getCachedData,
-  setCachedData,
-  BACKEND_URL,
-  DEFAULT_API_START_DATE
-]);
-
-useEffect(() => {
+  useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         console.log('Page became visible, checking token...');
@@ -1117,7 +949,7 @@ useEffect(() => {
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
@@ -1125,94 +957,22 @@ useEffect(() => {
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      console.log('Periodic token check...');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return;
+      }
+      
       await ensureValidToken();
     }, 600000);
 
     return () => clearInterval(interval);
   }, []);
-  
-  const checkEventsForType = async (eventTypeName) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BACKEND_URL}/events/other`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: {
-          event_type: eventTypeName,
-          limit: 100
-        }
-      });
-
-      console.log(`Events using "${eventTypeName}":`, {
-        count: response.data.events?.length || 0,
-        events: response.data.events?.map(e => ({
-          id: e._id,
-          name: e.eventName,
-          type: e.eventType,
-          typeName: e.eventTypeName
-        }))
-      });
-
-      return response.data.events || [];
-    } catch (error) {
-      console.error('Error checking events for type:', error);
-      return [];
-    }
-  };
-
-
-  const handleStatusFilterChange = useCallback((newStatus) => {
-    console.log("Status filter changing to:", newStatus);
-
-    setSelectedStatus(newStatus);
-    setCurrentPage(1);
-
-    const shouldApplyPersonalFilter =
-      viewFilter === 'personal' &&
-      (userRole === "admin" || userRole === "leader at 12");
-
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage,
-      status: newStatus !== 'all' ? newStatus : undefined,
-      start_date: DEFAULT_API_START_DATE,
-      _t: Date.now(),
-      ...(searchQuery.trim() && { search: searchQuery.trim() }),
-      ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
-      ...(shouldApplyPersonalFilter && { personal: true }),
-      ...(isLeaderAt12 && {
-        leader_at_12_view: true,
-        include_subordinate_cells: true,
-        ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
-        ...(viewFilter === 'personal' ?
-          { show_personal_cells: true, personal: true } :
-          { show_all_authorized: true }
-        )
-      })
-    };
-
-    if (newStatus === 'all') {
-      delete fetchParams.status;
-    }
-
-    console.log("Fetching with status params:", fetchParams);
-    fetchEvents(fetchParams, true, false);
-  }, [
-    viewFilter,
-    userRole,
-    rowsPerPage,
-    searchQuery,
-    selectedEventTypeFilter,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
 
   const fetchEventTypes = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BACKEND_URL}/event-types`, {
+       const token = 
+    localStorage.getItem("access_token") 
+      const response = await authFetch(`${BACKEND_URL}/event-types`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1223,12 +983,8 @@ useEffect(() => {
       }
 
       const eventTypesData = await response.json();
-      console.log(' RAW EVENT TYPES FROM API:', eventTypesData);
-
       const actualEventTypes = eventTypesData.filter(item => item.isEventType === true);
-      console.log(' FILTERED EVENT TYPES:', actualEventTypes);
 
-      // Don't uppercase here - keep original names for matching
       setEventTypes(actualEventTypes);
       setCustomEventTypes(actualEventTypes);
       setUserCreatedEventTypes(actualEventTypes);
@@ -1258,43 +1014,10 @@ useEffect(() => {
     }
   }, [BACKEND_URL]);
 
-
-  const refreshAfterEventTypeUpdate = useCallback(async (oldName, newName) => {
-    try {
-      console.log(" Simple refresh after event type update:", { oldName, newName });
-
-      if (selectedEventTypeFilter === oldName) {
-        setSelectedEventTypeFilter(newName);
-      }
-
-      clearCache();
-      await fetchEventTypes();
-
-      setTimeout(() => {
-        const refreshParams = {
-          page: 1,
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now(),
-          event_type: newName
-        };
-
-        if (selectedStatus !== 'all') refreshParams.status = selectedStatus;
-        if (searchQuery.trim()) refreshParams.search = searchQuery.trim();
-
-        console.log(" Auto-refreshing events with:", refreshParams);
-        fetchEvents(refreshParams, true);
-      }, 300);
-
-    } catch (error) {
-      console.error("Error in refreshAfterEventTypeUpdate:", error);
-    }
-  }, [selectedEventTypeFilter, clearCache, fetchEventTypes, rowsPerPage, selectedStatus, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
-
-
   const getCurrentUserLeaderAt1 = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
+       const token = 
+    localStorage.getItem("access_token") 
       const response = await axios.get(
         `${BACKEND_URL}/current-user/leader-at-1`,
         {
@@ -1333,7 +1056,6 @@ useEffect(() => {
     }, true);
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, DEFAULT_API_START_DATE]);
 
-
   const handleSearchSubmit = useCallback(() => {
     const trimmedSearch = searchQuery.trim();
 
@@ -1354,6 +1076,7 @@ useEffect(() => {
       start_date: DEFAULT_API_START_DATE
     }, true, false);
   }, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
+
   const handleRowsPerPageChange = useCallback((e) => {
     const newRowsPerPage = Number(e.target.value);
     setRowsPerPage(newRowsPerPage);
@@ -1418,15 +1141,10 @@ useEffect(() => {
     setAttendanceModalOpen(true);
   }, []);
 
-
   const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
-    console.log(" Closing create event modal, shouldRefresh:", shouldRefresh);
-
     setCreateEventModalOpen(false);
 
     if (shouldRefresh) {
-      console.log(" Modal requested refresh, forcing complete reload...");
-
       clearCache();
       setCurrentPage(1);
 
@@ -1440,7 +1158,6 @@ useEffect(() => {
           search: searchQuery.trim() || undefined,
         };
 
-        //  CRITICAL: Determine which endpoint to use based on event type
         if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' || !selectedEventTypeFilter) {
           refreshParams.event_type = "CELLS";
 
@@ -1455,11 +1172,9 @@ useEffect(() => {
             refreshParams.personal = true;
           }
         } else {
-          // For Global Events and other event types
           refreshParams.event_type = selectedEventTypeFilter;
         }
 
-        console.log(" Refreshing events after creation:", refreshParams);
         fetchEvents(refreshParams, true);
       }, 800);
     }
@@ -1516,21 +1231,12 @@ useEffect(() => {
 
   const handleAttendanceSubmit = useCallback(async (data) => {
     try {
-      const token = localStorage.getItem("token");
+       const token = 
+    localStorage.getItem("access_token") 
       const headers = { Authorization: `Bearer ${token}` };
-
-      // CRITICAL: Use the composite ID that includes the date
       const eventId = selectedEvent._id;
       const eventName = selectedEvent.eventName || 'Event';
-      const eventDate = selectedEvent.date || ''; // This should be the specific date from the instance
-
-      console.log("Submitting attendance for:", {
-        eventId,
-        eventName,
-        eventDate,
-        dataType: typeof data,
-        isArray: Array.isArray(data)
-      });
+      const eventDate = selectedEvent.date || '';
 
       const leaderEmail = currentUser?.email || '';
       const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
@@ -1544,7 +1250,7 @@ useEffect(() => {
           leaderEmail,
           leaderName,
           did_not_meet: true,
-          event_date: eventDate // Send the specific event date
+          event_date: eventDate
         };
       } else if (Array.isArray(data)) {
         payload = {
@@ -1553,50 +1259,34 @@ useEffect(() => {
           leaderEmail,
           leaderName,
           did_not_meet: false,
-          event_date: eventDate // Send the specific event date
+          event_date: eventDate
         };
       } else {
         payload = {
           ...data,
           leaderEmail,
           leaderName,
-          event_date: eventDate // Send the specific event date
+          event_date: eventDate
         };
       }
 
-      console.log("Sending payload to backend:", JSON.stringify(payload, null, 2));
-
-      // Send the COMPOSITE ID (includes date) - backend will extract both parts
       const response = await axios.put(
         `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
         payload,
         { headers }
       );
 
-      console.log(" Attendance submitted successfully:", response.data);
-
       clearCache();
 
-      // Close modal immediately
       setAttendanceModalOpen(false);
       setSelectedEvent(null);
 
-      setSnackbar({
-        open: true,
-        message: payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
-
-      // Show toast immediately
       toast.success(
         payload.did_not_meet
           ? `${eventName} marked as 'Did Not Meet'.`
           : `Successfully captured attendance for ${eventName}`
       );
 
-      // Refresh events after a delay
       setTimeout(() => {
         (async () => {
           try {
@@ -1624,7 +1314,6 @@ useEffect(() => {
               })
             };
 
-            console.log(" Refreshing events after attendance:", refreshParams);
             await fetchEvents(refreshParams, true, true);
 
           } catch (refreshError) {
@@ -1658,14 +1347,6 @@ useEffect(() => {
         errorMessage = error.message;
       }
 
-      console.error("Error details:", errorMessage);
-
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
-
       toast.error(`Error: ${errorMessage}`);
 
       return { success: false, message: errorMessage };
@@ -1688,16 +1369,6 @@ useEffect(() => {
   ]);
 
   const handleEditEvent = useCallback((event) => {
-    console.log("[handleEditEvent] Opening edit modal for event:", {
-      name: event.eventName,
-      _id: event._id,
-      UUID: event.UUID,
-      id: event.id,
-      uuid: event.uuid,
-      allKeys: Object.keys(event)
-    });
-
-    // Extract MongoDB ID from composite ID
     let eventId = event._id;
     let eventDate = event.date;
 
@@ -1717,23 +1388,9 @@ useEffect(() => {
     };
 
     if (!eventToEdit._id && !eventToEdit.UUID) {
-      console.error(" No identifier found in event:", {
-        event,
-        eventToEdit,
-        availableKeys: Object.keys(event)
-      });
       toast.error("Cannot edit event: Missing identifier. Please refresh and try again.");
       return;
     }
-
-    console.log(" Event prepared for editing:", {
-      _id: eventToEdit._id,
-      UUID: eventToEdit.UUID,
-      name: eventToEdit.eventName,
-      hasId: !!eventToEdit._id,
-      hasUUID: !!eventToEdit.UUID,
-      date: eventToEdit.date
-    });
 
     setSelectedEvent(eventToEdit);
     setEditModalOpen(true);
@@ -1742,30 +1399,22 @@ useEffect(() => {
   const handleDeleteEvent = useCallback(async (event) => {
     if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
       try {
-        const token = localStorage.getItem("token");
+         const token = 
+    localStorage.getItem("access_token") 
 
         let eventId = event._id;
         if (eventId && eventId.includes("_")) {
           const parts = eventId.split("_");
           if (parts.length > 0 && isValidObjectId(parts[0])) {
             eventId = parts[0];
-            console.log("Extracted MongoDB ID for deletion:", eventId);
           }
         }
-
-        console.log("Deleting event:", {
-          name: event.eventName,
-          id: eventId,
-          originalId: event._id
-        });
 
         const response = await axios.delete(`${BACKEND_URL}/events/${eventId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
         if (response.status === 200) {
-          console.log("Event deleted successfully, refreshing with current filters...");
-
           const refreshParams = {
             page: currentPage,
             limit: rowsPerPage,
@@ -1779,17 +1428,14 @@ useEffect(() => {
             refreshParams.event_type = "CELLS";
           }
 
-          // Keep status filter
           if (selectedStatus && selectedStatus !== 'all') {
             refreshParams.status = selectedStatus;
           }
 
-          // Keep search query
           if (searchQuery && searchQuery.trim()) {
             refreshParams.search = searchQuery.trim();
           }
 
-          // Apply role-based filters
           if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
             if (isLeaderAt12) {
               refreshParams.leader_at_12_view = true;
@@ -1810,7 +1456,6 @@ useEffect(() => {
             }
           }
 
-          console.log(" Refreshing with params after deletion:", refreshParams);
           await fetchEvents(refreshParams, true);
 
           toast.success("Event deleted successfully!");
@@ -1845,23 +1490,18 @@ useEffect(() => {
 
   const handleSaveEvent = useCallback(async (eventData) => {
     try {
-      console.log("[handleSaveEvent] Received event data:", eventData);
-
-      // Extract MongoDB ID from selectedEvent
       const eventIdentifier = selectedEvent?._id;
 
       if (!eventIdentifier) {
         throw new Error("No event identifier found");
       }
 
-      console.log(" Updating event with identifier:", eventIdentifier);
-
-      const token = localStorage.getItem("token");
+       const token = 
+    localStorage.getItem("access_token") 
       if (!token) {
         throw new Error("No authentication token found");
       }
 
-      // Clean the data - remove undefined values
       const cleanPayload = Object.entries(eventData).reduce((acc, [key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
           acc[key] = value;
@@ -1869,12 +1509,9 @@ useEffect(() => {
         return acc;
       }, {});
 
-      console.log(" Sending payload:", cleanPayload);
-
-      // Use the universal endpoint
       const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
 
-      const response = await fetch(endpoint, {
+      const response = await authFetch(endpoint, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -1883,15 +1520,12 @@ useEffect(() => {
         body: JSON.stringify(cleanPayload),
       });
 
-      console.log(" Response status:", response.status);
-
       if (!response.ok) {
         let errorData;
         let errorMessage;
 
         try {
           errorData = await response.json();
-          console.error(" Server error response:", errorData);
 
           if (typeof errorData === 'string') {
             errorMessage = errorData;
@@ -1904,27 +1538,21 @@ useEffect(() => {
           } else {
             errorMessage = JSON.stringify(errorData);
           }
-        } catch (parseError) {
+        } catch {
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
 
         throw new Error(errorMessage);
       }
-
       const updatedEvent = await response.json();
-      console.log(" Event updated successfully:", updatedEvent);
 
-      // Clear cache and refresh
       clearCache();
 
-      // Show success message
       toast.success("Event updated successfully!");
 
-      // Close modal and refresh
       setEditModalOpen(false);
       setSelectedEvent(null);
 
-      // Refresh events list
       setTimeout(() => {
         const refreshParams = {
           page: currentPage,
@@ -1968,100 +1596,11 @@ useEffect(() => {
     DEFAULT_API_START_DATE
   ]);
 
-  const handlePersonEdit = useCallback(async (personName, field, newValue) => {
-    try {
-      console.log("👥 Editing ALL cells for person:", {
-        person: personName,
-        field,
-        newValue
-      });
-
-      const token = localStorage.getItem("token");
-      if (!token) {
-        toast.error("Please log in again");
-        return;
-      }
-
-      // This function edits ALL cells for a person, not a specific instance
-      // So we don't need to worry about composite IDs here
-      const encodedPersonName = encodeURIComponent(personName);
-
-      const updatePayload = {
-        [field]: newValue
-      };
-
-      console.log(" Updating all person cells:", {
-        person: personName,
-        payload: updatePayload
-      });
-
-      const response = await axios.put(
-        `${BACKEND_URL}/events/update-person-cells/${encodedPersonName}`,
-        updatePayload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (response.status === 200) {
-        const result = response.data;
-        console.log(" Person cells updated:", result);
-
-        toast.success(`Updated ${result.updated_count} cells for ${personName}`);
-
-        clearCache();
-
-        setTimeout(() => {
-          const refreshParams = {
-            page: currentPage,
-            limit: rowsPerPage,
-            start_date: DEFAULT_API_START_DATE,
-            _t: Date.now()
-          };
-
-          if (selectedEventTypeFilter !== 'all') {
-            refreshParams.event_type = selectedEventTypeFilter;
-          }
-
-          if (selectedStatus !== 'all') {
-            refreshParams.status = selectedStatus;
-          }
-
-          if (searchQuery.trim()) {
-            refreshParams.search = searchQuery.trim();
-          }
-
-          fetchEvents(refreshParams, true);
-        }, 500);
-
-        return result;
-      }
-
-    } catch (error) {
-      console.error(" Error updating person cells:", error);
-
-      let errorMessage = "Failed to update person cells";
-      if (error.response?.data) {
-        errorMessage = error.response.data.detail || error.response.data.message;
-      }
-
-      toast.error(`Error: ${errorMessage}`);
-      throw error;
-    }
-  }, [BACKEND_URL, clearCache, currentPage, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
-
   const handleCloseEditModal = useCallback(async (shouldRefresh = false) => {
-    console.log("Closing edit modal, shouldRefresh:", shouldRefresh);
-
     setEditModalOpen(false);
     setSelectedEvent(null);
 
     if (shouldRefresh) {
-      console.log("Modal requested refresh, forcing complete reload...");
-
       clearCache();
 
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -2087,7 +1626,6 @@ useEffect(() => {
         refreshParams.event_type = selectedEventTypeFilter;
       }
 
-      // Add Leader at 12 params if needed
       if (isLeaderAt12 && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
         refreshParams.leader_at_12_view = true;
         refreshParams.include_subordinate_cells = true;
@@ -2124,52 +1662,6 @@ useEffect(() => {
     viewFilter
   ]);
 
-  const openTypeMenu = useCallback((event, type) => {
-    setTypeMenuAnchor(event.currentTarget);
-    setTypeMenuFor(type);
-  }, []);
-
-  const closeTypeMenu = useCallback(() => {
-    setTypeMenuAnchor(null);
-    setTypeMenuFor(null);
-  }, []);
-
-  const handleEditType = useCallback(async (type) => {
-    try {
-      let eventTypeToEdit;
-
-      if (typeof type === 'string') {
-        const fullEventType = eventTypes.find(et =>
-          et.name === type || et.name?.toLowerCase() === type.toLowerCase()
-        );
-
-        if (fullEventType) {
-          eventTypeToEdit = fullEventType;
-        } else {
-          eventTypeToEdit = { name: type };
-        }
-      } else {
-        eventTypeToEdit = type;
-      }
-
-      console.log(" Setting editing event type:", eventTypeToEdit);
-      closeTypeMenu();
-
-      //  FIXED: Set editing event type BEFORE opening modal
-      setEditingEventType(eventTypeToEdit);
-
-      //  FIXED: Small delay to ensure state is set before modal opens
-      setTimeout(() => {
-        setEventTypesModalOpen(true);
-      }, 100);
-
-    } catch (error) {
-      console.error("Error preparing event type for editing:", error);
-
-      toast.error("Error loading event type data");
-    }
-  }, [eventTypes, closeTypeMenu]);
-
   const handleCloseEventTypesModal = useCallback(() => {
     setEventTypesModalOpen(false);
 
@@ -2180,7 +1672,8 @@ useEffect(() => {
 
   const handleDeleteType = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
+       const token = 
+    localStorage.getItem("access_token") 
 
       if (!token) {
         toast.error("Please log in again");
@@ -2196,9 +1689,6 @@ useEffect(() => {
         throw new Error("No event type name provided for deletion");
       }
 
-      console.log(' Attempting to delete event type:', typeName);
-
-      // First, try normal delete
       const encodedTypeName = encodeURIComponent(typeName);
       const url = `${BACKEND_URL}/event-types/${encodedTypeName}`;
 
@@ -2210,15 +1700,11 @@ useEffect(() => {
           }
         });
 
-        console.log(' Delete response:', response.data);
-
         if (response.status === 200) {
-          // Success - refresh everything
-          await fetchEventTypes(true);
+          await fetchEventTypes();
           setConfirmDeleteOpen(false);
           setToDeleteType(null);
 
-          // Switch to "all" if deleting current filter
           if (selectedEventTypeFilter === typeName ||
             selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()) {
             setSelectedEventTypeFilter('all');
@@ -2240,9 +1726,6 @@ useEffect(() => {
         }
 
       } catch (error) {
-        console.error(" Error deleting event type:", error);
-
-        // Handle 401/unauthorized
         if (error.response?.status === 401) {
           toast.error("Session expired. Logging out...");
           localStorage.removeItem("token");
@@ -2251,7 +1734,6 @@ useEffect(() => {
           return;
         }
 
-        // Handle 400 - Events exist
         if (error.response?.status === 400) {
           const errorData = error.response.data;
           let eventsCount = 0;
@@ -2262,9 +1744,6 @@ useEffect(() => {
             eventsList = errorData.detail.event_samples || [];
           }
 
-          console.log(` ${eventsCount} events are blocking deletion:`, eventsList);
-
-          // Show detailed dialog with force delete option
           const eventsListText = eventsList.slice(0, 5).map(e =>
             `• ${e.name} (${e.date || 'No date'}) - Status: ${e.status}`
           ).join('\n');
@@ -2282,8 +1761,6 @@ useEffect(() => {
           );
 
           if (shouldForceDelete) {
-            console.log(' User confirmed FORCE DELETE');
-
             try {
               const forceUrl = `${url}?force=true`;
               const forceResponse = await axios.delete(forceUrl, {
@@ -2293,14 +1770,10 @@ useEffect(() => {
                 }
               });
 
-              console.log(' Force delete successful:', forceResponse.data);
-
-              // Refresh everything
-              await fetchEventTypes(true);
+              await fetchEventTypes();
               setConfirmDeleteOpen(false);
               setToDeleteType(null);
 
-              // Switch to "all"
               if (selectedEventTypeFilter === typeName ||
                 selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()) {
                 setSelectedEventTypeFilter('all');
@@ -2322,14 +1795,12 @@ useEffect(() => {
               );
 
             } catch (forceError) {
-              console.error(' Force delete failed:', forceError);
               toast.error(
                 `Failed to force delete: ${forceError.response?.data?.detail || forceError.message}`,
                 { autoClose: 7000 }
               );
             }
           } else {
-            console.log(' User cancelled force delete');
             toast.info('Deletion cancelled', { autoClose: 3000 });
           }
 
@@ -2338,7 +1809,6 @@ useEffect(() => {
           return;
         }
 
-        // Other errors
         let errorMessage = "Failed to delete event type";
         if (error.response?.data) {
           const errorData = error.response.data;
@@ -2347,7 +1817,6 @@ useEffect(() => {
           errorMessage = error.message;
         }
 
-        console.error('Error details:', error.response?.data);
         setConfirmDeleteOpen(false);
         setToDeleteType(null);
         toast.error(errorMessage, { autoClose: 7000 });
@@ -2386,19 +1855,6 @@ useEffect(() => {
     });
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, DEFAULT_API_START_DATE]);
 
-  const validateEventStatus = (event) => {
-    const status = (event.status || '').toLowerCase();
-    const hasAttendees = event.attendees && event.attendees.length > 0;
-    const didNotMeet = event.did_not_meet || false;
-
-    // If event is marked as complete but has no attendees and didn't meet, it's invalid
-    if (status === 'complete' && !hasAttendees && !didNotMeet) {
-      return 'incomplete';
-    }
-
-    return status;
-  };
-
   const handleSearchChange = useCallback((e) => {
     const value = e.target.value;
     setSearchQuery(value);
@@ -2406,17 +1862,15 @@ useEffect(() => {
 
   useEffect(() => {
     const checkAccess = async () => {
-      // Wait for auth to initialize
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const token = localStorage.getItem("token");
+       const token = 
+    localStorage.getItem("access_token") 
       const userProfile = localStorage.getItem("userProfile");
-
-      console.log("🔐 ACCESS CHECK:", { token: !!token, userProfile: !!userProfile });
 
       if (!token || !userProfile) {
         toast.error("Please log in to access events");
-        setTimeout(() => window.location.href = '/login', 2000);  //  Redirect to /login, not /dashboard
+        setTimeout(() => window.location.href = '/login', 2000);
         return;
       }
 
@@ -2424,8 +1878,6 @@ useEffect(() => {
         const currentUser = JSON.parse(userProfile);
         const userRole = currentUser?.role?.toLowerCase() || "";
         const email = currentUser?.email || "";
-
-        console.log("🔐 Checking user access:", { userRole, email });
 
         const isAdmin = userRole === "admin";
         const isLeaderAt12 =
@@ -2440,7 +1892,6 @@ useEffect(() => {
           userRole.includes("leader at 1278") ||
           userRole.includes("leader at 1728");
 
-        //  IMPROVED: Check if user role includes "leader" in any form
         const isAnyLeader =
           userRole.includes("leader") ||
           isLeaderAt12 ||
@@ -2448,7 +1899,6 @@ useEffect(() => {
 
         const isUser = userRole === "user";
 
-        // Special check for regular users
         if (isUser) {
           try {
             const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
@@ -2457,49 +1907,30 @@ useEffect(() => {
 
             const { hasCell, canAccessEvents } = response.data;
 
-            console.log(" User cell check:", { hasCell, canAccessEvents });
-
             if (!canAccessEvents || !hasCell) {
               toast.warning("You must have a cell to access the Events page");
-              //  FIX: Redirect to home instead of /dashboard
               setTimeout(() => window.location.href = '/', 2000);
               return;
             }
 
-            console.log(" User has cell - access granted");
           } catch (error) {
             console.error(" Error checking cell status:", error);
             toast.error("Unable to verify access. Please contact support.");
-            //  FIX: Redirect to home instead of /dashboard
             setTimeout(() => window.location.href = '/', 2000);
             return;
           }
         }
-
-        //  BROADENED ACCESS: Allow all types of leaders
         const hasAccess =
           isAdmin ||
           isLeaderAt12 ||
           isRegistrant ||
           isLeader144or1728 ||
-          isAnyLeader ||  //  This catches any leader role
+          isAnyLeader ||
           isUser;
 
         if (!hasAccess) {
-          console.log(" Access denied for role:", userRole);
           toast.warning("You do not have permission to access the Events page");
-          //  FIX: Redirect to home instead of /dashboard
           setTimeout(() => window.location.href = '/', 2000);
-        } else {
-          console.log(" Access granted:", {
-            userRole,
-            isAdmin,
-            isLeaderAt12,
-            isRegistrant,
-            isLeader144or1728,
-            isAnyLeader,
-            isUser
-          });
         }
       } catch (error) {
         console.error(" Error in access check:", error);
@@ -2508,89 +1939,16 @@ useEffect(() => {
     };
 
     checkAccess();
-  }, [currentUser?.email, currentUser?.role, BACKEND_URL]);
-
-
-
-  useEffect(() => {
-    const checkAccess = async () => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const token = localStorage.getItem("token");
-      const userProfile = localStorage.getItem("userProfile");
-
-      if (!token || !userProfile) {
-        toast.error("Please log in to access events");
-        setTimeout(() => navigate('/login', { replace: true }), 2000);  //  Better approach
-        return;
-      }
-
-      try {
-        const currentUser = JSON.parse(userProfile);
-        const userRole = currentUser?.role?.toLowerCase() || "";
-
-        console.log("🔐 Checking user access:", { userRole });
-
-        const isAdmin = userRole === "admin";
-        const isAnyLeader = userRole.includes("leader");  //  Simplified
-        const isRegistrant = userRole === "registrant";
-        const isUser = userRole === "user";
-
-        // Check for regular users
-        if (isUser) {
-          try {
-            const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (!response.data.canAccessEvents || !response.data.hasCell) {
-              toast.warning("You must have a cell to access the Events page");
-              setTimeout(() => navigate('/', { replace: true }), 2000);
-              return;
-            }
-
-            console.log(" User has cell - access granted");
-          } catch (error) {
-            console.error(" Error checking cell status:", error);
-            toast.error("Unable to verify access");
-            setTimeout(() => navigate('/', { replace: true }), 2000);
-            return;
-          }
-        }
-
-        // Check access
-        const hasAccess = isAdmin || isAnyLeader || isRegistrant || isUser;
-
-        if (!hasAccess) {
-          console.log(" Access denied for role:", userRole);
-          toast.warning("You do not have permission to access this page");
-          setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
-        } else {
-          console.log(" Access granted for role:", userRole);
-        }
-      } catch (error) {
-        console.error(" Error in access check:", error);
-        toast.error("Error verifying access");
-        setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
-      }
-    };
-
-    checkAccess();
-  }, [currentUser?.email, currentUser?.role, BACKEND_URL, navigate]);
-
-
+  }, [BACKEND_URL]);
 
   useEffect(() => {
     if (eventTypes.length > 0 && !selectedEventTypeFilter) {
-      console.log("Initializing event type filter to 'all'");
       setSelectedEventTypeFilter('all');
     }
   }, [eventTypes.length, selectedEventTypeFilter]);
 
   useEffect(() => {
     if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-      console.log(" Event type filter changed, auto-refreshing:", selectedEventTypeFilter);
-
       const refreshParams = {
         page: 1,
         limit: rowsPerPage,
@@ -2611,29 +1969,10 @@ useEffect(() => {
 
       return () => clearTimeout(timer);
     }
-  }, [selectedEventTypeFilter]);
-
-  useEffect(() => {
-    console.log(" [CURRENT STATE DEBUG]", {
-      selectedEventTypeFilter,
-      eventTypes: eventTypes.map(et => ({ name: et.name, _id: et._id })),
-      events: events.map(ev => ({
-        name: ev.eventName,
-        eventType: ev.eventType,
-        _id: ev._id
-      })),
-      eventsCount: events.length
-    });
-  }, [selectedEventTypeFilter, eventTypes, events]);
-
-
-
-
-
+  }, [selectedEventTypeFilter, rowsPerPage, selectedStatus, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
 
   useEffect(() => {
     if (isLeaderAt12 && viewFilter === 'personal') {
-      console.log(" Auto-switching Leader at 12 to VIEW ALL mode on initial load");
       setViewFilter('all');
 
       const fetchParams = {
@@ -2653,21 +1992,19 @@ useEffect(() => {
         }
       }
 
-      // Small delay to ensure state is updated
       setTimeout(() => {
         fetchEvents(fetchParams, true);
       }, 100);
     }
-  }, [isLeaderAt12]); // Only depend on isLeaderAt12, not viewFilter
-
+  }, [isLeaderAt12, rowsPerPage, currentUserLeaderAt1, fetchEvents, DEFAULT_API_START_DATE]);
 
   useEffect(() => {
     const checkAuth = () => {
-      const token = localStorage.getItem("token");
+       const token = 
+    localStorage.getItem("access_token") 
       const userProfile = localStorage.getItem("userProfile");
 
       if (!token || !userProfile) {
-
         toast.warning("Please log in to continue.");
         setTimeout(() => {
           window.location.href = '/login';
@@ -2696,58 +2033,32 @@ useEffect(() => {
     return eventDate < today;
   }, []);
 
-
-  // Add this useEffect to track filter changes
-  useEffect(() => {
-    console.log(" FILTER CHANGE DEBUG:", {
-      selectedEventTypeFilter,
-      eventsCount: events.length,
-      eventTypes: eventTypes.map(et => et.name)
-    });
-  }, [selectedEventTypeFilter, events, eventTypes]);
-
-
-
   const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null) => {
     try {
-      const token = localStorage.getItem("token");
+       const token = 
+    localStorage.getItem("access_token") 
       if (!token) {
         throw new Error("No authentication token found");
       }
 
       const oldName = editingEventType?.name;
-      console.log("💾 Saving event type:", {
-        eventTypeData,
-        eventTypeId,
-        oldName,
-        editingEventType
-      });
-
       let url, method;
 
       if (eventTypeId || editingEventType) {
-        // Editing existing event type - use the OLD name for the URL
         const identifier = oldName;
         if (!identifier) {
           throw new Error("Cannot update: original event type name not found");
         }
 
-        console.log(` Updating event type from '${identifier}' to '${eventTypeData.name}'`);
-
-        // URL encode the OLD name for the endpoint
         const encodedName = encodeURIComponent(identifier);
         url = `${BACKEND_URL}/event-types/${encodedName}`;
         method = 'PUT';
-
-        console.log(" Update URL:", url);
       } else {
-        // Creating new event type
         url = `${BACKEND_URL}/event-types`;
         method = 'POST';
-        console.log(" Create URL:", url);
       }
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: method,
         headers: {
           'Content-Type': 'application/json',
@@ -2755,8 +2066,6 @@ useEffect(() => {
         },
         body: JSON.stringify(eventTypeData)
       });
-
-      console.log(" Response status:", response.status, response.statusText);
 
       if (!response.ok) {
         let errorData;
@@ -2766,23 +2075,17 @@ useEffect(() => {
           errorData = { detail: `HTTP ${response.status}: ${response.statusText}` };
         }
 
-        console.error(" Server error:", errorData);
         throw new Error(errorData.detail || `Failed to save event type: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log(" Event type saved successfully:", result);
 
-      // Close modal and reset state
       setEventTypesModalOpen(false);
       setEditingEventType(null);
 
-      // Refresh event types list
       await fetchEventTypes();
 
-      // Update filter if name changed
       if (oldName && selectedEventTypeFilter === oldName && result.name !== oldName) {
-        console.log(` Updating filter from '${oldName}' to '${result.name}'`);
         setSelectedEventTypeFilter(result.name);
       }
 
@@ -2799,103 +2102,7 @@ useEffect(() => {
     editingEventType,
     fetchEventTypes,
     selectedEventTypeFilter
-  ])
-
-  const handleCreateEventType = async (eventTypeData) => {
-    try {
-      console.log(" Creating event type:", eventTypeData);
-
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BACKEND_URL}/event-types`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(eventTypeData),
-      });
-
-      if (response.ok) {
-        const newEventType = await response.json();
-        console.log(" Event type created successfully:", newEventType);
-
-        // Refresh event types list
-        await fetchEventTypes();
-
-        // Show success message
-        toast.success('Event type created successfully!');
-
-        return newEventType;
-      } else {
-        const errorData = await response.json();
-        console.error(" Failed to create event type:", errorData);
-        toast.error(`Error: ${errorData.detail || 'Failed to create event type'}`);
-        throw new Error(errorData.detail || 'Failed to create event type');
-      }
-    } catch (error) {
-      console.error(" Error creating event type:", error);
-      toast.error(`Error: ${error.message}`);
-      throw error;
-    }
-  };
-
-  const handleUpdateEventType = async (eventTypeData, eventTypeIdentifier) => {
-    try {
-      console.log(" Updating event type:", { eventTypeData, eventTypeIdentifier });
-
-      // Use the original name from the editing event type, not the new name
-      const originalEventType = editingEventType || eventTypes.find(et =>
-        et._id === eventTypeIdentifier || et.name === eventTypeIdentifier
-      );
-
-      if (!originalEventType) {
-        throw new Error("Could not find original event type data");
-      }
-
-      const originalName = originalEventType.name;
-      console.log(" Original event type name:", originalName);
-
-      const token = localStorage.getItem("token");
-
-      // URL encode the ORIGINAL event type name for the API endpoint
-      const encodedName = encodeURIComponent(originalName);
-      const response = await fetch(`${BACKEND_URL}/event-types/${encodedName}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(eventTypeData),
-      });
-
-      if (response.ok) {
-        const updatedEventType = await response.json();
-        console.log(" Event type updated successfully:", updatedEventType);
-
-        // Refresh event types list
-        await fetchEventTypes();
-
-        // Update the selected filter if the name changed
-        if (selectedEventTypeFilter === originalName && eventTypeData.name !== originalName) {
-          setSelectedEventTypeFilter(eventTypeData.name);
-        }
-
-        // Show success message
-        toast.success('Event type updated successfully!');
-
-        return updatedEventType;
-      } else {
-        const errorData = await response.json();
-        console.error("Failed to update event type:", errorData);
-        toast.error(`Error: ${errorData.detail || 'Failed to update event type'}`);
-        throw new Error(errorData.detail || 'Failed to update event type');
-      }
-    } catch (error) {
-      console.error(" Error updating event type:", error);
-      toast.error(`Error: ${error.message}`);
-      throw error;
-    }
-  };
+  ]);
 
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
@@ -2933,11 +2140,7 @@ useEffect(() => {
     }
   }, [customEventTypes]);
 
-
-  useEffect(() => {
-    clearCache();
-  }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
-
+  // MAIN useEffect - Fixed to prevent infinite loops
   useEffect(() => {
     if (eventTypes.length === 0) {
       return;
@@ -2957,22 +2160,15 @@ useEffect(() => {
       fetchParams.search = searchQuery.trim();
     }
 
-    let endpointType = "cells";
-
     if (selectedEventTypeFilter === 'all') {
       fetchParams.event_type = "CELLS";
-      endpointType = "cells";
     } else if (selectedEventTypeFilter === 'CELLS') {
       fetchParams.event_type = "CELLS";
-      endpointType = "cells";
     } else {
       fetchParams.event_type = selectedEventTypeFilter;
-      endpointType = "other";
     }
 
-    console.log(" Fetching with status filter:", selectedStatus, fetchParams);
-
-    if (endpointType === "cells") {
+    if (fetchParams.event_type === "CELLS") {
       if (isAdmin) {
         if (viewFilter === 'personal') {
           fetchParams.personal = true;
@@ -2987,34 +2183,26 @@ useEffect(() => {
         }
 
         if (viewFilter === 'personal') {
-          // PERSONAL: Only their own cell
           fetchParams.show_personal_cells = true;
           fetchParams.personal = true;
         } else {
-          // VIEW ALL: Only disciples' cells
           fetchParams.show_all_authorized = true;
           fetchParams.include_subordinate_cells = true;
         }
       }
-
     } else {
-      console.log("Loading event type data for:", selectedEventTypeFilter);
-
       delete fetchParams.personal;
       delete fetchParams.leader_at_12_view;
       delete fetchParams.show_personal_cells;
       delete fetchParams.show_all_authorized;
       delete fetchParams.include_subordinate_cells;
       delete fetchParams.leader_at_1_identifier;
-
-      console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
     }
 
     Object.keys(fetchParams).forEach(key =>
       fetchParams[key] === undefined && delete fetchParams[key]
     );
 
-    console.log("FINAL API call params:", fetchParams);
     fetchEvents(fetchParams, true);
   }, [
     selectedEventTypeFilter,
@@ -3058,12 +2246,10 @@ useEffect(() => {
         ...(shouldApplyPersonalFilter && { personal: true }),
       };
 
-      //  CRITICAL: Always send status parameter when filtering (except for 'all')
       if (statusValue && statusValue !== 'all') {
         fetchParams.status = statusValue;
       }
 
-      // Leader at 12 params for cells
       if (isLeaderAt12 && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
         fetchParams.leader_at_12_view = true;
         fetchParams.include_subordinate_cells = true;
@@ -3103,7 +2289,6 @@ useEffect(() => {
   };
 
   const ViewFilterButtons = () => {
-    console.log("is it a leader at 12 ", isLeaderAt12)
     const shouldShowToggle = (isAdmin || (isLeaderAt12)) &&
       (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
 
@@ -3120,11 +2305,8 @@ useEffect(() => {
     }
 
     const handleViewFilterChange = (newViewFilter) => {
-      console.log("View filter changing:", newViewFilter);
-
       setViewFilter(newViewFilter);
       setCurrentPage(1);
-
 
       const fetchParams = {
         page: 1,
@@ -3141,7 +2323,6 @@ useEffect(() => {
         fetchParams.search = searchQuery.trim();
       }
 
-      // ADMIN
       if (isAdmin) {
         if (newViewFilter === 'personal') {
           fetchParams.personal = true;
@@ -3152,7 +2333,6 @@ useEffect(() => {
         }
       }
       else if (isLeaderAt12) {
-
         fetchParams.leader_at_12_view = true;
         fetchParams.include_subordinate_cells = true;
 
@@ -3170,7 +2350,6 @@ useEffect(() => {
         }
       }
 
-      console.log("Sending params:", fetchParams);
       fetchEvents(fetchParams, true);
     };
 
@@ -3227,8 +2406,6 @@ useEffect(() => {
     selectedStatus,
     searchQuery,
     viewFilter,
-    userRole,
-    setSelectedEventTypeObj,
     DEFAULT_API_START_DATE,
     isLeaderAt12,
     isAdmin,
@@ -3250,10 +2427,7 @@ useEffect(() => {
     const canEditEventTypes = isAdmin;
 
     const handleEventTypeClick = (typeValue) => {
-      console.log(" Event type clicked:", typeValue);
-
       setSelectedEventTypeFilter(typeValue);
-
       setCurrentPage(1);
 
       const fetchParams = {
@@ -3261,7 +2435,7 @@ useEffect(() => {
         limit: rowsPerPage,
         start_date: DEFAULT_API_START_DATE,
         event_type: typeValue === 'all' ? "CELLS" : typeValue,
-        _t: Date.now() // Cache buster
+        _t: Date.now()
       };
 
       if (selectedStatus !== 'all') {
@@ -3291,7 +2465,6 @@ useEffect(() => {
           }
         }
       } else {
-        // For other event types, remove personal filters
         delete fetchParams.personal;
         delete fetchParams.leader_at_12_view;
         delete fetchParams.show_personal_cells;
@@ -3384,9 +2557,7 @@ useEffect(() => {
     const allTypes = useMemo(() => {
       const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
 
-      //  FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
       if (isAdmin) {
-        // Admin sees everything
         const adminTypes = ["all"];
         availableTypes.forEach(type => {
           adminTypes.push(type);
@@ -3450,8 +2621,6 @@ useEffect(() => {
 
     const handleDeleteEventType = () => {
       if (selectedTypeForMenu && selectedTypeForMenu !== 'all') {
-        console.log(" Attempting to delete event type:", selectedTypeForMenu);
-
         const exactEventType = eventTypes.find(et => {
           const etName = et.name || et.eventType || et.eventTypeName || '';
           return etName.toLowerCase() === selectedTypeForMenu.toLowerCase();
@@ -3461,7 +2630,6 @@ useEffect(() => {
           (exactEventType.name || exactEventType.eventType || exactEventType.eventTypeName) :
           selectedTypeForMenu;
 
-        console.log(" Final type to delete:", typeToDelete);
         setToDeleteType(typeToDelete);
         setConfirmDeleteOpen(true);
       }
@@ -3482,7 +2650,6 @@ useEffect(() => {
 
     return (
       <div style={mobileEventTypeStyles.container}>
-        {/* Header Row - Always visible */}
         <div
           style={mobileEventTypeStyles.headerRow}
           onClick={() => isMobileView && setIsCollapsed(!isCollapsed)}
@@ -3539,7 +2706,6 @@ useEffect(() => {
                   {displayName}
                 </span>
 
-                {/*  FIXED: Show edit menu for admin users */}
                 {showMenu && (
                   <IconButton
                     size="small"
@@ -3558,7 +2724,6 @@ useEffect(() => {
                       fontSize: '12px',
                       padding: '1px',
                       minWidth: 'auto',
-                      //  Make it always visible on mobile, hover-only on desktop
                       opacity: isMobileView ? 1 : (isHovered || isActive ? 1 : 0),
                       transition: 'opacity 0.2s ease',
                     }}
@@ -3571,7 +2736,6 @@ useEffect(() => {
           })}
         </div>
 
-        {/* Edit/Delete Menu */}
         <Popover
           open={Boolean(menuAnchor)}
           anchorEl={menuAnchor}
@@ -3656,8 +2820,6 @@ useEffect(() => {
           selectedStatus={selectedStatus}
           searchQuery={searchQuery}
           viewFilter={viewFilter}
-          userRole={userRole}
-          setSelectedEventTypeObj={setSelectedEventTypeObj}
           DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
           isLeaderAt12={isLeaderAt12}
           isAdmin={isAdmin}
@@ -3667,7 +2829,6 @@ useEffect(() => {
           setEventTypesModalOpen={setEventTypesModalOpen}
           setToDeleteType={setToDeleteType}
           setConfirmDeleteOpen={setConfirmDeleteOpen}
-          clearCache={clearCache}
         />
         <Box sx={{
           display: "flex",
@@ -3677,9 +2838,6 @@ useEffect(() => {
           flexWrap: "wrap",
           px: 1
         }}>
-          {/* ... TextField (Search) ... */}
-
-
           <TextField
             size="small"
             placeholder="Search by Event Name, Leader, or Email..."
@@ -3739,7 +2897,6 @@ useEffect(() => {
             }}
           />
 
-          {/* ... Button (Search) ... */}
           <Button
             variant="contained"
             onClick={handleSearchSubmit}
@@ -3753,7 +2910,6 @@ useEffect(() => {
             {loading ? '⏳' : 'SEARCH'}
           </Button>
 
-          {/* ... Button (Clear All) ... */}
           <Button
             variant="outlined"
             onClick={clearAllFilters}
@@ -3791,7 +2947,6 @@ useEffect(() => {
         </Box>
       </Box>
 
-      {/* ** 3. SCROLLABLE CONTENT AREA (Flex Grow)** */}
       <Box sx={{
         flexGrow: 1,
         display: 'flex',
@@ -3804,7 +2959,6 @@ useEffect(() => {
 
         {isMobileView ? (
           <>
-            {/* Scrollable list container */}
             <Box sx={{
               flexGrow: 1,
               overflowY: 'auto',
@@ -3915,9 +3069,7 @@ useEffect(() => {
           </>
 
         ) : (
-          // DESKTOP VIEW
           <>
-            {/* Scrollable table container */}
             <Box sx={{
               flexGrow: 1,
               overflowY: 'auto',
@@ -3941,9 +3093,9 @@ useEffect(() => {
                     rows={paginatedEvents.map((event, idx) => {
                       const id = event._id || event.id || event.UUID || idx;
                       return {
-                        id: id,  
+                        id: id,
                         ...event,
-                        _id: id, 
+                        _id: id,
                       };
                     })}
                     columns={[
@@ -4070,7 +3222,6 @@ useEffect(() => {
               )}
             </Box>
 
-            {/* Pagination for DESKTOP - Fixed at the bottom */}
             <Box sx={{
               ...styles.paginationContainer,
               flexShrink: 0,
@@ -4189,7 +3340,6 @@ useEffect(() => {
             />
           )}
 
-          {/* FAB Menu Items */}
           <Box
             sx={{
               ...fabStyles.fabMenu,
@@ -4230,7 +3380,6 @@ useEffect(() => {
             </Box>
           </Box>
 
-          {/* Main FAB Button */}
           <IconButton
             sx={{
               backgroundColor: "#007bff",
@@ -4245,7 +3394,7 @@ useEffect(() => {
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
               position: 'relative',
-              zIndex: 1301, // Higher than menu items
+              zIndex: 1301,
             }}
             onClick={() => setFabMenuOpen(!fabMenuOpen)}
             aria-label={fabMenuOpen ? "Close menu" : "Open menu"}
