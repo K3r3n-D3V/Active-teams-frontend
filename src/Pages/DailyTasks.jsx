@@ -1,14 +1,12 @@
-import React, { useContext,useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
-import * as XLSX from 'xlsx';
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
-
   return (
     <div
       style={{
@@ -55,7 +53,6 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
         >
           ×
         </button>
-
         <div style={{ marginTop: "8px" }}>
           {children}
         </div>
@@ -67,7 +64,9 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 export default function DailyTasks() {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-  
+
+  const { user, authFetch } = useContext(AuthContext); // <-- Now getting user from context
+
   const [tasks, setTasks] = useState([]);
   const [taskTypes, setTaskTypes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -77,12 +76,9 @@ export default function DailyTasks() {
   const [formType, setFormType] = useState("");
   const [dateRange, setDateRange] = useState("today");
   const [filterType, setFilterType] = useState("all");
-  const [storedUser, setStoredUser] = useState(() =>
-    JSON.parse(localStorage.getItem("userProfile") || "{}")
-  );
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [addingTaskType, setAddingTaskType] = useState(false);
-  
+
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
   const getCurrentDateTime = () => {
@@ -96,7 +92,7 @@ export default function DailyTasks() {
     taskType: "",
     recipient: null,
     recipientDisplay: "",
-    assignedTo: `${storedUser?.name || ""} ${storedUser?.surname || ""}`.trim(),
+    assignedTo: user ? `${user.name || ""} ${user.surname || ""}`.trim() : "",
     dueDate: getCurrentDateTime(),
     status: "Open",
     taskStage: "Open",
@@ -164,17 +160,9 @@ export default function DailyTasks() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
-  const { authFetch } = useContext(AuthContext);
-
   const fetchTaskTypes = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     try {
-      const res = await authFetch(`${API_URL}/tasktypes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
+      const res = await authFetch(`${API_URL}/tasktypes`);
       if (!res.ok) throw new Error("Failed to fetch task types");
       const data = await res.json();
       setTaskTypes(Array.isArray(data) ? data : data.taskTypes || []);
@@ -186,59 +174,36 @@ export default function DailyTasks() {
 
   const createTaskType = async () => {
     if (!newTaskTypeName.trim()) {
-     toast.warning("Please enter a task type name");
-;
+      toast.warning("Please enter a task type name");
       return;
     }
-
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     setAddingTaskType(true);
     try {
       const res = await authFetch(`${API_URL}/tasktypes`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newTaskTypeName.trim() }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to create task type');
-      }
-
+      if (!res.ok) throw new Error(data.message || 'Failed to create task type');
       setTaskTypes([...taskTypes, data.taskType || data]);
       setNewTaskTypeName("");
       setIsAddTypeModalOpen(false);
     } catch (err) {
       console.error("Error creating task type:", err.message);
       toast.error("Failed to create task type: " + err.message);
-;
     } finally {
       setAddingTaskType(false);
     }
   };
 
-  const fetchUserTasks = async (userId) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      console.log("No token found, skipping fetch");
-      return;
-    }
-
+  const fetchUserTasks = async () => {
+    if (!user?.email) return;
     try {
       setLoading(true);
-      const res = await authFetch(`${API_URL}/tasks?user_email=${storedUser.email}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
+      const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`);
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
-
       const normalizedTasks = (Array.isArray(data) ? data : data.tasks || []).map((task) => ({
         ...task,
         assignedTo: task.assignedfor || task.assignedTo,
@@ -247,11 +212,10 @@ export default function DailyTasks() {
         taskName: task.name || task.taskName,
         type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
       }));
-
       setTasks(normalizedTasks);
     } catch (err) {
       console.error("Error fetching user tasks:", err.message);
-      toast.error(err.message);;
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -259,43 +223,32 @@ export default function DailyTasks() {
 
   const fetchPeople = async (q) => {
     if (!q.trim()) return setSearchResults([]);
-
     const parts = q.trim().split(/\s+/);
     const name = parts[0];
     const surname = parts.slice(1).join(" ");
-
     try {
-      const token = localStorage.getItem("token");
-      const res = await authFetch(`${API_URL}/people?name=${encodeURIComponent(name)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
+      const res = await authFetch(`${API_URL}/people?name=${encodeURIComponent(name)}`);
       if (!res.ok) throw new Error("Failed to fetch people");
-
       const data = await res.json();
-
       let filtered = (data?.results || []).filter(p =>
         p.Name.toLowerCase().includes(name.toLowerCase()) &&
         (!surname || p.Surname.toLowerCase().includes(surname.toLowerCase()))
       );
-
       filtered.sort((a, b) => {
         const nameA = a.Name.toLowerCase();
         const nameB = b.Name.toLowerCase();
         const surnameA = (a.Surname || "").toLowerCase();
         const surnameB = (b.Surname || "").toLowerCase();
-
         if (nameA < nameB) return -1;
         if (nameA > nameB) return 1;
         if (surnameA < surnameB) return -1;
         if (surnameA > surnameB) return 1;
         return 0;
       });
-
       setSearchResults(filtered);
     } catch (err) {
       console.error("Error fetching people:", err);
-      toast.error(err.message);;
+      toast.error(err.message);
       setSearchResults([]);
     }
   };
@@ -303,38 +256,24 @@ export default function DailyTasks() {
   const fetchAssigned = async (q) => {
     if (!q.trim()) return setAssignedResults([]);
     try {
-      const token = localStorage.getItem("token");
-      const res = await authFetch(`${API_URL}/assigned?name=${encodeURIComponent(q.trim())}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authFetch(`${API_URL}/assigned?name=${encodeURIComponent(q.trim())}`);
       const data = await res.json();
       setAssignedResults(data.results || []);
     } catch (err) {
       console.error("Error fetching assigned people:", err);
-      toast.error(err.message);;
+      toast.error(err.message);
     }
   };
 
-    const createTask = async (taskPayload) => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
+  const createTask = async (taskPayload) => {
     try {
       const res = await authFetch(`${API_URL}/tasks`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(taskPayload),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to create task');
-      }
-
+      if (!res.ok) throw new Error(data.message || 'Failed to create task');
       if (data.task) {
         setTasks((prev) => [
           {
@@ -348,7 +287,6 @@ export default function DailyTasks() {
           ...prev,
         ]);
       }
-
       return data;
     } catch (err) {
       console.error("Error creating task:", err.message);
@@ -357,25 +295,11 @@ export default function DailyTasks() {
   };
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      const freshUser = JSON.parse(localStorage.getItem("userProfile") || "{}");
-      const userId = freshUser?.userId || freshUser?.id;
-      if (userId) {
-        setStoredUser(freshUser);
-        fetchUserTasks(userId);
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    const userId = storedUser?.userId || storedUser?.id;
-    if (userId) {
-      fetchUserTasks(userId);
+    if (user) {
+      fetchUserTasks();
       fetchTaskTypes();
     }
-
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [user]); // Re-fetch when user changes (e.g., login/logout)
 
   const handleOpen = (type) => {
     setFormType(type);
@@ -401,28 +325,19 @@ export default function DailyTasks() {
   };
 
   const updateTask = async (taskId, updatedData) => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     try {
       const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedData),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update task");
-
       setTasks((prev) =>
         prev.map((t) =>
           t._id === taskId ? { ...t, ...data.updatedTask, date: data.updatedTask.followup_date } : t
         )
       );
-      
       handleClose();
     } catch (err) {
       console.error("Error updating task:", err.message);
@@ -433,10 +348,8 @@ export default function DailyTasks() {
   const handleEdit = (task) => {
     if (task.status?.toLowerCase() === "completed") {
       toast.info("This task has been marked as completed and cannot be edited.");
-;
       return;
     }
-
     setSelectedTask(task);
     setFormType(task.type);
     setIsModalOpen(true);
@@ -449,7 +362,7 @@ export default function DailyTasks() {
         Email: task.contacted_person?.email || "",
       },
       recipientDisplay: task.contacted_person?.name || "",
-      assignedTo: task.name || storedUser.name,
+      assignedTo: task.name || (user ? `${user.name} ${user.surname}` : ""),
       dueDate: formatDateTime(task.date),
       status: task.status,
       taskStage: task.status,
@@ -460,17 +373,16 @@ export default function DailyTasks() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      if (!storedUser?.id) throw new Error("Logged-in user ID not found");
+      if (!user?.id) throw new Error("Logged-in user ID not found");
 
       const person = taskData.recipient;
-
       if (!person || !person.Name) {
         throw new Error("Person details not found. Please select a valid recipient.");
       }
 
       const taskPayload = {
-        memberID: storedUser.id,
-        name: taskData.assignedTo || storedUser.name,
+        memberID: user.id,
+        name: taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
         taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
           name: `${person.Name} ${person.Surname || ""}`.trim(),
@@ -480,21 +392,16 @@ export default function DailyTasks() {
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
         type: formType || "call",
-        assignedfor: storedUser.email,
+        assignedfor: user.email,
       };
-
-      console.log("Task payload being sent:", JSON.stringify(taskPayload, null, 2));
 
       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
         toast.info(`Task for ${person.Name} ${person.Surname} updated successfully!`);
-;
       } else {
         await createTask(taskPayload);
         toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
-;
       }
-
       handleClose();
     } catch (err) {
       console.error("Error adding task:", err.message);
@@ -507,17 +414,13 @@ export default function DailyTasks() {
   const filteredTasks = tasks.filter((task) => {
     const taskDate = parseDate(task.date);
     if (!taskDate) return false;
-
     let matchesType =
       filterType === "all" ||
       task.type === filterType ||
       (filterType === "consolidation" && task.taskType === "consolidation");
-
     let matchesDate = true;
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     if (dateRange === "today") {
       matchesDate = isSameDay(taskDate, today);
     } else if (dateRange === "thisWeek") {
@@ -562,8 +465,8 @@ export default function DailyTasks() {
 
     // Map tasks to formatted data
     const formattedTasks = filteredTasks.map(task => ({
-      "Member ID": task.memberID || storedUser.id || "",
-      "Name": task.name || storedUser.name || "",
+      "Member ID": task.memberID || user.id || "",
+      "Name": task.name || user.name || "",
       "Task Type": task.taskType || "",
       "Contact Person": task.contacted_person?.name || "",
       "Contact Phone": task.contacted_person?.phone || task.contacted_person?.Number || "",
@@ -573,7 +476,7 @@ export default function DailyTasks() {
         : "",
       "Status": task.status || "",
       "Type": task.type || "",
-      "Assigned For": task.assignedfor || storedUser.email || "",
+      "Assigned For": task.assignedfor || user.email || "",
     }));
 
     // Get headers
@@ -685,7 +588,7 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
 
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-    const fileName = `filtered_tasks_${storedUser.name}_${new Date().toISOString().split('T')[0]}.xls`;
+    const fileName = `filtered_tasks_${user?.name || 'user'}_${new Date().toISOString().split('T')[0]}.xls`;
     
     link.href = url;
     link.download = fileName;
@@ -818,7 +721,7 @@ useEffect(() => {
               <UserPlus size={18} /> Visit Task
             </button>
             
-            {storedUser?.role === 'admin' && (
+            {user?.role === 'admin' && (
               <button
                 style={{
                   display: 'flex',

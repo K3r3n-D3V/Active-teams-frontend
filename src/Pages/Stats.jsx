@@ -431,7 +431,7 @@ const StatsDashboard = () => {
     }
   };
 
-  const { authFetch } = useContext(AuthContext);
+  const { user, authFetch } = useContext(AuthContext);
 
 const fetchStats = useCallback(async (forceRefresh = false) => {
   const currentPeriod = periodRef.current;   // ← This is always up-to-date!
@@ -458,12 +458,6 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     setRefreshing(true);
     setStats(prev => ({ ...prev, loading: true, error: null }));
 
-    const token = localStorage.getItem("token");
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-
     const dateRange = getPeriodRange(currentPeriod);
     const startDate = dateRange.start.toISOString().split('T')[0];
     const endDate = dateRange.end.toISOString().split('T')[0];
@@ -473,7 +467,6 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
 
     const response = await authFetch(
       `${BACKEND_URL}/stats/dashboard-comprehensive?period=${currentPeriod}&start_date=${startDate}&end_date=${endDate}`,
-      { headers }
     );
 
     if (!response.ok) {
@@ -503,18 +496,15 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
 
     // Fallback logic (also use currentPeriod)
     try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
       const dateRange = getPeriodRange(currentPeriod);
       const startDate = dateRange.start.toISOString().split('T')[0];
       const endDate = dateRange.end.toISOString().split('T')[0];
 
-      const quickResponse = await authFetch(`${BACKEND_URL}/stats/dashboard-quick?period=${currentPeriod}`, { headers });
+      const quickResponse = await authFetch(`${BACKEND_URL}/stats/dashboard-quick?period=${currentPeriod}`);
       if (!quickResponse.ok) throw err;
 
       const quickData = await quickResponse.json();
-      const tasksResponse = await authFetch(`${BACKEND_URL}/tasks?start_date=${startDate}&end_date=${endDate}&limit=100`, { headers });
+      const tasksResponse = await authFetch(`${BACKEND_URL}/tasks?start_date=${startDate}&end_date=${endDate}&limit=100`);
 
       let tasksData = { allTasks: [], groupedTasks: [] };
       if (tasksResponse.ok) {
@@ -594,10 +584,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
   useEffect(() => {
     const fetchEventTypes = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await authFetch(`${BACKEND_URL}/event-types`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await authFetch(`${BACKEND_URL}/event-types`);
 
         if (!res.ok) throw new Error("Failed to load event types");
 
@@ -657,7 +644,6 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     }
 
     try {
-      const token = localStorage.getItem("token");
       const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
 
       const payload = {
@@ -676,10 +662,6 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
 
       const res = await authFetch(`${BACKEND_URL}/events`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify(payload)
       });
 
