@@ -101,7 +101,7 @@ export const AuthProvider = ({ children }) => {
 
     const data = await res.json();
     
-    console.log('✅ [AuthContext] Login successful, storing data');
+    console.log(' [AuthContext] Login successful, storing data');
     console.log("LOGIN DATA", data);
     
     // Store tokens
@@ -137,7 +137,7 @@ export const AuthProvider = ({ children }) => {
 
     // Verify localStorage write was successful
     const verifyStore = localStorage.getItem(KEY_USER);
-    console.log('✅ [AuthContext] Verify localStorage write:', {
+    console.log(' [AuthContext] Verify localStorage write:', {
       stored: !!verifyStore,
       length: verifyStore?.length
     });
@@ -145,7 +145,7 @@ export const AuthProvider = ({ children }) => {
     setUser(userWithAvatar);
     setIsAuthenticated(true);
 
-    console.log('✅ [AuthContext] User state updated:', {
+    console.log(' [AuthContext] User state updated:', {
       email: userWithAvatar.email,
       role: userWithAvatar.role,
       hasProfilePicture: !!userWithAvatar.profile_picture,
@@ -172,7 +172,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const updateProfilePicture = useCallback((newPictureUrl) => {
-    console.log('🔄 Updating profile picture in AuthContext:', newPictureUrl);
+    console.log(' Updating profile picture in AuthContext:', newPictureUrl);
     
     if (user) {
       const updatedUser = ensureUserWithAvatar({ 
@@ -183,14 +183,14 @@ export const AuthProvider = ({ children }) => {
       });
       setUser(updatedUser);
       persistUser(updatedUser);
-      console.log('✅ Profile picture updated in AuthContext and localStorage');
+      console.log(' Profile picture updated in AuthContext and localStorage');
     }
   }, [user]);
 
   // Sync with localStorage changes (for cross-tab synchronization)
   useEffect(() => {
     const handleStorageChange = (e) => {
-      console.log('🔄 Storage change detected:', e.key);
+      console.log(' Storage change detected:', e.key);
       
       if (e.key === KEY_USER || e.key === KEY_PROFILE_PIC) {
         const storedUser = localStorage.getItem(KEY_USER);
@@ -200,7 +200,7 @@ export const AuthProvider = ({ children }) => {
             const userWithAvatar = ensureUserWithAvatar(parsedUser);
             setUser(userWithAvatar);
           } catch (error) {
-            console.error('❌ Error parsing user from storage:', error);
+            console.error(' Error parsing user from storage:', error);
           }
         } else {
           setUser(null);
@@ -214,7 +214,7 @@ export const AuthProvider = ({ children }) => {
           try {
             setLeaders(JSON.parse(storedLeaders));
           } catch (error) {
-            console.error('❌ Error parsing leaders from storage:', error);
+            console.error(' Error parsing leaders from storage:', error);
           }
         } else {
           setLeaders(null);
@@ -227,7 +227,7 @@ export const AuthProvider = ({ children }) => {
           try {
             setIsLeader(JSON.parse(storedIsLeader));
           } catch (error) {
-            console.error('❌ Error parsing isLeader from storage:', error);
+            console.error(' Error parsing isLeader from storage:', error);
           }
         } else {
           setIsLeader(false);
@@ -315,14 +315,14 @@ export const AuthProvider = ({ children }) => {
 
     const initializeAuth = async () => {
       try {
-        console.log('🔄 [AuthContext] Initializing auth...');
+        console.log(' [AuthContext] Initializing auth...');
         
         const access = localStorage.getItem(KEY_ACCESS);
         const storedUser = localStorage.getItem(KEY_USER);
         const storedLeaders = localStorage.getItem(KEY_LEADERS);
         const storedIsLeader = localStorage.getItem(KEY_IS_LEADER);
         
-        console.log('🔍 [AuthContext] Checking localStorage:', {
+        console.log(' [AuthContext] Checking localStorage:', {
           hasToken: !!access,
           hasStoredUser: !!storedUser,
           hasProfilePic: !!localStorage.getItem(KEY_PROFILE_PIC),
@@ -358,7 +358,7 @@ export const AuthProvider = ({ children }) => {
           try {
             setLeaders(JSON.parse(storedLeaders));
           } catch (error) {
-            console.error('❌ Error parsing leaders data:', error);
+            console.error(' Error parsing leaders data:', error);
           }
         }
         
@@ -367,7 +367,7 @@ export const AuthProvider = ({ children }) => {
           try {
             setIsLeader(JSON.parse(storedIsLeader));
           } catch (error) {
-            console.error('❌ Error parsing isLeader data:', error);
+            console.error(' Error parsing isLeader data:', error);
           }
         }
 
@@ -376,7 +376,7 @@ export const AuthProvider = ({ children }) => {
             setUser(finalUser);
             setIsAuthenticated(true);
             
-            console.log('✅ [AuthContext] User restored from localStorage:', {
+            console.log(' [AuthContext] User restored from localStorage:', {
               email: finalUser.email,
               role: finalUser.role,
               isLeader: JSON.parse(storedIsLeader || 'false'),
@@ -385,18 +385,18 @@ export const AuthProvider = ({ children }) => {
             });
           }
         } else if (finalAccess && !finalUser) {
-          console.log('⚠️ [AuthContext] Token exists but no userProfile - logging out');
+          console.log(' [AuthContext] Token exists but no userProfile - logging out');
           if (mounted) logout();
         } else {
-          console.log('❌ [AuthContext] No stored auth found');
+          console.log(' [AuthContext] No stored auth found');
         }
       } catch (error) {
-        console.error('❌ [AuthContext] Error initializing auth:', error);
+        console.error(' [AuthContext] Error initializing auth:', error);
         logout();
       } finally {
         if (mounted) {
           setLoading(false);
-          console.log('✅ [AuthContext] Auth initialization complete, loading set to false');
+          console.log(' [AuthContext] Auth initialization complete, loading set to false');
         }
       }
     };

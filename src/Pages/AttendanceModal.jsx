@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect,useContext } from "react";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -9,7 +9,7 @@ import {
   Menu,
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
-
+import {AuthContext} from "../contexts/AuthContext"
 let globalPeopleCache = {
   data: [],
   timestamp: null,
@@ -44,7 +44,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     leader12: "",
     leader144: ""
   });
-
+  const {authFetch} = useContext(AuthContext)
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
   useEffect(() => {
@@ -78,7 +78,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         params.append("_t", now.toString());
       }
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
 
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
@@ -150,7 +150,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         params.append("name", searchTerm);
         params.append("perPage", "20");
 
-        const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
         const data = await res.json();
         const peopleArray = data.people || data.results || [];
 
@@ -344,7 +344,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       };
       console.log("Sending person data to backend:", personData);
 
-      const response = await fetch(`${BACKEND_URL}/people`, {
+      const response = await authFetch(`${BACKEND_URL}/people`, {
         method: "POST",
         headers: headers,
         body: JSON.stringify(personData),
@@ -830,7 +830,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-
+  const {authFetch} =useContext(AuthContext)
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
@@ -899,7 +899,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
         params.append("name", searchTerm);
         params.append("perPage", "15");
 
-        const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
         const data = await res.json();
         const peopleArray = data.people || data.results || [];
 
@@ -1200,7 +1200,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading,] = useState(false);
-
+  const {authFetch} =useContext(AuthContext)
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
@@ -1241,7 +1241,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       const fetchAttendees = async () => {
         try {
           const token = localStorage.getItem("token");
-          const response = await fetch(
+          const response = await authFetch(
             `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -1319,7 +1319,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       params.append("perPage", "100");
       params.append("page", "1");
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
+      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, {
         headers,
       });
 
@@ -1373,7 +1373,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+      const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -1429,7 +1429,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      const res = await fetch(
+      const res = await authFetch(
         `${BACKEND_URL}/events/cell/${cellId}/common-attendees`,
         { headers }
       );
@@ -1488,7 +1488,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
 
-      const response = await fetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
+      const response = await authFetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
         method: "PUT",
         headers: headers,
         body: JSON.stringify({
@@ -1646,7 +1646,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(
+      const response = await authFetch(
         `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
         {
           method: "PUT",
@@ -1852,7 +1852,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           Authorization: `Bearer ${token}`,
         };
 
-        const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+        const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
           method: "PUT",
           headers: headers,
           body: JSON.stringify(payload),
@@ -1952,7 +1952,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           Authorization: `Bearer ${token}`,
         };
 
-        const response = await fetch(
+        const response = await authFetch(
           `${BACKEND_URL}/submit-attendance/${eventId}`,
           {
             method: "PUT",
