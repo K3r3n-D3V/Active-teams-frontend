@@ -1,7 +1,5 @@
-// People.jsx (Optimized search with debouncing)
 import React, { useState, useEffect, useMemo, useCallback, useRef, useContext } from 'react';
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import axios from 'axios';
 import { AuthContext } from '../contexts/AuthContext';
 import { UserContext } from '../contexts/UserContext';
 import {
@@ -170,6 +168,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isMedium = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
+  const { authFetch } = useContext(AuthContext);
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
   const handleDragEnd = async (result) => {
@@ -196,28 +195,31 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
     try {
       const personToUpdate = allPeople.find(p => String(p._id) === String(draggableId));
 
-      const response = await axios.patch(`${BACKEND_URL}/people/${draggableId}`, {
-        Name: personToUpdate.name,
-        Surname: personToUpdate.surname,
-        Gender: personToUpdate.gender,
-        Birthday: personToUpdate.dob,
-        Address: personToUpdate.location,
-        Email: personToUpdate.email,
-        Number: personToUpdate.phone,
-        Stage: newStage,
-        "Leader @1": personToUpdate.leaders.leader1,
-        "Leader @12": personToUpdate.leaders.leader12,
-        "Leader @144": personToUpdate.leaders.leader144,
-        "Leader @1728": personToUpdate.leaders.leader1728
-      }, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 10000
+      const response = await authFetch(`${BACKEND_URL}/people/${draggableId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          Name: personToUpdate.name,
+          Surname: personToUpdate.surname,
+          Gender: personToUpdate.gender,
+          Birthday: personToUpdate.dob,
+          Address: personToUpdate.location,
+          Email: personToUpdate.email,
+          Number: personToUpdate.phone,
+          Stage: newStage,
+          "Leader @1": personToUpdate.leaders.leader1,
+          "Leader @12": personToUpdate.leaders.leader12,
+          "Leader @144": personToUpdate.leaders.leader144,
+          "Leader @1728": personToUpdate.leaders.leader1728
+        }),
+        headers: { 'Content-Type': 'application/json' }
       });
 
+      const data = await response.json();
+      
       const updateWithTimestamp = (peopleArray) => {
         return peopleArray.map(p =>
           String(p._id) === String(draggableId)
-            ? { ...p, Stage: newStage, lastUpdated: response.data.UpdatedAt || new Date().toISOString() }
+            ? { ...p, Stage: newStage, lastUpdated: data.UpdatedAt || new Date().toISOString() }
             : p
         );
       };
@@ -227,18 +229,18 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
       if (updatePersonInCache) {
         updatePersonInCache(draggableId, {
           Stage: newStage,
-          lastUpdated: response.data.UpdatedAt || new Date().toISOString()
+          lastUpdated: data.UpdatedAt || new Date().toISOString()
         });
       }
 
     } catch (err) {
-      console.error("Failed to update Stage:", err.response?.data || err.message);
+      console.error("Failed to update Stage:", err.message || err);
 
       setAllPeople(prev => prev.map(p =>
         String(p._id) === String(draggableId) ? originalPerson : p
       ));
 
-      alert(`Failed to update stage: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
+      alert(`Failed to update stage: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -298,7 +300,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
 // ---------------- PeopleSection ----------------
 export const PeopleSection = () => {
   const theme = useTheme();
-  const { user } = useContext(AuthContext);
+  const { user, authFetch } = useContext(AuthContext);
   const { userProfile } = useContext(UserContext);
   const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
   const [loading, setLoading] = useState(false);
@@ -366,11 +368,9 @@ export const PeopleSection = () => {
     setLoading(true);
 
     try {
-      const res = await axios.get(`${BACKEND_URL}/people`, {
-        params: { perPage: 0 },
-        timeout: 80000
-      });
-      const rawPeople = res.data?.results || [];
+      const response = await authFetch(`${BACKEND_URL}/people?perPage=0`);
+      const data = await response.json();
+      const rawPeople = data?.results || [];
 
       const mapped = rawPeople.map(raw => ({
         _id: (raw._id || raw.id || "").toString(),
@@ -407,7 +407,7 @@ export const PeopleSection = () => {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [BACKEND_URL]);
+  }, [BACKEND_URL, authFetch]);
 
   // Optimized search function
   const searchPeople = useCallback((peopleList, searchValue, field) => {
