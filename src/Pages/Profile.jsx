@@ -54,19 +54,7 @@ const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
 // Updated: Get token from any possible key
 const createAuthenticatedRequest = () => {
-  // Try all possible token keys
-  const token = 
-    localStorage.getItem("access_token") || 
-    localStorage.getItem("token") ||
-    localStorage.getItem("accessToken");
-  
-  console.log("🔐 Token found:", token ? "✓ Yes" : "✗ No");
-  console.log("🔐 Token key used:", 
-    localStorage.getItem("access_token") ? "access_token" :
-    localStorage.getItem("token") ? "token" :
-    localStorage.getItem("accessToken") ? "accessToken" : "None"
-  );
-  
+  const token = localStorage.getItem("access_token");
   return axios.create({
     baseURL: BACKEND_URL,
     headers: {
@@ -235,79 +223,10 @@ async function fetchUserProfile(authFetch) {
   }
 }
 
-// Updated: Use authFetch for profile updates
-async function updateUserProfile(data, authFetch) {
-  console.log("=== UPDATE PROFILE START ===");
-  
-  // Get userId from multiple sources
-  let userId = localStorage.getItem("userId");
-  
-  if (!userId) {
-    const userProfileStr = localStorage.getItem("userProfile");
-    if (userProfileStr) {
-      try {
-        const profile = JSON.parse(userProfileStr);
-        userId = profile.id || profile._id || profile.userId;
-        console.log("Found userId in userProfile:", userId);
-        
-        if (userId) {
-          localStorage.setItem("userId", userId);
-        }
-      } catch (e) {
-        console.error("Failed to parse userProfile:", e);
-      }
-    }
-  }
-  
-  if (!userId) {
-    console.error("❌ No userId found for update!");
-    throw new Error("User ID not found");
-  }
-
-  try {
-    console.log("🔄 Sending profile update to backend...");
-    console.log("📤 Payload:", data);
-    console.log("👤 User ID:", userId);
-    
-    // Use authFetch if available
-    if (authFetch) {
-      console.log("Using authFetch for update...");
-      const response = await authFetch(`${BACKEND_URL}/profile/${userId}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
-      }
-      
-      const responseData = await response.json();
-      console.log("✅ Profile update successful via authFetch:", responseData);
-      return responseData;
-    } else {
-      // Fallback to axios
-      const api = createAuthenticatedRequest();
-      const response = await api.put(`/profile/${userId}`, data);
-      
-      console.log("✅ Profile update successful via axios:", response.data);
-      return response.data;
-    }
-  } catch (error) {
-    console.error("❌ Profile update failed:", error);
-    
-    const errorMessage =
-      error.response?.data?.detail ||
-      error.response?.data?.message ||
-      error.message ||
-      "Unknown error occurred";
-    
-    throw new Error(errorMessage);
-  }
-}
 
 async function uploadAvatarFromDataUrl(dataUrl, authFetch) {
   const userId = localStorage.getItem("userId");
+  const token = localStorage.getItem("access_token");
   
   if (!userId) {
     throw new Error("User ID not found");

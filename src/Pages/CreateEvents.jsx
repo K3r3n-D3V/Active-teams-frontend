@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect,useContext} from "react";
 import {
   Button,
   TextField,
@@ -21,7 +21,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-
+import  {AuthContext} from "../contexts/AuthContext"
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
@@ -42,7 +42,7 @@ const CreateEvents = ({
   const { id: eventId } = useParams();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
-
+  const authFetch =useContext(AuthContext)
   const [eventTypeFlags, setEventTypeFlags] = useState({
     isGlobal: false,
     isTicketed: false,
@@ -243,7 +243,7 @@ useEffect(() => {
   try {
     setLoadingPeople(true);
     const token = localStorage.getItem("token");
-    const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+    const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 

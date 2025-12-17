@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback,useContext} from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -35,6 +35,7 @@ import {
   Lock as LockIcon, // Added from new code
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
+import {AuthContext} from "../contexts/AuthContext"
 // Define user role constants (from new code)
 const USER_ROLES = {
   ADMIN: 'admin',
@@ -54,7 +55,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [changedFields, setChangedFields] = useState([]);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [showAllFields, setShowAllFields] = useState(false);
- 
+  const authFetch =useContext(AuthContext)
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
  
   // Get user role from localStorage (from Profile component logic - new code)
@@ -414,7 +415,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         console.log(`Calling single cell endpoint: ${endpoint}`);
       }
      
-      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+      const response = await authFetch(`${BACKEND_URL}${endpoint}`, {
         method: method,
         headers: {
           'Content-Type': 'application/json',
