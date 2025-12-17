@@ -44,7 +44,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     leader12: "",
     leader144: ""
   });
-  const authFetch =useContext(AuthContext)
+  const {authFetch} = useContext(AuthContext)
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
   useEffect(() => {
@@ -830,7 +830,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-
+  const {authFetch} =useContext(AuthContext)
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
@@ -1200,7 +1200,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading,] = useState(false);
-
+  const {authFetch} =useContext(AuthContext)
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);

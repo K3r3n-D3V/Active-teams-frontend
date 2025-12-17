@@ -1,6 +1,12 @@
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  useContext,
+} from "react";
 import axios from "axios";
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 import IconButton from "@mui/material/IconButton";
@@ -8,9 +14,15 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Tooltip from "@mui/material/Tooltip";
-import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment } from "@mui/material";
-import { DataGrid, GridToolbar } from '@mui/x-data-grid';
-import MoreVertIcon from "@mui/icons-material/MoreVert";
+import {
+  Box,
+  useMediaQuery,
+  LinearProgress,
+  TextField,
+  InputAdornment,
+} from "@mui/material";
+import { DataGrid, GridToolbar } from "@mui/x-data-grid";
+// import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
 import Popover from "@mui/material/Popover";
 import MenuItem from "@mui/material/MenuItem";
@@ -30,6 +42,7 @@ import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { AuthContext } from "../contexts/AuthContext";
 
 const styles = {
   container: {
@@ -42,7 +55,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    height: '100vh',
+    height: "100vh",
     position: "relative",
     width: "100%",
     maxWidth: "100vw",
@@ -68,20 +81,20 @@ const styles = {
   },
   eventsContent: {
     flexGrow: 1,
-    overflowY: 'auto',
-    padding: '0 1rem',
-    paddingBottom: '70px',
+    overflowY: "auto",
+    padding: "0 1rem",
+    paddingBottom: "70px",
   },
   statusBadge: {
-    padding: '0.6rem 1.2rem',
-    borderRadius: '12px',
-    fontSize: '0.9rem',
-    fontWeight: '600',
-    cursor: 'pointer',
-    border: '2px solid',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    textTransform: 'uppercase',
-    whiteSpace: 'nowrap',
+    padding: "0.6rem 1.2rem",
+    borderRadius: "12px",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    cursor: "pointer",
+    border: "2px solid",
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    textTransform: "uppercase",
+    whiteSpace: "nowrap",
   },
   statusBadgeIncomplete: {
     backgroundColor: "#FFA500",
@@ -111,22 +124,22 @@ const styles = {
     whiteSpace: "nowrap",
   },
   actionIcons: {
-    display: 'flex',
-    gap: '0.5rem',
-    alignItems: 'center',
-    justifyContent: 'center',
+    display: "flex",
+    gap: "0.5rem",
+    alignItems: "center",
+    justifyContent: "center",
   },
   truncatedText: {
-    maxWidth: '150px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    maxWidth: "150px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   emailText: {
-    maxWidth: '180px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    maxWidth: "180px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   modalOverlay: {
     position: "fixed",
@@ -227,59 +240,59 @@ const styles = {
     justifyContent: "flex-end",
   },
   viewFilterContainer: {
-    display: 'flex',
-    gap: '1rem',
-    alignItems: 'center',
+    display: "flex",
+    gap: "1rem",
+    alignItems: "center",
   },
   viewFilterLabel: {
-    fontSize: '1rem',
-    fontWeight: '600',
-    color: '#495057',
+    fontSize: "1rem",
+    fontWeight: "600",
+    color: "#495057",
   },
   viewFilterRadio: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    cursor: 'pointer',
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    cursor: "pointer",
   },
   viewFilterText: {
-    fontSize: '1.1rem',
-    transition: 'all 0.2s ease',
+    fontSize: "1.1rem",
+    transition: "all 0.2s ease",
   },
   rowsSelect: {
-    padding: '0.25rem 0.5rem',
-    border: '1px solid #dee2e6',
-    borderRadius: '8px',
-    backgroundColor: '#fff',
-    fontSize: '0.875rem',
+    padding: "0.25rem 0.5rem",
+    border: "1px solid #dee2e6",
+    borderRadius: "8px",
+    backgroundColor: "#fff",
+    fontSize: "0.875rem",
   },
   paginationContainer: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    padding: '1rem',
-    borderTop: '1px solid #e9ecef',
-    backgroundColor: '#f8f9fa',
-    gap: '1.5rem',
-    borderBottomLeftRadius: '16px',
-    borderBottomRightRadius: '16px',
-    flexWrap: 'wrap',
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    padding: "1rem",
+    borderTop: "1px solid #e9ecef",
+    backgroundColor: "#f8f9fa",
+    gap: "1.5rem",
+    borderBottomLeftRadius: "16px",
+    borderBottomRightRadius: "16px",
+    flexWrap: "wrap",
   },
   rowsPerPage: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.875rem',
-    color: '#6c757d',
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    fontSize: "0.875rem",
+    color: "#6c757d",
   },
   paginationInfo: {
-    fontSize: '0.875rem',
-    color: '#6c757d',
+    fontSize: "0.875rem",
+    color: "#6c757d",
   },
   paginationControls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.25rem',
+    display: "flex",
+    alignItems: "center",
+    gap: "0.25rem",
   },
 };
 
@@ -312,14 +325,14 @@ const fabStyles = {
     whiteSpace: "nowrap",
     transition: "all 0.2s ease",
     border: "1px solid #e0e0e0",
-    '&:hover': {
-      transform: 'translateY(-2px)',
-      boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
-      backgroundColor: '#f8f9fa',
+    "&:hover": {
+      transform: "translateY(-2px)",
+      boxShadow: "0 6px 16px rgba(0,0,0,0.2)",
+      backgroundColor: "#f8f9fa",
     },
-    '&:focus': {
-      outline: '2px solid #007bff',
-      outlineOffset: '2px',
+    "&:focus": {
+      outline: "2px solid #007bff",
+      outlineOffset: "2px",
     },
   },
   fabMenuLabel: {
@@ -339,6 +352,111 @@ const fabStyles = {
     fontSize: "12px",
     fontWeight: "bold",
   },
+};
+const StatusBadges = ({
+  selectedStatus,
+  setSelectedStatus,
+  setCurrentPage,
+  viewFilter,
+  userRole,
+  rowsPerPage,
+  searchQuery,
+  selectedEventTypeFilter,
+  isLeaderAt12,
+  currentUserLeaderAt1,
+  fetchEvents,
+  DEFAULT_API_START_DATE,
+  styles,
+}) => {
+  const statuses = [
+    {
+      value: "incomplete",
+      label: "INCOMPLETE",
+      style: styles.statusBadgeIncomplete,
+    },
+    {
+      value: "complete",
+      label: "COMPLETE",
+      style: styles.statusBadgeComplete,
+    },
+    {
+      value: "did_not_meet",
+      label: "DID NOT MEET",
+      style: styles.statusBadgeDidNotMeet,
+    },
+  ];
+
+  // Update the StatusBadges component's handleStatusClick function:
+const handleStatusClick = (statusValue) => {
+  console.log("Status filter changing to:", statusValue);
+
+  setSelectedStatus(statusValue);
+  setCurrentPage(1);
+
+  const shouldApplyPersonalFilter =
+    viewFilter === "personal" &&
+    (userRole === "admin" || userRole === "leader at 12");
+
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE,
+    _t: Date.now(),
+    ...(searchQuery.trim() && { search: searchQuery.trim() }),
+    ...(selectedEventTypeFilter !== "all" && {
+      event_type: selectedEventTypeFilter,
+    }),
+    ...(shouldApplyPersonalFilter && { personal: true }),
+  };
+
+  // CRITICAL FIX: Always include status in params (don't skip it)
+  if (statusValue && statusValue !== "all") {
+    fetchParams.status = statusValue;
+  }
+
+  if (
+    isLeaderAt12 &&
+    (selectedEventTypeFilter === "all" ||
+      selectedEventTypeFilter === "CELLS")
+  ) {
+    fetchParams.leader_at_12_view = true;
+    fetchParams.include_subordinate_cells = true;
+
+    if (currentUserLeaderAt1) {
+      fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+    }
+
+    if (viewFilter === "personal") {
+      fetchParams.show_personal_cells = true;
+      fetchParams.personal = true;
+    } else {
+      fetchParams.show_all_authorized = true;
+    }
+  }
+
+  console.log("Fetching with status params:", fetchParams);
+  fetchEvents(fetchParams, true, true); // Force refresh with loader
+};
+
+  return (
+    <div style={styles.statusBadgeContainer}>
+      {statuses.map((status) => (
+        <button
+          key={status.value}
+          style={{
+            ...styles.statusBadge,
+            ...status.style,
+            ...(selectedStatus === status.value
+              ? styles.statusBadgeActive
+              : {}),
+          }}
+          onClick={() => handleStatusClick(status.value)}
+        >
+          {status.label}
+        </button>
+      ))}
+    </div>
+  );
 };
 
 const getEventTypeStyles = (isDarkMode, theme, isMobileView) => ({
@@ -396,7 +514,9 @@ const getEventTypeStyles = (isDarkMode, theme, isMobileView) => ({
     transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     position: "relative",
     overflow: "hidden",
-    boxShadow: isDarkMode ? "0 2px 4px rgba(0,0,0,0.2)" : "0 2px 4px rgba(0,0,0,0.05)",
+    boxShadow: isDarkMode
+      ? "0 2px 4px rgba(0,0,0,0.2)"
+      : "0 2px 4px rgba(0,0,0,0.05)",
     color: isDarkMode ? theme.palette.text.primary : "inherit",
   },
   typeCardActive: {
@@ -408,7 +528,9 @@ const getEventTypeStyles = (isDarkMode, theme, isMobileView) => ({
   typeCardHover: {
     borderColor: isDarkMode ? theme.palette.primary.main : "#ddd",
     transform: "translateY(-2px)",
-    boxShadow: isDarkMode ? "0 4px 8px rgba(0,0,0,0.3)" : "0 4px 8px rgba(0,0,0,0.1)",
+    boxShadow: isDarkMode
+      ? "0 4px 8px rgba(0,0,0,0.3)"
+      : "0 4px 8px rgba(0,0,0,0.1)",
   },
   typeName: {
     fontSize: isMobileView ? "0.75rem" : "0.9rem",
@@ -426,11 +548,13 @@ const formatDate = (date) => {
   if (!date) return "Not set";
   const dateObj = new Date(date);
   if (isNaN(dateObj.getTime())) return "Not set";
-  return dateObj.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  }).replace(/\//g, ' - ');
+  return dateObj
+    .toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    })
+    .replace(/\//g, " - ");
 };
 
 const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
@@ -442,33 +566,67 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
 
     // Fields to exclude
     const excludedFields = [
-      'persistent_attendees', 'uuid', 'did_not_meet', 'status',
-      'week_identifier', 'attendees', '_id', 'isoverdue', 'attendance', 'location',
-      'eventtype', 'event_type', 'eventtypes', 'status', 'displaydate', 'originatedid',
-      'leader12', 'leader@12', 'leader at 12', 'original_event_id', '_is_overdue',
-      'haspersonsteps', 'haspersonsteps', 'has_person_steps',
-      'is_recurring', 'isrecurring', 'recurring'
+      "persistent_attendees",
+      "uuid",
+      "did_not_meet",
+      "status",
+      "week_identifier",
+      "attendees",
+      "_id",
+      "isoverdue",
+      "attendance",
+      "location",
+      "eventtype",
+      "event_type",
+      "eventtypes",
+      "status",
+      "displaydate",
+      "originatedid",
+      "leader12",
+      "leader@12",
+      "leader at 12",
+      "original_event_id",
+      "_is_overdue",
+      "haspersonsteps",
+      "haspersonsteps",
+      "has_person_steps",
+      "is_recurring",
+      "isrecurring",
+      "recurring",
     ];
 
     const exactMatch = excludedFields.includes(key);
-    const caseInsensitiveMatch = excludedFields.some(excluded =>
-      excluded.toLowerCase() === keyLower
+    const caseInsensitiveMatch = excludedFields.some(
+      (excluded) => excluded.toLowerCase() === keyLower
     );
 
     // Also exclude fields that contain these words
-    const containsOverdue = keyLower.includes('overdue');
-    const containsDisplayDate = keyLower.includes('display') && keyLower.includes('date');
-    const containsOriginated = keyLower.includes('originated');
-    const containsLeader12 = keyLower.includes('leader') && keyLower.includes('12');
-    const containsLeader1 = keyLower.includes('leader1') || keyLower.includes('leader@1') || keyLower.includes('leader at 1');
-    const shouldExcludeLeader1 = containsLeader1 &&
-      selectedEventTypeFilter !== 'all' &&
-      selectedEventTypeFilter !== 'CELLS' &&
-      selectedEventTypeFilter !== 'Cells';
+    const containsOverdue = keyLower.includes("overdue");
+    const containsDisplayDate =
+      keyLower.includes("display") && keyLower.includes("date");
+    const containsOriginated = keyLower.includes("originated");
+    const containsLeader12 =
+      keyLower.includes("leader") && keyLower.includes("12");
+    const containsLeader1 =
+      keyLower.includes("leader1") ||
+      keyLower.includes("leader@1") ||
+      keyLower.includes("leader at 1");
+    const shouldExcludeLeader1 =
+      containsLeader1 &&
+      selectedEventTypeFilter !== "all" &&
+      selectedEventTypeFilter !== "CELLS" &&
+      selectedEventTypeFilter !== "Cells";
 
-    const containsPersonSteps = keyLower.includes('person') && keyLower.includes('steps');
-    const shouldExclude = exactMatch || caseInsensitiveMatch || containsOverdue ||
-      containsDisplayDate || containsOriginated || containsLeader12 || shouldExcludeLeader1 ||
+    const containsPersonSteps =
+      keyLower.includes("person") && keyLower.includes("steps");
+    const shouldExclude =
+      exactMatch ||
+      caseInsensitiveMatch ||
+      containsOverdue ||
+      containsDisplayDate ||
+      containsOriginated ||
+      containsLeader12 ||
+      shouldExcludeLeader1 ||
       containsPersonSteps;
 
     return !shouldExclude;
@@ -476,25 +634,29 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
   const columns = [];
 
   columns.push({
-    field: 'overdue',
-    headerName: 'Status',
+    field: "overdue",
+    headerName: "Status",
     flex: 0.8,
     minWidth: 100,
     renderCell: (params) => {
       const isOverdueEvent = isOverdue(params.row);
-      const status = params.row.status || 'incomplete';
+      const status = params.row.status || "incomplete";
 
       // Only show OVERDUE for Cells
-      if (isOverdueEvent && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
+      if (
+        isOverdueEvent &&
+        (selectedEventTypeFilter === "all" ||
+          selectedEventTypeFilter === "CELLS")
+      ) {
         return (
           <Box
             sx={{
-              color: '#dc3545',
-              fontSize: '0.8rem',
-              fontWeight: 'bold',
-              whiteSpace: 'nowrap',
-              textAlign: 'center',
-              width: '100%',
+              color: "#dc3545",
+              fontSize: "0.8rem",
+              fontWeight: "bold",
+              whiteSpace: "nowrap",
+              textAlign: "center",
+              width: "100%",
             }}
           >
             OVERDUE
@@ -504,52 +666,59 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       return (
         <Box
           sx={{
-            color: status === 'complete' ? '#28a745' : status === 'did_not_meet' ? '#dc3545' : '#6c757d',
-            fontWeight: '500',
-            fontSize: '0.8rem',
-            textTransform: 'capitalize',
-            textAlign: 'center',
-            width: '100%',
+            color:
+              status === "complete"
+                ? "#28a745"
+                : status === "did_not_meet"
+                  ? "#dc3545"
+                  : "#6c757d",
+            fontWeight: "500",
+            fontSize: "0.8rem",
+            textTransform: "capitalize",
+            textAlign: "center",
+            width: "100%",
           }}
         >
-          {status.replace('_', ' ')}
+          {status.replace("_", " ")}
         </Box>
       );
     },
   });
 
   // Add other filtered fields
-  columns.push(...filteredFields.map((key) => ({
-    field: key,
-    headerName: key
-      .replace(/_/g, ' ')
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, (str) => str.toUpperCase()),
-    flex: 1,
-    minWidth: 150,
-    renderCell: (params) => {
-      const value = params.value;
-      if (key.toLowerCase().includes('date')) return formatDate(value);
-      if (!value) return '-';
+  columns.push(
+    ...filteredFields.map((key) => ({
+      field: key,
+      headerName: key
+        .replace(/_/g, " ")
+        .replace(/([A-Z])/g, " $1")
+        .replace(/^./, (str) => str.toUpperCase()),
+      flex: 1,
+      minWidth: 150,
+      renderCell: (params) => {
+        const value = params.value;
+        if (key.toLowerCase().includes("date")) return formatDate(value);
+        if (!value) return "-";
 
-      return (
-        <Box
-          sx={{
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            maxWidth: 180,
-          }}
-          title={String(value)}
-        >
-          {String(value)}
-        </Box>
-      );
-    },
-  })));
+        return (
+          <Box
+            sx={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: 180,
+            }}
+            title={String(value)}
+          >
+            {String(value)}
+          </Box>
+        );
+      },
+    }))
+  );
 
   return columns;
-}
+};
 
 const MobileEventCard = ({
   event,
@@ -561,33 +730,46 @@ const MobileEventCard = ({
   theme,
   styles,
   isAdmin,
-  isLeaderAt12,
-  currentUserLeaderAt1,
-  selectedEventTypeFilter
+  // isLeaderAt12,
+  // currentUserLeaderAt1,
+  selectedEventTypeFilter,
 }) => {
   if (!theme) {
     return <Box sx={{ height: 100 }} />;
   }
-  const isDark = theme.palette.mode === 'dark';
-  const borderColor = isDark ? theme.palette.divider : '#e9ecef';
+  const isDark = theme.palette.mode === "dark";
+  const borderColor = isDark ? theme.palette.divider : "#e9ecef";
 
   const attendeesCount = event.attendees?.length || 0;
-  const isCellEvent = selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' || selectedEventTypeFilter === 'Cells';
+  const isCellEvent =
+    selectedEventTypeFilter === "all" ||
+    selectedEventTypeFilter === "CELLS" ||
+    selectedEventTypeFilter === "Cells";
 
   return (
     <div
       style={{
         ...styles.mobileCard,
         borderColor: borderColor,
-        backgroundColor: isDark ? theme.palette.background.default : '#fff'
+        backgroundColor: isDark ? theme.palette.background.default : "#fff",
       }}
     >
-      <Typography variant="h6" sx={{ fontWeight: 'bold', marginBottom: '0.75rem', color: isDark ? '#fff' : '#333' }}>
-        {event.eventName || 'N/A'}
+      <Typography
+        variant="h6"
+        sx={{
+          fontWeight: "bold",
+          marginBottom: "0.75rem",
+          color: isDark ? "#fff" : "#333",
+        }}
+      >
+        {event.eventName || "N/A"}
       </Typography>
 
       {isOverdue && (
-        <Typography variant="caption" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
+        <Typography
+          variant="caption"
+          sx={{ color: theme.palette.error.main, fontWeight: "bold" }}
+        >
           OVERDUE!
         </Typography>
       )}
@@ -599,35 +781,49 @@ const MobileEventCard = ({
 
       <div style={styles.mobileCardRow}>
         <span style={styles.mobileCardLabel}>Leader:</span>
-        <span style={styles.mobileCardValue}>{event.eventLeaderName || 'N/A'}</span>
+        <span style={styles.mobileCardValue}>
+          {event.eventLeaderName || "N/A"}
+        </span>
       </div>
 
       {isCellEvent && (
         <div style={styles.mobileCardRow}>
           <span style={styles.mobileCardLabel}>Leader @1:</span>
-          <span style={styles.mobileCardValue}>{event.leader1 || 'N/A'}</span>
+          <span style={styles.mobileCardValue}>{event.leader1 || "N/A"}</span>
         </div>
       )}
 
       <div style={styles.mobileCardRow}>
         <span style={styles.mobileCardLabel}>Leader @12:</span>
-        <span style={styles.mobileCardValue}>{event.leader12 || 'N/A'}</span>
+        <span style={styles.mobileCardValue}>{event.leader12 || "N/A"}</span>
       </div>
 
       <div style={styles.mobileActions}>
         <Tooltip title={`View Attendance (${attendeesCount} people)`}>
-          <IconButton onClick={() => onOpenAttendance(event)} size="small" sx={{ color: theme.palette.primary.main }}>
+          <IconButton
+            onClick={() => onOpenAttendance(event)}
+            size="small"
+            sx={{ color: theme.palette.primary.main }}
+          >
             <CheckBoxIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip title="Edit Event">
-          <IconButton onClick={() => onEdit(event)} size="small" sx={{ color: '#ffc107' }}>
+          <IconButton
+            onClick={() => onEdit(event)}
+            size="small"
+            sx={{ color: "#ffc107" }}
+          >
             <EditIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         {isAdmin && (
           <Tooltip title="Delete Event">
-            <IconButton onClick={() => onDelete(event)} size="small" sx={{ color: theme.palette.error.main }}>
+            <IconButton
+              onClick={() => onDelete(event)}
+              size="small"
+              sx={{ color: theme.palette.error.main }}
+            >
               <DeleteIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -637,15 +833,15 @@ const MobileEventCard = ({
   );
 };
 const isValidObjectId = (id) => {
-  if (!id || typeof id !== 'string') return false;
+  if (!id || typeof id !== "string") return false;
   return /^[0-9a-fA-F]{24}$/.test(id);
 };
 
 const Events = () => {
-  const location = useLocation();
+  const { authFetch } = useContext(AuthContext);
   const theme = useTheme();
-  const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
+  const isDarkMode = theme.palette.mode === "dark";
   const eventTypeStyles = useMemo(() => {
     return getEventTypeStyles(isDarkMode, theme);
   }, [isDarkMode, theme]);
@@ -662,9 +858,8 @@ const Events = () => {
     userRole.includes("leader at 1728");
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-  const DEFAULT_API_START_DATE = '2025-11-30';
+  const DEFAULT_API_START_DATE = "2025-11-30";
 
-  // State declarations - ALL AT THE TOP
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
   const [, setFilteredEvents] = useState([]);
@@ -675,10 +870,14 @@ const Events = () => {
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
-  // const [createEventTypeModalOpen, setCreateEventTypeModalOpen] = useState(false);
-  const [, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  const [, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
-  const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState('all');
+  const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState("all");
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -686,14 +885,13 @@ const Events = () => {
 
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
-  // const [hoveredRow, setHoveredRow] = useState(null);
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
-  const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
-  const [typeMenuFor, setTypeMenuFor] = useState(null);
-  const [isCheckingLeaderStatus, setIsCheckingLeaderStatus] = useState(false);
+  const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState("");
+  const [, setTypeMenuAnchor] = useState(null);
+  const [, setTypeMenuFor] = useState(null);
+  const [, setIsCheckingLeaderStatus] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [toDeleteType, setToDeleteType] = useState(null);
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
@@ -704,26 +902,26 @@ const Events = () => {
 
   const initialViewFilter = useMemo(() => {
     if (isLeaderAt12) {
-      return 'all';
+      return "all";
     } else if (isRegularUser || isRegistrant) {
-      return 'personal';
+      return "personal";
     } else if (isAdmin) {
-      return 'all';
+      return "all";
     }
-    return 'all';
+    return "all";
   }, [userRole, isLeaderAt12, isRegularUser, isRegistrant]);
 
   const [viewFilter, setViewFilter] = useState(initialViewFilter);
   const [filterOptions, setFilterOptions] = useState({
-    leader: '',
-    day: 'all',
-    eventType: 'all'
+    leader: "",
+    day: "all",
+    eventType: "all",
   });
 
   const cacheRef = useRef({
     data: new Map(),
     timestamp: new Map(),
-    CACHE_DURATION: 5 * 60 * 1000
+    CACHE_DURATION: 5 * 60 * 1000,
   });
   const searchTimeoutRef = useRef(null);
 
@@ -735,7 +933,7 @@ const Events = () => {
       status: params.status,
       event_type: params.event_type,
       search: params.search,
-      personal: params.personal
+      personal: params.personal,
     });
   }, []);
 
@@ -777,84 +975,98 @@ const Events = () => {
   }, [currentPage, rowsPerPage, totalEvents]);
 
   const allEventTypes = useMemo(() => {
-    return ['all', ...eventTypes.map(t => typeof t === 'string' ? t : t.name)];
+    return [
+      "all",
+      ...eventTypes.map((t) => (typeof t === "string" ? t : t.name)),
+    ];
   }, [eventTypes]);
 
   const themedStyles = {
     container: {
       ...styles.container,
-      backgroundColor: isDarkMode ? theme.palette.background.default : '#f5f7fa',
+      backgroundColor: isDarkMode
+        ? theme.palette.background.default
+        : "#f5f7fa",
     },
     topSection: {
       ...styles.topSection,
-      backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
-      color: isDarkMode ? theme.palette.text.primary : '#212529',
+      backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+      color: isDarkMode ? theme.palette.text.primary : "#212529",
     },
     tr: {
       borderBottom: "1px solid",
-      borderColor: isDarkMode ? theme.palette.divider : '#e9ecef',
+      borderColor: isDarkMode ? theme.palette.divider : "#e9ecef",
       transition: "background-color 0.2s ease",
     },
     trHover: {
-      backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#f8f9fa',
+      backgroundColor: isDarkMode ? "rgba(255, 255, 255, 0.05)" : "#f8f9fa",
     },
     td: {
       padding: "1rem",
       fontSize: "0.9rem",
       verticalAlign: "top",
-      color: isDarkMode ? theme.palette.text.primary : '#212529',
+      color: isDarkMode ? theme.palette.text.primary : "#212529",
     },
-  }
+  };
 
   useEffect(() => {
     const checkLeaderAt12Status = async () => {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("access_token");
         if (!token) {
+          setIsLeaderAt12(false);
           return;
         }
 
         setIsCheckingLeaderStatus(true);
 
-        const response = await axios.get(
+        const response = await authFetch(
           `${BACKEND_URL}/check-leader-at-12-status`,
           {
             headers: { Authorization: `Bearer ${token}` },
             timeout: 10000,
           }
         );
-        setIsLeaderAt12(response.data.is_leader_at_12);
-        setIsCheckingLeaderStatus(false);
+
+        // If authFetch returns axios-like response
+        const data = response?.data ? response.data : await response.json?.();
+        setIsLeaderAt12(!!(data && data.is_leader_at_12));
       } catch (error) {
         console.error("Error checking Leader at 12 status:", error);
+        // graceful fallback: use localStorage or default false
         try {
-          const leaders = JSON.parse(localStorage.getItem("leaders"));
-          const checkIfLeader12 = leaders && !leaders.leaderAt12;
-
-          console.log(" USING LOCAL STORAGE", checkIfLeader12);
-          setIsLeaderAt12(checkIfLeader12);
-        } catch (parseError) {
-          console.error("Failed to parse leaders from localStorage:", parseError);
+          const leaders = JSON.parse(localStorage.getItem("leaders") || "{}");
+          setIsLeaderAt12(!!leaders?.leaderAt12);
+        } catch (e) {
           setIsLeaderAt12(false);
         }
+      } finally {
         setIsCheckingLeaderStatus(false);
       }
     };
-
     checkLeaderAt12Status();
-  }, [BACKEND_URL]);
+  }, [BACKEND_URL, authFetch]);
 
-  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
+const fetchEvents = useCallback(
+  async (filters = {}, forceRefresh = false, showLoader = true) => {
+    const lastParamsForCache = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      start_date: filters.start_date || DEFAULT_API_START_DATE,
+    };
+
+    let params = null;
+
     if (showLoader) {
       setLoading(true);
       setIsLoading(true);
     }
 
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       if (!token) {
         toast.error("Please log in again");
-        setTimeout(() => window.location.href = '/login', 2000);
+        setTimeout(() => (window.location.href = "/login"), 2000);
         setEvents([]);
         setFilteredEvents([]);
         if (showLoader) {
@@ -866,44 +1078,48 @@ const Events = () => {
 
       const headers = {
         Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json",
       };
 
-      const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
-
-      // Build params safely
-      const params = {
-        page: filters.page !== undefined ? filters.page : currentPage,
-        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        start_date: startDateParam,
-
-      };
+      // Initialize params from lastParamsForCache
+      params = { ...lastParamsForCache };
 
       // CRITICAL FIX: ALWAYS pass event_type if provided
       if (filters.event_type) {
         params.event_type = filters.event_type;
-      } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+      } else if (
+        selectedEventTypeFilter &&
+        selectedEventTypeFilter !== "all"
+      ) {
         params.event_type = selectedEventTypeFilter;
       }
 
       // Add other filters
-      if (filters.status && filters.status !== 'all') params.status = filters.status;
+      if (filters.status && filters.status !== "all")
+        params.status = filters.status;
       if (filters.search) params.search = filters.search;
       if (filters.personal !== undefined) params.personal = filters.personal;
       if (filters._t) params._t = filters._t;
 
       // Remove undefined/null
-      Object.keys(params).forEach(key => {
-        if (params[key] === undefined || params[key] === null || params[key] === '') {
+      Object.keys(params).forEach((key) => {
+        if (
+          params[key] === undefined ||
+          params[key] === null ||
+          params[key] === ""
+        ) {
           delete params[key];
         }
       });
 
-      let endpoint;
+      let endpoint = null;
       const eventTypeToUse = params.event_type || selectedEventTypeFilter;
 
-
-      if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
+      if (
+        eventTypeToUse &&
+        eventTypeToUse.toUpperCase() !== "CELLS" &&
+        eventTypeToUse !== "all"
+      ) {
         endpoint = `${BACKEND_URL}/events/other`;
 
         delete params.personal;
@@ -925,7 +1141,7 @@ const Events = () => {
             params.leader_at_1_identifier = currentUserLeaderAt1;
           }
 
-          if (viewFilter === 'personal') {
+          if (viewFilter === "personal") {
             params.show_personal_cells = true;
             params.personal = true;
           } else {
@@ -952,100 +1168,174 @@ const Events = () => {
         }
       }
 
-      params.isLeaderAt12 = isLeaderAt12
-      params.firstName = currentUser.name
-      params.userSurname = currentUser.surname
+      params.isLeaderAt12 = isLeaderAt12;
+      params.firstName = currentUser.name;
+      params.userSurname = currentUser.surname;
 
-      const response = await axios.get(endpoint, {
+      const response = await authFetch(endpoint, {
         headers,
         params,
-        timeout: 60000
+        timeout: 60000,
       });
 
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
+      // Normalize response shape
+      let responseData = null;
+      if (!response) {
+        throw new Error("No response from authFetch");
+      }
+      if (response.data !== undefined) {
+        responseData = response.data;
+      } else if (typeof response.json === "function") {
+        try {
+          responseData = await response.json();
+        } catch (e) {
+          responseData = response;
+        }
+      } else {
+        responseData = response;
+      }
+
+      const newEvents =
+        (responseData &&
+          (responseData.events ||
+            responseData.results ||
+            responseData.data)) ||
+        [];
+      
       console.log("🔍 DEBUG: Checking event IDs from API:");
+
+      // ============================================================================
+      // KEY FIX: REMOVED FRONTEND STATUS FILTERING
+      // The backend already filters by status correctly, so we just use the events as-is
+      // ============================================================================
+      const effectiveEvents = newEvents;
+      // ============================================================================
+
       newEvents.forEach((event, i) => {
-        if (event._id && event._id.includes('_')) {
-          console.log(`⚠️ Event ${i} has date suffix in _id:`, {
+        if (event._id && event._id.includes("_")) {
+          console.log(` Event ${i} has date suffix in _id:`, {
             original_id: event._id,
-            cleaned_id: event._id.split('_')[0],
+            cleaned_id: event._id.split("_")[0],
             eventName: event.eventName,
-            date: event.date
+            date: event.date,
           });
         }
       });
 
       if (newEvents.length > 0) {
-        console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
-          name: e.eventName,
-          type: e.eventType,
-          typeName: e.eventTypeName,
-          status: e.status,
-          id: e._id
-        })));
+        console.log(
+          "Events sample:",
+          newEvents.slice(0, 3).map((e) => ({
+            name: e.eventName,
+            type: e.eventType,
+            typeName: e.eventTypeName,
+            status: e.status,
+            id: e._id,
+          }))
+        );
       } else {
-        console.log('No events returned');
-        console.log('Filters applied:', params);
+        console.log("No events returned");
+        console.log("Filters applied:", params);
       }
 
-      console.log('API Response:', {
+      console.log("API Response:", {
         endpoint,
         total_events: responseData.total_events,
         events_received: newEvents.length,
-        first_event: newEvents[0] ? {
-          name: newEvents[0].eventName,
-          type: newEvents[0].eventType,
-          status: newEvents[0].status,
-          id: newEvents[0]._id
-        } : 'No events'
+        first_event: newEvents[0]
+          ? {
+              name: newEvents[0].eventName,
+              type: newEvents[0].eventType,
+              status: newEvents[0].status,
+              id: newEvents[0]._id,
+            }
+          : "No events",
       });
 
-      if (filters.event_type === 'Global Events' || eventTypeToUse === 'Global Events') {
+      if (
+        filters.event_type === "Global Events" ||
+        eventTypeToUse === "Global Events"
+      ) {
         newEvents.forEach((event, index) => {
-          console.log(`Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`);
+          console.log(
+            `Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`
+          );
         });
       }
 
-      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
+      const totalEventsCount =
+        (responseData &&
+          (responseData.total_events ||
+            responseData.total ||
+            responseData.count)) ||
+        effectiveEvents.length;
+      const totalPagesCount =
+        (responseData &&
+          (responseData.total_pages ||
+            Math.ceil(totalEventsCount / rowsPerPage))) ||
+        Math.ceil(totalEventsCount / rowsPerPage);
 
       setCachedData(cacheKey, {
-        events: newEvents,
+        events: effectiveEvents,
         total_events: totalEventsCount,
-        total_pages: totalPagesCount
+        total_pages: totalPagesCount,
       });
 
-      setEvents(newEvents);
-      setFilteredEvents(newEvents);
+      setEvents(effectiveEvents);
+      setFilteredEvents(effectiveEvents);
       setTotalEvents(totalEventsCount);
       setTotalPages(totalPagesCount);
       if (filters.page !== undefined) setCurrentPage(filters.page);
-
     } catch (err) {
       console.error("Error fetching events:", err);
-      if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+      if (axios.isCancel(err) || err.code === "ECONNABORTED") {
         toast.warning("Request timeout. Please refresh and try again.");
       } else if (err.response?.status === 401) {
         toast.error("Session expired. Logging out...");
-        localStorage.removeItem("token");
+        localStorage.removeItem("access_token");
         localStorage.removeItem("userProfile");
-        setTimeout(() => window.location.href = '/login', 2000);
+        setTimeout(() => (window.location.href = "/login"), 2000);
       } else {
-        const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
+        const errorMessage =
+          err.response?.data?.detail ||
+          err.response?.data?.message ||
+          err.message ||
+          "Please check your connection and try again.";
+        console.error("fetchEvents error message:", errorMessage);
         toast.error(`Error loading events: ${errorMessage}`);
+
+        // Try to use cached data if available
+        try {
+          const safeParams = params || lastParamsForCache;
+          const safeEndpoint = endpoint || `${BACKEND_URL}/events/cells`;
+          const cacheKey = getCacheKey({
+            ...safeParams,
+            userRole,
+            endpoint: safeEndpoint,
+          });
+          const cached = getCachedData(cacheKey);
+          if (cached && cached.events) {
+            console.log("Using cached events due to network failure");
+            setEvents(cached.events);
+            setFilteredEvents(cached.events);
+            setTotalEvents(cached.total_events || cached.events.length);
+            setTotalPages(cached.total_pages || 1);
+            return;
+          }
+        } catch (cacheErr) {
+          console.error("Cache fallback failed:", cacheErr);
+        }
       }
-      setEvents([]);
-      setFilteredEvents([]);
-      setTotalEvents(0);
-      setTotalPages(1);
+      setTotalEvents((prev) => prev || 0);
+      setTotalPages((prev) => prev || 1);
     } finally {
       if (showLoader) {
         setLoading(false);
         setIsLoading(false);
       }
     }
-  }, [
+  },
+  [
     currentPage,
     rowsPerPage,
     selectedEventTypeFilter,
@@ -1059,75 +1349,106 @@ const Events = () => {
     getCachedData,
     setCachedData,
     BACKEND_URL,
-    DEFAULT_API_START_DATE
-  ]);
+    DEFAULT_API_START_DATE,
+  ]
+);
 
   const checkEventsForType = async (eventTypeName) => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${BACKEND_URL}/events/other`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: {
-          event_type: eventTypeName,
-          limit: 100
-        }
+      const token = localStorage.getItem("access_token");
+
+      const params = new URLSearchParams({
+        event_type: eventTypeName,
+        limit: 100,
       });
 
+      const response = await authFetch(
+        `${BACKEND_URL}/events/other?${params}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to fetch events`);
+      }
+
+      // Parse JSON response
+      const data = await response.json();
+
       console.log(`Events using "${eventTypeName}":`, {
-        count: response.data.events?.length || 0,
-        events: response.data.events?.map(e => ({
+        count: data.events?.length || 0,
+        events: data.events?.map((e) => ({
           id: e._id,
           name: e.eventName,
           type: e.eventType,
-          typeName: e.eventTypeName
-        }))
+          typeName: e.eventTypeName,
+        })),
       });
 
-      return response.data.events || [];
+      return data.events || [];
     } catch (error) {
-      console.error('Error checking events for type:', error);
+      console.error("Error checking events for type:", error);
       return [];
     }
   };
 
-
-  const handleStatusFilterChange = useCallback((newStatus) => {
+ // Also update the handleStatusFilterChange callback:
+const handleStatusFilterChange = useCallback(
+  (newStatus) => {
     console.log("Status filter changing to:", newStatus);
 
     setSelectedStatus(newStatus);
     setCurrentPage(1);
 
     const shouldApplyPersonalFilter =
-      viewFilter === 'personal' &&
+      viewFilter === "personal" &&
       (userRole === "admin" || userRole === "leader at 12");
 
     const fetchParams = {
       page: 1,
       limit: rowsPerPage,
-      status: newStatus !== 'all' ? newStatus : undefined,
       start_date: DEFAULT_API_START_DATE,
       _t: Date.now(),
       ...(searchQuery.trim() && { search: searchQuery.trim() }),
-      ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
+      ...(selectedEventTypeFilter !== "all" && {
+        event_type: selectedEventTypeFilter,
+      }),
       ...(shouldApplyPersonalFilter && { personal: true }),
-      ...(isLeaderAt12 && {
-        leader_at_12_view: true,
-        include_subordinate_cells: true,
-        ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
-        ...(viewFilter === 'personal' ?
-          { show_personal_cells: true, personal: true } :
-          { show_all_authorized: true }
-        )
-      })
     };
 
-    if (newStatus === 'all') {
-      delete fetchParams.status;
+    // CRITICAL FIX: Always include status (don't check for "all")
+    if (newStatus && newStatus !== "all") {
+      fetchParams.status = newStatus;
+    }
+
+    if (
+      isLeaderAt12 &&
+      (selectedEventTypeFilter === "all" ||
+        selectedEventTypeFilter === "CELLS")
+    ) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
+
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+      }
+
+      if (viewFilter === "personal") {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+      }
     }
 
     console.log("Fetching with status params:", fetchParams);
     fetchEvents(fetchParams, true, false);
-  }, [
+  },
+  [
     viewFilter,
     userRole,
     rowsPerPage,
@@ -1136,13 +1457,15 @@ const Events = () => {
     isLeaderAt12,
     currentUserLeaderAt1,
     fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
+    DEFAULT_API_START_DATE,
+  ]
+);
+
 
   const fetchEventTypes = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BACKEND_URL}/event-types`, {
+      const token = localStorage.getItem("access_token");
+      const response = await authFetch(`${BACKEND_URL}/event-types`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1153,469 +1476,604 @@ const Events = () => {
       }
 
       const eventTypesData = await response.json();
-      console.log(' RAW EVENT TYPES FROM API:', eventTypesData);
+      const actualEventTypes = (
+        Array.isArray(eventTypesData)
+          ? eventTypesData
+          : eventTypesData.events || []
+      ).filter((item) => item && item.isEventType !== false);
 
-      const actualEventTypes = eventTypesData.filter(item => item.isEventType === true);
-      console.log(' FILTERED EVENT TYPES:', actualEventTypes);
-
-      // Don't uppercase here - keep original names for matching
       setEventTypes(actualEventTypes);
       setCustomEventTypes(actualEventTypes);
       setUserCreatedEventTypes(actualEventTypes);
-      localStorage.setItem('eventTypes', JSON.stringify(actualEventTypes));
+      localStorage.setItem("eventTypes", JSON.stringify(actualEventTypes));
 
       return actualEventTypes;
     } catch (error) {
-      console.error('Error fetching event types:', error);
+      console.error("Error fetching event types:", error);
+      // fallback to cached event types if network is down
       try {
-        const cachedTypes = localStorage.getItem('eventTypes');
-        if (cachedTypes) {
-          const parsed = JSON.parse(cachedTypes);
-          const uppercasedCached = parsed.map(type => ({
-            ...type,
-            name: type.name ? type.name.toUpperCase() : type.name,
-            displayName: type.name ? type.name.toUpperCase() : type.name
-          }));
-          setEventTypes(uppercasedCached);
-          setCustomEventTypes(uppercasedCached);
-          setUserCreatedEventTypes(uppercasedCached);
-          return uppercasedCached;
+        const cached = localStorage.getItem("eventTypes");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          setEventTypes(parsed);
+          setCustomEventTypes(parsed);
+          setUserCreatedEventTypes(parsed);
+          return parsed;
         }
       } catch (cacheError) {
-        console.error('Cache read failed:', cacheError);
+        console.error("Cache read failed:", cacheError);
       }
+      toast.error("Unable to load event types (offline)");
       return [];
     }
   }, [BACKEND_URL]);
 
+  const refreshAfterEventTypeUpdate = useCallback(
+    async (oldName, newName) => {
+      try {
+        console.log(" Simple refresh after event type update:", {
+          oldName,
+          newName,
+        });
 
-  const refreshAfterEventTypeUpdate = useCallback(async (oldName, newName) => {
-    try {
-      console.log(" Simple refresh after event type update:", { oldName, newName });
+        if (selectedEventTypeFilter === oldName) {
+          setSelectedEventTypeFilter(newName);
+        }
 
-      if (selectedEventTypeFilter === oldName) {
-        setSelectedEventTypeFilter(newName);
+        clearCache();
+        await fetchEventTypes();
+
+        setTimeout(() => {
+          const refreshParams = {
+            page: 1,
+            limit: rowsPerPage,
+            start_date: DEFAULT_API_START_DATE,
+            _t: Date.now(),
+            event_type: newName,
+          };
+
+          if (selectedStatus !== "all") refreshParams.status = selectedStatus;
+          if (searchQuery.trim()) refreshParams.search = searchQuery.trim();
+
+          console.log(" Auto-refreshing events with:", refreshParams);
+          fetchEvents(refreshParams, true);
+        }, 300);
+      } catch (error) {
+        console.error("Error in refreshAfterEventTypeUpdate:", error);
       }
-
-      clearCache();
-      await fetchEventTypes();
-
-      setTimeout(() => {
-        const refreshParams = {
-          page: 1,
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now(),
-          event_type: newName
-        };
-
-        if (selectedStatus !== 'all') refreshParams.status = selectedStatus;
-        if (searchQuery.trim()) refreshParams.search = searchQuery.trim();
-
-        console.log(" Auto-refreshing events with:", refreshParams);
-        fetchEvents(refreshParams, true);
-      }, 300);
-
-    } catch (error) {
-      console.error("Error in refreshAfterEventTypeUpdate:", error);
-    }
-  }, [selectedEventTypeFilter, clearCache, fetchEventTypes, rowsPerPage, selectedStatus, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
-
+    },
+    [
+      selectedEventTypeFilter,
+      clearCache,
+      fetchEventTypes,
+      rowsPerPage,
+      selectedStatus,
+      searchQuery,
+      fetchEvents,
+      DEFAULT_API_START_DATE,
+    ]
+  );
 
   const getCurrentUserLeaderAt1 = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(
+      const token = localStorage.getItem("access_token");
+
+      if (!token) {
+        console.log(" No token found in localStorage");
+        return "";
+      }
+
+      const response = await authFetch(
         `${BACKEND_URL}/current-user/leader-at-1`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      return response.data.leader_at_1 || '';
+      // Normalize response shape
+      let data = null;
+      if (!response) return "";
+      if (response.data !== undefined) {
+        data = response.data;
+      } else if (typeof response.json === "function") {
+        try {
+          data = await response.json();
+        } catch (e) {
+          data = response;
+        }
+      } else {
+        data = response;
+      }
+
+      return (data && (data.leader_at_1 || data.leaderAt1 || "")) || "";
     } catch (error) {
-      console.error('Error getting current user leader at 1:', error);
-      return '';
+      console.error(" Error getting current user leader at 1:", error);
+
+      const userProfile = JSON.parse(
+        localStorage.getItem("userProfile") || "{}"
+      );
+      const leaders = JSON.parse(localStorage.getItem("leaders") || "{}");
+
+      return leaders.leaderAt1 || userProfile.name || "";
     }
   }, [BACKEND_URL]);
 
   const clearAllFilters = useCallback(() => {
-    setSearchQuery('');
+    setSearchQuery("");
     setFilterOptions({
-      leader: '',
-      day: 'all',
-      eventType: 'all'
+      leader: "",
+      day: "all",
+      eventType: "all",
     });
     setActiveFilters({});
-    setSelectedEventTypeFilter('all');
-    setSelectedStatus('incomplete');
+    setSelectedEventTypeFilter("all");
+    setSelectedStatus("incomplete");
     setCurrentPage(1);
 
     const shouldApplyPersonalFilter =
-      viewFilter === 'personal' &&
+      viewFilter === "personal" &&
       (userRole === "admin" || userRole === "leader at 12");
 
-    fetchEvents({
-      page: 1,
-      limit: rowsPerPage,
-      personal: shouldApplyPersonalFilter,
-      start_date: DEFAULT_API_START_DATE
-    }, true);
+    fetchEvents(
+      {
+        page: 1,
+        limit: rowsPerPage,
+        personal: shouldApplyPersonalFilter,
+        start_date: DEFAULT_API_START_DATE,
+      },
+      true
+    );
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, DEFAULT_API_START_DATE]);
-
 
   const handleSearchSubmit = useCallback(() => {
     const trimmedSearch = searchQuery.trim();
 
     let shouldApplyPersonalFilter = undefined;
     if (userRole === "admin" || userRole === "leader at 12") {
-      shouldApplyPersonalFilter = viewFilter === 'personal' ? true : undefined;
+      shouldApplyPersonalFilter = viewFilter === "personal" ? true : undefined;
     }
 
     setCurrentPage(1);
 
-    fetchEvents({
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: trimmedSearch || undefined,
-      personal: shouldApplyPersonalFilter,
-      start_date: DEFAULT_API_START_DATE
-    }, true, false);
-  }, [searchQuery, userRole, viewFilter, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
-  const handleRowsPerPageChange = useCallback((e) => {
-    const newRowsPerPage = Number(e.target.value);
-    setRowsPerPage(newRowsPerPage);
-    setCurrentPage(1);
-    const shouldApplyPersonalFilter =
-      viewFilter === 'personal' &&
-      (userRole === "admin" || userRole === "leader at 12");
+    fetchEvents(
+      {
+        page: 1,
+        limit: rowsPerPage,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
+        search: trimmedSearch || undefined,
+        personal: shouldApplyPersonalFilter,
+        start_date: DEFAULT_API_START_DATE,
+      },
+      true,
+      false
+    );
+  }, [
+    searchQuery,
+    userRole,
+    viewFilter,
+    fetchEvents,
+    rowsPerPage,
+    selectedStatus,
+    selectedEventTypeFilter,
+    DEFAULT_API_START_DATE,
+  ]);
+  const handleRowsPerPageChange = useCallback(
+    (e) => {
+      const newRowsPerPage = Number(e.target.value);
+      setRowsPerPage(newRowsPerPage);
+      setCurrentPage(1);
+      const shouldApplyPersonalFilter =
+        viewFilter === "personal" &&
+        (userRole === "admin" || userRole === "leader at 12");
 
-    fetchEvents({
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      search: searchQuery.trim() || undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      page: 1,
-      limit: newRowsPerPage,
-      personal: shouldApplyPersonalFilter ? true : undefined,
-      start_date: DEFAULT_API_START_DATE
-    }, true);
-  }, [viewFilter, userRole, fetchEvents, selectedStatus, searchQuery, selectedEventTypeFilter, DEFAULT_API_START_DATE]);
+      fetchEvents(
+        {
+          status: selectedStatus !== "all" ? selectedStatus : undefined,
+          search: searchQuery.trim() || undefined,
+          event_type:
+            selectedEventTypeFilter !== "all"
+              ? selectedEventTypeFilter
+              : undefined,
+          page: 1,
+          limit: newRowsPerPage,
+          personal: shouldApplyPersonalFilter ? true : undefined,
+          start_date: DEFAULT_API_START_DATE,
+        },
+        true
+      );
+    },
+    [
+      viewFilter,
+      userRole,
+      fetchEvents,
+      selectedStatus,
+      searchQuery,
+      selectedEventTypeFilter,
+      DEFAULT_API_START_DATE,
+    ]
+  );
 
   const handleNextPage = useCallback(() => {
     if (currentPage < totalPages && !isLoading) {
       const newPage = currentPage + 1;
 
       const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
+        viewFilter === "personal" &&
         (userRole === "admin" || userRole === "leader at 12");
 
       fetchEvents({
         page: newPage,
         limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
         search: searchQuery.trim() || undefined,
         personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: DEFAULT_API_START_DATE
+        start_date: DEFAULT_API_START_DATE,
       });
     }
-  }, [currentPage, totalPages, isLoading, viewFilter, userRole, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, DEFAULT_API_START_DATE]);
+  }, [
+    currentPage,
+    totalPages,
+    isLoading,
+    viewFilter,
+    userRole,
+    fetchEvents,
+    rowsPerPage,
+    selectedStatus,
+    selectedEventTypeFilter,
+    searchQuery,
+    DEFAULT_API_START_DATE,
+  ]);
 
   const handlePreviousPage = useCallback(() => {
     if (currentPage > 1 && !isLoading) {
       const newPage = currentPage - 1;
 
       const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
+        viewFilter === "personal" &&
         (userRole === "admin" || userRole === "leader at 12");
 
       fetchEvents({
         page: newPage,
         limit: rowsPerPage,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
         search: searchQuery.trim() || undefined,
         personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: DEFAULT_API_START_DATE
+        start_date: DEFAULT_API_START_DATE,
       });
     }
-  }, [currentPage, isLoading, viewFilter, userRole, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, DEFAULT_API_START_DATE]);
+  }, [
+    currentPage,
+    isLoading,
+    viewFilter,
+    userRole,
+    fetchEvents,
+    rowsPerPage,
+    selectedStatus,
+    selectedEventTypeFilter,
+    searchQuery,
+    DEFAULT_API_START_DATE,
+  ]);
 
   const handleCaptureClick = useCallback((event) => {
     setSelectedEvent(event);
     setAttendanceModalOpen(true);
   }, []);
 
+  const handleCloseCreateEventModal = useCallback(
+    (shouldRefresh = false) => {
+      console.log(" Closing create event modal, shouldRefresh:", shouldRefresh);
 
-  const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
-    console.log(" Closing create event modal, shouldRefresh:", shouldRefresh);
+      setCreateEventModalOpen(false);
 
-    setCreateEventModalOpen(false);
+      if (shouldRefresh) {
+        console.log(" Modal requested refresh, forcing complete reload...");
 
-    if (shouldRefresh) {
-      console.log(" Modal requested refresh, forcing complete reload...");
+        clearCache();
+        setCurrentPage(1);
 
-      clearCache();
+        setTimeout(() => {
+          const refreshParams = {
+            page: 1,
+            limit: rowsPerPage,
+            start_date: DEFAULT_API_START_DATE,
+            _t: Date.now(),
+            status: selectedStatus !== "all" ? selectedStatus : undefined,
+            search: searchQuery.trim() || undefined,
+          };
+
+          //  CRITICAL: Determine which endpoint to use based on event type
+          if (
+            selectedEventTypeFilter === "all" ||
+            selectedEventTypeFilter === "CELLS" ||
+            !selectedEventTypeFilter
+          ) {
+            refreshParams.event_type = "CELLS";
+
+            if (isLeaderAt12) {
+              refreshParams.leader_at_12_view = true;
+              if (viewFilter === "personal") {
+                refreshParams.personal_cells_only = true;
+              } else {
+                refreshParams.include_subordinate_cells = true;
+              }
+            } else if (isAdmin && viewFilter === "personal") {
+              refreshParams.personal = true;
+            }
+          } else {
+            // For Global Events and other event types
+            refreshParams.event_type = selectedEventTypeFilter;
+          }
+
+          console.log(" Refreshing events after creation:", refreshParams);
+          fetchEvents(refreshParams, true);
+        }, 800);
+      }
+    },
+    [
+      clearCache,
+      rowsPerPage,
+      selectedStatus,
+      selectedEventTypeFilter,
+      searchQuery,
+      isLeaderAt12,
+      isAdmin,
+      viewFilter,
+      fetchEvents,
+      DEFAULT_API_START_DATE,
+    ]
+  );
+
+  const applyFilters = useCallback(
+    (filters) => {
+      setActiveFilters(filters);
+      setFilterOptions(filters);
       setCurrentPage(1);
 
-      setTimeout(() => {
-        const refreshParams = {
-          page: 1,
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now(),
-          status: selectedStatus !== 'all' ? selectedStatus : undefined,
-          search: searchQuery.trim() || undefined,
-        };
+      const shouldApplyPersonalFilter =
+        viewFilter === "personal" &&
+        (userRole === "admin" || userRole === "leader at 12");
 
-        //  CRITICAL: Determine which endpoint to use based on event type
-        if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS' || !selectedEventTypeFilter) {
-          refreshParams.event_type = "CELLS";
+      const apiFilters = {
+        page: 1,
+        limit: rowsPerPage,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
+        search: searchQuery.trim() || undefined,
+        personal: shouldApplyPersonalFilter ? true : undefined,
+        start_date: DEFAULT_API_START_DATE,
+      };
 
-          if (isLeaderAt12) {
-            refreshParams.leader_at_12_view = true;
-            if (viewFilter === 'personal') {
-              refreshParams.personal_cells_only = true;
-            } else {
-              refreshParams.include_subordinate_cells = true;
-            }
-          } else if (isAdmin && viewFilter === 'personal') {
-            refreshParams.personal = true;
-          }
-        } else {
-          // For Global Events and other event types
-          refreshParams.event_type = selectedEventTypeFilter;
-        }
-
-        console.log(" Refreshing events after creation:", refreshParams);
-        fetchEvents(refreshParams, true);
-      }, 800);
-    }
-  }, [
-    clearCache,
-    rowsPerPage,
-    selectedStatus,
-    selectedEventTypeFilter,
-    searchQuery,
-    isLeaderAt12,
-    isAdmin,
-    viewFilter,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
-
-  const applyFilters = useCallback((filters) => {
-    setActiveFilters(filters);
-    setFilterOptions(filters);
-    setCurrentPage(1);
-
-    const shouldApplyPersonalFilter =
-      viewFilter === 'personal' &&
-      (userRole === "admin" || userRole === "leader at 12");
-
-    const apiFilters = {
-      page: 1,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery.trim() || undefined,
-      personal: shouldApplyPersonalFilter ? true : undefined,
-      start_date: DEFAULT_API_START_DATE
-    };
-
-    if (filters.leader && filters.leader.trim()) {
-      apiFilters.search = filters.leader.trim();
-    }
-
-    if (filters.day && filters.day !== 'all') {
-      apiFilters.day = filters.day;
-    }
-
-    if (filters.eventType && filters.eventType !== 'all') {
-      apiFilters.event_type = filters.eventType;
-    }
-
-    Object.keys(apiFilters).forEach(key =>
-      apiFilters[key] === undefined && delete apiFilters[key]
-    );
-
-    fetchEvents(apiFilters, true);
-  }, [viewFilter, userRole, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
-
-  const handleAttendanceSubmit = useCallback(async (data) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // CRITICAL: Use the composite ID that includes the date
-      const eventId = selectedEvent._id;
-      const eventName = selectedEvent.eventName || 'Event';
-      const eventDate = selectedEvent.date || ''; // This should be the specific date from the instance
-
-      console.log("Submitting attendance for:", {
-        eventId,
-        eventName,
-        eventDate,
-        dataType: typeof data,
-        isArray: Array.isArray(data)
-      });
-
-      const leaderEmail = currentUser?.email || '';
-      const leaderName = `${(currentUser?.name || '').trim()} ${(currentUser?.surname || '').trim()}`.trim() || currentUser?.name || '';
-
-      let payload;
-
-      if (data === "did_not_meet") {
-        payload = {
-          attendees: [],
-          all_attendees: [],
-          leaderEmail,
-          leaderName,
-          did_not_meet: true,
-          event_date: eventDate // Send the specific event date
-        };
-      } else if (Array.isArray(data)) {
-        payload = {
-          attendees: data,
-          all_attendees: data,
-          leaderEmail,
-          leaderName,
-          did_not_meet: false,
-          event_date: eventDate // Send the specific event date
-        };
-      } else {
-        payload = {
-          ...data,
-          leaderEmail,
-          leaderName,
-          event_date: eventDate // Send the specific event date
-        };
+      if (filters.leader && filters.leader.trim()) {
+        apiFilters.search = filters.leader.trim();
       }
 
-      console.log("Sending payload to backend:", JSON.stringify(payload, null, 2));
+      if (filters.day && filters.day !== "all") {
+        apiFilters.day = filters.day;
+      }
 
-      // Send the COMPOSITE ID (includes date) - backend will extract both parts
-      const response = await axios.put(
-        `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
-        payload,
-        { headers }
+      if (filters.eventType && filters.eventType !== "all") {
+        apiFilters.event_type = filters.eventType;
+      }
+
+      Object.keys(apiFilters).forEach(
+        (key) => apiFilters[key] === undefined && delete apiFilters[key]
       );
 
-      console.log(" Attendance submitted successfully:", response.data);
+      fetchEvents(apiFilters, true);
+    },
+    [
+      viewFilter,
+      userRole,
+      rowsPerPage,
+      selectedStatus,
+      selectedEventTypeFilter,
+      searchQuery,
+      fetchEvents,
+      DEFAULT_API_START_DATE,
+    ]
+  );
 
-      clearCache();
-
-      // Close modal immediately
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
-
-      setSnackbar({
-        open: true,
-        message: payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`,
-        severity: "success",
-      });
-
-      // Show toast immediately
-      toast.success(
-        payload.did_not_meet
-          ? `${eventName} marked as 'Did Not Meet'.`
-          : `Successfully captured attendance for ${eventName}`
-      );
-
-      // Refresh events after a delay
-      setTimeout(() => {
-        (async () => {
-          try {
-            const shouldApplyPersonalFilter =
-              viewFilter === 'personal' &&
-              (userRole === "admin" || userRole === "leader at 12");
-
-            const refreshParams = {
-              page: 1,
-              limit: rowsPerPage,
-              start_date: DEFAULT_API_START_DATE,
-              _t: Date.now(),
-              ...(searchQuery.trim() && { search: searchQuery.trim() }),
-              ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
-              ...(selectedStatus !== 'all' && { status: selectedStatus }),
-              ...(shouldApplyPersonalFilter && { personal: true }),
-              ...(isLeaderAt12 && {
-                leader_at_12_view: true,
-                include_subordinate_cells: true,
-                ...(currentUserLeaderAt1 && { leader_at_1_identifier: currentUserLeaderAt1 }),
-                ...(viewFilter === 'personal' ?
-                  { show_personal_cells: true, personal: true } :
-                  { show_all_authorized: true }
-                )
-              })
-            };
-
-            console.log(" Refreshing events after attendance:", refreshParams);
-            await fetchEvents(refreshParams, true, true);
-
-          } catch (refreshError) {
-            console.error("Error refreshing events:", refreshError);
-            toast.error("Failed to refresh events list");
-          }
-        })();
-      }, 1000);
-
-      return { success: true, message: "Attendance submitted successfully" };
-
-    } catch (error) {
-      console.error("Error submitting attendance:", error);
-
-      let errorMessage = "Failed to submit attendance";
-      let errData;
-
+  const handleAttendanceSubmit = useCallback(
+    async (data) => {
       try {
-        errData = error.response?.data;
-      } catch (e) {
-        console.error("Error parsing error response:", e);
-      }
+        const token = localStorage.getItem("access_token");
+        const headers = { Authorization: `Bearer ${token}` };
 
-      if (errData) {
-        if (Array.isArray(errData?.errors)) {
-          errorMessage = errData.errors.map(e => `${e.field}: ${e.message}`).join('; ');
+        const eventId = selectedEvent._id;
+        const eventName = selectedEvent.eventName || "Event";
+        const eventDate = selectedEvent.date || "";
+
+        console.log("Submitting attendance for:", {
+          eventId,
+          eventName,
+          eventDate,
+          dataType: typeof data,
+          isArray: Array.isArray(data),
+        });
+
+        const leaderEmail = currentUser?.email || "";
+        const leaderName =
+          `${(currentUser?.name || "").trim()} ${(
+            currentUser?.surname || ""
+          ).trim()}`.trim() ||
+          currentUser?.name ||
+          "";
+
+        let payload;
+
+        if (data === "did_not_meet") {
+          payload = {
+            attendees: [],
+            all_attendees: [],
+            leaderEmail,
+            leaderName,
+            did_not_meet: true,
+            event_date: eventDate,
+          };
+        } else if (Array.isArray(data)) {
+          payload = {
+            attendees: data,
+            all_attendees: data,
+            leaderEmail,
+            leaderName,
+            did_not_meet: false,
+            event_date: eventDate,
+          };
         } else {
-          errorMessage = errData.detail || errData.message || JSON.stringify(errData);
+          payload = {
+            ...data,
+            leaderEmail,
+            leaderName,
+            event_date: eventDate,
+          };
         }
-      } else if (error.message) {
-        errorMessage = error.message;
+
+        console.log(
+          "Sending payload to backend:",
+          JSON.stringify(payload, null, 2)
+        );
+
+        const response = await authFetch(
+          `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
+          payload,
+          { headers }
+        );
+
+        console.log(" Attendance submitted successfully:", response.data);
+
+        clearCache();
+
+        // Close modal immediately
+        setAttendanceModalOpen(false);
+        setSelectedEvent(null);
+
+        setSnackbar({
+          open: true,
+          message: payload.did_not_meet
+            ? `${eventName} marked as 'Did Not Meet'.`
+            : `Successfully captured attendance for ${eventName}`,
+          severity: "success",
+        });
+
+        // Show toast immediately
+        toast.success(
+          payload.did_not_meet
+            ? `${eventName} marked as 'Did Not Meet'.`
+            : `Successfully captured attendance for ${eventName}`
+        );
+
+        // Refresh events after a delay
+        setTimeout(() => {
+          (async () => {
+            try {
+              const shouldApplyPersonalFilter =
+                viewFilter === "personal" &&
+                (userRole === "admin" || userRole === "leader at 12");
+
+              const refreshParams = {
+                page: 1,
+                limit: rowsPerPage,
+                start_date: DEFAULT_API_START_DATE,
+                _t: Date.now(),
+                ...(searchQuery.trim() && { search: searchQuery.trim() }),
+                ...(selectedEventTypeFilter !== "all" && {
+                  event_type: selectedEventTypeFilter,
+                }),
+                ...(selectedStatus !== "all" && { status: selectedStatus }),
+                ...(shouldApplyPersonalFilter && { personal: true }),
+                ...(isLeaderAt12 && {
+                  leader_at_12_view: true,
+                  include_subordinate_cells: true,
+                  ...(currentUserLeaderAt1 && {
+                    leader_at_1_identifier: currentUserLeaderAt1,
+                  }),
+                  ...(viewFilter === "personal"
+                    ? { show_personal_cells: true, personal: true }
+                    : { show_all_authorized: true }),
+                }),
+              };
+
+              console.log(
+                " Refreshing events after attendance:",
+                refreshParams
+              );
+              await fetchEvents(refreshParams, true, true);
+            } catch (refreshError) {
+              console.error("Error refreshing events:", refreshError);
+              toast.error("Failed to refresh events list");
+            }
+          })();
+        }, 1000);
+
+        return { success: true, message: "Attendance submitted successfully" };
+      } catch (error) {
+        console.error("Error submitting attendance:", error);
+
+        let errorMessage = "Failed to submit attendance";
+        let errData;
+
+        try {
+          errData = error.response?.data;
+        } catch (e) {
+          console.error("Error parsing error response:", e);
+        }
+
+        if (errData) {
+          if (Array.isArray(errData?.errors)) {
+            errorMessage = errData.errors
+              .map((e) => `${e.field}: ${e.message}`)
+              .join("; ");
+          } else {
+            errorMessage =
+              errData.detail || errData.message || JSON.stringify(errData);
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        console.error("Error details:", errorMessage);
+
+        setSnackbar({
+          open: true,
+          message: errorMessage,
+          severity: "error",
+        });
+
+        toast.error(`Error: ${errorMessage}`);
+
+        return { success: false, message: errorMessage };
       }
-
-      console.error("Error details:", errorMessage);
-
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
-
-      toast.error(`Error: ${errorMessage}`);
-
-      return { success: false, message: errorMessage };
-    }
-  }, [
-    selectedEvent,
-    currentUser,
-    BACKEND_URL,
-    clearCache,
-    fetchEvents,
-    rowsPerPage,
-    searchQuery,
-    selectedEventTypeFilter,
-    selectedStatus,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    viewFilter,
-    userRole,
-    DEFAULT_API_START_DATE
-  ]);
+    },
+    [
+      selectedEvent,
+      currentUser,
+      BACKEND_URL,
+      clearCache,
+      fetchEvents,
+      rowsPerPage,
+      searchQuery,
+      selectedEventTypeFilter,
+      selectedStatus,
+      isLeaderAt12,
+      currentUserLeaderAt1,
+      viewFilter,
+      userRole,
+      DEFAULT_API_START_DATE,
+    ]
+  );
 
   const handleEditEvent = useCallback((event) => {
     console.log("[handleEditEvent] Opening edit modal for event:", {
@@ -1624,10 +2082,9 @@ const Events = () => {
       UUID: event.UUID,
       id: event.id,
       uuid: event.uuid,
-      allKeys: Object.keys(event)
+      allKeys: Object.keys(event),
     });
 
-    // Extract MongoDB ID from composite ID
     let eventId = event._id;
     let eventDate = event.date;
 
@@ -1650,9 +2107,11 @@ const Events = () => {
       console.error(" No identifier found in event:", {
         event,
         eventToEdit,
-        availableKeys: Object.keys(event)
+        availableKeys: Object.keys(event),
       });
-      toast.error("Cannot edit event: Missing identifier. Please refresh and try again.");
+      toast.error(
+        "Cannot edit event: Missing identifier. Please refresh and try again."
+      );
       return;
     }
 
@@ -1662,301 +2121,229 @@ const Events = () => {
       name: eventToEdit.eventName,
       hasId: !!eventToEdit._id,
       hasUUID: !!eventToEdit.UUID,
-      date: eventToEdit.date
+      date: eventToEdit.date,
     });
 
     setSelectedEvent(eventToEdit);
     setEditModalOpen(true);
   }, []);
 
-  const handleDeleteEvent = useCallback(async (event) => {
-    if (window.confirm(`Are you sure you want to delete "${event.eventName}"?`)) {
-      try {
-        const token = localStorage.getItem("token");
+  const handleDeleteEvent = useCallback(
+    async (event) => {
+      if (
+        window.confirm(`Are you sure you want to delete "${event.eventName}"?`)
+      ) {
+        try {
+          const token = localStorage.getItem("access_token");
 
-        let eventId = event._id;
-        if (eventId && eventId.includes("_")) {
-          const parts = eventId.split("_");
-          if (parts.length > 0 && isValidObjectId(parts[0])) {
-            eventId = parts[0];
-            console.log("Extracted MongoDB ID for deletion:", eventId);
-          }
-        }
-
-        console.log("Deleting event:", {
-          name: event.eventName,
-          id: eventId,
-          originalId: event._id
-        });
-
-        const response = await axios.delete(`${BACKEND_URL}/events/${eventId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        if (response.status === 200) {
-          console.log("Event deleted successfully, refreshing with current filters...");
-
-          const refreshParams = {
-            page: currentPage,
-            limit: rowsPerPage,
-            start_date: DEFAULT_API_START_DATE,
-            _t: Date.now()
-          };
-
-          if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-            refreshParams.event_type = selectedEventTypeFilter;
-          } else {
-            refreshParams.event_type = "CELLS";
-          }
-
-          // Keep status filter
-          if (selectedStatus && selectedStatus !== 'all') {
-            refreshParams.status = selectedStatus;
-          }
-
-          // Keep search query
-          if (searchQuery && searchQuery.trim()) {
-            refreshParams.search = searchQuery.trim();
-          }
-
-          // Apply role-based filters
-          if (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS') {
-            if (isLeaderAt12) {
-              refreshParams.leader_at_12_view = true;
-              refreshParams.include_subordinate_cells = true;
-
-              if (currentUserLeaderAt1) {
-                refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-              }
-
-              if (viewFilter === 'personal') {
-                refreshParams.show_personal_cells = true;
-                refreshParams.personal = true;
-              } else {
-                refreshParams.show_all_authorized = true;
-              }
-            } else if (isAdmin && viewFilter === 'personal') {
-              refreshParams.personal = true;
+          let eventId = event._id;
+          if (eventId && eventId.includes("_")) {
+            const parts = eventId.split("_");
+            if (parts.length > 0 && isValidObjectId(parts[0])) {
+              eventId = parts[0];
+              console.log("Extracted MongoDB ID for deletion:", eventId);
             }
           }
 
-          console.log(" Refreshing with params after deletion:", refreshParams);
-          await fetchEvents(refreshParams, true);
+          console.log("Deleting event:", {
+            name: event.eventName,
+            id: eventId,
+            originalId: event._id,
+          });
 
-          toast.success("Event deleted successfully!");
-        }
-      } catch (error) {
-        console.error("Error deleting event:", error);
+          const response = await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
 
-        let errorMessage = "Failed to delete event";
-        if (error.response?.data) {
-          errorMessage = error.response.data.detail || error.response.data.message;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
+          if (response.status === 200) {
+            console.log(
+              "Event deleted successfully, refreshing with current filters..."
+            );
 
-        toast.error(`Error: ${errorMessage}`);
-      }
-    }
-  }, [
-    BACKEND_URL,
-    currentPage,
-    rowsPerPage,
-    selectedEventTypeFilter,
-    selectedStatus,
-    searchQuery,
-    isLeaderAt12,
-    isAdmin,
-    viewFilter,
-    currentUserLeaderAt1,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
+            const refreshParams = {
+              page: currentPage,
+              limit: rowsPerPage,
+              start_date: DEFAULT_API_START_DATE,
+              _t: Date.now(),
+            };
 
-  const handleSaveEvent = useCallback(async (eventData) => {
-    try {
-      console.log("[handleSaveEvent] Received event data:", eventData);
+            if (selectedEventTypeFilter && selectedEventTypeFilter !== "all") {
+              refreshParams.event_type = selectedEventTypeFilter;
+            } else {
+              refreshParams.event_type = "CELLS";
+            }
 
-      // Extract MongoDB ID from selectedEvent
-      const eventIdentifier = selectedEvent?._id;
+            //  status filter
+            if (selectedStatus && selectedStatus !== "all") {
+              refreshParams.status = selectedStatus;
+            }
 
-      if (!eventIdentifier) {
-        throw new Error("No event identifier found");
-      }
+            //  search query
+            if (searchQuery && searchQuery.trim()) {
+              refreshParams.search = searchQuery.trim();
+            }
 
-      console.log(" Updating event with identifier:", eventIdentifier);
+            // Apply role-based filters
+            if (
+              selectedEventTypeFilter === "all" ||
+              selectedEventTypeFilter === "CELLS"
+            ) {
+              if (isLeaderAt12) {
+                refreshParams.leader_at_12_view = true;
+                refreshParams.include_subordinate_cells = true;
 
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
+                if (currentUserLeaderAt1) {
+                  refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+                }
 
-      // Clean the data - remove undefined values
-      const cleanPayload = Object.entries(eventData).reduce((acc, [key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          acc[key] = value;
-        }
-        return acc;
-      }, {});
+                if (viewFilter === "personal") {
+                  refreshParams.show_personal_cells = true;
+                  refreshParams.personal = true;
+                } else {
+                  refreshParams.show_all_authorized = true;
+                }
+              } else if (isAdmin && viewFilter === "personal") {
+                refreshParams.personal = true;
+              }
+            }
 
-      console.log(" Sending payload:", cleanPayload);
+            console.log(
+              " Refreshing with params after deletion:",
+              refreshParams
+            );
+            await fetchEvents(refreshParams, true);
 
-      // Use the universal endpoint
-      const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
-
-      const response = await fetch(endpoint, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(cleanPayload),
-      });
-
-      console.log(" Response status:", response.status);
-
-      if (!response.ok) {
-        let errorData;
-        let errorMessage;
-
-        try {
-          errorData = await response.json();
-          console.error(" Server error response:", errorData);
-
-          if (typeof errorData === 'string') {
-            errorMessage = errorData;
-          } else if (errorData.detail) {
-            errorMessage = typeof errorData.detail === 'string'
-              ? errorData.detail
-              : JSON.stringify(errorData.detail);
-          } else if (errorData.message) {
-            errorMessage = errorData.message;
-          } else {
-            errorMessage = JSON.stringify(errorData);
+            toast.success("Event deleted successfully!");
           }
-        } catch (parseError) {
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        }
+        } catch (error) {
+          console.error("Error deleting event:", error);
 
-        throw new Error(errorMessage);
+          let errorMessage = "Failed to delete event";
+          if (error.response?.data) {
+            errorMessage =
+              error.response.data.detail || error.response.data.message;
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+
+          toast.error(`Error: ${errorMessage}`);
+        }
       }
+    },
+    [
+      BACKEND_URL,
+      currentPage,
+      rowsPerPage,
+      selectedEventTypeFilter,
+      selectedStatus,
+      searchQuery,
+      isLeaderAt12,
+      isAdmin,
+      viewFilter,
+      currentUserLeaderAt1,
+      fetchEvents,
+      DEFAULT_API_START_DATE,
+    ]
+  );
 
-      const updatedEvent = await response.json();
-      console.log(" Event updated successfully:", updatedEvent);
+  const handleSaveEvent = useCallback(
+    async (eventData) => {
+      try {
+        console.log("[handleSaveEvent] Received event data:", eventData);
 
-      // Clear cache and refresh
-      clearCache();
+        // Extract MongoDB ID from selectedEvent
+        const eventIdentifier = selectedEvent?._id;
 
-      // Show success message
-      toast.success("Event updated successfully!");
-
-      // Close modal and refresh
-      setEditModalOpen(false);
-      setSelectedEvent(null);
-
-      // Refresh events list
-      setTimeout(() => {
-        const refreshParams = {
-          page: currentPage,
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now()
-        };
-
-        if (selectedEventTypeFilter !== 'all') {
-          refreshParams.event_type = selectedEventTypeFilter;
+        if (!eventIdentifier) {
+          throw new Error("No event identifier found");
         }
 
-        if (selectedStatus !== 'all') {
-          refreshParams.status = selectedStatus;
+        console.log(" Updating event with identifier:", eventIdentifier);
+
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          throw new Error("No authentication token found");
         }
 
-        if (searchQuery.trim()) {
-          refreshParams.search = searchQuery.trim();
-        }
+        const cleanPayload = Object.entries(eventData).reduce(
+          (acc, [key, value]) => {
+            if (value !== undefined && value !== null && value !== "") {
+              acc[key] = value;
+            }
+            return acc;
+          },
+          {}
+        );
 
-        fetchEvents(refreshParams, true);
-      }, 500);
+        console.log(" Sending payload:", cleanPayload);
 
-      return { success: true, event: updatedEvent };
+        const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
 
-    } catch (error) {
-      console.error(" Error saving event:", error);
-      toast.error(`Failed to update event: ${error.message}`);
-      throw error;
-    }
-  }, [
-    selectedEvent,
-    BACKEND_URL,
-    clearCache,
-    currentPage,
-    rowsPerPage,
-    selectedStatus,
-    selectedEventTypeFilter,
-    searchQuery,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
-
-  const handlePersonEdit = useCallback(async (personName, field, newValue) => {
-    try {
-      console.log("👥 Editing ALL cells for person:", {
-        person: personName,
-        field,
-        newValue
-      });
-
-      const token = localStorage.getItem("token");
-      if (!token) {
-        toast.error("Please log in again");
-        return;
-      }
-
-      // This function edits ALL cells for a person, not a specific instance
-      // So we don't need to worry about composite IDs here
-      const encodedPersonName = encodeURIComponent(personName);
-
-      const updatePayload = {
-        [field]: newValue
-      };
-
-      console.log(" Updating all person cells:", {
-        person: personName,
-        payload: updatePayload
-      });
-
-      const response = await axios.put(
-        `${BACKEND_URL}/events/update-person-cells/${encodedPersonName}`,
-        updatePayload,
-        {
+        const response = await authFetch(endpoint, {
+          method: "PUT",
           headers: {
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(cleanPayload),
+        });
+
+        console.log(" Response status:", response.status);
+
+        if (!response.ok) {
+          let errorData;
+          let errorMessage;
+
+          try {
+            errorData = await response.json();
+            console.error(" Server error response:", errorData);
+
+            if (typeof errorData === "string") {
+              errorMessage = errorData;
+            } else if (errorData.detail) {
+              errorMessage =
+                typeof errorData.detail === "string"
+                  ? errorData.detail
+                  : JSON.stringify(errorData.detail);
+            } else if (errorData.message) {
+              errorMessage = errorData.message;
+            } else {
+              errorMessage = JSON.stringify(errorData);
+            }
+          } catch (parseError) {
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
           }
+
+          throw new Error(errorMessage);
         }
-      );
 
-      if (response.status === 200) {
-        const result = response.data;
-        console.log(" Person cells updated:", result);
+        const updatedEvent = await response.json();
+        console.log(" Event updated successfully:", updatedEvent);
 
-        toast.success(`Updated ${result.updated_count} cells for ${personName}`);
-
+        // Clear cache and refresh
         clearCache();
 
+        // Show success message
+        toast.success("Event updated successfully!");
+
+        // Close modal and refresh
+        setEditModalOpen(false);
+        setSelectedEvent(null);
+
+        // Refresh events list
         setTimeout(() => {
           const refreshParams = {
             page: currentPage,
             limit: rowsPerPage,
             start_date: DEFAULT_API_START_DATE,
-            _t: Date.now()
+            _t: Date.now(),
           };
 
-          if (selectedEventTypeFilter !== 'all') {
+          if (selectedEventTypeFilter !== "all") {
             refreshParams.event_type = selectedEventTypeFilter;
           }
 
-          if (selectedStatus !== 'all') {
+          if (selectedStatus !== "all") {
             refreshParams.status = selectedStatus;
           }
 
@@ -1967,92 +2354,201 @@ const Events = () => {
           fetchEvents(refreshParams, true);
         }, 500);
 
-        return result;
+        return { success: true, event: updatedEvent };
+      } catch (error) {
+        console.error(" Error saving event:", error);
+        toast.error(`Failed to update event: ${error.message}`);
+        throw error;
       }
+    },
+    [
+      selectedEvent,
+      BACKEND_URL,
+      clearCache,
+      currentPage,
+      rowsPerPage,
+      selectedStatus,
+      selectedEventTypeFilter,
+      searchQuery,
+      fetchEvents,
+      DEFAULT_API_START_DATE,
+    ]
+  );
 
-    } catch (error) {
-      console.error(" Error updating person cells:", error);
+  const handlePersonEdit = useCallback(
+    async (personName, field, newValue) => {
+      try {
+        console.log("👥 Editing ALL cells for person:", {
+          person: personName,
+          field,
+          newValue,
+        });
 
-      let errorMessage = "Failed to update person cells";
-      if (error.response?.data) {
-        errorMessage = error.response.data.detail || error.response.data.message;
-      }
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          toast.error("Please log in again");
+          return;
+        }
+        const encodedPersonName = encodeURIComponent(personName);
 
-      toast.error(`Error: ${errorMessage}`);
-      throw error;
-    }
-  }, [BACKEND_URL, clearCache, currentPage, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
+        const updatePayload = {
+          [field]: newValue,
+        };
 
-  const handleCloseEditModal = useCallback(async (shouldRefresh = false) => {
-    console.log("Closing edit modal, shouldRefresh:", shouldRefresh);
+        console.log(" Updating all person cells:", {
+          person: personName,
+          payload: updatePayload,
+        });
 
-    setEditModalOpen(false);
-    setSelectedEvent(null);
+        const response = await authFetch(
+          `${BACKEND_URL}/events/update-person-cells/${encodedPersonName}`,
+          updatePayload,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
 
-    if (shouldRefresh) {
-      console.log("Modal requested refresh, forcing complete reload...");
+        if (response.status === 200) {
+          const result = response.data;
+          console.log(" Person cells updated:", result);
 
-      clearCache();
+          toast.success(
+            `Updated ${result.updated_count} cells for ${personName}`
+          );
 
-      await new Promise(resolve => setTimeout(resolve, 200));
+          clearCache();
 
-      const refreshParams = {
-        page: currentPage,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now()
-      };
+          setTimeout(() => {
+            const refreshParams = {
+              page: currentPage,
+              limit: rowsPerPage,
+              start_date: DEFAULT_API_START_DATE,
+              _t: Date.now(),
+            };
 
-      if (selectedStatus && selectedStatus !== 'all') {
-        refreshParams.status = selectedStatus;
-      }
+            if (selectedEventTypeFilter !== "all") {
+              refreshParams.event_type = selectedEventTypeFilter;
+            }
 
-      if (searchQuery && searchQuery.trim()) {
-        refreshParams.search = searchQuery.trim();
-      }
+            if (selectedStatus !== "all") {
+              refreshParams.status = selectedStatus;
+            }
 
-      if (selectedEventTypeFilter === 'all') {
-        refreshParams.event_type = "CELLS";
-      } else if (selectedEventTypeFilter) {
-        refreshParams.event_type = selectedEventTypeFilter;
-      }
+            if (searchQuery.trim()) {
+              refreshParams.search = searchQuery.trim();
+            }
 
-      // Add Leader at 12 params if needed
-      if (isLeaderAt12 && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
-        refreshParams.leader_at_12_view = true;
-        refreshParams.include_subordinate_cells = true;
+            fetchEvents(refreshParams, true);
+          }, 500);
 
-        if (currentUserLeaderAt1) {
-          refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+          return result;
+        }
+      } catch (error) {
+        console.error(" Error updating person cells:", error);
+
+        let errorMessage = "Failed to update person cells";
+        if (error.response?.data) {
+          errorMessage =
+            error.response.data.detail || error.response.data.message;
         }
 
-        if (viewFilter === 'personal') {
-          refreshParams.show_personal_cells = true;
-          refreshParams.personal = true;
-        } else {
-          refreshParams.show_all_authorized = true;
-        }
+        toast.error(`Error: ${errorMessage}`);
+        throw error;
       }
+    },
+    [
+      BACKEND_URL,
+      clearCache,
+      currentPage,
+      rowsPerPage,
+      selectedStatus,
+      selectedEventTypeFilter,
+      searchQuery,
+      fetchEvents,
+      DEFAULT_API_START_DATE,
+    ]
+  );
 
-      Object.keys(refreshParams).forEach(key =>
-        refreshParams[key] === undefined && delete refreshParams[key]
-      );
+  const handleCloseEditModal = useCallback(
+    async (shouldRefresh = false) => {
+      console.log("Closing edit modal, shouldRefresh:", shouldRefresh);
 
-      await fetchEvents(refreshParams, true);
-    }
-  }, [
-    clearCache,
-    currentPage,
-    rowsPerPage,
-    selectedStatus,
-    searchQuery,
-    selectedEventTypeFilter,
-    fetchEvents,
-    DEFAULT_API_START_DATE,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    viewFilter
-  ]);
+      setEditModalOpen(false);
+      setSelectedEvent(null);
+
+      if (shouldRefresh) {
+        console.log("Modal requested refresh, forcing complete reload...");
+
+        clearCache();
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const refreshParams = {
+          page: currentPage,
+          limit: rowsPerPage,
+          start_date: DEFAULT_API_START_DATE,
+          _t: Date.now(),
+        };
+
+        if (selectedStatus && selectedStatus !== "all") {
+          refreshParams.status = selectedStatus;
+        }
+
+        if (searchQuery && searchQuery.trim()) {
+          refreshParams.search = searchQuery.trim();
+        }
+
+        if (selectedEventTypeFilter === "all") {
+          refreshParams.event_type = "CELLS";
+        } else if (selectedEventTypeFilter) {
+          refreshParams.event_type = selectedEventTypeFilter;
+        }
+
+        // Add Leader at 12 params if needed
+        if (
+          isLeaderAt12 &&
+          (selectedEventTypeFilter === "all" ||
+            selectedEventTypeFilter === "CELLS")
+        ) {
+          refreshParams.leader_at_12_view = true;
+          refreshParams.include_subordinate_cells = true;
+
+          if (currentUserLeaderAt1) {
+            refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+          }
+
+          if (viewFilter === "personal") {
+            refreshParams.show_personal_cells = true;
+            refreshParams.personal = true;
+          } else {
+            refreshParams.show_all_authorized = true;
+          }
+        }
+
+        Object.keys(refreshParams).forEach(
+          (key) => refreshParams[key] === undefined && delete refreshParams[key]
+        );
+
+        await fetchEvents(refreshParams, true);
+      }
+    },
+    [
+      clearCache,
+      currentPage,
+      rowsPerPage,
+      selectedStatus,
+      searchQuery,
+      selectedEventTypeFilter,
+      fetchEvents,
+      DEFAULT_API_START_DATE,
+      isLeaderAt12,
+      currentUserLeaderAt1,
+      viewFilter,
+    ]
+  );
 
   const openTypeMenu = useCallback((event, type) => {
     setTypeMenuAnchor(event.currentTarget);
@@ -2064,41 +2560,41 @@ const Events = () => {
     setTypeMenuFor(null);
   }, []);
 
-  const handleEditType = useCallback(async (type) => {
-    try {
-      let eventTypeToEdit;
+  const handleEditType = useCallback(
+    async (type) => {
+      try {
+        let eventTypeToEdit;
 
-      if (typeof type === 'string') {
-        const fullEventType = eventTypes.find(et =>
-          et.name === type || et.name?.toLowerCase() === type.toLowerCase()
-        );
+        if (typeof type === "string") {
+          const fullEventType = eventTypes.find(
+            (et) =>
+              et.name === type || et.name?.toLowerCase() === type.toLowerCase()
+          );
 
-        if (fullEventType) {
-          eventTypeToEdit = fullEventType;
+          if (fullEventType) {
+            eventTypeToEdit = fullEventType;
+          } else {
+            eventTypeToEdit = { name: type };
+          }
         } else {
-          eventTypeToEdit = { name: type };
+          eventTypeToEdit = type;
         }
-      } else {
-        eventTypeToEdit = type;
+
+        console.log(" Setting editing event type:", eventTypeToEdit);
+        closeTypeMenu();
+
+        setEditingEventType(eventTypeToEdit);
+        setTimeout(() => {
+          setEventTypesModalOpen(true);
+        }, 100);
+      } catch (error) {
+        console.error("Error preparing event type for editing:", error);
+
+        toast.error("Error loading event type data");
       }
-
-      console.log(" Setting editing event type:", eventTypeToEdit);
-      closeTypeMenu();
-
-      //  FIXED: Set editing event type BEFORE opening modal
-      setEditingEventType(eventTypeToEdit);
-
-      //  FIXED: Small delay to ensure state is set before modal opens
-      setTimeout(() => {
-        setEventTypesModalOpen(true);
-      }, 100);
-
-    } catch (error) {
-      console.error("Error preparing event type for editing:", error);
-
-      toast.error("Error loading event type data");
-    }
-  }, [eventTypes, closeTypeMenu]);
+    },
+    [eventTypes, closeTypeMenu]
+  );
 
   const handleCloseEventTypesModal = useCallback(() => {
     setEventTypesModalOpen(false);
@@ -2110,37 +2606,37 @@ const Events = () => {
 
   const handleDeleteType = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
 
       if (!token) {
         toast.error("Please log in again");
-        setTimeout(() => window.location.href = '/login', 2000);
+        setTimeout(() => (window.location.href = "/login"), 2000);
         return;
       }
 
-      const typeName = typeof toDeleteType === 'string'
-        ? toDeleteType
-        : toDeleteType?.name || toDeleteType?.eventType || '';
+      const typeName =
+        typeof toDeleteType === "string"
+          ? toDeleteType
+          : toDeleteType?.name || toDeleteType?.eventType || "";
 
       if (!typeName) {
         throw new Error("No event type name provided for deletion");
       }
 
-      console.log(' Attempting to delete event type:', typeName);
+      console.log(" Attempting to delete event type:", typeName);
 
-      // First, try normal delete
       const encodedTypeName = encodeURIComponent(typeName);
       const url = `${BACKEND_URL}/event-types/${encodedTypeName}`;
 
       try {
-        const response = await axios.delete(url, {
+        const response = await authFetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+            "Content-Type": "application/json",
+          },
         });
 
-        console.log(' Delete response:', response.data);
+        console.log(" Delete response:", response.data);
 
         if (response.status === 200) {
           // Success - refresh everything
@@ -2149,62 +2645,72 @@ const Events = () => {
           setToDeleteType(null);
 
           // Switch to "all" if deleting current filter
-          if (selectedEventTypeFilter === typeName ||
-            selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()) {
-            setSelectedEventTypeFilter('all');
+          if (
+            selectedEventTypeFilter === typeName ||
+            selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()
+          ) {
+            setSelectedEventTypeFilter("all");
             setSelectedEventTypeObj(null);
 
             setTimeout(() => {
-              fetchEvents({
-                page: 1,
-                limit: rowsPerPage,
-                event_type: 'CELLS',
-                start_date: DEFAULT_API_START_DATE
-              }, true);
+              fetchEvents(
+                {
+                  page: 1,
+                  limit: rowsPerPage,
+                  event_type: "CELLS",
+                  start_date: DEFAULT_API_START_DATE,
+                },
+                true
+              );
             }, 300);
           }
 
           toast.success(
-            response.data.message || `Event type "${typeName}" deleted successfully!`
+            response.data.message ||
+            `Event type "${typeName}" deleted successfully!`
           );
         }
-
       } catch (error) {
         console.error(" Error deleting event type:", error);
 
-        // Handle 401/unauthorized
         if (error.response?.status === 401) {
           toast.error("Session expired. Logging out...");
-          localStorage.removeItem("token");
+          localStorage.removeItem("access_token");
           localStorage.removeItem("userProfile");
-          setTimeout(() => window.location.href = '/login', 2000);
+          setTimeout(() => (window.location.href = "/login"), 2000);
           return;
         }
 
-        // Handle 400 - Events exist
         if (error.response?.status === 400) {
           const errorData = error.response.data;
           let eventsCount = 0;
           let eventsList = [];
 
-          if (typeof errorData.detail === 'object') {
+          if (typeof errorData.detail === "object") {
             eventsCount = errorData.detail.events_count || 0;
             eventsList = errorData.detail.event_samples || [];
           }
 
-          console.log(` ${eventsCount} events are blocking deletion:`, eventsList);
+          console.log(
+            ` ${eventsCount} events are blocking deletion:`,
+            eventsList
+          );
 
-          // Show detailed dialog with force delete option
-          const eventsListText = eventsList.slice(0, 5).map(e =>
-            `• ${e.name} (${e.date || 'No date'}) - Status: ${e.status}`
-          ).join('\n');
+          const eventsListText = eventsList
+            .slice(0, 5)
+            .map(
+              (e) =>
+                `• ${e.name} (${e.date || "No date"}) - Status: ${e.status}`
+            )
+            .join("\n");
 
           const shouldForceDelete = window.confirm(
             ` Cannot delete "${typeName}"\n\n` +
             `${eventsCount} event(s) are using this event type:\n\n` +
             `${eventsListText}\n` +
-            `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ''}\n` +
-            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ""
+            }\n` +
+            `━n\n` +
             ` FORCE DELETE OPTION:\n\n` +
             `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
             `Click Cancel to keep everything.\n\n` +
@@ -2212,55 +2718,61 @@ const Events = () => {
           );
 
           if (shouldForceDelete) {
-            console.log(' User confirmed FORCE DELETE');
+            console.log(" User confirmed FORCE DELETE");
 
             try {
               const forceUrl = `${url}?force=true`;
-              const forceResponse = await axios.delete(forceUrl, {
+              const forceResponse = await authFetch(forceUrl, {
                 headers: {
                   Authorization: `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-                }
+                  "Content-Type": "application/json",
+                },
               });
 
-              console.log(' Force delete successful:', forceResponse.data);
+              console.log(" Force delete successful:", forceResponse.data);
 
-              // Refresh everything
               await fetchEventTypes(true);
               setConfirmDeleteOpen(false);
               setToDeleteType(null);
 
               // Switch to "all"
-              if (selectedEventTypeFilter === typeName ||
-                selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()) {
-                setSelectedEventTypeFilter('all');
+              if (
+                selectedEventTypeFilter === typeName ||
+                selectedEventTypeFilter?.toUpperCase() ===
+                typeName.toUpperCase()
+              ) {
+                setSelectedEventTypeFilter("all");
                 setSelectedEventTypeObj(null);
 
                 setTimeout(() => {
-                  fetchEvents({
-                    page: 1,
-                    limit: rowsPerPage,
-                    event_type: 'CELLS',
-                    start_date: DEFAULT_API_START_DATE
-                  }, true);
+                  fetchEvents(
+                    {
+                      page: 1,
+                      limit: rowsPerPage,
+                      event_type: "CELLS",
+                      start_date: DEFAULT_API_START_DATE,
+                    },
+                    true
+                  );
                 }, 300);
               }
 
               toast.success(
-                ` Deleted event type "${typeName}" and ${forceResponse.data.events_deleted || eventsCount} events`,
+                ` Deleted event type "${typeName}" and ${forceResponse.data.events_deleted || eventsCount
+                } events`,
                 { autoClose: 5000 }
               );
-
             } catch (forceError) {
-              console.error(' Force delete failed:', forceError);
+              console.error(" Force delete failed:", forceError);
               toast.error(
-                `Failed to force delete: ${forceError.response?.data?.detail || forceError.message}`,
+                `Failed to force delete: ${forceError.response?.data?.detail || forceError.message
+                }`,
                 { autoClose: 7000 }
               );
             }
           } else {
-            console.log(' User cancelled force delete');
-            toast.info('Deletion cancelled', { autoClose: 3000 });
+            console.log(" User cancelled force delete");
+            toast.info("Deletion cancelled", { autoClose: 3000 });
           }
 
           setConfirmDeleteOpen(false);
@@ -2272,17 +2784,17 @@ const Events = () => {
         let errorMessage = "Failed to delete event type";
         if (error.response?.data) {
           const errorData = error.response.data;
-          errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
+          errorMessage =
+            errorData.detail || errorData.message || JSON.stringify(errorData);
         } else if (error.message) {
           errorMessage = error.message;
         }
 
-        console.error('Error details:', error.response?.data);
+        console.error("Error details:", error.response?.data);
         setConfirmDeleteOpen(false);
         setToDeleteType(null);
         toast.error(errorMessage, { autoClose: 7000 });
       }
-
     } catch (error) {
       console.error(" Unexpected error:", error);
       toast.error(`Unexpected error: ${error.message}`, { autoClose: 7000 });
@@ -2296,34 +2808,49 @@ const Events = () => {
     fetchEventTypes,
     fetchEvents,
     rowsPerPage,
-    DEFAULT_API_START_DATE
+    DEFAULT_API_START_DATE,
   ]);
 
-  const handlePageChange = useCallback((newPage) => {
-    setCurrentPage(newPage);
-    const shouldApplyPersonalFilter =
-      viewFilter === 'personal' &&
-      (userRole === "admin" || userRole === "leader at 12");
+  const handlePageChange = useCallback(
+    (newPage) => {
+      setCurrentPage(newPage);
+      const shouldApplyPersonalFilter =
+        viewFilter === "personal" &&
+        (userRole === "admin" || userRole === "leader at 12");
 
-    fetchEvents({
-      page: newPage,
-      limit: rowsPerPage,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      event_type: selectedEventTypeFilter !== 'all' ? selectedEventTypeFilter : undefined,
-      search: searchQuery.trim() || undefined,
-      personal: shouldApplyPersonalFilter ? true : undefined,
-      start_date: DEFAULT_API_START_DATE
-    });
-  }, [viewFilter, userRole, fetchEvents, rowsPerPage, selectedStatus, selectedEventTypeFilter, searchQuery, DEFAULT_API_START_DATE]);
+      fetchEvents({
+        page: newPage,
+        limit: rowsPerPage,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter !== "all"
+            ? selectedEventTypeFilter
+            : undefined,
+        search: searchQuery.trim() || undefined,
+        personal: shouldApplyPersonalFilter ? true : undefined,
+        start_date: DEFAULT_API_START_DATE,
+      });
+    },
+    [
+      viewFilter,
+      userRole,
+      fetchEvents,
+      rowsPerPage,
+      selectedStatus,
+      selectedEventTypeFilter,
+      searchQuery,
+      DEFAULT_API_START_DATE,
+    ]
+  );
 
   const validateEventStatus = (event) => {
-    const status = (event.status || '').toLowerCase();
+    const status = (event.status || "").toLowerCase();
     const hasAttendees = event.attendees && event.attendees.length > 0;
     const didNotMeet = event.did_not_meet || false;
 
     // If event is marked as complete but has no attendees and didn't meet, it's invalid
-    if (status === 'complete' && !hasAttendees && !didNotMeet) {
-      return 'incomplete';
+    if (status === "complete" && !hasAttendees && !didNotMeet) {
+      return "incomplete";
     }
 
     return status;
@@ -2337,16 +2864,19 @@ const Events = () => {
   useEffect(() => {
     const checkAccess = async () => {
       // Wait for auth to initialize
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const userProfile = localStorage.getItem("userProfile");
 
-      console.log("🔐 ACCESS CHECK:", { token: !!token, userProfile: !!userProfile });
+      console.log(" ACCESS CHECK:", {
+        token: !!token,
+        userProfile: !!userProfile,
+      });
 
       if (!token || !userProfile) {
         toast.error("Please log in to access events");
-        setTimeout(() => window.location.href = '/login', 2000);  //  Redirect to /login, not /dashboard
+        setTimeout(() => (window.location.href = "/login"), 2000);
         return;
       }
 
@@ -2355,7 +2885,7 @@ const Events = () => {
         const userRole = currentUser?.role?.toLowerCase() || "";
         const email = currentUser?.email || "";
 
-        console.log("🔐 Checking user access:", { userRole, email });
+        console.log(" Checking user access:", { userRole, email });
 
         const isAdmin = userRole === "admin";
         const isLeaderAt12 =
@@ -2370,65 +2900,66 @@ const Events = () => {
           userRole.includes("leader at 1278") ||
           userRole.includes("leader at 1728");
 
-        //  IMPROVED: Check if user role includes "leader" in any form
         const isAnyLeader =
-          userRole.includes("leader") ||
-          isLeaderAt12 ||
-          isLeader144or1728;
+          userRole.includes("leader") || isLeaderAt12 || isLeader144or1728;
 
         const isUser = userRole === "user";
 
         // Special check for regular users
         if (isUser) {
           try {
-            const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await authFetch(
+              `${BACKEND_URL}/check-leader-status`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
 
             const { hasCell, canAccessEvents } = response.data;
 
-            console.log(" User cell check:", { hasCell, canAccessEvents });
+            console.log("User cell check:", { hasCell, canAccessEvents });
 
             if (!canAccessEvents || !hasCell) {
               toast.warning("You must have a cell to access the Events page");
-              //  FIX: Redirect to home instead of /dashboard
-              setTimeout(() => window.location.href = '/', 2000);
+              setTimeout(() => (window.location.href = "/"), 2000);
               return;
             }
 
-            console.log(" User has cell - access granted");
+            console.log("User has cell - access granted");
           } catch (error) {
             console.error(" Error checking cell status:", error);
-            toast.error("Unable to verify access. Please contact support.");
-            //  FIX: Redirect to home instead of /dashboard
-            setTimeout(() => window.location.href = '/', 2000);
+
+            if (error.response?.status === 401) {
+              toast.error("Session expired. Please log in again.");
+              setTimeout(() => (window.location.href = "/login"), 2000);
+            } else {
+              console.warn(" Could not verify cell status, allowing access");
+            }
             return;
           }
         }
 
-        //  BROADENED ACCESS: Allow all types of leaders
         const hasAccess =
           isAdmin ||
           isLeaderAt12 ||
           isRegistrant ||
           isLeader144or1728 ||
-          isAnyLeader ||  //  This catches any leader role
+          isAnyLeader ||
           isUser;
 
         if (!hasAccess) {
           console.log(" Access denied for role:", userRole);
           toast.warning("You do not have permission to access the Events page");
-          //  FIX: Redirect to home instead of /dashboard
-          setTimeout(() => window.location.href = '/', 2000);
+          setTimeout(() => (window.location.href = "/"), 2000);
         } else {
-          console.log(" Access granted:", {
+          console.log("Access granted:", {
             userRole,
             isAdmin,
             isLeaderAt12,
             isRegistrant,
             isLeader144or1728,
             isAnyLeader,
-            isUser
+            isUser,
           });
         }
       } catch (error) {
@@ -2438,98 +2969,31 @@ const Events = () => {
     };
 
     checkAccess();
-  }, [currentUser?.email, currentUser?.role, BACKEND_URL]);
-
-
-
-  useEffect(() => {
-    const checkAccess = async () => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const token = localStorage.getItem("token");
-      const userProfile = localStorage.getItem("userProfile");
-
-      if (!token || !userProfile) {
-        toast.error("Please log in to access events");
-        setTimeout(() => navigate('/login', { replace: true }), 2000);  //  Better approach
-        return;
-      }
-
-      try {
-        const currentUser = JSON.parse(userProfile);
-        const userRole = currentUser?.role?.toLowerCase() || "";
-
-        console.log("🔐 Checking user access:", { userRole });
-
-        const isAdmin = userRole === "admin";
-        const isAnyLeader = userRole.includes("leader");  //  Simplified
-        const isRegistrant = userRole === "registrant";
-        const isUser = userRole === "user";
-
-        // Check for regular users
-        if (isUser) {
-          try {
-            const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (!response.data.canAccessEvents || !response.data.hasCell) {
-              toast.warning("You must have a cell to access the Events page");
-              setTimeout(() => navigate('/', { replace: true }), 2000);
-              return;
-            }
-
-            console.log(" User has cell - access granted");
-          } catch (error) {
-            console.error(" Error checking cell status:", error);
-            toast.error("Unable to verify access");
-            setTimeout(() => navigate('/', { replace: true }), 2000);
-            return;
-          }
-        }
-
-        // Check access
-        const hasAccess = isAdmin || isAnyLeader || isRegistrant || isUser;
-
-        if (!hasAccess) {
-          console.log(" Access denied for role:", userRole);
-          toast.warning("You do not have permission to access this page");
-          setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
-        } else {
-          console.log(" Access granted for role:", userRole);
-        }
-      } catch (error) {
-        console.error(" Error in access check:", error);
-        toast.error("Error verifying access");
-        setTimeout(() => navigate('/', { replace: true }), 2000);  //  Navigate to home
-      }
-    };
-
-    checkAccess();
-  }, [currentUser?.email, currentUser?.role, BACKEND_URL, navigate]);
-
-
+  }, [currentUser?.email, currentUser?.role, BACKEND_URL, authFetch]);
 
   useEffect(() => {
     if (eventTypes.length > 0 && !selectedEventTypeFilter) {
       console.log("Initializing event type filter to 'all'");
-      setSelectedEventTypeFilter('all');
+      setSelectedEventTypeFilter("all");
     }
   }, [eventTypes.length, selectedEventTypeFilter]);
 
   useEffect(() => {
-    if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-      console.log(" Event type filter changed, auto-refreshing:", selectedEventTypeFilter);
+    if (selectedEventTypeFilter && selectedEventTypeFilter !== "all") {
+      console.log(
+        " Event type filter changed, auto-refreshing:",
+        selectedEventTypeFilter
+      );
 
       const refreshParams = {
         page: 1,
         limit: rowsPerPage,
         start_date: DEFAULT_API_START_DATE,
         event_type: selectedEventTypeFilter,
-        _t: Date.now()
+        _t: Date.now(),
       };
 
-      if (selectedStatus && selectedStatus !== 'all') {
+      if (selectedStatus && selectedStatus !== "all") {
         refreshParams.status = selectedStatus;
       }
 
@@ -2546,31 +3010,28 @@ const Events = () => {
   useEffect(() => {
     console.log(" [CURRENT STATE DEBUG]", {
       selectedEventTypeFilter,
-      eventTypes: eventTypes.map(et => ({ name: et.name, _id: et._id })),
-      events: events.map(ev => ({
+      eventTypes: eventTypes.map((et) => ({ name: et.name, _id: et._id })),
+      events: events.map((ev) => ({
         name: ev.eventName,
         eventType: ev.eventType,
-        _id: ev._id
+        _id: ev._id,
       })),
-      eventsCount: events.length
+      eventsCount: events.length,
     });
   }, [selectedEventTypeFilter, eventTypes, events]);
 
-
-
-
-
-
   useEffect(() => {
-    if (isLeaderAt12 && viewFilter === 'personal') {
-      console.log(" Auto-switching Leader at 12 to VIEW ALL mode on initial load");
-      setViewFilter('all');
+    if (isLeaderAt12 && viewFilter === "personal") {
+      console.log(
+        " Auto-switching Leader at 12 to VIEW ALL mode on initial load"
+      );
+      setViewFilter("all");
 
       const fetchParams = {
         page: 1,
         limit: rowsPerPage,
         start_date: DEFAULT_API_START_DATE,
-        event_type: "CELLS"
+        event_type: "CELLS",
       };
 
       if (isLeaderAt12) {
@@ -2583,24 +3044,21 @@ const Events = () => {
         }
       }
 
-      // Small delay to ensure state is updated
       setTimeout(() => {
         fetchEvents(fetchParams, true);
       }, 100);
     }
-  }, [isLeaderAt12]); // Only depend on isLeaderAt12, not viewFilter
-
+  }, [isLeaderAt12]);
 
   useEffect(() => {
     const checkAuth = () => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const userProfile = localStorage.getItem("userProfile");
 
       if (!token || !userProfile) {
-
         toast.warning("Please log in to continue.");
         setTimeout(() => {
-          window.location.href = '/login';
+          window.location.href = "/login";
         }, 1500);
       }
     };
@@ -2611,10 +3069,18 @@ const Events = () => {
   const isOverdue = useCallback((event) => {
     const did_not_meet = event.did_not_meet || false;
     const hasAttendees = event.attendees && event.attendees.length > 0;
-    const status = (event.status || event.Status || '').toLowerCase().trim();
-    const isMissedRecurrent = event.is_recurring && event.recurrent_status === 'missed';
+    const status = (event.status || event.Status || "").toLowerCase().trim();
+    const isMissedRecurrent =
+      event.is_recurring && event.recurrent_status === "missed";
 
-    if (hasAttendees || status === 'complete' || status === 'closed' || status === 'did_not_meet' || did_not_meet || isMissedRecurrent) {
+    if (
+      hasAttendees ||
+      status === "complete" ||
+      status === "closed" ||
+      status === "did_not_meet" ||
+      did_not_meet ||
+      isMissedRecurrent
+    ) {
       return false;
     }
     if (!event?.date) return false;
@@ -2626,120 +3092,119 @@ const Events = () => {
     return eventDate < today;
   }, []);
 
-
-  // Add this useEffect to track filter changes
   useEffect(() => {
     console.log(" FILTER CHANGE DEBUG:", {
       selectedEventTypeFilter,
       eventsCount: events.length,
-      eventTypes: eventTypes.map(et => et.name)
+      eventTypes: eventTypes.map((et) => et.name),
     });
   }, [selectedEventTypeFilter, events, eventTypes]);
 
-
-
-  const handleSaveEventType = useCallback(async (eventTypeData, eventTypeId = null) => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
-
-      const oldName = editingEventType?.name;
-      console.log("💾 Saving event type:", {
-        eventTypeData,
-        eventTypeId,
-        oldName,
-        editingEventType
-      });
-
-      let url, method;
-
-      if (eventTypeId || editingEventType) {
-        // Editing existing event type - use the OLD name for the URL
-        const identifier = oldName;
-        if (!identifier) {
-          throw new Error("Cannot update: original event type name not found");
+  const handleSaveEventType = useCallback(
+    async (eventTypeData, eventTypeId = null) => {
+      try {
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          throw new Error("No authentication token found");
         }
 
-        console.log(` Updating event type from '${identifier}' to '${eventTypeData.name}'`);
+        const oldName = editingEventType?.name;
+        console.log(" Saving event type:", {
+          eventTypeData,
+          eventTypeId,
+          oldName,
+          editingEventType,
+        });
 
-        // URL encode the OLD name for the endpoint
-        const encodedName = encodeURIComponent(identifier);
-        url = `${BACKEND_URL}/event-types/${encodedName}`;
-        method = 'PUT';
+        let url, method;
 
-        console.log(" Update URL:", url);
-      } else {
-        // Creating new event type
-        url = `${BACKEND_URL}/event-types`;
-        method = 'POST';
-        console.log(" Create URL:", url);
-      }
+        if (eventTypeId || editingEventType) {
+          const identifier = oldName;
+          if (!identifier) {
+            throw new Error(
+              "Cannot update: original event type name not found"
+            );
+          }
 
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(eventTypeData)
-      });
+          console.log(
+            ` Updating event type from '${identifier}' to '${eventTypeData.name}'`
+          );
 
-      console.log(" Response status:", response.status, response.statusText);
+          const encodedName = encodeURIComponent(identifier);
+          url = `${BACKEND_URL}/event-types/${encodedName}`;
+          method = "PUT";
 
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch (e) {
-          errorData = { detail: `HTTP ${response.status}: ${response.statusText}` };
+          console.log(" Update URL:", url);
+        } else {
+          url = `${BACKEND_URL}/event-types`;
+          method = "POST";
+          console.log(" Create URL:", url);
         }
 
-        console.error(" Server error:", errorData);
-        throw new Error(errorData.detail || `Failed to save event type: ${response.status}`);
+        const response = await authFetch(url, {
+          method: method,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(eventTypeData),
+        });
+
+        console.log(" Response status:", response.status, response.statusText);
+
+        if (!response.ok) {
+          let errorData;
+          try {
+            errorData = await response.json();
+          } catch (e) {
+            errorData = {
+              detail: `HTTP ${response.status}: ${response.statusText}`,
+            };
+          }
+
+          console.error(" Server error:", errorData);
+          throw new Error(
+            errorData.detail || `Failed to save event type: ${response.status}`
+          );
+        }
+
+        const result = await response.json();
+        console.log(" Event type saved successfully:", result);
+        setEventTypesModalOpen(false);
+        setEditingEventType(null);
+        await fetchEventTypes();
+
+        if (
+          oldName &&
+          selectedEventTypeFilter === oldName &&
+          result.name !== oldName
+        ) {
+          console.log(` Updating filter from '${oldName}' to '${result.name}'`);
+          setSelectedEventTypeFilter(result.name);
+        }
+
+        toast.success(
+          `Event type ${eventTypeId ? "updated" : "created"} successfully!`
+        );
+        return result;
+      } catch (error) {
+        console.error(` Error saving event type:`, error);
+        toast.error(`Failed to save event type: ${error.message}`);
+        throw error;
       }
-
-      const result = await response.json();
-      console.log(" Event type saved successfully:", result);
-
-      // Close modal and reset state
-      setEventTypesModalOpen(false);
-      setEditingEventType(null);
-
-      // Refresh event types list
-      await fetchEventTypes();
-
-      // Update filter if name changed
-      if (oldName && selectedEventTypeFilter === oldName && result.name !== oldName) {
-        console.log(` Updating filter from '${oldName}' to '${result.name}'`);
-        setSelectedEventTypeFilter(result.name);
-      }
-
-      toast.success(`Event type ${eventTypeId ? 'updated' : 'created'} successfully!`);
-      return result;
-
-    } catch (error) {
-      console.error(` Error saving event type:`, error);
-      toast.error(`Failed to save event type: ${error.message}`);
-      throw error;
-    }
-  }, [
-    BACKEND_URL,
-    editingEventType,
-    fetchEventTypes,
-    selectedEventTypeFilter
-  ])
+    },
+    [BACKEND_URL, editingEventType, fetchEventTypes, selectedEventTypeFilter]
+  );
 
   const handleCreateEventType = async (eventTypeData) => {
     try {
       console.log(" Creating event type:", eventTypeData);
 
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BACKEND_URL}/event-types`, {
-        method: 'POST',
+      const token = localStorage.getItem("access_token");
+      const response = await authFetch(`${BACKEND_URL}/event-types`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(eventTypeData),
@@ -2753,14 +3218,16 @@ const Events = () => {
         await fetchEventTypes();
 
         // Show success message
-        toast.success('Event type created successfully!');
+        toast.success("Event type created successfully!");
 
         return newEventType;
       } else {
         const errorData = await response.json();
         console.error(" Failed to create event type:", errorData);
-        toast.error(`Error: ${errorData.detail || 'Failed to create event type'}`);
-        throw new Error(errorData.detail || 'Failed to create event type');
+        toast.error(
+          `Error: ${errorData.detail || "Failed to create event type"}`
+        );
+        throw new Error(errorData.detail || "Failed to create event type");
       }
     } catch (error) {
       console.error(" Error creating event type:", error);
@@ -2771,12 +3238,17 @@ const Events = () => {
 
   const handleUpdateEventType = async (eventTypeData, eventTypeIdentifier) => {
     try {
-      console.log(" Updating event type:", { eventTypeData, eventTypeIdentifier });
+      console.log(" Updating event type:", {
+        eventTypeData,
+        eventTypeIdentifier,
+      });
 
-      // Use the original name from the editing event type, not the new name
-      const originalEventType = editingEventType || eventTypes.find(et =>
-        et._id === eventTypeIdentifier || et.name === eventTypeIdentifier
-      );
+      const originalEventType =
+        editingEventType ||
+        eventTypes.find(
+          (et) =>
+            et._id === eventTypeIdentifier || et.name === eventTypeIdentifier
+        );
 
       if (!originalEventType) {
         throw new Error("Could not find original event type data");
@@ -2785,40 +3257,44 @@ const Events = () => {
       const originalName = originalEventType.name;
       console.log(" Original event type name:", originalName);
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
 
       // URL encode the ORIGINAL event type name for the API endpoint
       const encodedName = encodeURIComponent(originalName);
-      const response = await fetch(`${BACKEND_URL}/event-types/${encodedName}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(eventTypeData),
-      });
+      const response = await authFetch(
+        `${BACKEND_URL}/event-types/${encodedName}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(eventTypeData),
+        }
+      );
 
       if (response.ok) {
         const updatedEventType = await response.json();
         console.log(" Event type updated successfully:", updatedEventType);
 
-        // Refresh event types list
         await fetchEventTypes();
 
-        // Update the selected filter if the name changed
-        if (selectedEventTypeFilter === originalName && eventTypeData.name !== originalName) {
+        if (
+          selectedEventTypeFilter === originalName &&
+          eventTypeData.name !== originalName
+        ) {
           setSelectedEventTypeFilter(eventTypeData.name);
         }
-
-        // Show success message
-        toast.success('Event type updated successfully!');
+        toast.success("Event type updated successfully!");
 
         return updatedEventType;
       } else {
         const errorData = await response.json();
         console.error("Failed to update event type:", errorData);
-        toast.error(`Error: ${errorData.detail || 'Failed to update event type'}`);
-        throw new Error(errorData.detail || 'Failed to update event type');
+        toast.error(
+          `Error: ${errorData.detail || "Failed to update event type"}`
+        );
+        throw new Error(errorData.detail || "Failed to update event type");
       }
     } catch (error) {
       console.error(" Error updating event type:", error);
@@ -2829,11 +3305,25 @@ const Events = () => {
 
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
-      const leaderAt1 = await getCurrentUserLeaderAt1();
-      setCurrentUserLeaderAt1(leaderAt1);
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        console.log(" No token, skipping leader at 1 fetch");
+        setCurrentUserLeaderAt1("");
+        return;
+      }
+
+      try {
+        const leaderAt1 = await getCurrentUserLeaderAt1();
+        setCurrentUserLeaderAt1(leaderAt1);
+      } catch (error) {
+        console.error("Error fetching leader at 1:", error);
+        setCurrentUserLeaderAt1("");
+      }
     };
 
-    fetchCurrentUserLeaderAt1();
+    setTimeout(() => {
+      fetchCurrentUserLeaderAt1();
+    }, 500);
   }, [getCurrentUserLeaderAt1]);
 
   useEffect(() => {
@@ -2863,10 +3353,15 @@ const Events = () => {
     }
   }, [customEventTypes]);
 
-
   useEffect(() => {
     clearCache();
-  }, [selectedEventTypeFilter, selectedStatus, viewFilter, searchQuery, clearCache]);
+  }, [
+    selectedEventTypeFilter,
+    selectedStatus,
+    viewFilter,
+    searchQuery,
+    clearCache,
+  ]);
 
   useEffect(() => {
     if (eventTypes.length === 0) {
@@ -2876,10 +3371,10 @@ const Events = () => {
     const fetchParams = {
       page: currentPage,
       limit: rowsPerPage,
-      start_date: DEFAULT_API_START_DATE
+      start_date: DEFAULT_API_START_DATE,
     };
 
-    if (selectedStatus && selectedStatus !== 'all') {
+    if (selectedStatus && selectedStatus !== "all") {
       fetchParams.status = selectedStatus;
     }
 
@@ -2889,10 +3384,10 @@ const Events = () => {
 
     let endpointType = "cells";
 
-    if (selectedEventTypeFilter === 'all') {
+    if (selectedEventTypeFilter === "all") {
       fetchParams.event_type = "CELLS";
       endpointType = "cells";
-    } else if (selectedEventTypeFilter === 'CELLS') {
+    } else if (selectedEventTypeFilter === "CELLS") {
       fetchParams.event_type = "CELLS";
       endpointType = "cells";
     } else {
@@ -2904,7 +3399,7 @@ const Events = () => {
 
     if (endpointType === "cells") {
       if (isAdmin) {
-        if (viewFilter === 'personal') {
+        if (viewFilter === "personal") {
           fetchParams.personal = true;
         }
       } else if (isRegistrant || isRegularUser) {
@@ -2916,7 +3411,7 @@ const Events = () => {
           fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
         }
 
-        if (viewFilter === 'personal') {
+        if (viewFilter === "personal") {
           // PERSONAL: Only their own cell
           fetchParams.show_personal_cells = true;
           fetchParams.personal = true;
@@ -2926,7 +3421,6 @@ const Events = () => {
           fetchParams.include_subordinate_cells = true;
         }
       }
-
     } else {
       console.log("Loading event type data for:", selectedEventTypeFilter);
 
@@ -2937,11 +3431,14 @@ const Events = () => {
       delete fetchParams.include_subordinate_cells;
       delete fetchParams.leader_at_1_identifier;
 
-      console.log("Event Type Mode - Showing ALL events for:", selectedEventTypeFilter);
+      console.log(
+        "Event Type Mode - Showing ALL events for:",
+        selectedEventTypeFilter
+      );
     }
 
-    Object.keys(fetchParams).forEach(key =>
-      fetchParams[key] === undefined && delete fetchParams[key]
+    Object.keys(fetchParams).forEach(
+      (key) => fetchParams[key] === undefined && delete fetchParams[key]
     );
 
     console.log("FINAL API call params:", fetchParams);
@@ -2960,88 +3457,27 @@ const Events = () => {
     isRegistrant,
     currentUserLeaderAt1,
     fetchEvents,
-    DEFAULT_API_START_DATE
+    DEFAULT_API_START_DATE,
   ]);
 
-  const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
-    const statuses = [
-      { value: 'incomplete', label: 'INCOMPLETE', style: styles.statusBadgeIncomplete },
-      { value: 'complete', label: 'COMPLETE', style: styles.statusBadgeComplete },
-      { value: 'did_not_meet', label: 'DID NOT MEET', style: styles.statusBadgeDidNotMeet }
-    ];
 
-    const handleStatusClick = (statusValue) => {
-      setSelectedStatus(statusValue);
-      setCurrentPage(1);
-
-      const shouldApplyPersonalFilter =
-        viewFilter === 'personal' &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now(),
-        ...(searchQuery.trim() && { search: searchQuery.trim() }),
-        ...(selectedEventTypeFilter !== 'all' && { event_type: selectedEventTypeFilter }),
-        ...(shouldApplyPersonalFilter && { personal: true }),
-      };
-
-      //  CRITICAL: Always send status parameter when filtering (except for 'all')
-      if (statusValue && statusValue !== 'all') {
-        fetchParams.status = statusValue;
-      }
-
-      // Leader at 12 params for cells
-      if (isLeaderAt12 && (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS')) {
-        fetchParams.leader_at_12_view = true;
-        fetchParams.include_subordinate_cells = true;
-
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === 'personal') {
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          fetchParams.show_all_authorized = true;
-        }
-      }
-
-      fetchEvents(fetchParams, true, true);
-    };
-
-    return (
-      <div style={styles.statusBadgeContainer}>
-        {statuses.map(status => (
-          <button
-            key={status.value}
-            style={{
-              ...styles.statusBadge,
-              ...status.style,
-              ...(selectedStatus === status.value ? styles.statusBadgeActive : {})
-            }}
-            onClick={() => handleStatusClick(status.value)}
-          >
-            {status.label}
-          </button>
-        ))}
-      </div>
-    );
-  };
 
   const ViewFilterButtons = () => {
-    console.log("is it a leader at 12 ", isLeaderAt12)
-    const shouldShowToggle = (isAdmin || (isLeaderAt12)) &&
-      (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
+    console.log("is it a leader at 12 ", isLeaderAt12);
+    const shouldShowToggle =
+      (isAdmin || isLeaderAt12) &&
+      (selectedEventTypeFilter === "all" ||
+        selectedEventTypeFilter === "CELLS");
 
     if (isRegularUser || isRegistrant) {
       return null;
     }
 
-    if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all' && selectedEventTypeFilter !== 'CELLS') {
+    if (
+      selectedEventTypeFilter &&
+      selectedEventTypeFilter !== "all" &&
+      selectedEventTypeFilter !== "CELLS"
+    ) {
       return null;
     }
 
@@ -3055,16 +3491,15 @@ const Events = () => {
       setViewFilter(newViewFilter);
       setCurrentPage(1);
 
-
       const fetchParams = {
         page: 1,
         limit: rowsPerPage,
         start_date: DEFAULT_API_START_DATE,
         event_type: "CELLS",
-        _t: Date.now()
+        _t: Date.now(),
       };
 
-      if (selectedStatus !== 'all') {
+      if (selectedStatus !== "all") {
         fetchParams.status = selectedStatus;
       }
       if (searchQuery.trim()) {
@@ -3073,16 +3508,14 @@ const Events = () => {
 
       // ADMIN
       if (isAdmin) {
-        if (newViewFilter === 'personal') {
+        if (newViewFilter === "personal") {
           fetchParams.personal = true;
           fetchParams.show_personal_cells = true;
         } else {
           delete fetchParams.personal;
           delete fetchParams.show_personal_cells;
         }
-      }
-      else if (isLeaderAt12) {
-
+      } else if (isLeaderAt12) {
         fetchParams.leader_at_12_view = true;
         fetchParams.include_subordinate_cells = true;
 
@@ -3090,7 +3523,7 @@ const Events = () => {
           fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
         }
 
-        if (newViewFilter === 'personal') {
+        if (newViewFilter === "personal") {
           fetchParams.personal = true;
           fetchParams.show_personal_cells = true;
         } else {
@@ -3124,24 +3557,20 @@ const Events = () => {
             type="radio"
             name="viewFilter"
             value="all"
-            checked={viewFilter === 'all'}
+            checked={viewFilter === "all"}
             onChange={(e) => handleViewFilterChange(e.target.value)}
           />
-          <span style={styles.viewFilterText}>
-            {getAllLabel()}
-          </span>
+          <span style={styles.viewFilterText}>{getAllLabel()}</span>
         </label>
         <label style={styles.viewFilterRadio}>
           <input
             type="radio"
             name="viewFilter"
             value="personal"
-            checked={viewFilter === 'personal'}
+            checked={viewFilter === "personal"}
             onChange={(e) => handleViewFilterChange(e.target.value)}
           />
-          <span style={styles.viewFilterText}>
-            {getPersonalLabel()}
-          </span>
+          <span style={styles.viewFilterText}>{getPersonalLabel()}</span>
         </label>
       </div>
     );
@@ -3157,8 +3586,8 @@ const Events = () => {
     selectedStatus,
     searchQuery,
     viewFilter,
-    userRole,
-    setSelectedEventTypeObj,
+    // userRole,
+    // setSelectedEventTypeObj,
     DEFAULT_API_START_DATE,
     isLeaderAt12,
     isAdmin,
@@ -3167,15 +3596,15 @@ const Events = () => {
     setEditingEventType,
     setEventTypesModalOpen,
     setToDeleteType,
-    setConfirmDeleteOpen
+    setConfirmDeleteOpen,
   }) => {
     const [hoveredType, setHoveredType] = useState(null);
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const theme = useTheme();
-    const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
-    const isDarkMode = theme.palette.mode === 'dark';
+    const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
+    const isDarkMode = theme.palette.mode === "dark";
 
     const canEditEventTypes = isAdmin;
 
@@ -3190,11 +3619,11 @@ const Events = () => {
         page: 1,
         limit: rowsPerPage,
         start_date: DEFAULT_API_START_DATE,
-        event_type: typeValue === 'all' ? "CELLS" : typeValue,
-        _t: Date.now() // Cache buster
+        event_type: typeValue === "all" ? "CELLS" : typeValue,
+        _t: Date.now(), // Cache buster
       };
 
-      if (selectedStatus !== 'all') {
+      if (selectedStatus !== "all") {
         fetchParams.status = selectedStatus;
       }
 
@@ -3202,9 +3631,9 @@ const Events = () => {
         fetchParams.search = searchQuery.trim();
       }
 
-      if (typeValue === 'all' || typeValue === 'CELLS') {
+      if (typeValue === "all" || typeValue === "CELLS") {
         if (isAdmin) {
-          if (viewFilter === 'personal') {
+          if (viewFilter === "personal") {
             fetchParams.personal = true;
           }
         } else if (isRegistrant || isRegularUser) {
@@ -3213,7 +3642,7 @@ const Events = () => {
           fetchParams.leader_at_12_view = true;
           fetchParams.include_subordinate_cells = true;
 
-          if (viewFilter === 'personal') {
+          if (viewFilter === "personal") {
             fetchParams.show_personal_cells = true;
             fetchParams.personal = true;
           } else {
@@ -3233,7 +3662,9 @@ const Events = () => {
 
     const mobileEventTypeStyles = {
       container: {
-        backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
+        backgroundColor: isDarkMode
+          ? theme.palette.background.paper
+          : "#f8f9fa",
         borderRadius: "12px",
         padding: isMobileView ? "0.75rem" : "1rem",
         marginBottom: isMobileView ? "0.5rem" : "1rem",
@@ -3285,8 +3716,11 @@ const Events = () => {
       typeCard: {
         padding: isMobileView ? "0.4rem 0.6rem" : "0.6rem 0.8rem",
         borderRadius: "8px",
-        border: `1px solid ${isDarkMode ? theme.palette.divider : "transparent"}`,
-        backgroundColor: isDarkMode ? theme.palette.background.default : "white",
+        border: `1px solid ${isDarkMode ? theme.palette.divider : "transparent"
+          }`,
+        backgroundColor: isDarkMode
+          ? theme.palette.background.default
+          : "white",
         cursor: "pointer",
         transition: "all 0.2s ease",
         position: "relative",
@@ -3307,31 +3741,33 @@ const Events = () => {
       typeCardHover: {
         borderColor: isDarkMode ? theme.palette.primary.main : "#ddd",
         transform: "translateY(-1px)",
-        boxShadow: isDarkMode ? "0 2px 4px rgba(0,0,0,0.2)" : "0 2px 4px rgba(0,0,0,0.1)",
+        boxShadow: isDarkMode
+          ? "0 2px 4px rgba(0,0,0,0.2)"
+          : "0 2px 4px rgba(0,0,0,0.1)",
       },
     };
 
     const allTypes = useMemo(() => {
-      const availableTypes = eventTypes.map(t => t.name || t).filter(name => name && name !== "all");
+      const availableTypes = eventTypes
+        .map((t) => t.name || t)
+        .filter((name) => name && name !== "all");
 
-      //  FIXED: Priority order - Admin > Registrant > Leader at 12 > Regular User
       if (isAdmin) {
-        // Admin sees everything
         const adminTypes = ["all"];
-        availableTypes.forEach(type => {
+        availableTypes.forEach((type) => {
           adminTypes.push(type);
         });
         return adminTypes;
       } else if (isRegistrant) {
         const registrantTypes = ["all"];
-        availableTypes.forEach(type => {
+        availableTypes.forEach((type) => {
           registrantTypes.push(type);
         });
 
         return registrantTypes;
       } else if (isLeaderAt12) {
         const leaderTypes = ["all"];
-        availableTypes.forEach(type => {
+        availableTypes.forEach((type) => {
           leaderTypes.push(type);
         });
         return leaderTypes;
@@ -3367,9 +3803,9 @@ const Events = () => {
     };
 
     const handleEditEventType = () => {
-      if (selectedTypeForMenu && selectedTypeForMenu !== 'all') {
+      if (selectedTypeForMenu && selectedTypeForMenu !== "all") {
         const eventTypeToEdit = eventTypes.find(
-          et => et.name?.toLowerCase() === selectedTypeForMenu.toLowerCase()
+          (et) => et.name?.toLowerCase() === selectedTypeForMenu.toLowerCase()
         ) || { name: selectedTypeForMenu };
 
         setEditingEventType(eventTypeToEdit);
@@ -3379,17 +3815,19 @@ const Events = () => {
     };
 
     const handleDeleteEventType = () => {
-      if (selectedTypeForMenu && selectedTypeForMenu !== 'all') {
+      if (selectedTypeForMenu && selectedTypeForMenu !== "all") {
         console.log(" Attempting to delete event type:", selectedTypeForMenu);
 
-        const exactEventType = eventTypes.find(et => {
-          const etName = et.name || et.eventType || et.eventTypeName || '';
+        const exactEventType = eventTypes.find((et) => {
+          const etName = et.name || et.eventType || et.eventTypeName || "";
           return etName.toLowerCase() === selectedTypeForMenu.toLowerCase();
         });
 
-        const typeToDelete = exactEventType ?
-          (exactEventType.name || exactEventType.eventType || exactEventType.eventTypeName) :
-          selectedTypeForMenu;
+        const typeToDelete = exactEventType
+          ? exactEventType.name ||
+          exactEventType.eventType ||
+          exactEventType.eventTypeName
+          : selectedTypeForMenu;
 
         console.log(" Final type to delete:", typeToDelete);
         setToDeleteType(typeToDelete);
@@ -3398,7 +3836,8 @@ const Events = () => {
       handleMenuClose();
     };
 
-    const shouldShowSelector = isAdmin || isRegistrant || isLeaderAt12 || isRegularUser;
+    const shouldShowSelector =
+      isAdmin || isRegistrant || isLeaderAt12 || isRegularUser;
 
     if (!shouldShowSelector) {
       return null;
@@ -3412,22 +3851,26 @@ const Events = () => {
 
     return (
       <div style={mobileEventTypeStyles.container}>
-        {/* Header Row - Always visible */}
         <div
           style={mobileEventTypeStyles.headerRow}
           onClick={() => isMobileView && setIsCollapsed(!isCollapsed)}
         >
           <div style={mobileEventTypeStyles.header}>
-            {isAdmin ? "Event Types" :
-              isRegistrant ? "Event Types" :
-                isLeaderAt12 ? "Cells & Events" :
-                  "Your Cells"}
+            {isAdmin
+              ? "Event Types"
+              : isRegistrant
+                ? "Event Types"
+                : isLeaderAt12
+                  ? "Cells & Events"
+                  : "Your Cells"}
           </div>
 
           <div style={mobileEventTypeStyles.selectedTypeDisplay}>
             <span>•</span>
             <span>
-              {selectedEventTypeFilter === 'all' && isLeaderAt12 ? "ALL CELLS" : getDisplayName(selectedEventTypeFilter)}
+              {selectedEventTypeFilter === "all" && isLeaderAt12
+                ? "ALL CELLS"
+                : getDisplayName(selectedEventTypeFilter)}
             </span>
           </div>
 
@@ -3451,7 +3894,7 @@ const Events = () => {
             const isActive = selectedEventTypeFilter === typeValue;
             const isHovered = hoveredType === typeValue;
 
-            const showMenu = canEditEventTypes && typeValue !== 'all';
+            const showMenu = canEditEventTypes && typeValue !== "all";
 
             return (
               <div
@@ -3459,17 +3902,16 @@ const Events = () => {
                 style={{
                   ...mobileEventTypeStyles.typeCard,
                   ...(isActive ? mobileEventTypeStyles.typeCardActive : {}),
-                  ...(isHovered && !isActive ? mobileEventTypeStyles.typeCardHover : {}),
+                  ...(isHovered && !isActive
+                    ? mobileEventTypeStyles.typeCardHover
+                    : {}),
                 }}
                 onClick={() => handleEventTypeClick(typeValue)}
                 onMouseEnter={() => setHoveredType(typeValue)}
                 onMouseLeave={() => setHoveredType(null)}
               >
-                <span>
-                  {displayName}
-                </span>
+                <span>{displayName}</span>
 
-                {/*  FIXED: Show edit menu for admin users */}
                 {showMenu && (
                   <IconButton
                     size="small"
@@ -3480,17 +3922,21 @@ const Events = () => {
                       right: 2,
                       width: 20,
                       height: 20,
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)',
-                      '&:hover': {
-                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)',
+                      backgroundColor: isDarkMode
+                        ? "rgba(255,255,255,0.1)"
+                        : "rgba(0,0,0,0.04)",
+                      "&:hover": {
+                        backgroundColor: isDarkMode
+                          ? "rgba(255,255,255,0.2)"
+                          : "rgba(0,0,0,0.08)",
                       },
-                      color: isDarkMode ? '#fff' : '#000',
-                      fontSize: '12px',
-                      padding: '1px',
-                      minWidth: 'auto',
+                      color: isDarkMode ? "#fff" : "#000",
+                      fontSize: "12px",
+                      padding: "1px",
+                      minWidth: "auto",
                       //  Make it always visible on mobile, hover-only on desktop
-                      opacity: isMobileView ? 1 : (isHovered || isActive ? 1 : 0),
-                      transition: 'opacity 0.2s ease',
+                      opacity: isMobileView ? 1 : isHovered || isActive ? 1 : 0,
+                      transition: "opacity 0.2s ease",
                     }}
                   >
                     ⋮
@@ -3507,24 +3953,26 @@ const Events = () => {
           anchorEl={menuAnchor}
           onClose={handleMenuClose}
           anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
+            vertical: "bottom",
+            horizontal: "right",
           }}
           transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
+            vertical: "top",
+            horizontal: "right",
           }}
           sx={{
-            '& .MuiPaper-root': {
-              backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
-              color: isDarkMode ? theme.palette.text.primary : '#000',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              borderRadius: '8px',
-              minWidth: '120px',
+            "& .MuiPaper-root": {
+              backgroundColor: isDarkMode
+                ? theme.palette.background.paper
+                : "#fff",
+              color: isDarkMode ? theme.palette.text.primary : "#000",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              borderRadius: "8px",
+              minWidth: "120px",
             },
           }}
         >
-          <MenuItem onClick={handleEditEventType} sx={{ fontSize: '14px' }}>
+          <MenuItem onClick={handleEditEventType} sx={{ fontSize: "14px" }}>
             <ListItemIcon sx={{ minWidth: 36 }}>
               <EditIcon fontSize="small" />
             </ListItemIcon>
@@ -3533,14 +3981,14 @@ const Events = () => {
           <MenuItem
             onClick={handleDeleteEventType}
             sx={{
-              fontSize: '14px',
+              fontSize: "14px",
               color: theme.palette.error.main,
-              '&:hover': {
-                backgroundColor: theme.palette.error.light + '20',
-              }
+              "&:hover": {
+                backgroundColor: theme.palette.error.light + "20",
+              },
             }}
           >
-            <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}>
+            <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
               <DeleteIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>Delete</ListItemText>
@@ -3551,31 +3999,35 @@ const Events = () => {
   };
 
   return (
-    <Box sx={{
-      height: "100vh",
-      fontFamily: "system-ui, sans-serif",
-      padding: isMobileView ? "0.5rem" : "1rem",
-      paddingTop: isMobileView ? "4rem" : "5rem",
-      paddingBottom: "1rem",
-      boxSizing: "border-box",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-      position: "relative",
-      width: "100%",
-      maxWidth: "100vw",
-      backgroundColor: isDarkMode ? theme.palette.background.default : '#f5f7fa',
-    }}>
-
-      <Box sx={{
-        padding: isMobileView ? "1rem" : "1.5rem",
-        borderRadius: "16px",
-        marginBottom: isMobileView ? "0.5rem" : "1rem",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-        flexShrink: 0,
-        backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
-      }}>
-
+    <Box
+      sx={{
+        height: "100vh",
+        fontFamily: "system-ui, sans-serif",
+        padding: isMobileView ? "0.5rem" : "1rem",
+        paddingTop: isMobileView ? "4rem" : "5rem",
+        paddingBottom: "1rem",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        position: "relative",
+        width: "100%",
+        maxWidth: "100vw",
+        backgroundColor: isDarkMode
+          ? theme.palette.background.default
+          : "#f5f7fa",
+      }}
+    >
+      <Box
+        sx={{
+          padding: isMobileView ? "1rem" : "1.5rem",
+          borderRadius: "16px",
+          marginBottom: isMobileView ? "0.5rem" : "1rem",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+          flexShrink: 0,
+          backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+        }}
+      >
         <EventTypeSelector
           eventTypes={eventTypes}
           selectedEventTypeFilter={selectedEventTypeFilter}
@@ -3599,24 +4051,23 @@ const Events = () => {
           setConfirmDeleteOpen={setConfirmDeleteOpen}
           clearCache={clearCache}
         />
-        <Box sx={{
-          display: "flex",
-          gap: 2,
-          alignItems: "center",
-          marginBottom: isMobileView ? "0.75rem" : "1.5rem",
-          flexWrap: "wrap",
-          px: 1
-        }}>
-          {/* ... TextField (Search) ... */}
-
-
+        <Box
+          sx={{
+            display: "flex",
+            gap: 2,
+            alignItems: "center",
+            marginBottom: isMobileView ? "0.75rem" : "1.5rem",
+            flexWrap: "wrap",
+            px: 1,
+          }}
+        >
           <TextField
             size="small"
             placeholder="Search by Event Name, Leader, or Email..."
             value={searchQuery}
             onChange={handleSearchChange}
             onKeyPress={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === "Enter") {
                 handleSearchSubmit();
               }
             }}
@@ -3630,41 +4081,49 @@ const Events = () => {
             sx={{
               flex: 1,
               minWidth: 200,
-              backgroundColor: 'transparent !important',
-              '& .MuiInputBase-root': {
-                backgroundColor: 'transparent !important',
+              backgroundColor: "transparent !important",
+              "& .MuiInputBase-root": {
+                backgroundColor: "transparent !important",
               },
-              '& .MuiInputBase-input': {
-                fontSize: isMobileView ? '14px' : '0.95rem',
-                padding: isMobileView ? '0.6rem 0.8rem' : '0.75rem 1rem',
-                color: isDarkMode ? theme.palette.text.primary : '#000',
-                backgroundColor: 'transparent !important',
+              "& .MuiInputBase-input": {
+                fontSize: isMobileView ? "14px" : "0.95rem",
+                padding: isMobileView ? "0.6rem 0.8rem" : "0.75rem 1rem",
+                color: isDarkMode ? theme.palette.text.primary : "#000",
+                backgroundColor: "transparent !important",
               },
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: 'transparent !important',
-                '& fieldset': {
-                  borderColor: isDarkMode ? theme.palette.divider : '#ccc',
-                  backgroundColor: 'transparent !important',
+              "& .MuiOutlinedInput-root": {
+                backgroundColor: "transparent !important",
+                "& fieldset": {
+                  borderColor: isDarkMode ? theme.palette.divider : "#ccc",
+                  backgroundColor: "transparent !important",
                 },
-                '&:hover fieldset': {
-                  borderColor: isDarkMode ? theme.palette.primary.main : '#007bff',
+                "&:hover fieldset": {
+                  borderColor: isDarkMode
+                    ? theme.palette.primary.main
+                    : "#007bff",
                 },
-                '&.Mui-focused fieldset': {
-                  borderColor: isDarkMode ? theme.palette.primary.main : '#007bff',
+                "&.Mui-focused fieldset": {
+                  borderColor: isDarkMode
+                    ? theme.palette.primary.main
+                    : "#007bff",
                 },
-                '&:hover': {
-                  backgroundColor: 'transparent !important',
+                "&:hover": {
+                  backgroundColor: "transparent !important",
                 },
-                '&.Mui-focused': {
-                  backgroundColor: 'transparent !important',
+                "&.Mui-focused": {
+                  backgroundColor: "transparent !important",
                 },
               },
-              '& input': {
-                backgroundColor: 'transparent !important',
+              "& input": {
+                backgroundColor: "transparent !important",
               },
-              '& input:-webkit-autofill': {
-                WebkitBoxShadow: isDarkMode ? '0 0 0 1000px #1a1a1a inset !important' : '0 0 0 1000px white inset !important',
-                WebkitTextFillColor: isDarkMode ? '#fff !important' : '#000 !important',
+              "& input:-webkit-autofill": {
+                WebkitBoxShadow: isDarkMode
+                  ? "0 0 0 1000px #1a1a1a inset !important"
+                  : "0 0 0 1000px white inset !important",
+                WebkitTextFillColor: isDarkMode
+                  ? "#fff !important"
+                  : "#000 !important",
               },
             }}
           />
@@ -3675,12 +4134,12 @@ const Events = () => {
             onClick={handleSearchSubmit}
             disabled={loading}
             sx={{
-              padding: isMobileView ? '0.6rem 1rem' : '0.75rem 1.5rem',
-              fontSize: isMobileView ? '14px' : '0.95rem',
-              whiteSpace: 'nowrap',
+              padding: isMobileView ? "0.6rem 1rem" : "0.75rem 1.5rem",
+              fontSize: isMobileView ? "14px" : "0.95rem",
+              whiteSpace: "nowrap",
             }}
           >
-            {loading ? '⏳' : 'SEARCH'}
+            {loading ? "⏳" : "SEARCH"}
           </Button>
 
           {/* ... Button (Clear All) ... */}
@@ -3689,71 +4148,96 @@ const Events = () => {
             onClick={clearAllFilters}
             disabled={loading}
             sx={{
-              padding: isMobileView ? '0.6rem 1rem' : '0.75rem 1.5rem',
-              fontSize: isMobileView ? '14px' : '0.95rem',
-              whiteSpace: 'nowrap',
-              backgroundColor: '#6c757d',
-              color: 'white',
-              '&:hover': {
-                backgroundColor: '#5a6268',
-              }
+              padding: isMobileView ? "0.6rem 1rem" : "0.75rem 1.5rem",
+              fontSize: isMobileView ? "14px" : "0.95rem",
+              whiteSpace: "nowrap",
+              backgroundColor: "#6c757d",
+              color: "white",
+              "&:hover": {
+                backgroundColor: "#5a6268",
+              },
             }}
           >
-            {loading ? '⏳' : 'CLEAR ALL'}
+            {loading ? "⏳" : "CLEAR ALL"}
           </Button>
         </Box>
 
-        <Box sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1.5rem',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          px: 1
-        }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "1.5rem",
+            flexWrap: "wrap",
+            gap: "1rem",
+            px: 1,
+          }}
+        >
           <StatusBadges
             selectedStatus={selectedStatus}
             setSelectedStatus={setSelectedStatus}
             setCurrentPage={setCurrentPage}
+            viewFilter={viewFilter}
+            userRole={userRole}
+            rowsPerPage={rowsPerPage}
+            searchQuery={searchQuery}
+            selectedEventTypeFilter={selectedEventTypeFilter}
+            isLeaderAt12={isLeaderAt12}
+            currentUserLeaderAt1={currentUserLeaderAt1}
+            fetchEvents={fetchEvents}
+            DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
+            styles={styles}
           />
           <ViewFilterButtons />
         </Box>
       </Box>
 
       {/* ** 3. SCROLLABLE CONTENT AREA (Flex Grow)** */}
-      <Box sx={{
-        flexGrow: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        borderRadius: '16px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-        backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
-      }}>
-
+      <Box
+        sx={{
+          flexGrow: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          borderRadius: "16px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+          backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+        }}
+      >
         {isMobileView ? (
           <>
             {/* Scrollable list container */}
-            <Box sx={{
-              flexGrow: 1,
-              overflowY: 'auto',
-              padding: "0.75rem",
-            }}>
+            <Box
+              sx={{
+                flexGrow: 1,
+                overflowY: "auto",
+                padding: "0.75rem",
+              }}
+            >
               {loading ? (
-                <Box sx={{ width: '100%', p: 2 }}>
+                <Box sx={{ width: "100%", p: 2 }}>
                   <LinearProgress />
-                  <Typography sx={{ mt: 2, textAlign: 'center', color: isDarkMode ? theme.palette.text.primary : '#666' }}>
+                  <Typography
+                    sx={{
+                      mt: 2,
+                      textAlign: "center",
+                      color: isDarkMode ? theme.palette.text.primary : "#666",
+                    }}
+                  >
                     Loading events...
                   </Typography>
                 </Box>
               ) : paginatedEvents.length === 0 ? (
-                <Box sx={{
-                  textAlign: "center",
-                  padding: "2rem",
-                  color: isDarkMode ? theme.palette.text.primary : '#666',
-                }}>
-                  <Typography>No events found matching your criteria.</Typography>
+                <Box
+                  sx={{
+                    textAlign: "center",
+                    padding: "2rem",
+                    color: isDarkMode ? theme.palette.text.primary : "#666",
+                  }}
+                >
+                  <Typography>
+                    No events found matching your criteria.
+                  </Typography>
                 </Box>
               ) : (
                 paginatedEvents.map((event) => (
@@ -3776,124 +4260,164 @@ const Events = () => {
               )}
             </Box>
 
-            <Box sx={{
-              padding: '1rem',
-              borderTop: `1px solid ${isDarkMode ? theme.palette.divider : '#e9ecef'}`,
-              backgroundColor: isDarkMode ? theme.palette.background.paper : '#f8f9fa',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.75rem',
-              alignItems: 'center',
-              flexShrink: 0,
-            }}>
-              <Typography variant="body2" sx={{
-                color: isDarkMode ? theme.palette.text.secondary : '#6c757d'
-              }}>
-                {totalEvents > 0 ? `${startIndex}-${endIndex} of ${totalEvents}` : '0-0 of 0'}
+            <Box
+              sx={{
+                padding: "1rem",
+                borderTop: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"
+                  }`,
+                backgroundColor: isDarkMode
+                  ? theme.palette.background.paper
+                  : "#f8f9fa",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+                alignItems: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
+                }}
+              >
+                {totalEvents > 0
+                  ? `${startIndex}-${endIndex} of ${totalEvents}`
+                  : "0-0 of 0"}
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Box
+                sx={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={handlePreviousPage}
                   disabled={currentPage === 1 || loading}
                   sx={{
-                    minWidth: 'auto',
-                    color: isDarkMode ? theme.palette.text.primary : '#007bff',
-                    borderColor: isDarkMode ? theme.palette.divider : '#007bff',
-                    '&:hover': {
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,123,255,0.1)',
-                      borderColor: isDarkMode ? theme.palette.primary.main : '#0056b3',
+                    minWidth: "auto",
+                    color: isDarkMode ? theme.palette.text.primary : "#007bff",
+                    borderColor: isDarkMode ? theme.palette.divider : "#007bff",
+                    "&:hover": {
+                      backgroundColor: isDarkMode
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,123,255,0.1)",
+                      borderColor: isDarkMode
+                        ? theme.palette.primary.main
+                        : "#0056b3",
                     },
-                    '&:disabled': {
-                      color: isDarkMode ? theme.palette.text.disabled : '#6c757d',
-                      borderColor: isDarkMode ? theme.palette.divider : '#dee2e6',
-                    }
+                    "&:disabled": {
+                      color: isDarkMode
+                        ? theme.palette.text.disabled
+                        : "#6c757d",
+                      borderColor: isDarkMode
+                        ? theme.palette.divider
+                        : "#dee2e6",
+                    },
                   }}
                 >
-                  {loading ? '⏳' : '◀ Prev'}
+                  {loading ? "⏳" : "◀ Prev"}
                 </Button>
-                <Typography variant="body2" sx={{
-                  padding: '0 0.5rem',
-                  color: isDarkMode ? theme.palette.text.secondary : '#6c757d'
-                }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    padding: "0 0.5rem",
+                    color: isDarkMode
+                      ? theme.palette.text.secondary
+                      : "#6c757d",
+                  }}
+                >
                   {currentPage} / {totalPages}
                 </Typography>
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={handleNextPage}
-                  disabled={currentPage >= totalPages || loading || totalPages === 0}
+                  disabled={
+                    currentPage >= totalPages || loading || totalPages === 0
+                  }
                   sx={{
-                    minWidth: 'auto',
-                    color: isDarkMode ? theme.palette.text.primary : '#007bff',
-                    borderColor: isDarkMode ? theme.palette.divider : '#007bff',
-                    '&:hover': {
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,123,255,0.1)',
-                      borderColor: isDarkMode ? theme.palette.primary.main : '#0056b3',
+                    minWidth: "auto",
+                    color: isDarkMode ? theme.palette.text.primary : "#007bff",
+                    borderColor: isDarkMode ? theme.palette.divider : "#007bff",
+                    "&:hover": {
+                      backgroundColor: isDarkMode
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,123,255,0.1)",
+                      borderColor: isDarkMode
+                        ? theme.palette.primary.main
+                        : "#0056b3",
                     },
-                    '&:disabled': {
-                      color: isDarkMode ? theme.palette.text.disabled : '#6c757d',
-                      borderColor: isDarkMode ? theme.palette.divider : '#dee2e6',
-                    }
+                    "&:disabled": {
+                      color: isDarkMode
+                        ? theme.palette.text.disabled
+                        : "#6c757d",
+                      borderColor: isDarkMode
+                        ? theme.palette.divider
+                        : "#dee2e6",
+                    },
                   }}
                 >
-                  {loading ? '⏳' : 'Next ▶'}
+                  {loading ? "⏳" : "Next ▶"}
                 </Button>
               </Box>
             </Box>
           </>
-
         ) : (
           // DESKTOP VIEW
           <>
             {/* Scrollable table container */}
-            <Box sx={{
-              flexGrow: 1,
-              overflowY: 'auto',
-              overflowX: 'auto',
-              padding: '1rem'
-            }}>
+            <Box
+              sx={{
+                flexGrow: 1,
+                overflowY: "auto",
+                overflowX: "auto",
+                padding: "1rem",
+              }}
+            >
               {loading ? (
-                <Box sx={{ p: 3, width: '100%' }}>
+                <Box sx={{ p: 3, width: "100%" }}>
                   <LinearProgress />
-                  <Typography sx={{ mt: 2, textAlign: 'center' }}>
+                  <Typography sx={{ mt: 2, textAlign: "center" }}>
                     Loading events...
                   </Typography>
                 </Box>
               ) : paginatedEvents.length === 0 ? (
-                <Typography sx={{ p: 3, textAlign: 'center' }}>
+                <Typography sx={{ p: 3, textAlign: "center" }}>
                   No events found matching your criteria.
                 </Typography>
               ) : (
-                <Box sx={{ height: 'calc(100vh - 450px)', minHeight: '500px' }}>
+                <Box sx={{ height: "calc(100vh - 450px)", minHeight: "500px" }}>
                   <DataGrid
                     rows={paginatedEvents.map((event, idx) => {
                       const id = event._id || event.id || event.UUID || idx;
                       return {
-                        id: id,  
+                        id: id,
                         ...event,
-                        _id: id, 
+                        _id: id,
                       };
                     })}
                     columns={[
-                      ...generateDynamicColumns(paginatedEvents, isOverdue, selectedEventTypeFilter),
+                      ...generateDynamicColumns(
+                        paginatedEvents,
+                        isOverdue,
+                        selectedEventTypeFilter
+                      ),
                       {
-                        field: 'actions',
-                        headerName: 'Actions',
+                        field: "actions",
+                        headerName: "Actions",
                         sortable: false,
                         flex: 1,
                         minWidth: 200,
                         renderCell: (params) => (
-                          <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Box sx={{ display: "flex", gap: 1 }}>
                             <Tooltip title="Capture Attendance" arrow>
                               <IconButton
                                 onClick={() => handleCaptureClick(params.row)}
                                 size="small"
                                 sx={{
-                                  backgroundColor: '#007bff',
-                                  color: '#fff',
-                                  '&:hover': { backgroundColor: '#0056b3' },
+                                  backgroundColor: "#007bff",
+                                  color: "#fff",
+                                  "&:hover": { backgroundColor: "#0056b3" },
                                 }}
                               >
                                 <CheckBoxIcon fontSize="small" />
@@ -3925,7 +4449,10 @@ const Events = () => {
                     hideFooterPagination
                     hideFooter
                     pageSizeOptions={[10, 25, 50, 100]}
-                    paginationModel={{ page: currentPage - 1, pageSize: rowsPerPage }}
+                    paginationModel={{
+                      page: currentPage - 1,
+                      pageSize: 100,
+                    }}
                     onPaginationModelChange={(model) => {
                       const newPage = model.page + 1;
                       handlePageChange(newPage);
@@ -3940,59 +4467,70 @@ const Events = () => {
                       },
                     }}
                     sx={{
-                      height: '100%',
-                      border: '1px solid',
-                      borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                      '& .MuiDataGrid-columnHeaders': {
-                        backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
-                        color: isDarkMode ? '#fff' : '#333',
+                      height: "100%",
+                      border: "1px solid",
+                      borderColor: isDarkMode
+                        ? "rgba(255,255,255,0.1)"
+                        : "rgba(0,0,0,0.1)",
+                      "& .MuiDataGrid-columnHeaders": {
+                        backgroundColor: isDarkMode ? "#1a1a1a" : "#f5f5f5",
+                        color: isDarkMode ? "#fff" : "#333",
                         fontWeight: 600,
-                        fontSize: '0.875rem',
-                        borderBottom: `2px solid ${isDarkMode ? '#333' : '#ddd'}`,
-                        minHeight: '52px !important',
+                        fontSize: "0.875rem",
+                        borderBottom: `2px solid ${isDarkMode ? "#333" : "#ddd"
+                          }`,
+                        minHeight: "52px !important",
                       },
-                      '& .MuiDataGrid-columnHeader': {
-                        backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
-                        color: isDarkMode ? '#fff' : '#333',
-                        '&:focus': {
-                          outline: 'none',
+                      "& .MuiDataGrid-columnHeader": {
+                        backgroundColor: isDarkMode ? "#1a1a1a" : "#f5f5f5",
+                        color: isDarkMode ? "#fff" : "#333",
+                        "&:focus": {
+                          outline: "none",
                         },
                       },
-                      '& .MuiDataGrid-columnHeaderTitle': {
+                      "& .MuiDataGrid-columnHeaderTitle": {
                         fontWeight: 600,
-                        color: isDarkMode ? '#fff' : '#333',
-                        fontSize: '0.875rem',
+                        color: isDarkMode ? "#fff" : "#333",
+                        fontSize: "0.875rem",
                       },
-                      '& .MuiDataGrid-cell': {
-                        alignItems: 'center',
-                        borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-                        color: isDarkMode ? theme.palette.text.primary : '#212529',
-                        fontSize: '0.875rem',
-                        '&:focus': {
-                          outline: 'none',
+                      "& .MuiDataGrid-cell": {
+                        alignItems: "center",
+                        borderBottom: `1px solid ${isDarkMode
+                            ? "rgba(255,255,255,0.1)"
+                            : "rgba(0,0,0,0.08)"
+                          }`,
+                        color: isDarkMode
+                          ? theme.palette.text.primary
+                          : "#212529",
+                        fontSize: "0.875rem",
+                        "&:focus": {
+                          outline: "none",
                         },
                       },
-                      '& .MuiDataGrid-row': {
-                        '&:hover': {
-                          backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+                      "& .MuiDataGrid-row": {
+                        "&:hover": {
+                          backgroundColor: isDarkMode
+                            ? "rgba(255, 255, 255, 0.04)"
+                            : "rgba(0, 0, 0, 0.04)",
                         },
                       },
-                      '& .MuiDataGrid-virtualScroller': {
-                        overflowY: 'auto !important',
+                      "& .MuiDataGrid-virtualScroller": {
+                        overflowY: "auto !important",
                       },
-                      '& .MuiDataGrid-toolbarContainer': {
-                        backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
-                        padding: '12px 16px',
-                        borderBottom: `1px solid ${isDarkMode ? '#333' : '#ddd'}`,
+                      "& .MuiDataGrid-toolbarContainer": {
+                        backgroundColor: isDarkMode ? "#1a1a1a" : "#f5f5f5",
+                        padding: "12px 16px",
+                        borderBottom: `1px solid ${isDarkMode ? "#333" : "#ddd"
+                          }`,
                       },
-                      '& .MuiDataGrid-menuIcon': {
-                        color: isDarkMode ? '#fff' : '#666',
+                      "& .MuiDataGrid-menuIcon": {
+                        color: isDarkMode ? "#fff" : "#666",
                       },
-                      '& .MuiDataGrid-sortIcon': {
-                        color: isDarkMode ? '#fff' : '#666',
+                      "& .MuiDataGrid-sortIcon": {
+                        color: isDarkMode ? "#fff" : "#666",
                       },
-                      '& .MuiDataGrid-iconButtonContainer': {
-                        visibility: 'visible',
+                      "& .MuiDataGrid-iconButtonContainer": {
+                        visibility: "visible",
                       },
                     }}
                   />
@@ -4001,33 +4539,47 @@ const Events = () => {
             </Box>
 
             {/* Pagination for DESKTOP - Fixed at the bottom */}
-            <Box sx={{
-              ...styles.paginationContainer,
-              flexShrink: 0,
-              backgroundColor: isDarkMode ? theme.palette.background.paper : '#f8f9fa',
-              borderTop: `1px solid ${isDarkMode ? theme.palette.divider : '#e9ecef'}`,
-            }}>
-              <Box sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}>
-                <Typography variant="body2" sx={{
-                  color: isDarkMode ? theme.palette.text.secondary : '#6c757d'
-                }}>
+            <Box
+              sx={{
+                ...styles.paginationContainer,
+                flexShrink: 0,
+                backgroundColor: isDarkMode
+                  ? theme.palette.background.paper
+                  : "#f8f9fa",
+                borderTop: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"
+                  }`,
+              }}
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: isDarkMode
+                      ? theme.palette.text.secondary
+                      : "#6c757d",
+                  }}
+                >
                   Rows per page:
                 </Typography>
                 <select
                   value={rowsPerPage}
                   onChange={handleRowsPerPageChange}
                   style={{
-                    padding: '0.25rem 0.5rem',
-                    border: '1px solid',
-                    borderColor: isDarkMode ? theme.palette.divider : '#dee2e6',
-                    borderRadius: '8px',
-                    backgroundColor: isDarkMode ? theme.palette.background.default : '#fff',
-                    color: isDarkMode ? theme.palette.text.primary : '#000',
-                    fontSize: '0.875rem',
+                    padding: "0.25rem 0.5rem",
+                    border: "1px solid",
+                    borderColor: isDarkMode ? theme.palette.divider : "#dee2e6",
+                    borderRadius: "8px",
+                    backgroundColor: isDarkMode
+                      ? theme.palette.background.default
+                      : "#fff",
+                    color: isDarkMode ? theme.palette.text.primary : "#000",
+                    fontSize: "0.875rem",
                   }}
                   disabled={loading}
                 >
@@ -4038,10 +4590,15 @@ const Events = () => {
                 </select>
               </Box>
 
-              <Typography variant="body2" sx={{
-                color: isDarkMode ? theme.palette.text.secondary : '#6c757d'
-              }}>
-                {totalEvents > 0 ? `${startIndex}-${endIndex} of ${totalEvents}` : '0-0 of 0'}
+              <Typography
+                variant="body2"
+                sx={{
+                  color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
+                }}
+              >
+                {totalEvents > 0
+                  ? `${startIndex}-${endIndex} of ${totalEvents}`
+                  : "0-0 of 0"}
               </Typography>
 
               <Box sx={styles.paginationControls}>
@@ -4051,45 +4608,68 @@ const Events = () => {
                   onClick={handlePreviousPage}
                   disabled={currentPage === 1 || loading}
                   sx={{
-                    color: isDarkMode ? theme.palette.text.primary : '#007bff',
-                    borderColor: isDarkMode ? theme.palette.divider : '#007bff',
-                    '&:hover': {
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,123,255,0.1)',
-                      borderColor: isDarkMode ? theme.palette.primary.main : '#0056b3',
+                    color: isDarkMode ? theme.palette.text.primary : "#007bff",
+                    borderColor: isDarkMode ? theme.palette.divider : "#007bff",
+                    "&:hover": {
+                      backgroundColor: isDarkMode
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,123,255,0.1)",
+                      borderColor: isDarkMode
+                        ? theme.palette.primary.main
+                        : "#0056b3",
                     },
-                    '&:disabled': {
-                      color: isDarkMode ? theme.palette.text.disabled : '#6c757d',
-                      borderColor: isDarkMode ? theme.palette.divider : '#dee2e6',
-                    }
+                    "&:disabled": {
+                      color: isDarkMode
+                        ? theme.palette.text.disabled
+                        : "#6c757d",
+                      borderColor: isDarkMode
+                        ? theme.palette.divider
+                        : "#dee2e6",
+                    },
                   }}
                 >
-                  {loading ? '⏳' : '< Previous'}
+                  {loading ? "⏳" : "< Previous"}
                 </Button>
-                <Typography variant="body2" sx={{
-                  padding: '0 1rem',
-                  color: isDarkMode ? theme.palette.text.secondary : '#6c757d'
-                }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    padding: "0 1rem",
+                    color: isDarkMode
+                      ? theme.palette.text.secondary
+                      : "#6c757d",
+                  }}
+                >
                   Page {currentPage} of {totalPages}
                 </Typography>
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={handleNextPage}
-                  disabled={currentPage >= totalPages || loading || totalPages === 0}
+                  disabled={
+                    currentPage >= totalPages || loading || totalPages === 0
+                  }
                   sx={{
-                    color: isDarkMode ? theme.palette.text.primary : '#007bff',
-                    borderColor: isDarkMode ? theme.palette.divider : '#007bff',
-                    '&:hover': {
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,123,255,0.1)',
-                      borderColor: isDarkMode ? theme.palette.primary.main : '#0056b3',
+                    color: isDarkMode ? theme.palette.text.primary : "#007bff",
+                    borderColor: isDarkMode ? theme.palette.divider : "#007bff",
+                    "&:hover": {
+                      backgroundColor: isDarkMode
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,123,255,0.1)",
+                      borderColor: isDarkMode
+                        ? theme.palette.primary.main
+                        : "#0056b3",
                     },
-                    '&:disabled': {
-                      color: isDarkMode ? theme.palette.text.disabled : '#6c757d',
-                      borderColor: isDarkMode ? theme.palette.divider : '#dee2e6',
-                    }
+                    "&:disabled": {
+                      color: isDarkMode
+                        ? theme.palette.text.disabled
+                        : "#6c757d",
+                      borderColor: isDarkMode
+                        ? theme.palette.divider
+                        : "#dee2e6",
+                    },
                   }}
                 >
-                  {loading ? '⏳' : 'Next >'}
+                  {loading ? "⏳" : "Next >"}
                 </Button>
               </Box>
             </Box>
@@ -4098,22 +4678,24 @@ const Events = () => {
       </Box>
 
       {isAdmin && (
-        <Box sx={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          zIndex: 1300,
-        }}>
+        <Box
+          sx={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            zIndex: 1300,
+          }}
+        >
           {fabMenuOpen && (
             <Box
               sx={{
-                position: 'fixed',
+                position: "fixed",
                 top: 0,
                 left: 0,
                 right: 0,
                 bottom: 0,
                 zIndex: 1299,
-                backgroundColor: 'transparent',
+                backgroundColor: "transparent",
               }}
               onClick={() => setFabMenuOpen(false)}
             />
@@ -4124,10 +4706,10 @@ const Events = () => {
             sx={{
               ...fabStyles.fabMenu,
               opacity: fabMenuOpen ? 1 : 0,
-              visibility: fabMenuOpen ? 'visible' : 'hidden',
-              transform: fabMenuOpen ? 'translateY(0)' : 'translateY(10px)',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              pointerEvents: fabMenuOpen ? 'auto' : 'none',
+              visibility: fabMenuOpen ? "visible" : "hidden",
+              transform: fabMenuOpen ? "translateY(0)" : "translateY(10px)",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              pointerEvents: fabMenuOpen ? "auto" : "none",
             }}
           >
             <Box
@@ -4141,7 +4723,9 @@ const Events = () => {
               tabIndex={fabMenuOpen ? 0 : -1}
               aria-label="Create Event Type"
             >
-              <Typography sx={fabStyles.fabMenuLabel}>Create Event Type</Typography>
+              <Typography sx={fabStyles.fabMenuLabel}>
+                Create Event Type
+              </Typography>
               <Box sx={fabStyles.fabMenuIcon}></Box>
             </Box>
 
@@ -4167,14 +4751,16 @@ const Events = () => {
               color: "white",
               width: 56,
               height: 56,
-              '&:hover': {
+              "&:hover": {
                 backgroundColor: "#0056b3",
-                transform: 'scale(1.05)',
+                transform: "scale(1.05)",
               },
-              transform: fabMenuOpen ? 'rotate(45deg) scale(1.05)' : 'rotate(0deg) scale(1)',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-              position: 'relative',
+              transform: fabMenuOpen
+                ? "rotate(45deg) scale(1.05)"
+                : "rotate(0deg) scale(1)",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+              position: "relative",
               zIndex: 1301, // Higher than menu items
             }}
             onClick={() => setFabMenuOpen(!fabMenuOpen)}
@@ -4217,7 +4803,6 @@ const Events = () => {
           selectedEventType={editingEventType}
           setSelectedEventTypeObj={setSelectedEventTypeObj}
         />
-
       )}
       {createEventModalOpen && (
         <Box
@@ -4228,16 +4813,26 @@ const Events = () => {
             }
           }}
         >
-          <Box sx={{
-            ...styles.modalContent,
-            backgroundColor: isDarkMode ? theme.palette.background.paper : "white",
-          }}>
-            <Box sx={{
-              ...styles.modalHeader,
-              backgroundColor: isDarkMode ? theme.palette.background.default : "#333",
-            }}>
+          <Box
+            sx={{
+              ...styles.modalContent,
+              backgroundColor: isDarkMode
+                ? theme.palette.background.paper
+                : "white",
+            }}
+          >
+            <Box
+              sx={{
+                ...styles.modalHeader,
+                backgroundColor: isDarkMode
+                  ? theme.palette.background.default
+                  : "#333",
+              }}
+            >
               <Typography sx={styles.modalTitle}>
-                {selectedEventTypeObj?.name === "CELLS" ? "Create New Cell" : "Create New Event"}
+                {selectedEventTypeObj?.name === "CELLS"
+                  ? "Create New Cell"
+                  : "Create New Event"}
               </Typography>
               <IconButton
                 sx={styles.modalCloseButton}
@@ -4246,10 +4841,14 @@ const Events = () => {
                 ×
               </IconButton>
             </Box>
-            <Box sx={{
-              ...styles.modalBody,
-              backgroundColor: isDarkMode ? theme.palette.background.paper : "white",
-            }}>
+            <Box
+              sx={{
+                ...styles.modalBody,
+                backgroundColor: isDarkMode
+                  ? theme.palette.background.paper
+                  : "white",
+              }}
+            >
               <CreateEvents
                 user={currentUser}
                 isModal={true}
@@ -4275,15 +4874,15 @@ const Events = () => {
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-description"
         sx={{
-          '& .MuiPaper-root': {
-            backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
-            color: isDarkMode ? theme.palette.text.primary : '#000',
+          "& .MuiPaper-root": {
+            backgroundColor: isDarkMode
+              ? theme.palette.background.paper
+              : "#fff",
+            color: isDarkMode ? theme.palette.text.primary : "#000",
           },
         }}
       >
-        <DialogTitle id="delete-dialog-title">
-          Confirm Delete
-        </DialogTitle>
+        <DialogTitle id="delete-dialog-title">Confirm Delete</DialogTitle>
         <DialogContent>
           <Typography id="delete-dialog-description">
             Are you sure you want to delete the event type "{toDeleteType}"?
@@ -4291,10 +4890,7 @@ const Events = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => setConfirmDeleteOpen(false)}
-            color="primary"
-          >
+          <Button onClick={() => setConfirmDeleteOpen(false)} color="primary">
             Cancel
           </Button>
           <Button
