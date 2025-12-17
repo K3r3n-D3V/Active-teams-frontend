@@ -666,7 +666,6 @@ export default function Profile() {
             console.log("📥 Received fresh profile data:", serverProfile);
             console.log("👤 User role from server:", serverProfile.role);
             
-            // CRITICAL: Store the logged-in user's role and NEVER change it
             if (serverProfile.role) {
               setLoggedInUserRole(serverProfile.role);
               console.log("🔐 Logged-in user role set to:", serverProfile.role);

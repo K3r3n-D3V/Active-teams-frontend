@@ -353,6 +353,8 @@ const fabStyles = {
     fontWeight: "bold",
   },
 };
+
+
 const StatusBadges = ({
   selectedStatus,
   setSelectedStatus,
@@ -367,76 +369,43 @@ const StatusBadges = ({
   fetchEvents,
   DEFAULT_API_START_DATE,
   styles,
+  statusCounts = { incomplete: 0, complete: 0, did_not_meet: 0 },
 }) => {
   const statuses = [
-    {
-      value: "incomplete",
-      label: "INCOMPLETE",
-      style: styles.statusBadgeIncomplete,
-    },
-    {
-      value: "complete",
-      label: "COMPLETE",
-      style: styles.statusBadgeComplete,
-    },
-    {
-      value: "did_not_meet",
-      label: "DID NOT MEET",
-      style: styles.statusBadgeDidNotMeet,
-    },
+    { value: "incomplete", label: "INCOMPLETE", style: styles.statusBadgeIncomplete, count: statusCounts.incomplete },
+    { value: "complete", label: "COMPLETE", style: styles.statusBadgeComplete, count: statusCounts.complete },
+    { value: "did_not_meet", label: "DID NOT MEET", style: styles.statusBadgeDidNotMeet, count: statusCounts.did_not_meet },
   ];
 
-  // Update the StatusBadges component's handleStatusClick function:
-const handleStatusClick = (statusValue) => {
-  console.log("Status filter changing to:", statusValue);
+  const handleStatusClick = (statusValue) => {
+    setSelectedStatus(statusValue);
+    setCurrentPage(1);
 
-  setSelectedStatus(statusValue);
-  setCurrentPage(1);
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      status: statusValue,
+      _t: Date.now(),
+      ...(searchQuery.trim() && { search: searchQuery.trim() }),
+      ...(selectedEventTypeFilter !== "all" && { event_type: selectedEventTypeFilter }),
+    };
 
-  const shouldApplyPersonalFilter =
-    viewFilter === "personal" &&
-    (userRole === "admin" || userRole === "leader at 12");
+    // Add leader/view filters if needed
+    if (isLeaderAt12 && (selectedEventTypeFilter === "all" || selectedEventTypeFilter === "CELLS")) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
+      if (currentUserLeaderAt1) fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+      if (viewFilter === "personal") {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+      }
+    }
 
-  const fetchParams = {
-    page: 1,
-    limit: rowsPerPage,
-    start_date: DEFAULT_API_START_DATE,
-    _t: Date.now(),
-    ...(searchQuery.trim() && { search: searchQuery.trim() }),
-    ...(selectedEventTypeFilter !== "all" && {
-      event_type: selectedEventTypeFilter,
-    }),
-    ...(shouldApplyPersonalFilter && { personal: true }),
+    fetchEvents(fetchParams, true, true);
   };
-
-  // CRITICAL FIX: Always include status in params (don't skip it)
-  if (statusValue && statusValue !== "all") {
-    fetchParams.status = statusValue;
-  }
-
-  if (
-    isLeaderAt12 &&
-    (selectedEventTypeFilter === "all" ||
-      selectedEventTypeFilter === "CELLS")
-  ) {
-    fetchParams.leader_at_12_view = true;
-    fetchParams.include_subordinate_cells = true;
-
-    if (currentUserLeaderAt1) {
-      fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-    }
-
-    if (viewFilter === "personal") {
-      fetchParams.show_personal_cells = true;
-      fetchParams.personal = true;
-    } else {
-      fetchParams.show_all_authorized = true;
-    }
-  }
-
-  console.log("Fetching with status params:", fetchParams);
-  fetchEvents(fetchParams, true, true); // Force refresh with loader
-};
 
   return (
     <div style={styles.statusBadgeContainer}>
@@ -446,13 +415,11 @@ const handleStatusClick = (statusValue) => {
           style={{
             ...styles.statusBadge,
             ...status.style,
-            ...(selectedStatus === status.value
-              ? styles.statusBadgeActive
-              : {}),
+            ...(selectedStatus === status.value ? styles.statusBadgeActive : {}),
           }}
           onClick={() => handleStatusClick(status.value)}
         >
-          {status.label}
+          {status.label} ({status.count})
         </button>
       ))}
     </div>
@@ -573,6 +540,8 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       "week_identifier",
       "attendees",
       "_id",
+      "*id",
+  "id",
       "isoverdue",
       "attendance",
       "location",
@@ -882,8 +851,7 @@ const Events = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-
-  const [selectedStatus, setSelectedStatus] = useState("incomplete");
+const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -1084,7 +1052,6 @@ const fetchEvents = useCallback(
       // Initialize params from lastParamsForCache
       params = { ...lastParamsForCache };
 
-      // CRITICAL FIX: ALWAYS pass event_type if provided
       if (filters.event_type) {
         params.event_type = filters.event_type;
       } else if (
@@ -3196,112 +3163,112 @@ const handleStatusFilterChange = useCallback(
     [BACKEND_URL, editingEventType, fetchEventTypes, selectedEventTypeFilter]
   );
 
-  const handleCreateEventType = async (eventTypeData) => {
-    try {
-      console.log(" Creating event type:", eventTypeData);
+  // const handleCreateEventType = async (eventTypeData) => {
+  //   try {
+  //     console.log(" Creating event type:", eventTypeData);
 
-      const token = localStorage.getItem("access_token");
-      const response = await authFetch(`${BACKEND_URL}/event-types`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(eventTypeData),
-      });
+  //     const token = localStorage.getItem("access_token");
+  //     const response = await authFetch(`${BACKEND_URL}/event-types`, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //         Authorization: `Bearer ${token}`,
+  //       },
+  //       body: JSON.stringify(eventTypeData),
+  //     });
 
-      if (response.ok) {
-        const newEventType = await response.json();
-        console.log(" Event type created successfully:", newEventType);
+  //     if (response.ok) {
+  //       const newEventType = await response.json();
+  //       console.log(" Event type created successfully:", newEventType);
 
-        // Refresh event types list
-        await fetchEventTypes();
+  //       // Refresh event types list
+  //       await fetchEventTypes();
 
-        // Show success message
-        toast.success("Event type created successfully!");
+  //       // Show success message
+  //       toast.success("Event type created successfully!");
 
-        return newEventType;
-      } else {
-        const errorData = await response.json();
-        console.error(" Failed to create event type:", errorData);
-        toast.error(
-          `Error: ${errorData.detail || "Failed to create event type"}`
-        );
-        throw new Error(errorData.detail || "Failed to create event type");
-      }
-    } catch (error) {
-      console.error(" Error creating event type:", error);
-      toast.error(`Error: ${error.message}`);
-      throw error;
-    }
-  };
+  //       return newEventType;
+  //     } else {
+  //       const errorData = await response.json();
+  //       console.error(" Failed to create event type:", errorData);
+  //       toast.error(
+  //         `Error: ${errorData.detail || "Failed to create event type"}`
+  //       );
+  //       throw new Error(errorData.detail || "Failed to create event type");
+  //     }
+  //   } catch (error) {
+  //     console.error(" Error creating event type:", error);
+  //     toast.error(`Error: ${error.message}`);
+  //     throw error;
+  //   }
+  // };
 
-  const handleUpdateEventType = async (eventTypeData, eventTypeIdentifier) => {
-    try {
-      console.log(" Updating event type:", {
-        eventTypeData,
-        eventTypeIdentifier,
-      });
+  // const handleUpdateEventType = async (eventTypeData, eventTypeIdentifier) => {
+  //   try {
+  //     console.log(" Updating event type:", {
+  //       eventTypeData,
+  //       eventTypeIdentifier,
+  //     });
 
-      const originalEventType =
-        editingEventType ||
-        eventTypes.find(
-          (et) =>
-            et._id === eventTypeIdentifier || et.name === eventTypeIdentifier
-        );
+  //     const originalEventType =
+  //       editingEventType ||
+  //       eventTypes.find(
+  //         (et) =>
+  //           et._id === eventTypeIdentifier || et.name === eventTypeIdentifier
+  //       );
 
-      if (!originalEventType) {
-        throw new Error("Could not find original event type data");
-      }
+  //     if (!originalEventType) {
+  //       throw new Error("Could not find original event type data");
+  //     }
 
-      const originalName = originalEventType.name;
-      console.log(" Original event type name:", originalName);
+  //     const originalName = originalEventType.name;
+  //     console.log(" Original event type name:", originalName);
 
-      const token = localStorage.getItem("access_token");
+  //     const token = localStorage.getItem("access_token");
 
-      // URL encode the ORIGINAL event type name for the API endpoint
-      const encodedName = encodeURIComponent(originalName);
-      const response = await authFetch(
-        `${BACKEND_URL}/event-types/${encodedName}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(eventTypeData),
-        }
-      );
+  //     // URL encode the ORIGINAL event type name for the API endpoint
+  //     const encodedName = encodeURIComponent(originalName);
+  //     const response = await authFetch(
+  //       `${BACKEND_URL}/event-types/${encodedName}`,
+  //       {
+  //         method: "PUT",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //           Authorization: `Bearer ${token}`,
+  //         },
+  //         body: JSON.stringify(eventTypeData),
+  //       }
+  //     );
 
-      if (response.ok) {
-        const updatedEventType = await response.json();
-        console.log(" Event type updated successfully:", updatedEventType);
+  //     if (response.ok) {
+  //       const updatedEventType = await response.json();
+  //       console.log(" Event type updated successfully:", updatedEventType);
 
-        await fetchEventTypes();
+  //       await fetchEventTypes();
 
-        if (
-          selectedEventTypeFilter === originalName &&
-          eventTypeData.name !== originalName
-        ) {
-          setSelectedEventTypeFilter(eventTypeData.name);
-        }
-        toast.success("Event type updated successfully!");
+  //       if (
+  //         selectedEventTypeFilter === originalName &&
+  //         eventTypeData.name !== originalName
+  //       ) {
+  //         setSelectedEventTypeFilter(eventTypeData.name);
+  //       }
+  //       toast.success("Event type updated successfully!");
 
-        return updatedEventType;
-      } else {
-        const errorData = await response.json();
-        console.error("Failed to update event type:", errorData);
-        toast.error(
-          `Error: ${errorData.detail || "Failed to update event type"}`
-        );
-        throw new Error(errorData.detail || "Failed to update event type");
-      }
-    } catch (error) {
-      console.error(" Error updating event type:", error);
-      toast.error(`Error: ${error.message}`);
-      throw error;
-    }
-  };
+  //       return updatedEventType;
+  //     } else {
+  //       const errorData = await response.json();
+  //       console.error("Failed to update event type:", errorData);
+  //       toast.error(
+  //         `Error: ${errorData.detail || "Failed to update event type"}`
+  //       );
+  //       throw new Error(errorData.detail || "Failed to update event type");
+  //     }
+  //   } catch (error) {
+  //     console.error(" Error updating event type:", error);
+  //     toast.error(`Error: ${error.message}`);
+  //     throw error;
+  //   }
+  // };
 
   useEffect(() => {
     const fetchCurrentUserLeaderAt1 = async () => {
