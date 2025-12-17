@@ -101,7 +101,7 @@ export const AuthProvider = ({ children }) => {
 
     const data = await res.json();
     
-    console.log('✅ [AuthContext] Login successful, storing data');
+    console.log(' [AuthContext] Login successful, storing data');
     console.log("LOGIN DATA", data);
     
     // Store tokens
@@ -137,7 +137,7 @@ export const AuthProvider = ({ children }) => {
 
     // Verify localStorage write was successful
     const verifyStore = localStorage.getItem(KEY_USER);
-    console.log('✅ [AuthContext] Verify localStorage write:', {
+    console.log(' [AuthContext] Verify localStorage write:', {
       stored: !!verifyStore,
       length: verifyStore?.length
     });
@@ -145,7 +145,7 @@ export const AuthProvider = ({ children }) => {
     setUser(userWithAvatar);
     setIsAuthenticated(true);
 
-    console.log('✅ [AuthContext] User state updated:', {
+    console.log(' [AuthContext] User state updated:', {
       email: userWithAvatar.email,
       role: userWithAvatar.role,
       hasProfilePicture: !!userWithAvatar.profile_picture,
@@ -183,7 +183,7 @@ export const AuthProvider = ({ children }) => {
       });
       setUser(updatedUser);
       persistUser(updatedUser);
-      console.log('✅ Profile picture updated in AuthContext and localStorage');
+      console.log(' Profile picture updated in AuthContext and localStorage');
     }
   }, [user]);
 
@@ -376,7 +376,7 @@ export const AuthProvider = ({ children }) => {
             setUser(finalUser);
             setIsAuthenticated(true);
             
-            console.log('✅ [AuthContext] User restored from localStorage:', {
+            console.log(' [AuthContext] User restored from localStorage:', {
               email: finalUser.email,
               role: finalUser.role,
               isLeader: JSON.parse(storedIsLeader || 'false'),
@@ -396,7 +396,7 @@ export const AuthProvider = ({ children }) => {
       } finally {
         if (mounted) {
           setLoading(false);
-          console.log('✅ [AuthContext] Auth initialization complete, loading set to false');
+          console.log(' [AuthContext] Auth initialization complete, loading set to false');
         }
       }
     };

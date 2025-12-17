@@ -38,7 +38,7 @@ export const UserProvider = ({ children }) => {
     initializeUserData();
   }, []);
 
-  // ✅ REMOVED THIS EFFECT - Let AuthContext manage userProfile in localStorage
+  //  REMOVED THIS EFFECT - Let AuthContext manage userProfile in localStorage
   // useEffect(() => {
   //   if (userProfile) {
   //     localStorage.setItem('userProfile', JSON.stringify(userProfile));
@@ -60,7 +60,7 @@ export const UserProvider = ({ children }) => {
         profilePicUrl: newProfilePic
       };
       setUserProfile(updatedProfile);
-      // ✅ Update localStorage here since we removed the effect
+      //  Update localStorage here since we removed the effect
       localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
     }
     
@@ -74,7 +74,7 @@ export const UserProvider = ({ children }) => {
   const setUserProfileEnhanced = (newUserProfile) => {
     setUserProfile(newUserProfile);
     
-    // ✅ Only save to localStorage if we have data
+    //  Only save to localStorage if we have data
     if (newUserProfile) {
       localStorage.setItem('userProfile', JSON.stringify(newUserProfile));
       

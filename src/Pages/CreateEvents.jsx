@@ -691,7 +691,7 @@ if (!formData.recurringDays || formData.recurringDays.length === 0) {
       },
     },
 
-    // ✅ Make date/time picker icons white in dark mode
+    //  Make date/time picker icons white in dark mode
     "& .MuiInputAdornment-root .MuiSvgIcon-root": {
       color: isDarkMode ? "#fff" : theme.palette.text.secondary,
     },

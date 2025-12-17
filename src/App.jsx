@@ -68,14 +68,14 @@ function App() {
 
   // Handle splash screen completion
   const handleSplashFinish = () => {
-    console.log('✅ Splash animation finished');
+    console.log(' Splash animation finished');
     setSplashFinished(true);
   };
 
   // Hide splash only when BOTH splash animation AND auth loading are complete
   useEffect(() => {
     if (splashFinished && !loading) {
-      console.log('✅ Both splash and auth complete, hiding splash screen');
+      console.log(' Both splash and auth complete, hiding splash screen');
       setShowSplash(false);
     }
   }, [splashFinished, loading]);

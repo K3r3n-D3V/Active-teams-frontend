@@ -1,6 +1,5 @@
 import axios from "axios";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useLocation } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
 import IconButton from "@mui/material/IconButton";
@@ -10,7 +9,6 @@ import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Tooltip from "@mui/material/Tooltip";
 import { Box, useMediaQuery, LinearProgress, TextField, InputAdornment } from "@mui/material";
 import { DataGrid, GridToolbar } from '@mui/x-data-grid';
-import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
 import Popover from "@mui/material/Popover";
 import MenuItem from "@mui/material/MenuItem";
@@ -30,6 +28,91 @@ import EventTypesModal from "./EventTypesModal";
 import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return true;
+    
+    const expiresIn = (payload.exp * 1000) - Date.now();
+    return expiresIn < 300000; 
+  } catch (e) {
+    console.error('Error checking token expiry:', e);
+    return true;
+  }
+};
+const refreshTokenForEvents = async () => {
+  try {
+    const refreshToken = localStorage.getItem("refresh_token");
+    const refreshTokenId = localStorage.getItem("refresh_token_id");
+    
+    if (!refreshToken || !refreshTokenId) {
+      console.log('No refresh tokens found');
+      return false;
+    }
+
+    console.log('🔄 Auto-refreshing token for Events...');
+
+    const response = await fetch(`${BACKEND_URL}/refresh-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        refresh_token: refreshToken, 
+        refresh_token_id: refreshTokenId 
+      })
+    });
+
+    if (!response.ok) {
+      console.error('Token refresh failed');
+      return false;
+    }
+
+    const data = await response.json();
+    
+    // Store new tokens
+    localStorage.setItem("access_token", data.access_token);
+    localStorage.setItem("token", data.access_token); 
+    localStorage.setItem("refresh_token", data.refresh_token);
+    localStorage.setItem("refresh_token_id", data.refresh_token_id);
+    
+    console.log(' Token refreshed successfully');
+    return true;
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    return false;
+  }
+};
+
+const ensureValidToken = async () => {
+  const token = localStorage.getItem("token");
+  
+  if (!token) {
+    console.log('No token found');
+    return false;
+  }
+
+  if (isTokenExpired(token)) {
+    console.log('Token expired or expiring soon, attempting refresh...');
+    const refreshed = await refreshTokenForEvents();
+    
+    if (!refreshed) {
+      console.log('Token refresh failed - logging out');
+      localStorage.removeItem("token");
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("refresh_token_id");
+      localStorage.removeItem("userProfile");
+      window.location.href = '/login';
+      return false;
+    }
+  }
+
+  return true;
+};
 
 const styles = {
   container: {
@@ -264,6 +347,7 @@ const styles = {
     borderBottomLeftRadius: '16px',
     borderBottomRightRadius: '16px',
     flexWrap: 'wrap',
+    paddingRight: '96px',
   },
   rowsPerPage: {
     display: 'flex',
@@ -642,7 +726,6 @@ const isValidObjectId = (id) => {
 };
 
 const Events = () => {
-  const location = useLocation();
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down('lg'));
   const isDarkMode = theme.palette.mode === 'dark';
@@ -664,7 +747,6 @@ const Events = () => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = '2025-11-30';
 
-  // State declarations - ALL AT THE TOP
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
   const [, setFilteredEvents] = useState([]);
@@ -686,14 +768,13 @@ const Events = () => {
 
   const [selectedStatus, setSelectedStatus] = useState("incomplete");
   const [searchQuery, setSearchQuery] = useState("");
-  // const [hoveredRow, setHoveredRow] = useState(null);
   const [totalEvents, setTotalEvents] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
-  const [typeMenuAnchor, setTypeMenuAnchor] = useState(null);
-  const [typeMenuFor, setTypeMenuFor] = useState(null);
-  const [isCheckingLeaderStatus, setIsCheckingLeaderStatus] = useState(false);
+  const [, setTypeMenuAnchor] = useState(null);
+  const [, setTypeMenuFor] = useState(null);
+  const [, setIsCheckingLeaderStatus] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [toDeleteType, setToDeleteType] = useState(null);
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
@@ -723,9 +804,8 @@ const Events = () => {
   const cacheRef = useRef({
     data: new Map(),
     timestamp: new Map(),
-    CACHE_DURATION: 5 * 60 * 1000
-  });
-  const searchTimeoutRef = useRef(null);
+    CACHE_DURATION: 24 * 60 * 60 * 1000
+ });
 
   // Helper Functions
   const getCacheKey = useCallback((params) => {
@@ -844,224 +924,214 @@ const Events = () => {
     checkLeaderAt12Status();
   }, [BACKEND_URL]);
 
-  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
-    if (showLoader) {
-      setLoading(true);
-      setIsLoading(true);
+ const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
+  const hasValidToken = await ensureValidToken();
+  if (!hasValidToken) {
+    setLoading(false);
+    setIsLoading(false);
+    return;
+  }
+
+  if (showLoader) {
+    setLoading(true);
+    setIsLoading(true);
+  }
+
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast.error("Please log in again");
+      setTimeout(() => window.location.href = '/login', 2000);
+      setEvents([]);
+      setFilteredEvents([]);
+      if (showLoader) {
+        setLoading(false);
+        setIsLoading(false);
+      }
+      return;
     }
 
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        toast.error("Please log in again");
-        setTimeout(() => window.location.href = '/login', 2000);
-        setEvents([]);
-        setFilteredEvents([]);
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
+
+    const params = {
+      page: filters.page !== undefined ? filters.page : currentPage,
+      limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
+      start_date: startDateParam,
+    };
+
+    if (filters.event_type) {
+      params.event_type = filters.event_type;
+    } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
+      params.event_type = selectedEventTypeFilter;
+    }
+
+    if (filters.status && filters.status !== 'all') params.status = filters.status;
+    if (filters.search) params.search = filters.search;
+    if (filters.personal !== undefined) params.personal = filters.personal;
+    if (filters._t) params._t = filters._t;
+
+    Object.keys(params).forEach(key => {
+      if (params[key] === undefined || params[key] === null || params[key] === '') {
+        delete params[key];
+      }
+    });
+
+    let endpoint;
+    const eventTypeToUse = params.event_type || selectedEventTypeFilter;
+
+    if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
+      endpoint = `${BACKEND_URL}/events/other`;
+      delete params.personal;
+      delete params.leader_at_12_view;
+      delete params.show_personal_cells;
+      delete params.show_all_authorized;
+      delete params.include_subordinate_cells;
+      delete params.leader_at_1_identifier;
+    } else {
+      endpoint = `${BACKEND_URL}/events/cells`;
+
+      if (isRegistrant || isRegularUser) {
+        params.personal = true;
+      } else if (isLeaderAt12) {
+        params.leader_at_12_view = true;
+        params.include_subordinate_cells = true;
+
+        if (currentUserLeaderAt1) {
+          params.leader_at_1_identifier = currentUserLeaderAt1;
+        }
+
+        if (viewFilter === 'personal') {
+          params.show_personal_cells = true;
+          params.personal = true;
+        } else {
+          params.show_all_authorized = true;
+        }
+      }
+    }
+
+    const cacheKey = getCacheKey({ ...params, userRole, endpoint });
+
+    if (!forceRefresh) {
+      const cachedData = getCachedData(cacheKey);
+      if (cachedData) {
+        setEvents(cachedData.events);
+        setFilteredEvents(cachedData.events);
+        setTotalEvents(cachedData.total_events);
+        setTotalPages(cachedData.total_pages);
+        if (filters.page !== undefined) setCurrentPage(filters.page);
         if (showLoader) {
           setLoading(false);
           setIsLoading(false);
         }
         return;
       }
+    }
 
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
+    params.isLeaderAt12 = isLeaderAt12;
+    params.firstName = currentUser.name;
+    params.userSurname = currentUser.surname;
 
-      const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
+    const response = await axios.get(endpoint, {
+      headers,
+      params,
+      timeout: 60000
+    });
 
-      // Build params safely
-      const params = {
-        page: filters.page !== undefined ? filters.page : currentPage,
-        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        start_date: startDateParam,
+    const responseData = response.data;
+    const newEvents = responseData.events || responseData.results || [];
 
-      };
+    const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
+    const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
 
-      // CRITICAL FIX: ALWAYS pass event_type if provided
-      if (filters.event_type) {
-        params.event_type = filters.event_type;
-      } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-        params.event_type = selectedEventTypeFilter;
-      }
+    setCachedData(cacheKey, {
+      events: newEvents,
+      total_events: totalEventsCount,
+      total_pages: totalPagesCount
+    });
 
-      // Add other filters
-      if (filters.status && filters.status !== 'all') params.status = filters.status;
-      if (filters.search) params.search = filters.search;
-      if (filters.personal !== undefined) params.personal = filters.personal;
-      if (filters._t) params._t = filters._t;
+    setEvents(newEvents);
+    setFilteredEvents(newEvents);
+    setTotalEvents(totalEventsCount);
+    setTotalPages(totalPagesCount);
+    if (filters.page !== undefined) setCurrentPage(filters.page);
 
-      // Remove undefined/null
-      Object.keys(params).forEach(key => {
-        if (params[key] === undefined || params[key] === null || params[key] === '') {
-          delete params[key];
-        }
-      });
-
-      let endpoint;
-      const eventTypeToUse = params.event_type || selectedEventTypeFilter;
-
-
-      if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
-        endpoint = `${BACKEND_URL}/events/other`;
-
-        delete params.personal;
-        delete params.leader_at_12_view;
-        delete params.show_personal_cells;
-        delete params.show_all_authorized;
-        delete params.include_subordinate_cells;
-        delete params.leader_at_1_identifier;
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    
+    if (err.response?.status === 401) {
+      const refreshed = await refreshTokenForEvents();
+      
+      if (refreshed) {
+        return fetchEvents(filters, forceRefresh, showLoader);
       } else {
-        endpoint = `${BACKEND_URL}/events/cells`;
-
-        if (isRegistrant || isRegularUser) {
-          params.personal = true;
-        } else if (isLeaderAt12) {
-          params.leader_at_12_view = true;
-          params.include_subordinate_cells = true;
-
-          if (currentUserLeaderAt1) {
-            params.leader_at_1_identifier = currentUserLeaderAt1;
-          }
-
-          if (viewFilter === 'personal') {
-            params.show_personal_cells = true;
-            params.personal = true;
-          } else {
-            params.show_all_authorized = true;
-          }
-        }
-      }
-
-      const cacheKey = getCacheKey({ ...params, userRole, endpoint });
-
-      if (!forceRefresh) {
-        const cachedData = getCachedData(cacheKey);
-        if (cachedData) {
-          setEvents(cachedData.events);
-          setFilteredEvents(cachedData.events);
-          setTotalEvents(cachedData.total_events);
-          setTotalPages(cachedData.total_pages);
-          if (filters.page !== undefined) setCurrentPage(filters.page);
-          if (showLoader) {
-            setLoading(false);
-            setIsLoading(false);
-          }
-          return;
-        }
-      }
-
-      params.isLeaderAt12 = isLeaderAt12
-      params.firstName = currentUser.name
-      params.userSurname = currentUser.surname
-
-      const response = await axios.get(endpoint, {
-        headers,
-        params,
-        timeout: 60000
-      });
-
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
-      console.log("🔍 DEBUG: Checking event IDs from API:");
-      newEvents.forEach((event, i) => {
-        if (event._id && event._id.includes('_')) {
-          console.log(`⚠️ Event ${i} has date suffix in _id:`, {
-            original_id: event._id,
-            cleaned_id: event._id.split('_')[0],
-            eventName: event.eventName,
-            date: event.date
-          });
-        }
-      });
-
-      if (newEvents.length > 0) {
-        console.log('Events sample:', newEvents.slice(0, 3).map(e => ({
-          name: e.eventName,
-          type: e.eventType,
-          typeName: e.eventTypeName,
-          status: e.status,
-          id: e._id
-        })));
-      } else {
-        console.log('No events returned');
-        console.log('Filters applied:', params);
-      }
-
-      console.log('API Response:', {
-        endpoint,
-        total_events: responseData.total_events,
-        events_received: newEvents.length,
-        first_event: newEvents[0] ? {
-          name: newEvents[0].eventName,
-          type: newEvents[0].eventType,
-          status: newEvents[0].status,
-          id: newEvents[0]._id
-        } : 'No events'
-      });
-
-      if (filters.event_type === 'Global Events' || eventTypeToUse === 'Global Events') {
-        newEvents.forEach((event, index) => {
-          console.log(`Event ${index}: ${event.eventName} (${event.eventType}) - ${event.status}`);
-        });
-      }
-
-      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
-
-      setCachedData(cacheKey, {
-        events: newEvents,
-        total_events: totalEventsCount,
-        total_pages: totalPagesCount
-      });
-
-      setEvents(newEvents);
-      setFilteredEvents(newEvents);
-      setTotalEvents(totalEventsCount);
-      setTotalPages(totalPagesCount);
-      if (filters.page !== undefined) setCurrentPage(filters.page);
-
-    } catch (err) {
-      console.error("Error fetching events:", err);
-      if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-        toast.warning("Request timeout. Please refresh and try again.");
-      } else if (err.response?.status === 401) {
         toast.error("Session expired. Logging out...");
         localStorage.removeItem("token");
         localStorage.removeItem("userProfile");
         setTimeout(() => window.location.href = '/login', 2000);
-      } else {
-        const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
-        toast.error(`Error loading events: ${errorMessage}`);
       }
-      setEvents([]);
-      setFilteredEvents([]);
-      setTotalEvents(0);
-      setTotalPages(1);
-    } finally {
-      if (showLoader) {
-        setLoading(false);
-        setIsLoading(false);
-      }
+    } else if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
+      toast.warning("Request timeout. Please refresh and try again.");
+    } else {
+      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
+      toast.error(`Error loading events: ${errorMessage}`);
     }
-  }, [
-    currentPage,
-    rowsPerPage,
-    selectedEventTypeFilter,
-    viewFilter,
-    userRole,
-    isLeaderAt12,
-    isAdmin,
-    isRegistrant,
-    currentUserLeaderAt1,
-    getCacheKey,
-    getCachedData,
-    setCachedData,
-    BACKEND_URL,
-    DEFAULT_API_START_DATE
-  ]);
+    
+    setEvents([]);
+    setFilteredEvents([]);
+    setTotalEvents(0);
+    setTotalPages(1);
+  } finally {
+    if (showLoader) {
+      setLoading(false);
+      setIsLoading(false);
+    }
+  }
+}, [
+  currentPage,
+  rowsPerPage,
+  selectedEventTypeFilter,
+  viewFilter,
+  userRole,
+  isLeaderAt12,
+  isAdmin,
+  isRegistrant,
+  currentUserLeaderAt1,
+  getCacheKey,
+  getCachedData,
+  setCachedData,
+  BACKEND_URL,
+  DEFAULT_API_START_DATE
+]);
 
+useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, checking token...');
+        await ensureValidToken();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      console.log('Periodic token check...');
+      await ensureValidToken();
+    }, 600000);
+
+    return () => clearInterval(interval);
+  }, []);
+  
   const checkEventsForType = async (eventTypeName) => {
     try {
       const token = localStorage.getItem("token");

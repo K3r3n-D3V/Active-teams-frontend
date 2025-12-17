@@ -100,7 +100,7 @@ async function fetchUserProfile(authFetch) {
             // Save it to localStorage for future use
             if (userId) {
               localStorage.setItem("userId", userId);
-              console.log("✅ Saved userId to localStorage");
+              console.log(" Saved userId to localStorage");
             }
           } catch (e) {
             console.error("Failed to parse userProfile:", e);
@@ -123,7 +123,7 @@ async function fetchUserProfile(authFetch) {
       }
       
       const data = await response.json();
-      console.log("✅ Profile fetch successful via authFetch!");
+      console.log(" Profile fetch successful via authFetch!");
       console.log("Response data:", data);
       
       return data;
@@ -160,7 +160,7 @@ async function fetchUserProfile(authFetch) {
         // Save it to localStorage for future use
         if (userId) {
           localStorage.setItem("userId", userId);
-          console.log("✅ Saved userId to localStorage");
+          console.log(" Saved userId to localStorage");
         }
       } catch (e) {
         console.error("Failed to parse userProfile:", e);
@@ -202,7 +202,7 @@ async function fetchUserProfile(authFetch) {
     const api = createAuthenticatedRequest();
     const response = await api.get(`/profile/${userId}`);
     
-    console.log("✅ Profile fetch successful!");
+    console.log(" Profile fetch successful!");
     console.log("Response data:", response.data);
     
     return response.data;
@@ -283,14 +283,14 @@ async function updateUserProfile(data, authFetch) {
       }
       
       const responseData = await response.json();
-      console.log("✅ Profile update successful via authFetch:", responseData);
+      console.log(" Profile update successful via authFetch:", responseData);
       return responseData;
     } else {
       // Fallback to axios
       const api = createAuthenticatedRequest();
       const response = await api.put(`/profile/${userId}`, data);
       
-      console.log("✅ Profile update successful via axios:", response.data);
+      console.log(" Profile update successful via axios:", response.data);
       return response.data;
     }
   } catch (error) {
@@ -609,7 +609,7 @@ export default function Profile() {
       } else if (!hasUserProfile) {
         console.warn("⚠️ Token exists but no userProfile. Will attempt to fetch.");
       } else {
-        console.log("✅ Authentication check passed.");
+        console.log(" Authentication check passed.");
       }
       
       return true;
@@ -652,7 +652,7 @@ export default function Profile() {
               setProfilePic(pic);
             }
             
-            console.log("✅ Profile loaded from cache");
+            console.log(" Profile loaded from cache");
           } catch (e) {
             console.error("Failed to parse cached profile:", e);
           }
@@ -688,7 +688,7 @@ export default function Profile() {
             // Cache data
             localStorage.setItem("userProfile", JSON.stringify(serverProfile));
             
-            console.log("✅ Profile updated with fresh data");
+            console.log(" Profile updated with fresh data");
           }
         } catch (fetchError) {
           console.warn("⚠️ Could not fetch fresh profile, using cached:", fetchError.message);
@@ -936,7 +936,7 @@ export default function Profile() {
         });
       }
 
-      console.log("✅ Update completed successfully");
+      console.log(" Update completed successfully");
 
     } catch (err) {
       console.error("❌ Update failed:", err);
