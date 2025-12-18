@@ -49,7 +49,6 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
-  // Decode JWT and check expiry
   const isTokenExpired = (token) => {
     if (!token) return true;
     try {
@@ -57,7 +56,8 @@ export const AuthProvider = ({ children }) => {
       if (parts.length !== 3) return true;
       const payload = JSON.parse(atob(parts[1]));
       if (!payload.exp) return true;
-      return payload.exp * 1000 < Date.now();
+      const bufferTime = 60 * 1000;
+      return payload.exp * 1000 < Date.now() + bufferTime;
     } catch (e) {
       return true;
     }
@@ -87,77 +87,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
-    const res = await fetch(`${BACKEND_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Login failed');
-    }
-
-    const data = await res.json();
-    
-    console.log('✅ [AuthContext] Login successful, storing data');
-    console.log("LOGIN DATA", data);
-    
-    // Store tokens
-    localStorage.setItem(KEY_ACCESS, data.access_token);
-    localStorage.setItem(KEY_REFRESH, data.refresh_token);
-    localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
-    
-    // Store user data
-    const mergedUserData = {
-      ...data.user,
-      ...(data.leaders || {})
-    };
-    
-    const userWithAvatar = ensureUserWithAvatar(mergedUserData);
-    
-    console.log('📦 [AuthContext] Prepared user data:', {
-      email: userWithAvatar.email,
-      role: userWithAvatar.role,
-      id: userWithAvatar.id,
-      hasProfilePicture: !!userWithAvatar.profile_picture
-    });
-    
-    // Persist user data
-    persistUser(userWithAvatar);
-    
-    // Store leaders and isLeader data
-    persistLeadersData(data.leaders, data.isLeader);
-    
-    // Also store profile picture separately for easy access
-    if (userWithAvatar.profile_picture) {
-      localStorage.setItem(KEY_PROFILE_PIC, userWithAvatar.profile_picture);
-    }
-
-    // Verify localStorage write was successful
-    const verifyStore = localStorage.getItem(KEY_USER);
-    console.log('✅ [AuthContext] Verify localStorage write:', {
-      stored: !!verifyStore,
-      length: verifyStore?.length
-    });
-
-    setUser(userWithAvatar);
-    setIsAuthenticated(true);
-
-    console.log('✅ [AuthContext] User state updated:', {
-      email: userWithAvatar.email,
-      role: userWithAvatar.role,
-      hasProfilePicture: !!userWithAvatar.profile_picture,
-      isLeader: data.isLeader,
-      hasLeaders: !!data.leaders
-    });
-    
-    return data;
-  };
-
   const logout = useCallback(() => {
-    console.log('🚪 Logging out, clearing all data');
     localStorage.removeItem(KEY_ACCESS);
     localStorage.removeItem(KEY_REFRESH);
     localStorage.removeItem(KEY_REFRESH_ID);
@@ -171,85 +101,18 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   }, []);
 
-  const updateProfilePicture = useCallback((newPictureUrl) => {
-    console.log('🔄 Updating profile picture in AuthContext:', newPictureUrl);
-    
-    if (user) {
-      const updatedUser = ensureUserWithAvatar({ 
-        ...user, 
-        profile_picture: newPictureUrl, 
-        avatarUrl: newPictureUrl, 
-        profilePicUrl: newPictureUrl 
-      });
-      setUser(updatedUser);
-      persistUser(updatedUser);
-      console.log('✅ Profile picture updated in AuthContext and localStorage');
-    }
-  }, [user]);
-
-  // Sync with localStorage changes (for cross-tab synchronization)
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      console.log('🔄 Storage change detected:', e.key);
-      
-      if (e.key === KEY_USER || e.key === KEY_PROFILE_PIC) {
-        const storedUser = localStorage.getItem(KEY_USER);
-        if (storedUser) {
-          try {
-            const parsedUser = JSON.parse(storedUser);
-            const userWithAvatar = ensureUserWithAvatar(parsedUser);
-            setUser(userWithAvatar);
-          } catch (error) {
-            console.error('❌ Error parsing user from storage:', error);
-          }
-        } else {
-          setUser(null);
-          setIsAuthenticated(false);
-        }
-      }
-      
-      if (e.key === KEY_LEADERS) {
-        const storedLeaders = localStorage.getItem(KEY_LEADERS);
-        if (storedLeaders) {
-          try {
-            setLeaders(JSON.parse(storedLeaders));
-          } catch (error) {
-            console.error('❌ Error parsing leaders from storage:', error);
-          }
-        } else {
-          setLeaders(null);
-        }
-      }
-      
-      if (e.key === KEY_IS_LEADER) {
-        const storedIsLeader = localStorage.getItem(KEY_IS_LEADER);
-        if (storedIsLeader) {
-          try {
-            setIsLeader(JSON.parse(storedIsLeader));
-          } catch (error) {
-            console.error('❌ Error parsing isLeader from storage:', error);
-          }
-        } else {
-          setIsLeader(false);
-        }
-      }
-
-      if (e.key === KEY_ACCESS && e.newValue == null) {
-        setUser(null);
-        setIsAuthenticated(false);
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  const attemptRefresh = async () => {
+  const attemptRefresh = useCallback(async () => {
     const refresh = localStorage.getItem(KEY_REFRESH);
     const refreshId = localStorage.getItem(KEY_REFRESH_ID);
-    if (!refresh || !refreshId) return false;
+    if (!refresh || !refreshId) {
+      logout();
+      return false;
+    }
 
-    if (refreshInProgress) return false;
+    if (refreshInProgress) {
+      return false;
+    }
+    
     setRefreshInProgress(true);
 
     try {
@@ -276,59 +139,166 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setRefreshInProgress(false);
     }
-  };
+  }, [refreshInProgress, logout]);
 
   const authFetch = useCallback(async (url, options = {}) => {
-    const makeRequest = async (token) => {
-      const headers = {
-        ...(options.headers || {}),
-        'Content-Type': 'application/json'
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      return fetch(url, { ...options, headers });
-    };
-
-    const accessToken = localStorage.getItem(KEY_ACCESS);
-
+    let accessToken = localStorage.getItem(KEY_ACCESS);
+    
     if (accessToken && isTokenExpired(accessToken)) {
       const refreshed = await attemptRefresh();
-      if (!refreshed) return new Response(null, { status: 401, statusText: 'Unauthorized' });
+      if (!refreshed) {
+        return new Response(JSON.stringify({ detail: 'Unauthorized' }), { 
+          status: 401, 
+          statusText: 'Unauthorized',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      accessToken = localStorage.getItem(KEY_ACCESS);
     }
 
-    let tokenToUse = localStorage.getItem(KEY_ACCESS);
-    let res = await makeRequest(tokenToUse);
+    const headers = {
+      ...(options.headers || {}),
+      'Content-Type': 'application/json'
+    };
+    
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
 
-    if (res.status !== 401) return res;
-
-    const refreshed = await attemptRefresh();
-    if (!refreshed) return res; // still failing
-
-    tokenToUse = localStorage.getItem(KEY_ACCESS);
-    res = await makeRequest(tokenToUse);
-    return res;
+    try {
+      const res = await fetch(url, { ...options, headers });
+      
+      if (res.status === 401 && !refreshInProgress) {
+        const refreshed = await attemptRefresh();
+        
+        if (refreshed) {
+          const newToken = localStorage.getItem(KEY_ACCESS);
+          headers['Authorization'] = `Bearer ${newToken}`;
+          return await fetch(url, { ...options, headers });
+        }
+      }
+      
+      return res;
+    } catch (error) {
+      console.error('authFetch error:', error);
+      throw error;
+    }
   }, [refreshInProgress, attemptRefresh]);
 
-  // Initialize auth from localStorage on mount
+  const login = async (email, password) => {
+    const res = await fetch(`${BACKEND_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Login failed');
+    }
+
+    const data = await res.json();
+    
+    localStorage.setItem(KEY_ACCESS, data.access_token);
+    localStorage.setItem(KEY_REFRESH, data.refresh_token);
+    localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
+    
+    const mergedUserData = {
+      ...data.user,
+      ...(data.leaders || {})
+    };
+    
+    const userWithAvatar = ensureUserWithAvatar(mergedUserData);
+    
+    persistUser(userWithAvatar);
+    persistLeadersData(data.leaders, data.isLeader);
+    
+    if (userWithAvatar.profile_picture) {
+      localStorage.setItem(KEY_PROFILE_PIC, userWithAvatar.profile_picture);
+    }
+
+    setUser(userWithAvatar);
+    setIsAuthenticated(true);
+    
+    return data;
+  };
+
+  const updateProfilePicture = useCallback((newPictureUrl) => {
+    if (user) {
+      const updatedUser = ensureUserWithAvatar({ 
+        ...user, 
+        profile_picture: newPictureUrl, 
+        avatarUrl: newPictureUrl, 
+        profilePicUrl: newPictureUrl 
+      });
+      setUser(updatedUser);
+      persistUser(updatedUser);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === KEY_USER || e.key === KEY_PROFILE_PIC) {
+        const storedUser = localStorage.getItem(KEY_USER);
+        if (storedUser) {
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            const userWithAvatar = ensureUserWithAvatar(parsedUser);
+            setUser(userWithAvatar);
+          } catch (error) {
+            console.error('Error parsing user from storage:', error);
+          }
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      }
+      
+      if (e.key === KEY_LEADERS) {
+        const storedLeaders = localStorage.getItem(KEY_LEADERS);
+        if (storedLeaders) {
+          try {
+            setLeaders(JSON.parse(storedLeaders));
+          } catch (error) {
+            console.error('Error parsing leaders from storage:', error);
+          }
+        } else {
+          setLeaders(null);
+        }
+      }
+      
+      if (e.key === KEY_IS_LEADER) {
+        const storedIsLeader = localStorage.getItem(KEY_IS_LEADER);
+        if (storedIsLeader) {
+          try {
+            setIsLeader(JSON.parse(storedIsLeader));
+          } catch (error) {
+            console.error('Error parsing isLeader from storage:', error);
+          }
+        } else {
+          setIsLeader(false);
+        }
+      }
+
+      if (e.key === KEY_ACCESS && e.newValue == null) {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
     const initializeAuth = async () => {
       try {
-        console.log('🔄 [AuthContext] Initializing auth...');
-        
         const access = localStorage.getItem(KEY_ACCESS);
         const storedUser = localStorage.getItem(KEY_USER);
         const storedLeaders = localStorage.getItem(KEY_LEADERS);
         const storedIsLeader = localStorage.getItem(KEY_IS_LEADER);
-        
-        console.log('🔍 [AuthContext] Checking localStorage:', {
-          hasToken: !!access,
-          hasStoredUser: !!storedUser,
-          hasProfilePic: !!localStorage.getItem(KEY_PROFILE_PIC),
-          hasLeaders: !!storedLeaders,
-          hasIsLeader: !!storedIsLeader
-        });
         
         if (access && isTokenExpired(access)) {
           const refreshed = await attemptRefresh();
@@ -353,21 +323,19 @@ export const AuthProvider = ({ children }) => {
         const finalAccess = localStorage.getItem(KEY_ACCESS);
         const finalUser = storedUser ? ensureUserWithAvatar(JSON.parse(storedUser)) : null;
         
-        // Load leaders data if available
         if (storedLeaders) {
           try {
             setLeaders(JSON.parse(storedLeaders));
           } catch (error) {
-            console.error('❌ Error parsing leaders data:', error);
+            console.error('Error parsing leaders data:', error);
           }
         }
         
-        // Load isLeader data if available
         if (storedIsLeader) {
           try {
             setIsLeader(JSON.parse(storedIsLeader));
           } catch (error) {
-            console.error('❌ Error parsing isLeader data:', error);
+            console.error('Error parsing isLeader data:', error);
           }
         }
 
@@ -375,28 +343,16 @@ export const AuthProvider = ({ children }) => {
           if (mounted) {
             setUser(finalUser);
             setIsAuthenticated(true);
-            
-            console.log('✅ [AuthContext] User restored from localStorage:', {
-              email: finalUser.email,
-              role: finalUser.role,
-              isLeader: JSON.parse(storedIsLeader || 'false'),
-              hasLeaders: !!storedLeaders,
-              hasProfilePicture: !!finalUser.profile_picture
-            });
           }
         } else if (finalAccess && !finalUser) {
-          console.log('⚠️ [AuthContext] Token exists but no userProfile - logging out');
           if (mounted) logout();
-        } else {
-          console.log('❌ [AuthContext] No stored auth found');
         }
       } catch (error) {
-        console.error('❌ [AuthContext] Error initializing auth:', error);
+        console.error('Error initializing auth:', error);
         logout();
       } finally {
         if (mounted) {
           setLoading(false);
-          console.log('✅ [AuthContext] Auth initialization complete, loading set to false');
         }
       }
     };
@@ -404,9 +360,8 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
 
     return () => { mounted = false; };
-  }, [logout]);
+  }, [logout, attemptRefresh]);
 
-  // Listen for force logout events
   useEffect(() => {
     const handler = () => logout();
     window.addEventListener('force-logout', handler);

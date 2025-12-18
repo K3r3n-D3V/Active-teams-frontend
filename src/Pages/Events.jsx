@@ -30,9 +30,6 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
 
-
-
-
 const styles = {
   container: {
     minHeight: "100vh",
@@ -656,6 +653,12 @@ const Events = () => {
   const isRegistrant = userRole === "registrant";
   const isRegularUser = userRole === "user";
 
+  const isLeaderAt12 = 
+  userRole.includes("leader at 12") ||
+  userRole.includes("leader@12") ||
+  userRole.includes("leader @12") ||
+  userRole === "leader at 12";
+
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = '2025-11-30';
 
@@ -683,15 +686,11 @@ const Events = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [currentUserLeaderAt1, setCurrentUserLeaderAt1] = useState('');
-  const [, setTypeMenuAnchor] = useState(null);
-  const [, setTypeMenuFor] = useState(null);
-  const [, setIsCheckingLeaderStatus] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [toDeleteType, setToDeleteType] = useState(null);
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
-  const [isLeaderAt12, setIsLeaderAt12] = useState();
   const navigate = useNavigate();
 
   const initialViewFilter = useMemo(() => {
@@ -770,204 +769,119 @@ const Events = () => {
     return ['all', ...eventTypes.map(t => typeof t === 'string' ? t : t.name)];
   }, [eventTypes]);
 
-  const fetchEvents = useCallback(async (filters = {}, forceRefresh = false, showLoader = true) => {
 
-    if (showLoader) {
-      setLoading(true);
-      setIsLoading(true);
+const fetchEvents = useCallback(async (filters = {}, showLoader = true) => {
+  if (showLoader) {
+    setLoading(true);
+    setIsLoading(true);
+  }
+
+  try {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      throw new Error("No authentication token found");
     }
 
-    try {
-       const token = 
-    localStorage.getItem("access_token") 
+    const params = {
+      page: filters.page || currentPage,
+      limit: filters.limit || rowsPerPage,
+      start_date: filters.start_date || DEFAULT_API_START_DATE,
+    };
 
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
+    if (filters.status && filters.status !== 'all') params.status = filters.status;
+    if (filters.search) params.search = filters.search;
+    if (filters.event_type) params.event_type = filters.event_type;
 
-      const startDateParam = filters.start_date || DEFAULT_API_START_DATE;
-
-      const params = {
-        page: filters.page !== undefined ? filters.page : currentPage,
-        limit: filters.limit !== undefined ? filters.limit : rowsPerPage,
-        start_date: startDateParam,
-      };
-
-      if (filters.event_type) {
-        params.event_type = filters.event_type;
-      } else if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-        params.event_type = selectedEventTypeFilter;
-      }
-
-      if (filters.status && filters.status !== 'all') params.status = filters.status;
-      if (filters.search) params.search = filters.search;
-      if (filters.personal !== undefined) params.personal = filters.personal;
-      if (filters._t) params._t = filters._t;
-
-      Object.keys(params).forEach(key => {
-        if (params[key] === undefined || params[key] === null || params[key] === '') {
-          delete params[key];
-        }
-      });
-
-      let endpoint;
-      const eventTypeToUse = params.event_type || selectedEventTypeFilter;
-
-      if (eventTypeToUse && eventTypeToUse.toUpperCase() !== 'CELLS' && eventTypeToUse !== 'all') {
-        endpoint = `${BACKEND_URL}/events/other`;
-        delete params.personal;
-        delete params.leader_at_12_view;
-        delete params.show_personal_cells;
-        delete params.show_all_authorized;
-        delete params.include_subordinate_cells;
-        delete params.leader_at_1_identifier;
-      } else {
-        endpoint = `${BACKEND_URL}/events/cells`;
-
-        if (isRegistrant || isRegularUser) {
-          params.personal = true;
-        } else if (isLeaderAt12) {
-          params.leader_at_12_view = true;
-          params.include_subordinate_cells = true;
-
-          if (currentUserLeaderAt1) {
-            params.leader_at_1_identifier = currentUserLeaderAt1;
-          }
-
-          if (viewFilter === 'personal') {
-            params.show_personal_cells = true;
-            params.personal = true;
-          } else {
-            params.show_all_authorized = true;
-          }
-        }
-      }
-
-      const cacheKey = getCacheKey({ ...params, userRole, endpoint });
-
-      if (!forceRefresh) {
-        const cachedData = getCachedData(cacheKey);
-        if (cachedData) {
-          setEvents(cachedData.events);
-          setTotalEvents(cachedData.total_events);
-          setTotalPages(cachedData.total_pages);
-          if (filters.page !== undefined) setCurrentPage(filters.page);
-          if (showLoader) {
-            setLoading(false);
-            setIsLoading(false);
-          }
-          return;
-        }
-      }
-
-      params.isLeaderAt12 = isLeaderAt12;
-      params.firstName = currentUser.name;
-      params.userSurname = currentUser.surname;
-
-      const response = await axios.get(endpoint, {
-        headers,
-        params,
-        timeout: 60000
-      });
-
-      const responseData = response.data;
-      const newEvents = responseData.events || responseData.results || [];
-
-      const totalEventsCount = responseData.total_events || responseData.total || newEvents.length;
-      const totalPagesCount = responseData.total_pages || Math.ceil(totalEventsCount / rowsPerPage) || 1;
-
-      setCachedData(cacheKey, {
-        events: newEvents,
-        total_events: totalEventsCount,
-        total_pages: totalPagesCount
-      });
-
-      setEvents(newEvents);
-      setTotalEvents(totalEventsCount);
-      setTotalPages(totalPagesCount);
-      if (filters.page !== undefined) setCurrentPage(filters.page);
-
-    } catch (err) {
-      console.error("Error fetching events:", err);
+    let endpoint;
+    
+    if (filters.event_type === 'CELLS' || filters.event_type === 'all' || !filters.event_type) {
+      endpoint = `${BACKEND_URL}/events/cells`;
       
-      if (err.response?.status === 401) {
-        const refreshed = await refreshTokenForEvents();
+      if (isLeaderAt12) {
+        params.leader_at_12_view = true;
+        params.isLeaderAt12 = true;
         
-        if (refreshed) {
-          return fetchEvents(filters, forceRefresh, showLoader);
+        if (viewFilter === 'personal') {
+          params.show_personal_cells = true;
+          params.personal = true;
         } else {
-          toast.error("Session expired. Logging out...");
-          localStorage.removeItem("token");
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          localStorage.removeItem("refresh_token_id");
-          localStorage.removeItem("userProfile");
-          setTimeout(() => window.location.href = '/login', 2000);
+          params.show_all_authorized = true;
+          params.include_subordinate_cells = true;
         }
-      } else if (axios.isCancel(err) || err.code === 'ECONNABORTED') {
-        toast.warning("Request timeout. Please refresh and try again.");
+        
+        if (currentUserLeaderAt1) {
+          params.leader_at_1_identifier = currentUserLeaderAt1;
+        }
+      } else if (isAdmin) {
+        if (viewFilter === 'personal') {
+          params.personal = true;
+        }
       } else {
-        const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Please check your connection and try again.';
-        toast.error(`Error loading events: ${errorMessage}`);
+        params.personal = true;
       }
+    } else {
+      endpoint = `${BACKEND_URL}/events/other`;
       
-      setEvents([]);
-      setTotalEvents(0);
-      setTotalPages(1);
-    } finally {
-      if (showLoader) {
-        setLoading(false);
-        setIsLoading(false);
+      if (isAdmin && viewFilter === 'personal') {
+        params.personal = true;
+      } else if (isRegularUser || isRegistrant) {
+        params.personal = true;
       }
     }
-  }, [
-    currentPage,
-    rowsPerPage,
-    selectedEventTypeFilter,
-    viewFilter,
-    userRole,
-    isLeaderAt12,
-    isAdmin,
-    isRegistrant,
-    currentUserLeaderAt1,
-    getCacheKey,
-    getCachedData,
-    setCachedData,
-    BACKEND_URL,
-    DEFAULT_API_START_DATE,
-    currentUser,
-    isRegularUser
-  ]);
 
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        console.log('Page became visible, checking token...');
-        await ensureValidToken();
+    params.firstName = currentUser?.name || '';
+    params.userSurname = currentUser?.surname || '';
+    
+    const queryString = new URLSearchParams(params).toString();
+    const fullUrl = `${endpoint}?${queryString}`;
+    console.log(' Fetching from:', fullUrl);
+    const response = await authFetch(fullUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-    };
+    });
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
 
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
+    const data = await response.json();
+    
+    console.log('Got data:', data.events?.length, 'events');
 
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return;
-      }
-      
-      await ensureValidToken();
-    }, 600000);
+    setEvents(data.events || []);
+    setTotalEvents(data.total_events || 0);
+    setTotalPages(data.total_pages || 1);
 
-    return () => clearInterval(interval);
-  }, []);
+  } catch (error) {
+    console.error(' Error:', error);
+    toast.error(`Failed to load events: ${error.message}`);
+    setEvents([]);
+  } finally {
+    if (showLoader) {
+      setLoading(false);
+      setIsLoading(false);
+    }
+  }
+}, [
+  currentPage, 
+  rowsPerPage, 
+  authFetch, 
+  BACKEND_URL, 
+  DEFAULT_API_START_DATE,
+  isLeaderAt12,
+  isAdmin,
+  isRegularUser,
+  isRegistrant,
+  viewFilter,
+  currentUserLeaderAt1,
+  currentUser
+]);
+  
 
+  
   const fetchEventTypes = useCallback(async () => {
     try {
        const token = 
@@ -1014,23 +928,39 @@ const Events = () => {
     }
   }, [BACKEND_URL]);
 
-  const getCurrentUserLeaderAt1 = useCallback(async () => {
-    try {
-       const token = 
-    localStorage.getItem("access_token") 
-      const response = await axios.get(
-        `${BACKEND_URL}/current-user/leader-at-1`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+// const getCurrentUserLeaderAt1 = useCallback(async () => {
+//   try {
+//     const token = localStorage.getItem("access_token");
+//     const response = await axios.get(
+//       `${BACKEND_URL}/current-user/leader-at-1`,
+//       {
+//         headers: { Authorization: `Bearer ${token}` },
+//         timeout: 10000 // Add timeout
+//       }
+//     );
 
-      return response.data.leader_at_1 || '';
-    } catch (error) {
-      console.error('Error getting current user leader at 1:', error);
-      return '';
-    }
-  }, [BACKEND_URL]);
+//     // Check if response and response.data exist
+//     if (response && response.data && response.data.leader_at_1 !== undefined) {
+//       return response.data.leader_at_1 || '';
+//     } else {
+//       console.warn('Leader at 1 API returned unexpected response:', response);
+//       return '';
+//     }
+//   } catch (error) {
+//     console.error('Error getting current user leader at 1:', error);
+    
+//     // Check if it's a network error or timeout
+//     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+//       console.warn('Timeout fetching leader at 1 data');
+//     } else if (error.response?.status === 404) {
+//       console.warn('Leader at 1 endpoint not found');
+//     } else if (error.response?.status === 401) {
+//       console.warn('Unauthorized access to leader at 1 endpoint');
+//     }
+    
+//     return '';
+//   }
+// }, [BACKEND_URL]);
 
   const clearAllFilters = useCallback(() => {
     setSearchQuery('');
@@ -1270,7 +1200,7 @@ const Events = () => {
         };
       }
 
-      const response = await axios.put(
+      const response = await authFetch(
         `${BACKEND_URL.replace(/\/$/, "")}/submit-attendance/${eventId}`,
         payload,
         { headers }
@@ -1410,7 +1340,7 @@ const Events = () => {
           }
         }
 
-        const response = await axios.delete(`${BACKEND_URL}/events/${eventId}`, {
+        const response = await authFetch(`${BACKEND_URL}/events/${eventId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -1693,7 +1623,7 @@ const Events = () => {
       const url = `${BACKEND_URL}/event-types/${encodedTypeName}`;
 
       try {
-        const response = await axios.delete(url, {
+        const response = await authFetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -1763,7 +1693,7 @@ const Events = () => {
           if (shouldForceDelete) {
             try {
               const forceUrl = `${url}?force=true`;
-              const forceResponse = await axios.delete(forceUrl, {
+              const forceResponse = await authFetch(forceUrl, {
                 headers: {
                   Authorization: `Bearer ${token}`,
                   'Content-Type': 'application/json'
@@ -1901,7 +1831,7 @@ const Events = () => {
 
         if (isUser) {
           try {
-            const response = await axios.get(`${BACKEND_URL}/check-leader-status`, {
+            const response = await authFetch(`${BACKEND_URL}/check-leader-status`, {
               headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -1946,57 +1876,6 @@ const Events = () => {
       setSelectedEventTypeFilter('all');
     }
   }, [eventTypes.length, selectedEventTypeFilter]);
-
-  useEffect(() => {
-    if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all') {
-      const refreshParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        event_type: selectedEventTypeFilter,
-        _t: Date.now()
-      };
-
-      if (selectedStatus && selectedStatus !== 'all') {
-        refreshParams.status = selectedStatus;
-      }
-
-      if (searchQuery.trim()) refreshParams.search = searchQuery.trim();
-
-      const timer = setTimeout(() => {
-        fetchEvents(refreshParams, true);
-      }, 200);
-
-      return () => clearTimeout(timer);
-    }
-  }, [selectedEventTypeFilter, rowsPerPage, selectedStatus, searchQuery, fetchEvents, DEFAULT_API_START_DATE]);
-
-  useEffect(() => {
-    if (isLeaderAt12 && viewFilter === 'personal') {
-      setViewFilter('all');
-
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        event_type: "CELLS"
-      };
-
-      if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
-        fetchParams.include_subordinate_cells = true;
-        fetchParams.show_all_authorized = true;
-
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-      }
-
-      setTimeout(() => {
-        fetchEvents(fetchParams, true);
-      }, 100);
-    }
-  }, [isLeaderAt12, rowsPerPage, currentUserLeaderAt1, fetchEvents, DEFAULT_API_START_DATE]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -2104,18 +1983,49 @@ const Events = () => {
     selectedEventTypeFilter
   ]);
 
-  useEffect(() => {
-    const fetchCurrentUserLeaderAt1 = async () => {
-      const leaderAt1 = await getCurrentUserLeaderAt1();
-      setCurrentUserLeaderAt1(leaderAt1);
-    };
+//  useEffect(() => {
+//   const fetchCurrentUserLeaderAt1 = async () => {
+//     try {
+//       const leaderAt1 = await getCurrentUserLeaderAt1();
+//       if (leaderAt1 !== undefined) {
+//         setCurrentUserLeaderAt1(leaderAt1);
+//       } else {
+//         setCurrentUserLeaderAt1('');
+//       }
+//     } catch (error) {
+//       console.error('Error fetching current user leader at 1:', error);
+//       setCurrentUserLeaderAt1('');
+//     }
+//   };
 
-    fetchCurrentUserLeaderAt1();
-  }, [getCurrentUserLeaderAt1]);
+//   fetchCurrentUserLeaderAt1();
+// }, [getCurrentUserLeaderAt1]);
+
+
 
   useEffect(() => {
     fetchEventTypes();
   }, [fetchEventTypes]);
+
+// useEffect(() => {
+//   const userProfile = localStorage.getItem("userProfile");
+//   if (userProfile) {
+//     try {
+//       const user = JSON.parse(userProfile);
+//       const role = (user?.role || "").toLowerCase();
+//       const isL12 = 
+//         role.includes("leader at 12") ||
+//         role.includes("leader@12") ||
+//         role.includes("leader @12") ||
+//         role === "leader at 12";
+      
+//       setIsLeaderAt12(isL12);
+//     } catch (error) {
+//       console.error('Error parsing user profile:', error);
+//       setIsLeaderAt12(false);
+//     }
+//   }
+// }, []);
 
   useEffect(() => {
     const savedEventTypes = localStorage.getItem("customEventTypes");
@@ -2140,86 +2050,83 @@ const Events = () => {
     }
   }, [customEventTypes]);
 
-  // MAIN useEffect - Fixed to prevent infinite loops
-  useEffect(() => {
-    if (eventTypes.length === 0) {
-      return;
-    }
+useEffect(() => {
+  if (eventTypes.length === 0) {
+    return;
+  }
 
-    const fetchParams = {
-      page: currentPage,
-      limit: rowsPerPage,
-      start_date: DEFAULT_API_START_DATE
-    };
+  const fetchParams = {
+    page: currentPage,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE
+  };
 
-    if (selectedStatus && selectedStatus !== 'all') {
-      fetchParams.status = selectedStatus;
-    }
+  if (selectedStatus && selectedStatus !== 'all') {
+    fetchParams.status = selectedStatus;
+  }
 
-    if (searchQuery.trim()) {
-      fetchParams.search = searchQuery.trim();
-    }
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
 
-    if (selectedEventTypeFilter === 'all') {
-      fetchParams.event_type = "CELLS";
-    } else if (selectedEventTypeFilter === 'CELLS') {
-      fetchParams.event_type = "CELLS";
-    } else {
-      fetchParams.event_type = selectedEventTypeFilter;
-    }
+  if (selectedEventTypeFilter === 'all') {
+    fetchParams.event_type = "CELLS";
+  } else if (selectedEventTypeFilter === 'CELLS') {
+    fetchParams.event_type = "CELLS";
+  } else {
+    fetchParams.event_type = selectedEventTypeFilter;
+  }
 
-    if (fetchParams.event_type === "CELLS") {
-      if (isAdmin) {
-        if (viewFilter === 'personal') {
-          fetchParams.personal = true;
-        }
-      } else if (isRegistrant || isRegularUser) {
+  if (fetchParams.event_type === "CELLS") {
+    if (isAdmin) {
+      if (viewFilter === 'personal') {
         fetchParams.personal = true;
-      } else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
-
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === 'personal') {
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          fetchParams.show_all_authorized = true;
-          fetchParams.include_subordinate_cells = true;
-        }
       }
-    } else {
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
-      delete fetchParams.leader_at_1_identifier;
+    } else if (isRegistrant || isRegularUser) {
+      fetchParams.personal = true;
+    } else if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
+
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+      }
+
+      if (viewFilter === 'personal') {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+        fetchParams.include_subordinate_cells = true;
+      }
     }
+  } else {
+    delete fetchParams.personal;
+    delete fetchParams.leader_at_12_view;
+    delete fetchParams.show_personal_cells;
+    delete fetchParams.show_all_authorized;
+    delete fetchParams.include_subordinate_cells;
+    delete fetchParams.leader_at_1_identifier;
+  }
 
-    Object.keys(fetchParams).forEach(key =>
-      fetchParams[key] === undefined && delete fetchParams[key]
-    );
+  Object.keys(fetchParams).forEach(key =>
+    fetchParams[key] === undefined && delete fetchParams[key]
+  );
 
-    fetchEvents(fetchParams, true);
-  }, [
-    selectedEventTypeFilter,
-    selectedStatus,
-    viewFilter,
-    currentPage,
-    rowsPerPage,
-    searchQuery,
-    eventTypes.length,
-    isLeaderAt12,
-    isAdmin,
-    isRegularUser,
-    isRegistrant,
-    currentUserLeaderAt1,
-    fetchEvents,
-    DEFAULT_API_START_DATE
-  ]);
+  fetchEvents(fetchParams, true);
+}, [
+  selectedEventTypeFilter,
+  selectedStatus,
+  viewFilter,
+  currentPage,
+  rowsPerPage,
+  eventTypes.length,
+  isAdmin,
+  isRegistrant,
+  isRegularUser,
+  isLeaderAt12,
+  DEFAULT_API_START_DATE
+]);
+  
 
   const StatusBadges = ({ selectedStatus, setSelectedStatus, setCurrentPage }) => {
     const statuses = [
