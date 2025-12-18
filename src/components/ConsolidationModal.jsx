@@ -244,7 +244,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         }
       }
       
-      console.log(`⚠️ Could not find email for leader: ${leaderName}`);
+      console.log(` Could not find email for leader: ${leaderName}`);
       return "";
       
     } catch (error) {

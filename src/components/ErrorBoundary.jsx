@@ -61,7 +61,7 @@ class ErrorBoundary extends React.Component {
             }}
           >
             <Typography variant="h4" color="error" gutterBottom>
-              ⚠️ Something Went Wrong
+               Something Went Wrong
             </Typography>
             
             <Typography variant="body1" color="text.secondary" paragraph>

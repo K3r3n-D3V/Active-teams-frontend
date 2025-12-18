@@ -653,11 +653,15 @@ const Events = () => {
   const isRegistrant = userRole === "registrant";
   const isRegularUser = userRole === "user";
 
-  const isLeaderAt12 = 
-  userRole.includes("leader at 12") ||
-  userRole.includes("leader@12") ||
-  userRole.includes("leader @12") ||
-  userRole === "leader at 12";
+const isLeaderAt12 = 
+  userRole.toLowerCase().includes("leaderat12") ||
+  userRole.toLowerCase().includes("leader at 12") ||
+  userRole.toLowerCase().includes("leader@12") ||
+  userRole.toLowerCase().includes("leader @12") ||
+  userRole.toLowerCase() === "leaderat12" ||
+  userRole.toLowerCase() === "leader at 12";
+
+console.log("User role:", userRole, "Is Leader at 12:", isLeaderAt12);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = '2025-11-30';
@@ -797,25 +801,40 @@ const fetchEvents = useCallback(async (filters = {}, showLoader = true) => {
     if (filters.event_type === 'CELLS' || filters.event_type === 'all' || !filters.event_type) {
       endpoint = `${BACKEND_URL}/events/cells`;
       
+      console.log("Current user role:", userRole);
+      console.log("Is Leader at 12:", isLeaderAt12);
+      console.log("View filter:", viewFilter);
+      
       if (isLeaderAt12) {
+        console.log("🚨 LEADER AT 12 MODE ACTIVATED");
         params.leader_at_12_view = true;
         params.isLeaderAt12 = true;
         
         if (viewFilter === 'personal') {
+          console.log("   Personal view for Leader at 12");
           params.show_personal_cells = true;
           params.personal = true;
         } else {
+          console.log("   View All Under Me for Leader at 12");
           params.show_all_authorized = true;
           params.include_subordinate_cells = true;
         }
+        
+        // Add user name for leader at 12 filtering
+        params.firstName = currentUser?.name || '';
+        params.userSurname = currentUser?.surname || '';
         
         if (currentUserLeaderAt1) {
           params.leader_at_1_identifier = currentUserLeaderAt1;
         }
       } else if (isAdmin) {
+        console.log("Admin mode");
         if (viewFilter === 'personal') {
           params.personal = true;
         }
+      } else if (isRegistrant || isRegularUser) {
+        console.log("Regular user/registrant mode");
+        params.personal = true;
       } else {
         params.personal = true;
       }
@@ -829,12 +848,11 @@ const fetchEvents = useCallback(async (filters = {}, showLoader = true) => {
       }
     }
 
-    params.firstName = currentUser?.name || '';
-    params.userSurname = currentUser?.surname || '';
-    
     const queryString = new URLSearchParams(params).toString();
     const fullUrl = `${endpoint}?${queryString}`;
-    console.log(' Fetching from:', fullUrl);
+    console.log('📡 Fetching from:', fullUrl);
+    console.log('Parameters:', params);
+    
     const response = await authFetch(fullUrl, {
       method: 'GET',
       headers: {
@@ -849,14 +867,16 @@ const fetchEvents = useCallback(async (filters = {}, showLoader = true) => {
 
     const data = await response.json();
     
-    console.log('Got data:', data.events?.length, 'events');
+    console.log('✅ Got data:', data.events?.length, 'events');
+    console.log('User info:', data.user_info);
+    console.log('Is Leader at 12 backend confirmation:', data.user_info?.is_leader_at_12);
 
     setEvents(data.events || []);
     setTotalEvents(data.total_events || 0);
     setTotalPages(data.total_pages || 1);
 
   } catch (error) {
-    console.error(' Error:', error);
+    console.error('❌ Error:', error);
     toast.error(`Failed to load events: ${error.message}`);
     setEvents([]);
   } finally {
@@ -877,10 +897,9 @@ const fetchEvents = useCallback(async (filters = {}, showLoader = true) => {
   isRegistrant,
   viewFilter,
   currentUserLeaderAt1,
-  currentUser
+  currentUser,
+  userRole  
 ]);
-  
-
   
   const fetchEventTypes = useCallback(async () => {
     try {
@@ -2195,114 +2214,109 @@ useEffect(() => {
     );
   };
 
-  const ViewFilterButtons = () => {
-    const shouldShowToggle = (isAdmin || (isLeaderAt12)) &&
-      (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
+ const ViewFilterButtons = () => {
+  const shouldShowToggle = (isAdmin || isLeaderAt12) &&
+    (selectedEventTypeFilter === 'all' || selectedEventTypeFilter === 'CELLS');
 
-    if (isRegularUser || isRegistrant) {
-      return null;
-    }
+  if (isRegularUser || isRegistrant) {
+    return null;
+  }
 
-    if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all' && selectedEventTypeFilter !== 'CELLS') {
-      return null;
-    }
+  if (selectedEventTypeFilter && selectedEventTypeFilter !== 'all' && selectedEventTypeFilter !== 'CELLS') {
+    return null;
+  }
 
-    if (!shouldShowToggle) {
-      return null;
-    }
+  if (!shouldShowToggle) {
+    return null;
+  }
 
-    const handleViewFilterChange = (newViewFilter) => {
-      setViewFilter(newViewFilter);
-      setCurrentPage(1);
+  const handleViewFilterChange = (newViewFilter) => {
+    setViewFilter(newViewFilter);
+    setCurrentPage(1);
 
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        event_type: "CELLS",
-        _t: Date.now()
-      };
-
-      if (selectedStatus !== 'all') {
-        fetchParams.status = selectedStatus;
-      }
-      if (searchQuery.trim()) {
-        fetchParams.search = searchQuery.trim();
-      }
-
-      if (isAdmin) {
-        if (newViewFilter === 'personal') {
-          fetchParams.personal = true;
-          fetchParams.show_personal_cells = true;
-        } else {
-          delete fetchParams.personal;
-          delete fetchParams.show_personal_cells;
-        }
-      }
-      else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
-        fetchParams.include_subordinate_cells = true;
-
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (newViewFilter === 'personal') {
-          fetchParams.personal = true;
-          fetchParams.show_personal_cells = true;
-        } else {
-          fetchParams.show_all_authorized = true;
-          delete fetchParams.personal;
-          delete fetchParams.show_personal_cells;
-        }
-      }
-
-      fetchEvents(fetchParams, true);
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      event_type: "CELLS",
+      _t: Date.now()
     };
 
-    const getAllLabel = () => {
-      if (isAdmin) return " VIEW ALL";
-      if (isLeaderAt12) return "VIEW ALL";
-      return "ALL";
-    };
+    if (selectedStatus !== 'all') {
+      fetchParams.status = selectedStatus;
+    }
+    if (searchQuery.trim()) {
+      fetchParams.search = searchQuery.trim();
+    }
 
-    const getPersonalLabel = () => {
-      if (isAdmin) return "PERSONAL";
-      if (isLeaderAt12) return "PERSONAL";
-      return "PERSONAL";
-    };
+    if (isAdmin) {
+      if (newViewFilter === 'personal') {
+        fetchParams.personal = true;
+        fetchParams.show_personal_cells = true;
+      } else {
+        delete fetchParams.personal;
+        delete fetchParams.show_personal_cells;
+      }
+    }
+    else if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
 
-    return (
-      <div style={styles.viewFilterContainer}>
-        <span style={styles.viewFilterLabel}>View:</span>
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="all"
-            checked={viewFilter === 'all'}
-            onChange={(e) => handleViewFilterChange(e.target.value)}
-          />
-          <span style={styles.viewFilterText}>
-            {getAllLabel()}
-          </span>
-        </label>
-        <label style={styles.viewFilterRadio}>
-          <input
-            type="radio"
-            name="viewFilter"
-            value="personal"
-            checked={viewFilter === 'personal'}
-            onChange={(e) => handleViewFilterChange(e.target.value)}
-          />
-          <span style={styles.viewFilterText}>
-            {getPersonalLabel()}
-          </span>
-        </label>
-      </div>
-    );
+      if (newViewFilter === 'personal') {
+        fetchParams.personal = true;
+        fetchParams.show_personal_cells = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+        delete fetchParams.personal;
+        delete fetchParams.show_personal_cells;
+      }
+    }
+
+    fetchEvents(fetchParams, true);
   };
 
+  const getAllLabel = () => {
+    if (isAdmin) return "VIEW ALL";
+    if (isLeaderAt12) return "DISCIPLES";
+    return "ALL";
+  };
+
+  const getPersonalLabel = () => {
+    if (isAdmin) return "PERSONAL";
+    if (isLeaderAt12) return "PERSONAL ";
+    return "PERSONAL";
+  };
+
+  return (
+    <div style={styles.viewFilterContainer}>
+      <span style={styles.viewFilterLabel}>View:</span>
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="all"
+          checked={viewFilter === 'all'}
+          onChange={(e) => handleViewFilterChange(e.target.value)}
+        />
+        <span style={styles.viewFilterText}>
+          {getAllLabel()}
+        </span>
+      </label>
+      <label style={styles.viewFilterRadio}>
+        <input
+          type="radio"
+          name="viewFilter"
+          value="personal"
+          checked={viewFilter === 'personal'}
+          onChange={(e) => handleViewFilterChange(e.target.value)}
+        />
+        <span style={styles.viewFilterText}>
+          {getPersonalLabel()}
+        </span>
+      </label>
+    </div>
+  );
+};
   const EventTypeSelector = ({
     eventTypes,
     selectedEventTypeFilter,

@@ -18,7 +18,6 @@ import {
 } from '@mui/icons-material';
 import NewUserModal from '../components/NewUserModal';
 
-// Create a global variable to store the data outside the component
 let globalUsersData = null;
 let globalDataLoaded = false;
 
@@ -59,20 +58,19 @@ export default function AdminDashboard() {
   const [creatingUser, setCreatingUser] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
 
-  // Pagination state
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const [roles] = useState([
     { name: 'admin', description: 'Full system access' },
     { name: 'leader', description: 'Group leaders managing cells' },
+    { name: 'leaderAt12', description: 'Leaders at 12 level - can view cells under them' },
     { name: 'user', description: 'Regular members' },
     { name: 'registrant', description: 'Event check-in volunteers' }
   ]);
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
-  // Skeleton components
   const SkeletonCard = () => (
     <Card variant="outlined" sx={{ mb: 2 }}>
       <CardContent sx={{ p: 2 }}>
@@ -110,9 +108,7 @@ export default function AdminDashboard() {
     </Card>
   );
 
-  // Fetch function - only loads if no global data
   const fetchAllData = useCallback(async (forceRefresh = false) => {
-    // If we already have global data and not forcing refresh, use it
     if (globalDataLoaded && !forceRefresh) {
       setUsers(globalUsersData);
       setLoading(false);
@@ -157,7 +153,6 @@ export default function AdminDashboard() {
         createdAt: user.created_at
       }));
 
-      // Store in global variable
       globalUsersData = transformedUsers;
       globalDataLoaded = true;
 
@@ -172,17 +167,14 @@ export default function AdminDashboard() {
     }
   }, [API_BASE_URL, authFetch]);
 
-  // Manual refresh function - forces reload
   const handleManualRefresh = useCallback(async () => {
     await fetchAllData(true);
   }, [fetchAllData]);
 
-  // Load data only if no global data exists
   useEffect(() => {
     if (!globalDataLoaded) {
       fetchAllData();
     } else {
-      // If we have global data, set it immediately
       setUsers(globalUsersData);
       setLoading(false);
     }
@@ -199,7 +191,6 @@ export default function AdminDashboard() {
     setActivityLog(prev => [newLog, ...prev].slice(0, 50));
   }, []);
 
-  // Updated handleCreateUser function to work with the modal component
   const handleCreateUser = async (userData) => {
     setCreatingUser(true);
     
@@ -221,15 +212,12 @@ export default function AdminDashboard() {
         role: userData.role
       };
 
-      console.log('Creating user with payload:', payload);
-
       const response = await authFetch(`${API_BASE_URL}/admin/users`, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
 
       const responseData = await response.json();
-      console.log('Server response:', responseData);
 
       if (!response.ok) {
         throw new Error(responseData.detail || 'Failed to create user');
@@ -239,7 +227,6 @@ export default function AdminDashboard() {
       
       setShowAddUserModal(false);
       
-      // Refresh data after creating user and update global data
       globalDataLoaded = false;
       fetchAllData(true);
       
@@ -272,7 +259,6 @@ export default function AdminDashboard() {
         user.id === userId ? { ...user, role: newRole } : user
       );
       
-      // Update both local state and global data
       setUsers(updatedUsers);
       globalUsersData = updatedUsers;
       
@@ -306,7 +292,6 @@ export default function AdminDashboard() {
       
       const updatedUsers = users.filter(user => user.id !== selectedUser.id);
       
-      // Update both local state and global data
       setUsers(updatedUsers);
       globalUsersData = updatedUsers;
       
@@ -322,7 +307,13 @@ export default function AdminDashboard() {
   };
 
   const getRoleColor = (role) => {
-    const colors = { admin: 'error', leader: 'primary', user: 'success', registrant: 'warning' };
+    const colors = { 
+      admin: 'error', 
+      leader: 'primary', 
+      leaderAt12: 'secondary',
+      user: 'success', 
+      registrant: 'warning' 
+    };
     return colors[role] || 'default';
   };
 
@@ -330,6 +321,7 @@ export default function AdminDashboard() {
     const icons = { 
       admin: <Shield />, 
       leader: <AdminPanelSettings />, 
+      leaderAt12: <People />,
       user: <PersonIcon />, 
       registrant: <RegistrantIcon /> 
     };
@@ -339,7 +331,6 @@ export default function AdminDashboard() {
   const getRoleDisplay = (role) => role.charAt(0).toUpperCase() + role.slice(1);
   const getInitials = (name) => name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2);
 
-  // Memoized filtered users to prevent unnecessary re-computation
   const filteredUsers = useMemo(() => users.filter(user => {
     const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          user.email?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -347,22 +338,20 @@ export default function AdminDashboard() {
     return matchesSearch && matchesRole;
   }), [users, searchTerm, selectedRole]);
 
-  // Paginated users
   const paginatedUsers = filteredUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const getRoleCount = (roleName) => users.filter(u => u.role === roleName).length;
 
-  // Memoized stats to prevent unnecessary re-renders
   const stats = useMemo(() => ({
     totalUsers: users.length,
     activeToday: users.filter(u => u.status === 'active').length,
     admins: getRoleCount('admin'),
     leaders: getRoleCount('leader'),
+    leaderAt12: getRoleCount('leaderAt12'),
     registrants: getRoleCount('registrant'),
     regularUsers: getRoleCount('user')
   }), [users]);
 
-  // Card shadow styles
   const cardStyles = {
     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
     transition: 'all 0.3s cubic-bezier(.25,.8,.25,1)',
@@ -375,7 +364,6 @@ export default function AdminDashboard() {
     borderRadius: 2
   };
 
-  // Mobile User Card Component
   const UserCard = ({ user }) => (
     <Card variant="outlined" sx={{ mb: 2 }}>
       <CardContent sx={{ p: 2 }}>
@@ -434,7 +422,6 @@ export default function AdminDashboard() {
   if (loading && !globalDataLoaded) {
     return (
       <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-        {/* Skeleton Title */}
         <Skeleton 
           variant="text" 
           width="40%" 
@@ -442,16 +429,14 @@ export default function AdminDashboard() {
           sx={{ mx: 'auto', mb: cardSpacing }} 
         />
 
-        {/* Skeleton Stats Cards */}
         <Grid container spacing={cardSpacing} mb={cardSpacing}>
-          {Array.from({ length: 5 }).map((_, index) => (
-            <Grid item xs={6} sm={4} md={2.4} key={index}>
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Grid item xs={6} sm={4} md={2} key={index}>
               <SkeletonStatsCard />
             </Grid>
           ))}
         </Grid>
 
-        {/* Skeleton Controls */}
         <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
           <Grid item xs={12} sm={8}>
             <Skeleton variant="rounded" height={40} />
@@ -461,7 +446,6 @@ export default function AdminDashboard() {
           </Grid>
         </Grid>
 
-        {/* Skeleton Content */}
         {isMdDown ? (
           <Box sx={{ maxHeight: 500, overflowY: "auto", border: `1px solid ${theme.palette.divider}`, borderRadius: 1, p: 1 }}>
             {Array.from({ length: 5 }).map((_, index) => <SkeletonCard key={index} />)}
@@ -510,16 +494,16 @@ export default function AdminDashboard() {
 
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-      {/* Statistics Cards */}
       <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
         {[
           { label: 'Total Users', value: stats.totalUsers, icon: <People />, color: '#2196f3' },
           { label: 'Administrators', value: stats.admins, icon: <Shield />, color: '#f44336' },
           { label: 'Leaders', value: stats.leaders, icon: <AdminPanelSettings />, color: '#9c27b0' },
+          { label: 'Leaders at 12', value: stats.leaderAt12, icon: <People />, color: '#4caf50' },
           { label: 'Registrants', value: stats.registrants, icon: <RegistrantIcon />, color: '#ff9800' },
           { label: 'Regular Users', value: stats.regularUsers, icon: <PersonIcon />, color: '#607d8b' }
         ].map((stat, index) => (
-          <Grid item xs={6} sm={4} md={2.4} key={index}>
+          <Grid item xs={6} sm={4} md={2} key={index}>
             <Card sx={cardStyles}>
               <CardContent sx={{ textAlign: 'center', flexGrow: 1, p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
                 <Avatar sx={{ 
@@ -636,6 +620,7 @@ export default function AdminDashboard() {
                   <MenuItem value="all">All Roles</MenuItem>
                   <MenuItem value="admin">Admin</MenuItem>
                   <MenuItem value="leader">Leader</MenuItem>
+                  <MenuItem value="leaderAt12">Leader at 12</MenuItem>
                   <MenuItem value="user">User</MenuItem>
                   <MenuItem value="registrant">Registrant</MenuItem>
                 </Select>
@@ -643,7 +628,6 @@ export default function AdminDashboard() {
             </Stack>
 
             {isMdDown ? (
-              /* Mobile Card View */
               <Box>
                 <Box 
                   sx={{ 
@@ -669,7 +653,6 @@ export default function AdminDashboard() {
                 />
               </Box>
             ) : (
-              /* Desktop Table View */
               <Box>
                 <TableContainer sx={{ maxHeight: 500, boxShadow: 1, borderRadius: 1 }}>
                   <Table stickyHeader size={getResponsiveValue("small", "small", "medium", "medium", "medium")}>
@@ -758,7 +741,7 @@ export default function AdminDashboard() {
           <Box sx={{ p: getResponsiveValue(1, 2, 3, 3, 3) }}>
             <Alert severity="info" sx={{ mb: 3, boxShadow: 1, borderRadius: 2 }}>
               <AlertTitle>Role Hierarchy</AlertTitle>
-              Admin → Leader → User → Registrant
+              Admin → Leader → Leader at 12 → User → Registrant
             </Alert>
             
             <Grid container spacing={cardSpacing}>
@@ -849,7 +832,6 @@ export default function AdminDashboard() {
         )}
       </Paper>
 
-      {/* Use the NewUserModal component */}
       <NewUserModal
         open={showAddUserModal}
         onClose={() => setShowAddUserModal(false)}
@@ -857,7 +839,6 @@ export default function AdminDashboard() {
         loading={creatingUser}
       />
 
-      {/* Enhanced Role Change Modal */}
       <Dialog 
         open={showRoleModal} 
         onClose={() => !updatingRole && setShowRoleModal(false)} 
@@ -883,7 +864,7 @@ export default function AdminDashboard() {
               </Typography>
               <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>Select New Role:</Typography>
               <Stack spacing={1}>
-                {['admin', 'leader', 'user', 'registrant'].map(roleName => (
+                {['admin', 'leader', 'leaderAt12', 'user', 'registrant'].map(roleName => (
                   <Paper
                     key={roleName}
                     variant="outlined"
@@ -930,7 +911,6 @@ export default function AdminDashboard() {
         </DialogActions>
       </Dialog>
 
-      {/* Enhanced Delete Confirmation Modal */}
       <Dialog 
         open={showDeleteConfirm} 
         onClose={() => !deletingUser && setShowDeleteConfirm(false)} 
@@ -987,7 +967,6 @@ export default function AdminDashboard() {
         </DialogActions>
       </Dialog>
 
-      {/* Floating Action Button for Add User */}
       <Fab
         color="primary"
         aria-label="add user"
