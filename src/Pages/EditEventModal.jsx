@@ -19,23 +19,24 @@ import {
   Divider,
   Chip,
   CircularProgress,
-  // IconButton, // Commented out - not used in new code
+
   Tooltip,
   Checkbox,
   FormGroup,
   Collapse,
 } from '@mui/material';
 import {
-  // Delete as DeleteIcon, // Commented out - not used in new code
+
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Warning as WarningIcon,
   Person as PersonIcon,
   Event as EventIcon,
-  Lock as LockIcon, // Added from new code
+  Lock as LockIcon,
+
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
-// Define user role constants (from new code)
+
 const USER_ROLES = {
   ADMIN: 'admin',
   LEADER_1: 'leader1',
@@ -54,17 +55,17 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [changedFields, setChangedFields] = useState([]);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [showAllFields, setShowAllFields] = useState(false);
- 
+
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
- 
+
   // Get user role from localStorage (from Profile component logic - new code)
-  const [loggedInUserRole, setLoggedInUserRole] = useState(() => {
+  const [loggedInUserRole, ] = useState(() => {
     try {
       const storedProfile = localStorage.getItem("userProfile");
       if (storedProfile) {
         const parsed = JSON.parse(storedProfile);
         const role = parsed.role || "user";
-        console.log("🔐 EditEventModal: Logged-in user role:", role);
+        console.log(" EditEventModal: Logged-in user role:", role);
         return role;
       }
     } catch (e) {
@@ -77,16 +78,12 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const isLeader1 = loggedInUserRole === USER_ROLES.LEADER_1;
   const isLeader12 = loggedInUserRole === USER_ROLES.LEADER_12;
   const isLeader144 = loggedInUserRole === USER_ROLES.LEADER_144;
-  const isRegistrant = loggedInUserRole === USER_ROLES.REGISTRANT;
-  const isRegularUser = loggedInUserRole === USER_ROLES.USER;
- 
-  // Check if user has edit permission (Admin or Leader 1 only - new code)
+  // const isRegistrant = loggedInUserRole === USER_ROLES.REGISTRANT;
+  // const isRegularUser = loggedInUserRole === USER_ROLES.USER;
+
   const hasEditPermission = isAdmin || isLeader1;
- 
-  // Check if user is any type of leader (UPDATE: for email field permissions)
+
   const isAnyLeader = isAdmin || isLeader1 || isLeader12 || isLeader144;
- 
-  // Field mapping for related fields
   const fieldMapping = {
     'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
     'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
@@ -94,32 +91,32 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     'leader1': ['leader1'],
     'leader12': ['leader12'],
     'Leader at 12': ['Leader at 12'],
-   
+
     // Email fields
     'Email': ['Email', 'eventLeaderEmail', 'email'],
     'eventLeaderEmail': ['eventLeaderEmail', 'Email', 'email'],
     'email': ['email', 'Email', 'eventLeaderEmail'],
-   
+
     // Location fields
     'Address': ['Address', 'location', 'address'],
     'location': ['location', 'Address', 'address'],
     'address': ['address', 'Address', 'location'],
-   
+
     // Day/time fields
     'Day': ['Day', 'recurring_day'],
     'recurring_day': ['recurring_day', 'Day'],
     'Time': ['Time', 'time'],
     'time': ['time', 'Time'],
-   
+
     'Event Name': ['Event Name', 'eventName'],
     'eventName': ['eventName', 'Event Name'],
-   
+
     'Event Type': ['Event Type', 'eventTypeName'],
     'eventTypeName': ['eventTypeName', 'Event Type'],
-   
+
     'status': ['status', 'Status'],
     'Status': ['Status', 'status'],
-   
+
     'description': ['description'],
     'isTicketed': ['isTicketed'],
     'isGlobal': ['isGlobal'],
@@ -127,51 +124,37 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     'Reoccurring': ['Reoccurring', 'recurring'],
     'recurring': ['recurring', 'Reoccurring'],
   };
-  // Permission logic based on requirements (from new code):
-  // 1. Week identifier - disabled for ALL users (registrant, users, leader at 144)
-  // 2. Original event ID - disabled for ALL users
-  // 3. Leader fields - disabled for ALL users except Admin and Leader 1
-  // 4. Event type - disabled for ALL users except Admin and Leader 1
-  // 5. Week identifier specifically for leader at 144 (already covered in point 1)
-  // 6. Leader field for leader at 144 - disabled
-  // 7. UPDATE: Email fields should be editable by ALL leaders (Admin, Leader 1, Leader 144)
- 
+
   const getFieldPermissions = useCallback((field) => {
     const fieldLower = field.toLowerCase();
-   
+
     // Check for week identifier fields (ALWAYS disabled for everyone)
     const isWeekIdentifier = fieldLower.includes('week') &&
-                           (fieldLower.includes('identifier') ||
-                            fieldLower.includes('id'));
-   
+      (fieldLower.includes('identifier') ||
+        fieldLower.includes('id'));
+
     // Check for original event ID fields (ALWAYS disabled for everyone)
     const isOriginalEventId = (fieldLower.includes('original') &&
-                              fieldLower.includes('event') &&
-                              fieldLower.includes('id')) ||
-                             fieldLower === 'originaleventid' ||
-                             fieldLower === 'original_event_id';
-   
+      fieldLower.includes('event') &&
+      fieldLower.includes('id')) ||
+      fieldLower === 'originaleventid' ||
+      fieldLower === 'original_event_id';
+
     // Check for event type fields
     const isEventType = fieldLower.includes('event') &&
-                       (fieldLower.includes('type') ||
-                        fieldLower === 'eventtype');
-   
-    // Check for restricted leader fields (specific: leader1, leader12, Leader at 12)
+      (fieldLower.includes('type') ||
+        fieldLower === 'eventtype');
+
+
     const isRestrictedLeaderField = fieldLower === 'leader1' ||
-                                   fieldLower === 'leader12' ||
-                                   fieldLower.includes('leader at 12');
-   
-    // // Special case for "Leader at 144" specific fields (commented out - not used)
-    // const isLeader144Field = fieldLower.includes('144') ||
-    //                         fieldLower.includes('leader_at_144') ||
-    //                         fieldLower === 'leader144';
-   
-    // Permission logic
+      fieldLower === 'leader12' ||
+      fieldLower.includes('leader at 12');
+
     if (isWeekIdentifier || isOriginalEventId) {
       // Always disabled for ALL users
       return { disabled: true, reason: 'This field cannot be edited' };
     }
-   
+
     if (isEventType) {
       // Event type disabled for ALL users
       return {
@@ -179,7 +162,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         reason: 'Event type cannot be edited'
       };
     }
-   
+
     if (isRestrictedLeaderField) {
       if (isLeader144) {
         // Leader at 144 cannot edit restricted leader fields (requirement 6)
@@ -188,7 +171,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           reason: 'Leader at 144 cannot edit leader fields'
         };
       }
-     
+
       if (!hasEditPermission) {
         // Non-admin/non-leader1 users cannot edit restricted leader fields
         return {
@@ -197,19 +180,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         };
       }
     }
-   
-    // UPDATE: Commenting out email field restrictions to allow all users to edit
-    // if (isEmailField) {
-    // // Email fields can be edited by ALL leaders
-    // if (!isAnyLeader) {
-    // return {
-    // disabled: true,
-    // reason: 'Email fields can only be edited by leaders'
-    // };
-    // }
-    // }
-   
-    // If none of the above conditions apply, field is editable
+
     return { disabled: false, reason: null };
   }, [hasEditPermission, isLeader144, isAnyLeader]);
   const isFieldDisabled = useCallback((field) => {
@@ -218,70 +189,70 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const getDisabledReason = useCallback((field) => {
     return getFieldPermissions(field).reason;
   }, [getFieldPermissions]);
-  // Get display role with proper formatting for multiple roles (from Profile component - new code)
+
   const getUserRole = useCallback(() => {
     if (!loggedInUserRole) return "User";
-   
+
     const roleStr = String(loggedInUserRole).trim();
     const roles = roleStr
       .split(/[\/,\s|]+/)
       .map(role => role.trim())
       .filter(role => role.length > 0)
       .map(role => role.charAt(0).toUpperCase() + role.slice(1).toLowerCase());
-   
+
     const uniqueRoles = [...new Set(roles)];
     if (uniqueRoles.length === 0) return "User";
-   
+
     return uniqueRoles.join(" / ");
   }, [loggedInUserRole]);
   const cleanEventId = (event) => {
     if (!event) return null;
-   
+
     const cleanEvent = { ...event };
-   
+
     if (cleanEvent._id && typeof cleanEvent._id === 'string' && cleanEvent._id.includes('_')) {
       cleanEvent._id = cleanEvent._id.split('_')[0];
     }
-   
+
     if (cleanEvent.id && typeof cleanEvent.id === 'string' && cleanEvent.id.includes('_')) {
       cleanEvent.id = cleanEvent.id.split('_')[0];
     }
-   
+
     return cleanEvent;
   };
   useEffect(() => {
     if (event) {
       const cleanEvent = cleanEventId(event);
-     
+
       console.log("Event data for editing (cleaned):", cleanEvent);
-     
+
       const identifier =
         cleanEvent.Leader ||
         cleanEvent.eventLeader ||
         cleanEvent.eventLeaderName ||
         '';
-     
+
       setOriginalPersonIdentifier(identifier);
       setPersonIdentifier(identifier);
-     
+
       const initialData = {};
       Object.keys(cleanEvent).forEach(key => {
         const systemFields = ['_id', '__v', 'id', 'UUID', 'created_at', 'updated_at',
-                              'persistent_attendees', 'attendees', 'total_attendance',
-                              'isEventType', 'eventTypeId', 'last_updated'];
+          'persistent_attendees', 'attendees', 'total_attendance',
+          'isEventType', 'eventTypeId', 'last_updated'];
         if (!systemFields.includes(key)) {
           initialData[key] = cleanEvent[key] !== undefined && cleanEvent[key] !== null ? cleanEvent[key] : '';
         }
       });
-     
+
       setFormData(initialData);
-     
+
       const editableFields = Object.keys(initialData).filter(key =>
         !['_id', 'id', '__v', 'UUID', 'created_at', 'updated_at',
           'persistent_attendees', 'attendees', 'total_attendance',
           'isEventType', 'eventTypeId', 'last_updated'].includes(key)
       );
-     
+
       setAvailableFields(editableFields);
     }
   }, [event]);
@@ -291,10 +262,10 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       Object.keys(formData).forEach(key => {
         const originalValue = event[key];
         const newValue = formData[key];
-       
+
         const isEmptyToRemove = (newValue === '' && originalValue !== undefined && originalValue !== null && originalValue !== '');
         const isValueChanged = newValue !== originalValue;
-       
+
         if (isEmptyToRemove || isValueChanged) {
           changed.push(key);
         }
@@ -309,7 +280,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       toast.warning(permissions.reason);
       return;
     }
-   
+
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -318,21 +289,21 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const prepareUpdateData = () => {
     const cleanData = {};
     changedFields.forEach(field => {
-      // Check if user has permission to edit this field (from new code)
+
       if (isFieldDisabled(field)) {
         console.warn(`No permission to edit ${field}`);
         return;
       }
-     
+
       const value = formData[field];
-     
+
       if (value === '') {
         cleanData[field] = null;
       }
       else if (value !== undefined && value !== null) {
         cleanData[field] = value;
       }
-     
+
       if (fieldMapping[field]) {
         fieldMapping[field].forEach(relatedField => {
           if (relatedField !== field && availableFields.includes(relatedField)) {
@@ -340,7 +311,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             if (isFieldDisabled(relatedField)) {
               return;
             }
-           
+
             if (value === '') {
               cleanData[relatedField] = null;
             } else {
@@ -350,70 +321,70 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         });
       }
     });
-   
+
     return cleanData;
   };
   const handleSubmit = async () => {
     try {
       setLoading(true);
-     
+
       if (changedFields.length === 0) {
         toast.info("No changes made");
         onClose(false);
         return;
       }
-     
-      // Check if user has permission to edit any of the changed fields (from new code)
+
+
       const unauthorizedFields = changedFields.filter(field => isFieldDisabled(field));
       if (unauthorizedFields.length > 0) {
         toast.error(`You don't have permission to modify: ${unauthorizedFields.join(', ')}`);
         setLoading(false);
         return;
       }
-     
+
       // Check if user can use "person" scope (Admin only - from new code)
       if (editScope === 'person' && !isAdmin) {
         toast.error('Only administrators can update all events for a person');
         setLoading(false);
         return;
       }
-     
+
       const updateData = prepareUpdateData();
-     
+
       console.log("Data for backend:", updateData);
-     
+
       let endpoint, method, body;
-     
+
       if (editScope === 'person' && originalPersonIdentifier) {
         endpoint = `/events/update-person-cells/${encodeURIComponent(originalPersonIdentifier)}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
-       
+
         const confirmed = window.confirm(
           `Update all events for "${originalPersonIdentifier}"?\n\n` +
           `Fields: ${changedFields.join(', ')}`
         );
-       
+
         if (!confirmed) {
           setLoading(false);
           return;
         }
       } else {
         let identifier = event._id || event.id || event.UUID;
-       
+
         if (identifier && typeof identifier === 'string' && identifier.includes('_')) {
           const parts = identifier.split('_');
           identifier = parts[0];
           console.log(`Extracted ObjectId: ${identifier} from compound ID`);
         }
-       
+
         endpoint = `/events/cells/${identifier}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
-       
+
         console.log(`Calling single cell endpoint: ${endpoint}`);
       }
-     
+
       const response = await fetch(`${BACKEND_URL}${endpoint}`, {
         method: method,
         headers: {
@@ -422,35 +393,35 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         },
         body: body
       });
-     
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Backend error response:", errorText);
-       
+
         let errorData;
         try {
           errorData = JSON.parse(errorText);
         } catch {
           errorData = { detail: errorText };
         }
-       
+
         throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
       }
-     
+
       const result = await response.json();
       console.log("Backend response:", result);
-     
+
       if (editScope === 'person') {
         toast.success(`Updated ${result.modified_count || result.updated_count || 0} events successfully`);
       } else {
         toast.success('Event updated successfully');
       }
-     
+
       if (refreshEvents) {
         refreshEvents();
       }
       onClose(true);
-     
+
     } catch (error) {
       console.error("Error saving:", error);
       toast.error(`Failed to save: ${error.message || error}`);
@@ -458,344 +429,231 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       setLoading(false);
     }
   };
+ 
   const renderField = (field) => {
-    const value = formData[field] || '';
-    const isChanged = changedFields.includes(field);
-    const isDisabled = isFieldDisabled(field); // From new code
-    const disabledReason = getDisabledReason(field); // From new code
-   
-    const displayName = field
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/_/g, ' ')
-      .replace(/^./, str => str.toUpperCase())
-      .trim();
-   
-    const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
-    const fieldLower = field.toLowerCase();
-   
-    // Add lock icon for disabled fields (from new code)
-    const labelContent = (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {displayName}
-        {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-        {isDisabled && <LockIcon fontSize="small" color="disabled" />}
+  const value = formData[field] || '';
+  const isChanged = changedFields.includes(field);
+  const isDisabled = isFieldDisabled(field);
+  const disabledReason = getDisabledReason(field);
+ 
+  const displayName = field
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .replace(/^./, str => str.toUpperCase())
+    .trim();
+ 
+  const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
+  const fieldLower = field.toLowerCase();
+ 
+  const labelContent = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      {displayName}
+      {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
+      {isDisabled && <LockIcon fontSize="small" color="disabled" />}
+    </Box>
+  );
+ 
+  const FieldWrapper = ({ children }) => {
+    if (isDisabled && disabledReason) {
+      return (
+        <Tooltip title={disabledReason} arrow>
+          <Box>{children}</Box>
+        </Tooltip>
+      );
+    }
+    return children;
+  };
+
+  // Helper function to render TextField components consistently
+  const renderTextField = (props) => (
+    <FieldWrapper key={field}>
+      <Box sx={{ position: 'relative' }}>
+        <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
+          value={value}
+          onChange={(e) => handleChange(field, e.target.value)}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
+          {...props}
+        />
       </Box>
+    </FieldWrapper>
+  );
+
+  // Helper function to render DateTime field
+  const renderDateTimeField = () => (
+    <FieldWrapper key={field}>
+      <Box sx={{ position: 'relative' }}>
+        <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
+          type="datetime-local"
+          value={value ? new Date(value).toISOString().slice(0, 16) : ''}
+          onChange={(e) => handleChange(field, e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
+        />
+      </Box>
+    </FieldWrapper>
+  );
+
+  // render Time field
+  const renderTimeField = () => (
+    <FieldWrapper key={field}>
+      <Box sx={{ position: 'relative' }}>
+        <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
+          type="time"
+          value={value || ''}
+          onChange={(e) => handleChange(field, e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
+        />
+      </Box>
+    </FieldWrapper>
+  );
+
+  if ((fieldLower.includes('date') && !fieldLower.includes('datecaptured') && !fieldLower.includes('datecreated')) || field === 'date') {
+    return renderDateTimeField();
+  }
+ 
+  if (fieldLower.includes('time')) {
+    return renderTimeField();
+  }
+ 
+  if (fieldLower.includes('email')) {
+    return renderTextField({ type: 'email' });
+  }
+ 
+  if (fieldType === 'boolean') {
+    return (
+      <FieldWrapper key={field}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 1 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={!!value}
+                onChange={(e) => handleChange(field, e.target.checked)}
+                color={isChanged ? "warning" : "primary"}
+                disabled={isDisabled}
+              />
+            }
+            label={labelContent}
+          />
+        </Box>
+      </FieldWrapper>
     );
-   
-    // Create tooltip wrapper for disabled fields (from new code)
-    const FieldWrapper = ({ children }) => {
-      if (isDisabled && disabledReason) {
-        return (
-          <Tooltip title={disabledReason} arrow>
-            <Box>{children}</Box>
-          </Tooltip>
-        );
-      }
-      return children;
-    };
-   
-    if ((fieldLower.includes('date') && !fieldLower.includes('datecaptured') && !fieldLower.includes('datecreated')) || field === 'date') {
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ position: 'relative' }}>
-            <TextField
-              fullWidth
-              margin="normal"
-              label={labelContent}
-              type="datetime-local"
-              value={value ? new Date(value).toISOString().slice(0, 16) : ''}
-              onChange={(e) => handleChange(field, e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              error={isChanged}
-              helperText={isChanged ? "Changed" : ""}
-              disabled={isDisabled}
-              InputProps={{
-                readOnly: isDisabled,
-              }}
-            />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
-          </Box>
-        </FieldWrapper>
-      );
-    }
-   
-    if (fieldLower.includes('time')) {
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ position: 'relative' }}>
-            <TextField
-              fullWidth
-              margin="normal"
-              label={labelContent}
-              type="time"
+  }
+ 
+  if (Array.isArray(value)) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return (
+      <FieldWrapper key={field}>
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {displayName}
+            {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
+            {isDisabled && <LockIcon fontSize="small" color="disabled" />}
+          </Typography>
+          <FormGroup row>
+            {days.map(day => (
+              <FormControlLabel
+                key={day}
+                control={
+                  <Checkbox
+                    checked={value.includes(day)}
+                    onChange={(e) => {
+                      if (isDisabled) return;
+                      const newValue = e.target.checked
+                        ? [...value, day]
+                        : value.filter(d => d !== day);
+                      handleChange(field, newValue);
+                    }}
+                    size="small"
+                    disabled={isDisabled}
+                  />
+                }
+                label={day.substring(0, 3)}
+              />
+            ))}
+          </FormGroup>
+          {!isDisabled && (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+              <Button size="small" onClick={() => handleChange(field, [])}>
+                Clear All
+              </Button>
+            </Box>
+          )}
+        </Box>
+      </FieldWrapper>
+    );
+  }
+ 
+  if (fieldLower.includes('day') && !fieldLower.includes('recurring') && typeof value === 'string') {
+    return (
+      <FieldWrapper key={field}>
+        <Box sx={{ position: 'relative' }}>
+          <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
+            <InputLabel>
+              {labelContent}
+            </InputLabel>
+            <Select
               value={value || ''}
+              label={displayName}
               onChange={(e) => handleChange(field, e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              error={isChanged}
-              helperText={isChanged ? "Changed" : ""}
               disabled={isDisabled}
-              InputProps={{
-                readOnly: isDisabled,
-              }}
-            />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
-          </Box>
-        </FieldWrapper>
-      );
-    }
-   
-    if (fieldLower.includes('email')) {
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ position: 'relative' }}>
-            <TextField
-              fullWidth
-              margin="normal"
-              label={labelContent}
-              type="email"
-              value={value}
+            >
+              <MenuItem value="">None</MenuItem>
+              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                .map(day => (
+                  <MenuItem key={day} value={day}>{day}</MenuItem>
+                ))}
+            </Select>
+            {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
+          </FormControl>
+        </Box>
+      </FieldWrapper>
+    );
+  }
+ 
+  if (fieldLower === 'status') {
+    const statusOptions = ['open', 'closed', 'complete', 'incomplete', 'did_not_meet', 'cancelled'];
+    return (
+      <FieldWrapper key={field}>
+        <Box sx={{ position: 'relative' }}>
+          <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={value || ''}
+              label="Status"
               onChange={(e) => handleChange(field, e.target.value)}
-              error={isChanged}
-              helperText={isChanged ? "Changed" : ""}
               disabled={isDisabled}
-              InputProps={{
-                readOnly: isDisabled,
-              }}
-            />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
-          </Box>
-        </FieldWrapper>
-      );
-    }
-   
-    if (fieldType === 'boolean') {
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 1 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={!!value}
-                  onChange={(e) => handleChange(field, e.target.checked)}
-                  color={isChanged ? "warning" : "primary"}
-                  disabled={isDisabled}
-                />
-              }
-              label={labelContent}
-            />
-            {/* Commented out old delete icon functionality
-            <IconButton size="small" onClick={() => handleChange(field, false)}>
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-            */}
-          </Box>
-        </FieldWrapper>
-      );
-    }
-   
-    if (Array.isArray(value)) {
-      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {displayName}
-              {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-              {isDisabled && <LockIcon fontSize="small" color="disabled" />} {/* From new code */}
-            </Typography>
-            <FormGroup row>
-              {days.map(day => (
-                <FormControlLabel
-                  key={day}
-                  control={
-                    <Checkbox
-                      checked={value.includes(day)}
-                      onChange={(e) => {
-                        if (isDisabled) return; // From new code
-                        const newValue = e.target.checked
-                          ? [...value, day]
-                          : value.filter(d => d !== day);
-                        handleChange(field, newValue);
-                      }}
-                      size="small"
-                      disabled={isDisabled} // From new code
-                    />
-                  }
-                  label={day.substring(0, 3)}
-                />
+            >
+              <MenuItem value="">None</MenuItem>
+              {statusOptions.map(status => (
+                <MenuItem key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+                </MenuItem>
               ))}
-            </FormGroup>
-            {!isDisabled && ( // From new code - conditionally show clear button
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-                <Button size="small" onClick={() => handleChange(field, [])}>
-                  Clear All
-                </Button>
-              </Box>
-            )}
-          </Box>
-        </FieldWrapper>
-      );
-    }
-   
-    if (fieldLower.includes('day') && !fieldLower.includes('recurring') && typeof value === 'string') {
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ position: 'relative' }}>
-            <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
-              <InputLabel>
-                {labelContent}
-              </InputLabel>
-              <Select
-                value={value || ''}
-                label={displayName}
-                onChange={(e) => handleChange(field, e.target.value)}
-                disabled={isDisabled}
-              >
-                <MenuItem value="">None</MenuItem>
-                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                  .map(day => (
-                    <MenuItem key={day} value={day}>{day}</MenuItem>
-                  ))}
-              </Select>
-              {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
-            </FormControl>
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
-          </Box>
-        </FieldWrapper>
-      );
-    }
-   
-    if (fieldLower === 'status') {
-      const statusOptions = ['open', 'closed', 'complete', 'incomplete', 'did_not_meet', 'cancelled'];
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ position: 'relative' }}>
-            <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={value || ''}
-                label="Status"
-                onChange={(e) => handleChange(field, e.target.value)}
-                disabled={isDisabled}
-              >
-                <MenuItem value="">None</MenuItem>
-                {statusOptions.map(status => (
-                  <MenuItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-                  </MenuItem>
-                ))}
-              </Select>
-              {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
-            </FormControl>
-          </Box>
-        </FieldWrapper>
-      );
-    }
-   
-    /* Commenting out duplicate status handling section
-    if (fieldLower === 'status') {
-      const statusOptions = ['open', 'closed', 'complete', 'incomplete', 'did_not_meet', 'cancelled'];
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ position: 'relative' }}>
-            <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={value || ''}
-                label="Status"
-                onChange={(e) => handleChange(field, e.target.value)}
-                disabled={isDisabled}
-              >
-                <MenuItem value="">None</MenuItem>
-                {statusOptions.map(status => (
-                  <MenuItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-                  </MenuItem>
-                ))}
-              </Select>
-              {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
-            </FormControl>
-          </Box>
-        </FieldWrapper>
-      );
-    }
-    */
-   
-    if (fieldLower.includes('description') || (typeof value === 'string' && value.length > 50)) {
-      return (
-        <FieldWrapper key={field}>
-          <Box sx={{ position: 'relative' }}>
-            <TextField
-              fullWidth
-              margin="normal"
-              label={labelContent}
-              value={value}
-              onChange={(e) => handleChange(field, e.target.value)}
-              multiline
-              rows={3}
-              error={isChanged}
-              helperText={isChanged ? "Changed" : ""}
-              disabled={isDisabled}
-              InputProps={{
-                readOnly: isDisabled,
-              }}
-            />
-            {/* Commented out old delete icon functionality
-            {value && (
-              <IconButton
-                size="small"
-                onClick={() => handleChange(field, '')}
-                sx={{ position: 'absolute', right: 8, top: 20 }}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
-            )}
-            */}
-          </Box>
-        </FieldWrapper>
-      );
-    }
-   
+            </Select>
+            {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
+          </FormControl>
+        </Box>
+      </FieldWrapper>
+    );
+  }
+ 
+  if (fieldLower.includes('description') || (typeof value === 'string' && value.length > 50)) {
     return (
       <FieldWrapper key={field}>
         <Box sx={{ position: 'relative' }}>
@@ -805,35 +663,26 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             label={labelContent}
             value={value}
             onChange={(e) => handleChange(field, e.target.value)}
+            multiline
+            rows={3}
             error={isChanged}
             helperText={isChanged ? "Changed" : ""}
             disabled={isDisabled}
-            InputProps={{
-              readOnly: isDisabled,
-            }}
           />
-          {/* Commented out old delete icon functionality
-          {value && (
-            <IconButton
-              size="small"
-              onClick={() => handleChange(field, '')}
-              sx={{ position: 'absolute', right: 8, top: 20 }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-          */}
         </Box>
       </FieldWrapper>
     );
-  };
-  if (!event) return null;
+  }
  
+  return renderTextField({});
+};
+  if (!event) return null;
+
   const personFields = availableFields.filter(f =>
     ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email',
-     'leader1', 'leader12', 'Leader at 12'].includes(f)
+      'leader1', 'leader12', 'Leader at 12'].includes(f)
   );
- 
+
   const eventFields = availableFields.filter(f => {
     const fieldLower = f.toLowerCase();
     const allowedFields = [
@@ -842,15 +691,15 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     ];
     return allowedFields.includes(fieldLower);
   });
- 
+
   const locationFields = availableFields.filter(f =>
     ['Address', 'location', 'address'].includes(f)
   );
- 
+
   const timeFields = availableFields.filter(f =>
     ['date', 'Date Of Event', 'time', 'Time', 'Day', 'recurring_day'].includes(f)
   );
- 
+
   const otherFields = availableFields.filter(f =>
     ![...personFields, ...eventFields, ...locationFields, ...timeFields].includes(f)
   );
@@ -885,7 +734,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           </Button>
         </Box>
       </DialogTitle>
-     
+
       <DialogContent dividers>
         <Box sx={{ pt: 1 }}>
           {!hasEditPermission && ( // From new code
@@ -895,12 +744,12 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               Locked fields <LockIcon fontSize="small" color="disabled" /> cannot be modified.
             </Alert>
           )}
-         
+
           <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
             <Typography variant="subtitle2" gutterBottom>
               Update Scope:
             </Typography>
-           
+
             <FormControl fullWidth>
               <Select
                 value={editScope}
@@ -931,7 +780,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 </MenuItem>
               </Select>
             </FormControl>
-           
+
             {editScope === 'person' && (
               <Alert severity="info" sx={{ mt: 2 }}>
                 <WarningIcon sx={{ mr: 1 }} />
@@ -940,9 +789,9 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               </Alert>
             )}
           </Box>
-         
+
           <Divider sx={{ my: 2 }} />
-         
+
           {changedFields.length > 0 && (
             <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
               <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -954,11 +803,11 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                     .replace(/([A-Z])/g, ' $1')
                     .replace(/_/g, ' ')
                     .replace(/^./, str => str.toUpperCase());
-                 
+
                   const originalValue = event[field];
                   const newValue = formData[field];
                   const isDisabled = isFieldDisabled(field); // From new code
-                 
+
                   return (
                     <Tooltip
                       key={field}
@@ -998,7 +847,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               </Box>
             </Box>
           )}
-         
+
           {advancedMode ? (
             <Box>
               {personFields.length > 0 && (
@@ -1015,7 +864,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                   </Grid>
                 </Box>
               )}
-             
+
               {eventFields.length > 0 && (
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1030,7 +879,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                   </Grid>
                 </Box>
               )}
-             
+
               <Grid container spacing={3}>
                 {locationFields.length > 0 && (
                   <Grid item xs={12} md={6}>
@@ -1040,7 +889,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                     {locationFields.map(field => renderField(field))}
                   </Grid>
                 )}
-               
+
                 {timeFields.length > 0 && (
                   <Grid item xs={12} md={6}>
                     <Typography variant="subtitle1" gutterBottom>
@@ -1050,7 +899,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                   </Grid>
                 )}
               </Grid>
-             
+
               {otherFields.length > 0 && (
                 <Box sx={{ mt: 3 }}>
                   <Button
@@ -1061,7 +910,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                   >
                     {showAllFields ? 'Hide' : 'Show'} Other Fields ({otherFields.length})
                   </Button>
-                 
+
                   <Collapse in={showAllFields}>
                     <Grid container spacing={2} sx={{ mt: 1 }}>
                       {otherFields.map(field => (
@@ -1078,7 +927,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             <Grid container spacing={2}>
               {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email',
                 'date', 'Date Of Event', 'time', 'Time', 'location', 'Address',
-                'status', 
+                'status',
                 'recurring_day', 'Day', 'description', 'leader1', 'leader12', 'Leader at 12']
                 .filter(field => availableFields.includes(field))
                 .map(field => (
@@ -1090,7 +939,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           )}
         </Box>
       </DialogContent>
-     
+
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'background.default' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
           <Box>
@@ -1105,7 +954,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               </Typography>
             )}
           </Box>
-         
+
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
               onClick={() => onClose(false)}
@@ -1122,8 +971,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               startIcon={loading ? <CircularProgress size={20} /> : null}
             >
               {loading ? 'Saving...' :
-               editScope === 'person' ? `Update All Events` :
-               'Update Event'}
+                editScope === 'person' ? `Update All Events` :
+                  'Update Event'}
             </Button>
           </Box>
         </Box>
