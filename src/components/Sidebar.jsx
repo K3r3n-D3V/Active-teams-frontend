@@ -216,9 +216,6 @@ export default function Sidebar({ mode, setMode }) {
           color: mode === 'dark' ? '#aaa' : '#666',
           textAlign: 'center'
         }}>
-          Role: {user?.role}
-          <br />
-          Menu Items: {menuItems.length}
         </Box>
       )}
 
