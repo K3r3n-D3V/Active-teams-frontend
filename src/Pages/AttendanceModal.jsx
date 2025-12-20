@@ -22,6 +22,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+  console.log("AddPersonToEvents - isDarkMode:", isDarkMode);
     const { authFetch } = useContext(AuthContext);
 
   const [formData, setFormData] = useState({
@@ -1191,7 +1192,6 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
   const { authFetch } = useContext(AuthContext);
-
   const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
@@ -1895,8 +1895,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-
-
   const handleSubmitAttendance = (attendanceData) => {
 
     if (onSubmit) {
@@ -1911,81 +1909,79 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   };
 
   const confirmDidNotMeet = async () => {
-    setShowDidNotMeetConfirm(false);
-    setDidNotMeet(true);
-    setCheckedIn({});
-    setDecisions({});
-    setManualHeadcount("");
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
+  setShowDidNotMeetConfirm(false);
+  setDidNotMeet(true);
+  setCheckedIn({});
+  setDecisions({});
+  setManualHeadcount("");
+  setPriceTiers({});
+  setPaymentMethods({});
+  setPaidAmounts({});
 
-    try {
-      const eventId = event?.id || event?._id;
-      if (!eventId) {
-        toast.error("Event ID is missing, cannot submit attendance.");
-        return;
-      }
+  try {
+    const eventId = event?.id || event?._id;
+    if (!eventId) {
+      toast.error("Event ID is missing, cannot submit attendance.");
+      return;
+    }
 
-      const allPeople = getAllCommonAttendees(); 
-      const payload = {
-        attendees: [],
-        persistent_attendees: allPeople.map(p => ({
-          id: p.id,
-          fullName: p.fullName,
-          email: p.email,
-          leader12: p.leader12,
-          leader144: p.leader144,
-          phone: p.phone
-        })),
-        leaderEmail: currentUser?.email || "",
-        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-        did_not_meet: true,
-        isTicketed: isTicketedEvent,
-        week: get_current_week_identifier()
+    const allPeople = getAllCommonAttendees();
+    const payload = {
+      attendees: [],
+      persistent_attendees: allPeople.map(p => ({
+        id: p.id,
+        fullName: p.fullName,
+        email: p.email,
+        leader12: p.leader12,
+        leader144: p.leader144,
+        phone: p.phone
+      })),
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      did_not_meet: true,
+      isTicketed: isTicketedEvent,
+      week: get_current_week_identifier()
+    };
+
+    let result;
+
+    if (typeof onSubmit === "function") {
+      result = await onSubmit(payload);
+    } else {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       };
 
-      let result;
-
-      if (typeof onSubmit === "function") {
-        result = await onSubmit(payload);
-      } else {
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
-
-        const response = await authFetch(
-          `${BACKEND_URL}/submit-attendance/${eventId}`,
-          {
-            method: "PUT",
-            headers,
-            body: JSON.stringify(payload),
-          }
-        );
-        result = await response.json();
-        result.success = response.ok;
-      }
-
-      if (result?.success) {
-        toast.success("Event marked as 'Did Not Meet' successfully!");
-
-        if (typeof onAttendanceSubmitted === "function") {
-          onAttendanceSubmitted();
+      const response = await authFetch(
+        `${BACKEND_URL}/submit-attendance/${eventId}`,
+        {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(payload),
         }
-
-        setTimeout(() => {
-          onClose();
-        }, 1000);
-      } else {
-        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
-      }
-    } catch (error) {
-      console.error(" Error marking event as 'Did Not Meet':", error);
-      toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+      );
+      result = await response.json();
+      result.success = response.ok;
     }
-  };
+
+    if (result?.success) {
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted();
+      }
+
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } else {
+      toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+    }
+  } catch (error) {
+    console.error(" Error marking event as 'Did Not Meet':", error);
+    toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+  }
+};
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
@@ -2005,23 +2001,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     if (event && event.eventType === "cell") {
       fetchCommonAttendees(event._id || event.id);
     }
-
     setShowAddPersonModal(false);
-
-    // Show success message
-    // setAlert({
-    //   open: true,
-    //   type: "success",
-    //   message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
-    // });
-    // setTimeout(
-    //   () => setAlert({ open: false, type: "success", message: "" }),
-    //   3000
-    // );
     toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
   };
 
-  // Mobile attendee card renderer
+
   const renderMobileAttendeeCard = (person) => {
     const isPersistent = persistentCommonAttendees.some(
       (p) => p.id === person.id
@@ -2769,7 +2753,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       fontWeight: 600,
     },
   };
-
   if (!isOpen) return null;
 
   return (
@@ -3577,9 +3560,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
               <h3 style={styles.confirmTitle}>Confirm Event Status</h3>
             </div>
             <div style={styles.confirmBody}>
-              <div style={styles.confirmIcon}>
-                <X size={32} color="#dc3545" />
-              </div>
               <p style={styles.confirmMessage}>
                 Are you sure you want to mark this event as{" "}
                 <strong>'Did Not Meet'</strong>?
@@ -3633,5 +3613,4 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   );
 
 };
-
 export default AttendanceModal;

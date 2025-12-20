@@ -101,89 +101,134 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   }, []);
 
+ 
   const attemptRefresh = useCallback(async () => {
-    const refresh = localStorage.getItem(KEY_REFRESH);
-    const refreshId = localStorage.getItem(KEY_REFRESH_ID);
-    if (!refresh || !refreshId) {
-      logout();
-      return false;
-    }
+  const refresh = localStorage.getItem(KEY_REFRESH);
+  const refreshId = localStorage.getItem(KEY_REFRESH_ID);
+  
+  if (!refresh || !refreshId) {
+    console.error('❌ No refresh token or refresh ID found');
+    logout();
+    return false;
+  }
 
-    if (refreshInProgress) {
-      return false;
-    }
-    
-    setRefreshInProgress(true);
+  if (refreshInProgress) {
+    console.log('⏳ Refresh already in progress, skipping...');
+    return false;
+  }
+  
+  setRefreshInProgress(true);
 
-    try {
-      const res = await fetch(`${BACKEND_URL}/refresh-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refresh, refresh_token_id: refreshId })
-      });
+  try {
+    console.log('🔄 Attempting token refresh...');
+    const res = await fetch(`${BACKEND_URL}/refresh-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        refresh_token: refresh, 
+        refresh_token_id: refreshId 
+      })
+    });
 
-      if (!res.ok) {
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      console.error('❌ Token refresh failed:', res.status, errorData);
+      
+      // Only logout if it's a 401/403 (invalid refresh token)
+      if (res.status === 401 || res.status === 403) {
         logout();
-        return false;
       }
-
-      const data = await res.json();
-      localStorage.setItem(KEY_ACCESS, data.access_token);
-      localStorage.setItem(KEY_REFRESH, data.refresh_token);
-      localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
-      return true;
-    } catch (e) {
-      console.error('Refresh attempt error', e);
-      logout();
+      
       return false;
-    } finally {
-      setRefreshInProgress(false);
     }
-  }, [refreshInProgress, logout]);
+
+    const data = await res.json();
+    console.log('✅ Token refresh successful');
+    
+    localStorage.setItem(KEY_ACCESS, data.access_token);
+    localStorage.setItem(KEY_REFRESH, data.refresh_token);
+    localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
+    
+    return true;
+  } catch (e) {
+    console.error('❌ Refresh attempt error:', e);
+    // Don't logout on network errors, only on auth errors
+    return false;
+  } finally {
+    setRefreshInProgress(false);
+  }
+}, [refreshInProgress, logout]);
+
 
   const authFetch = useCallback(async (url, options = {}) => {
-    let accessToken = localStorage.getItem(KEY_ACCESS);
+  let accessToken = localStorage.getItem(KEY_ACCESS);
+  
+  // Check if token is expired
+  if (accessToken && isTokenExpired(accessToken)) {
+    console.log('🔄 Access token expired, attempting refresh...');
+    const refreshed = await attemptRefresh();
+    if (!refreshed) {
+      console.error('❌ Token refresh failed during pre-check');
+      // Don't logout here - let the calling code handle it
+      throw new Error('Token refresh failed');
+    }
+    accessToken = localStorage.getItem(KEY_ACCESS);
+  }
+
+  const headers = {
+    ...(options.headers || {}),
+    'Content-Type': 'application/json'
+  };
+  
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  try {
+    const res = await fetch(url, { ...options, headers });
     
-    if (accessToken && isTokenExpired(accessToken)) {
+    // Only try refresh once on 401
+    if (res.status === 401 && !refreshInProgress) {
+      console.log('🔄 Got 401, attempting token refresh...');
       const refreshed = await attemptRefresh();
-      if (!refreshed) {
-        return new Response(JSON.stringify({ detail: 'Unauthorized' }), { 
-          status: 401, 
-          statusText: 'Unauthorized',
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-      accessToken = localStorage.getItem(KEY_ACCESS);
-    }
-
-    const headers = {
-      ...(options.headers || {}),
-      'Content-Type': 'application/json'
-    };
-    
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-
-    try {
-      const res = await fetch(url, { ...options, headers });
       
-      if (res.status === 401 && !refreshInProgress) {
-        const refreshed = await attemptRefresh();
+      if (refreshed) {
+        const newToken = localStorage.getItem(KEY_ACCESS);
+        headers['Authorization'] = `Bearer ${newToken}`;
+        const retryRes = await fetch(url, { ...options, headers });
         
-        if (refreshed) {
-          const newToken = localStorage.getItem(KEY_ACCESS);
-          headers['Authorization'] = `Bearer ${newToken}`;
-          return await fetch(url, { ...options, headers });
+        // If still 401 after refresh, it's a permission/auth issue
+        if (retryRes.status === 401) {
+          console.warn('⚠️ Still 401 after token refresh - likely auth expired completely');
+          // Only NOW should we consider logging out
+          logout();
+          throw new Error('Authentication expired');
         }
+        
+        return retryRes;
+      } else {
+        // Refresh failed - session is truly dead
+        console.error('❌ Token refresh failed on 401 retry');
+        logout();
+        throw new Error('Authentication failed - please log in again');
       }
-      
-      return res;
-    } catch (error) {
-      console.error('authFetch error:', error);
-      throw error;
     }
-  }, [refreshInProgress, attemptRefresh]);
+    
+    return res;
+  } catch (error) {
+    console.error('authFetch error:', error);
+    
+    // Only logout on specific auth failures, not network errors
+    if (error.message && (
+      error.message.includes('Authentication expired') || 
+      error.message.includes('Authentication failed')
+    )) {
+      // Already logged out above
+    }
+    
+    throw error;
+  }
+}, [refreshInProgress, attemptRefresh, logout]);
 
   const login = async (email, password) => {
     const res = await fetch(`${BACKEND_URL}/login`, {
