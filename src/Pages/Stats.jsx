@@ -1,19 +1,19 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box, Grid, Typography, Card, CardContent, LinearProgress, Chip, IconButton, Button,
   FormControl, InputLabel, Select, MenuItem, Alert, Avatar, useTheme, useMediaQuery,
   Skeleton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Snackbar,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  Checkbox, FormControlLabel, Stack, Divider, Tooltip, Tabs, Tab
+  Paper, Checkbox, FormControlLabel, Stack, Divider, Tooltip, Tabs, Tab, Container
 } from '@mui/material';
 import Collapse from '@mui/material/Collapse';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import {
-  People, CellTower, Task, Warning, Groups, Refresh, Add, CalendarToday, Close,
-  Visibility, ChevronLeft, ChevronRight, Save, CheckCircle, Event, Download
+  People, Task, Warning, Refresh, Add, CalendarToday, Close,
+  Visibility, ChevronLeft, ChevronRight, Save, Event, Download
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import * as XLSX from 'xlsx';
+import { AuthContext } from "../contexts/AuthContext";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -22,18 +22,17 @@ const StatsDashboard = () => {
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
+  const isLgDown = useMediaQuery(theme.breakpoints.down("lg"));
 
-  const getResponsiveValue = (xs, sm, md, lg, xl) => {
-    if (isXsDown) return xs;
-    if (isSmDown) return sm;
-    if (isMdDown) return md;
-    return lg !== undefined ? lg : xl;
+  // Responsive helper function
+  const getResponsiveValue = (values) => {
+    if (isXsDown) return values.xs;
+    if (isSmDown) return values.sm;
+    if (isMdDown) return values.md;
+    if (isLgDown) return values.lg;
+    return values.xl;
   };
-  
-  const containerPadding = getResponsiveValue(1, 1.5, 2, 2.5, 2.5);
-  const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
-  const cardSpacing = getResponsiveValue(1, 1.5, 2, 2, 2);
-  
+
   const [stats, setStats] = useState({
     overview: null,
     events: [],
@@ -47,7 +46,6 @@ const StatsDashboard = () => {
   });
 
   const [period, setPeriod] = useState('today');
-  const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
@@ -61,162 +59,147 @@ const StatsDashboard = () => {
   const [eventTypes, setEventTypes] = useState([]);
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
   const [overdueModalOpen, setOverdueModalOpen] = useState(false);
-  const [initialLoad, setInitialLoad] = useState(true);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const [isChangingPeriod, setIsChangingPeriod] = useState(false);
 
-  const periodRef = React.useRef(period);
+  const { authFetch } = useContext(AuthContext);
+  const isFetchingRef = useRef(false);
+
+  // Simplified period options - REMOVED "previous7"
+  const periodOptions = [
+    { value: 'today', label: 'Today' },
+    { value: 'thisWeek', label: 'This Week' },
+    { value: 'thisMonth', label: 'This Month' },
+    { value: 'previousWeek', label: 'Previous Week' },
+    { value: 'previousMonth', label: 'Previous Month' }
+  ];
+
+  // FIXED: Fetch data when period changes
   useEffect(() => {
-    periodRef.current = period;
+    if (!isFetchingRef.current) {
+      fetchStats();
+    }
   }, [period]);
 
-  const CACHE_DURATION = 5 * 60 * 1000;
+  // FIXED: fetchStats function - fetch fresh data from backend
+  const fetchStats = useCallback(async (forceRefresh = false) => {
+    if (isFetchingRef.current && !forceRefresh) {
+      console.log('Stats fetch already in progress');
+      return;
+    }
 
-  const setCache = useCallback((key, data) => {
+    isFetchingRef.current = true;
+    setStats(prev => ({ ...prev, loading: true, error: null }));
+
     try {
-      const cacheKeys = Object.keys(localStorage).filter(k => k.startsWith('statsDashboard_'));
-      if (cacheKeys.length > 10) {
-        cacheKeys.slice(0, -10).forEach(k => localStorage.removeItem(k));
-      }
-      
-      localStorage.setItem(key, JSON.stringify({
-        data,
-        timestamp: Date.now(),
-        size: JSON.stringify(data).length
-      }));
-    } catch (error) {
-      console.warn('Cache storage failed, clearing old cache:', error);
-      Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('statsDashboard_')) {
-          localStorage.removeItem(k);
+      console.log(`Fetching stats for period: ${period}`);
+
+      // Use the backend endpoint with the period parameter
+      const response = await authFetch(
+        `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}`,
+        {
+          retryOnAuthFailure: true,
+          maxRetries: 1
         }
-      });
-    }
-  }, []);
+      );
 
-  const getCache = useCallback((key) => {
-    const cached = localStorage.getItem(key);
-    if (!cached) return null;
-    
-    try {
-      const parsed = JSON.parse(cached);
-      if (Date.now() - parsed.timestamp < CACHE_DURATION) {
-        return parsed.data;
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        if (response.status === 401) {
+          console.log('Token expired, refresh should be triggered by authFetch');
+          throw new Error('Authentication required');
+        }
+        
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
       }
-    } catch (error) {
-      console.warn('Cache read error:', error);
-    }
-    return null;
-  }, [CACHE_DURATION]);
 
-  const getPeriodRange = useCallback((periodType) => {
-    const now = new Date();
-    
-    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    
-    if (periodType === 'today') {
-      const start = new Date(now);
-      const end = new Date(now);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      return { start, end };
-    }
-    
-    if (periodType === 'thisWeek') {
-      // Calculate Monday of current week
-      const monday = new Date(now);
-      const day = monday.getDay();
-      const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-      monday.setDate(diff);
-      monday.setHours(0, 0, 0, 0);
+      const data = await response.json();
       
-      // Calculate Sunday of current week
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      sunday.setHours(23, 59, 59, 999);
+      // Update stats with fresh data from backend
+      const newStats = {
+        overview: data.overview,
+        events: data.events || [],
+        overdueCells: data.overdueCells || [],
+        allTasks: data.allTasks || [],
+        allUsers: data.allUsers || [],
+        groupedTasks: data.groupedTasks || [],
+        dateRange: data.date_range || { start: '', end: '' },
+        loading: false,
+        error: null
+      };
+
+      setStats(newStats);
       
-      return { start: monday, end: sunday };
+    } catch (err) {
+      console.error("Fetch stats error:", err);
+
+      if (err.message === 'Authentication required' || err.message.includes('401')) {
+        setStats(prev => ({ 
+          ...prev, 
+          loading: false,
+          error: null
+        }));
+        return;
+      }
+
+      // Try quick stats as fallback
+      try {
+        const quickResponse = await authFetch(`${BACKEND_URL}/stats/dashboard-quick?period=${period}`);
+        if (!quickResponse.ok) throw err;
+
+        const quickData = await quickResponse.json();
+        
+        const fallbackStats = {
+          overview: {
+            total_attendance: 0,
+            outstanding_cells: quickData.overdueCells || 0,
+            outstanding_tasks: quickData.tasksDueInPeriod || 0,
+            people_behind: 0,
+            total_users: 0,
+            total_tasks: quickData.taskCount || 0,
+            tasks_completed_in_period: quickData.tasksCompletedInPeriod || 0,
+            tasks_due_in_period: quickData.tasksDueInPeriod || 0
+          },
+          events: [],
+          overdueCells: [],
+          allTasks: [],
+          allUsers: [],
+          groupedTasks: [],
+          dateRange: quickData.date_range || { start: '', end: '' },
+          loading: false,
+          error: null
+        };
+
+        setStats(fallbackStats);
+      } catch (fallbackErr) {
+        console.error("Fallback fetch also failed:", fallbackErr);
+        setStats(prev => ({ 
+          ...prev, 
+          error: err.message || 'Failed to load data. Please try refreshing.', 
+          loading: false 
+        }));
+      }
+    } finally {
+      isFetchingRef.current = false;
     }
-    
-    else if (periodType === 'thisMonth') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      return { start, end };
-    }
-    
-    else if (periodType === 'previous7') {
-      const end = new Date(now);
-      const start = new Date(now);
-      start.setDate(end.getDate() - 6);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      return { start, end };
-    }
-    
-    else if (periodType === 'previousWeek') {
-      // Go back 7 days from now
-      const lastWeekDate = new Date(now);
-      lastWeekDate.setDate(now.getDate() - 7);
-      
-      // Calculate Monday of previous week
-      const monday = new Date(lastWeekDate);
-      const day = monday.getDay();
-      const diff = monday.getDate() - day + (day === 0 ? -6 : 1);
-      monday.setDate(diff);
-      monday.setHours(0, 0, 0, 0);
-      
-      // Calculate Sunday of previous week
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      sunday.setHours(23, 59, 59, 999);
-      
-      return { start: monday, end: sunday };
-    }
-    
-    else if (periodType === 'previousMonth') {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end = new Date(now.getFullYear(), now.getMonth(), 0);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      return { start, end };
-    }
-    
-    // Default to today
-    const start = new Date(now);
-    const end = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-    return { start, end };
+  }, [period, authFetch]);
+
+  // Handle period change - this triggers useEffect which fetches new data
+  const handlePeriodChange = (e) => {
+    if (isFetchingRef.current) return;
+    const newPeriod = e.target.value;
+    setPeriod(newPeriod);
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchStats();
   }, []);
 
-  const filterDataByPeriod = useCallback((data, dateField = 'date') => {
-    if (!data || data.length === 0) return data;
-    
-    const { start, end } = getPeriodRange(period);
-    
-    return data.filter(item => {
-      if (!item[dateField]) return false;
-      
-      const itemDate = new Date(item[dateField]);
-      if (isNaN(itemDate.getTime())) return false;
-      
-      return itemDate >= start && itemDate <= end;
-    });
-  }, [period, getPeriodRange]);
-
-  const filteredTasks = useMemo(() => {
-    return filterDataByPeriod(stats.allTasks, 'followup_date');
-  }, [stats.allTasks, filterDataByPeriod]);
-
-  const filteredOverdueCells = useMemo(() => {
-    return filterDataByPeriod(stats.overdueCells);
-  }, [stats.overdueCells, filterDataByPeriod]);
-
-  const filteredEvents = useMemo(() => {
-    return filterDataByPeriod(stats.events);
-  }, [stats.events, filterDataByPeriod]);
+  // FIXED: Don't filter data on frontend - use backend data directly
+  // The backend already returns data filtered by the period
+  const filteredOverdueCells = useMemo(() => stats.overdueCells, [stats.overdueCells]);
+  const filteredTasks = useMemo(() => stats.allTasks, [stats.allTasks]);
+  const filteredEvents = useMemo(() => stats.events, [stats.events]);
 
   // Excel Download Function
   const downloadFilteredStats = () => {
@@ -228,9 +211,7 @@ const StatsDashboard = () => {
       let sheetName = '';
       let fileName = '';
       
-      // Determine which data to export based on active tab
       if (activeTab === 0) {
-        // Overdue Cells
         if (!filteredOverdueCells || filteredOverdueCells.length === 0) {
           toast.info("No overdue cells data to download for the selected period.");
           return;
@@ -257,7 +238,6 @@ const StatsDashboard = () => {
         fileName = `overdue_cells_${currentPeriod.toLowerCase().replace(/\s+/g, '_')}_${today}.xlsx`;
         
       } else if (activeTab === 1) {
-        // Tasks
         if (!filteredTasks || filteredTasks.length === 0) {
           toast.info("No tasks data to download for the selected period.");
           return;
@@ -285,7 +265,6 @@ const StatsDashboard = () => {
         fileName = `tasks_${currentPeriod.toLowerCase().replace(/\s+/g, '_')}_${today}.xlsx`;
         
       } else if (activeTab === 2) {
-        // Events/Calendar
         if (!filteredEvents || filteredEvents.length === 0) {
           toast.info("No events data to download for the selected period.");
           return;
@@ -316,72 +295,23 @@ const StatsDashboard = () => {
         return;
       }
       
-      // Create workbook
       const wb = XLSX.utils.book_new();
-      
-      // Create worksheet from data
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       
-      // Add header styling
-      const headerRange = XLSX.utils.decode_range(ws['!ref']);
-      for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
-        const address = XLSX.utils.encode_cell({ r: headerRange.s.r, c: C });
-        if (!ws[address]) continue;
-        ws[address].s = {
-          font: { bold: true, color: { rgb: "FFFFFF" } },
-          fill: { fgColor: { rgb: "4F81BD" } },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: {
-            top: { style: "thin", color: { rgb: "000000" } },
-            bottom: { style: "thin", color: { rgb: "000000" } },
-            left: { style: "thin", color: { rgb: "000000" } },
-            right: { style: "thin", color: { rgb: "000000" } }
-          }
-        };
-      }
-      
-      // Set column widths
-      const colWidths = [];
-      const headers = Object.keys(dataToExport[0]);
-      
-      headers.forEach((header, colIndex) => {
-        let maxLength = header.length;
-        
-        dataToExport.forEach(row => {
-          const cellValue = String(row[header] || '');
-          if (cellValue.length > maxLength) {
-            maxLength = cellValue.length;
-          }
-        });
-        
-        // Set width (minimum 10, maximum 50 characters)
-        const width = Math.min(Math.max(maxLength + 2, 10), 50);
-        colWidths.push({ wch: width });
-      });
-      
-      ws['!cols'] = colWidths;
-      
-      // Add auto-filter to headers
-      ws['!autofilter'] = { ref: XLSX.utils.encode_range(headerRange) };
-      
-      // Add worksheet to workbook
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
       
-      // Generate Excel file
       const wbout = XLSX.write(wb, { 
         bookType: 'xlsx', 
         type: 'binary',
         bookSST: false 
       });
       
-      // Convert to array buffer
       const buffer = new ArrayBuffer(wbout.length);
       const view = new Uint8Array(buffer);
       for (let i = 0; i < wbout.length; ++i) {
         view[i] = wbout.charCodeAt(i) & 0xFF;
       }
       
-      // Create blob and download
       const blob = new Blob([buffer], { 
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
       });
@@ -395,7 +325,6 @@ const StatsDashboard = () => {
       document.body.appendChild(link);
       link.click();
       
-      // Cleanup
       setTimeout(() => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
@@ -409,14 +338,12 @@ const StatsDashboard = () => {
     }
   };
   
-  // Helper function to format dates for Excel
   const formatDateForExcel = (dateStr) => {
     if (!dateStr) return '';
     try {
       const date = new Date(dateStr);
       if (isNaN(date.getTime())) return dateStr;
       
-      // Excel-friendly format: YYYY-MM-DD HH:MM
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
@@ -430,171 +357,11 @@ const StatsDashboard = () => {
     }
   };
 
-const fetchStats = useCallback(async (forceRefresh = false) => {
-  const currentPeriod = periodRef.current;   // ← This is always up-to-date!
-  const cacheKey = `statsDashboard_${currentPeriod}`;
-
-  if (refreshing && !forceRefresh) return;
-
-  if (!forceRefresh && !refreshing) {
-    const cachedData = getCache(cacheKey);
-    if (cachedData) {
-      setStats({
-        ...cachedData,
-        loading: false,
-        error: null
-      });
-      setInitialLoad(false);
-      setIsDataLoaded(true);
-      setIsChangingPeriod(false);
-      return;
-    }
-  }
-
-  try {
-    setRefreshing(true);
-    setStats(prev => ({ ...prev, loading: true, error: null }));
-
-    const token = localStorage.getItem("token");
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-
-    const dateRange = getPeriodRange(currentPeriod);
-    const startDate = dateRange.start.toISOString().split('T')[0];
-    const endDate = dateRange.end.toISOString().split('T')[0];
-
-    console.log(`Fetching stats for period: ${currentPeriod}`);
-    console.log(`Date range: ${startDate} to ${endDate}`);
-
-    const response = await fetch(
-      `${BACKEND_URL}/stats/dashboard-comprehensive?period=${currentPeriod}&start_date=${startDate}&end_date=${endDate}`,
-      { headers }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const newStats = {
-      overview: data.overview,
-      events: data.overdueCells || [],
-      overdueCells: data.overdueCells || [],
-      allTasks: data.allTasks || [],
-      allUsers: data.allUsers || [],
-      groupedTasks: data.groupedTasks || [],
-      dateRange: { start: startDate, end: endDate },
-      loading: false,
-      error: null
-    };
-
-    setStats(newStats);
-    setInitialLoad(false);
-    setIsDataLoaded(true);
-    setIsChangingPeriod(false);
-    setCache(cacheKey, newStats);
-  } catch (err) {
-    console.error("Fetch stats error:", err);
-
-    // Fallback logic (also use currentPeriod)
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
-      const dateRange = getPeriodRange(currentPeriod);
-      const startDate = dateRange.start.toISOString().split('T')[0];
-      const endDate = dateRange.end.toISOString().split('T')[0];
-
-      const quickResponse = await fetch(`${BACKEND_URL}/stats/dashboard-quick?period=${currentPeriod}`, { headers });
-      if (!quickResponse.ok) throw err;
-
-      const quickData = await quickResponse.json();
-      const tasksResponse = await fetch(`${BACKEND_URL}/tasks?start_date=${startDate}&end_date=${endDate}&limit=100`, { headers });
-
-      let tasksData = { allTasks: [], groupedTasks: [] };
-      if (tasksResponse.ok) {
-        const comp = await tasksResponse.json();
-        tasksData = {
-          allTasks: comp.tasks || comp || [],
-          groupedTasks: comp.groupedTasks || []
-        };
-      }
-
-      const fallbackStats = {
-        overview: {
-          total_attendance: 0,
-          outstanding_cells: quickData.overdueCells || 0,
-          outstanding_tasks: quickData.taskCount || 0,
-          people_behind: 0,
-          total_users: 0,
-          total_tasks: tasksData.allTasks.length
-        },
-        events: [],
-        overdueCells: [],
-        allTasks: tasksData.allTasks,
-        allUsers: [],
-        groupedTasks: tasksData.groupedTasks || [],
-        dateRange: { start: startDate, end: endDate },
-        loading: false,
-        error: null
-      };
-
-      setStats(fallbackStats);
-      setIsDataLoaded(true);
-      setIsChangingPeriod(false);
-      setCache(cacheKey, fallbackStats);
-    } catch (fallbackErr) {
-      setStats(prev => ({ ...prev, error: err.message || 'Failed to load data', loading: false }));
-      setIsDataLoaded(true);
-      setIsChangingPeriod(false);
-    }
-  } finally {
-    setRefreshing(false);
-  }
-}, [
-  refreshing,
-  getPeriodRange,
-  getCache,
-  setCache
-]);
-
-  // Only fetch data on initial load or when period changes
-  useEffect(() => {
-    if (!isDataLoaded) {
-      fetchStats();
-    }
-  }, [isDataLoaded, fetchStats]);
-
-  // Handle period change
-  const handlePeriodChange = (e) => {
-
-    if (refreshing || isChangingPeriod) return;
-
-    const newPeriod = e.target.value;
-    localStorage.removeItem(`statsDashboard_${period}`);        
-    localStorage.removeItem(`statsDashboard_${newPeriod}`);     
-    setPeriod(newPeriod);
-    setIsChangingPeriod(true);
-    
-    
-    // Fetch new data
-    fetchStats(true);
-  };
-
-  // Handle tab changes - no data fetching
-  const handleTabChange = (_, newValue) => {
-    setActiveTab(newValue);
-  };
-
+  // Event types fetch
   useEffect(() => {
     const fetchEventTypes = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`${BACKEND_URL}/event-types`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await authFetch(`${BACKEND_URL}/event-types`);
 
         if (!res.ok) throw new Error("Failed to load event types");
 
@@ -617,7 +384,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     };
 
     fetchEventTypes();
-  }, []);
+  }, [authFetch]);
 
   const toggleExpand = useCallback((key) => {
     setExpandedUsers(prev => 
@@ -654,7 +421,6 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
     }
 
     try {
-      const token = localStorage.getItem("token");
       const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
 
       const payload = {
@@ -671,10 +437,9 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
         created_at: new Date().toISOString(),
       };
 
-      const res = await fetch(`${BACKEND_URL}/events`, {
+      const res = await authFetch(`${BACKEND_URL}/events`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
@@ -692,7 +457,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       });
 
       setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
-      fetchStats(true);
+      fetchStats();
       
     } catch (err) {
       console.error("Create event failed:", err);
@@ -839,7 +604,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
 
   const StatCard = React.memo(({ title, value, subtitle, icon, color = 'primary' }) => (
     <Paper variant="outlined" sx={{
-      p: getResponsiveValue(1, 1.5, 1.5, 2, 2),
+      p: getResponsiveValue({ xs: 1, sm: 1.5, md: 1.5, lg: 2, xl: 2 }),
       textAlign: "center",
       boxShadow: 1,
       height: '100%',
@@ -848,12 +613,18 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       '&:hover': { boxShadow: 3, transform: 'translateY(-1px)' }
     }}>
       <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={0.5}>
-        <Avatar sx={{ bgcolor: `${color}.main`, width: 32, height: 32 }}>{icon}</Avatar>
-        <Typography variant="h5" fontWeight={600} color={`${color}.main`}>
+        <Avatar sx={{ 
+          bgcolor: `${color}.main`, 
+          width: getResponsiveValue({ xs: 28, sm: 32, md: 32, lg: 36, xl: 36 }), 
+          height: getResponsiveValue({ xs: 28, sm: 32, md: 32, lg: 36, xl: 36 })
+        }}>
+          {icon}
+        </Avatar>
+        <Typography variant={getResponsiveValue({ xs: 'h6', sm: 'h6', md: 'h5', lg: 'h5', xl: 'h5' })} fontWeight={600} color={`${color}.main`}>
           {value}
         </Typography>
       </Stack>
-      <Typography variant="body2" color="text.secondary">{title}</Typography>
+      <Typography variant={getResponsiveValue({ xs: 'caption', sm: 'body2', md: 'body2', lg: 'body2', xl: 'body2' })} color="text.secondary">{title}</Typography>
       {subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography>}
     </Paper>
   ));
@@ -863,7 +634,6 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       case 'today': return 'Today';
       case 'thisWeek': return 'This Week';
       case 'thisMonth': return 'This Month';
-      case 'previous7': return 'Last 7 Days';
       case 'previousWeek': return 'Previous Week';
       case 'previousMonth': return 'Previous Month';
       default: return periodType;
@@ -871,14 +641,14 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
   };
 
   const SkeletonLoader = () => (
-    <Box p={containerPadding} maxWidth="1400px" mx="auto" mt={8}>
+    <Container maxWidth="xl" sx={{ p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }), mt: 8 }}>
       <Box display="flex" justifyContent="flex-end" mb={2}>
         <Skeleton variant="circular" width={32} height={32} />
       </Box>
 
-      <Grid container spacing={cardSpacing} mb={3}>
+      <Grid container spacing={getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 })} mb={3}>
         {[...Array(3)].map((_, i) => (
-          <Grid item xs={6} md={4} key={i}>
+          <Grid item xs={12} sm={6} md={4} key={i}>
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -902,7 +672,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
 
       <Paper sx={{ 
         p: 2, 
-        height: 'calc(100vh - 320px)',
+        height: getResponsiveValue({ xs: 'auto', sm: 'calc(100vh - 320px)', md: 'calc(100vh - 320px)', lg: 'calc(100vh - 320px)', xl: 'calc(100vh - 320px)' }),
         display: 'flex', 
         flexDirection: 'column'
       }}>
@@ -1008,18 +778,17 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
           </>
         )}
       </Paper>
-    </Box>
+    </Container>
   );
 
-  // Only show skeleton on initial load
-  if (initialLoad && stats.loading) {
+  if (stats.loading && !stats.overview) {
     return <SkeletonLoader />;
   }
 
-  if (stats.error && !isDataLoaded) {
+  if (stats.error && !stats.overview) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
-        <Alert severity="error" action={<Button onClick={() => fetchStats(true)}>Retry</Button>}>
+        <Alert severity="error" action={<Button onClick={() => fetchStats()}>Retry</Button>}>
           {stats.error}
         </Alert>
       </Box>
@@ -1029,10 +798,13 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
   const eventsOnSelectedDate = getEventsForDate(selectedDate);
   
   return (
-    <Box p={containerPadding} maxWidth="1400px" mx="auto" mt={8}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} gap={1}>
+    <Container maxWidth="xl" sx={{ 
+      p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2.5, xl: 2.5 }), 
+      mt: getResponsiveValue({ xs: 6, sm: 7, md: 8, lg: 8, xl: 8 }) 
+    }}>
+      <Box display="flex" justifyContent="space-between" alignItems={isXsDown ? "flex-start" : "center"} mb={2} gap={1} flexDirection={isXsDown ? "column" : "row"}>
         <Box>
-          <Typography variant="h6" fontWeight="medium">
+          <Typography variant={getResponsiveValue({ xs: 'h6', sm: 'h6', md: 'h5', lg: 'h5', xl: 'h5' })} fontWeight="medium">
             Dashboard
           </Typography>
           {stats.dateRange.start && stats.dateRange.end && (
@@ -1041,56 +813,58 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
             </Typography>
           )}
         </Box>
-        <Box display="flex" alignItems="center" gap={1}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
+        <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent={isXsDown ? "flex-start" : "flex-end"}>
+          <FormControl size="small" sx={{ minWidth: isXsDown ? '100%' : 120, mb: isXsDown ? 1 : 0 }}>
             <InputLabel>Period</InputLabel>
             <Select
               value={period}
               label="Period"
               onChange={handlePeriodChange}
-              disabled={refreshing}
+              disabled={stats.loading}
+              fullWidth={isXsDown}
             >
-              <MenuItem value="today">Today</MenuItem>
-              <MenuItem value="thisWeek">This week</MenuItem>
-              <MenuItem value="thisMonth">This month</MenuItem>
-              <MenuItem value="previous7">Previous 7 Days</MenuItem>
-              <MenuItem value="previousWeek">Previous Week</MenuItem>
-              <MenuItem value="previousMonth">Previous Month</MenuItem>
+              {periodOptions.map(option => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
-          <Tooltip title="Refresh">
-            <IconButton 
-              onClick={() => fetchStats(true)} 
-              disabled={refreshing || isChangingPeriod} 
-              size="small"
-            >
-              <Refresh fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={`Download ${activeTab === 0 ? 'Overdue Cells' : activeTab === 1 ? 'Tasks' : 'Events'} for ${getPeriodDisplayText(period)}`}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<Download fontSize="small" />}
-              onClick={downloadFilteredStats}
-              disabled={refreshing || isChangingPeriod}
-              sx={{ 
-                textTransform: 'none',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Download Data
-            </Button>
-          </Tooltip>
+          <Box display="flex" gap={0.5}>
+            <Tooltip title="Refresh">
+              <IconButton 
+                onClick={() => fetchStats(true)} 
+                disabled={stats.loading} 
+                size="small"
+              >
+                <Refresh fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={`Download ${activeTab === 0 ? 'Overdue Cells' : activeTab === 1 ? 'Tasks' : 'Events'} for ${getPeriodDisplayText(period)}`}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<Download fontSize="small" />}
+                onClick={downloadFilteredStats}
+                disabled={stats.loading}
+                sx={{ 
+                  textTransform: 'none',
+                  whiteSpace: 'nowrap',
+                  display: isXsDown ? 'none' : 'inline-flex'
+                }}
+              >
+                Download
+              </Button>
+            </Tooltip>
+          </Box>
         </Box>
       </Box>
 
-      {/* Show loading indicator when refreshing OR changing period */}
-      {(stats.loading || refreshing || isChangingPeriod) && <LinearProgress sx={{ mb: 1.5 }} />}
+      {stats.loading && <LinearProgress sx={{ mb: 1.5 }} />}
 
-      <Grid container spacing={cardSpacing} mb={3}>
-        <Grid item xs={6} md={4}>
-          {stats.loading && !isDataLoaded ? (
+      <Grid container spacing={getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 })} mb={3}>
+        <Grid item xs={12} sm={6} md={4}>
+          {stats.loading && !stats.overview ? (
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -1099,11 +873,16 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
               <Skeleton width="80%" height={20} sx={{ mx: 'auto' }} />
             </Paper>
           ) : (
-            <StatCard title="Total Attendance" value={stats.overview?.total_attendance || 0} icon={<People />} color="primary" />
+            <StatCard 
+              title="Total Attendance" 
+              value={stats.overview?.total_attendance || 0} 
+              icon={<People />} 
+              color="primary" 
+            />
           )}
         </Grid>
-        <Grid item xs={6} md={4}>
-          {stats.loading && !isDataLoaded ? (
+        <Grid item xs={12} sm={6} md={4}>
+          {stats.loading && !stats.overview ? (
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -1121,8 +900,8 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
             />
           )}
         </Grid>
-        <Grid item xs={6} md={4}>
-          {stats.loading && !isDataLoaded ? (
+        <Grid item xs={12} sm={6} md={4}>
+          {stats.loading && !stats.overview ? (
             <Paper variant="outlined" sx={{ p: 2, height: '100%', borderTop: '3px solid', borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                 <Skeleton variant="circular" width={32} height={32} />
@@ -1132,8 +911,8 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
             </Paper>
           ) : (
             <StatCard 
-              title="Tasks" 
-              value={filteredTasks.length || 0} 
+              title="Tasks Due" 
+              value={stats.overview?.tasks_due_in_period || 0} 
               subtitle={`${getPeriodDisplayText(period)}`}
               icon={<Task />} 
               color="secondary" 
@@ -1145,9 +924,10 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       <Paper variant="outlined" sx={{ mb: 1.5 }}>
         <Tabs 
           value={activeTab} 
-          onChange={handleTabChange}
+          onChange={(_, newValue) => setActiveTab(newValue)}
           variant={isSmDown ? "scrollable" : "standard"} 
-          centered
+          scrollButtons={isSmDown ? "auto" : false}
+          centered={!isSmDown}
           sx={{ minHeight: 48 }}
         >
           <Tab label={`Overdue Cells (${filteredOverdueCells.length})`} />
@@ -1158,74 +938,100 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
 
       <Box minHeight="400px">
         {activeTab === 0 && (
-          <Paper sx={{ p: 2 }}>
-            <Box display="flex" justifyContent="space-between" mb={1.5}>
+          <Paper sx={{ p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }) }}>
+            <Box display="flex" justifyContent="space-between" alignItems={isXsDown ? "flex-start" : "center"} mb={1.5} flexDirection={isXsDown ? "column" : "row"} gap={isXsDown ? 1 : 0}>
               <Typography variant="subtitle1" fontWeight="medium">
                 Overdue Cells ({filteredOverdueCells.length})
               </Typography>
-              <Chip 
-                label={`${getPeriodDisplayText(period)}`} 
-                color="warning" 
-                size="small" 
-                variant="outlined"
-              />
+              <Box display="flex" gap={1} alignItems="center">
+                <Chip 
+                  label={`${getPeriodDisplayText(period)}`} 
+                  color="warning" 
+                  size="small" 
+                  variant="outlined"
+                />
+                <Button
+                  size="small"
+                  variant="text"
+                  color="warning"
+                  startIcon={<Visibility fontSize="small" />}
+                  onClick={() => setOverdueModalOpen(true)}
+                  disabled={filteredOverdueCells.length === 0}
+                  sx={{ fontSize: '0.75rem' }}
+                >
+                  View All
+                </Button>
+              </Box>
             </Box>
-            {filteredOverdueCells.slice(0, 5).map((c, i) => (
-              <Card key={i} variant="outlined" sx={{ mb: 1, p: 1.5, boxShadow: 1, '&:hover': { boxShadow: 2 } }}>
-                <Box display="flex" alignItems="center">
-                  <Avatar sx={{ bgcolor: 'warning.main', mr: 1.5, width: 32, height: 32 }}><Warning fontSize="small" /></Avatar>
-                  <Box flex={1}>
-                    <Typography variant="body2" fontWeight="medium" noWrap>{c.eventName || 'Unnamed'}</Typography>
-                    <Typography variant="caption" color="textSecondary" noWrap sx={{ fontSize: '0.7rem' }}>
-                      {formatDate(c.date)} • {c.eventLeaderName || 'No leader'}
+            {filteredOverdueCells.length === 0 ? (
+              <Box sx={{ 
+                textAlign: 'center', 
+                py: 6, 
+                color: 'text.secondary',
+                border: '2px dashed',
+                borderColor: 'divider',
+                borderRadius: 1.5
+              }}>
+                <Warning sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
+                <Typography variant="body1">No overdue cells</Typography>
+                <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                  Great job! All cells are up to date for {getPeriodDisplayText(period)}.
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                {filteredOverdueCells.slice(0, 5).map((c, i) => (
+                  <Card key={i} variant="outlined" sx={{ mb: 1, p: 1.5, boxShadow: 1, '&:hover': { boxShadow: 2 } }}>
+                    <Box display="flex" alignItems="center">
+                      <Avatar sx={{ bgcolor: 'warning.main', mr: 1.5, width: 32, height: 32 }}><Warning fontSize="small" /></Avatar>
+                      <Box flex={1}>
+                        <Typography variant="body2" fontWeight="medium" noWrap>{c.eventName || 'Unnamed'}</Typography>
+                        <Typography variant="caption" color="textSecondary" noWrap sx={{ fontSize: '0.7rem' }}>
+                          {formatDate(c.date)} • {c.eventLeaderName || 'No leader'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Card>
+                ))}
+                {filteredOverdueCells.length > 5 && (
+                  <Box textAlign="center" mt={1}>
+                    <Typography variant="caption" color="text.secondary">
+                      Showing 5 of {filteredOverdueCells.length} overdue cells
                     </Typography>
                   </Box>
-                </Box>
-              </Card>
-            ))}
-            <Box textAlign="center" mt={1}>
-              <Button
-                size="small"
-                variant="text"
-                color="warning"
-                startIcon={<Visibility fontSize="small" />}
-                onClick={() => setOverdueModalOpen(true)}
-                disabled={filteredOverdueCells.length === 0}
-                sx={{ fontSize: '0.75rem' }}
-              >
-                View All
-              </Button>
-            </Box>
+                )}
+              </>
+            )}
           </Paper>
         )}
         
         {activeTab === 1 && (
           <Paper sx={{ 
-            p: 2, 
-            height: 'calc(100vh - 320px)',
+            p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }), 
+            height: getResponsiveValue({ xs: 'auto', sm: 'calc(100vh - 320px)', md: 'calc(100vh - 320px)', lg: 'calc(100vh - 320px)', xl: 'calc(100vh - 320px)' }),
             display: 'flex', 
             flexDirection: 'column'
           }}>
             <Box sx={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
-              alignItems: 'center', 
+              alignItems: isXsDown ? "flex-start" : "center", 
               mb: 2,
-              flexShrink: 0 
+              flexShrink: 0,
+              flexDirection: isXsDown ? "column" : "row",
+              gap: isXsDown ? 1 : 0
             }}>
               <Box>
                 <Typography variant="subtitle1" gutterBottom>
                   All Tasks by Person ({stats.groupedTasks.length} people • {filteredTasks.length} total)
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Showing tasks for: {getPeriodDisplayText(period)}
-                </Typography>
               </Box>
-              <Box>
-                <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
-                  Period: {getPeriodDisplayText(period)}
-                </Typography>
-              </Box>
+              <Chip 
+                label={`Period: ${getPeriodDisplayText(period)}`} 
+                color="secondary" 
+                size="small" 
+                variant="outlined"
+              />
             </Box>
 
             <Box sx={{ 
@@ -1247,144 +1053,146 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
                 background: '#555',
               },
             }}>
-              <Stack spacing={1.5}>
-                {stats.groupedTasks.map(({ user, tasks, totalCount, completedCount, incompleteCount }) => {
-                  const key = user.email || user.fullName;
-                  const isExpanded = expandedUsers.includes(key);
+              {stats.groupedTasks.length === 0 && !stats.loading ? (
+                <Box sx={{ 
+                  textAlign: 'center', 
+                  py: 6, 
+                  color: 'text.secondary',
+                  border: '2px dashed',
+                  borderColor: 'divider',
+                  borderRadius: 1.5
+                }}>
+                  <Task sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
+                  <Typography variant="body1">No tasks found</Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                    No tasks found for {getPeriodDisplayText(period)}.
+                  </Typography>
+                </Box>
+              ) : (
+                <Stack spacing={1.5}>
+                  {stats.groupedTasks.map(({ user, tasks, totalCount, completedCount, incompleteCount }) => {
+                    const key = user.email || user.fullName;
+                    const isExpanded = expandedUsers.includes(key);
 
-                  return (
-                    <Box key={key} sx={{ 
-                      backgroundColor: 'background.paper', 
-                      border: '1px solid', 
-                      borderColor: 'divider', 
-                      boxShadow: 1, 
-                      overflow: 'hidden', 
-                      transition: 'all 0.2s', 
-                      '&:hover': { boxShadow: 2 } 
-                    }}>
-                      <Box
-                        sx={{ 
-                          p: 1.5, 
-                          cursor: 'pointer', 
-                          backgroundColor: incompleteCount > 0 ? 'error.50' : 'transparent', 
-                          '&:hover': { backgroundColor: 'action.hover' } 
-                        }}
-                        onClick={() => toggleExpand(key)}
-                      >
-                        <Box display="flex" alignItems="center" justifyContent="space-between">
-                          <Box display="flex" alignItems="center" gap={1.5}>
-                            <Avatar sx={{ 
-                              bgcolor: 'primary.main', 
-                              width: 40, 
-                              height: 40, 
-                              fontSize: '1rem', 
-                              fontWeight: 'bold' 
-                            }}>
-                              {user.fullName.charAt(0).toUpperCase()}
-                            </Avatar>
-                            <Box>
-                              <Typography variant="body2" fontWeight="medium">{user.fullName}</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {totalCount} task{totalCount !== 1 ? 's' : ''} • {completedCount} completed
-                                {incompleteCount === 0 && totalCount > 0 && ' — ALL DONE!'}
-                              </Typography>
+                    return (
+                      <Box key={key} sx={{ 
+                        backgroundColor: 'background.paper', 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        boxShadow: 1, 
+                        overflow: 'hidden', 
+                        transition: 'all 0.2s', 
+                        '&:hover': { boxShadow: 2 } 
+                      }}>
+                        <Box
+                          sx={{ 
+                            p: 1.5, 
+                            cursor: 'pointer', 
+                            backgroundColor: incompleteCount > 0 ? 'error.50' : 'transparent', 
+                            '&:hover': { backgroundColor: 'action.hover' } 
+                          }}
+                          onClick={() => toggleExpand(key)}
+                        >
+                          <Box display="flex" alignItems="center" justifyContent="space-between">
+                            <Box display="flex" alignItems="center" gap={1.5}>
+                              <Avatar sx={{ 
+                                bgcolor: 'primary.main', 
+                                width: 40, 
+                                height: 40, 
+                                fontSize: '1rem', 
+                                fontWeight: 'bold' 
+                              }}>
+                                {user.fullName.charAt(0).toUpperCase()}
+                              </Avatar>
+                              <Box>
+                                <Typography variant="body2" fontWeight="medium">{user.fullName}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {totalCount} task{totalCount !== 1 ? 's' : ''} • {completedCount} completed
+                                  {incompleteCount === 0 && totalCount > 0 && ' — ALL DONE!'}
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <IconButton size="small" sx={{ p: 0.5 }}>
+                                <ExpandMore sx={{ 
+                                  transition: 'transform 0.2s ease', 
+                                  transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' 
+                                }} />
+                              </IconButton>
                             </Box>
                           </Box>
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <IconButton size="small" sx={{ p: 0.5 }}>
-                              <ExpandMore sx={{ 
-                                transition: 'transform 0.2s ease', 
-                                transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' 
-                              }} />
-                            </IconButton>
-                          </Box>
                         </Box>
-                      </Box>
 
-                      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                        <Box sx={{ px: 1.5, pb: 1.5, pt: 1, backgroundColor: 'grey.50' }}>
-                          <Divider sx={{ mb: 1.5 }} />
-                          {tasks.length === 0 ? (
-                            <Typography color="text.secondary" fontStyle="italic" variant="caption">No tasks assigned</Typography>
-                          ) : (
-                            <Stack spacing={1}>
-                              {tasks.map(task => (
-                                <Box key={task._id} sx={{ 
-                                  p: 1.5, 
-                                  borderRadius: 1.5, 
-                                  backgroundColor: 'background.paper', 
-                                  border: '1px solid', 
-                                  borderColor: 'divider', 
-                                  display: 'flex', 
-                                  justifyContent: 'space-between', 
-                                  alignItems: 'center' 
-                                }}>
-                                  <Box>
-                                    <Typography variant="caption" fontWeight="medium">
-                                      {task.name || task.taskType || 'Untitled Task'}
-                                    </Typography>
-                                    {task.contacted_person?.name && (
-                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
-                                        Contact: {task.contacted_person.name}
+                        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                          <Box sx={{ px: 1.5, pb: 1.5, pt: 1, backgroundColor: 'grey.50' }}>
+                            <Divider sx={{ mb: 1.5 }} />
+                            {tasks.length === 0 ? (
+                              <Typography color="text.secondary" fontStyle="italic" variant="caption">No tasks assigned</Typography>
+                            ) : (
+                              <Stack spacing={1}>
+                                {tasks.map(task => (
+                                  <Box key={task._id} sx={{ 
+                                    p: 1.5, 
+                                    borderRadius: 1.5, 
+                                    backgroundColor: 'background.paper', 
+                                    border: '1px solid', 
+                                    borderColor: 'divider', 
+                                    display: 'flex', 
+                                    justifyContent: 'space-between', 
+                                    alignItems: 'center' 
+                                  }}>
+                                    <Box>
+                                      <Typography variant="caption" fontWeight="medium">
+                                        {task.name || task.taskType || 'Untitled Task'}
                                       </Typography>
-                                    )}
-                                    {task.followup_date && (
-                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontSize: '0.7rem' }}>
-                                        Due: {formatDate(task.followup_date)}
-                                      </Typography>
-                                    )}
+                                      {task.contacted_person?.name && (
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                                          Contact: {task.contacted_person.name}
+                                        </Typography>
+                                      )}
+                                      {task.followup_date && (
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontSize: '0.7rem' }}>
+                                          Due: {formatDate(task.followup_date)}
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                    <Chip
+                                      label={task.status || 'Pending'}
+                                      size="small"
+                                      color={['completed', 'done'].includes(task.status?.toLowerCase()) ? 'success' : 
+                                            task.status?.toLowerCase() === 'overdue' ? 'error' : 'warning'}
+                                      sx={{ fontSize: '0.7rem', height: 22 }}
+                                    />
                                   </Box>
-                                  <Chip
-                                    label={task.status || 'Pending'}
-                                    size="small"
-                                    color={['completed', 'done'].includes(task.status?.toLowerCase()) ? 'success' : 
-                                           task.status?.toLowerCase() === 'overdue' ? 'error' : 'warning'}
-                                    sx={{ fontSize: '0.7rem', height: 22 }}
-                                  />
-                                </Box>
-                              ))}
-                            </Stack>
-                          )}
-                        </Box>
-                      </Collapse>
-                    </Box>
-                  );
-                })}
-                
-                {stats.groupedTasks.length === 0 && !stats.loading && (
-                  <Box sx={{ 
-                    textAlign: 'center', 
-                    py: 6, 
-                    color: 'text.secondary',
-                    border: '2px dashed',
-                    borderColor: 'divider',
-                    borderRadius: 1.5
-                  }}>
-                    <Task sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
-                    <Typography variant="body1">No tasks found</Typography>
-                    <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
-                      No tasks found for {getPeriodDisplayText(period)}.
-                    </Typography>
-                  </Box>
-                )}
-              </Stack>
+                                ))}
+                              </Stack>
+                            )}
+                          </Box>
+                        </Collapse>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              )}
             </Box>
           </Paper>
         )}
 
         {activeTab === 2 && (
           <Paper sx={{ 
-            p: 2, 
-            height: 'calc(100vh - 320px)',
+            p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }), 
+            height: getResponsiveValue({ xs: 'auto', sm: 'calc(100vh - 320px)', md: 'calc(100vh - 320px)', lg: 'calc(100vh - 320px)', xl: 'calc(100vh - 320px)' }),
             display: 'flex', 
             flexDirection: 'column'
           }}>
             <Box sx={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
-              alignItems: 'center', 
+              alignItems: isXsDown ? "flex-start" : "center", 
               mb: 2,
-              flexShrink: 0 
+              flexShrink: 0,
+              flexDirection: isXsDown ? "column" : "row",
+              gap: isXsDown ? 1 : 0
             }}>
               <Typography variant="subtitle1">
                 Event Calendar ({filteredEvents.length} events)
@@ -1494,7 +1302,14 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       </Box>
 
       {/* CREATE EVENT MODAL */}
-      <Dialog open={createEventModalOpen} onClose={() => setCreateEventModalOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, boxShadow: 24 } }}>
+      <Dialog 
+        open={createEventModalOpen} 
+        onClose={() => setCreateEventModalOpen(false)} 
+        maxWidth="md" 
+        fullWidth 
+        PaperProps={{ sx: { borderRadius: 3, boxShadow: 24 } }}
+        fullScreen={isXsDown}
+      >
         <DialogTitle sx={{ 
           background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`, 
           color: 'white', 
@@ -1653,7 +1468,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       </Dialog>
 
       {/* OVERDUE CELLS MODAL */}
-      <Dialog open={overdueModalOpen} onClose={() => setOverdueModalOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={overdueModalOpen} onClose={() => setOverdueModalOpen(false)} maxWidth="md" fullWidth fullScreen={isXsDown}>
         <DialogTitle sx={{
           background: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
           color: 'white', 
@@ -1719,7 +1534,7 @@ const fetchStats = useCallback(async (forceRefresh = false) => {
       >
         <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
-    </Box>
+    </Container>
   );
 };
 

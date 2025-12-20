@@ -26,7 +26,7 @@ import {
 } from '@mui/icons-material';
 import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
-import logo from "../assets/active-teams.png"
+import logo from "../assets/active-teams.png";
 
 const allMenuItems = [
   { 
@@ -91,11 +91,12 @@ export default function Sidebar({ mode, setMode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isMobile = useMediaQuery('(max-width:900px)');
   const location = useLocation();
-  const { user } = useContext(AuthContext);
+
+  const { user, authFetch } = useContext(AuthContext);
   const [userHasCell, setUserHasCell] = useState(true);
   const [menuItems, setMenuItems] = useState([]);
 
-  // Load mode from localStorage on mount
+  // Load mode from localStorage
   useEffect(() => {
     const savedMode = localStorage.getItem('themeMode');
     if (savedMode) setMode(savedMode);
@@ -123,6 +124,13 @@ export default function Sidebar({ mode, setMode }) {
           console.error('Error checking user cell:', error);
           hasCell = false;
         }
+
+        const data = await res.json();
+        setUserHasCell(Boolean(data.hasCell));
+        console.log('🔍 User cell check:', data);
+      } catch (err) {
+        console.error('Error checking user cell:', err);
+        setUserHasCell(false);
       }
       
       setUserHasCell(hasCell);
@@ -157,10 +165,10 @@ export default function Sidebar({ mode, setMode }) {
     } else {
       setMenuItems([]);
     }
-  }, [user]);
+  }, [user, authFetch]);
 
   const handleToggleMode = () => {
-    setMode((prev) => {
+    setMode(prev => {
       const newMode = prev === 'light' ? 'dark' : 'light';
       localStorage.setItem('themeMode', newMode);
       return newMode;
@@ -190,7 +198,6 @@ export default function Sidebar({ mode, setMode }) {
         backgroundColor: bgColor,
       }}
     >
-      {/* Logo */}
       <Box sx={{ padding: 2, display: 'flex', justifyContent: 'center', mt: "15px" }}>
         <img
           src={logo}
@@ -198,7 +205,6 @@ export default function Sidebar({ mode, setMode }) {
           style={{
             maxWidth: '100%',
             maxHeight: '100px',
-            height: 'auto',
             borderRadius: 8,
             filter: mode === 'dark' ? 'invert(1) brightness(2)' : 'none',
           }}
@@ -294,7 +300,6 @@ export default function Sidebar({ mode, setMode }) {
     <>
       {isMobile && (
         <IconButton
-          color="inherit"
           onClick={handleDrawerToggle}
           sx={{ position: 'absolute', top: 10, left: 10, zIndex: 1300 }}
         >
@@ -308,11 +313,8 @@ export default function Sidebar({ mode, setMode }) {
         onClose={handleDrawerToggle}
         sx={{
           width: 240,
-          flexShrink: 0,
           '& .MuiDrawer-paper': {
             width: 240,
-            boxSizing: 'border-box',
-            height: '100vh',
             backgroundColor: bgColor,
           },
         }}
