@@ -73,17 +73,16 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     }
     return "user";
   });
-  // Helper functions to check user role (from Profile component - new code)
+
   const isAdmin = loggedInUserRole === USER_ROLES.ADMIN;
   const isLeader1 = loggedInUserRole === USER_ROLES.LEADER_1;
   const isLeader12 = loggedInUserRole === USER_ROLES.LEADER_12;
   const isLeader144 = loggedInUserRole === USER_ROLES.LEADER_144;
-  // const isRegistrant = loggedInUserRole === USER_ROLES.REGISTRANT;
-  // const isRegularUser = loggedInUserRole === USER_ROLES.USER;
-
+ 
   const hasEditPermission = isAdmin || isLeader1;
 
   const isAnyLeader = isAdmin || isLeader1 || isLeader12 || isLeader144;
+  console.log(" EditEventModal: User Roles - Admin:", isAdmin, "Leader1:", isLeader1, "Leader12:", isLeader12, "Leader144:", isLeader144, "AnyLeader:", isAnyLeader);
   const fieldMapping = {
     'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
     'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
@@ -125,64 +124,76 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     'recurring': ['recurring', 'Reoccurring'],
   };
 
+
   const getFieldPermissions = useCallback((field) => {
-    const fieldLower = field.toLowerCase();
+  const fieldLower = field.toLowerCase();
 
-    // Check for week identifier fields (ALWAYS disabled for everyone)
-    const isWeekIdentifier = fieldLower.includes('week') &&
-      (fieldLower.includes('identifier') ||
-        fieldLower.includes('id'));
+  // Check for week identifier fields (ALWAYS disabled for everyone)
+  const isWeekIdentifier = fieldLower.includes('week') &&
+    (fieldLower.includes('identifier') ||
+      fieldLower.includes('id'));
 
-    // Check for original event ID fields (ALWAYS disabled for everyone)
-    const isOriginalEventId = (fieldLower.includes('original') &&
-      fieldLower.includes('event') &&
-      fieldLower.includes('id')) ||
-      fieldLower === 'originaleventid' ||
-      fieldLower === 'original_event_id';
+  // Check for original event ID fields (ALWAYS disabled for everyone)
+  const isOriginalEventId = (fieldLower.includes('original') &&
+    fieldLower.includes('event') &&
+    fieldLower.includes('id')) ||
+    fieldLower === 'originaleventid' ||
+    fieldLower === 'original_event_id';
 
-    // Check for event type fields
-    const isEventType = fieldLower.includes('event') &&
-      (fieldLower.includes('type') ||
-        fieldLower === 'eventtype');
+  // Check for composite/composed event ID fields (ALWAYS disabled for everyone) - NEW
+  const isComposedEventId = (fieldLower.includes('composite') && fieldLower.includes('id')) ||
+    (fieldLower.includes('composed') && fieldLower.includes('id')) ||
+    fieldLower === 'compositeid' ||
+    fieldLower === 'composite_id' ||
+    fieldLower === 'composedeventid' ||
+    fieldLower === 'composed_event_id' ||
+    fieldLower === 'originalcompositeid' ||
+    fieldLower === 'original_composite_id' ||
+    fieldLower.includes('composedevent');
 
+  // Check for event type fields
+  const isEventType = fieldLower.includes('event') &&
+    (fieldLower.includes('type') ||
+      fieldLower === 'eventtype');
 
-    const isRestrictedLeaderField = fieldLower === 'leader1' ||
-      fieldLower === 'leader12' ||
-      fieldLower.includes('leader at 12');
+  const isRestrictedLeaderField = fieldLower === 'leader1' ||
+    fieldLower === 'leader12' ||
+    fieldLower.includes('leader at 12');
 
-    if (isWeekIdentifier || isOriginalEventId) {
-      // Always disabled for ALL users
-      return { disabled: true, reason: 'This field cannot be edited' };
-    }
+  if (isWeekIdentifier || isOriginalEventId || isComposedEventId) {
+    // Always disabled for ALL users
+    return { disabled: true, reason: 'This field cannot be edited' };
+  }
 
-    if (isEventType) {
-      // Event type disabled for ALL users
+  if (isEventType) {
+    // Event type disabled for ALL users
+    return {
+      disabled: true,
+      reason: 'Event type cannot be edited'
+    };
+  }
+
+  if (isRestrictedLeaderField) {
+    if (isLeader144) {
+      // Leader at 144 cannot edit restricted leader fields (requirement 6)
       return {
         disabled: true,
-        reason: 'Event type cannot be edited'
+        reason: 'Leader at 144 cannot edit leader fields'
       };
     }
 
-    if (isRestrictedLeaderField) {
-      if (isLeader144) {
-        // Leader at 144 cannot edit restricted leader fields (requirement 6)
-        return {
-          disabled: true,
-          reason: 'Leader at 144 cannot edit leader fields'
-        };
-      }
+    if (!hasEditPermission) {
 
-      if (!hasEditPermission) {
-        // Non-admin/non-leader1 users cannot edit restricted leader fields
-        return {
-          disabled: true,
-          reason: 'Leader fields can only be edited by administrators and Leader 1'
-        };
-      }
+      return {
+        disabled: true,
+        reason: 'Leader fields can only be edited by administrators and Leader 1'
+      };
     }
+  }
 
-    return { disabled: false, reason: null };
-  }, [hasEditPermission, isLeader144, isAnyLeader]);
+  return { disabled: false, reason: null };
+}, [hasEditPermission, isLeader144]);
+
   const isFieldDisabled = useCallback((field) => {
     return getFieldPermissions(field).disabled;
   }, [getFieldPermissions]);
@@ -430,6 +441,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     }
   };
  
+
   const renderField = (field) => {
   const value = formData[field] || '';
   const isChanged = changedFields.includes(field);
@@ -452,40 +464,9 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       {isDisabled && <LockIcon fontSize="small" color="disabled" />}
     </Box>
   );
- 
-  const FieldWrapper = ({ children }) => {
-    if (isDisabled && disabledReason) {
-      return (
-        <Tooltip title={disabledReason} arrow>
-          <Box>{children}</Box>
-        </Tooltip>
-      );
-    }
-    return children;
-  };
 
-  // Helper function to render TextField components consistently
-  const renderTextField = (props) => (
-    <FieldWrapper key={field}>
-      <Box sx={{ position: 'relative' }}>
-        <TextField
-          fullWidth
-          margin="normal"
-          label={labelContent}
-          value={value}
-          onChange={(e) => handleChange(field, e.target.value)}
-          error={isChanged}
-          helperText={isChanged ? "Changed" : ""}
-          disabled={isDisabled}
-          {...props}
-        />
-      </Box>
-    </FieldWrapper>
-  );
-
-  // Helper function to render DateTime field
-  const renderDateTimeField = () => (
-    <FieldWrapper key={field}>
+  if ((fieldLower.includes('date') && !fieldLower.includes('datecaptured') && !fieldLower.includes('datecreated')) || field === 'date') {
+    const content = (
       <Box sx={{ position: 'relative' }}>
         <TextField
           fullWidth
@@ -500,12 +481,20 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           disabled={isDisabled}
         />
       </Box>
-    </FieldWrapper>
-  );
-
-  // render Time field
-  const renderTimeField = () => (
-    <FieldWrapper key={field}>
+    );
+    
+    if (isDisabled && disabledReason) {
+      return (
+        <Tooltip key={field} title={disabledReason} arrow>
+          <Box>{content}</Box>
+        </Tooltip>
+      );
+    }
+    return <Box key={field}>{content}</Box>;
+  }
+ 
+  if (fieldLower.includes('time')) {
+    const content = (
       <Box sx={{ position: 'relative' }}>
         <TextField
           fullWidth
@@ -520,162 +509,244 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           disabled={isDisabled}
         />
       </Box>
-    </FieldWrapper>
-  );
-
-  if ((fieldLower.includes('date') && !fieldLower.includes('datecaptured') && !fieldLower.includes('datecreated')) || field === 'date') {
-    return renderDateTimeField();
-  }
- 
-  if (fieldLower.includes('time')) {
-    return renderTimeField();
+    );
+    
+    if (isDisabled && disabledReason) {
+      return (
+        <Tooltip key={field} title={disabledReason} arrow>
+          <Box>{content}</Box>
+        </Tooltip>
+      );
+    }
+    return <Box key={field}>{content}</Box>;
   }
  
   if (fieldLower.includes('email')) {
-    return renderTextField({ type: 'email' });
+    const content = (
+      <Box sx={{ position: 'relative' }}>
+        <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
+          value={value}
+          onChange={(e) => handleChange(field, e.target.value)}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
+          type="email"
+        />
+      </Box>
+    );
+    
+    if (isDisabled && disabledReason) {
+      return (
+        <Tooltip key={field} title={disabledReason} arrow>
+          <Box>{content}</Box>
+        </Tooltip>
+      );
+    }
+    return <Box key={field}>{content}</Box>;
   }
  
   if (fieldType === 'boolean') {
-    return (
-      <FieldWrapper key={field}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 1 }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={!!value}
-                onChange={(e) => handleChange(field, e.target.checked)}
-                color={isChanged ? "warning" : "primary"}
-                disabled={isDisabled}
-              />
-            }
-            label={labelContent}
-          />
-        </Box>
-      </FieldWrapper>
+    const content = (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 1 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={!!value}
+              onChange={(e) => handleChange(field, e.target.checked)}
+              color={isChanged ? "warning" : "primary"}
+              disabled={isDisabled}
+            />
+          }
+          label={labelContent}
+        />
+      </Box>
     );
+    
+    if (isDisabled && disabledReason) {
+      return (
+        <Tooltip key={field} title={disabledReason} arrow>
+          <Box>{content}</Box>
+        </Tooltip>
+      );
+    }
+    return <Box key={field}>{content}</Box>;
   }
  
   if (Array.isArray(value)) {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    return (
-      <FieldWrapper key={field}>
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {displayName}
-            {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
-            {isDisabled && <LockIcon fontSize="small" color="disabled" />}
-          </Typography>
-          <FormGroup row>
-            {days.map(day => (
-              <FormControlLabel
-                key={day}
-                control={
-                  <Checkbox
-                    checked={value.includes(day)}
-                    onChange={(e) => {
-                      if (isDisabled) return;
-                      const newValue = e.target.checked
-                        ? [...value, day]
-                        : value.filter(d => d !== day);
-                      handleChange(field, newValue);
-                    }}
-                    size="small"
-                    disabled={isDisabled}
-                  />
-                }
-                label={day.substring(0, 3)}
-              />
-            ))}
-          </FormGroup>
-          {!isDisabled && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-              <Button size="small" onClick={() => handleChange(field, [])}>
-                Clear All
-              </Button>
-            </Box>
-          )}
-        </Box>
-      </FieldWrapper>
+    const content = (
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {displayName}
+          {isChanged && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />}
+          {isDisabled && <LockIcon fontSize="small" color="disabled" />}
+        </Typography>
+        <FormGroup row>
+          {days.map(day => (
+            <FormControlLabel
+              key={day}
+              control={
+                <Checkbox
+                  checked={value.includes(day)}
+                  onChange={(e) => {
+                    if (isDisabled) return;
+                    const newValue = e.target.checked
+                      ? [...value, day]
+                      : value.filter(d => d !== day);
+                    handleChange(field, newValue);
+                  }}
+                  size="small"
+                  disabled={isDisabled}
+                />
+              }
+              label={day.substring(0, 3)}
+            />
+          ))}
+        </FormGroup>
+        {!isDisabled && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+            <Button size="small" onClick={() => handleChange(field, [])}>
+              Clear All
+            </Button>
+          </Box>
+        )}
+      </Box>
     );
+    
+    if (isDisabled && disabledReason) {
+      return (
+        <Tooltip key={field} title={disabledReason} arrow>
+          <Box>{content}</Box>
+        </Tooltip>
+      );
+    }
+    return <Box key={field}>{content}</Box>;
   }
  
   if (fieldLower.includes('day') && !fieldLower.includes('recurring') && typeof value === 'string') {
-    return (
-      <FieldWrapper key={field}>
-        <Box sx={{ position: 'relative' }}>
-          <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
-            <InputLabel>
-              {labelContent}
-            </InputLabel>
-            <Select
-              value={value || ''}
-              label={displayName}
-              onChange={(e) => handleChange(field, e.target.value)}
-              disabled={isDisabled}
-            >
-              <MenuItem value="">None</MenuItem>
-              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                .map(day => (
-                  <MenuItem key={day} value={day}>{day}</MenuItem>
-                ))}
-            </Select>
-            {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
-          </FormControl>
-        </Box>
-      </FieldWrapper>
+    const content = (
+      <Box sx={{ position: 'relative' }}>
+        <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
+          <InputLabel>
+            {labelContent}
+          </InputLabel>
+          <Select
+            value={value || ''}
+            label={displayName}
+            onChange={(e) => handleChange(field, e.target.value)}
+            disabled={isDisabled}
+          >
+            <MenuItem value="">None</MenuItem>
+            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+              .map(day => (
+                <MenuItem key={day} value={day}>{day}</MenuItem>
+              ))}
+          </Select>
+          {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
+        </FormControl>
+      </Box>
     );
+    
+    if (isDisabled && disabledReason) {
+      return (
+        <Tooltip key={field} title={disabledReason} arrow>
+          <Box>{content}</Box>
+        </Tooltip>
+      );
+    }
+    return <Box key={field}>{content}</Box>;
   }
  
   if (fieldLower === 'status') {
     const statusOptions = ['open', 'closed', 'complete', 'incomplete', 'did_not_meet', 'cancelled'];
-    return (
-      <FieldWrapper key={field}>
-        <Box sx={{ position: 'relative' }}>
-          <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={value || ''}
-              label="Status"
-              onChange={(e) => handleChange(field, e.target.value)}
-              disabled={isDisabled}
-            >
-              <MenuItem value="">None</MenuItem>
-              {statusOptions.map(status => (
-                <MenuItem key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-                </MenuItem>
-              ))}
-            </Select>
-            {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
-          </FormControl>
-        </Box>
-      </FieldWrapper>
+    const content = (
+      <Box sx={{ position: 'relative' }}>
+        <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
+          <InputLabel>Status</InputLabel>
+          <Select
+            value={value || ''}
+            label="Status"
+            onChange={(e) => handleChange(field, e.target.value)}
+            disabled={isDisabled}
+          >
+            <MenuItem value="">None</MenuItem>
+            {statusOptions.map(status => (
+              <MenuItem key={status} value={status}>
+                {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+              </MenuItem>
+            ))}
+          </Select>
+          {isChanged && <Typography variant="caption" color="warning.main">Changed</Typography>}
+        </FormControl>
+      </Box>
     );
+    
+    if (isDisabled && disabledReason) {
+      return (
+        <Tooltip key={field} title={disabledReason} arrow>
+          <Box>{content}</Box>
+        </Tooltip>
+      );
+    }
+    return <Box key={field}>{content}</Box>;
   }
  
   if (fieldLower.includes('description') || (typeof value === 'string' && value.length > 50)) {
-    return (
-      <FieldWrapper key={field}>
-        <Box sx={{ position: 'relative' }}>
-          <TextField
-            fullWidth
-            margin="normal"
-            label={labelContent}
-            value={value}
-            onChange={(e) => handleChange(field, e.target.value)}
-            multiline
-            rows={3}
-            error={isChanged}
-            helperText={isChanged ? "Changed" : ""}
-            disabled={isDisabled}
-          />
-        </Box>
-      </FieldWrapper>
+    const content = (
+      <Box sx={{ position: 'relative' }}>
+        <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
+          value={value}
+          onChange={(e) => handleChange(field, e.target.value)}
+          multiline
+          rows={3}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
+        />
+      </Box>
     );
+    
+    if (isDisabled && disabledReason) {
+      return (
+        <Tooltip key={field} title={disabledReason} arrow>
+          <Box>{content}</Box>
+        </Tooltip>
+      );
+    }
+    return <Box key={field}>{content}</Box>;
   }
  
-  return renderTextField({});
+  const content = (
+    <Box sx={{ position: 'relative' }}>
+      <TextField
+        fullWidth
+        margin="normal"
+        label={labelContent}
+        value={value}
+        onChange={(e) => handleChange(field, e.target.value)}
+        error={isChanged}
+        helperText={isChanged ? "Changed" : ""}
+        disabled={isDisabled}
+      />
+    </Box>
+  );
+  
+  if (isDisabled && disabledReason) {
+    return (
+      <Tooltip key={field} title={disabledReason} arrow>
+        <Box>{content}</Box>
+      </Tooltip>
+    );
+  }
+  return <Box key={field}>{content}</Box>;
 };
+
   if (!event) return null;
 
   const personFields = availableFields.filter(f =>

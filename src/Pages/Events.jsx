@@ -1361,74 +1361,21 @@ const { authFetch, logout } = useContext(AuthContext);
     ]
   );
 
+
   const handleNextPage = useCallback(() => {
-    if (currentPage < totalPages && !isLoading) {
-      const newPage = currentPage + 1;
+  if (currentPage < totalPages && !isLoading) {
+    const newPage = currentPage + 1;
+    setCurrentPage(newPage);
+  }
+}, [currentPage, totalPages, isLoading]);
 
-      const shouldApplyPersonalFilter =
-        viewFilter === "personal" &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      fetchEvents({
-        page: newPage,
-        limit: rowsPerPage,
-        status: selectedStatus !== "all" ? selectedStatus : undefined,
-        event_type:
-          selectedEventTypeFilter !== "all"
-            ? selectedEventTypeFilter
-            : undefined,
-        search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: DEFAULT_API_START_DATE,
-      });
-    }
-  }, [
-    currentPage,
-    totalPages,
-    isLoading,
-    viewFilter,
-    userRole,
-    fetchEvents,
-    rowsPerPage,
-    selectedStatus,
-    selectedEventTypeFilter,
-    searchQuery,
-    DEFAULT_API_START_DATE,
-  ]);
-
-  const handlePreviousPage = useCallback(() => {
-    if (currentPage > 1 && !isLoading) {
-      const newPage = currentPage - 1;
-
-      const shouldApplyPersonalFilter =
-        viewFilter === "personal" &&
-        (userRole === "admin" || userRole === "leader at 12");
-
-      fetchEvents({
-        page: newPage,
-        limit: rowsPerPage,
-        status: selectedStatus !== "all" ? selectedStatus : undefined,
-        event_type:
-          selectedEventTypeFilter !== "all"
-            ? selectedEventTypeFilter
-            : undefined,
-        search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: DEFAULT_API_START_DATE,
-      });
-    }
-  }, [
-    currentPage,
-    isLoading,
-    viewFilter,
-    userRole,
-    fetchEvents,
-    rowsPerPage,
-    selectedStatus,
-    selectedEventTypeFilter,
-    searchQuery,
-    DEFAULT_API_START_DATE,
-  ]);
+ 
+const handlePreviousPage = useCallback(() => {
+  if (currentPage > 1 && !isLoading) {
+    const newPage = currentPage - 1;
+    setCurrentPage(newPage);
+  }
+}, [currentPage, isLoading]);
 
   const handleCaptureClick = useCallback((event) => {
     setSelectedEvent(event);
@@ -1723,104 +1670,109 @@ const { authFetch, logout } = useContext(AuthContext);
   }, []);
 
   const handleDeleteEvent = useCallback(
-    async (event) => {
-      if (
-        window.confirm(`Are you sure you want to delete "${event.eventName}"?`)
-      ) {
-        try {
-          const token = localStorage.getItem("access_token");
+  async (event) => {
+    if (
+      window.confirm(`Are you sure you want to delete "${event.eventName}"?`)
+    ) {
+      try {
+        const token = localStorage.getItem("access_token");
 
-          let eventId = event._id;
-          if (eventId && eventId.includes("_")) {
-            const parts = eventId.split("_");
-            if (parts.length > 0 && isValidObjectId(parts[0])) {
-              eventId = parts[0];
-            }
+        let eventId = event._id;
+        if (eventId && eventId.includes("_")) {
+          const parts = eventId.split("_");
+          if (parts.length > 0 && isValidObjectId(parts[0])) {
+            eventId = parts[0];
           }
-
-          const response = await authFetch(`${BACKEND_URL}/events/${eventId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-
-          if (response.status === 200) {
-            const refreshParams = {
-              page: currentPage,
-              limit: rowsPerPage,
-              start_date: DEFAULT_API_START_DATE,
-              _t: Date.now(),
-            };
-
-            if (selectedEventTypeFilter && selectedEventTypeFilter !== "all") {
-              refreshParams.event_type = selectedEventTypeFilter;
-            } else {
-              refreshParams.event_type = "CELLS";
-            }
-
-            if (selectedStatus && selectedStatus !== "all") {
-              refreshParams.status = selectedStatus;
-            }
-
-            if (searchQuery && searchQuery.trim()) {
-              refreshParams.search = searchQuery.trim();
-            }
-
-            if (
-              selectedEventTypeFilter === "all" ||
-              selectedEventTypeFilter === "CELLS"
-            ) {
-              if (isLeaderAt12) {
-                refreshParams.leader_at_12_view = true;
-                refreshParams.include_subordinate_cells = true;
-
-                if (currentUserLeaderAt1) {
-                  refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-                }
-
-                if (viewFilter === "personal") {
-                  refreshParams.show_personal_cells = true;
-                  refreshParams.personal = true;
-                } else {
-                  refreshParams.show_all_authorized = true;
-                }
-              } else if (isAdmin && viewFilter === "personal") {
-                refreshParams.personal = true;
-              }
-            }
-
-            await fetchEvents(refreshParams, true);
-
-            toast.success("Event deleted successfully!");
-          }
-        } catch (error) {
-          console.error("Error deleting event:", error);
-
-          let errorMessage = "Failed to delete event";
-          if (error.response?.data) {
-            errorMessage =
-              error.response.data.detail || error.response.data.message;
-          } else if (error.message) {
-            errorMessage = error.message;
-          }
-
-          toast.error(`Error: ${errorMessage}`);
         }
+
+        const response = await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+          method: "DELETE",
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+        });
+
+        if (response.ok || response.status === 200) {
+          const refreshParams = {
+            page: currentPage,
+            limit: rowsPerPage,
+            start_date: DEFAULT_API_START_DATE,
+            _t: Date.now(),
+          };
+
+          if (selectedEventTypeFilter && selectedEventTypeFilter !== "all") {
+            refreshParams.event_type = selectedEventTypeFilter;
+          } else {
+            refreshParams.event_type = "CELLS";
+          }
+
+          if (selectedStatus && selectedStatus !== "all") {
+            refreshParams.status = selectedStatus;
+          }
+
+          if (searchQuery && searchQuery.trim()) {
+            refreshParams.search = searchQuery.trim();
+          }
+
+          if (
+            selectedEventTypeFilter === "all" ||
+            selectedEventTypeFilter === "CELLS"
+          ) {
+            if (isLeaderAt12) {
+              refreshParams.leader_at_12_view = true;
+              refreshParams.include_subordinate_cells = true;
+
+              if (currentUserLeaderAt1) {
+                refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+              }
+
+              if (viewFilter === "personal") {
+                refreshParams.show_personal_cells = true;
+                refreshParams.personal = true;
+              } else {
+                refreshParams.show_all_authorized = true;
+              }
+            } else if (isAdmin && viewFilter === "personal") {
+              refreshParams.personal = true;
+            }
+          }
+
+          await fetchEvents(refreshParams, true);
+
+          toast.success("Event deleted successfully!");
+        }
+      } catch (error) {
+        console.error("Error deleting event:", error);
+
+        let errorMessage = "Failed to delete event";
+        if (error.response?.data) {
+          errorMessage =
+            error.response.data.detail || error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        toast.error(`Error: ${errorMessage}`);
       }
-    },
-    [
-      BACKEND_URL,
-      currentPage,
-      rowsPerPage,
-      selectedEventTypeFilter,
-      selectedStatus,
-      searchQuery,
-      isLeaderAt12,
-      isAdmin,
-      viewFilter,
-      currentUserLeaderAt1,
-      fetchEvents,
-      DEFAULT_API_START_DATE,
-    ]
-  );
+    }
+  },
+  [
+    BACKEND_URL,
+    currentPage,
+    rowsPerPage,
+    selectedEventTypeFilter,
+    selectedStatus,
+    searchQuery,
+    isLeaderAt12,
+    isAdmin,
+    viewFilter,
+    currentUserLeaderAt1,
+    fetchEvents,
+    DEFAULT_API_START_DATE,
+    authFetch,
+  ]
+);
 
   const handleSaveEvent = useCallback(
     async (eventData) => {
@@ -2016,84 +1968,47 @@ const { authFetch, logout } = useContext(AuthContext);
     }, 300);
   }, []);
 
+
+
   const handleDeleteType = useCallback(async () => {
+  try {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+      toast.error("Please log in again");
+      setTimeout(() => (window.location.href = "/login"), 2000);
+      return;
+    }
+
+    const typeName =
+      typeof toDeleteType === "string"
+        ? toDeleteType
+        : toDeleteType?.name || toDeleteType?.eventType || "";
+
+    if (!typeName) {
+      throw new Error("No event type name provided for deletion");
+    }
+
+    const encodedTypeName = encodeURIComponent(typeName);
+    const url = `${BACKEND_URL}/event-types/${encodedTypeName}`;
+
     try {
-      const token = localStorage.getItem("access_token");
+      const response = await authFetch(url, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-      if (!token) {
-        toast.error("Please log in again");
-        setTimeout(() => (window.location.href = "/login"), 2000);
-        return;
-      }
-
-      const typeName =
-        typeof toDeleteType === "string"
-          ? toDeleteType
-          : toDeleteType?.name || toDeleteType?.eventType || "";
-
-      if (!typeName) {
-        throw new Error("No event type name provided for deletion");
-      }
-
-      const encodedTypeName = encodeURIComponent(typeName);
-      const url = `${BACKEND_URL}/event-types/${encodedTypeName}`;
-
-      try {
-        const response = await authFetch(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.status === 200) {
-          await fetchEventTypes();
-          setConfirmDeleteOpen(false);
-          setToDeleteType(null);
-
-          if (
-            selectedEventTypeFilter === typeName ||
-            selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()
-          ) {
-            setSelectedEventTypeFilter("all");
-            setSelectedEventTypeObj(null);
-
-            setTimeout(() => {
-              fetchEvents(
-                {
-                  page: 1,
-                  limit: rowsPerPage,
-                  event_type: "CELLS",
-                  start_date: DEFAULT_API_START_DATE,
-                },
-                true
-              );
-            }, 300);
-          }
-
-          toast.success(
-            response.data.message ||
-              `Event type "${typeName}" deleted successfully!`
-          );
-        }
-      } catch (error) {
-        if (error.response?.status === 401) {
-          toast.error("Session expired. Logging out...");
-          localStorage.removeItem("token");
-          localStorage.removeItem("userProfile");
-          setTimeout(() => (window.location.href = "/login"), 2000);
-          return;
-        }
-
-        if (error.response?.status === 400) {
-          const errorData = error.response.data;
-          let eventsCount = 0;
-          let eventsList = [];
-
-          if (typeof errorData.detail === "object") {
-            eventsCount = errorData.detail.events_count || 0;
-            eventsList = errorData.detail.event_samples || [];
-          }
+      if (!response.ok) {
+        const errorData = await response.json();
+        
+        if (response.status === 400 && errorData.detail && typeof errorData.detail === "object") {
+          const eventsCount = errorData.detail.events_count || 0;
+          const eventsList = errorData.detail.event_samples || [];
+          
+          console.log("Events using this type:", eventsCount);
 
           const eventsListText = eventsList
             .slice(0, 5)
@@ -2110,7 +2025,7 @@ const { authFetch, logout } = useContext(AuthContext);
               `${
                 eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ""
               }\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `━\n\n` +
               ` FORCE DELETE OPTION:\n\n` +
               `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
               `Click Cancel to keep everything.\n\n` +
@@ -2118,54 +2033,48 @@ const { authFetch, logout } = useContext(AuthContext);
           );
 
           if (shouldForceDelete) {
-            try {
-              const forceUrl = `${url}?force=true`;
-              const forceResponse = await authFetch(forceUrl, {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  "Content-Type": "application/json",
-                },
-              });
+            const forceUrl = `${url}?force=true`;
+            const forceResponse = await authFetch(forceUrl, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            });
 
-              await fetchEventTypes();
-              setConfirmDeleteOpen(false);
-              setToDeleteType(null);
+            const forceResult = await forceResponse.json();
 
-              if (
-                selectedEventTypeFilter === typeName ||
-                selectedEventTypeFilter?.toUpperCase() ===
-                  typeName.toUpperCase()
-              ) {
-                setSelectedEventTypeFilter("all");
-                setSelectedEventTypeObj(null);
+            await fetchEventTypes();
+            setConfirmDeleteOpen(false);
+            setToDeleteType(null);
 
-                setTimeout(() => {
-                  fetchEvents(
-                    {
-                      page: 1,
-                      limit: rowsPerPage,
-                      event_type: "CELLS",
-                      start_date: DEFAULT_API_START_DATE,
-                    },
-                    true
-                  );
-                }, 300);
-              }
+            if (
+              selectedEventTypeFilter === typeName ||
+              selectedEventTypeFilter?.toUpperCase() ===
+                typeName.toUpperCase()
+            ) {
+              setSelectedEventTypeFilter("all");
+              setSelectedEventTypeObj(null);
 
-              toast.success(
-                ` Deleted event type "${typeName}" and ${
-                  forceResponse.data.events_deleted || eventsCount
-                } events`,
-                { autoClose: 5000 }
-              );
-            } catch (forceError) {
-              toast.error(
-                `Failed to force delete: ${
-                  forceError.response?.data?.detail || forceError.message
-                }`,
-                { autoClose: 7000 }
-              );
+              setTimeout(() => {
+                fetchEvents(
+                  {
+                    page: 1,
+                    limit: rowsPerPage,
+                    event_type: "CELLS",
+                    start_date: DEFAULT_API_START_DATE,
+                  },
+                  true
+                );
+              }, 300);
             }
+
+            toast.success(
+              ` Deleted event type "${typeName}" and ${
+                forceResult.events_deleted || eventsCount
+              } events`,
+              { autoClose: 5000 }
+            );
           } else {
             toast.info("Deletion cancelled", { autoClose: 3000 });
           }
@@ -2174,35 +2083,80 @@ const { authFetch, logout } = useContext(AuthContext);
           setToDeleteType(null);
           return;
         }
-
-        let errorMessage = "Failed to delete event type";
-        if (error.response?.data) {
-          const errorData = error.response.data;
-          errorMessage =
-            errorData.detail || errorData.message || JSON.stringify(errorData);
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-
-        setConfirmDeleteOpen(false);
-        setToDeleteType(null);
-        toast.error(errorMessage, { autoClose: 7000 });
+        
+        throw new Error(errorData.detail || errorData.message || "Failed to delete event type");
       }
-    } catch (error) {
-      console.error(" Unexpected error:", error);
-      toast.error(`Unexpected error: ${error.message}`, { autoClose: 7000 });
+
+      const result = await response.json();
+      
+      await fetchEventTypes();
       setConfirmDeleteOpen(false);
       setToDeleteType(null);
+
+      if (
+        selectedEventTypeFilter === typeName ||
+        selectedEventTypeFilter?.toUpperCase() === typeName.toUpperCase()
+      ) {
+        setSelectedEventTypeFilter("all");
+        setSelectedEventTypeObj(null);
+
+        setTimeout(() => {
+          fetchEvents(
+            {
+              page: 1,
+              limit: rowsPerPage,
+              event_type: "CELLS",
+              start_date: DEFAULT_API_START_DATE,
+            },
+            true
+          );
+        }, 300);
+      }
+
+      toast.success(
+        result.message ||
+          `Event type "${typeName}" deleted successfully!`
+      );
+    } catch (error) {
+      console.error("Delete error:", error);
+      
+      if (error.message?.includes("401") || error.status === 401) {
+        toast.error("Session expired. Logging out...");
+        localStorage.removeItem("token");
+        localStorage.removeItem("userProfile");
+        setTimeout(() => (window.location.href = "/login"), 2000);
+        return;
+      }
+
+      let errorMessage = "Failed to delete event type";
+      if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setConfirmDeleteOpen(false);
+      setToDeleteType(null);
+      toast.error(errorMessage, { autoClose: 7000 });
     }
-  }, [
-    BACKEND_URL,
-    selectedEventTypeFilter,
-    toDeleteType,
-    fetchEventTypes,
-    fetchEvents,
-    rowsPerPage,
-    DEFAULT_API_START_DATE,
-  ]);
+  } catch (error) {
+    console.error(" Unexpected error:", error);
+    toast.error(`Unexpected error: ${error.message}`, { autoClose: 7000 });
+    setConfirmDeleteOpen(false);
+    setToDeleteType(null);
+  }
+}, [
+  BACKEND_URL,
+  selectedEventTypeFilter,
+  toDeleteType,
+  fetchEventTypes,
+  fetchEvents,
+  rowsPerPage,
+  DEFAULT_API_START_DATE,
+  authFetch,
+  setConfirmDeleteOpen,
+  setToDeleteType,
+  setSelectedEventTypeFilter,
+  setSelectedEventTypeObj,
+]);
 
   const handlePageChange = useCallback(
     (newPage) => {
@@ -2447,8 +2401,6 @@ const { authFetch, logout } = useContext(AuthContext);
     },
     [BACKEND_URL, editingEventType, fetchEventTypes, selectedEventTypeFilter]
   );
-
-
 
   useEffect(() => {
     fetchEventTypes();
