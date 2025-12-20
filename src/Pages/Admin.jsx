@@ -1,20 +1,18 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useContext, useRef } from 'react';
 import { AuthContext } from "../contexts/AuthContext";
 import {
-  Box, Container, Paper, Typography, TextField, Button, Select, MenuItem,
+  Box, Paper, Typography, TextField, Button, Select, MenuItem,
   FormControl, InputLabel, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Avatar, Chip, IconButton, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid, Card, CardContent, Tabs, Tab,
-  InputAdornment, CircularProgress, Alert, AlertTitle, Checkbox,
-  FormControlLabel, Tooltip, Stack, Divider, List, ListItem, ListItemText,
-  Autocomplete, useTheme, Fab, TablePagination, useMediaQuery, Skeleton
+  InputAdornment, CircularProgress, Tooltip, Stack, Divider, List,
+  ListItem, ListItemText, useTheme, Fab, TablePagination, useMediaQuery,
+  Skeleton
 } from '@mui/material';
 import {
-  Search, PersonAdd, Edit, Delete, Shield, Refresh, People, TrendingUp,
-  AdminPanelSettings, Circle, Close, History, Person as PersonIcon,
-  CalendarToday as CalendarIcon, Home as HomeIcon, Email as EmailIcon,
-  Phone as PhoneIcon, Wc as GenderIcon, HowToReg as RegistrantIcon,
-  Add as AddIcon, Visibility, VisibilityOff, Lock
+  Search, Delete, Shield, Refresh, People,
+  AdminPanelSettings, History, Person as PersonIcon,
+  HowToReg as RegistrantIcon, Add as AddIcon
 } from '@mui/icons-material';
 import NewUserModal from '../components/NewUserModal';
 
@@ -23,7 +21,7 @@ let globalDataLoaded = false;
 
 export default function AdminDashboard() {
   const theme = useTheme();
-  const { authFetch } = useContext(AuthContext);
+  const { authFetch, isRefreshingToken } = useContext(AuthContext);
   
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
@@ -39,14 +37,12 @@ export default function AdminDashboard() {
   };
 
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
-  const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
 
   const [selectedRole, setSelectedRole] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(!globalDataLoaded);
-  const [error, setError] = useState(null);
   
   const [users, setUsers] = useState(globalUsersData || []);
   const [activityLog, setActivityLog] = useState([]);
@@ -70,6 +66,10 @@ export default function AdminDashboard() {
   ]);
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  
+  // Track if initial load is in progress
+  const initialLoadRef = useRef(true);
+  const fetchInProgressRef = useRef(false);
 
   const SkeletonCard = () => (
     <Card variant="outlined" sx={{ mb: 2 }}>
@@ -98,41 +98,63 @@ export default function AdminDashboard() {
     </TableRow>
   );
 
-  const SkeletonStatsCard = () => (
-    <Card sx={{ height: '100%', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-      <CardContent sx={{ textAlign: 'center', p: 1 }}>
-        <Skeleton variant="circular" width={getResponsiveValue(40, 48, 56, 64, 64)} height={getResponsiveValue(40, 48, 56, 64, 64)} sx={{ mx: 'auto', mb: 1 }} />
-        <Skeleton variant="text" width="60%" height={getResponsiveValue(32, 40, 48, 48, 56)} sx={{ mx: 'auto' }} />
-        <Skeleton variant="text" width="80%" height={20} sx={{ mx: 'auto' }} />
-      </CardContent>
-    </Card>
-  );
+    fetchInProgressRef.current = true;
 
   const fetchAllData = useCallback(async (forceRefresh = false) => {
     if (globalDataLoaded && !forceRefresh) {
       setUsers(globalUsersData);
       setLoading(false);
+      fetchInProgressRef.current = false;
+      return;
+    }
+
+    // Don't fetch if token is refreshing
+    if (isRefreshingToken) {
+      fetchInProgressRef.current = false;
       return;
     }
 
     setLoading(true);
-    setError(null);
     
     try {
       const response = await authFetch(`${API_BASE_URL}/admin/users`, {
-        method: 'GET'
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
-
-      if (!response.ok) {
-        if (response.status === 401) throw new Error('Authentication failed. Please log in again.');
-        if (response.status === 403) throw new Error('Admin access required.');
-        throw new Error(`Failed to fetch users: ${response.status}`);
-      }
 
       const data = await response.json();
       
-      if (!data.users || !Array.isArray(data.users)) {
-        throw new Error('Invalid response format from server');
+      if (data.users && Array.isArray(data.users)) {
+        const transformedUsers = data.users.map(user => ({
+          id: user.id,
+          name: `${user.name} ${user.surname}`.trim(),
+          email: user.email,
+          role: user.role,
+          status: 'active',
+          phoneNumber: user.phone_number,
+          dateOfBirth: user.date_of_birth,
+          address: user.address,
+          gender: user.gender,
+          invitedBy: user.invitedBy,
+          leader12: user.leader12,
+          leader144: user.leader144,
+          leader1728: user.leader1728,
+          stage: user.stage,
+          createdAt: user.created_at
+        }));
+
+        // Store in global variable
+        globalUsersData = transformedUsers;
+        globalDataLoaded = true;
+
+        setUsers(transformedUsers);
+        setLoading(false);
+        addActivityLog('DATA_REFRESH', 'User data refreshed successfully');
+      } else {
+        console.error('Invalid response format:', data);
+        setLoading(false);
       }
       
       const transformedUsers = data.users.map(user => ({
@@ -161,24 +183,40 @@ export default function AdminDashboard() {
       
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError(err.message);
-    } finally {
       setLoading(false);
+    } finally {
+      fetchInProgressRef.current = false;
     }
-  }, [API_BASE_URL, authFetch]);
+  }, [API_BASE_URL, authFetch, isRefreshingToken]);
 
   const handleManualRefresh = useCallback(async () => {
     await fetchAllData(true);
   }, [fetchAllData]);
 
   useEffect(() => {
-    if (!globalDataLoaded) {
+    if (!globalDataLoaded && !isRefreshingToken) {
       fetchAllData();
     } else {
       setUsers(globalUsersData);
       setLoading(false);
     }
-  }, [fetchAllData]);
+    
+    initialLoadRef.current = false;
+  }, [fetchAllData, isRefreshingToken]);
+
+  // Effect to handle token refresh state changes
+  useEffect(() => {
+    if (isRefreshingToken) {
+      // Token is refreshing - show loading state
+      setLoading(true);
+    } else if (initialLoadRef.current === false && !globalDataLoaded) {
+      // Token refresh completed and we need to load data
+      fetchAllData();
+    } else if (globalDataLoaded) {
+      // We have data and token refresh completed
+      setLoading(false);
+    }
+  }, [isRefreshingToken, fetchAllData]);
 
   const addActivityLog = useCallback((action, details) => {
     const newLog = {
@@ -195,6 +233,18 @@ export default function AdminDashboard() {
     setCreatingUser(true);
     
     try {
+      // If token is refreshing, wait for it to complete
+      if (isRefreshingToken) {
+        await new Promise((resolve) => {
+          const checkInterval = setInterval(() => {
+            if (!isRefreshingToken) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        });
+      }
+
       const payload = {
         name: userData.name,
         surname: userData.surname,
@@ -219,8 +269,13 @@ export default function AdminDashboard() {
 
       const responseData = await response.json();
 
-      if (!response.ok) {
-        throw new Error(responseData.detail || 'Failed to create user');
+      if (response.ok) {
+        addActivityLog('USER_CREATED', `Created new user: ${userData.name} ${userData.surname} (${userData.role})`);
+        setShowAddUserModal(false);
+        
+        // Refresh data after creating user and update global data
+        globalDataLoaded = false;
+        await fetchAllData(true);
       }
 
       addActivityLog('USER_CREATED', `Created new user: ${userData.name} ${userData.surname} (${userData.role})`);
@@ -232,7 +287,6 @@ export default function AdminDashboard() {
       
     } catch (err) {
       console.error('Error creating user:', err);
-      alert(`Error: ${err.message}`);
     } finally {
       setCreatingUser(false);
     }
@@ -281,13 +335,33 @@ export default function AdminDashboard() {
     setDeletingUser(true);
     
     try {
+      // If token is refreshing, wait for it to complete
+      if (isRefreshingToken) {
+        await new Promise((resolve) => {
+          const checkInterval = setInterval(() => {
+            if (!isRefreshingToken) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        });
+      }
+
       const response = await authFetch(`${API_BASE_URL}/admin/users/${selectedUser.id}`, {
         method: 'DELETE'
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to delete user');
+      if (response.ok) {
+        addActivityLog('USER_DELETED', `Deleted user: ${selectedUser.name}`);
+        
+        const updatedUsers = users.filter(user => user.id !== selectedUser.id);
+        
+        // Update both local state and global data
+        setUsers(updatedUsers);
+        globalUsersData = updatedUsers;
+        
+        setShowDeleteConfirm(false);
+        setSelectedUser(null);
       }
 
       addActivityLog('USER_DELETED', `Deleted user: ${selectedUser.name}`);
@@ -302,7 +376,6 @@ export default function AdminDashboard() {
       
     } catch (err) {
       console.error('Error deleting user:', err);
-      alert(err.message);
     } finally {
       setDeletingUser(false);
     }
@@ -421,7 +494,49 @@ export default function AdminDashboard() {
     </Card>
   );
 
-  if (loading && !globalDataLoaded) {
+  // Skeleton components
+  const SkeletonCard = () => (
+    <Card variant="outlined" sx={{ mb: 2 }}>
+      <CardContent sx={{ p: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+          <Box flex={1}>
+            <Skeleton variant="text" width="60%" height={24} />
+            <Skeleton variant="text" width="80%" height={20} sx={{ mt: 0.5 }} />
+          </Box>
+          <Stack direction="row" spacing={1}>
+            <Skeleton variant="circular" width={32} height={32} />
+            <Skeleton variant="circular" width={32} height={32} />
+          </Stack>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
+  const SkeletonTableRow = () => (
+    <TableRow>
+      <TableCell><Skeleton variant="text" width="80%" /></TableCell>
+      <TableCell><Skeleton variant="text" width="60%" /></TableCell>
+      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><Skeleton variant="text" width="70%" /></TableCell>
+      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}><Skeleton variant="text" width="60%" /></TableCell>
+      <TableCell align="right"><Skeleton variant="text" width="40%" sx={{ mx: 'auto' }} /></TableCell>
+    </TableRow>
+  );
+
+  const SkeletonStatsCard = () => (
+    <Card sx={{ height: '100%', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+      <CardContent sx={{ textAlign: 'center', p: 1 }}>
+        <Skeleton variant="circular" width={getResponsiveValue(40, 48, 56, 64, 64)} height={getResponsiveValue(40, 48, 56, 64, 64)} sx={{ mx: 'auto', mb: 1 }} />
+        <Skeleton variant="text" width="60%" height={getResponsiveValue(32, 40, 48, 48, 56)} sx={{ mx: 'auto' }} />
+        <Skeleton variant="text" width="80%" height={20} sx={{ mx: 'auto' }} />
+      </CardContent>
+    </Card>
+  );
+
+  // Determine if we should show loading state
+  const shouldShowLoading = loading || (isRefreshingToken && !globalDataLoaded);
+
+  // Show loading skeleton while loading or token is refreshing without data
+  if (shouldShowLoading) {
     return (
       <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
         <Skeleton 
@@ -470,26 +585,6 @@ export default function AdminDashboard() {
             </Table>
           </TableContainer>
         )}
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', bgcolor: 'background.default', p: 3 }}>
-        <Paper sx={{ p: 4, maxWidth: 500, width: '100%', boxShadow: 3, borderRadius: 2 }}>
-          <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <AdminPanelSettings sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
-            <Typography variant="h5" fontWeight="bold" gutterBottom>Error Loading Data</Typography>
-          </Box>
-          <Alert severity="error" sx={{ mb: 3 }}>
-            <AlertTitle>Error</AlertTitle>
-            {error}
-          </Alert>
-          <Button variant="contained" fullWidth onClick={handleManualRefresh} startIcon={<Refresh />}>
-            Retry
-          </Button>
-        </Paper>
       </Box>
     );
   }
@@ -932,10 +1027,6 @@ export default function AdminDashboard() {
         <DialogContent sx={{ p: getResponsiveValue(1, 2, 3, 3, 3) }}>
           {selectedUser && (
             <>
-              <Alert severity="error" sx={{ mb: 2, borderRadius: 1 }}>
-                <AlertTitle>Warning</AlertTitle>
-                This action cannot be undone!
-              </Alert>
               <Typography variant="body1">
                 Are you sure you want to delete <strong>{selectedUser.name}</strong>?
               </Typography>
