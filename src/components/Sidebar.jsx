@@ -95,19 +95,16 @@ export default function Sidebar({ mode, setMode }) {
   const [userHasCell, setUserHasCell] = useState(true);
   const [menuItems, setMenuItems] = useState([]);
 
-  // Load mode from localStorage on mount
   useEffect(() => {
     const savedMode = localStorage.getItem('themeMode');
     if (savedMode) setMode(savedMode);
   }, [setMode]);
 
-  // Check if user has a cell and filter menu items
   useEffect(() => {
     const checkUserAccess = async () => {
       const userRole = user?.role?.toLowerCase() || '';
       let hasCell = true;
       
-      // For regular users, check if they have a cell
       if (userRole === 'user') {
         try {
           const token = localStorage.getItem('token');
@@ -118,18 +115,18 @@ export default function Sidebar({ mode, setMode }) {
           });
           const data = await response.json();
           hasCell = data.hasCell || false;
-          console.log('🔍 User cell check:', data);
+          setUserHasCell(hasCell);
+          console.log('User cell check:', data);
         } catch (error) {
           console.error('Error checking user cell:', error);
           hasCell = false;
+          setUserHasCell(false);
         }
+      } else {
+        setUserHasCell(true);
       }
-      
-      setUserHasCell(hasCell);
 
-      // Filter menu items based on user role AND cell access for events
       const filteredItems = allMenuItems.filter(item => {
-        // Check if user role is allowed (case-insensitive comparison)
         const userRoleLower = userRole.toLowerCase();
         const itemRolesLower = item.roles.map(role => role.toLowerCase());
         
@@ -138,17 +135,16 @@ export default function Sidebar({ mode, setMode }) {
           return false;
         }
         
-        // For Events page, check if user needs a cell
         if (item.path === '/events' && userRoleLower === 'user') {
-          console.log(`📅 Events access for user: ${hasCell ? 'Allowed (has cell)' : 'Denied (no cell)'}`);
+          console.log(` Events access for user: ${hasCell ? 'Allowed (has cell)' : 'Denied (no cell)'}`);
           return hasCell;
         }
         
-        console.log(`✅ ${item.label}: Allowed for role ${userRole}`);
+        console.log(` ${item.label}: Allowed for role ${userRole}`);
         return true;
       });
 
-      console.log('📋 Final menu items for', userRole, ':', filteredItems.map(item => item.label));
+      console.log(' Final menu items for', userRole, ':', filteredItems.map(item => item.label));
       setMenuItems(filteredItems);
     };
 
@@ -190,7 +186,6 @@ export default function Sidebar({ mode, setMode }) {
         backgroundColor: bgColor,
       }}
     >
-      {/* Logo */}
       <Box sx={{ padding: 2, display: 'flex', justifyContent: 'center', mt: "15px" }}>
         <img
           src={logo}
@@ -205,7 +200,6 @@ export default function Sidebar({ mode, setMode }) {
         />
       </Box>
 
-      {/* Debug Info */}
       {user && (
         <Box sx={{ 
           padding: 1, 
@@ -219,7 +213,6 @@ export default function Sidebar({ mode, setMode }) {
         </Box>
       )}
 
-      {/* Menu Items */}
       <List sx={{ flexGrow: 1 }}>
         {menuItems.map(({ label, path, icon: Icon, external }) => {
           const isActive = !external && location.pathname === path;
@@ -271,7 +264,6 @@ export default function Sidebar({ mode, setMode }) {
         })}
       </List>
 
-      {/* Dark/Light Toggle */}
       <Box sx={{ margin: 7, display: 'flex', justifyContent: 'center' }}>
         <IconButton
           onClick={handleToggleMode}

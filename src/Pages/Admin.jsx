@@ -238,40 +238,42 @@ export default function AdminDashboard() {
     }
   };
 
+
+
   const handleRoleChange = async (userId, newRole) => {
-    setUpdatingRole(true);
-    
-    try {
-      const response = await authFetch(`${API_BASE_URL}/admin/users/${userId}/role`, {
-        method: 'PUT',
-        body: JSON.stringify({ role: newRole })
-      });
+  setUpdatingRole(true);
+  
+  try {
+    const response = await authFetch(`${API_BASE_URL}/admin/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role: newRole })
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to update user role');
-      }
-
-      const user = users.find(u => u.id === userId);
-      addActivityLog('ROLE_UPDATED', `Updated ${user?.name}'s role to ${newRole}`);
-
-      const updatedUsers = users.map(user => 
-        user.id === userId ? { ...user, role: newRole } : user
-      );
-      
-      setUsers(updatedUsers);
-      globalUsersData = updatedUsers;
-      
-      setShowRoleModal(false);
-      setSelectedUser(null);
-      
-    } catch (err) {
-      console.error('Error updating role:', err);
-      alert(err.message);
-    } finally {
-      setUpdatingRole(false);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to update user role');
     }
-  };
+
+    const user = users.find(u => u.id === userId);
+    addActivityLog('ROLE_UPDATED', `Updated ${user?.name}'s role to ${newRole}`);
+
+    const updatedUsers = users.map(user => 
+      user.id === userId ? { ...user, role: newRole } : user
+    );
+    
+    setUsers(updatedUsers);
+    globalUsersData = updatedUsers;
+    
+    setShowRoleModal(false);
+    setSelectedUser(null);
+    
+  } catch (err) {
+    console.error('Error updating role:', err);
+    alert(err.message);
+  } finally {
+    setUpdatingRole(false);
+  }
+};
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
