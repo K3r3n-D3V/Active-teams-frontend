@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect,  useContext } from "react";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -9,6 +9,8 @@ import {
   Menu,
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
+import { AuthContext } from "../contexts/AuthContext";
+
 
 let globalPeopleCache = {
   data: [],
@@ -20,6 +22,8 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+  console.log("AddPersonToEvents - isDarkMode:", isDarkMode);
+    const { authFetch } = useContext(AuthContext);
 
   const [formData, setFormData] = useState({
     invitedBy: "",
@@ -78,7 +82,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         params.append("_t", now.toString());
       }
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
 
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
@@ -150,7 +154,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         params.append("name", searchTerm);
         params.append("perPage", "20");
 
-        const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
         const data = await res.json();
         const peopleArray = data.people || data.results || [];
 
@@ -338,13 +342,14 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
           leaderInfo.leader1 || "",
           leaderInfo.leader12 || "",
           leaderInfo.leader144 || "",
-          "" // Leader @1728 is always empty for now
+          "" 
+          
         ],
         stage: "Win",
       };
       console.log("Sending person data to backend:", personData);
 
-      const response = await fetch(`${BACKEND_URL}/people`, {
+      const response = await authFetch(`${BACKEND_URL}/people`, {
         method: "POST",
         headers: headers,
         body: JSON.stringify(personData),
@@ -830,6 +835,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+    const { authFetch } = useContext(AuthContext);
 
   const [leaderData, setLeaderData] = useState({
     leader1: "",
@@ -899,7 +905,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
         params.append("name", searchTerm);
         params.append("perPage", "15");
 
-        const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
         const data = await res.json();
         const peopleArray = data.people || data.results || [];
 
@@ -1185,6 +1191,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
 };
 
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
+  const { authFetch } = useContext(AuthContext);
   const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
@@ -1241,7 +1248,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       const fetchAttendees = async () => {
         try {
           const token = localStorage.getItem("token");
-          const response = await fetch(
+          const response = await authFetch(
             `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -1319,7 +1326,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       params.append("perPage", "100");
       params.append("page", "1");
 
-      const res = await fetch(`${BACKEND_URL}/people?${params.toString()}`, {
+      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, {
         headers,
       });
 
@@ -1373,7 +1380,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+      const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -1429,7 +1436,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      const res = await fetch(
+      const res = await authFetch(
         `${BACKEND_URL}/events/cell/${cellId}/common-attendees`,
         { headers }
       );
@@ -1488,7 +1495,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
 
-      const response = await fetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
+      const response = await authFetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
         method: "PUT",
         headers: headers,
         body: JSON.stringify({
@@ -1646,7 +1653,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(
+      const response = await authFetch(
         `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
         {
           method: "PUT",
@@ -1852,7 +1859,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           Authorization: `Bearer ${token}`,
         };
 
-        const response = await fetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+        const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
           method: "PUT",
           headers: headers,
           body: JSON.stringify(payload),
@@ -1888,8 +1895,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-
-
   const handleSubmitAttendance = (attendanceData) => {
 
     if (onSubmit) {
@@ -1904,84 +1909,79 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   };
 
   const confirmDidNotMeet = async () => {
-    setShowDidNotMeetConfirm(false);
-    setDidNotMeet(true);
-    setCheckedIn({});
-    setDecisions({});
-    setManualHeadcount("");
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
+  setShowDidNotMeetConfirm(false);
+  setDidNotMeet(true);
+  setCheckedIn({});
+  setDecisions({});
+  setManualHeadcount("");
+  setPriceTiers({});
+  setPaymentMethods({});
+  setPaidAmounts({});
 
-    try {
-      const eventId = event?.id || event?._id;
-      if (!eventId) {
-        toast.error("Event ID is missing, cannot submit attendance.");
-        return;
-      }
+  try {
+    const eventId = event?.id || event?._id;
+    if (!eventId) {
+      toast.error("Event ID is missing, cannot submit attendance.");
+      return;
+    }
 
-      const allPeople = getAllCommonAttendees();
+    const allPeople = getAllCommonAttendees();
+    const payload = {
+      attendees: [],
+      persistent_attendees: allPeople.map(p => ({
+        id: p.id,
+        fullName: p.fullName,
+        email: p.email,
+        leader12: p.leader12,
+        leader144: p.leader144,
+        phone: p.phone
+      })),
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      did_not_meet: true,
+      isTicketed: isTicketedEvent,
+      week: get_current_week_identifier()
+    };
 
-      // IMPORTANT: persistent_attendees remain in database
-      // We're just marking this week as "did not meet"
-      const payload = {
-        attendees: [],
-        persistent_attendees: allPeople.map(p => ({
-          id: p.id,
-          fullName: p.fullName,
-          email: p.email,
-          leader12: p.leader12,
-          leader144: p.leader144,
-          phone: p.phone
-        })),
-        leaderEmail: currentUser?.email || "",
-        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-        did_not_meet: true,
-        isTicketed: isTicketedEvent,
-        week: get_current_week_identifier()
+    let result;
+
+    if (typeof onSubmit === "function") {
+      result = await onSubmit(payload);
+    } else {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       };
 
-      let result;
-
-      if (typeof onSubmit === "function") {
-        result = await onSubmit(payload);
-      } else {
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
-
-        const response = await fetch(
-          `${BACKEND_URL}/submit-attendance/${eventId}`,
-          {
-            method: "PUT",
-            headers,
-            body: JSON.stringify(payload),
-          }
-        );
-        result = await response.json();
-        result.success = response.ok;
-      }
-
-      if (result?.success) {
-        toast.success("Event marked as 'Did Not Meet' successfully!");
-
-        if (typeof onAttendanceSubmitted === "function") {
-          onAttendanceSubmitted();
+      const response = await authFetch(
+        `${BACKEND_URL}/submit-attendance/${eventId}`,
+        {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(payload),
         }
-
-        setTimeout(() => {
-          onClose();
-        }, 1000);
-      } else {
-        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
-      }
-    } catch (error) {
-      console.error(" Error marking event as 'Did Not Meet':", error);
-      toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+      );
+      result = await response.json();
+      result.success = response.ok;
     }
-  };
+
+    if (result?.success) {
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted();
+      }
+
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } else {
+      toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+    }
+  } catch (error) {
+    console.error(" Error marking event as 'Did Not Meet':", error);
+    toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+  }
+};
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
@@ -2001,23 +2001,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     if (event && event.eventType === "cell") {
       fetchCommonAttendees(event._id || event.id);
     }
-
     setShowAddPersonModal(false);
-
-    // Show success message
-    // setAlert({
-    //   open: true,
-    //   type: "success",
-    //   message: `${newPerson.Name} ${newPerson.Surname} added successfully!`,
-    // });
-    // setTimeout(
-    //   () => setAlert({ open: false, type: "success", message: "" }),
-    //   3000
-    // );
     toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
   };
 
-  // Mobile attendee card renderer
+
   const renderMobileAttendeeCard = (person) => {
     const isPersistent = persistentCommonAttendees.some(
       (p) => p.id === person.id
@@ -2765,7 +2753,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       fontWeight: 600,
     },
   };
-
   if (!isOpen) return null;
 
   return (
@@ -3573,9 +3560,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
               <h3 style={styles.confirmTitle}>Confirm Event Status</h3>
             </div>
             <div style={styles.confirmBody}>
-              <div style={styles.confirmIcon}>
-                <X size={32} color="#dc3545" />
-              </div>
               <p style={styles.confirmMessage}>
                 Are you sure you want to mark this event as{" "}
                 <strong>'Did Not Meet'</strong>?
@@ -3629,5 +3613,4 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   );
 
 };
-
 export default AttendanceModal;

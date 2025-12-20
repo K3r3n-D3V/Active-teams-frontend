@@ -28,18 +28,18 @@ import withAuthCheck from "./components/withAuthCheck";
 import Admin from "./Pages/Admin";
 import NotFound from "./Pages/NotFound";
 
-// Wrap protected pages WITH ROLES//
-const ProtectedHome = withAuthCheck(Home, ['admin', 'leader', 'user', 'registrant']);
-const ProtectedProfile = withAuthCheck(Profile, ['admin', 'leader', 'user', 'registrant']);
-const ProtectedPeople = withAuthCheck(People, ['admin', 'leader']);
-const ProtectedEvents = withAuthCheck(Events, ['admin', 'leader', 'user', 'registrant'], true); 
-const ProtectedStats = withAuthCheck(Stats, ['admin', 'leader']);
+// Wrap protected pages WITH ROLES - UPDATED WITH leaderAt12
+const ProtectedHome = withAuthCheck(Home, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
+const ProtectedProfile = withAuthCheck(Profile, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
+const ProtectedPeople = withAuthCheck(People, ['admin', 'leader', 'leaderAt12']);
+const ProtectedEvents = withAuthCheck(Events, ['admin', 'leader', 'leaderAt12', 'user', 'registrant'], true); 
+const ProtectedStats = withAuthCheck(Stats, ['admin', 'leader', 'leaderAt12']);
 const ProtectedCheckIn = withAuthCheck(ServiceCheckIn, ['admin', 'registrant']);
-const ProtectedDailyTasks = withAuthCheck(DailyTasks, ['admin', 'leader', 'user', 'registrant']);
+const ProtectedDailyTasks = withAuthCheck(DailyTasks, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 const ProtectedAdmin = withAuthCheck(Admin, ['admin']);
-const ProtectedCreateEvents = withAuthCheck(CreateEvents, ['admin', 'leader']);
-const ProtectedAttendance = withAuthCheck(AttendanceModal, ['admin', 'leader']);
-const ProtectedEventDetails = withAuthCheck(EventDetails, ['admin', 'leader', 'user', 'registrant']);
+const ProtectedCreateEvents = withAuthCheck(CreateEvents, ['admin', 'leader', 'leaderAt12']);
+const ProtectedAttendance = withAuthCheck(AttendanceModal, ['admin', 'leader', 'leaderAt12']);
+const ProtectedEventDetails = withAuthCheck(EventDetails, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 
 function App() {
   const { user, loading } = useContext(AuthContext);
@@ -66,21 +66,21 @@ function App() {
     });
   }, [user, loading, showSplash, splashFinished, location.pathname]);
 
-  // Handle splash screen completion
+
   const handleSplashFinish = () => {
-    console.log('✅ Splash animation finished');
+    console.log(' Splash animation finished');
     setSplashFinished(true);
   };
 
-  // Hide splash only when BOTH splash animation AND auth loading are complete
+
   useEffect(() => {
     if (splashFinished && !loading) {
-      console.log('✅ Both splash and auth complete, hiding splash screen');
+      console.log(' Both splash and auth complete, hiding splash screen');
       setShowSplash(false);
     }
   }, [splashFinished, loading]);
 
-  // Show splash screen while either splash animation OR auth is loading
+
   if (showSplash || loading) {
     return (
       <SplashScreen
@@ -125,7 +125,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword mode={mode} />} />
             <Route path="/reset-password" element={<ResetPassword mode={mode} />} />
 
-            {/* Protected routes with role restrictions */}
+            {/* Protected routes with role restrictions - UPDATED WITH leaderAt12 */}
             <Route path="/" element={<ProtectedHome />} />
             <Route path="/admin" element={<ProtectedAdmin />} />
             <Route path="/profile" element={<ProtectedProfile title="Profile" />} />

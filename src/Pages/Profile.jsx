@@ -607,7 +607,7 @@ export default function Profile() {
         }, 2000);
         return false;
       } else if (!hasUserProfile) {
-        console.warn("⚠️ Token exists but no userProfile. Will attempt to fetch.");
+        console.warn(" Token exists but no userProfile. Will attempt to fetch.");
       } else {
         console.log("✅ Authentication check passed.");
       }
@@ -691,7 +691,7 @@ export default function Profile() {
             console.log("✅ Profile updated with fresh data");
           }
         } catch (fetchError) {
-          console.warn("⚠️ Could not fetch fresh profile, using cached:", fetchError.message);
+          console.warn(" Could not fetch fresh profile, using cached:", fetchError.message);
           // Keep using cached data if fetch fails
         }
       } catch (error) {

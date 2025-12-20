@@ -49,7 +49,6 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
-  // Decode JWT and check expiry
   const isTokenExpired = (token) => {
     if (!token) return true;
     try {
@@ -57,7 +56,8 @@ export const AuthProvider = ({ children }) => {
       if (parts.length !== 3) return true;
       const payload = JSON.parse(atob(parts[1]));
       if (!payload.exp) return true;
-      return payload.exp * 1000 < Date.now();
+      const bufferTime = 60 * 1000;
+      return payload.exp * 1000 < Date.now() + bufferTime;
     } catch (e) {
       return true;
     }
@@ -87,6 +87,149 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const logout = useCallback(() => {
+    localStorage.removeItem(KEY_ACCESS);
+    localStorage.removeItem(KEY_REFRESH);
+    localStorage.removeItem(KEY_REFRESH_ID);
+    localStorage.removeItem(KEY_USER);
+    localStorage.removeItem(KEY_PROFILE_PIC);
+    localStorage.removeItem(KEY_LEADERS);
+    localStorage.removeItem(KEY_IS_LEADER);
+    setUser(null);
+    setLeaders(null);
+    setIsLeader(false);
+    setIsAuthenticated(false);
+  }, []);
+
+ 
+  const attemptRefresh = useCallback(async () => {
+  const refresh = localStorage.getItem(KEY_REFRESH);
+  const refreshId = localStorage.getItem(KEY_REFRESH_ID);
+  
+  if (!refresh || !refreshId) {
+    console.error('❌ No refresh token or refresh ID found');
+    logout();
+    return false;
+  }
+
+  if (refreshInProgress) {
+    console.log('⏳ Refresh already in progress, skipping...');
+    return false;
+  }
+  
+  setRefreshInProgress(true);
+
+  try {
+    console.log('🔄 Attempting token refresh...');
+    const res = await fetch(`${BACKEND_URL}/refresh-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        refresh_token: refresh, 
+        refresh_token_id: refreshId 
+      })
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      console.error('❌ Token refresh failed:', res.status, errorData);
+      
+      // Only logout if it's a 401/403 (invalid refresh token)
+      if (res.status === 401 || res.status === 403) {
+        logout();
+      }
+      
+      return false;
+    }
+
+    const data = await res.json();
+    console.log('✅ Token refresh successful');
+    
+    localStorage.setItem(KEY_ACCESS, data.access_token);
+    localStorage.setItem(KEY_REFRESH, data.refresh_token);
+    localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
+    
+    return true;
+  } catch (e) {
+    console.error('❌ Refresh attempt error:', e);
+    // Don't logout on network errors, only on auth errors
+    return false;
+  } finally {
+    setRefreshInProgress(false);
+  }
+}, [refreshInProgress, logout]);
+
+
+  const authFetch = useCallback(async (url, options = {}) => {
+  let accessToken = localStorage.getItem(KEY_ACCESS);
+  
+  // Check if token is expired
+  if (accessToken && isTokenExpired(accessToken)) {
+    console.log('🔄 Access token expired, attempting refresh...');
+    const refreshed = await attemptRefresh();
+    if (!refreshed) {
+      console.error('❌ Token refresh failed during pre-check');
+      // Don't logout here - let the calling code handle it
+      throw new Error('Token refresh failed');
+    }
+    accessToken = localStorage.getItem(KEY_ACCESS);
+  }
+
+  const headers = {
+    ...(options.headers || {}),
+    'Content-Type': 'application/json'
+  };
+  
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  try {
+    const res = await fetch(url, { ...options, headers });
+    
+    // Only try refresh once on 401
+    if (res.status === 401 && !refreshInProgress) {
+      console.log('🔄 Got 401, attempting token refresh...');
+      const refreshed = await attemptRefresh();
+      
+      if (refreshed) {
+        const newToken = localStorage.getItem(KEY_ACCESS);
+        headers['Authorization'] = `Bearer ${newToken}`;
+        const retryRes = await fetch(url, { ...options, headers });
+        
+        // If still 401 after refresh, it's a permission/auth issue
+        if (retryRes.status === 401) {
+          console.warn('⚠️ Still 401 after token refresh - likely auth expired completely');
+          // Only NOW should we consider logging out
+          logout();
+          throw new Error('Authentication expired');
+        }
+        
+        return retryRes;
+      } else {
+        // Refresh failed - session is truly dead
+        console.error('❌ Token refresh failed on 401 retry');
+        logout();
+        throw new Error('Authentication failed - please log in again');
+      }
+    }
+    
+    return res;
+  } catch (error) {
+    console.error('authFetch error:', error);
+    
+    // Only logout on specific auth failures, not network errors
+    if (error.message && (
+      error.message.includes('Authentication expired') || 
+      error.message.includes('Authentication failed')
+    )) {
+      // Already logged out above
+    }
+    
+    throw error;
+  }
+}, [refreshInProgress, attemptRefresh, logout]);
+
   const login = async (email, password) => {
     const res = await fetch(`${BACKEND_URL}/login`, {
       method: 'POST',
@@ -101,15 +244,10 @@ export const AuthProvider = ({ children }) => {
 
     const data = await res.json();
     
-    console.log('✅ [AuthContext] Login successful, storing data');
-    console.log("LOGIN DATA", data);
-    
-    // Store tokens
     localStorage.setItem(KEY_ACCESS, data.access_token);
     localStorage.setItem(KEY_REFRESH, data.refresh_token);
     localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
     
-    // Store user data
     const mergedUserData = {
       ...data.user,
       ...(data.leaders || {})
@@ -117,63 +255,20 @@ export const AuthProvider = ({ children }) => {
     
     const userWithAvatar = ensureUserWithAvatar(mergedUserData);
     
-    console.log('📦 [AuthContext] Prepared user data:', {
-      email: userWithAvatar.email,
-      role: userWithAvatar.role,
-      id: userWithAvatar.id,
-      hasProfilePicture: !!userWithAvatar.profile_picture
-    });
-    
-    // Persist user data
     persistUser(userWithAvatar);
-    
-    // Store leaders and isLeader data
     persistLeadersData(data.leaders, data.isLeader);
     
-    // Also store profile picture separately for easy access
     if (userWithAvatar.profile_picture) {
       localStorage.setItem(KEY_PROFILE_PIC, userWithAvatar.profile_picture);
     }
 
-    // Verify localStorage write was successful
-    const verifyStore = localStorage.getItem(KEY_USER);
-    console.log('✅ [AuthContext] Verify localStorage write:', {
-      stored: !!verifyStore,
-      length: verifyStore?.length
-    });
-
     setUser(userWithAvatar);
     setIsAuthenticated(true);
-
-    console.log('✅ [AuthContext] User state updated:', {
-      email: userWithAvatar.email,
-      role: userWithAvatar.role,
-      hasProfilePicture: !!userWithAvatar.profile_picture,
-      isLeader: data.isLeader,
-      hasLeaders: !!data.leaders
-    });
     
     return data;
   };
 
-  const logout = useCallback(() => {
-    console.log('🚪 Logging out, clearing all data');
-    localStorage.removeItem(KEY_ACCESS);
-    localStorage.removeItem(KEY_REFRESH);
-    localStorage.removeItem(KEY_REFRESH_ID);
-    localStorage.removeItem(KEY_USER);
-    localStorage.removeItem(KEY_PROFILE_PIC);
-    localStorage.removeItem(KEY_LEADERS);
-    localStorage.removeItem(KEY_IS_LEADER);
-    setUser(null);
-    setLeaders(null);
-    setIsLeader(false);
-    setIsAuthenticated(false);
-  }, []);
-
   const updateProfilePicture = useCallback((newPictureUrl) => {
-    console.log('🔄 Updating profile picture in AuthContext:', newPictureUrl);
-    
     if (user) {
       const updatedUser = ensureUserWithAvatar({ 
         ...user, 
@@ -183,15 +278,11 @@ export const AuthProvider = ({ children }) => {
       });
       setUser(updatedUser);
       persistUser(updatedUser);
-      console.log('✅ Profile picture updated in AuthContext and localStorage');
     }
   }, [user]);
 
-  // Sync with localStorage changes (for cross-tab synchronization)
   useEffect(() => {
     const handleStorageChange = (e) => {
-      console.log('🔄 Storage change detected:', e.key);
-      
       if (e.key === KEY_USER || e.key === KEY_PROFILE_PIC) {
         const storedUser = localStorage.getItem(KEY_USER);
         if (storedUser) {
@@ -200,7 +291,7 @@ export const AuthProvider = ({ children }) => {
             const userWithAvatar = ensureUserWithAvatar(parsedUser);
             setUser(userWithAvatar);
           } catch (error) {
-            console.error('❌ Error parsing user from storage:', error);
+            console.error('Error parsing user from storage:', error);
           }
         } else {
           setUser(null);
@@ -214,7 +305,7 @@ export const AuthProvider = ({ children }) => {
           try {
             setLeaders(JSON.parse(storedLeaders));
           } catch (error) {
-            console.error('❌ Error parsing leaders from storage:', error);
+            console.error('Error parsing leaders from storage:', error);
           }
         } else {
           setLeaders(null);
@@ -227,7 +318,7 @@ export const AuthProvider = ({ children }) => {
           try {
             setIsLeader(JSON.parse(storedIsLeader));
           } catch (error) {
-            console.error('❌ Error parsing isLeader from storage:', error);
+            console.error('Error parsing isLeader from storage:', error);
           }
         } else {
           setIsLeader(false);
@@ -244,91 +335,15 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const attemptRefresh = async () => {
-    const refresh = localStorage.getItem(KEY_REFRESH);
-    const refreshId = localStorage.getItem(KEY_REFRESH_ID);
-    if (!refresh || !refreshId) return false;
-
-    if (refreshInProgress) return false;
-    setRefreshInProgress(true);
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/refresh-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refresh, refresh_token_id: refreshId })
-      });
-
-      if (!res.ok) {
-        logout();
-        return false;
-      }
-
-      const data = await res.json();
-      localStorage.setItem(KEY_ACCESS, data.access_token);
-      localStorage.setItem(KEY_REFRESH, data.refresh_token);
-      localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
-      return true;
-    } catch (e) {
-      console.error('Refresh attempt error', e);
-      logout();
-      return false;
-    } finally {
-      setRefreshInProgress(false);
-    }
-  };
-
-  const authFetch = useCallback(async (url, options = {}) => {
-    const makeRequest = async (token) => {
-      const headers = {
-        ...(options.headers || {}),
-        'Content-Type': 'application/json'
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      return fetch(url, { ...options, headers });
-    };
-
-    const accessToken = localStorage.getItem(KEY_ACCESS);
-
-    if (accessToken && isTokenExpired(accessToken)) {
-      const refreshed = await attemptRefresh();
-      if (!refreshed) return new Response(null, { status: 401, statusText: 'Unauthorized' });
-    }
-
-    let tokenToUse = localStorage.getItem(KEY_ACCESS);
-    let res = await makeRequest(tokenToUse);
-
-    if (res.status !== 401) return res;
-
-    const refreshed = await attemptRefresh();
-    if (!refreshed) return res; // still failing
-
-    tokenToUse = localStorage.getItem(KEY_ACCESS);
-    res = await makeRequest(tokenToUse);
-    return res;
-  }, [refreshInProgress, attemptRefresh]);
-
-  // Initialize auth from localStorage on mount
   useEffect(() => {
     let mounted = true;
 
     const initializeAuth = async () => {
       try {
-        console.log('🔄 [AuthContext] Initializing auth...');
-        
         const access = localStorage.getItem(KEY_ACCESS);
         const storedUser = localStorage.getItem(KEY_USER);
         const storedLeaders = localStorage.getItem(KEY_LEADERS);
         const storedIsLeader = localStorage.getItem(KEY_IS_LEADER);
-        
-        console.log('🔍 [AuthContext] Checking localStorage:', {
-          hasToken: !!access,
-          hasStoredUser: !!storedUser,
-          hasProfilePic: !!localStorage.getItem(KEY_PROFILE_PIC),
-          hasLeaders: !!storedLeaders,
-          hasIsLeader: !!storedIsLeader
-        });
         
         if (access && isTokenExpired(access)) {
           const refreshed = await attemptRefresh();
@@ -353,21 +368,19 @@ export const AuthProvider = ({ children }) => {
         const finalAccess = localStorage.getItem(KEY_ACCESS);
         const finalUser = storedUser ? ensureUserWithAvatar(JSON.parse(storedUser)) : null;
         
-        // Load leaders data if available
         if (storedLeaders) {
           try {
             setLeaders(JSON.parse(storedLeaders));
           } catch (error) {
-            console.error('❌ Error parsing leaders data:', error);
+            console.error('Error parsing leaders data:', error);
           }
         }
         
-        // Load isLeader data if available
         if (storedIsLeader) {
           try {
             setIsLeader(JSON.parse(storedIsLeader));
           } catch (error) {
-            console.error('❌ Error parsing isLeader data:', error);
+            console.error('Error parsing isLeader data:', error);
           }
         }
 
@@ -375,28 +388,16 @@ export const AuthProvider = ({ children }) => {
           if (mounted) {
             setUser(finalUser);
             setIsAuthenticated(true);
-            
-            console.log('✅ [AuthContext] User restored from localStorage:', {
-              email: finalUser.email,
-              role: finalUser.role,
-              isLeader: JSON.parse(storedIsLeader || 'false'),
-              hasLeaders: !!storedLeaders,
-              hasProfilePicture: !!finalUser.profile_picture
-            });
           }
         } else if (finalAccess && !finalUser) {
-          console.log('⚠️ [AuthContext] Token exists but no userProfile - logging out');
           if (mounted) logout();
-        } else {
-          console.log('❌ [AuthContext] No stored auth found');
         }
       } catch (error) {
-        console.error('❌ [AuthContext] Error initializing auth:', error);
+        console.error('Error initializing auth:', error);
         logout();
       } finally {
         if (mounted) {
           setLoading(false);
-          console.log('✅ [AuthContext] Auth initialization complete, loading set to false');
         }
       }
     };
@@ -404,9 +405,8 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
 
     return () => { mounted = false; };
-  }, [logout]);
+  }, [logout, attemptRefresh]);
 
-  // Listen for force logout events
   useEffect(() => {
     const handler = () => logout();
     window.addEventListener('force-logout', handler);
