@@ -96,10 +96,6 @@ export default function Sidebar({ mode, setMode }) {
   const [userHasCell, setUserHasCell] = useState(true);
   const [menuItems, setMenuItems] = useState([]);
 
-<<<<<<< HEAD
-=======
-  // Load mode from localStorage
->>>>>>> 980fcfe212caf73ec67e8ced39ce1ba561fc37e5
   useEffect(() => {
     const savedMode = localStorage.getItem('themeMode');
     if (savedMode) setMode(savedMode);
@@ -127,18 +123,8 @@ export default function Sidebar({ mode, setMode }) {
           hasCell = false;
           setUserHasCell(false);
         }
-<<<<<<< HEAD
       } else {
         setUserHasCell(true);
-=======
-
-        const data = await res.json();
-        setUserHasCell(Boolean(data.hasCell));
-        console.log('🔍 User cell check:', data);
-      } catch (err) {
-        console.error('Error checking user cell:', err);
-        setUserHasCell(false);
->>>>>>> 980fcfe212caf73ec67e8ced39ce1ba561fc37e5
       }
 
       const filteredItems = allMenuItems.filter(item => {
@@ -146,7 +132,7 @@ export default function Sidebar({ mode, setMode }) {
         const itemRolesLower = item.roles.map(role => role.toLowerCase());
         
         if (!itemRolesLower.includes(userRoleLower)) {
-          console.log(`❌ ${item.label}: User role ${userRole} not in ${item.roles}`);
+          console.log(` ${item.label}: User role ${userRole} not in ${item.roles}`);
           return false;
         }
         
