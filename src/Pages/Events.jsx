@@ -1,4 +1,3 @@
-import axios from "axios";
 import React, {
   useState,
   useEffect,
@@ -33,7 +32,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
 
 import Eventsfilter from "./AddPersonToEvents";
 import CreateEvents from "./CreateEvents";
@@ -724,8 +723,8 @@ const MobileEventCard = ({
   theme,
   styles,
   isAdmin,
-  isLeaderAt12,
-  currentUserLeaderAt1,
+  // isLeaderAt12,
+  // currentUserLeaderAt1,
   selectedEventTypeFilter,
 }) => {
   if (!theme) {
@@ -899,11 +898,7 @@ const { authFetch, logout } = useContext(AuthContext);
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
-  // const [, setSnackbar] = useState({
-  //   open: false,
-  //   message: "",
-  //   severity: "success",
-  // });
+
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState("all");
   const [rowsPerPage, setRowsPerPage] = useState(25);
@@ -922,7 +917,7 @@ const { authFetch, logout } = useContext(AuthContext);
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
 
   const initialViewFilter = useMemo(() => {
     if (isLeaderAt12) {
@@ -1115,9 +1110,7 @@ const { authFetch, logout } = useContext(AuthContext);
         if (response.status === 401) {
           console.log('Authentication failed, attempting refresh...');
           try {
-            // Try to refresh token
-            await refreshToken();
-            // Retry the request
+            // await refreshToken();
             const newToken = localStorage.getItem("access_token");
             const retryResponse = await fetch(fullUrl, {
               method: "GET",
@@ -1967,8 +1960,6 @@ const handlePreviousPage = useCallback(() => {
       setEditingEventType(null);
     }, 300);
   }, []);
-
-
 
   const handleDeleteType = useCallback(async () => {
   try {
@@ -3899,12 +3890,14 @@ const ViewFilterButtons = () => {
         </Box>
       )}
 
-      <EditEventModal
-        isOpen={editModalOpen}
-        onClose={handleCloseEditModal}
-        event={selectedEvent}
-        onSave={handleSaveEvent}
-      />
+<EditEventModal
+  isOpen={editModalOpen}
+  onClose={handleCloseEditModal}
+  event={selectedEvent}
+  onSave={handleSaveEvent}
+  token={localStorage.getItem("access_token")}
+  refreshEvents={fetchEvents}
+/>
       <Dialog
         open={confirmDeleteOpen}
         onClose={() => setConfirmDeleteOpen(false)}
