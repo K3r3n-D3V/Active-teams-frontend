@@ -1459,64 +1459,64 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  const savePersistentCommonAttendeesToDB = async (attendees) => {
-    if (!event) return false;
+  // const savePersistentCommonAttendeesToDB = async (attendees) => {
+  //   if (!event) return false;
 
-    let eventId = event._id || event.id;
+  //   let eventId = event._id || event.id;
 
-    if (eventId && eventId.includes("_")) {
-      const parts = eventId.split("_");
-      eventId = parts[0];
-      console.log(`Cleaned event ID: ${eventId} (removed date suffix)`);
-    }
+  //   if (eventId && eventId.includes("_")) {
+  //     const parts = eventId.split("_");
+  //     eventId = parts[0];
+  //     console.log(`Cleaned event ID: ${eventId} (removed date suffix)`);
+  //   }
 
-    if (!eventId) {
-      toast.error("No event ID found");
-      return false;
-    }
+  //   if (!eventId) {
+  //     toast.error("No event ID found");
+  //     return false;
+  //   }
 
-    try {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
+  //   try {
+  //     const token = localStorage.getItem("token");
+  //     const headers = {
+  //       "Content-Type": "application/json",
+  //       Authorization: `Bearer ${token}`,
+  //     };
 
-      // Format attendees
-      const formattedAttendees = attendees.map(p => ({
-        id: p.id || p._id || "",
-        name: p.fullName || p.name || "",
-        fullName: p.fullName || p.name || "",
-        email: p.email || "",
-        leader12: p.leader12 || "",
-        leader144: p.leader144 || "",
-        phone: p.phone || ""
-      })).filter(p => p.id);
+  //     // Format attendees
+  //     const formattedAttendees = attendees.map(p => ({
+  //       id: p.id || p._id || "",
+  //       name: p.fullName || p.name || "",
+  //       fullName: p.fullName || p.name || "",
+  //       email: p.email || "",
+  //       leader12: p.leader12 || "",
+  //       leader144: p.leader144 || "",
+  //       phone: p.phone || ""
+  //     })).filter(p => p.id);
 
-      console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
+  //     console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
 
-      const response = await authFetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify({
-          persistent_attendees: formattedAttendees
-        }),
-      });
+  //     const response = await authFetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
+  //       method: "PUT",
+  //       headers: headers,
+  //       body: JSON.stringify({
+  //         persistent_attendees: formattedAttendees
+  //       }),
+  //     });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to save: ${response.status} - ${errorText}`);
-      }
+  //     if (!response.ok) {
+  //       const errorText = await response.text();
+  //       throw new Error(`Failed to save: ${response.status} - ${errorText}`);
+  //     }
 
-      console.log(" Attendees saved to database");
-      return true;
+  //     console.log(" Attendees saved to database");
+  //     return true;
 
-    } catch (error) {
-      console.error("Error saving:", error);
-      toast.error("Failed to save attendees");
-      return false;
-    }
-  };
+  //   } catch (error) {
+  //     console.error("Error saving:", error);
+  //     toast.error("Failed to save attendees");
+  //     return false;
+  //   }
+  // };
 
   function get_current_week_identifier() {
     const now = new Date();
@@ -1766,144 +1766,129 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     person.email.toLowerCase().includes(associateSearch.toLowerCase())
   );
 
-  const handleSave = async () => {
-    const allPeople = getAllCommonAttendees();
-    console.log(" All people for save:", allPeople);
+ const handleSave = async () => {
+  const allPeople = getAllCommonAttendees();
+  const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
 
-    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    console.log(" Checked-in attendees:", attendeesList);
+  if (!didNotMeet && attendeesList.length === 0) {
+    toast.error("Please check in at least one attendee before saving.");
+    return;
+  }
 
-    if (!didNotMeet && attendeesList.length === 0) {
-      toast.error("Please check in at least one attendee before saving.");
-      return;
-    }
+  let eventId = event?.id || event?._id;
+  if (eventId && eventId.includes("_")) {
+    eventId = eventId.split("_")[0];
+  }
 
-    // Get clean event ID
-    let eventId = event?.id || event?._id;
-    if (eventId && eventId.includes("_")) {
-      const parts = eventId.split("_");
-      eventId = parts[0];
-    }
+  if (!eventId) {
+    toast.error("Event ID is missing, cannot submit attendance.");
+    return;
+  }
 
-    if (!eventId) {
-      toast.error("Event ID is missing, cannot submit attendance.");
-      return;
-    }
+  try {
+    const selectedAttendees = attendeesList.map((id) => {
+      const person = allPeople.find((p) => p && p.id === id);
+      if (!person) return null;
 
-    try {
-      const selectedAttendees = attendeesList.map((id) => {
-        const person = allPeople.find((p) => p && p.id === id);
-
-        if (!person) {
-          console.warn(`Person with id ${id} not found in allPeople`);
-          return null;
-        }
-
-        const attendee = {
-          id: person.id,
-          name: person.fullName || "",
-          email: person.email || "",
-          fullName: person.fullName || "",
-          leader12: person.leader12 || "",
-          leader144: person.leader144 || "",
-          phone: person.phone || "",
-          time: new Date().toISOString(),
-          decision: decisions[id] ? decisionTypes[id] || "" : "",
-          checked_in: true
-        };
-
-        if (isTicketedEvent) {
-          attendee.priceTier = priceTiers[id]?.name || "";
-          attendee.price = priceTiers[id]?.price || 0;
-          attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-          attendee.memberType = priceTiers[id]?.memberType || "";
-          attendee.paymentMethod = paymentMethods[id] || "";
-          attendee.paid = paidAmounts[id] || 0;
-          attendee.owing = calculateOwing(id);
-        }
-
-        return attendee;
-      }).filter(attendee => attendee !== null);
-
-      console.log("Final selected attendees:", selectedAttendees);
-
-      // IMPORTANT: Use clean event ID in payload
-      const payload = {
-        attendees: didNotMeet ? [] : selectedAttendees,
-        persistent_attendees: allPeople.map(p => ({
-          id: p.id,
-          name: p.fullName,
-          fullName: p.fullName,
-          email: p.email,
-          leader12: p.leader12,
-          leader144: p.leader144,
-          phone: p.phone
-        })),
-        leaderEmail: currentUser?.email || "",
-        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-        did_not_meet: didNotMeet,
-        isTicketed: isTicketedEvent,
-        week: get_current_week_identifier()
+      const attendee = {
+        id: person.id,
+        name: person.fullName || "",
+        email: person.email || "",
+        fullName: person.fullName || "",
+        leader12: person.leader12 || "",
+        leader144: person.leader144 || "",
+        phone: person.phone || "",
+        time: new Date().toISOString(),
+        decision: decisions[id] ? decisionTypes[id] || "" : "",
+        checked_in: true
       };
 
-      console.log("Submitting weekly attendance to event ID:", eventId);
-
-      let result;
-
-      if (typeof onSubmit === "function") {
-        result = await onSubmit(payload);
-      } else {
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
-
-        const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-          method: "PUT",
-          headers: headers,
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-        }
-
-        result = await response.json();
+      if (isTicketedEvent) {
+        attendee.priceTier = priceTiers[id]?.name || "";
+        attendee.price = priceTiers[id]?.price || 0;
+        attendee.ageGroup = priceTiers[id]?.ageGroup || "";
+        attendee.memberType = priceTiers[id]?.memberType || "";
+        attendee.paymentMethod = paymentMethods[id] || "";
+        attendee.paid = paidAmounts[id] || 0;
+        attendee.owing = calculateOwing(id);
       }
 
-      console.log("Save result:", result);
+      return attendee;
+    }).filter(attendee => attendee !== null);
 
-      if (result && result.success) {
-        toast.success("Attendance saved successfully!");
+    const payload = {
+      attendees: selectedAttendees,
+      persistent_attendees: allPeople.map(p => ({
+        id: p.id,
+        name: p.fullName,
+        fullName: p.fullName,
+        email: p.email,
+        leader12: p.leader12,
+        leader144: p.leader144,
+        phone: p.phone
+      })),
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      did_not_meet: selectedAttendees.length === 0 ? didNotMeet : false,
+      isTicketed: isTicketedEvent,
+      week: get_current_week_identifier()
+    };
 
-        if (typeof onClose === "function") {
-          onClose();
-        }
+    let result;
 
-        if (typeof onAttendanceSubmitted === "function") {
-          onAttendanceSubmitted();
-        }
-      } else {
-        throw new Error(result?.message || "Failed to save attendance");
-      }
-
-    } catch (error) {
-      console.error("Error saving attendance:", error);
-      toast.error(error.message || "Failed to save attendance. Please try again.");
-    }
-  };
-
-  const handleSubmitAttendance = (attendanceData) => {
-
-    if (onSubmit) {
-      return onSubmit(attendanceData);
+    if (typeof onSubmit === "function") {
+      result = await onSubmit(payload);
     } else {
-      console.error("No onSubmit prop provided to AttendanceModal");
-      return Promise.resolve({ success: false, message: "No submit handler" });
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+        method: "PUT",
+        headers: headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+      }
+
+      result = await response.json();
     }
-  };
+
+    if (result && result.success) {
+      // toast.success("Attendance saved successfully!");
+      setDidNotMeet(false);
+
+      if (typeof onClose === "function") {
+        onClose();
+      }
+
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted();
+      }
+    } else {
+      throw new Error(result?.message || "Failed to save attendance");
+    }
+
+  } catch (error) {
+    console.error("Error saving attendance:", error);
+    toast.error(error.message || "Failed to save attendance. Please try again.");
+  }
+};
+
+  // const handleSubmitAttendance = (attendanceData) => {
+
+  //   if (onSubmit) {
+  //     return onSubmit(attendanceData);
+  //   } else {
+  //     console.error("No onSubmit prop provided to AttendanceModal");
+  //     return Promise.resolve({ success: false, message: "No submit handler" });
+  //   }
+  // };
   const handleDidNotMeet = () => {
     setShowDidNotMeetConfirm(true);
   };
