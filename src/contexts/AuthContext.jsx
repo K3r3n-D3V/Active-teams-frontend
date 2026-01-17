@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 
-const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}` || 'http://localhost:8000';
+const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
 const KEY_ACCESS = 'access_token';
 const KEY_REFRESH = 'refresh_token';
