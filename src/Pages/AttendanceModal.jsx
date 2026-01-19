@@ -18,7 +18,7 @@ let globalPeopleCache = {
   expiry: 5 * 60 * 1000,
 };
 
-const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
+const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
@@ -446,14 +446,9 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         confirmMsg += `Changes:\n${changes.join('\n')}\n\n`;
       }
       
-      // Special warning for status changes
       if (isStatusChanging) {
-        confirmMsg += `⚠️  STATUS CHANGE WARNING:\n`;
         confirmMsg += `This will update the status for ALL matching events and will be visible to ALL users (admin and all leaders).\n\n`;
       }
-      
-      confirmMsg += `Other events (different names/days) will NOT be affected.\n\n`;
-      confirmMsg += `Continue?`;
     }
 
     if (confirmMsg && !window.confirm(confirmMsg)) {
@@ -461,7 +456,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       return;
     }
 
-    const userToken = localStorage.getItem("access_token") || token;
+    const userToken = localStorage.getItem("access_token");
     if (!userToken) {
       toast.error("No authentication token found. Please log in again.");
       setLoading(false);
@@ -498,16 +493,13 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
     const result = await response.json();
     
-    // =========== FIX: Handle success with onSave callback ===========
     if (isStatusChanging) {
-      // Special success message for status changes
       if (editScope === 'person') {
-        toast.success(`✅ Status updated to "${newStatus}" for ${result.modified_count || 0} events - Now visible to ALL users`);
+        toast.success(` Status updated to "${newStatus}" for ${result.modified_count || 0} events - Now visible to ALL users`);
       } else {
-        toast.success(`✅ Status updated to "${newStatus}" - Now visible to ALL users (admin and leaders)`);
+        toast.success(` Status updated to "${newStatus}" - Now visible to ALL users (admin and leaders)`);
       }
     } else {
-      // Regular success message for non-status changes
       if (editScope === 'person') {
         if (result.success) {
           if (result.modified_count === 0) {
@@ -531,7 +523,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       }
     }
     
-    // =========== FIX: Call onSave with success data ===========
     if (onSave) {
       onSave({
         success: true,
@@ -542,7 +533,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       });
     }
     
-    // =========== FIX: Close the modal ===========
     onClose();
 
   } catch (error) {
@@ -551,7 +541,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       toast.error(`Failed to save: ${error.message || error}`);
     }
     
-    // Call onSave with error
     if (onSave) {
       onSave({ success: false, error: error.message });
     }
@@ -989,13 +978,13 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
     leader144: []
   });
 
-  const [showDropdowns, setShowDropdowns] = useState({
+  const [, setShowDropdowns] = useState({
     leader1: false,
     leader12: false,
     leader144: false
   });
 
-  const [loadingLeaders, setLoadingLeaders] = useState(false);
+  const [, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 

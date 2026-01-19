@@ -864,9 +864,11 @@ const { authFetch, logout } = React.useContext(AuthContext);
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
+  const token = localStorage.getItem("access_token");
   const eventTypeStyles = useMemo(() => {
     return getEventTypeStyles(isDarkMode, theme);
   }, [isDarkMode, theme]);
+  console.log(eventTypeStyles)
 
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role?.toLowerCase() || "";
@@ -897,11 +899,7 @@ const { authFetch, logout } = React.useContext(AuthContext);
   const [selectedEventTypeObj, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
-  // const [, setSnackbar] = useState({
-  //   open: false,
-  //   message: "",
-  //   severity: "success",
-  // });
+ 
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState("all");
   const [rowsPerPage, setRowsPerPage] = useState(25);
@@ -1885,78 +1883,80 @@ const handlePreviousPage = useCallback(() => {
     ]
   );
 
-  const handleCloseEditModal = useCallback(
-    async (shouldRefresh = false) => {
-      setEditModalOpen(false);
-      setSelectedEvent(null);
+ const handleCloseEditModal = useCallback(
+  async (shouldRefresh = false) => {
+    setEditModalOpen(false);
+    setSelectedEvent(null);
 
-      if (shouldRefresh) {
-        clearCache();
+    if (shouldRefresh) {
+      clearCache();
 
-        await new Promise((resolve) => setTimeout(resolve, 200));
+      const refreshParams = {
+        page: currentPage,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        _t: Date.now(),
+      };
 
-        const refreshParams = {
-          page: currentPage,
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now(),
-        };
-
-        if (selectedStatus && selectedStatus !== "all") {
-          refreshParams.status = selectedStatus;
-        }
-
-        if (searchQuery && searchQuery.trim()) {
-          refreshParams.search = searchQuery.trim();
-        }
-
-        if (selectedEventTypeFilter === "all") {
-          refreshParams.event_type = "CELLS";
-        } else if (selectedEventTypeFilter) {
-          refreshParams.event_type = selectedEventTypeFilter;
-        }
-
-        if (
-          isLeaderAt12 &&
-          (selectedEventTypeFilter === "all" ||
-            selectedEventTypeFilter === "CELLS")
-        ) {
-          refreshParams.leader_at_12_view = true;
-          refreshParams.include_subordinate_cells = true;
-
-          if (currentUserLeaderAt1) {
-            refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-          }
-
-          if (viewFilter === "personal") {
-            refreshParams.show_personal_cells = true;
-            refreshParams.personal = true;
-          } else {
-            refreshParams.show_all_authorized = true;
-          }
-        }
-
-        Object.keys(refreshParams).forEach(
-          (key) => refreshParams[key] === undefined && delete refreshParams[key]
-        );
-
-        await fetchEvents(refreshParams, true);
+      if (selectedStatus && selectedStatus !== "all") {
+        refreshParams.status = selectedStatus;
       }
-    },
-    [
-      clearCache,
-      currentPage,
-      rowsPerPage,
-      selectedStatus,
-      searchQuery,
-      selectedEventTypeFilter,
-      fetchEvents,
-      DEFAULT_API_START_DATE,
-      isLeaderAt12,
-      currentUserLeaderAt1,
-      viewFilter,
-    ]
-  );
+
+      if (searchQuery && searchQuery.trim()) {
+        refreshParams.search = searchQuery.trim();
+      }
+
+      if (selectedEventTypeFilter === "all") {
+        refreshParams.event_type = "CELLS";
+      } else if (selectedEventTypeFilter) {
+        refreshParams.event_type = selectedEventTypeFilter;
+      }
+
+      if (
+        isLeaderAt12 &&
+        (selectedEventTypeFilter === "all" ||
+          selectedEventTypeFilter === "CELLS")
+      ) {
+        refreshParams.leader_at_12_view = true;
+        refreshParams.include_subordinate_cells = true;
+
+        if (currentUserLeaderAt1) {
+          refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+        }
+
+        if (viewFilter === "personal") {
+          refreshParams.show_personal_cells = true;
+          refreshParams.personal = true;
+        } else {
+          refreshParams.show_all_authorized = true;
+        }
+      }
+
+      Object.keys(refreshParams).forEach(
+        (key) => (refreshParams[key] === undefined || refreshParams[key] === '') && delete refreshParams[key]
+      );
+
+      await fetchEvents(refreshParams, true);
+      
+      setTimeout(() => {
+        fetchEvents(refreshParams, false);
+      }, 300);
+    }
+  },
+  [
+    clearCache,
+    currentPage,
+    rowsPerPage,
+    selectedStatus,
+    searchQuery,
+    selectedEventTypeFilter,
+    fetchEvents,
+    DEFAULT_API_START_DATE,
+    isLeaderAt12,
+    currentUserLeaderAt1,
+    viewFilter,
+  ]
+);
 
   const handleCloseEventTypesModal = useCallback(() => {
     setEventTypesModalOpen(false);
@@ -3894,13 +3894,14 @@ const ViewFilterButtons = () => {
           </Box>
         </Box>
       )}
-
-      <EditEventModal
-        isOpen={editModalOpen}
-        onClose={handleCloseEditModal}
-        event={selectedEvent}
-        onSave={handleSaveEvent}
-      />
+<EditEventModal
+  isOpen={editModalOpen}
+  onClose={(shouldRefresh = false) => {
+    handleCloseEditModal(shouldRefresh);
+  }}
+  event={selectedEvent}
+  token={token}
+/>
       <Dialog
         open={confirmDeleteOpen}
         onClose={() => setConfirmDeleteOpen(false)}

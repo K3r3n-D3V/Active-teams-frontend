@@ -24,7 +24,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [editScope, setEditScope] = useState('single');
-  const [contextFilter, setContextFilter] = useState('all');
+  const [contextFilter, ] = useState('all');
+  const [isCellEvent, setIsCellEvent] = useState(false); 
   const [, setPersonIdentifier] = useState('');
   const [originalPersonIdentifier, setOriginalPersonIdentifier] = useState('');
   const [originalContext, setOriginalContext] = useState({ day: null, location: null, eventName: null });
@@ -44,7 +45,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     try {
       const storedProfile = localStorage.getItem("userProfile");
       if (storedProfile) return JSON.parse(storedProfile).role || "user";
-    } catch (e) { return "user"; }
+    } catch { return "user"; }
     return "user";
   });
 
@@ -105,6 +106,15 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       const location = cleanEvent.Address || cleanEvent.location || null;
       const eventName = cleanEvent['Event Name'] || cleanEvent.eventName || null;
       setOriginalContext({ day, location, eventName });
+      const eventType = cleanEvent['Event Type'] || cleanEvent.eventType || '';
+      const isCell = eventType.toLowerCase() === 'cells';
+      setIsCellEvent(isCell);
+      
+      if (isCell) {
+        setEditScope('person'); 
+      } else {
+        setEditScope('single'); 
+      }
 
       const initialData = {};
       Object.keys(cleanEvent).forEach(key => {
@@ -229,259 +239,202 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     }
   };
 
-
-const prepareUpdateData = () => {
-  const cleanData = {};
-  
-  changedFields.forEach(field => {
-    if (isFieldDisabled(field)) return;
-    const value = formData[field];
+  const prepareUpdateData = () => {
+    const cleanData = {};
     
-    if (value === '' || value === null || value === undefined) {
-      cleanData[field] = null;
-    } else {
-      cleanData[field] = value;
-    }
+    changedFields.forEach(field => {
+      if (isFieldDisabled(field)) return;
+      const value = formData[field];
+      
+      if (value === '' || value === null || value === undefined) {
+        cleanData[field] = null;
+      } else {
+        cleanData[field] = value;
+      }
+      
+      // Special handling for status fields
+      if (field === 'status' || field === 'Status') {
+        cleanData['status'] = value;
+        cleanData['Status'] = value;
+      }
+      
+      if (field === 'eventName' || field === 'Event Name') {
+        cleanData['eventName'] = value;
+        cleanData['Event Name'] = value;
+      }
+      
+      if (field === 'Day' || field === 'day') {
+        cleanData['Day'] = value;
+        cleanData['day'] = value;
+      }
+      
+      if (field === 'Address' || field === 'location') {
+        cleanData['Address'] = value;
+        cleanData['location'] = value;
+      }
+      
+      if (field === 'Time' || field === 'time') {
+        cleanData['Time'] = value;
+        cleanData['time'] = value;
+      }
+      
+      if (field === 'Email' || field === 'eventLeaderEmail') {
+        cleanData['Email'] = value;
+        cleanData['eventLeaderEmail'] = value;
+      }
+    });
     
-    // Special handling for status fields
-    if (field === 'status' || field === 'Status') {
-      cleanData['status'] = value;
-      cleanData['Status'] = value;
-    }
-    
-    if (field === 'eventName' || field === 'Event Name') {
-      cleanData['eventName'] = value;
-      cleanData['Event Name'] = value;
-    }
-    
-    if (field === 'Day' || field === 'day') {
-      cleanData['Day'] = value;
-      cleanData['day'] = value;
-    }
-    
-    if (field === 'Address' || field === 'location') {
-      cleanData['Address'] = value;
-      cleanData['location'] = value;
-    }
-    
-    if (field === 'Time' || field === 'time') {
-      cleanData['Time'] = value;
-      cleanData['time'] = value;
-    }
-    
-    if (field === 'Email' || field === 'eventLeaderEmail') {
-      cleanData['Email'] = value;
-      cleanData['eventLeaderEmail'] = value;
-    }
-  });
-  
-  return cleanData;
-};
-
+    return cleanData;
+  };
 
   const handleSubmit = async () => {
-  try {
-    setLoading(true);
-    
-    if (changedFields.length === 0) {
-      toast.info("No changes made");
-      onClose();
-      return;
-    }
-
-    const unauthorizedFields = changedFields.filter(field => isFieldDisabled(field));
-    if (unauthorizedFields.length > 0) {
-      toast.error(`You don't have permission to modify: ${unauthorizedFields.join(', ')}`);
-      setLoading(false);
-      return;
-    }
-
-    // =========== FIX: Detect and log status changes for synchronization ===========
-    const isStatusChanging = changedFields.includes('status') || changedFields.includes('Status');
-    const newStatus = formData.status || formData.Status;
-    const oldStatus = event?.status || event?.Status;
-    
-    if (isStatusChanging && newStatus !== oldStatus) {
-      console.log(`🔁 STATUS CHANGE DETECTED:`);
-      console.log(`   - From: ${oldStatus || '(empty)'}`);
-      console.log(`   - To: ${newStatus}`);
-      console.log(`   - Changed by: ${loggedInUserRole}`);
-      console.log(`   - Scope: ${editScope}`);
-      console.log(`   - Will synchronize for ALL users`);
+    try {
+      setLoading(true);
       
-      // Show info toast for status changes
-      toast.info(`Updating status to "${newStatus}" - This will sync for all users`);
-    }
+      if (changedFields.length === 0) {
+        toast.info("No changes made");
+        onClose();
+        return;
+      }
 
-    const updateData = prepareUpdateData();
-    
-    if (Object.keys(updateData).length === 0) {
-      toast.info("No valid changes to save");
-      setLoading(false);
-      return;
-    }
-
-    let endpoint, method, body;
-    let confirmMsg = '';
-
-    const originalEventName = event['Event Name'] || event.eventName;
-    const originalDay = event.Day || event.day;
-    const originalPerson = event.Leader || event.eventLeader || event.eventLeaderName;
-    
-    const newEventName = formData['Event Name'] || formData.eventName;
-    const newDay = formData.Day || formData.day;
-
-    if (editScope === 'single') {
-      let identifier = event._id || event.id || event.UUID;
-      if (identifier?.includes?.('_')) identifier = identifier.split('_')[0];
-      
-      if (!identifier) {
-        toast.error("Cannot update: Event ID not found");
+      const unauthorizedFields = changedFields.filter(field => isFieldDisabled(field));
+      if (unauthorizedFields.length > 0) {
+        toast.error(`You don't have permission to modify: ${unauthorizedFields.join(', ')}`);
         setLoading(false);
         return;
       }
+
+      const updateData = prepareUpdateData();
       
-      endpoint = `/events/cells/${identifier}`;
-      method = 'PUT';
-      body = JSON.stringify(updateData);
+      if (Object.keys(updateData).length === 0) {
+        toast.info("No valid changes to save");
+        setLoading(false);
+        return;
+      }
+
+      let endpoint, method, body;
+
+      const originalEventName = event['Event Name'] || event.eventName;
+      const originalDay = event.Day || event.day;
+      const originalPerson = event.Leader || event.eventLeader || event.eventLeaderName;
       
-      if (newEventName && newEventName !== originalEventName) {
-        confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\n`;
-        confirmMsg += `This will update ONLY this specific event.\n\n`;
+      const newEventName = formData['Event Name'] || formData.eventName;
+      const newDay = formData.Day || formData.day;
+
+      if (editScope === 'single') {
+        let identifier = event._id || event.id || event.UUID;
+        if (identifier?.includes?.('_')) identifier = identifier.split('_')[0];
+        
+        if (!identifier) {
+          toast.error("Cannot update: Event ID not found");
+          setLoading(false);
+          return;
+        }
+        
+        endpoint = `/events/cells/${identifier}`;
+        method = 'PUT';
+        body = JSON.stringify(updateData);
+        
+        if (newEventName && newEventName !== originalEventName) {
+          const confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\nThis will update ONLY this specific event.\n\nContinue?`;
+          if (!window.confirm(confirmMsg)) {
+            setLoading(false);
+            return;
+          }
+        }
+      } 
+      else if (editScope === 'person') {
+        if (!originalPersonIdentifier) {
+          toast.error("Cannot update: Person identifier not found");
+          setLoading(false);
+          return;
+        }
+        
+        if (!originalEventName) {
+          toast.error("Cannot update: Original event name is required for 'Update All'");
+          setLoading(false);
+          return;
+        }
+        
+        if (!originalDay) {
+          toast.error("Cannot update: Original day is required for 'Update All'");
+          setLoading(false);
+          return;
+        }
+        
+        endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/event/${encodeURIComponent(originalEventName)}/day/${encodeURIComponent(originalDay)}`;
+        method = 'PUT';
+        body = JSON.stringify(updateData);
+        
+        let confirmMsg = `This will update ONLY:\n\n`;
+        confirmMsg += `• Person: ${originalPersonIdentifier}\n`;
+        confirmMsg += `• Event name: "${originalEventName}"\n`;
+        confirmMsg += `• Day: ${originalDay}\n\n`;
+        
+        const changes = [];
+        if (newEventName && newEventName !== originalEventName) {
+          changes.push(`Event name: "${originalEventName}" → "${newEventName}"`);
+        }
+        if (newDay && newDay !== originalDay) {
+          changes.push(`Day: ${originalDay} → ${newDay}`);
+        }
+        
+        const otherFields = changedFields.filter(f => 
+          !['Event Name', 'eventName', 'Day', 'day'].includes(f)
+        );
+        if (otherFields.length > 0) {
+          changes.push(`Other fields: ${otherFields.join(', ')}`);
+        }
+        
+        if (changes.length > 0) {
+          confirmMsg += `Changes:\n${changes.join('\n')}\n\n`;
+        }
+        
         confirmMsg += `Continue?`;
+        
+        if (!window.confirm(confirmMsg)) {
+          setLoading(false);
+          return;
+        }
       }
-      
-      // Special confirmation for status changes
-      if (isStatusChanging && !confirmMsg) {
-        confirmMsg = `Change status from "${oldStatus || 'no status'}" to "${newStatus}"?\n\n`;
-        confirmMsg += `This will update the status for ALL users (admin and all leaders).\n\n`;
-        confirmMsg += `Continue?`;
-      }
-    } 
-    else if (editScope === 'person') {
-      if (!originalPersonIdentifier) {
-        toast.error("Cannot update: Person identifier not found");
+
+      const userToken = localStorage.getItem("access_token") || token;
+      if (!userToken) {
+        toast.error("No authentication token found. Please log in again.");
         setLoading(false);
         return;
       }
-      
-      if (!originalEventName) {
-        toast.error("Cannot update: Original event name is required for 'Update All'");
-        setLoading(false);
-        return;
-      }
-      
-      if (!originalDay) {
-        toast.error("Cannot update: Original day is required for 'Update All'");
-        setLoading(false);
-        return;
-      }
-      
-      endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/event/${encodeURIComponent(originalEventName)}/day/${encodeURIComponent(originalDay)}`;
-      method = 'PUT';
-      body = JSON.stringify(updateData);
-      
-      confirmMsg = `This will update ONLY:\n\n`;
-      confirmMsg += `• Person: ${originalPersonIdentifier}\n`;
-      confirmMsg += `• Event name: "${originalEventName}"\n`;
-      confirmMsg += `• Day: ${originalDay}\n\n`;
-      
-      const changes = [];
-      if (newEventName && newEventName !== originalEventName) {
-        changes.push(`Event name: "${originalEventName}" → "${newEventName}"`);
-      }
-      if (newDay && newDay !== originalDay) {
-        changes.push(`Day: ${originalDay} → ${newDay}`);
-      }
-      
-      if (isStatusChanging) {
-        changes.push(`Status: "${oldStatus || 'no status'}" → "${newStatus}"`);
-      }
-      
-      const otherFields = changedFields.filter(f => 
-        !['Event Name', 'eventName', 'Day', 'day', 'status', 'Status'].includes(f)
-      );
-      if (otherFields.length > 0) {
-        changes.push(`Other fields: ${otherFields.join(', ')}`);
-      }
-      
-      if (changes.length > 0) {
-        confirmMsg += `Changes:\n${changes.join('\n')}\n\n`;
-      }
-      
-      // Special warning for status changes
-      if (isStatusChanging) {
-        confirmMsg += `⚠️  STATUS CHANGE WARNING:\n`;
-        confirmMsg += `This will update the status for ALL matching events and will be visible to ALL users (admin and all leaders).\n\n`;
-      }
-      
-      confirmMsg += `Other events (different names/days) will NOT be affected.\n\n`;
-      confirmMsg += `Continue?`;
-    }
 
-    if (confirmMsg && !window.confirm(confirmMsg)) {
-      setLoading(false);
-      return;
-    }
+      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+        method, 
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${userToken}` 
+        }, 
+        body
+      });
 
-    const userToken = localStorage.getItem("access_token") || token;
-    if (!userToken) {
-      toast.error("No authentication token found. Please log in again.");
-      setLoading(false);
-      return;
-    }
-
-    console.log(`📤 Sending update request to: ${endpoint}`);
-    console.log(`   - Method: ${method}`);
-    console.log(`   - Status change: ${isStatusChanging ? 'YES' : 'NO'}`);
-    console.log(`   - Update data:`, updateData);
-
-    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-      method, 
-      headers: { 
-        'Content-Type': 'application/json', 
-        'Authorization': `Bearer ${userToken}` 
-      }, 
-      body
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try { errorData = JSON.parse(errorText); } catch { errorData = { detail: errorText }; }
-      
-      if (response.status === 404) {
-        toast.error(`Not found: ${errorData.detail || 'The event or events could not be found'}`);
-      } else if (response.status === 401) {
-        toast.error("Your session has expired. Please log in again.");
-        localStorage.removeItem("access_token");
-      } else if (response.status === 409) {
-        toast.error(`Conflict: ${errorData.detail || 'Duplicate event detected'}`);
-      } else {
-        toast.error(`Update failed: ${errorData.detail || errorData.message || `Error ${response.status}`}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try { errorData = JSON.parse(errorText); } catch { errorData = { detail: errorText }; }
+        
+        if (response.status === 404) {
+          toast.error(`Not found: ${errorData.detail || 'The event or events could not be found'}`);
+        } else if (response.status === 401) {
+          toast.error("Your session has expired. Please log in again.");
+          localStorage.removeItem("access_token");
+        } else if (response.status === 409) {
+          toast.error(`Conflict: ${errorData.detail || 'Duplicate event detected'}`);
+        } else {
+          toast.error(`Update failed: ${errorData.detail || errorData.message || `Error ${response.status}`}`);
+        }
+        
+        throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
       }
-      
-      throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
-    }
 
-    const result = await response.json();
-    
-    console.log(`✅ Update successful:`, result);
-    
-    // =========== FIX: Enhanced success handling for status changes ===========
-    if (isStatusChanging) {
-      console.log(`🔄 Status synchronization complete:`);
-      console.log(`   - New status: ${newStatus}`);
-      console.log(`   - Will be visible to ALL users immediately`);
+      const result = await response.json();
       
-      // Show special success message for status changes
-      if (editScope === 'person') {
-        toast.success(`✅ Status updated to "${newStatus}" for ${result.modified_count || 0} events - Now visible to ALL users`);
-      } else {
-        toast.success(`✅ Status updated to "${newStatus}" - Now visible to ALL users (admin and leaders)`);
-      }
-    } else {
-      // Regular success message for non-status changes
       if (editScope === 'person') {
         if (result.success) {
           if (result.modified_count === 0) {
@@ -503,31 +456,18 @@ const prepareUpdateData = () => {
           toast.error(result.message || 'Update failed');
         }
       }
-    }
-    
-    // =========== FIX: Force refresh to ensure ALL users see changes ===========
-    if (refreshEvents) {
-      console.log(`🔄 Refreshing events list to show updated status...`);
       
-      // Small delay to ensure backend updates are complete
-      setTimeout(() => {
-        refreshEvents();
-        console.log(`🔄 Events list refreshed - Changes now visible to ALL users`);
-      }, 300);
-    }
-    
-    // =========== FIX: Close modal ===========
-    onClose();
+      onClose(true);
 
-  } catch (error) {
-    console.error("❌ Error saving:", error);
-    if (!error.message.includes('401')) {
-      toast.error(`Failed to save: ${error.message || error}`);
+    } catch (error) {
+      console.error("Error saving:", error);
+      if (!error.message.includes('401')) {
+        toast.error(`Failed to save: ${error.message || error}`);
+      }
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const renderField = (field) => {
     const value = formData[field] || '';
@@ -722,8 +662,8 @@ const prepareUpdateData = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1,
             color: isCurrentlyActive ? 'success.dark' : 'warning.dark' }}>
-            {isCurrentlyActive ? (<><PlayArrow color="success" />Cell is Active</>) : 
-              (<><Pause color="warning" />Cell is Deactivated</>)}
+            {isCurrentlyActive ? (<><PlayArrow color="success" />{isCellEvent ? 'Cell' : 'Event'} is Active</>) : 
+              (<><Pause color="warning" />{isCellEvent ? 'Cell' : 'Event'} is Deactivated</>)}
           </Typography>
           <FormControlLabel control={
               <Switch checked={isActiveToggle}
@@ -807,10 +747,17 @@ const prepareUpdateData = () => {
                 Person: <strong>{originalPersonIdentifier || 'Unknown'}</strong>
               </Typography>
             </Box>
-            <Button size="small" onClick={() => setAdvancedMode(!advancedMode)}
-              startIcon={advancedMode ? <ExpandLess /> : <ExpandMore />}>
-              {advancedMode ? 'Simple' : 'Advanced'}
-            </Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {isCellEvent ? (
+                <Chip label="CELL" color="primary" size="small" sx={{ fontSize: '0.7rem' }} />
+              ) : (
+                <Chip label="SINGLE" color="success" size="small" sx={{ fontSize: '0.7rem' }} />
+              )}
+              <Button size="small" onClick={() => setAdvancedMode(!advancedMode)}
+                startIcon={advancedMode ? <ExpandLess /> : <ExpandMore />}>
+                {advancedMode ? 'Simple' : 'Advanced'}
+              </Button>
+            </Box>
           </Box>
         </DialogTitle>
 
@@ -828,45 +775,48 @@ const prepareUpdateData = () => {
 
             <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
               <Typography variant="subtitle2" gutterBottom>
-                Update Scope:
+                Update Method:
               </Typography>
 
               <FormControl fullWidth>
-                <Select
-                  value={editScope}
-                  onChange={(e) => setEditScope(e.target.value)}
-                  size="small"
-                  disabled={editScope === 'person' && !isAdmin}
-                >
-                  <MenuItem value="single">
-                    <Box>
-                      <Typography variant="body2" fontWeight="bold">
-                        Single Event Only
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Update only this specific event
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                  <MenuItem value="person" disabled={!originalPersonIdentifier || !isAdmin}>
-                    <Box>
-                      <Typography variant="body2" fontWeight="bold">
-                        All Occurrences of This Event
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Update all events with this name for {originalPersonIdentifier}
-                        {!isAdmin && " (Admin only)"}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                </Select>
+                {isCellEvent ? (
+                  <Box sx={{ 
+                    p: 2, 
+                    border: 1, 
+                    borderColor: 'primary.main', 
+                    borderRadius: 1, 
+                    bgcolor: 'primary.50' 
+                  }}>
+                    <Typography variant="body2" fontWeight="bold" color="primary.main">
+                      Update All Recurring Events
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Required for Cell consistency. All occurrences will be updated.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ 
+                    p: 2, 
+                    border: 1, 
+                    borderColor: 'success.main', 
+                    borderRadius: 1, 
+                    bgcolor: 'success.50' 
+                  }}>
+                    <Typography variant="body2" fontWeight="bold" color="success.main">
+                      Single Event Only
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Update only this specific event.
+                    </Typography>
+                  </Box>
+                )}
               </FormControl>
 
-              {editScope === 'person' && (
+              {isCellEvent && (
                 <Alert severity="info" sx={{ mt: 2 }}>
-                  This will update <strong>all occurrences</strong> of "{event['Event Name'] || event.eventName || 'this event'}" 
-                  for <strong>{originalPersonIdentifier}</strong>.
-                  {!isAdmin && " This feature requires administrator privileges."}
+                  <Typography variant="body2">
+                     Changes will apply to all occurrences.
+                  </Typography>
                 </Alert>
               )}
             </Box>
@@ -1048,12 +998,12 @@ const prepareUpdateData = () => {
                 onClick={handleSubmit}
                 variant="contained"
                 disabled={loading || changedFields.length === 0 || changedFields.some(f => isFieldDisabled(f))}
-                color={editScope === 'person' ? 'warning' : 'primary'}
+                color={isCellEvent ? 'primary' : 'success'}
                 startIcon={loading ? <CircularProgress size={20} /> : null}
               >
-                {loading ? 'Saving...' :
-                  editScope === 'person' ? `Update All Events` :
-                    'Update Event'}
+                {loading ? 'Saving...' : (
+                  isCellEvent ? 'Update All Cell Events' : 'Update This Event'
+                )}
               </Button>
             </Box>
           </Box>
