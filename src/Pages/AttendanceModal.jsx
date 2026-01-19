@@ -321,110 +321,244 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     }
   };
 
-  const handleSubmit = async (leaderInfo) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const personData = {
-        name: formData.name.trim(),
-        surname: formData.surname.trim(),
-        email: formData.email.toLowerCase().trim(),
-        number: formData.mobile || "",
-        address: formData.address || "",
-        gender: formData.gender || "",
-        dob: formData.dob || "",
-        invitedBy: formData.invitedBy || "",
-        leaders: [
-          leaderInfo.leader1 || "",
-          leaderInfo.leader12 || "",
-          leaderInfo.leader144 || "",
-          "" 
-          
-        ],
-        stage: "Win",
-      };
-      console.log("Sending person data to backend:", personData);
-
-      const response = await authFetch(`${BACKEND_URL}/people`, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(personData),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Person created successfully:", data);
-
-        globalPeopleCache = {
-          data: [],
-          timestamp: null,
-          expiry: 5 * 60 * 1000
-        };
-
-        if (typeof onPersonAdded === "function") {
-          onPersonAdded(data.person || data);
-        }
-
-        setTimeout(() => {
-          loadPreloadedPeople(true);
-          onClose();
-          setFormData({
-            invitedBy: "",
-            name: "",
-            surname: "",
-            gender: "",
-            email: "",
-            mobile: "",
-            dob: "",
-            address: "",
-          });
-          setInviterSearch("");
-          setInviterResults([]);
-          setShowLeaderModal(false);
-          setAttemptedSubmit(false);
-          setTouched({});
-          setAutoFilledLeaders({
-            leader1: "",
-            leader12: "",
-            leader144: ""
-          });
-        }, 1500);
-      } else {
-        const error = await response.json();
-        console.error("Add person error - FULL DETAILS:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: error,
-          sentData: personData
-        });
-
-        let errorMessage = "Failed to add person";
-        if (error.detail) {
-          if (typeof error.detail === 'string') {
-            errorMessage = error.detail;
-          } else if (Array.isArray(error.detail)) {
-            errorMessage = error.detail.map(err => {
-              const field = err.loc?.[err.loc.length - 1] || 'field';
-              return `${field}: ${err.msg || err}`;
-            }).join(', ');
-          } else if (typeof error.detail === 'object') {
-            errorMessage = JSON.stringify(error.detail);
-          }
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-
-        toast.error(errorMessage);
-      }
-    } catch (error) {
-      console.error("Network error adding person:", error);
-      toast.error("Network error: Could not connect to server");
+ const handleSubmit = async () => {
+  try {
+    setLoading(true);
+    
+    if (changedFields.length === 0) {
+      toast.info("No changes made");
+      onClose();
+      return;
     }
-  };
+
+    const unauthorizedFields = changedFields.filter(field => isFieldDisabled(field));
+    if (unauthorizedFields.length > 0) {
+      toast.error(`You don't have permission to modify: ${unauthorizedFields.join(', ')}`);
+      setLoading(false);
+      return;
+    }
+
+    // =========== FIX: Detect status changes for synchronization ===========
+    const isStatusChanging = changedFields.includes('status') || changedFields.includes('Status');
+    const newStatus = formData.status || formData.Status;
+    const oldStatus = event?.status || event?.Status;
+    
+    if (isStatusChanging && newStatus !== oldStatus) {
+      console.log(`STATUS CHANGE: ${oldStatus} → ${newStatus} by ${loggedInUserRole}`);
+      
+      // Inform user about synchronization
+      toast.info(`Updating status to "${newStatus}" - This will sync for all users`);
+    }
+
+    const updateData = prepareUpdateData();
+    
+    if (Object.keys(updateData).length === 0) {
+      toast.info("No valid changes to save");
+      setLoading(false);
+      return;
+    }
+
+    let endpoint, method, body;
+    let confirmMsg = '';
+
+    const originalEventName = event['Event Name'] || event.eventName;
+    const originalDay = event.Day || event.day;
+    const originalPerson = event.Leader || event.eventLeader || event.eventLeaderName;
+    
+    const newEventName = formData['Event Name'] || formData.eventName;
+    const newDay = formData.Day || formData.day;
+
+    if (editScope === 'single') {
+      let identifier = event._id || event.id || event.UUID;
+      if (identifier?.includes?.('_')) identifier = identifier.split('_')[0];
+      
+      if (!identifier) {
+        toast.error("Cannot update: Event ID not found");
+        setLoading(false);
+        return;
+      }
+      
+      endpoint = `/events/cells/${identifier}`;
+      method = 'PUT';
+      body = JSON.stringify(updateData);
+      
+      if (newEventName && newEventName !== originalEventName) {
+        confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\n`;
+        confirmMsg += `This will update ONLY this specific event.\n\n`;
+        confirmMsg += `Continue?`;
+      }
+      
+      // Special confirmation for status changes
+      if (isStatusChanging && !confirmMsg) {
+        confirmMsg = `Change status from "${oldStatus || 'no status'}" to "${newStatus}"?\n\n`;
+        confirmMsg += `This will update the status for ALL users (admin and all leaders).\n\n`;
+        confirmMsg += `Continue?`;
+      }
+    } 
+    else if (editScope === 'person') {
+      if (!originalPersonIdentifier) {
+        toast.error("Cannot update: Person identifier not found");
+        setLoading(false);
+        return;
+      }
+      
+      if (!originalEventName) {
+        toast.error("Cannot update: Original event name is required for 'Update All'");
+        setLoading(false);
+        return;
+      }
+      
+      if (!originalDay) {
+        toast.error("Cannot update: Original day is required for 'Update All'");
+        setLoading(false);
+        return;
+      }
+      
+      endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/event/${encodeURIComponent(originalEventName)}/day/${encodeURIComponent(originalDay)}`;
+      method = 'PUT';
+      body = JSON.stringify(updateData);
+      
+      confirmMsg = `This will update ONLY:\n\n`;
+      confirmMsg += `• Person: ${originalPersonIdentifier}\n`;
+      confirmMsg += `• Event name: "${originalEventName}"\n`;
+      confirmMsg += `• Day: ${originalDay}\n\n`;
+      
+      const changes = [];
+      if (newEventName && newEventName !== originalEventName) {
+        changes.push(`Event name: "${originalEventName}" → "${newEventName}"`);
+      }
+      if (newDay && newDay !== originalDay) {
+        changes.push(`Day: ${originalDay} → ${newDay}`);
+      }
+      
+      if (isStatusChanging) {
+        changes.push(`Status: "${oldStatus || 'no status'}" → "${newStatus}"`);
+      }
+      
+      const otherFields = changedFields.filter(f => 
+        !['Event Name', 'eventName', 'Day', 'day', 'status', 'Status'].includes(f)
+      );
+      if (otherFields.length > 0) {
+        changes.push(`Other fields: ${otherFields.join(', ')}`);
+      }
+      
+      if (changes.length > 0) {
+        confirmMsg += `Changes:\n${changes.join('\n')}\n\n`;
+      }
+      
+      // Special warning for status changes
+      if (isStatusChanging) {
+        confirmMsg += `⚠️  STATUS CHANGE WARNING:\n`;
+        confirmMsg += `This will update the status for ALL matching events and will be visible to ALL users (admin and all leaders).\n\n`;
+      }
+      
+      confirmMsg += `Other events (different names/days) will NOT be affected.\n\n`;
+      confirmMsg += `Continue?`;
+    }
+
+    if (confirmMsg && !window.confirm(confirmMsg)) {
+      setLoading(false);
+      return;
+    }
+
+    const userToken = localStorage.getItem("access_token") || token;
+    if (!userToken) {
+      toast.error("No authentication token found. Please log in again.");
+      setLoading(false);
+      return;
+    }
+
+    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+      method, 
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Authorization': `Bearer ${userToken}` 
+      }, 
+      body
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorData;
+      try { errorData = JSON.parse(errorText); } catch { errorData = { detail: errorText }; }
+      
+      if (response.status === 404) {
+        toast.error(`Not found: ${errorData.detail || 'The event or events could not be found'}`);
+      } else if (response.status === 401) {
+        toast.error("Your session has expired. Please log in again.");
+        localStorage.removeItem("access_token");
+      } else if (response.status === 409) {
+        toast.error(`Conflict: ${errorData.detail || 'Duplicate event detected'}`);
+      } else {
+        toast.error(`Update failed: ${errorData.detail || errorData.message || `Error ${response.status}`}`);
+      }
+      
+      throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    // =========== FIX: Handle success with onSave callback ===========
+    if (isStatusChanging) {
+      // Special success message for status changes
+      if (editScope === 'person') {
+        toast.success(`✅ Status updated to "${newStatus}" for ${result.modified_count || 0} events - Now visible to ALL users`);
+      } else {
+        toast.success(`✅ Status updated to "${newStatus}" - Now visible to ALL users (admin and leaders)`);
+      }
+    } else {
+      // Regular success message for non-status changes
+      if (editScope === 'person') {
+        if (result.success) {
+          if (result.modified_count === 0) {
+            toast.info(`No changes were made to ${originalEventName} events`);
+          } else {
+            toast.success(`Updated ${result.modified_count || 0} ${originalDay} events named "${originalEventName}"`);
+          }
+        } else {
+          toast.warning(result.message || "Update completed with warnings");
+        }
+      } else {
+        if (result.success) {
+          if (result.modified) {
+            toast.success('Event updated successfully');
+          } else {
+            toast.info('No changes were made to the event');
+          }
+        } else {
+          toast.error(result.message || 'Update failed');
+        }
+      }
+    }
+    
+    // =========== FIX: Call onSave with success data ===========
+    if (onSave) {
+      onSave({
+        success: true,
+        event: result,
+        statusChanged: isStatusChanging,
+        newStatus: newStatus,
+        syncMessage: isStatusChanging ? "Status synchronized for all users" : "Event updated"
+      });
+    }
+    
+    // =========== FIX: Close the modal ===========
+    onClose();
+
+  } catch (error) {
+    console.error("Error saving:", error);
+    if (!error.message.includes('401')) {
+      toast.error(`Failed to save: ${error.message || error}`);
+    }
+    
+    // Call onSave with error
+    if (onSave) {
+      onSave({ success: false, error: error.message });
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleClose = () => {
     setFormData({

@@ -1,11 +1,9 @@
-import axios from "axios";
 import React, {
   useState,
   useEffect,
   useRef,
   useMemo,
   useCallback,
-  useContext,
 } from "react";
 import { useTheme } from "@mui/material/styles";
 import AttendanceModal from "./AttendanceModal";
@@ -862,7 +860,7 @@ const isValidObjectId = (id) => {
 };
 
 const Events = () => {
-const { authFetch, logout } = useContext(AuthContext);
+const { authFetch, logout } = React.useContext(AuthContext);
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
@@ -1967,8 +1965,6 @@ const handlePreviousPage = useCallback(() => {
       setEditingEventType(null);
     }, 300);
   }, []);
-
-
 
   const handleDeleteType = useCallback(async () => {
   try {
