@@ -160,118 +160,97 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleDeactivateCell = async () => {
-    try {
-      setIsToggling(true);
-      const userToken = localStorage.getItem("access_token") || token;
-      if (!userToken) {
-        toast.error("No authentication token found. Please log in again.");
-        setIsToggling(false);
-        return;
-      }
-      
-      // Build parameters based on edit scope
-      const params = new URLSearchParams({
-        weeks: deactivationWeeks.toString(),
-      });
-      
-      // Add reason if provided
-      if (deactivationReason) {
-        params.append('reason', deactivationReason);
-      }
-      
-      let endpoint = '/api/cells/deactivate';
-      
-      if (editScope === 'single' || !isCellEvent) {
-        // For single cell or non-cell events - use the specific cell name with person name
-        const cellName = formData.eventName || formData['Event Name'] || originalContext.eventName;
-        params.append('cell_identifier', cellName);
-        params.append('person_name', originalPersonIdentifier);
-        
-        // Add day if available for more specific targeting
-        if (originalContext.day) {
-          params.append('day_of_week', originalContext.day);
-        }
-      } else {
-        // For person scope with cell events
-        if (contextFilter === 'all') {
-          // Deactivate ALL cells for this person
-          params.append('cell_identifier', originalPersonIdentifier);
-        } else if (contextFilter === 'day' && originalContext.day) {
-          // Deactivate cells on specific day
-          params.append('cell_identifier', originalPersonIdentifier);
-          params.append('day_of_week', originalContext.day);
-        } else if (contextFilter === 'eventName' && originalContext.eventName) {
-          // Deactivate specific cell name
-          params.append('cell_identifier', originalContext.eventName);
-          params.append('person_name', originalPersonIdentifier);
-        } else if (contextFilter === 'location' && originalContext.location) {
-          // For location-based deactivation, we need a different approach
-          toast.warning("Location-based deactivation requires additional configuration");
-          setIsToggling(false);
-          return;
-        }
-      }
-      
-      // Make the API call
-      const response = await fetch(`${BACKEND_URL}${endpoint}?${params.toString()}`, {
-        method: 'PUT',
-        headers: { 
-          'Authorization': `Bearer ${userToken}` 
-        }
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
-      }
-      
-      const result = await response.json();
-      
-      // Show success message with auto-reactivation info
-      const reactivateDate = new Date(result.deactivation_end);
-      const formattedDate = reactivateDate.toLocaleDateString('en-ZA', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      
-      toast.success(
-        <div>
-          <div>{result.message}</div>
-          <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
-            Will auto-reactivate on: {formattedDate}
-          </div>
-        </div>
-      );
-      
-      // Update local state
-      setIsActiveToggle(false);
-      setFormData(prev => ({
-        ...prev, 
-        is_active: false,
-        deactivation_start: new Date().toISOString(),
-        deactivation_end: result.deactivation_end,
-        deactivation_reason: deactivationReason
-      }));
-      
-      // Close dialog and reset
-      setDeactivationDialogOpen(false);
-      setDeactivationReason('');
-      setDeactivationWeeks(2);
-      
-      // Refresh events list
-      if (refreshEvents) refreshEvents();
-      
-    } catch (error) {
-      console.error('Deactivation error:', error);
-      toast.error(`Failed to deactivate: ${error.message}`);
-      setIsActiveToggle(true); // Revert toggle
-    } finally {
-      setIsToggling(false);
+const handleDeactivateCell = async () => {
+  try {
+    setIsToggling(true);
+    const userToken = localStorage.getItem("access_token") || token;
+    
+    const params = new URLSearchParams({
+      weeks: deactivationWeeks.toString(),
+    });
+    
+    if (deactivationReason) {
+      params.append('reason', deactivationReason);
     }
-  };
+    
+    // Determine the deactivation scope
+    if (editScope === 'single' || !isCellEvent) {
+      // Deactivate specific cell by EXACT cell name
+      const cellName = formData.eventName || formData['Event Name'];
+      
+      // For OLD format cells: "Cynthia Bebel - Die Fakkel High School - School cell - Thursday"
+      // For NEW format cells: "Gia Home Cell"
+      params.append('cell_identifier', cellName);
+      params.append('person_name', originalPersonIdentifier);
+      
+      if (originalContext.day) {
+        params.append('day_of_week', originalContext.day);
+      }
+    } else {
+      // Person scope
+      if (contextFilter === 'all') {
+        params.append('cell_identifier', originalPersonIdentifier);
+      } else if (contextFilter === 'day' && originalContext.day) {
+        params.append('cell_identifier', originalPersonIdentifier);
+        params.append('day_of_week', originalContext.day);
+      } else if (contextFilter === 'eventName' && originalContext.eventName) {
+        // Deactivate by EXACT cell name
+        params.append('cell_identifier', originalContext.eventName);
+        params.append('person_name', originalPersonIdentifier);
+      }
+    }
+    
+    console.log("Calling endpoint with:", params.toString());
+    
+    const response = await fetch(`${BACKEND_URL}/api/cells/deactivate?${params.toString()}`, {
+      method: 'PUT',
+      headers: { 
+        'Authorization': `Bearer ${userToken}` 
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Deactivation failed');
+    }
+    
+    const result = await response.json();
+    
+    // Success message
+    toast.success(
+      <div>
+        <div>{result.message}</div>
+        <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
+          Will auto-reactivate on: {new Date(result.deactivation_end).toLocaleDateString()}
+        </div>
+      </div>
+    );
+    
+    // Update local state
+    setIsActiveToggle(false);
+    setFormData(prev => ({
+      ...prev, 
+      is_active: false,
+      deactivation_start: new Date().toISOString(),
+      deactivation_end: result.deactivation_end,
+      deactivation_reason: deactivationReason
+    }));
+    
+    // Close and reset
+    setDeactivationDialogOpen(false);
+    setDeactivationReason('');
+    setDeactivationWeeks(2);
+    
+    if (refreshEvents) refreshEvents();
+    
+  } catch (error) {
+    console.error('Deactivation error:', error);
+    toast.error(error.message);
+    setIsActiveToggle(true);
+  } finally {
+    setIsToggling(false);
+  }
+};
 
   const handleReactivateCell = async () => {
     try {
@@ -793,22 +772,30 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             label={<Typography variant="body2">{isActiveToggle ? 'Active' : 'Deactivated'}{isToggling && '...'}</Typography>}
             sx={{ m: 0 }} />
         </Box>
-        
-        {!isCurrentlyActive && deactivationEnd && (
-          <Alert severity="warning" sx={{ mt: 1, mb: 1 }}>
-            <Typography variant="body2">
-              <strong>Deactivated until:</strong>{' '}
-              {new Date(deactivationEnd).toLocaleDateString('en-ZA', {
-                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-              })}
-            </Typography>
-            {currentDeactivationReason && (
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                <strong>Reason:</strong> {currentDeactivationReason}
-              </Typography>
-            )}
-          </Alert>
-        )}
+       {!isCurrentlyActive && deactivationEnd && (
+  <Alert
+    severity="warning"
+    icon={false}
+    sx={{ mt: 1, mb: 1 }}
+  >
+    <Typography variant="body2">
+      <strong>Deactivated until:</strong>{' '}
+      {new Date(deactivationEnd).toLocaleDateString('en-ZA', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })}
+    </Typography>
+
+    {currentDeactivationReason && (
+      <Typography variant="body2" sx={{ mt: 0.5 }}>
+        <strong>Reason:</strong> {currentDeactivationReason}
+      </Typography>
+    )}
+  </Alert>
+)}
+
         
         {editScope === 'person' && isCellEvent && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
@@ -1173,7 +1160,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             label="Reason (Optional)"
             value={deactivationReason}
             onChange={(e) => setDeactivationReason(e.target.value)}
-            placeholder="e.g., Leader on vacation, Venue unavailable"
+            placeholder=""
             multiline
             rows={2}
           />
