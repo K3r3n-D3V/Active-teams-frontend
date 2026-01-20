@@ -160,7 +160,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleActiveToggle = async (newValue) => {
+  const handleDeactivateCell = async () => {
     try {
       setIsToggling(true);
       const userToken = localStorage.getItem("access_token") || token;
@@ -170,72 +170,189 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         return;
       }
       
-      let endpoint;
-      const queryParams = new URLSearchParams();
-      queryParams.append('is_active', newValue.toString());
+      // Build parameters based on edit scope
+      const params = new URLSearchParams({
+        weeks: deactivationWeeks.toString(),
+      });
       
-      if (newValue === false) {
-        if (!deactivationDialogOpen) {
-          setIsActiveToggle(!newValue);
-          setDeactivationDialogOpen(true);
+      // Add reason if provided
+      if (deactivationReason) {
+        params.append('reason', deactivationReason);
+      }
+      
+      let endpoint = '/api/cells/deactivate';
+      
+      if (editScope === 'single' || !isCellEvent) {
+        // For single cell or non-cell events - use the specific cell name with person name
+        const cellName = formData.eventName || formData['Event Name'] || originalContext.eventName;
+        params.append('cell_identifier', cellName);
+        params.append('person_name', originalPersonIdentifier);
+        
+        // Add day if available for more specific targeting
+        if (originalContext.day) {
+          params.append('day_of_week', originalContext.day);
+        }
+      } else {
+        // For person scope with cell events
+        if (contextFilter === 'all') {
+          // Deactivate ALL cells for this person
+          params.append('cell_identifier', originalPersonIdentifier);
+        } else if (contextFilter === 'day' && originalContext.day) {
+          // Deactivate cells on specific day
+          params.append('cell_identifier', originalPersonIdentifier);
+          params.append('day_of_week', originalContext.day);
+        } else if (contextFilter === 'eventName' && originalContext.eventName) {
+          // Deactivate specific cell name
+          params.append('cell_identifier', originalContext.eventName);
+          params.append('person_name', originalPersonIdentifier);
+        } else if (contextFilter === 'location' && originalContext.location) {
+          // For location-based deactivation, we need a different approach
+          toast.warning("Location-based deactivation requires additional configuration");
           setIsToggling(false);
           return;
         }
-        queryParams.append('weeks', deactivationWeeks.toString());
-        if (deactivationReason) queryParams.append('reason', deactivationReason);
-      }
-
-      if (editScope === 'person' && originalPersonIdentifier) {
-        if (contextFilter === 'day' && originalContext.day) {
-          endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/day/${encodeURIComponent(originalContext.day)}/toggle-active`;
-        } else if (contextFilter === 'location' && originalContext.location) {
-          endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/location/${encodeURIComponent(originalContext.location)}/toggle-active`;
-        } else if (contextFilter === 'eventName' && originalContext.eventName) {
-          endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/eventname/${encodeURIComponent(originalContext.eventName)}/toggle-active`;
-        } else {
-          endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/toggle-active-all`;
-        }
-      } else {
-        const eventId = event._id || event.id || event.UUID;
-        endpoint = `/events/${encodeURIComponent(eventId)}/toggle-active`;
       }
       
-      const response = await fetch(`${BACKEND_URL}${endpoint}?${queryParams.toString()}`, {
+      // Make the API call
+      const response = await fetch(`${BACKEND_URL}${endpoint}?${params.toString()}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
+        headers: { 
+          'Authorization': `Bearer ${userToken}` 
+        }
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        if (response.status === 401) {
-          toast.error("Your session has expired. Please log in again.");
-          localStorage.removeItem("access_token");
-        }
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
       }
       
       const result = await response.json();
-      toast.success(result.message || 'Status updated successfully');
       
-      setIsActiveToggle(newValue);
+      // Show success message with auto-reactivation info
+      const reactivateDate = new Date(result.deactivation_end);
+      const formattedDate = reactivateDate.toLocaleDateString('en-ZA', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      toast.success(
+        <div>
+          <div>{result.message}</div>
+          <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
+            Will auto-reactivate on: {formattedDate}
+          </div>
+        </div>
+      );
+      
+      // Update local state
+      setIsActiveToggle(false);
       setFormData(prev => ({
-        ...prev, is_active: newValue,
-        deactivation_start: newValue ? null : (prev.deactivation_start || null),
-        deactivation_end: newValue ? null : (prev.deactivation_end || null),
-        deactivation_reason: newValue ? null : (prev.deactivation_reason || null)
+        ...prev, 
+        is_active: false,
+        deactivation_start: new Date().toISOString(),
+        deactivation_end: result.deactivation_end,
+        deactivation_reason: deactivationReason
       }));
       
+      // Close dialog and reset
       setDeactivationDialogOpen(false);
       setDeactivationReason('');
       setDeactivationWeeks(2);
+      
+      // Refresh events list
       if (refreshEvents) refreshEvents();
       
     } catch (error) {
-      console.error('Toggle error:', error);
-      if (!error.message.includes('401')) toast.error(`Failed to update status: ${error.message}`);
-      setIsActiveToggle(!newValue);
+      console.error('Deactivation error:', error);
+      toast.error(`Failed to deactivate: ${error.message}`);
+      setIsActiveToggle(true); // Revert toggle
     } finally {
       setIsToggling(false);
+    }
+  };
+
+  const handleReactivateCell = async () => {
+    try {
+      setIsToggling(true);
+      const userToken = localStorage.getItem("access_token") || token;
+      if (!userToken) {
+        toast.error("No authentication token found. Please log in again.");
+        setIsToggling(false);
+        return;
+      }
+      
+      const params = new URLSearchParams();
+      let endpoint = '/api/cells/reactivate';
+      
+      if (editScope === 'single' || !isCellEvent) {
+        // Reactivate specific cell
+        const cellName = formData.eventName || formData['Event Name'] || originalContext.eventName;
+        params.append('cell_identifier', cellName);
+        params.append('person_name', originalPersonIdentifier);
+        
+        if (originalContext.day) {
+          params.append('day_of_week', originalContext.day);
+        }
+      } else {
+        // Reactivate based on person scope
+        if (contextFilter === 'all') {
+          params.append('cell_identifier', originalPersonIdentifier);
+        } else if (contextFilter === 'day' && originalContext.day) {
+          params.append('cell_identifier', originalPersonIdentifier);
+          params.append('day_of_week', originalContext.day);
+        } else if (contextFilter === 'eventName' && originalContext.eventName) {
+          params.append('cell_identifier', originalContext.eventName);
+          params.append('person_name', originalPersonIdentifier);
+        }
+      }
+      
+      const response = await fetch(`${BACKEND_URL}${endpoint}?${params.toString()}`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${userToken}` 
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
+      
+      const result = await response.json();
+      toast.success(result.message);
+      
+      // Update local state
+      setIsActiveToggle(true);
+      setFormData(prev => ({
+        ...prev, 
+        is_active: true,
+        deactivation_start: null,
+        deactivation_end: null,
+        deactivation_reason: null
+      }));
+      
+      if (refreshEvents) refreshEvents();
+      
+    } catch (error) {
+      console.error('Reactivation error:', error);
+      toast.error(`Failed to reactivate: ${error.message}`);
+      setIsActiveToggle(false);
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  const handleActiveToggle = (newValue) => {
+    if (isToggling || isFieldDisabled('is_active')) return;
+    
+    if (newValue === false) {
+      // Show deactivation dialog
+      setDeactivationDialogOpen(true);
+    } else {
+      // Immediate reactivation
+      handleReactivateCell();
     }
   };
 
@@ -653,7 +770,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const renderActiveStatusSection = () => {
     const isCurrentlyActive = formData.is_active !== false;
     const deactivationEnd = formData.deactivation_end || formData.deactivationEnd;
-    const deactivationReason = formData.deactivation_reason || formData.deactivationReason;
+    const currentDeactivationReason = formData.deactivation_reason || formData.deactivationReason;
     
     return (
       <Box sx={{ mb: 3, p: 2, border: '1px solid',
@@ -668,9 +785,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           <FormControlLabel control={
               <Switch checked={isActiveToggle}
                 onChange={(e) => {
-                  if (isToggling || isFieldDisabled('is_active')) return;
-                  const newValue = e.target.checked;
-                  newValue === false ? setDeactivationDialogOpen(true) : handleActiveToggle(true);
+                  handleActiveToggle(e.target.checked);
                 }}
                 disabled={isToggling || isFieldDisabled('is_active')}
                 color={isCurrentlyActive ? "success" : "warning"} />
@@ -687,20 +802,18 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
               })}
             </Typography>
-            {deactivationReason && (
+            {currentDeactivationReason && (
               <Typography variant="body2" sx={{ mt: 0.5 }}>
-                <strong>Reason:</strong> {deactivationReason}
+                <strong>Reason:</strong> {currentDeactivationReason}
               </Typography>
             )}
           </Alert>
         )}
         
-        {editScope === 'person' && (
+        {editScope === 'person' && isCellEvent && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
             {contextFilter === 'day' && originalContext.day && 
               `${isActiveToggle ? 'Deactivating' : 'Activating'} only ${originalContext.day} cells`}
-            {contextFilter === 'location' && originalContext.location && 
-              `${isActiveToggle ? 'Deactivating' : 'Activating'} only cells at ${originalContext.location}`}
             {contextFilter === 'eventName' && originalContext.eventName && 
               `${isActiveToggle ? 'Deactivating' : 'Activating'} only "${originalContext.eventName}" cells`}
             {contextFilter === 'all' && 
@@ -1028,7 +1141,11 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         <DialogContent>
           <Typography variant="body1" gutterBottom>
             {editScope === 'person' ? (
-              `You are about to deactivate ALL cells for "${originalPersonIdentifier}".`
+              contextFilter === 'day' && originalContext.day ? 
+                `You are about to deactivate ${originalContext.day} cells for "${originalPersonIdentifier}".` :
+              contextFilter === 'eventName' && originalContext.eventName ?
+                `You are about to deactivate "${originalContext.eventName}" cells for "${originalPersonIdentifier}".` :
+                `You are about to deactivate ALL cells for "${originalPersonIdentifier}".`
             ) : (
               `You are about to deactivate "${eventName}".`
             )}
@@ -1063,7 +1180,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           
           <Alert severity="info" sx={{ mt: 2 }}>
             <Typography variant="body2">
-              The cell will automatically reactivate after the deactivation period.
+              The cell will automatically reactivate after the deactivation period ends.
             </Typography>
           </Alert>
         </DialogContent>
@@ -1078,7 +1195,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             Cancel
           </Button>
           <Button
-            onClick={() => handleActiveToggle(false)}
+            onClick={handleDeactivateCell}
             variant="contained"
             color="warning"
             startIcon={isToggling ? <CircularProgress size={20} /> : <Pause />}
