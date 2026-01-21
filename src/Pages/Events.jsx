@@ -3429,7 +3429,7 @@ const ViewFilterButtons = () => {
                         minWidth: 200,
                         renderCell: (params) => (
                           <Box sx={{ display: "flex", gap: 1 }}>
-                            {/* ✅ FIXED: Use params.row instead of event */}
+                            {/*  FIXED: Use params.row instead of event */}
                             <Tooltip
                               title={
                                 params.row?.is_recurring

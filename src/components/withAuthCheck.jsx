@@ -102,7 +102,7 @@ const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false
       );
     }
 
-    console.log('✅ Auth check passed for:', location.pathname, 'User:', user.email);
+    console.log(' Auth check passed for:', location.pathname, 'User:', user.email);
     return <WrappedComponent {...props} />;
   };
 };

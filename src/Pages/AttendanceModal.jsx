@@ -1,4 +1,4 @@
-import { useState, useEffect,  useContext } from "react";
+import { useState, useEffect,  useContext, useMemo} from "react";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -11,19 +11,11 @@ import {
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
 
-
-let globalPeopleCache = {
-  data: [],
-  timestamp: null,
-  expiry: 5 * 60 * 1000,
-};
-
 const AddPersonToEvents = ({ isOpen, onClose }) => {
-
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   console.log("AddPersonToEvents - isDarkMode:", isDarkMode);
-    const { authFetch } = useContext(AuthContext);
+  const { authFetch } = useContext(AuthContext);
 
   const [formData, setFormData] = useState({
     invitedBy: "",
@@ -35,12 +27,12 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     dob: "",
     address: "",
   });
-  const [inviterSearch, setInviterSearch] = useState("");
-  const [inviterResults, setInviterResults] = useState([]);
+  
+  const [peopleList, setPeopleList] = useState([]);
+  const [isLoadingPeople, setIsLoadingPeople] = useState(false);
+  const [inviterSearchInput, setInviterSearchInput] = useState("");
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
-  const [loadingInviters, setLoadingInviters] = useState(false);
   const [showLeaderModal, setShowLeaderModal] = useState(false);
-  const [preloadedPeople, setPreloadedPeople] = useState([]);
   const [touched, setTouched] = useState({});
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [autoFilledLeaders, setAutoFilledLeaders] = useState({
@@ -51,160 +43,96 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
+  // Fetch people data when modal opens
   useEffect(() => {
     if (isOpen) {
-      loadPreloadedPeople();
+      fetchAllPeople();
     }
   }, [isOpen]);
 
-  const loadPreloadedPeople = async (forceRefresh = false) => {
-    const now = Date.now();
-
-    if (!forceRefresh && globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp &&
-      (now - globalPeopleCache.timestamp) < globalPeopleCache.expiry) {
-      console.log("Using cached people data in AddPersonToEvents");
-      setPreloadedPeople(globalPeopleCache.data);
-      return;
-    }
-
+  // Function to fetch people - SAME AS AddPersonDialog
+  const fetchAllPeople = async () => {
+    setIsLoadingPeople(true);
     try {
-      console.log("Fetching fresh people data for AddPersonToEvents cache");
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const params = new URLSearchParams();
-      params.append("perPage", "1000");
-      params.append("page", "1");
-      params.append("sortBy", "updatedAt");
-      params.append("sortOrder", "desc");
-
-      if (forceRefresh) {
-        params.append("_t", now.toString());
-      }
-
-      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      console.log(`Fetched ${peopleArray.length} people from server`);
-
-      const formatted = peopleArray.map((p) => {
-        // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
-        const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
-        const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
-        const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-        const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
-
-        return {
-          id: p._id,
-          fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-          email: p.Email || p.email || "",
-          leader1: leader1,
-          leader12: leader12,
-          leader144: leader144,
-          leader1728: leader1728,
-          phone: p.Number || p.Phone || p.phone || "",
-          rawData: p
-        };
-      });
-
-      globalPeopleCache = {
-        data: formatted,
-        timestamp: now,
-        expiry: 2 * 60 * 1000
-      };
-
-      setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AddPersonToEvents cache`);
-
-      const recentPeople = formatted.slice(0, 5);
-      console.log("Most recent people in cache:", recentPeople);
-    } catch (err) {
-      console.error("Error pre-loading people in AddPersonToEvents:", err);
-      if (globalPeopleCache.data.length > 0) {
-        setPreloadedPeople(globalPeopleCache.data);
-      }
-    }
-  };
-
-  const fetchInviters = async (searchTerm) => {
-    if (!searchTerm || searchTerm.length < 1) {
-      setInviterResults([]);
-      return;
-    }
-
-    try {
-      setLoadingInviters(true);
-
-      const filteredFromCache = preloadedPeople.filter(person =>
-        person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        person.email.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-
-      if (filteredFromCache.length > 0) {
-        setInviterResults(filteredFromCache.slice(0, 20));
+      const response = await authFetch(`${BACKEND_URL}/cache/people`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const cachedData = data.cached_data || [];
+        setPeopleList(cachedData);
+        console.log(`Loaded ${cachedData.length} people from cache`);
       } else {
-        const token = localStorage.getItem("token");
-        const headers = { Authorization: `Bearer ${token}` };
-
-        const params = new URLSearchParams();
-        params.append("name", searchTerm);
-        params.append("perPage", "20");
-
-        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-        const data = await res.json();
-        const peopleArray = data.people || data.results || [];
-
-        // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
-        const formatted = peopleArray.map((p) => {
-          const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
-          const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
-          const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-          const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
-
-          return {
-            id: p._id,
-            fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-            email: p.Email || p.email || "",
-            leader1: leader1,
-            leader12: leader12,
-            leader144: leader144,
-            leader1728: leader1728,
-            phone: p.Number || p.Phone || p.phone || "",
-          };
-        });
-
-        setInviterResults(formatted);
-        console.log("Inviter search results for '" + searchTerm + "':", formatted);
+        await fetchPeopleFallback();
       }
     } catch (err) {
-      console.error("Error fetching inviters:", err);
+      console.error("Error fetching from cache:", err);
+      await fetchPeopleFallback();
     } finally {
-      setLoadingInviters(false);
+      setIsLoadingPeople(false);
     }
   };
 
-  useEffect(() => {
-    const delay = setTimeout(() => {
-      if (inviterSearch.length >= 1) {
-        fetchInviters(inviterSearch);
-      } else {
-        setInviterResults([]);
+  const fetchPeopleFallback = async () => {
+    try {
+      const response = await authFetch(`${BACKEND_URL}/people/simple?per_page=1000`);
+      if (response.ok) {
+        const data = await response.json();
+        const peopleData = data.results || [];
+        setPeopleList(peopleData);
+        console.log(`Loaded ${peopleData.length} people from fallback`);
       }
-    }, 150);
+    } catch (fallbackErr) {
+      console.error("Fallback fetch failed:", fallbackErr);
+      setPeopleList([]);
+    }
+  };
 
-    return () => clearTimeout(delay);
-  }, [inviterSearch]);
+  // Create people options
+  const peopleOptions = useMemo(() => {
+    return peopleList.map(person => {
+      const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
+      return {
+        id: person._id,
+        fullName: fullName,
+        email: person.Email || "",
+        phone: person.Number || person.Phone || "",
+        leader1: person["Leader @1"] || "",
+        leader12: person["Leader @12"] || "",
+        leader144: person["Leader @144"] || "",
+        leader1728: person["Leader @1728"] || "",
+        searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase()
+      };
+    });
+  }, [peopleList]);
+
+  // Filter function
+  const filterPeopleOptions = (inputValue) => {
+    if (!inputValue) {
+      return peopleOptions.slice(0, 30);
+    }
+    
+    const searchTerm = inputValue.toLowerCase();
+    return peopleOptions
+      .filter(option => 
+        option.searchText.includes(searchTerm) ||
+        option.fullName.toLowerCase().includes(searchTerm) ||
+        option.email.toLowerCase().includes(searchTerm) ||
+        (option.phone && option.phone.includes(searchTerm))
+      )
+      .slice(0, 50);
+  };
+
+  const filteredInviterResults = useMemo(() => {
+    return filterPeopleOptions(inviterSearchInput);
+  }, [inviterSearchInput, peopleOptions]);
 
   const handleInviterSelect = (person) => {
     console.log("Selected inviter:", person.fullName);
-    setFormData({ ...formData, invitedBy: person.fullName });
-    setInviterSearch(person.fullName);
+    
+    setFormData(prev => ({ ...prev, invitedBy: person.fullName }));
+    setInviterSearchInput(person.fullName);
     setShowInviterDropdown(false);
-    setTouched({ ...touched, invitedBy: true });
+    setTouched(prev => ({ ...prev, invitedBy: true }));
 
     const normalizedFull = (person.fullName || "").trim().toLowerCase();
     const leader1Raw = (person.leader1 || "").trim().toLowerCase();
@@ -221,12 +149,8 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     });
 
     let leadersToFill;
-
     const isLeader144 = leader12Raw && !leader144Raw && !leader1728Raw;
-
     const isLeader12 = leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
-
-    // 3. Leader @1: Has their own name as L@1 OR all leadership fields empty
     const isLeader1 = (leader1Raw === normalizedFull) || (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
 
     console.log("Leadership detection:", {
@@ -242,7 +166,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
         leader12: person.leader12 || "",
         leader144: person.fullName || "",
       };
-      console.log("DETECTED: Leader @144 - Empty L@144 field with filled L@12");
+      console.log("DETECTED: Leader @144");
     }
     else if (isLeader12) {
       leadersToFill = {
@@ -250,7 +174,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
         leader12: person.fullName || "",
         leader144: "",
       };
-      console.log("DETECTED: Leader @12 - Empty L@12 field with filled L@1");
+      console.log("DETECTED: Leader @12");
     }
     else if (isLeader1) {
       leadersToFill = {
@@ -258,9 +182,8 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
         leader12: "",
         leader144: "",
       };
-      console.log("DETECTED: Leader @1 - All leadership fields empty");
+      console.log("DETECTED: Leader @1");
     }
-
     else {
       leadersToFill = {
         leader1: person.leader1 || "",
@@ -274,8 +197,68 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     console.log("Final auto-filled leaders:", leadersToFill);
   };
 
+  const handleInviterInputChange = (value) => {
+    setInviterSearchInput(value);
+    setShowInviterDropdown(true);
+    setTouched(prev => ({ ...prev, invitedBy: true }));
+    
+    if (value.trim() === "") {
+      setFormData(prev => ({ ...prev, invitedBy: "" }));
+      setAutoFilledLeaders({
+        leader1: "",
+        leader12: "",
+        leader144: ""
+      });
+    }
+  };
+
+const handleSubmit = async (finalLeaderInfo) => {
+  try {
+    const payload = {
+      invitedBy: formData.invitedBy,
+      name: formData.name,
+      surname: formData.surname,
+      gender: formData.gender,
+      email: formData.email,
+      number: formData.mobile,
+      dob: formData.dob,
+      address: formData.address,
+      leaders: [
+        finalLeaderInfo.leader1 || "",
+        finalLeaderInfo.leader12 || "",
+        finalLeaderInfo.leader144 || "",
+        finalLeaderInfo.leader1728 || ""
+      ].filter(leader => leader.trim() !== ""),
+      stage: "Win",
+    };
+
+    console.log("Submitting new person:", payload);
+        const response = await authFetch(`${BACKEND_URL}/people`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to create person');
+    }
+
+    const result = await response.json();
+    console.log("Person created:", result);
+    toast.success("Person created successfully!");
+    await authFetch(`${BACKEND_URL}/cache/refresh`, { method: 'POST' });
+     handleClose();
+    
+  } catch (error) {
+    console.error("Error creating person:", error);
+    toast.error(`Error: ${error.message}`);
+  }
+};
   const isFieldEmpty = (fieldName) => {
-    const value = fieldName === 'invitedBy' ? inviterSearch : formData[fieldName];
+    const value = fieldName === 'invitedBy' ? inviterSearchInput : formData[fieldName];
     return !value || value.trim() === "";
   };
 
@@ -285,30 +268,28 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const validateForm = () => {
     setAttemptedSubmit(true);
-
     const requiredFields = {
       name: formData.name?.trim(),
       surname: formData.surname?.trim(),
       email: formData.email?.trim(),
       mobile: formData.mobile?.trim(),
       dob: formData.dob?.trim(),
-      address: formData.address?.trim()
+      address: formData.address?.trim(),
+      invitedBy: formData.invitedBy?.trim() 
     };
-
+    
     const missingFields = Object.entries(requiredFields)
       .filter(([key, value]) => !value)
       .map(([key]) => key);
 
     if (missingFields.length > 0) {
       toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
-
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       toast.error("Please enter a valid email address");
-
       return false;
     }
 
@@ -321,234 +302,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     }
   };
 
- const handleSubmit = async () => {
-  try {
-    setLoading(true);
-    
-    if (changedFields.length === 0) {
-      toast.info("No changes made");
-      onClose();
-      return;
-    }
-
-    const unauthorizedFields = changedFields.filter(field => isFieldDisabled(field));
-    if (unauthorizedFields.length > 0) {
-      toast.error(`You don't have permission to modify: ${unauthorizedFields.join(', ')}`);
-      setLoading(false);
-      return;
-    }
-
-    // =========== FIX: Detect status changes for synchronization ===========
-    const isStatusChanging = changedFields.includes('status') || changedFields.includes('Status');
-    const newStatus = formData.status || formData.Status;
-    const oldStatus = event?.status || event?.Status;
-    
-    if (isStatusChanging && newStatus !== oldStatus) {
-      console.log(`STATUS CHANGE: ${oldStatus} → ${newStatus} by ${loggedInUserRole}`);
-      
-      // Inform user about synchronization
-      toast.info(`Updating status to "${newStatus}" - This will sync for all users`);
-    }
-
-    const updateData = prepareUpdateData();
-    
-    if (Object.keys(updateData).length === 0) {
-      toast.info("No valid changes to save");
-      setLoading(false);
-      return;
-    }
-
-    let endpoint, method, body;
-    let confirmMsg = '';
-
-    const originalEventName = event['Event Name'] || event.eventName;
-    const originalDay = event.Day || event.day;
-    const originalPerson = event.Leader || event.eventLeader || event.eventLeaderName;
-    
-    const newEventName = formData['Event Name'] || formData.eventName;
-    const newDay = formData.Day || formData.day;
-
-    if (editScope === 'single') {
-      let identifier = event._id || event.id || event.UUID;
-      if (identifier?.includes?.('_')) identifier = identifier.split('_')[0];
-      
-      if (!identifier) {
-        toast.error("Cannot update: Event ID not found");
-        setLoading(false);
-        return;
-      }
-      
-      endpoint = `/events/cells/${identifier}`;
-      method = 'PUT';
-      body = JSON.stringify(updateData);
-      
-      if (newEventName && newEventName !== originalEventName) {
-        confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\n`;
-        confirmMsg += `This will update ONLY this specific event.\n\n`;
-        confirmMsg += `Continue?`;
-      }
-      
-      // Special confirmation for status changes
-      if (isStatusChanging && !confirmMsg) {
-        confirmMsg = `Change status from "${oldStatus || 'no status'}" to "${newStatus}"?\n\n`;
-        confirmMsg += `This will update the status for ALL users (admin and all leaders).\n\n`;
-        confirmMsg += `Continue?`;
-      }
-    } 
-    else if (editScope === 'person') {
-      if (!originalPersonIdentifier) {
-        toast.error("Cannot update: Person identifier not found");
-        setLoading(false);
-        return;
-      }
-      
-      if (!originalEventName) {
-        toast.error("Cannot update: Original event name is required for 'Update All'");
-        setLoading(false);
-        return;
-      }
-      
-      if (!originalDay) {
-        toast.error("Cannot update: Original day is required for 'Update All'");
-        setLoading(false);
-        return;
-      }
-      
-      endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/event/${encodeURIComponent(originalEventName)}/day/${encodeURIComponent(originalDay)}`;
-      method = 'PUT';
-      body = JSON.stringify(updateData);
-      
-      confirmMsg = `This will update ONLY:\n\n`;
-      confirmMsg += `• Person: ${originalPersonIdentifier}\n`;
-      confirmMsg += `• Event name: "${originalEventName}"\n`;
-      confirmMsg += `• Day: ${originalDay}\n\n`;
-      
-      const changes = [];
-      if (newEventName && newEventName !== originalEventName) {
-        changes.push(`Event name: "${originalEventName}" → "${newEventName}"`);
-      }
-      if (newDay && newDay !== originalDay) {
-        changes.push(`Day: ${originalDay} → ${newDay}`);
-      }
-      
-      if (isStatusChanging) {
-        changes.push(`Status: "${oldStatus || 'no status'}" → "${newStatus}"`);
-      }
-      
-      const otherFields = changedFields.filter(f => 
-        !['Event Name', 'eventName', 'Day', 'day', 'status', 'Status'].includes(f)
-      );
-      if (otherFields.length > 0) {
-        changes.push(`Other fields: ${otherFields.join(', ')}`);
-      }
-      
-      if (changes.length > 0) {
-        confirmMsg += `Changes:\n${changes.join('\n')}\n\n`;
-      }
-      
-      if (isStatusChanging) {
-        confirmMsg += `This will update the status for ALL matching events and will be visible to ALL users (admin and all leaders).\n\n`;
-      }
-    }
-
-    if (confirmMsg && !window.confirm(confirmMsg)) {
-      setLoading(false);
-      return;
-    }
-
-    const userToken = localStorage.getItem("access_token");
-    if (!userToken) {
-      toast.error("No authentication token found. Please log in again.");
-      setLoading(false);
-      return;
-    }
-
-    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-      method, 
-      headers: { 
-        'Content-Type': 'application/json', 
-        'Authorization': `Bearer ${userToken}` 
-      }, 
-      body
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try { errorData = JSON.parse(errorText); } catch { errorData = { detail: errorText }; }
-      
-      if (response.status === 404) {
-        toast.error(`Not found: ${errorData.detail || 'The event or events could not be found'}`);
-      } else if (response.status === 401) {
-        toast.error("Your session has expired. Please log in again.");
-        localStorage.removeItem("access_token");
-      } else if (response.status === 409) {
-        toast.error(`Conflict: ${errorData.detail || 'Duplicate event detected'}`);
-      } else {
-        toast.error(`Update failed: ${errorData.detail || errorData.message || `Error ${response.status}`}`);
-      }
-      
-      throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
-    }
-
-    const result = await response.json();
-    
-    if (isStatusChanging) {
-      if (editScope === 'person') {
-        toast.success(` Status updated to "${newStatus}" for ${result.modified_count || 0} events - Now visible to ALL users`);
-      } else {
-        toast.success(` Status updated to "${newStatus}" - Now visible to ALL users (admin and leaders)`);
-      }
-    } else {
-      if (editScope === 'person') {
-        if (result.success) {
-          if (result.modified_count === 0) {
-            toast.info(`No changes were made to ${originalEventName} events`);
-          } else {
-            toast.success(`Updated ${result.modified_count || 0} ${originalDay} events named "${originalEventName}"`);
-          }
-        } else {
-          toast.warning(result.message || "Update completed with warnings");
-        }
-      } else {
-        if (result.success) {
-          if (result.modified) {
-            toast.success('Event updated successfully');
-          } else {
-            toast.info('No changes were made to the event');
-          }
-        } else {
-          toast.error(result.message || 'Update failed');
-        }
-      }
-    }
-    
-    if (onSave) {
-      onSave({
-        success: true,
-        event: result,
-        statusChanged: isStatusChanging,
-        newStatus: newStatus,
-        syncMessage: isStatusChanging ? "Status synchronized for all users" : "Event updated"
-      });
-    }
-    
-    onClose();
-
-  } catch (error) {
-    console.error("Error saving:", error);
-    if (!error.message.includes('401')) {
-      toast.error(`Failed to save: ${error.message || error}`);
-    }
-    
-    if (onSave) {
-      onSave({ success: false, error: error.message });
-    }
-  } finally {
-    setLoading(false);
-  }
-};
-
   const handleClose = () => {
     setFormData({
       invitedBy: "",
@@ -560,8 +313,9 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
       dob: "",
       address: "",
     });
-    setInviterSearch("");
-    setInviterResults([]);
+    setInviterSearchInput("");
+    setPeopleList([]); 
+    setShowInviterDropdown(false);
     setShowLeaderModal(false);
     setAttemptedSubmit(false);
     setTouched({});
@@ -665,7 +419,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1000,
-      maxHeight: "200px",
+      maxHeight: "250px",
       overflowY: "auto",
     },
     dropdownItem: {
@@ -677,6 +431,13 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
       background: theme.palette.background.paper,
     },
     dropdownEmpty: {
+      padding: "12px",
+      color: theme.palette.text.secondary,
+      textAlign: "center",
+      fontSize: "14px",
+      background: theme.palette.background.paper,
+    },
+    loadingItem: {
       padding: "12px",
       color: theme.palette.text.secondary,
       textAlign: "center",
@@ -748,6 +509,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
               <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>LEADER INFO</div>
             </div>
 
+            {/* Invited By Field - FIXED to match AddPersonDialog */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Invited By
@@ -755,54 +517,71 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
               </label>
               <input
                 type="text"
-                value={inviterSearch}
-                onChange={(e) => {
-                  setInviterSearch(e.target.value);
-                  setShowInviterDropdown(true);
-                  setTouched({ ...touched, invitedBy: true });
-                }}
+                value={inviterSearchInput}
+                onChange={(e) => handleInviterInputChange(e.target.value)}
                 onFocus={() => {
                   setShowInviterDropdown(true);
-                  if (inviterSearch.length === 0 && preloadedPeople.length > 0) {
-                    setInviterResults(preloadedPeople.slice(0, 10));
-                  }
                 }}
-                onBlur={() => setTouched({ ...touched, invitedBy: true })}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setShowInviterDropdown(false);
+                  }, 200);
+                  setTouched(prev => ({ ...prev, invitedBy: true }));
+                }}
                 style={showError('invitedBy') ? styles.inputError : styles.input}
-                placeholder="Start typing to search..."
+                placeholder={isLoadingPeople ? "Loading people..." : "Type to search all people..."}
                 autoComplete="off"
+                disabled={isLoadingPeople}
               />
+              
               {showInviterDropdown && (
                 <div style={styles.dropdown}>
-                  {loadingInviters && (
-                    <div style={styles.dropdownEmpty}>Loading...</div>
-                  )}
-                  {!loadingInviters && inviterResults.length === 0 && inviterSearch.length >= 1 && (
-                    <div style={styles.dropdownEmpty}>No people found</div>
-                  )}
-                  {!loadingInviters && inviterSearch.length === 0 && (
-                    <div style={styles.dropdownEmpty}>Type to search people...</div>
-                  )}
-                  {!loadingInviters && inviterResults.map((person) => (
-                    <div
-                      key={person.id}
-                      style={styles.dropdownItem}
-                      onClick={() => handleInviterSelect(person)}
-                      onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
-                      onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
-                    >
-                      <div style={{ fontWeight: "500" }}>{person.fullName}</div>
-                      <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
-                        {person.email}
-                        {person.leader1 && <span> • L@1: {person.leader1}</span>}
-                        {person.leader12 && <span> • L@12: {person.leader12}</span>}
+                  {isLoadingPeople ? (
+                    <div style={styles.loadingItem}>Loading people data...</div>
+                  ) : filteredInviterResults.length > 0 ? (
+                    filteredInviterResults.map((person) => (
+                      <div
+                        key={person.id}
+                        style={styles.dropdownItem}
+                        onClick={() => handleInviterSelect(person)}
+                        onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
+                        onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
+                      >
+                        <div style={{ fontWeight: "500", marginBottom: "4px" }}>
+                          {person.fullName}
+                        </div>
+                        <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                          {person.email || person.phone || "No contact info"}
+                          {person.leader1 && (
+                            <div style={{ marginTop: "2px", fontSize: "11px" }}>
+                              L@1: {person.leader1}
+                            </div>
+                          )}
+                        </div>
                       </div>
+                    ))
+                  ) : inviterSearchInput.trim() === "" ? (
+                    <div style={styles.dropdownEmpty}>
+                      {peopleOptions.length > 0 
+                        ? "Start typing to search people..." 
+                        : "No people data available"}
                     </div>
-                  ))}
+                  ) : (
+                    <div style={styles.dropdownEmpty}>
+                      No matches found for "{inviterSearchInput}"
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {isLoadingPeople && (
+                <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
+                  Loading people data...
                 </div>
               )}
             </div>
 
+            {/* ALL OTHER FIELDS PRESERVED */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Name
@@ -812,7 +591,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                onBlur={() => setTouched({ ...touched, name: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, name: true }))}
                 style={showError('name') ? styles.inputError : styles.input}
               />
             </div>
@@ -826,7 +605,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                 type="text"
                 value={formData.surname}
                 onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
-                onBlur={() => setTouched({ ...touched, surname: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, surname: true }))}
                 style={showError('surname') ? styles.inputError : styles.input}
               />
             </div>
@@ -866,7 +645,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                onBlur={() => setTouched({ ...touched, email: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, email: true }))}
                 style={showError('email') ? styles.inputError : styles.input}
               />
             </div>
@@ -881,7 +660,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                 value={formData.mobile}
                 maxLength={10}
                 onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                onBlur={() => setTouched({ ...touched, mobile: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, mobile: true }))}
                 style={showError('mobile') ? styles.inputError : styles.input}
               />
             </div>
@@ -895,7 +674,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                 type="date"
                 value={formData.dob}
                 onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                onBlur={() => setTouched({ ...touched, dob: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, dob: true }))}
                 style={showError('dob') ? styles.inputError : styles.input}
               />
             </div>
@@ -909,7 +688,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                 type="text"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                onBlur={() => setTouched({ ...touched, address: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, address: true }))}
                 style={showError('address') ? styles.inputError : styles.input}
               />
             </div>
@@ -919,6 +698,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                 type="button"
                 style={styles.closeBtn}
                 onClick={handleClose}
+                disabled={isLoadingPeople}
                 onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
                 onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
               >
@@ -928,6 +708,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                 type="button"
                 style={styles.nextBtn}
                 onClick={handleNext}
+                disabled={isLoadingPeople}
                 onMouseEnter={(e) => e.target.style.background = theme.palette.primary.dark}
                 onMouseLeave={(e) => e.target.style.background = theme.palette.primary.main}
               >
@@ -938,6 +719,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
         </div>
       </div>
 
+      {/* LeaderSelectionModal - Keep as is */}
       {showLeaderModal && (
         <LeaderSelectionModal
           isOpen={showLeaderModal}
@@ -945,12 +727,10 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
           onBack={() => setShowLeaderModal(false)}
           onSubmit={handleSubmit}
           personData={formData}
-          preloadedPeople={preloadedPeople}
+          preloadedPeople={peopleOptions} 
           autoFilledLeaders={autoFilledLeaders}
         />
       )}
-
-
     </>
   );
 };
@@ -1267,10 +1047,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
 
               <div style={styles.inputContainer}>
                 <input
-                  // type="text"
                   value={leaderSearches[field]}
-                  // onChange={(e) => handleSearchChange(e, field)}
-                  // onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
                   onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
                   style={styles.input}
                   placeholder={`Type to search...`}
@@ -1358,7 +1135,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     if (isOpen && event) {
       console.log(" Opening attendance modal");
 
-      // Get clean ID
       let eventId = event._id || event.id;
       if (eventId && eventId.includes("_")) {
         eventId = eventId.split("_")[0];
@@ -1424,7 +1200,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const loadPreloadedPeople = async () => {
     const now = Date.now();
 
-    // Check if global cache exists and is valid
     if (
       typeof window.globalPeopleCache !== 'undefined' &&
       window.globalPeopleCache.data?.length > 0 &&
@@ -1486,11 +1261,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
   const fetchPeople = async (q = "") => {
-    // If no search query, show preloaded people
     if (!q.trim()) {
       if (preloadedPeople.length > 0) {
         console.log(" Showing preloaded people list");
-        setPeople(preloadedPeople.slice(0, 50)); // Show first 50 preloaded people
+        setPeople(preloadedPeople.slice(0, 50)); 
       } else {
         setPeople([]);
       }
@@ -1545,7 +1319,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     } catch (err) {
       console.error("Error fetching people:", err);
       toast.error(err.message);
-      // Fallback to preloaded people if search fails
       if (preloadedPeople.length > 0) {
         setPeople(preloadedPeople.slice(0, 50));
       } else {
@@ -1605,7 +1378,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         Authorization: `Bearer ${token}`,
       };
 
-      // Format attendees
       const formattedAttendees = attendees.map(p => ({
         id: p.id || p._id || "",
         name: p.fullName || p.name || "",
@@ -1668,22 +1440,19 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
 
 
-  // Effect: Load preloaded people when modal opens
   useEffect(() => {
     if (isOpen) {
       loadPreloadedPeople();
     }
   }, [isOpen]);
 
-  // Update the useEffect for associate search
   useEffect(() => {
     const delay = setTimeout(() => {
       if (isOpen && activeTab === 1) {
         if (associateSearch.trim()) {
           fetchPeople(associateSearch);
         } else {
-          // Show preloaded list when no search term
-          fetchPeople(""); // This will trigger the preloaded list
+          fetchPeople(""); 
         }
       }
     }, 300);
@@ -1694,12 +1463,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const handleCheckIn = (id) => {
     setCheckedIn(prev => {
       const isNowChecked = !prev[id];
-
-      // Update UI state
       const newState = { ...prev, [id]: isNowChecked };
 
       // Note: This check/uncheck only affects WEEKLY attendance
-      // The person stays in the database attendees list regardless
 
       if (isNowChecked) {
         toast.success("Person checked in for this week");
@@ -1809,20 +1575,15 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
     if (isAlreadyAdded) {
-      // REMOVE from database entirely
       if (window.confirm(`Remove ${person.fullName}?`)) {
         const updated = persistentCommonAttendees.filter(p => p.id !== person.id);
 
-        // Update UI immediately
         setPersistentCommonAttendees(updated);
-
-        // SAVE TO DATABASE IMMEDIATELY (ALL attendees list)
         await saveAllAttendeesToDatabase(updated);
 
         toast.success(`${person.fullName} removed from attendees list`);
       }
     } else {
-      // ADD to database
       const updated = [...persistentCommonAttendees, person];
       setPersistentCommonAttendees(updated);
 
@@ -2139,12 +1900,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       <div key={person.id} style={styles.mobileAttendeeCard}>
         <div style={styles.mobileCardRow}>
           <div style={styles.mobileCardInfo}>
-            <div style={styles.mobileCardName}>
-              {person.fullName}
-              {isPersistent && (
-                <span style={styles.persistentBadge}>Added</span>
-              )}
-            </div>
+  
             <div style={styles.mobileCardEmail}>{person.email}</div>
             {!isTicketedEvent && (
               <>
@@ -3057,15 +2813,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                             <tr key={person.id}>
                               <td style={styles.td}>
                                 {person.fullName}
-                                {isPersistent && (
-                                  <span style={styles.persistentBadge}>
-                                    ADDED
-                                  </span>
-                                )}
+                              
                               </td>
                               <td style={styles.td}>{person.email}</td>
-
-                              {/* Regular columns for non-ticketed events */}
                               {!isTicketedEvent && (
                                 <>
                                   <td style={styles.td}>{person.leader12}</td>
@@ -3531,11 +3281,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                             <div style={styles.mobileCardInfo}>
                               <div style={styles.mobileCardName}>
                                 {person.fullName}
-                                {isAlreadyAdded && (
-                                  <span style={styles.persistentBadge}>
-                                    ADDED
-                                  </span>
-                                )}
                               </div>
                               <div style={styles.mobileCardEmail}>
                                 {person.email}
