@@ -1766,6 +1766,89 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     person.email.toLowerCase().includes(associateSearch.toLowerCase())
   );
 
+  const createConsolidationTasks = async (attendees, eventId) => {
+    /**
+     * Create consolidation follow-up tasks for each attendee who made a decision
+     * The task is assigned to their leader for follow-up
+     */
+    if (!attendees || attendees.length === 0) return;
+
+    for (const attendee of attendees) {
+      // Only create consolidation task if person made a decision (first-time or re-commitment)
+      const hasDecision = attendee.decision && attendee.decision.length > 0;
+      
+      if (!hasDecision) {
+        console.log(`Skipping consolidation task for ${attendee.fullName} - no decision made`);
+        continue;
+      }
+
+      try {
+        // Determine which leader to assign the task to
+        // Priority: leader12 > leader144 > leaderName (event leader)
+        let assignedLeader = attendee.leader12 || attendee.leader144 || currentUser?.name || "";
+        
+        if (!assignedLeader) {
+          console.warn(`Could not determine leader for ${attendee.fullName}`);
+          continue;
+        }
+
+        const [leaderName, leaderSurname] = assignedLeader.includes(" ")
+          ? assignedLeader.split(" ", 2)
+          : [assignedLeader, ""];
+
+        // Map decision type using same logic as ConsolidationModal
+        const decisionType = attendee.decision.toLowerCase() === 're-commitment' ? 'recommitment' : 'first_time';
+
+        // Split full name into first and last
+        const nameParts = (attendee.fullName || "").split(" ");
+        const firstName = nameParts[0] || "";
+        const lastName = nameParts.slice(1).join(" ") || "";
+
+        const consolidationPayload = {
+          person_name: firstName,
+          person_surname: lastName,
+          person_email: attendee.email || "",
+          person_phone: attendee.phone || "",
+          decision_type: decisionType,
+          decision_date: new Date().toISOString().split("T")[0],
+          assigned_to: assignedLeader,
+          assigned_to_email: "", // Will be looked up by backend
+          leaders: [
+            currentUser?.name || "", // Leader @1
+            attendee.leader12 || "", // Leader @12
+            attendee.leader144 || "", // Leader @144
+            "" // Leader @1728
+          ],
+          event_id: eventId,
+          is_check_in: true,
+          attendance_status: "checked_in"
+        };
+
+        console.log("Creating consolidation task:", consolidationPayload);
+
+        const response = await authFetch(`${BACKEND_URL}/consolidations`, {
+          method: "POST",
+          body: JSON.stringify(consolidationPayload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error(`Failed to create consolidation task for ${attendee.fullName}:`, {
+            status: response.status,
+            data: errorData,
+          });
+          continue;
+        }
+
+        const result = await response.json();
+        console.log(`✅ Consolidation task created for ${attendee.fullName}:`, result);
+      } catch (error) {
+        console.error(`Error creating consolidation task for ${attendee.fullName}:`, error);
+        // Don't throw - continue with other attendees even if one fails
+      }
+    }
+  };
+
   const handleSave = async () => {
     const allPeople = getAllCommonAttendees();
     console.log(" All people for save:", allPeople);
@@ -1876,6 +1959,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       console.log("Save result:", result);
 
       if (result && result.success) {
+        // Create consolidation tasks for people who made decisions
+        await createConsolidationTasks(selectedAttendees, eventId);
+
         toast.success("Attendance saved successfully!");
 
         if (typeof onClose === "function") {
