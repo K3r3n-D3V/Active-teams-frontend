@@ -60,7 +60,7 @@ const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false
 
     // Redirect to login if not authenticated
     if (!user) {
-      console.log('🔒 No user found, redirecting to login from:', location.pathname);
+      console.log(' No user found, redirecting to login from:', location.pathname);
       return <Navigate to="/login" state={{ from: location.pathname }} replace />;
     }
 
