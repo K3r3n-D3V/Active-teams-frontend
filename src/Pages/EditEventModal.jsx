@@ -51,7 +51,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
   const isAdmin = loggedInUserRole === USER_ROLES.ADMIN;
   const isLeader1 = loggedInUserRole === USER_ROLES.LEADER_1;
-  const isLeader12 = loggedInUserRole === USER_ROLES.LEADER_12;
+  // const isLeader12 = loggedInUserRole === USER_ROLES.LEADER_12;
   const isLeader144 = loggedInUserRole === USER_ROLES.LEADER_144;
   const hasEditPermission = isAdmin || isLeader1;
   
@@ -65,7 +65,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     'Event Name': ['Event Name', 'eventName'],
     'status': ['status', 'Status'],
   };
-
+console.log("EditEventModal rendered with event:", fieldMapping);
   const getFieldPermissions = useCallback((field) => {
     const fl = field.toLowerCase();
     const isWeekId = fl.includes('week') && (fl.includes('identifier') || fl.includes('id'));
@@ -202,7 +202,7 @@ const handleDeactivateCell = async () => {
     
     console.log("Calling endpoint with:", params.toString());
     
-    const response = await fetch(`${BACKEND_URL}/api/cells/deactivate?${params.toString()}`, {
+    const response = await fetch(`${BACKEND_URL}/cells/deactivate?${params.toString()}`, {
       method: 'PUT',
       headers: { 
         'Authorization': `Bearer ${userToken}` 
@@ -263,7 +263,7 @@ const handleDeactivateCell = async () => {
       }
       
       const params = new URLSearchParams();
-      let endpoint = '/api/cells/reactivate';
+      let endpoint = '/cells/reactivate';
       
       if (editScope === 'single' || !isCellEvent) {
         // Reactivate specific cell
@@ -412,7 +412,7 @@ const handleDeactivateCell = async () => {
 
       const originalEventName = event['Event Name'] || event.eventName;
       const originalDay = event.Day || event.day;
-      const originalPerson = event.Leader || event.eventLeader || event.eventLeaderName;
+      // const originalPerson = event.Leader || event.eventLeader || event.eventLeaderName;
       
       const newEventName = formData['Event Name'] || formData.eventName;
       const newDay = formData.Day || formData.day;
@@ -600,7 +600,7 @@ const handleDeactivateCell = async () => {
             dateValue = date.toISOString().slice(0, 16);
           }
         } catch (e) {
-          console.warn(`Invalid date for ${field}:`, value);
+          console.warn(`Invalid date for ${field}:`, value, e);
         }
       }
       
@@ -1121,8 +1121,7 @@ const handleDeactivateCell = async () => {
       >
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Pause color="warning" />
-            Deactivate Cell
+            Deactivate Event
           </Box>
         </DialogTitle>
         <DialogContent>
