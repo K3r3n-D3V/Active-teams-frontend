@@ -1828,7 +1828,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           continue;
         }
 
-        console.log(`📋 Assigning consolidation for ${attendee.fullName} to: ${assignedLeader}`);
+        console.log(`Assigning consolidation for ${attendee.fullName} to: ${assignedLeader}`);
 
         // Lookup leader's email - CRITICAL for task assignment
         const leaderEmail = await findLeaderEmail(assignedLeader);
