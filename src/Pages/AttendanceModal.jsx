@@ -1182,72 +1182,90 @@ const loadEventStatistics = async () => {
 };
 
 const loadWeeklyCheckins = () => {
-  const currentWeek = get_current_week_identifier();
-  
-  if (!event || !event.attendance) {
-    if (eventStatistics.lastAttendanceCount > 0) {
-      setManualHeadcount(eventStatistics.lastHeadcount.toString());
-      setDidNotMeet(eventStatistics.lastAttendanceCount === 0 && eventStatistics.lastHeadcount === 0);
-    } else {
-      setCheckedIn({});
-      setManualHeadcount("0");
-      setDidNotMeet(false);
-    }
-    return;
-  }
-  
-  let weekAttendance = event.attendance[currentWeek];
-  
-  if (!weekAttendance) {
-    const weekKeys = Object.keys(event.attendance);
-    if (weekKeys.length > 0) {
-      weekAttendance = event.attendance[weekKeys[0]];
-    }
-  }
-  
-  if (weekAttendance) {
-    const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
-    const hasHeadcount = weekAttendance.total_headcounts > 0;
-    
-    const isActuallyDidNotMeet = (
-      weekAttendance.is_did_not_meet === true && 
-      !hasAttendees && 
-      !hasHeadcount
-    );
-    
-    setDidNotMeet(isActuallyDidNotMeet);
-    
-    if (hasAttendees) {
-      const newCheckedIn = {};
-      const newDecisions = {};
-      const newDecisionTypes = {};
-
-      weekAttendance.attendees.forEach(att => {
-        if (att.id && att.checked_in !== false) {
-          newCheckedIn[att.id] = true;
-          
-          if (att.decision) {
-            newDecisions[att.id] = true;
-            newDecisionTypes[att.id] = att.decision;
-          }
-        }
-      });
-      
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-    } else {
-      setCheckedIn({});
-    }
-    
-    if (weekAttendance.total_headcounts || weekAttendance.total_headcounts === 0) {
-      setManualHeadcount(weekAttendance.total_headcounts.toString());
-    }
-  } else {
+  if (!event) {
     setCheckedIn({});
     setManualHeadcount("0");
     setDidNotMeet(false);
+    return;
   }
+  
+  // Reset states
+  setCheckedIn({});
+  setDecisions({});
+  setDecisionTypes({});
+  setPriceTiers({});
+  setPaymentMethods({});
+  setPaidAmounts({});
+  
+  // Check event attendance data
+  const attendanceData = event.attendance;
+  
+  if (!attendanceData) {
+    setManualHeadcount("0");
+    setDidNotMeet(event.did_not_meet || false);
+    return;
+  }
+  
+  const hasAttendees = attendanceData.attendees && attendanceData.attendees.length > 0;
+  const hasHeadcount = attendanceData.total_headcounts > 0;
+  
+  const isActuallyDidNotMeet = (
+    attendanceData.is_did_not_meet === true && 
+    !hasAttendees && 
+    !hasHeadcount
+  );
+  
+  setDidNotMeet(isActuallyDidNotMeet);
+  
+  if (hasAttendees) {
+    const newCheckedIn = {};
+    const newDecisions = {};
+    const newDecisionTypes = {};
+    const newPriceTiers = {};
+    const newPaymentMethods = {};
+    const newPaidAmounts = {};
+    
+    attendanceData.attendees.forEach(att => {
+      if (att.id) {
+        newCheckedIn[att.id] = true;
+        
+        if (att.decision) {
+          newDecisions[att.id] = true;
+          newDecisionTypes[att.id] = att.decision;
+        }
+        
+        if (isTicketedEvent) {
+          if (att.priceTier || att.price) {
+            newPriceTiers[att.id] = {
+              name: att.priceTier || "",
+              price: att.price || 0,
+              ageGroup: att.ageGroup || "",
+              memberType: att.memberType || ""
+            };
+          }
+          if (att.paymentMethod) {
+            newPaymentMethods[att.id] = att.paymentMethod;
+          }
+          if (att.paid !== undefined) {
+            newPaidAmounts[att.id] = att.paid;
+          }
+        }
+      }
+    });
+    
+    setCheckedIn(newCheckedIn);
+    setDecisions(newDecisions);
+    setDecisionTypes(newDecisionTypes);
+    setPriceTiers(newPriceTiers);
+    setPaymentMethods(newPaymentMethods);
+    setPaidAmounts(newPaidAmounts);
+  } else {
+    setCheckedIn({});
+  }
+  
+  const headcount = attendanceData.total_headcounts || attendanceData.total_headcounts === 0 ? 
+    attendanceData.total_headcounts : 0;
+  setManualHeadcount(headcount.toString());
 };
 
 const loadPersistentAttendees = async (eventId) => {
@@ -1282,7 +1300,7 @@ useEffect(() => {
     const loadAllData = async () => {
       await loadEventStatistics();
       await loadPersistentAttendees(eventId);
-      loadWeeklyCheckins();
+      loadWeeklyCheckins(); 
     };
 
     loadAllData();
@@ -1683,57 +1701,60 @@ useEffect(() => {
 
 const getAllCommonAttendees = () => {  
   const persistent = [...(persistentCommonAttendees || [])];
-    let savedAttendees = [];
+  let savedAttendees = [];
   
-  if (event?.attendance) {
-    const weekKeys = Object.keys(event.attendance);
-    console.log("[GET] Available week keys:", weekKeys);
-    
-    for (const weekKey of weekKeys) {
-      const weekData = event.attendance[weekKey];
-      if (weekData?.attendees?.length > 0) {
-        savedAttendees = weekData.attendees;
-        console.log(`[GET] Found saved attendees for week ${weekKey}:`, savedAttendees.length);
-        break;
-      }
-    }
+  if (event?.attendance?.attendees?.length > 0) {
+    savedAttendees = event.attendance.attendees;
+  }
+  else if (event?.attendees?.length > 0) {
+    savedAttendees = event.attendees;
   }
   
   const combinedMap = new Map();
   
   persistent.forEach(att => {
     if (att && att.id) {
-      combinedMap.set(att.id, {
-        ...att,
-        id: att.id || att._id || "",
-        fullName: att.fullName || att.name || "Unknown Person",
-        email: att.email || "",
-        leader12: att.leader12 || "",
-        leader144: att.leader144 || "",
-        phone: att.phone || "",
-      });
+      const attendeeId = att.id || att._id || "";
+      if (attendeeId) {
+        combinedMap.set(attendeeId, {
+          ...att,
+          id: attendeeId,
+          fullName: att.fullName || att.name || "Unknown Person",
+          email: att.email || "",
+          leader12: att.leader12 || "",
+          leader144: att.leader144 || "",
+          phone: att.phone || "",
+          isPersistent: true
+        });
+      }
     }
   });
   
   savedAttendees.forEach(savedAtt => {
     if (savedAtt && savedAtt.id) {
-      combinedMap.set(savedAtt.id, {
-        ...combinedMap.get(savedAtt.id) || {},
-        ...savedAtt,
-        id: savedAtt.id,
-        fullName: savedAtt.fullName || savedAtt.name || "Unknown Person",
-        email: savedAtt.email || "",
-        leader12: savedAtt.leader12 || "",
-        leader144: savedAtt.leader144 || "",
-        phone: savedAtt.phone || "",
-      });
+      const attendeeId = savedAtt.id || savedAtt._id || "";
+      if (attendeeId) {
+        const existing = combinedMap.get(attendeeId) || {};
+        combinedMap.set(attendeeId, {
+          ...existing,
+          ...savedAtt,
+          id: attendeeId,
+          fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
+          email: savedAtt.email || existing.email || "",
+          leader12: savedAtt.leader12 || existing.leader12 || "",
+          leader144: savedAtt.leader144 || existing.leader144 || "",
+          phone: savedAtt.phone || existing.phone || "",
+          checked_in: savedAtt.checked_in !== false,
+          decision: savedAtt.decision || existing.decision || "",
+          isPersistent: existing.isPersistent || false
+        });
+      }
     }
   });
   
-  const combined = Array.from(combinedMap.values());
-  console.log(`[GET] Combined ${combined.length} attendees`);
-  return combined;
+  return Array.from(combinedMap.values());
 };
+
   const attendeesCount = Object.keys(checkedIn).filter(
     (id) => checkedIn[id]
   ).length;
