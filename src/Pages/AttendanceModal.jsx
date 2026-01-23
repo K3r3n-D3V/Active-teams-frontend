@@ -206,72 +206,23 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     setShowInviterDropdown(false);
     setTouched({ ...touched, invitedBy: true });
 
-    const normalizedFull = (person.fullName || "").trim().toLowerCase();
-    const leader1Raw = (person.leader1 || "").trim().toLowerCase();
-    const leader12Raw = (person.leader12 || "").trim().toLowerCase();
-    const leader144Raw = (person.leader144 || "").trim().toLowerCase();
-    const leader1728Raw = (person.leader1728 || "").trim().toLowerCase();
+    // Use hierarchy: Leader @144 > Leader @12 > Leader @1
+    // Fill in the person's leadership chain
+    const leadersToFill = {
+      leader1: person.leader1 || "",
+      leader12: person.leader12 || "",
+      leader144: person.leader144 || "",
+    };
 
-    console.log("Leadership analysis:", {
-      inviterName: normalizedFull,
+    console.log("Leadership hierarchy for inviter:", {
+      inviterName: person.fullName,
       leader1: person.leader1,
       leader12: person.leader12,
       leader144: person.leader144,
-      leader1728: person.leader1728,
     });
-
-    let leadersToFill;
-
-    const isLeader144 = leader12Raw && !leader144Raw && !leader1728Raw;
-
-    const isLeader12 = leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
-
-    // 3. Leader @1: Has their own name as L@1 OR all leadership fields empty
-    const isLeader1 = (leader1Raw === normalizedFull) || (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
-
-    console.log("Leadership detection:", {
-      isLeader144,
-      isLeader12,
-      isLeader1,
-      isSelfL1: leader1Raw === normalizedFull
-    });
-
-    if (isLeader144) {
-      leadersToFill = {
-        leader1: person.leader1 || "",
-        leader12: person.leader12 || "",
-        leader144: person.fullName || "",
-      };
-      console.log("DETECTED: Leader @144 - Empty L@144 field with filled L@12");
-    }
-    else if (isLeader12) {
-      leadersToFill = {
-        leader1: person.leader1 || "",
-        leader12: person.fullName || "",
-        leader144: "",
-      };
-      console.log("DETECTED: Leader @12 - Empty L@12 field with filled L@1");
-    }
-    else if (isLeader1) {
-      leadersToFill = {
-        leader1: person.fullName || "",
-        leader12: "",
-        leader144: "",
-      };
-      console.log("DETECTED: Leader @1 - All leadership fields empty");
-    }
-
-    else {
-      leadersToFill = {
-        leader1: person.leader1 || "",
-        leader12: person.leader12 || "",
-        leader144: person.leader144 || "",
-      };
-      console.log("REGULAR: Person has complete leadership chain");
-    }
 
     setAutoFilledLeaders(leadersToFill);
-    console.log("Final auto-filled leaders:", leadersToFill);
+    console.log("Final auto-filled leaders (hierarchy - L@144 > L@12 > L@1):", leadersToFill);
   };
 
   const isFieldEmpty = (fieldName) => {
@@ -1815,7 +1766,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       try {
         // Determine which leader to assign the task to
-        // Priority: leader144 (lowest in hierarchy) > leader12 > leader1 > current user (event owner/leader)
+        // Hierarchy: Leader @144 (most specific/lowest level) > Leader @12 > Leader @1 (least specific)
+        // If someone has all three levels, the task goes to Leader @144 (their direct leader)
         let assignedLeader = attendee.leader144 || attendee.leader12 || attendee.leader1 || currentUser?.name || "";
         
         // If still no leader, use currentUser's full name as fallback
@@ -1828,7 +1780,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           continue;
         }
 
-        console.log(`Assigning consolidation for ${attendee.fullName} to: ${assignedLeader}`);
+        console.log(`Assigning consolidation for ${attendee.fullName} to: ${assignedLeader} (Hierarchy: L@144=${attendee.leader144} > L@12=${attendee.leader12} > L@1=${attendee.leader1})`);
 
         // Lookup leader's email - CRITICAL for task assignment
         const leaderEmail = await findLeaderEmail(assignedLeader);
