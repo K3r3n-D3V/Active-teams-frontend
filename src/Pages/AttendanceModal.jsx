@@ -1773,6 +1773,37 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
      */
     if (!attendees || attendees.length === 0) return;
 
+    // Helper function to find leader's email
+    const findLeaderEmail = async (leaderName) => {
+      if (!leaderName) return "";
+      
+      try {
+        const response = await authFetch(`${BACKEND_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data?.results?.length > 0) {
+            const foundLeader = data.results.find(person => 
+              person.Name?.toLowerCase() === leaderName.toLowerCase() ||
+              person.FullName?.toLowerCase() === leaderName.toLowerCase()
+            );
+            
+            if (foundLeader?.Email) {
+              console.log(`✅ Found leader email for ${leaderName}: ${foundLeader.Email}`);
+              return foundLeader.Email;
+            }
+          }
+        }
+        
+        console.log(`⚠️ Could not find email for leader: ${leaderName}`);
+        return "";
+        
+      } catch (error) {
+        console.error("Error searching for leader email:", error);
+        return "";
+      }
+    };
+
     for (const attendee of attendees) {
       // Only create consolidation task if person made a decision (first-time or re-commitment)
       const hasDecision = attendee.decision && attendee.decision.length > 0;
@@ -1784,17 +1815,23 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       try {
         // Determine which leader to assign the task to
-        // Priority: leader12 > leader144 > leaderName (event leader)
-        let assignedLeader = attendee.leader12 || attendee.leader144 || currentUser?.name || "";
+        // Priority: leader144 (lowest in hierarchy) > leader12 > leader1 > current user (event owner/leader)
+        let assignedLeader = attendee.leader144 || attendee.leader12 || attendee.leader1 || currentUser?.name || "";
+        
+        // If still no leader, use currentUser's full name as fallback
+        if (!assignedLeader && currentUser) {
+          assignedLeader = `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
+        }
         
         if (!assignedLeader) {
-          console.warn(`Could not determine leader for ${attendee.fullName}`);
+          console.warn(`Could not determine leader for ${attendee.fullName} - no leader in chain and no current user`);
           continue;
         }
 
-        const [leaderName, leaderSurname] = assignedLeader.includes(" ")
-          ? assignedLeader.split(" ", 2)
-          : [assignedLeader, ""];
+        console.log(`📋 Assigning consolidation for ${attendee.fullName} to: ${assignedLeader}`);
+
+        // Lookup leader's email - CRITICAL for task assignment
+        const leaderEmail = await findLeaderEmail(assignedLeader);
 
         // Map decision type using same logic as ConsolidationModal
         const decisionType = attendee.decision.toLowerCase() === 're-commitment' ? 'recommitment' : 'first_time';
@@ -1812,9 +1849,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           decision_type: decisionType,
           decision_date: new Date().toISOString().split("T")[0],
           assigned_to: assignedLeader,
-          assigned_to_email: "", // Will be looked up by backend
+          assigned_to_email: leaderEmail,
           leaders: [
-            currentUser?.name || "", // Leader @1
+            attendee.leader1 || currentUser?.name || "", // Leader @1
             attendee.leader12 || "", // Leader @12
             attendee.leader144 || "", // Leader @144
             "" // Leader @1728
@@ -1887,6 +1924,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           name: person.fullName || "",
           email: person.email || "",
           fullName: person.fullName || "",
+          leader1: person.leader1 || "",
           leader12: person.leader12 || "",
           leader144: person.leader144 || "",
           phone: person.phone || "",
