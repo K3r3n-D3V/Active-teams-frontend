@@ -862,38 +862,30 @@ const handleDeactivateCell = async () => {
         </DialogTitle>
 
         <DialogContent dividers>
-          <Box sx={{ pt: 1 }}>
-            {!hasEditPermission && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Lock fontSize="small" sx={{ mr: 1 }} />
-                Some fields are restricted to administrators and Leader 1 only.
-                Locked fields <Lock fontSize="small" color="disabled" /> cannot be modified.
-              </Alert>
-            )}
+  <Box sx={{ pt: 1 }}>
+    {renderActiveStatusSection()}
 
-            {renderActiveStatusSection()}
+    <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+      <Typography variant="subtitle2" gutterBottom>
+        Update Method:
+      </Typography>
 
-            <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Update Method:
-              </Typography>
-
-              <FormControl fullWidth>
-                {isCellEvent ? (
-                  <Box sx={{ 
-                    p: 2, 
-                    border: 1, 
-                    borderColor: 'primary.main', 
-                    borderRadius: 1, 
-                    bgcolor: 'primary.50' 
-                  }}>
-                    <Typography variant="body2" fontWeight="bold" color="primary.main">
-                      Update All Recurring Events
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Required for Cell consistency. All occurrences will be updated.
-                    </Typography>
-                  </Box>
+      <FormControl fullWidth>
+        {isCellEvent ? (
+          <Box sx={{ 
+            p: 2, 
+            border: 1, 
+            borderColor: 'primary.main', 
+            borderRadius: 1, 
+            bgcolor: 'primary.50' 
+          }}>
+            <Typography variant="body2" fontWeight="bold" color="primary.main">
+              Update All Recurring Events
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Required for Cell consistency. All occurrences will be updated.
+            </Typography>
+          </Box>
                 ) : (
                   <Box sx={{ 
                     p: 2, 
