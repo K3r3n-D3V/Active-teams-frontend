@@ -1556,11 +1556,7 @@ const handlePreviousPage = useCallback(() => {
       }
 
       const result = await response.json();
-
       clearCache();
-
-      setAttendanceModalOpen(false);
-      setSelectedEvent(null);
 
       toast.success(
         payload.did_not_meet
@@ -1568,45 +1564,9 @@ const handlePreviousPage = useCallback(() => {
           : `Successfully captured attendance for ${eventName}`
       );
 
-      setTimeout(() => {
-        (async () => {
-          try {
-            const shouldApplyPersonalFilter =
-              viewFilter === "personal" &&
-              (userRole === "admin" || userRole === "leader at 12");
-
-            const refreshParams = {
-              page: 1,
-              limit: rowsPerPage,
-              start_date: DEFAULT_API_START_DATE,
-              _t: Date.now(),
-              ...(searchQuery.trim() && { search: searchQuery.trim() }),
-              ...(selectedEventTypeFilter !== "all" && {
-                event_type: selectedEventTypeFilter,
-              }),
-              ...(selectedStatus !== "all" && { status: selectedStatus }),
-              ...(shouldApplyPersonalFilter && { personal: true }),
-              ...(isLeaderAt12 && {
-                leader_at_12_view: true,
-                include_subordinate_cells: true,
-                ...(currentUserLeaderAt1 && {
-                  leader_at_1_identifier: currentUserLeaderAt1,
-                }),
-                ...(viewFilter === "personal"
-                  ? { show_personal_cells: true, personal: true }
-                  : { show_all_authorized: true }),
-              }),
-            };
-
-            await fetchEvents(refreshParams, true, true);
-          } catch (refreshError) {
-            console.error("Error refreshing events:", refreshError);
-            toast.error("Failed to refresh events list");
-          }
-        })();
-      }, 1000);
-
+      // ✅ CRITICAL FIX: Return success IMMEDIATELY so modal knows to refresh
       return { success: true, message: "Attendance submitted successfully" };
+      
     } catch (error) {
       console.error("Error submitting attendance:", error);
 
@@ -1626,19 +1586,63 @@ const handlePreviousPage = useCallback(() => {
     currentUser,
     BACKEND_URL,
     clearCache,
-    fetchEvents,
-    rowsPerPage,
-    searchQuery,
-    selectedEventTypeFilter,
-    selectedStatus,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    viewFilter,
-    userRole,
-    DEFAULT_API_START_DATE,
   ]
 );
+const handleAttendanceSubmitted = useCallback(async () => {
+  console.log("🔄 Refreshing events after attendance submission...");
+  
+  try {
+    const shouldApplyPersonalFilter =
+      viewFilter === "personal" &&
+      (userRole === "admin" || userRole === "leader at 12");
 
+    const refreshParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now(),
+      ...(searchQuery.trim() && { search: searchQuery.trim() }),
+      ...(selectedEventTypeFilter !== "all" && {
+        event_type: selectedEventTypeFilter,
+      }),
+      ...(selectedStatus !== "all" && { status: selectedStatus }),
+      ...(shouldApplyPersonalFilter && { personal: true }),
+      ...(isLeaderAt12 && {
+        leader_at_12_view: true,
+        include_subordinate_cells: true,
+        ...(currentUserLeaderAt1 && {
+          leader_at_1_identifier: currentUserLeaderAt1,
+        }),
+        ...(viewFilter === "personal"
+          ? { show_personal_cells: true, personal: true }
+          : { show_all_authorized: true }),
+      }),
+    };
+
+    // ✅ Wait for events to refresh
+    await fetchEvents(refreshParams, false);
+    
+    console.log("✅ Events refreshed successfully");
+    
+    // ✅ Small delay to ensure React state propagates
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+  } catch (error) {
+    console.error("❌ Error refreshing events:", error);
+  }
+}, [
+  viewFilter,
+  userRole,
+  currentPage,
+  rowsPerPage,
+  DEFAULT_API_START_DATE,
+  searchQuery,
+  selectedEventTypeFilter,
+  selectedStatus,
+  isLeaderAt12,
+  currentUserLeaderAt1,
+  fetchEvents,
+]);
   const handleEditEvent = useCallback((event) => {
     let eventId = event._id;
     let eventDate = event.date;
@@ -3819,18 +3823,19 @@ const ViewFilterButtons = () => {
         eventTypes={eventTypes}
       />
 
-      {selectedEvent && (
-        <AttendanceModal
-          isOpen={attendanceModalOpen}
-          onClose={() => {
-            setAttendanceModalOpen(false);
-            setSelectedEvent(null);
-          }}
-          onSubmit={handleAttendanceSubmit}
-          event={selectedEvent}
-          currentUser={currentUser}
-        />
-      )}
+    {selectedEvent && (
+  <AttendanceModal
+    isOpen={attendanceModalOpen}
+    onClose={() => {
+      setAttendanceModalOpen(false);
+      setSelectedEvent(null);
+    }}
+    onSubmit={handleAttendanceSubmit}
+    event={selectedEvent}
+    currentUser={currentUser}
+    onAttendanceSubmitted={handleAttendanceSubmitted}  
+  />
+)}
       {isAdmin && (
         <EventTypesModal
           key={editingEventType?._id || "create"}
