@@ -1,4 +1,3 @@
-
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -10,6 +9,8 @@ import {
   useTheme,
   useMediaQuery,
   Link,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
@@ -29,6 +30,8 @@ const Login = ({ mode, setMode }) => {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [userName, setUserName] = useState("");
 
   const theme = useTheme();
   const navigate = useNavigate();
@@ -44,23 +47,41 @@ const Login = ({ mode, setMode }) => {
     e.preventDefault();
     setError("");
     setSuccess("");
-
+  
     if (!form.email || !form.password) {
       setError("Email and password are required.");
       return;
     }
-
+  
     setLoading(true);
     try {
       await login(form.email, form.password);
+      
+      // Get username from email
+      const name = form.email.split('@')[0];
+      console.log("Setting username to:", name);
+      
+      // Store the welcome message in localStorage for Home page
+      localStorage.setItem('showWelcome', 'true');
+      localStorage.setItem('welcomeUserName', name);
+      
       setSuccess("Login successful!");
-      setForm(initialForm);
-      setTimeout(() => navigate("/"), 500);
+      
+      // The protected route will automatically navigate to home
     } catch (err) {
       setError(err.message || "Login failed.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbarOpen(false);
+    // Navigate AFTER snackbar closes
+    navigate("/");
   };
 
   const inputFieldSx = {
@@ -249,6 +270,29 @@ const Login = ({ mode, setMode }) => {
           </Typography>
         </Box>
       </Box>
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity="success"
+          variant="filled"
+          sx={{
+            width: '100%',
+            fontSize: '1.1rem',
+            fontWeight: 'bold',
+            backgroundColor: '#4caf50',
+            '& .MuiAlert-icon': {
+              fontSize: '2rem',
+            },
+          }}
+        >
+          Welcome back, {userName}! 🎉
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
