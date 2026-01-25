@@ -1150,6 +1150,48 @@ const loadEventStatistics = async () => {
       eventId = eventId.split("_")[0];
     }
 
+    const eventDate = event.date;
+    const attendanceData = event.attendance || {};
+    
+    let weekAttendance = attendanceData;
+    if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
+      weekAttendance = attendanceData[eventDate] || {};
+    }
+    
+    if (weekAttendance && weekAttendance.status) {
+      const stats = weekAttendance.statistics || {};
+      const attendees = weekAttendance.attendees || [];
+      
+      let firstTimeCount = 0;
+      let recommitmentCount = 0;
+      
+      attendees.forEach(att => {
+        const decision = (att.decision || "").toLowerCase();
+        if (decision.includes("first")) {
+          firstTimeCount++;
+        } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+          recommitmentCount++;
+        }
+      });
+      
+      setEventStatistics({
+        totalAssociated: weekAttendance.persistent_attendees?.length || 0,
+        lastAttendanceCount: weekAttendance.checked_in_count || attendees.length,
+        lastHeadcount: weekAttendance.total_headcounts || 0,
+        lastDecisionsCount: firstTimeCount + recommitmentCount,
+        lastAttendanceBreakdown: {
+          first_time: firstTimeCount,
+          recommitment: recommitmentCount
+        }
+      });
+      
+      if (weekAttendance.total_headcounts > 0) {
+        setManualHeadcount(weekAttendance.total_headcounts.toString());
+      }
+      
+      return;
+    }
+    
     const token = localStorage.getItem("token");
     const response = await authFetch(
       `${BACKEND_URL}/events/${eventId}/statistics`,
@@ -1161,7 +1203,7 @@ const loadEventStatistics = async () => {
       
       if (data.statistics) {
         setEventStatistics({
-          totalAssociated: data.statistics.last_attendance_count || 0,
+          totalAssociated: data.statistics.total_associated || 0,
           lastAttendanceCount: data.statistics.last_attendance_count || 0,
           lastHeadcount: data.statistics.last_headcount || 0,
           lastDecisionsCount: data.statistics.last_decisions_count || 0,
@@ -1170,10 +1212,6 @@ const loadEventStatistics = async () => {
             recommitment: 0
           }
         });
-        
-        if (data.statistics.last_headcount > 0) {
-          setManualHeadcount(data.statistics.last_headcount.toString());
-        }
       }
     }
   } catch (error) {
@@ -1189,7 +1227,6 @@ const loadWeeklyCheckins = () => {
     return;
   }
   
-  // Reset states
   setCheckedIn({});
   setDecisions({});
   setDecisionTypes({});
@@ -1197,20 +1234,33 @@ const loadWeeklyCheckins = () => {
   setPaymentMethods({});
   setPaidAmounts({});
   
-  // Check event attendance data
-  const attendanceData = event.attendance;
+  const eventDate = event.date;
   
-  if (!attendanceData) {
+  if (!eventDate) {
     setManualHeadcount("0");
-    setDidNotMeet(event.did_not_meet || false);
+    setDidNotMeet(false);
     return;
   }
   
-  const hasAttendees = attendanceData.attendees && attendanceData.attendees.length > 0;
-  const hasHeadcount = attendanceData.total_headcounts > 0;
+  const attendanceData = event.attendance || {};
+  let weekAttendance = attendanceData;
+  
+  if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
+    weekAttendance = attendanceData[eventDate] || {};
+  }
+  
+  if (!weekAttendance || !weekAttendance.status) {
+    setCheckedIn({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+    return;
+  }
+  
+  const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
+  const hasHeadcount = weekAttendance.total_headcounts > 0;
   
   const isActuallyDidNotMeet = (
-    attendanceData.is_did_not_meet === true && 
+    weekAttendance.status === "did_not_meet" && 
     !hasAttendees && 
     !hasHeadcount
   );
@@ -1225,7 +1275,7 @@ const loadWeeklyCheckins = () => {
     const newPaymentMethods = {};
     const newPaidAmounts = {};
     
-    attendanceData.attendees.forEach(att => {
+    weekAttendance.attendees.forEach(att => {
       if (att.id) {
         newCheckedIn[att.id] = true;
         
@@ -1263,8 +1313,7 @@ const loadWeeklyCheckins = () => {
     setCheckedIn({});
   }
   
-  const headcount = attendanceData.total_headcounts || attendanceData.total_headcounts === 0 ? 
-    attendanceData.total_headcounts : 0;
+  const headcount = weekAttendance.total_headcounts || 0;
   setManualHeadcount(headcount.toString());
 };
 
@@ -1286,6 +1335,7 @@ const loadPersistentAttendees = async (eventId) => {
   }
 };
 
+
 useEffect(() => {
   if (isOpen && event) {
     let eventId = event._id || event.id;
@@ -1305,10 +1355,14 @@ useEffect(() => {
 
     loadAllData();
     fetchPeople();
-    setDidNotMeet(event.did_not_meet || false);
+    
+    const weekAttendance = event.attendance || {};
+    const eventDate = event.date;
+    const thisWeekData = weekAttendance[eventDate] || weekAttendance;
+    
+    setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
   }
 }, [isOpen, event]);
-
   const loadPreloadedPeople = async () => {
     const now = Date.now();
 
