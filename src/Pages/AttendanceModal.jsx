@@ -1,4 +1,4 @@
-import { useState, useEffect,  useContext } from "react";
+import { useState, useEffect,  useContext, useMemo} from "react";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -11,19 +11,11 @@ import {
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
 
-
-let globalPeopleCache = {
-  data: [],
-  timestamp: null,
-  expiry: 5 * 60 * 1000,
-};
-
-const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
-
+const AddPersonToEvents = ({ isOpen, onClose }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   console.log("AddPersonToEvents - isDarkMode:", isDarkMode);
-    const { authFetch } = useContext(AuthContext);
+  const { authFetch } = useContext(AuthContext);
 
   const [formData, setFormData] = useState({
     invitedBy: "",
@@ -35,12 +27,12 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     dob: "",
     address: "",
   });
-  const [inviterSearch, setInviterSearch] = useState("");
-  const [inviterResults, setInviterResults] = useState([]);
+  
+  const [peopleList, setPeopleList] = useState([]);
+  const [isLoadingPeople, setIsLoadingPeople] = useState(false);
+  const [inviterSearchInput, setInviterSearchInput] = useState("");
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
-  const [loadingInviters, setLoadingInviters] = useState(false);
   const [showLeaderModal, setShowLeaderModal] = useState(false);
-  const [preloadedPeople, setPreloadedPeople] = useState([]);
   const [touched, setTouched] = useState({});
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [autoFilledLeaders, setAutoFilledLeaders] = useState({
@@ -51,160 +43,96 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
+  // Fetch people data when modal opens
   useEffect(() => {
     if (isOpen) {
-      loadPreloadedPeople();
+      fetchAllPeople();
     }
   }, [isOpen]);
 
-  const loadPreloadedPeople = async (forceRefresh = false) => {
-    const now = Date.now();
-
-    if (!forceRefresh && globalPeopleCache.data.length > 0 && globalPeopleCache.timestamp &&
-      (now - globalPeopleCache.timestamp) < globalPeopleCache.expiry) {
-      console.log("Using cached people data in AddPersonToEvents");
-      setPreloadedPeople(globalPeopleCache.data);
-      return;
-    }
-
+  // Function to fetch people - SAME AS AddPersonDialog
+  const fetchAllPeople = async () => {
+    setIsLoadingPeople(true);
     try {
-      console.log("Fetching fresh people data for AddPersonToEvents cache");
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const params = new URLSearchParams();
-      params.append("perPage", "1000");
-      params.append("page", "1");
-      params.append("sortBy", "updatedAt");
-      params.append("sortOrder", "desc");
-
-      if (forceRefresh) {
-        params.append("_t", now.toString());
-      }
-
-      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      console.log(`Fetched ${peopleArray.length} people from server`);
-
-      const formatted = peopleArray.map((p) => {
-        // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
-        const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
-        const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
-        const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-        const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
-
-        return {
-          id: p._id,
-          fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-          email: p.Email || p.email || "",
-          leader1: leader1,
-          leader12: leader12,
-          leader144: leader144,
-          leader1728: leader1728,
-          phone: p.Number || p.Phone || p.phone || "",
-          rawData: p
-        };
-      });
-
-      globalPeopleCache = {
-        data: formatted,
-        timestamp: now,
-        expiry: 2 * 60 * 1000
-      };
-
-      setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AddPersonToEvents cache`);
-
-      const recentPeople = formatted.slice(0, 5);
-      console.log("Most recent people in cache:", recentPeople);
-    } catch (err) {
-      console.error("Error pre-loading people in AddPersonToEvents:", err);
-      if (globalPeopleCache.data.length > 0) {
-        setPreloadedPeople(globalPeopleCache.data);
-      }
-    }
-  };
-
-  const fetchInviters = async (searchTerm) => {
-    if (!searchTerm || searchTerm.length < 1) {
-      setInviterResults([]);
-      return;
-    }
-
-    try {
-      setLoadingInviters(true);
-
-      const filteredFromCache = preloadedPeople.filter(person =>
-        person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        person.email.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-
-      if (filteredFromCache.length > 0) {
-        setInviterResults(filteredFromCache.slice(0, 20));
+      const response = await authFetch(`${BACKEND_URL}/cache/people`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const cachedData = data.cached_data || [];
+        setPeopleList(cachedData);
+        console.log(`Loaded ${cachedData.length} people from cache`);
       } else {
-        const token = localStorage.getItem("token");
-        const headers = { Authorization: `Bearer ${token}` };
-
-        const params = new URLSearchParams();
-        params.append("name", searchTerm);
-        params.append("perPage", "20");
-
-        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
-        const data = await res.json();
-        const peopleArray = data.people || data.results || [];
-
-        // CONSISTENT FIELD MAPPING FOR ALL LEADERSHIP LEVELS
-        const formatted = peopleArray.map((p) => {
-          const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
-          const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
-          const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-          const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
-
-          return {
-            id: p._id,
-            fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-            email: p.Email || p.email || "",
-            leader1: leader1,
-            leader12: leader12,
-            leader144: leader144,
-            leader1728: leader1728,
-            phone: p.Number || p.Phone || p.phone || "",
-          };
-        });
-
-        setInviterResults(formatted);
-        console.log("Inviter search results for '" + searchTerm + "':", formatted);
+        await fetchPeopleFallback();
       }
     } catch (err) {
-      console.error("Error fetching inviters:", err);
+      console.error("Error fetching from cache:", err);
+      await fetchPeopleFallback();
     } finally {
-      setLoadingInviters(false);
+      setIsLoadingPeople(false);
     }
   };
 
-  useEffect(() => {
-    const delay = setTimeout(() => {
-      if (inviterSearch.length >= 1) {
-        fetchInviters(inviterSearch);
-      } else {
-        setInviterResults([]);
+  const fetchPeopleFallback = async () => {
+    try {
+      const response = await authFetch(`${BACKEND_URL}/people/simple?per_page=1000`);
+      if (response.ok) {
+        const data = await response.json();
+        const peopleData = data.results || [];
+        setPeopleList(peopleData);
+        console.log(`Loaded ${peopleData.length} people from fallback`);
       }
-    }, 150);
+    } catch (fallbackErr) {
+      console.error("Fallback fetch failed:", fallbackErr);
+      setPeopleList([]);
+    }
+  };
 
-    return () => clearTimeout(delay);
-  }, [inviterSearch]);
+  // Create people options
+  const peopleOptions = useMemo(() => {
+    return peopleList.map(person => {
+      const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
+      return {
+        id: person._id,
+        fullName: fullName,
+        email: person.Email || "",
+        phone: person.Number || person.Phone || "",
+        leader1: person["Leader @1"] || "",
+        leader12: person["Leader @12"] || "",
+        leader144: person["Leader @144"] || "",
+        leader1728: person["Leader @1728"] || "",
+        searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase()
+      };
+    });
+  }, [peopleList]);
+
+  // Filter function
+  const filterPeopleOptions = (inputValue) => {
+    if (!inputValue) {
+      return peopleOptions.slice(0, 30);
+    }
+    
+    const searchTerm = inputValue.toLowerCase();
+    return peopleOptions
+      .filter(option => 
+        option.searchText.includes(searchTerm) ||
+        option.fullName.toLowerCase().includes(searchTerm) ||
+        option.email.toLowerCase().includes(searchTerm) ||
+        (option.phone && option.phone.includes(searchTerm))
+      )
+      .slice(0, 50);
+  };
+
+  const filteredInviterResults = useMemo(() => {
+    return filterPeopleOptions(inviterSearchInput);
+  }, [inviterSearchInput, peopleOptions]);
 
   const handleInviterSelect = (person) => {
     console.log("Selected inviter:", person.fullName);
-    setFormData({ ...formData, invitedBy: person.fullName });
-    setInviterSearch(person.fullName);
+    
+    setFormData(prev => ({ ...prev, invitedBy: person.fullName }));
+    setInviterSearchInput(person.fullName);
     setShowInviterDropdown(false);
-    setTouched({ ...touched, invitedBy: true });
+    setTouched(prev => ({ ...prev, invitedBy: true }));
 
     const normalizedFull = (person.fullName || "").trim().toLowerCase();
     const leader1Raw = (person.leader1 || "").trim().toLowerCase();
@@ -221,12 +149,8 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     });
 
     let leadersToFill;
-
     const isLeader144 = leader12Raw && !leader144Raw && !leader1728Raw;
-
     const isLeader12 = leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
-
-    // 3. Leader @1: Has their own name as L@1 OR all leadership fields empty
     const isLeader1 = (leader1Raw === normalizedFull) || (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
 
     console.log("Leadership detection:", {
@@ -242,7 +166,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         leader12: person.leader12 || "",
         leader144: person.fullName || "",
       };
-      console.log("DETECTED: Leader @144 - Empty L@144 field with filled L@12");
+      console.log("DETECTED: Leader @144");
     }
     else if (isLeader12) {
       leadersToFill = {
@@ -250,7 +174,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         leader12: person.fullName || "",
         leader144: "",
       };
-      console.log("DETECTED: Leader @12 - Empty L@12 field with filled L@1");
+      console.log("DETECTED: Leader @12");
     }
     else if (isLeader1) {
       leadersToFill = {
@@ -258,9 +182,8 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         leader12: "",
         leader144: "",
       };
-      console.log("DETECTED: Leader @1 - All leadership fields empty");
+      console.log("DETECTED: Leader @1");
     }
-
     else {
       leadersToFill = {
         leader1: person.leader1 || "",
@@ -274,8 +197,68 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
     console.log("Final auto-filled leaders:", leadersToFill);
   };
 
+  const handleInviterInputChange = (value) => {
+    setInviterSearchInput(value);
+    setShowInviterDropdown(true);
+    setTouched(prev => ({ ...prev, invitedBy: true }));
+    
+    if (value.trim() === "") {
+      setFormData(prev => ({ ...prev, invitedBy: "" }));
+      setAutoFilledLeaders({
+        leader1: "",
+        leader12: "",
+        leader144: ""
+      });
+    }
+  };
+
+const handleSubmit = async (finalLeaderInfo) => {
+  try {
+    const payload = {
+      invitedBy: formData.invitedBy,
+      name: formData.name,
+      surname: formData.surname,
+      gender: formData.gender,
+      email: formData.email,
+      number: formData.mobile,
+      dob: formData.dob,
+      address: formData.address,
+      leaders: [
+        finalLeaderInfo.leader1 || "",
+        finalLeaderInfo.leader12 || "",
+        finalLeaderInfo.leader144 || "",
+        finalLeaderInfo.leader1728 || ""
+      ].filter(leader => leader.trim() !== ""),
+      stage: "Win",
+    };
+
+    console.log("Submitting new person:", payload);
+        const response = await authFetch(`${BACKEND_URL}/people`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to create person');
+    }
+
+    const result = await response.json();
+    console.log("Person created:", result);
+    toast.success("Person created successfully!");
+    await authFetch(`${BACKEND_URL}/cache/refresh`, { method: 'POST' });
+     handleClose();
+    
+  } catch (error) {
+    console.error("Error creating person:", error);
+    toast.error(`Error: ${error.message}`);
+  }
+};
   const isFieldEmpty = (fieldName) => {
-    const value = fieldName === 'invitedBy' ? inviterSearch : formData[fieldName];
+    const value = fieldName === 'invitedBy' ? inviterSearchInput : formData[fieldName];
     return !value || value.trim() === "";
   };
 
@@ -285,30 +268,28 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   const validateForm = () => {
     setAttemptedSubmit(true);
-
     const requiredFields = {
       name: formData.name?.trim(),
       surname: formData.surname?.trim(),
       email: formData.email?.trim(),
       mobile: formData.mobile?.trim(),
       dob: formData.dob?.trim(),
-      address: formData.address?.trim()
+      address: formData.address?.trim(),
+      invitedBy: formData.invitedBy?.trim() 
     };
-
+    
     const missingFields = Object.entries(requiredFields)
       .filter(([key, value]) => !value)
       .map(([key]) => key);
 
     if (missingFields.length > 0) {
       toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
-
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       toast.error("Please enter a valid email address");
-
       return false;
     }
 
@@ -318,111 +299,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
   const handleNext = () => {
     if (validateForm()) {
       setShowLeaderModal(true);
-    }
-  };
-
-  const handleSubmit = async (leaderInfo) => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const personData = {
-        name: formData.name.trim(),
-        surname: formData.surname.trim(),
-        email: formData.email.toLowerCase().trim(),
-        number: formData.mobile || "",
-        address: formData.address || "",
-        gender: formData.gender || "",
-        dob: formData.dob || "",
-        invitedBy: formData.invitedBy || "",
-        leaders: [
-          leaderInfo.leader1 || "",
-          leaderInfo.leader12 || "",
-          leaderInfo.leader144 || "",
-          "" 
-          
-        ],
-        stage: "Win",
-      };
-      console.log("Sending person data to backend:", personData);
-
-      const response = await authFetch(`${BACKEND_URL}/people`, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(personData),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Person created successfully:", data);
-
-        globalPeopleCache = {
-          data: [],
-          timestamp: null,
-          expiry: 5 * 60 * 1000
-        };
-
-        if (typeof onPersonAdded === "function") {
-          onPersonAdded(data.person || data);
-        }
-
-        setTimeout(() => {
-          loadPreloadedPeople(true);
-          onClose();
-          setFormData({
-            invitedBy: "",
-            name: "",
-            surname: "",
-            gender: "",
-            email: "",
-            mobile: "",
-            dob: "",
-            address: "",
-          });
-          setInviterSearch("");
-          setInviterResults([]);
-          setShowLeaderModal(false);
-          setAttemptedSubmit(false);
-          setTouched({});
-          setAutoFilledLeaders({
-            leader1: "",
-            leader12: "",
-            leader144: ""
-          });
-        }, 1500);
-      } else {
-        const error = await response.json();
-        console.error("Add person error - FULL DETAILS:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: error,
-          sentData: personData
-        });
-
-        let errorMessage = "Failed to add person";
-        if (error.detail) {
-          if (typeof error.detail === 'string') {
-            errorMessage = error.detail;
-          } else if (Array.isArray(error.detail)) {
-            errorMessage = error.detail.map(err => {
-              const field = err.loc?.[err.loc.length - 1] || 'field';
-              return `${field}: ${err.msg || err}`;
-            }).join(', ');
-          } else if (typeof error.detail === 'object') {
-            errorMessage = JSON.stringify(error.detail);
-          }
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-
-        toast.error(errorMessage);
-      }
-    } catch (error) {
-      console.error("Network error adding person:", error);
-      toast.error("Network error: Could not connect to server");
     }
   };
 
@@ -437,8 +313,9 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       dob: "",
       address: "",
     });
-    setInviterSearch("");
-    setInviterResults([]);
+    setInviterSearchInput("");
+    setPeopleList([]); 
+    setShowInviterDropdown(false);
     setShowLeaderModal(false);
     setAttemptedSubmit(false);
     setTouched({});
@@ -542,7 +419,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
       zIndex: 1000,
-      maxHeight: "200px",
+      maxHeight: "250px",
       overflowY: "auto",
     },
     dropdownItem: {
@@ -554,6 +431,13 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       background: theme.palette.background.paper,
     },
     dropdownEmpty: {
+      padding: "12px",
+      color: theme.palette.text.secondary,
+      textAlign: "center",
+      fontSize: "14px",
+      background: theme.palette.background.paper,
+    },
+    loadingItem: {
       padding: "12px",
       color: theme.palette.text.secondary,
       textAlign: "center",
@@ -625,6 +509,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
               <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>LEADER INFO</div>
             </div>
 
+            {/* Invited By Field - FIXED to match AddPersonDialog */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Invited By
@@ -632,54 +517,71 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
               </label>
               <input
                 type="text"
-                value={inviterSearch}
-                onChange={(e) => {
-                  setInviterSearch(e.target.value);
-                  setShowInviterDropdown(true);
-                  setTouched({ ...touched, invitedBy: true });
-                }}
+                value={inviterSearchInput}
+                onChange={(e) => handleInviterInputChange(e.target.value)}
                 onFocus={() => {
                   setShowInviterDropdown(true);
-                  if (inviterSearch.length === 0 && preloadedPeople.length > 0) {
-                    setInviterResults(preloadedPeople.slice(0, 10));
-                  }
                 }}
-                onBlur={() => setTouched({ ...touched, invitedBy: true })}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setShowInviterDropdown(false);
+                  }, 200);
+                  setTouched(prev => ({ ...prev, invitedBy: true }));
+                }}
                 style={showError('invitedBy') ? styles.inputError : styles.input}
-                placeholder="Start typing to search..."
+                placeholder={isLoadingPeople ? "Loading people..." : "Type to search all people..."}
                 autoComplete="off"
+                disabled={isLoadingPeople}
               />
+              
               {showInviterDropdown && (
                 <div style={styles.dropdown}>
-                  {loadingInviters && (
-                    <div style={styles.dropdownEmpty}>Loading...</div>
-                  )}
-                  {!loadingInviters && inviterResults.length === 0 && inviterSearch.length >= 1 && (
-                    <div style={styles.dropdownEmpty}>No people found</div>
-                  )}
-                  {!loadingInviters && inviterSearch.length === 0 && (
-                    <div style={styles.dropdownEmpty}>Type to search people...</div>
-                  )}
-                  {!loadingInviters && inviterResults.map((person) => (
-                    <div
-                      key={person.id}
-                      style={styles.dropdownItem}
-                      onClick={() => handleInviterSelect(person)}
-                      onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
-                      onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
-                    >
-                      <div style={{ fontWeight: "500" }}>{person.fullName}</div>
-                      <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
-                        {person.email}
-                        {person.leader1 && <span> • L@1: {person.leader1}</span>}
-                        {person.leader12 && <span> • L@12: {person.leader12}</span>}
+                  {isLoadingPeople ? (
+                    <div style={styles.loadingItem}>Loading people data...</div>
+                  ) : filteredInviterResults.length > 0 ? (
+                    filteredInviterResults.map((person) => (
+                      <div
+                        key={person.id}
+                        style={styles.dropdownItem}
+                        onClick={() => handleInviterSelect(person)}
+                        onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
+                        onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
+                      >
+                        <div style={{ fontWeight: "500", marginBottom: "4px" }}>
+                          {person.fullName}
+                        </div>
+                        <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                          {person.email || person.phone || "No contact info"}
+                          {person.leader1 && (
+                            <div style={{ marginTop: "2px", fontSize: "11px" }}>
+                              L@1: {person.leader1}
+                            </div>
+                          )}
+                        </div>
                       </div>
+                    ))
+                  ) : inviterSearchInput.trim() === "" ? (
+                    <div style={styles.dropdownEmpty}>
+                      {peopleOptions.length > 0 
+                        ? "Start typing to search people..." 
+                        : "No people data available"}
                     </div>
-                  ))}
+                  ) : (
+                    <div style={styles.dropdownEmpty}>
+                      No matches found for "{inviterSearchInput}"
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {isLoadingPeople && (
+                <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
+                  Loading people data...
                 </div>
               )}
             </div>
 
+            {/* ALL OTHER FIELDS PRESERVED */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Name
@@ -689,7 +591,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                onBlur={() => setTouched({ ...touched, name: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, name: true }))}
                 style={showError('name') ? styles.inputError : styles.input}
               />
             </div>
@@ -703,7 +605,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
                 type="text"
                 value={formData.surname}
                 onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
-                onBlur={() => setTouched({ ...touched, surname: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, surname: true }))}
                 style={showError('surname') ? styles.inputError : styles.input}
               />
             </div>
@@ -743,7 +645,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                onBlur={() => setTouched({ ...touched, email: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, email: true }))}
                 style={showError('email') ? styles.inputError : styles.input}
               />
             </div>
@@ -758,7 +660,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
                 value={formData.mobile}
                 maxLength={10}
                 onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                onBlur={() => setTouched({ ...touched, mobile: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, mobile: true }))}
                 style={showError('mobile') ? styles.inputError : styles.input}
               />
             </div>
@@ -772,7 +674,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
                 type="date"
                 value={formData.dob}
                 onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                onBlur={() => setTouched({ ...touched, dob: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, dob: true }))}
                 style={showError('dob') ? styles.inputError : styles.input}
               />
             </div>
@@ -786,7 +688,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
                 type="text"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                onBlur={() => setTouched({ ...touched, address: true })}
+                onBlur={() => setTouched(prev => ({ ...prev, address: true }))}
                 style={showError('address') ? styles.inputError : styles.input}
               />
             </div>
@@ -796,6 +698,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
                 type="button"
                 style={styles.closeBtn}
                 onClick={handleClose}
+                disabled={isLoadingPeople}
                 onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
                 onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
               >
@@ -805,6 +708,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
                 type="button"
                 style={styles.nextBtn}
                 onClick={handleNext}
+                disabled={isLoadingPeople}
                 onMouseEnter={(e) => e.target.style.background = theme.palette.primary.dark}
                 onMouseLeave={(e) => e.target.style.background = theme.palette.primary.main}
               >
@@ -815,6 +719,7 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
         </div>
       </div>
 
+      {/* LeaderSelectionModal - Keep as is */}
       {showLeaderModal && (
         <LeaderSelectionModal
           isOpen={showLeaderModal}
@@ -822,12 +727,10 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
           onBack={() => setShowLeaderModal(false)}
           onSubmit={handleSubmit}
           personData={formData}
-          preloadedPeople={preloadedPeople}
+          preloadedPeople={peopleOptions} 
           autoFilledLeaders={autoFilledLeaders}
         />
       )}
-
-
     </>
   );
 };
@@ -855,13 +758,13 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
     leader144: []
   });
 
-  const [showDropdowns, setShowDropdowns] = useState({
+  const [, setShowDropdowns] = useState({
     leader1: false,
     leader12: false,
     leader144: false
   });
 
-  const [loadingLeaders, setLoadingLeaders] = useState(false);
+  const [, setLoadingLeaders] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -1144,10 +1047,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
 
               <div style={styles.inputContainer}>
                 <input
-                  // type="text"
                   value={leaderSearches[field]}
-                  // onChange={(e) => handleSearchChange(e, field)}
-                  // onFocus={() => setShowDropdowns(prev => ({ ...prev, [field]: true }))}
                   onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
                   style={styles.input}
                   placeholder={`Type to search...`}
@@ -1228,80 +1128,244 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     { value: "first-time", label: "First-time commitment" },
     { value: "re-commitment", label: "Re-commitment" },
   ];
+const [eventStatistics, setEventStatistics] = useState({
+  totalAssociated: 0,
+  lastAttendanceCount: 0,
+  lastHeadcount: 0,
+  lastDecisionsCount: 0,
+  lastAttendanceBreakdown: {
+    first_time: 0,
+    recommitment: 0
+  }
+});
 
   const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
-  useEffect(() => {
-    if (isOpen && event) {
-      console.log(" Opening attendance modal");
-
-      // Get clean ID
-      let eventId = event._id || event.id;
-      if (eventId && eventId.includes("_")) {
-        eventId = eventId.split("_")[0];
-      }
-
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-
-      const fetchAttendees = async () => {
-        try {
-          const token = localStorage.getItem("token");
-          const response = await authFetch(
-            `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            const allAttendees = data.persistent_attendees || [];
-            console.log(` Loaded ${allAttendees.length} attendees from database`);
-
-            setPersistentCommonAttendees(allAttendees);
-          }
-        } catch (error) {
-          console.error("Error loading attendees:", error);
-        }
-      };
-
-      // 2. Load weekly check-in status (who is ticked THIS WEEK only)
-      const loadWeeklyCheckins = () => {
-        const currentWeek = get_current_week_identifier();
-        const weekAttendance = event.attendance?.[currentWeek];
-
-        if (weekAttendance && weekAttendance.attendees) {
-          const newCheckedIn = {};
-
-          // Mark people checked THIS WEEK
-          weekAttendance.attendees.forEach(att => {
-            if (att.id && att.checked_in) {
-              newCheckedIn[att.id] = true;
-            }
-          });
-
-          setCheckedIn(newCheckedIn);
-          console.log(`✓ Loaded ${Object.keys(newCheckedIn).length} check-ins for this week`);
-        } else {
-          setCheckedIn({});
-          console.log("No check-ins for this week yet");
-        }
-      };
-
-      fetchAttendees();
-      loadWeeklyCheckins();
-
-      fetchPeople();
-      setDidNotMeet(event.did_not_meet || false);
+const loadEventStatistics = async () => {
+  if (!event) return;
+  
+  try {
+    let eventId = event._id || event.id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
     }
-  }, [isOpen, event]);
+
+    const eventDate = event.date;
+    const attendanceData = event.attendance || {};
+    
+    let weekAttendance = attendanceData;
+    if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
+      weekAttendance = attendanceData[eventDate] || {};
+    }
+    
+    if (weekAttendance && weekAttendance.status) {
+      const stats = weekAttendance.statistics || {};
+      const attendees = weekAttendance.attendees || [];
+      
+      let firstTimeCount = 0;
+      let recommitmentCount = 0;
+      
+      attendees.forEach(att => {
+        const decision = (att.decision || "").toLowerCase();
+        if (decision.includes("first")) {
+          firstTimeCount++;
+        } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+          recommitmentCount++;
+        }
+      });
+      
+      setEventStatistics({
+        totalAssociated: weekAttendance.persistent_attendees?.length || 0,
+        lastAttendanceCount: weekAttendance.checked_in_count || attendees.length,
+        lastHeadcount: weekAttendance.total_headcounts || 0,
+        lastDecisionsCount: firstTimeCount + recommitmentCount,
+        lastAttendanceBreakdown: {
+          first_time: firstTimeCount,
+          recommitment: recommitmentCount
+        }
+      });
+      
+      if (weekAttendance.total_headcounts > 0) {
+        setManualHeadcount(weekAttendance.total_headcounts.toString());
+      }
+      
+      return;
+    }
+    
+    const token = localStorage.getItem("token");
+    const response = await authFetch(
+      `${BACKEND_URL}/events/${eventId}/statistics`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (data.statistics) {
+        setEventStatistics({
+          totalAssociated: data.statistics.total_associated || 0,
+          lastAttendanceCount: data.statistics.last_attendance_count || 0,
+          lastHeadcount: data.statistics.last_headcount || 0,
+          lastDecisionsCount: data.statistics.last_decisions_count || 0,
+          lastAttendanceBreakdown: data.statistics.last_attendance_breakdown || {
+            first_time: 0,
+            recommitment: 0
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error loading event statistics:", error);
+  }
+};
+
+const loadWeeklyCheckins = () => {
+  if (!event) {
+    setCheckedIn({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+    return;
+  }
+  
+  setCheckedIn({});
+  setDecisions({});
+  setDecisionTypes({});
+  setPriceTiers({});
+  setPaymentMethods({});
+  setPaidAmounts({});
+  
+  const eventDate = event.date;
+  
+  if (!eventDate) {
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+    return;
+  }
+  
+  const attendanceData = event.attendance || {};
+  let weekAttendance = attendanceData;
+  
+  if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
+    weekAttendance = attendanceData[eventDate] || {};
+  }
+  
+  if (!weekAttendance || !weekAttendance.status) {
+    setCheckedIn({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+    return;
+  }
+  
+  const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
+  const hasHeadcount = weekAttendance.total_headcounts > 0;
+  
+  const isActuallyDidNotMeet = (
+    weekAttendance.status === "did_not_meet" && 
+    !hasAttendees && 
+    !hasHeadcount
+  );
+  
+  setDidNotMeet(isActuallyDidNotMeet);
+  
+  if (hasAttendees) {
+    const newCheckedIn = {};
+    const newDecisions = {};
+    const newDecisionTypes = {};
+    const newPriceTiers = {};
+    const newPaymentMethods = {};
+    const newPaidAmounts = {};
+    
+    weekAttendance.attendees.forEach(att => {
+      if (att.id) {
+        newCheckedIn[att.id] = true;
+        
+        if (att.decision) {
+          newDecisions[att.id] = true;
+          newDecisionTypes[att.id] = att.decision;
+        }
+        
+        if (isTicketedEvent) {
+          if (att.priceTier || att.price) {
+            newPriceTiers[att.id] = {
+              name: att.priceTier || "",
+              price: att.price || 0,
+              ageGroup: att.ageGroup || "",
+              memberType: att.memberType || ""
+            };
+          }
+          if (att.paymentMethod) {
+            newPaymentMethods[att.id] = att.paymentMethod;
+          }
+          if (att.paid !== undefined) {
+            newPaidAmounts[att.id] = att.paid;
+          }
+        }
+      }
+    });
+    
+    setCheckedIn(newCheckedIn);
+    setDecisions(newDecisions);
+    setDecisionTypes(newDecisionTypes);
+    setPriceTiers(newPriceTiers);
+    setPaymentMethods(newPaymentMethods);
+    setPaidAmounts(newPaidAmounts);
+  } else {
+    setCheckedIn({});
+  }
+  
+  const headcount = weekAttendance.total_headcounts || 0;
+  setManualHeadcount(headcount.toString());
+};
+
+const loadPersistentAttendees = async (eventId) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await authFetch(
+      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const allAttendees = data.persistent_attendees || [];
+      setPersistentCommonAttendees(allAttendees);
+    }
+  } catch (error) {
+    console.error("Error loading attendees:", error);
+  }
+};
 
 
+useEffect(() => {
+  if (isOpen && event) {
+    let eventId = event._id || event.id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
+    }
 
+    setSearchName("");
+    setAssociateSearch("");
+    setActiveTab(0);
+    
+    const loadAllData = async () => {
+      await loadEventStatistics();
+      await loadPersistentAttendees(eventId);
+      loadWeeklyCheckins(); 
+    };
+
+    loadAllData();
+    fetchPeople();
+    
+    const weekAttendance = event.attendance || {};
+    const eventDate = event.date;
+    const thisWeekData = weekAttendance[eventDate] || weekAttendance;
+    
+    setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
+  }
+}, [isOpen, event]);
   const loadPreloadedPeople = async () => {
     const now = Date.now();
 
-    // Check if global cache exists and is valid
     if (
       typeof window.globalPeopleCache !== 'undefined' &&
       window.globalPeopleCache.data?.length > 0 &&
@@ -1363,11 +1427,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
   const fetchPeople = async (q = "") => {
-    // If no search query, show preloaded people
     if (!q.trim()) {
       if (preloadedPeople.length > 0) {
         console.log(" Showing preloaded people list");
-        setPeople(preloadedPeople.slice(0, 50)); // Show first 50 preloaded people
+        setPeople(preloadedPeople.slice(0, 50)); 
       } else {
         setPeople([]);
       }
@@ -1422,7 +1485,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     } catch (err) {
       console.error("Error fetching people:", err);
       toast.error(err.message);
-      // Fallback to preloaded people if search fails
       if (preloadedPeople.length > 0) {
         setPeople(preloadedPeople.slice(0, 50));
       } else {
@@ -1482,7 +1544,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         Authorization: `Bearer ${token}`,
       };
 
-      // Format attendees
       const formattedAttendees = attendees.map(p => ({
         id: p.id || p._id || "",
         name: p.fullName || p.name || "",
@@ -1543,24 +1604,19 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-
-
-  // Effect: Load preloaded people when modal opens
   useEffect(() => {
     if (isOpen) {
       loadPreloadedPeople();
     }
   }, [isOpen]);
 
-  // Update the useEffect for associate search
   useEffect(() => {
     const delay = setTimeout(() => {
       if (isOpen && activeTab === 1) {
         if (associateSearch.trim()) {
           fetchPeople(associateSearch);
         } else {
-          // Show preloaded list when no search term
-          fetchPeople(""); // This will trigger the preloaded list
+          fetchPeople(""); 
         }
       }
     }, 300);
@@ -1571,17 +1627,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const handleCheckIn = (id) => {
     setCheckedIn(prev => {
       const isNowChecked = !prev[id];
-
-      // Update UI state
       const newState = { ...prev, [id]: isNowChecked };
-
-      // Note: This check/uncheck only affects WEEKLY attendance
-      // The person stays in the database attendees list regardless
-
       if (isNowChecked) {
         toast.success("Person checked in for this week");
       } else {
-        // Remove any decisions/payment info when unchecking
         setDecisions(prevDec => ({ ...prevDec, [id]: false }));
         setDecisionTypes(prevTypes => {
           const updated = { ...prevTypes };
@@ -1686,20 +1735,15 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
     if (isAlreadyAdded) {
-      // REMOVE from database entirely
       if (window.confirm(`Remove ${person.fullName}?`)) {
         const updated = persistentCommonAttendees.filter(p => p.id !== person.id);
 
-        // Update UI immediately
         setPersistentCommonAttendees(updated);
-
-        // SAVE TO DATABASE IMMEDIATELY (ALL attendees list)
         await saveAllAttendeesToDatabase(updated);
 
         toast.success(`${person.fullName} removed from attendees list`);
       }
     } else {
-      // ADD to database
       const updated = [...persistentCommonAttendees, person];
       setPersistentCommonAttendees(updated);
 
@@ -1709,32 +1753,62 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  const getAllCommonAttendees = () => {
-    const combined = [...(persistentCommonAttendees || [])];
+const getAllCommonAttendees = () => {  
+  const persistent = [...(persistentCommonAttendees || [])];
+  let savedAttendees = [];
+  
+  if (event?.attendance?.attendees?.length > 0) {
+    savedAttendees = event.attendance.attendees;
+  }
+  else if (event?.attendees?.length > 0) {
+    savedAttendees = event.attendees;
+  }
+  
+  const combinedMap = new Map();
+  
+  persistent.forEach(att => {
+    if (att && att.id) {
+      const attendeeId = att.id || att._id || "";
+      if (attendeeId) {
+        combinedMap.set(attendeeId, {
+          ...att,
+          id: attendeeId,
+          fullName: att.fullName || att.name || "Unknown Person",
+          email: att.email || "",
+          leader12: att.leader12 || "",
+          leader144: att.leader144 || "",
+          phone: att.phone || "",
+          isPersistent: true
+        });
+      }
+    }
+  });
+  
+  savedAttendees.forEach(savedAtt => {
+    if (savedAtt && savedAtt.id) {
+      const attendeeId = savedAtt.id || savedAtt._id || "";
+      if (attendeeId) {
+        const existing = combinedMap.get(attendeeId) || {};
+        combinedMap.set(attendeeId, {
+          ...existing,
+          ...savedAtt,
+          id: attendeeId,
+          fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
+          email: savedAtt.email || existing.email || "",
+          leader12: savedAtt.leader12 || existing.leader12 || "",
+          leader144: savedAtt.leader144 || existing.leader144 || "",
+          phone: savedAtt.phone || existing.phone || "",
+          checked_in: savedAtt.checked_in !== false,
+          decision: savedAtt.decision || existing.decision || "",
+          isPersistent: existing.isPersistent || false
+        });
+      }
+    }
+  });
+  
+  return Array.from(combinedMap.values());
+};
 
-    console.log("Getting all common attendees:", {
-      persistentCount: persistentCommonAttendees?.length || 0,
-      combinedCount: combined.length
-    });
-
-    const fixedAttendees = combined
-      .filter(persistentAttendee => persistentAttendee != null)
-      .map(persistentAttendee => ({
-        ...persistentAttendee,
-        id: persistentAttendee.id || persistentAttendee._id || "",
-        fullName: persistentAttendee.fullName || persistentAttendee.name || "Unknown Person",
-        email: persistentAttendee.email || "",
-        leader12: persistentAttendee.leader12 || "",
-        leader144: persistentAttendee.leader144 || "",
-        phone: persistentAttendee.phone || "",
-      }))
-      .filter(attendee => attendee.id);
-
-    console.log("Fixed attendees:", fixedAttendees);
-    return fixedAttendees;
-  };
-
-  // Calculate statistics
   const attendeesCount = Object.keys(checkedIn).filter(
     (id) => checkedIn[id]
   ).length;
@@ -1766,134 +1840,161 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     person.email.toLowerCase().includes(associateSearch.toLowerCase())
   );
 
-  const handleSave = async () => {
-    const allPeople = getAllCommonAttendees();
-    console.log(" All people for save:", allPeople);
+const handleSave = async () => {
+  const allPeople = getAllCommonAttendees();
+  console.log("[SAVE] All people for save:", allPeople.length);
 
-    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    console.log(" Checked-in attendees:", attendeesList);
+  const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+  console.log("[SAVE] Checked-in attendees:", attendeesList.length, attendeesList);
 
-    if (!didNotMeet && attendeesList.length === 0) {
-      toast.error("Please check in at least one attendee before saving.");
-      return;
-    }
+  // Get manual headcount from input
+  const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-    // Get clean event ID
-    let eventId = event?.id || event?._id;
-    if (eventId && eventId.includes("_")) {
-      const parts = eventId.split("_");
-      eventId = parts[0];
-    }
+  console.log("[SAVE] === DEBUG INFO ===");
+  console.log("[SAVE] Did not meet state:", didNotMeet);
+  console.log("[SAVE] Attendees checked in:", attendeesList.length);
+  console.log("[SAVE] Manual headcount:", finalHeadcount);
+  console.log("[SAVE] Decisions count:", decisionsCount);
 
-    if (!eventId) {
-      toast.error("Event ID is missing, cannot submit attendance.");
-      return;
-    }
+  // Get clean event ID
+  let eventId = event?.id || event?._id;
+  if (eventId && eventId.includes("_")) {
+    const parts = eventId.split("_");
+    eventId = parts[0];
+  }
 
-    try {
-      const selectedAttendees = attendeesList.map((id) => {
-        const person = allPeople.find((p) => p && p.id === id);
+  if (!eventId) {
+    toast.error("Event ID is missing, cannot submit attendance.");
+    return;
+  }
 
-        if (!person) {
-          console.warn(`Person with id ${id} not found in allPeople`);
-          return null;
-        }
+  try {
+    const selectedAttendees = attendeesList.map((id) => {
+      const person = allPeople.find((p) => p && p.id === id);
 
-        const attendee = {
-          id: person.id,
-          name: person.fullName || "",
-          email: person.email || "",
-          fullName: person.fullName || "",
-          leader12: person.leader12 || "",
-          leader144: person.leader144 || "",
-          phone: person.phone || "",
-          time: new Date().toISOString(),
-          decision: decisions[id] ? decisionTypes[id] || "" : "",
-          checked_in: true
-        };
+      if (!person) {
+        console.warn(`[SAVE] Person with id ${id} not found in allPeople`);
+        return null;
+      }
 
-        if (isTicketedEvent) {
-          attendee.priceTier = priceTiers[id]?.name || "";
-          attendee.price = priceTiers[id]?.price || 0;
-          attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-          attendee.memberType = priceTiers[id]?.memberType || "";
-          attendee.paymentMethod = paymentMethods[id] || "";
-          attendee.paid = paidAmounts[id] || 0;
-          attendee.owing = calculateOwing(id);
-        }
-
-        return attendee;
-      }).filter(attendee => attendee !== null);
-
-      console.log("Final selected attendees:", selectedAttendees);
-
-      // IMPORTANT: Use clean event ID in payload
-      const payload = {
-        attendees: didNotMeet ? [] : selectedAttendees,
-        persistent_attendees: allPeople.map(p => ({
-          id: p.id,
-          name: p.fullName,
-          fullName: p.fullName,
-          email: p.email,
-          leader12: p.leader12,
-          leader144: p.leader144,
-          phone: p.phone
-        })),
-        leaderEmail: currentUser?.email || "",
-        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-        did_not_meet: didNotMeet,
-        isTicketed: isTicketedEvent,
-        week: get_current_week_identifier()
+      const attendee = {
+        id: person.id,
+        name: person.fullName || "",
+        email: person.email || "",
+        fullName: person.fullName || "",
+        leader12: person.leader12 || "",
+        leader144: person.leader144 || "",
+        phone: person.phone || "",
+        time: new Date().toISOString(),
+        decision: decisions[id] ? decisionTypes[id] || "" : "",
+        checked_in: true,
+        isPersistent: true
       };
 
-      console.log("Submitting weekly attendance to event ID:", eventId);
-
-      let result;
-
-      if (typeof onSubmit === "function") {
-        result = await onSubmit(payload);
-      } else {
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
-
-        const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-          method: "PUT",
-          headers: headers,
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-        }
-
-        result = await response.json();
+      if (isTicketedEvent) {
+        attendee.priceTier = priceTiers[id]?.name || "";
+        attendee.price = priceTiers[id]?.price || 0;
+        attendee.ageGroup = priceTiers[id]?.ageGroup || "";
+        attendee.memberType = priceTiers[id]?.memberType || "";
+        attendee.paymentMethod = paymentMethods[id] || "";
+        attendee.paid = paidAmounts[id] || 0;
+        attendee.owing = calculateOwing(id);
       }
 
-      console.log("Save result:", result);
+      return attendee;
+    }).filter(attendee => attendee !== null);
 
-      if (result && result.success) {
-        toast.success("Attendance saved successfully!");
+    console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
 
-        if (typeof onClose === "function") {
-          onClose();
-        }
+    // FIX: Only mark as "Did Not Meet" if NO attendees AND NO headcount
+    const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
+    
+    console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
+    console.log("[SAVE] Reason - didNotMeet:", didNotMeet);
+    console.log("[SAVE] Reason - attendees:", attendeesList.length);
+    console.log("[SAVE] Reason - headcount:", finalHeadcount);
 
-        if (typeof onAttendanceSubmitted === "function") {
-          onAttendanceSubmitted();
-        }
-      } else {
-        throw new Error(result?.message || "Failed to save attendance");
+    const payload = {
+      attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
+      persistent_attendees: allPeople.map(p => ({
+        id: p.id,
+        name: p.fullName,
+        fullName: p.fullName,
+        email: p.email,
+        leader12: p.leader12,
+        leader144: p.leader144,
+        phone: p.phone
+      })),
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      did_not_meet: shouldMarkAsDidNotMeet, // This will be FALSE if we have attendees
+      isTicketed: isTicketedEvent,
+      week: get_current_week_identifier(),
+      headcount: finalHeadcount  
+    };
+    
+    console.log("[SAVE] Full payload being sent:");
+    console.log("[SAVE] - did_not_meet:", payload.did_not_meet);
+    console.log("[SAVE] - attendees count:", payload.attendees.length);
+    console.log("[SAVE] - headcount:", payload.headcount);
+    console.log("[SAVE] - week:", payload.week);
+
+    let result;
+
+    if (typeof onSubmit === "function") {
+      result = await onSubmit(payload);
+    } else {
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+        method: "PUT",
+        headers: headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[SAVE] Server error response:", errorText);
+        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
       }
 
-    } catch (error) {
-      console.error("Error saving attendance:", error);
-      toast.error(error.message || "Failed to save attendance. Please try again.");
+      result = await response.json();
     }
-  };
+
+    console.log("[SAVE] Save result:", result);
+
+if (result && result.success) {
+  await loadEventStatistics();
+  
+  if (typeof onAttendanceSubmitted === "function") {
+    await onAttendanceSubmitted();
+  }
+  
+  if (typeof onClose === "function") {
+    onClose();
+  }
+  if (typeof onAttendanceSubmitted === "function") {
+    console.log("[SAVE] Calling onAttendanceSubmitted to refresh data");
+    await onAttendanceSubmitted();
+  }
+  
+  if (typeof onClose === "function") {
+    onClose();
+  }
+} else {
+  console.error("[SAVE] Save failed:", result);
+  throw new Error(result?.message || "Failed to save attendance");
+}
+
+  } catch (error) {
+    console.error("[SAVE] Error saving attendance:", error);
+    toast.error(error.message || "Failed to save attendance. Please try again.");
+  }
+};
 
   const handleSubmitAttendance = (attendanceData) => {
 
@@ -2016,12 +2117,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       <div key={person.id} style={styles.mobileAttendeeCard}>
         <div style={styles.mobileCardRow}>
           <div style={styles.mobileCardInfo}>
-            <div style={styles.mobileCardName}>
-              {person.fullName}
-              {isPersistent && (
-                <span style={styles.persistentBadge}>Added</span>
-              )}
-            </div>
+  
             <div style={styles.mobileCardEmail}>{person.email}</div>
             {!isTicketedEvent && (
               <>
@@ -2934,15 +3030,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                             <tr key={person.id}>
                               <td style={styles.td}>
                                 {person.fullName}
-                                {isPersistent && (
-                                  <span style={styles.persistentBadge}>
-                                    ADDED
-                                  </span>
-                                )}
+                              
                               </td>
                               <td style={styles.td}>{person.email}</td>
-
-                              {/* Regular columns for non-ticketed events */}
                               {!isTicketedEvent && (
                                 <>
                                   <td style={styles.td}>{person.leader12}</td>
@@ -3282,64 +3372,70 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                   </div>
                 )}
 
-                <div style={styles.statsContainer}>
-                  <div style={styles.statBox}>
-                    <div style={styles.statNumber}>{attendeesCount}</div>
-                    <div style={styles.statLabel}>Attendees</div>
-                  </div>
-                  <div style={styles.statBoxInput}>
-                    <input
-                      type="number"
-                      value={manualHeadcount}
-                      onChange={(e) => setManualHeadcount(e.target.value)}
-                      placeholder={attendeesCount.toString()}
-                      style={styles.headcountInput}
-                      min="0"
-                    />
-                    <div style={styles.statLabel}>Total Headcounts</div>
-                  </div>
+<div style={styles.statsContainer}>
+  <div style={styles.statBox}>
+    <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
+      {persistentCommonAttendees.length}
+    </div>
+    <div style={styles.statLabel}>Associated People</div>
+  </div>
+  
+  <div style={styles.statBox}>
+    <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
+      {eventStatistics.lastAttendanceCount > 0 ? eventStatistics.lastAttendanceCount : attendeesCount}
+    </div>
+    <div style={styles.statLabel}>Attendees</div>
+  </div>
+  
+  <div style={styles.statBoxInput}>
+    <input
+      type="number"
+      value={eventStatistics.lastHeadcount > 0 ? eventStatistics.lastHeadcount.toString() : manualHeadcount}
+      onChange={(e) => setManualHeadcount(e.target.value)}
+      placeholder="0"
+      style={styles.headcountInput}
+      min="0"
+    />
+    <div style={styles.statLabel}>Total Headcounts</div>
+  </div>
+  
+  {!isTicketedEvent && (
+    <div style={styles.statBox}>
+      <div style={{ ...styles.statNumber, color: "#ffc107" }}>
+        {eventStatistics.lastDecisionsCount > 0 ? eventStatistics.lastDecisionsCount : decisionsCount}
+      </div>
+      <div style={styles.statLabel}>Decisions</div>
+      {(eventStatistics.lastDecisionsCount > 0 || decisionsCount > 0) && (
+        <div style={styles.decisionBreakdown}>
+          <span>First-time: {eventStatistics.lastAttendanceBreakdown?.first_time || firstTimeCount}</span>
+          <span>Re-commitment: {eventStatistics.lastAttendanceBreakdown?.recommitment || reCommitmentCount}</span>
+        </div>
+      )}
+    </div>
+  )}
 
-                  {!isTicketedEvent && (
-                    <div style={styles.statBox}>
-                      <div style={{ ...styles.statNumber, color: "#ffc107" }}>
-                        {decisionsCount}
-                      </div>
-                      <div style={styles.statLabel}>Decisions</div>
-                      {decisionsCount > 0 && (
-                        <div style={styles.decisionBreakdown}>
-                          {firstTimeCount > 0 && (
-                            <span>First-time: {firstTimeCount}</span>
-                          )}
-                          {reCommitmentCount > 0 && (
-                            <span>Re-commitment: {reCommitmentCount}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {isTicketedEvent && (
-                    <>
-                      <div style={styles.statBox}>
-                        <div style={{ ...styles.statNumber, color: "#28a745" }}>
-                          R{totalPaid.toFixed(2)}
-                        </div>
-                        <div style={styles.statLabel}>Total Paid</div>
-                      </div>
-                      <div style={styles.statBox}>
-                        <div
-                          style={{
-                            ...styles.statNumber,
-                            color: totalOwing === 0 ? "#28a745" : "#dc3545",
-                          }}
-                        >
-                          R{totalOwing.toFixed(2)}
-                        </div>
-                        <div style={styles.statLabel}>Total Owing</div>
-                      </div>
-                    </>
-                  )}
-                </div>
+  {isTicketedEvent && (
+    <>
+      <div style={styles.statBox}>
+        <div style={{ ...styles.statNumber, color: "#28a745" }}>
+          R{totalPaid.toFixed(2)}
+        </div>
+        <div style={styles.statLabel}>Total Paid</div>
+      </div>
+      <div style={styles.statBox}>
+        <div
+          style={{
+            ...styles.statNumber,
+            color: totalOwing === 0 ? "#28a745" : "#dc3545",
+          }}
+        >
+          R{totalOwing.toFixed(2)}
+        </div>
+        <div style={styles.statLabel}>Total Owing</div>
+      </div>
+    </>
+  )}
+</div>
               </>
             )}
 
@@ -3408,11 +3504,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                             <div style={styles.mobileCardInfo}>
                               <div style={styles.mobileCardName}>
                                 {person.fullName}
-                                {isAlreadyAdded && (
-                                  <span style={styles.persistentBadge}>
-                                    ADDED
-                                  </span>
-                                )}
                               </div>
                               <div style={styles.mobileCardEmail}>
                                 {person.email}
