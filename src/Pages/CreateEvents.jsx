@@ -690,7 +690,7 @@ useEffect(() => {
       },
     },
 
-    // ✅ Make date/time picker icons white in dark mode
+    //  Make date/time picker icons white in dark mode
     "& .MuiInputAdornment-root .MuiSvgIcon-root": {
       color: isDarkMode ? "#fff" : theme.palette.text.secondary,
     },
