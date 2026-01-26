@@ -166,7 +166,7 @@ const handleDeactivateCell = async () => {
     const userToken = localStorage.getItem("access_token") || token;
     
     const params = new URLSearchParams({
-      weeks: deactivationWeeks.toString(),
+      weeks: deactivationWeeks.toString()
     });
     
     if (deactivationReason) {
@@ -221,7 +221,7 @@ const handleDeactivateCell = async () => {
       <div>
         <div>{result.message}</div>
         <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
-          Will auto-reactivate on: {new Date(result.deactivation_end).toLocaleDateString()}
+          Will auto-reactivate on: {new Date(result.deactivation_end) < new Date()?"Never":new Date(result.deactivation_end).toLocaleDateString()}
         </div>
       </div>
     );
@@ -322,6 +322,7 @@ const handleDeactivateCell = async () => {
       setIsToggling(false);
     }
   };
+  console.log("THE EVENT",event)
 
   const handleActiveToggle = (newValue) => {
     if (isToggling || isFieldDisabled('is_active')) return;
@@ -780,7 +781,7 @@ const handleDeactivateCell = async () => {
   >
     <Typography variant="body2">
       <strong>Deactivated until:</strong>{' '}
-      {new Date(deactivationEnd).toLocaleDateString('en-ZA', {
+      {new Date(deactivationEnd) < new Date()? "Never": new Date(deactivationEnd).toLocaleDateString('en-ZA', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -1142,6 +1143,7 @@ const handleDeactivateCell = async () => {
               <MenuItem value={4}>4 Weeks</MenuItem>
               <MenuItem value={8}>2 Months</MenuItem>
               <MenuItem value={12}>3 Months</MenuItem>
+              <MenuItem value={-1}>Never</MenuItem>
             </Select>
           </FormControl>
           

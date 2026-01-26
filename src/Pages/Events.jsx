@@ -1125,7 +1125,7 @@ const { authFetch, logout } = React.useContext(AuthContext);
             }
             
             const data = await retryResponse.json();
-            setEvents(data.events || []);
+            (data.events || []);
             setTotalEvents(data.total_events || 0);
             setTotalPages(data.total_pages || 1);
             return;
@@ -1158,7 +1158,7 @@ const { authFetch, logout } = React.useContext(AuthContext);
       if (!error.message.includes('401') && !error.message.includes('Session expired')) {
         const errorMessage = error.message || 'Failed to load events';
         toast.error(`Failed to load events: ${errorMessage}`);
-      }
+      }setEvents
       
       setEvents([]);
     } finally {
