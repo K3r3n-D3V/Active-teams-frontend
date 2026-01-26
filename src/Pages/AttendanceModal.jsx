@@ -1169,76 +1169,122 @@ const [eventStatistics, setEventStatistics] = useState({
     }
   };
 
-    const createConsolidationTasks = async (attendees, eventId) => {
-    if (!attendees || attendees.length === 0) return;
+const createConsolidationTasks = async (attendees, eventId) => {
+  if (!attendees || attendees.length === 0) return;
 
-    for (const attendee of attendees) {
-      const hasDecision = attendee.decision && attendee.decision.length > 0;
+  console.log("🔄 Creating consolidation tasks for", attendees.length, "attendees");
+
+  for (const attendee of attendees) {
+    const hasDecision = attendee.decision && attendee.decision.length > 0;
+    
+    if (!hasDecision) {
+      console.log(`⏭️ Skipping ${attendee.fullName} - no decision made`);
+      continue;
+    }
+
+    try {
+      // Better name parsing - handle various formats
+      let firstName = "";
+      let lastName = "";
       
-      if (!hasDecision) {
+      if (attendee.name && attendee.surname) {
+        // If we already have separate fields
+        firstName = attendee.name;
+        lastName = attendee.surname;
+      } else if (attendee.fullName) {
+        // Parse fullName more reliably
+        const nameParts = attendee.fullName.trim().split(/\s+/);
+        firstName = nameParts[0] || "";
+        lastName = nameParts.slice(1).join(" ") || "";
+      }
+      
+      console.log(`📝 Processing: ${firstName} ${lastName}`, {
+        fullName: attendee.fullName,
+        firstName,
+        lastName,
+        decision: attendee.decision
+      });
+
+      // Determine assigned leader with fallback hierarchy
+      let assignedLeader = "";
+      
+      if (attendee.leader144 && attendee.leader144.trim()) {
+        assignedLeader = attendee.leader144.trim();
+        console.log(`  ✅ Using Leader @144: ${assignedLeader}`);
+      } else if (attendee.leader12 && attendee.leader12.trim()) {
+        assignedLeader = attendee.leader12.trim();
+        console.log(`  ✅ Using Leader @12: ${assignedLeader}`);
+      } else if (attendee.leader1 && attendee.leader1.trim()) {
+        assignedLeader = attendee.leader1.trim();
+        console.log(`  ✅ Using Leader @1: ${assignedLeader}`);
+      } else if (currentUser) {
+        assignedLeader = `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
+        console.log(`  ⚠️ Using current user as leader: ${assignedLeader}`);
+      }
+      
+      if (!assignedLeader) {
+        console.warn(`  ❌ Could not determine leader for ${firstName} ${lastName}`);
         continue;
       }
 
-      try {
-        let assignedLeader = attendee.leader144 || attendee.leader12 || attendee.leader1 || currentUser?.name || "";
-        
-        if (!assignedLeader && currentUser) {
-          assignedLeader = `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
-        }
-        
-        if (!assignedLeader) {
-          console.warn(`Could not determine leader for ${attendee.fullName}`);
-          continue;
-        }
+      // Get leader email
+      const leaderEmail = await findLeaderEmail(assignedLeader);
+      console.log(`  📧 Leader email: ${leaderEmail || "not found"}`);
 
-        const leaderEmail = await findLeaderEmail(assignedLeader);
-        const decisionType = attendee.decision.toLowerCase() === 're-commitment' ? 'recommitment' : 'first_time';
+      // Parse decision type
+      const decisionType = attendee.decision.toLowerCase().includes('re-commitment') || 
+                          attendee.decision.toLowerCase().includes('recommitment')
+        ? 'recommitment' 
+        : 'first_time';
+      
+      console.log(`  🎯 Decision type: ${decisionType}`);
 
-        const nameParts = (attendee.fullName || "").split(" ");
-        const firstName = nameParts[0] || "";
-        const lastName = nameParts.slice(1).join(" ") || "";
+      const consolidationPayload = {
+        person_name: firstName,
+        person_surname: lastName,
+        person_email: attendee.email || "",
+        person_phone: attendee.phone || "",
+        decision_type: decisionType,
+        decision_date: new Date().toISOString().split("T")[0],
+        assigned_to: assignedLeader,
+        assigned_to_email: leaderEmail,
+        leaders: [
+          attendee.leader1 || "",
+          attendee.leader12 || "",
+          attendee.leader144 || "",
+          ""
+        ],
+        event_id: eventId,
+        is_check_in: true,
+        attendance_status: "checked_in"
+      };
 
-        const consolidationPayload = {
-          person_name: firstName,
-          person_surname: lastName,
-          person_email: attendee.email || "",
-          person_phone: attendee.phone || "",
-          decision_type: decisionType,
-          decision_date: new Date().toISOString().split("T")[0],
-          assigned_to: assignedLeader,
-          assigned_to_email: leaderEmail,
-          leaders: [
-            attendee.leader1 || currentUser?.name || "",
-            attendee.leader12 || "",
-            attendee.leader144 || "",
-            ""
-          ],
-          event_id: eventId,
-          is_check_in: true,
-          attendance_status: "checked_in"
-        };
+      console.log(`  📤 Sending consolidation payload:`, consolidationPayload);
 
-        const response = await authFetch(`${BACKEND_URL}/consolidations`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(consolidationPayload),
-        });
+      const response = await authFetch(`${BACKEND_URL}/consolidations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(consolidationPayload),
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error(`Failed to create consolidation task for ${attendee.fullName}:`, errorData);
-          continue;
-        }
-
-        const result = await response.json();
-        console.log(`✅ Consolidation task created for ${attendee.fullName}:`, result);
-      } catch (error) {
-        console.error(`Error creating consolidation task for ${attendee.fullName}:`, error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(`  ❌ Failed to create consolidation task for ${firstName} ${lastName}:`, errorData);
+        continue;
       }
+
+      const result = await response.json();
+      console.log(`  ✅ Consolidation task created successfully for ${firstName} ${lastName}:`, result);
+      
+    } catch (error) {
+      console.error(`  ❌ Error creating consolidation task for ${attendee.fullName}:`, error);
     }
-  };
+  }
+  
+  console.log("✅ Finished creating consolidation tasks");
+};
 
 
 const loadEventStatistics = async () => {
