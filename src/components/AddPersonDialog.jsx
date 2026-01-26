@@ -36,7 +36,6 @@ const initialFormState = {
   stage: "Win",
 };
 
-// UNIFIED STYLES FOR ALL INPUTS - SAME SIZE
 const uniformInputSx = {
   "& .MuiOutlinedInput-root": {
     height: "50px",
@@ -114,7 +113,6 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       const updatedFormData = {
         ...initialFormState,
         ...formData,
-        // Map backend field names to form field names if needed
         name: formData.name || formData.Name || "",
         surname: formData.surname || formData.Surname || "",
         dob: formData.dob || formData.DOB || formData.dateOfBirth || "",

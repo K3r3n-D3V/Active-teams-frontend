@@ -83,7 +83,7 @@ async function fetchUserProfile(authFetch) {
   // If we have authFetch from AuthContext, use it
   if (authFetch) {
     try {
-      console.log("🔄 Using authFetch from AuthContext...");
+      console.log(" Using authFetch from AuthContext...");
       
       // Get userId first
       let userId = localStorage.getItem("userId");
@@ -100,7 +100,7 @@ async function fetchUserProfile(authFetch) {
             // Save it to localStorage for future use
             if (userId) {
               localStorage.setItem("userId", userId);
-              console.log("✅ Saved userId to localStorage");
+              console.log(" Saved userId to localStorage");
             }
           } catch (e) {
             console.error("Failed to parse userProfile:", e);
@@ -109,11 +109,11 @@ async function fetchUserProfile(authFetch) {
       }
       
       if (!userId) {
-        console.error("❌ CRITICAL: No userId found!");
+        console.error(" CRITICAL: No userId found!");
         throw new Error("User ID not found. Please log in again.");
       }
       
-      console.log(`🔄 Fetching profile for userId: ${userId}`);
+      console.log(` Fetching profile for userId: ${userId}`);
       
       const response = await authFetch(`${BACKEND_URL}/profile/${userId}`);
       
@@ -123,18 +123,18 @@ async function fetchUserProfile(authFetch) {
       }
       
       const data = await response.json();
-      console.log("✅ Profile fetch successful via authFetch!");
+      console.log(" Profile fetch successful via authFetch!");
       console.log("Response data:", data);
       
       return data;
     } catch (error) {
-      console.error("❌ authFetch failed:", error);
+      console.error(" authFetch failed:", error);
       throw error;
     }
   }
   
   // Fallback to axios if authFetch not available
-  console.log("🔄 Using axios fallback...");
+  console.log(" Using axios fallback...");
   
   // Get token from any possible key
   const token = 
@@ -160,7 +160,7 @@ async function fetchUserProfile(authFetch) {
         // Save it to localStorage for future use
         if (userId) {
           localStorage.setItem("userId", userId);
-          console.log("✅ Saved userId to localStorage");
+          console.log(" Saved userId to localStorage");
         }
       } catch (e) {
         console.error("Failed to parse userProfile:", e);
@@ -185,29 +185,29 @@ async function fetchUserProfile(authFetch) {
   }
   
   if (!userId) {
-    console.error("❌ CRITICAL: No userId found anywhere!");
+    console.error(" CRITICAL: No userId found anywhere!");
     console.log("Token:", token ? "Exists" : "Missing");
     console.log("userProfile in localStorage:", localStorage.getItem("userProfile"));
     throw new Error("User ID not found. Please log in again.");
   }
   
   if (!token) {
-    console.error("❌ CRITICAL: No authentication token found!");
+    console.error(" CRITICAL: No authentication token found!");
     throw new Error("Authentication required. Please log in again.");
   }
   
   try {
-    console.log(`🔄 Fetching profile for userId: ${userId}`);
+    console.log(` Fetching profile for userId: ${userId}`);
     
     const api = createAuthenticatedRequest();
     const response = await api.get(`/profile/${userId}`);
     
-    console.log("✅ Profile fetch successful!");
+    console.log(" Profile fetch successful!");
     console.log("Response data:", response.data);
     
     return response.data;
   } catch (error) {
-    console.error("❌ API call failed:", error);
+    console.error(" API call failed:", error);
     console.error("Status:", error.response?.status);
     console.error("Error details:", error.response?.data);
     
@@ -260,12 +260,12 @@ async function updateUserProfile(data, authFetch) {
   }
   
   if (!userId) {
-    console.error("❌ No userId found for update!");
+    console.error(" No userId found for update!");
     throw new Error("User ID not found");
   }
 
   try {
-    console.log("🔄 Sending profile update to backend...");
+    console.log(" Sending profile update to backend...");
     console.log("📤 Payload:", data);
     console.log("👤 User ID:", userId);
     
@@ -283,18 +283,18 @@ async function updateUserProfile(data, authFetch) {
       }
       
       const responseData = await response.json();
-      console.log("✅ Profile update successful via authFetch:", responseData);
+      console.log(" Profile update successful via authFetch:", responseData);
       return responseData;
     } else {
       // Fallback to axios
       const api = createAuthenticatedRequest();
       const response = await api.put(`/profile/${userId}`, data);
       
-      console.log("✅ Profile update successful via axios:", response.data);
+      console.log(" Profile update successful via axios:", response.data);
       return response.data;
     }
   } catch (error) {
-    console.error("❌ Profile update failed:", error);
+    console.error(" Profile update failed:", error);
     
     const errorMessage =
       error.response?.data?.detail ||
@@ -594,7 +594,7 @@ export default function Profile() {
       console.log("AuthContext authFetch available:", !!authFetch);
       
       if (!hasToken) {
-        console.error("❌ No token found! User is not logged in.");
+        console.error(" No token found! User is not logged in.");
         setSnackbar({
           open: true,
           message: "You are not logged in. Redirecting to login...",
@@ -609,7 +609,7 @@ export default function Profile() {
       } else if (!hasUserProfile) {
         console.warn(" Token exists but no userProfile. Will attempt to fetch.");
       } else {
-        console.log("✅ Authentication check passed.");
+        console.log(" Authentication check passed.");
       }
       
       return true;
@@ -629,7 +629,7 @@ export default function Profile() {
     const loadProfile = async () => {
       try {
         setLoadingProfile(true);
-        console.log("🔄 Loading profile data...");
+        console.log(" Loading profile data...");
 
         // Check if we have cached data first
         const cachedProfile = localStorage.getItem('userProfile');
@@ -652,7 +652,7 @@ export default function Profile() {
               setProfilePic(pic);
             }
             
-            console.log("✅ Profile loaded from cache");
+            console.log(" Profile loaded from cache");
           } catch (e) {
             console.error("Failed to parse cached profile:", e);
           }
@@ -688,14 +688,14 @@ export default function Profile() {
             // Cache data
             localStorage.setItem("userProfile", JSON.stringify(serverProfile));
             
-            console.log("✅ Profile updated with fresh data");
+            console.log(" Profile updated with fresh data");
           }
         } catch (fetchError) {
           console.warn(" Could not fetch fresh profile, using cached:", fetchError.message);
           // Keep using cached data if fetch fails
         }
       } catch (error) {
-        console.error("❌ Profile loading error:", error);
+        console.error(" Profile loading error:", error);
         if (isMounted) {
           setSnackbar({
             open: true,
@@ -827,16 +827,16 @@ export default function Profile() {
   const handleCancel = () => {
     setForm({ ...originalForm });
     setErrors({});
-    console.log("❌ Changes cancelled");
+    console.log(" Changes cancelled");
   };
 
   // FIXED: Handle submit with proper state updates and authFetch
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("🔄 Form submission started");
+    console.log(" Form submission started");
 
     if (!validate()) {
-      console.log("❌ Form validation failed:", errors);
+      console.log(" Form validation failed:", errors);
       return;
     }
 
@@ -881,7 +881,7 @@ export default function Profile() {
           
           profileUpdated = true;
         } catch (profileError) {
-          console.error("❌ Profile update failed:", profileError);
+          console.error(" Profile update failed:", profileError);
           setSnackbar({
             open: true,
             message: `Profile update failed: ${profileError.message}`,
@@ -905,7 +905,7 @@ export default function Profile() {
             confirmPassword: ""
           }));
         } catch (passwordError) {
-          console.error("❌ Password update failed:", passwordError);
+          console.error(" Password update failed:", passwordError);
           setSnackbar({
             open: true,
             message: `Password change failed: ${passwordError.message}`,
@@ -936,10 +936,10 @@ export default function Profile() {
         });
       }
 
-      console.log("✅ Update completed successfully");
+      console.log(" Update completed successfully");
 
     } catch (err) {
-      console.error("❌ Update failed:", err);
+      console.error(" Update failed:", err);
       setSnackbar({
         open: true,
         message: `Failed to update: ${err.message}`,
