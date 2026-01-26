@@ -541,141 +541,203 @@ const overdueCells = allEvents.filter(cell => {
   };
 
   const EnhancedCalendar = useMemo(() => {
-    const eventCounts = {};
-    filteredEvents.forEach(e => {
-      if (e.date) {
-        const d = e.date.split('T')[0];
-        eventCounts[d] = (eventCounts[d] || 0) + 1;
-      }
+  // Count events per day
+  const eventCounts = {};
+  filteredEvents.forEach((e) => {
+    if (e.date) {
+      const d = e.date.split('T')[0];
+      eventCounts[d] = (eventCounts[d] || 0) + 1;
+    }
+  });
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const goToPreviousMonth = () =>
+    setCurrentMonth((prev) => {
+      const m = new Date(prev);
+      m.setMonth(m.getMonth() - 1);
+      return m;
     });
 
-    const today = new Date().toISOString().split('T')[0];
-    const goToPreviousMonth = () => setCurrentMonth(prev => { 
-      const m = new Date(prev); 
-      m.setMonth(m.getMonth() - 1); 
-      return m; 
+  const goToNextMonth = () =>
+    setCurrentMonth((prev) => {
+      const m = new Date(prev);
+      m.setMonth(m.getMonth() + 1);
+      return m;
     });
-    
-    const goToNextMonth = () => setCurrentMonth(prev => { 
-      const m = new Date(prev); 
-      m.setMonth(m.getMonth() + 1); 
-      return m; 
+
+  const goToToday = () => {
+    const now = new Date();
+    setCurrentMonth(now);
+    setSelectedDate(now.toISOString().split('T')[0]);
+  };
+
+  // Generate calendar days
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+
+  const startWeekday = firstDayOfMonth.getDay(); // 0 = Sunday
+  const daysInMonth = lastDayOfMonth.getDate();
+
+  const days = [];
+
+  // Empty cells before 1st
+  for (let i = 0; i < startWeekday; i++) {
+    days.push(null);
+  }
+
+  // Real days
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateObj = new Date(year, month, day);
+    const dateStr = dateObj.toISOString().split('T')[0];
+
+    days.push({
+      day,
+      date: dateStr,
+      dateObj,
+      eventCount: eventCounts[dateStr] || 0,
+      isToday: dateStr === todayStr,
+      isSelected: dateStr === selectedDate,
     });
-    
-    const goToToday = () => { 
-      setCurrentMonth(new Date()); 
-      setSelectedDate(today); 
-    };
+  }
 
-    const getDaysInMonth = () => {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
-      const firstDay = new Date(year, month, 1).getDay();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const days = [];
-      
-      for (let i = 0; i < firstDay; i++) days.push(null);
-      
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = new Date(year, month, day).toISOString().split('T')[0];
-        days.push({
-          day, 
-          date: dateStr,
-          eventCount: eventCounts[dateStr] || 0,
-          isToday: dateStr === today,
-          isSelected: dateStr === selectedDate
-        });
-      }
-      return days;
-    };
-    
-    const days = getDaysInMonth();
+  // Pad end to complete last week (optional but looks better)
+  while (days.length % 7 !== 0) {
+    days.push(null);
+  }
 
-    return (
-      <Box>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-          <Typography variant="h6" fontWeight="medium">
-            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </Typography>
-          <Box display="flex" gap={0.5}>
-            <IconButton size="small" onClick={goToPreviousMonth} sx={{ p: 0.5 }}><ChevronLeft fontSize="small" /></IconButton>
-            <Button size="small" variant="outlined" onClick={goToToday} sx={{ px: 1, py: 0.25, fontSize: '0.75rem' }}>Today</Button>
-            <IconButton size="small" onClick={goToNextMonth} sx={{ p: 0.5 }}><ChevronRight fontSize="small" /></IconButton>
+  return (
+    <Box sx={{ width: '100%' }}>
+      {/* Month header + controls */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 2,
+        }}
+      >
+        <Typography variant="h6" fontWeight="medium">
+          {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <IconButton size="small" onClick={goToPreviousMonth}>
+            <ChevronLeft fontSize="small" />
+          </IconButton>
+
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={goToToday}
+            sx={{ minWidth: 80 }}
+          >
+            Today
+          </Button>
+
+          <IconButton size="small" onClick={goToNextMonth}>
+            <ChevronRight fontSize="small" />
+          </IconButton>
+        </Box>
+      </Box>
+
+      {/* Weekday headers */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          gap: 0.5,
+          mb: 1,
+        }}
+      >
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
+          <Box
+            key={day}
+            sx={{
+              py: 1,
+              textAlign: 'center',
+              fontSize: '0.8rem',
+              fontWeight: 'medium',
+              color: i === 0 || i === 6 ? 'text.secondary' : 'text.primary',
+              bgcolor: i === 0 || i === 6 ? 'action.hover' : 'transparent',
+              borderRadius: 1,
+            }}
+          >
+            {isSmDown ? day[0] : day}
           </Box>
-        </Box>
+        ))}
+      </Box>
 
-        <Box sx={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(7, 1fr)', 
-          gap: 0.25, 
-          mb: 1, 
-          backgroundColor: 'background.paper', 
-          borderRadius: 1.5, 
-          overflow: 'hidden', 
-          boxShadow: 0 
-        }}>
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
-            <Box key={i} sx={{ 
-              py: 1, 
-              textAlign: 'center', 
-              fontWeight: 'medium', 
-              fontSize: '0.7rem', 
-              color: 'text.primary', 
-              backgroundColor: i === 0 || i === 6 ? 'action.hover' : 'transparent', 
-              borderRight: i < 6 ? '1px solid' : 'none', 
-              borderColor: 'divider' 
-            }}>
-              {isSmDown ? day[0] : day}
-            </Box>
-          ))}
-        </Box>
-
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.25 }}>
-          {days.map((d, i) => !d ? <Box key={`empty-${i}`} sx={{ height: 42 }} /> : (
+      {/* Days grid */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          gap: 0.5,
+        }}
+      >
+        {days.map((d, i) =>
+          !d ? (
+            <Box key={`empty-${i}`} sx={{ height: 54, minHeight: 54 }} />
+          ) : (
             <Box
               key={d.date}
               onClick={() => setSelectedDate(d.date)}
               sx={{
-                height: 42, 
-                borderRadius: 1.5, 
+                height: 54,
+                minHeight: 54,
+                borderRadius: 2,
                 cursor: 'pointer',
-                backgroundColor: d.isSelected ? 'primary.main' : d.isToday ? 'primary.50' : 'background.default',
-                color: d.isSelected ? 'white' : d.isToday ? 'primary.main' : 'text.primary',
-                border: d.isToday && !d.isSelected ? '1px solid' : 'none',
-                borderColor: d.isToday && !d.isSelected ? 'primary.main' : 'divider',
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
                 justifyContent: 'center',
-                position: 'relative', 
-                transition: 'all 0.2s ease',
-                '&:hover': { 
-                  backgroundColor: d.isSelected ? 'primary.dark' : 'action.hover', 
-                  transform: 'translateY(-1px)', 
-                  boxShadow: 2 
-                }
+                position: 'relative',
+                bgcolor: d.isSelected
+                  ? 'primary.main'
+                  : d.isToday
+                  ? 'primary.50'
+                  : 'background.paper',
+                color: d.isSelected ? 'white' : 'text.primary',
+                border: d.isToday && !d.isSelected ? '2px solid' : '1px solid',
+                borderColor: d.isToday && !d.isSelected ? 'primary.main' : 'divider',
+                transition: 'all 0.18s ease',
+                '&:hover': {
+                  bgcolor: d.isSelected ? 'primary.dark' : 'action.hover',
+                  transform: 'scale(1.04)',
+                  boxShadow: 2,
+                  zIndex: 1,
+                },
               }}
             >
-              <Typography variant="caption" fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'} sx={{ fontSize: '0.75rem' }}>
+              <Typography
+                variant="body2"
+                fontWeight={d.isToday || d.isSelected ? 'bold' : 'medium'}
+              >
                 {d.day}
               </Typography>
+
               {d.eventCount > 0 && (
-                <Box sx={{ 
-                  position: 'absolute', 
-                  bottom: 4, 
-                  width: 6, 
-                  height: 6, 
-                  borderRadius: '50%', 
-                  bgcolor: d.isSelected ? 'white' : 'primary.main', 
-                  boxShadow: 0 
-                }} />
+                <Box
+                  sx={{
+                    mt: 0.5,
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    bgcolor: d.isSelected ? 'white' : 'primary.main',
+                  }}
+                />
               )}
             </Box>
-          ))}
-        </Box>
+          )
+        )}
       </Box>
-    );
-  }, [filteredEvents, currentMonth, selectedDate, isSmDown]);
+    </Box>
+  );
+}, [filteredEvents, currentMonth, selectedDate, isSmDown]);
 
   const StatCard = React.memo(({ title, value, subtitle, icon, color = 'primary' }) => (
     <Paper variant="outlined" sx={{
@@ -873,7 +935,7 @@ const overdueCells = allEvents.filter(cell => {
   const eventsOnSelectedDate = getEventsForDate(selectedDate);
   
   return (
-    <Container maxWidth="xl" sx={{ p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2.5, xl: 3 }), mt: 8 }}>
+    <Container maxWidth="xl" sx={{ p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2.5, xl: 3 }), mt: { xs: 4, md: 6 }}}>
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems={isXsDown ? "flex-start" : "center"} mb={3} flexDirection={isXsDown ? "column" : "row"} gap={2}>
         <Box>
@@ -923,7 +985,7 @@ const overdueCells = allEvents.filter(cell => {
       </Paper>
 
       {/* Tab Content */}
-      <Box sx={{ minHeight: '500px' }}>
+      <Box sx={{ minHeight: '0px' }}>
 
       {activeTab === 0 && (
         <Paper sx={{ 
@@ -1113,7 +1175,7 @@ const overdueCells = allEvents.filter(cell => {
         {activeTab === 1 && (
           <Paper sx={{ 
             p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }), 
-            height: getResponsiveValue({ xs: 'auto', sm: 'calc(100vh - 320px)', md: 'calc(100vh - 320px)', lg: 'calc(100vh - 320px)', xl: 'calc(100vh - 320px)' }),
+            height: getResponsiveValue({ xs: 'auto', sm: 'calc(100vh - 320px)', md: 3, lg: 'calc(100vh - 320px)', xl: 'calc(100vh - 320px)' }),
             display: 'flex', 
             flexDirection: 'column'
           }}>
@@ -1121,7 +1183,7 @@ const overdueCells = allEvents.filter(cell => {
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: isXsDown ? "flex-start" : "center", 
-              mb: 2,
+              mb: { xs: 2.5, md: 3 },
               flexShrink: 0,
               flexDirection: isXsDown ? "column" : "row",
               gap: isXsDown ? 1 : 0
@@ -1284,127 +1346,155 @@ const overdueCells = allEvents.filter(cell => {
         )}
 
         {activeTab === 2 && (
-          <Paper sx={{ 
-            p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }), 
-            height: getResponsiveValue({ xs: 'auto', sm: 'calc(100vh - 320px)', md: 'calc(100vh - 320px)', lg: 'calc(100vh - 320px)', xl: 'calc(100vh - 320px)' }),
-            display: 'flex', 
-            flexDirection: 'column'
-          }}>
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: isXsDown ? "flex-start" : "center", 
-              mb: 2,
-              flexShrink: 0,
-              flexDirection: isXsDown ? "column" : "row",
-              gap: isXsDown ? 1 : 0
-            }}>
-              <Typography variant="subtitle1">
-                Event Calendar ({filteredEvents.length} events)
-              </Typography>
-              <Button variant="contained" startIcon={<Add />} size="small" onClick={handleCreateEvent}>
-                Create Event
-              </Button>
-            </Box>
-            
-            <Box sx={{ 
-              flexGrow: 1, 
-              overflow: 'hidden',
-              display: 'flex', 
-              flexDirection: isSmDown ? "column" : "row", 
-              gap: 2 
-            }}>
-              <Box sx={{ 
-                flex: 1, 
-                overflow: 'auto',
-                pr: 1,
-                '&::-webkit-scrollbar': {
-                  width: '6px',
-                },
-                '&::-webkit-scrollbar-track': {
-                  background: '#f1f1f1',
-                  borderRadius: '3px',
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  background: '#888',
-                  borderRadius: '3px',
-                },
-                '&::-webkit-scrollbar-thumb:hover': {
-                  background: '#555',
-                },
-              }}>
-                {EnhancedCalendar}
-              </Box>
-              
-              <Box sx={{ 
-                flex: 1, 
-                overflow: 'auto',
-                pr: 1 
-              }}>
-                <Typography variant="body1" gutterBottom sx={{ fontWeight: 'medium' }}>
-                  Events on {formatDisplayDate(selectedDate)}
+  <Paper
+    sx={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      borderRadius: 2,
+      boxShadow: 1,
+      minHeight: { xs: 'auto', md: '500px' },
+    }}
+  >
+    {/* Header with title + Create button */}
+    <Box
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+        flexShrink: 0,
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 2,
+        }}
+      >
+        <Typography variant="subtitle1" fontWeight="medium">
+          Event Calendar ({filteredEvents.length} events)
+        </Typography>
+
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<Add />}
+          onClick={handleCreateEvent}
+        >
+          Create Event
+        </Button>
+      </Box>
+    </Box>
+
+    {/* Main calendar + events panel */}
+    <Box
+      sx={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        gap: 0,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Calendar grid side */}
+      <Box
+        sx={{
+          flex: { xs: '1 1 auto', md: '0 0 420px' }, // fixed width on larger screens
+          overflowY: 'auto',
+          p: { xs: 2, md: 2.5 },
+          borderRight: { md: '1px solid' },
+          borderColor: 'divider',
+        }}
+      >
+        {EnhancedCalendar}
+      </Box>
+
+      {/* Events list side */}
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: 'auto',
+          p: { xs: 2, md: 2.5 },
+          bgcolor: 'background.default',
+        }}
+      >
+        <Typography variant="subtitle1" gutterBottom sx={{ mb: 2 }}>
+          Events on {formatDisplayDate(selectedDate)}
+        </Typography>
+
+        {eventsOnSelectedDate.length > 0 ? (
+          <Stack spacing={1.5}>
+            {eventsOnSelectedDate.map((e) => (
+              <Card
+                key={e._id}
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  borderRadius: 2,
+                  transition: 'all 0.2s',
+                  '&:hover': { boxShadow: 3, transform: 'translateY(-2px)' },
+                }}
+              >
+                <Typography variant="subtitle2" fontWeight="medium">
+                  {e.eventName}
                 </Typography>
-                {eventsOnSelectedDate.length > 0 ? (
-                  <Stack spacing={1}>
-                    {eventsOnSelectedDate.map(e => (
-                      <Card key={e._id} sx={{ 
-                        p: 1.5, 
-                        boxShadow: 1,
-                        transition: 'all 0.2s',
-                        '&:hover': { 
-                          boxShadow: 2, 
-                          transform: 'translateY(-1px)' 
-                        }
-                      }}>
-                        <Typography variant="body2" fontWeight="medium">{e.eventName}</Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                          <Chip 
-                            label={e.eventTypeName} 
-                            size="small" 
-                            color="primary" 
-                            variant="outlined"
-                            sx={{ fontSize: '0.7rem', height: 22 }}
-                          />
-                          <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
-                            {e.time} • {e.location || 'No location'}
-                          </Typography>
-                        </Box>
-                        {e.eventLeaderName && (
-                          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5, fontSize: '0.7rem' }}>
-                            Leader: {e.eventLeaderName}
-                          </Typography>
-                        )}
-                      </Card>
-                    ))}
-                  </Stack>
-                ) : (
-                  <Box sx={{ 
-                    textAlign: 'center', 
-                    py: 6, 
-                    color: 'text.secondary',
-                    border: '2px dashed',
-                    borderColor: 'divider',
-                    borderRadius: 1.5,
-                    mt: 1
-                  }}>
-                    <Event sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
-                    <Typography variant="body2">No events scheduled for this date</Typography>
-                    <Button 
-                      variant="outlined" 
-                      size="small" 
-                      startIcon={<Add />} 
-                      onClick={handleCreateEvent}
-                      sx={{ mt: 1.5, fontSize: '0.75rem' }}
-                    >
-                      Create Event
-                    </Button>
-                  </Box>
+                <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  <Chip
+                    label={e.eventTypeName || 'Event'}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    {e.time || 'No time'} • {e.location || 'No location'}
+                  </Typography>
+                </Box>
+                {e.eventLeaderName && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Leader: {e.eventLeaderName}
+                  </Typography>
                 )}
-              </Box>
-            </Box>
-          </Paper>
+              </Card>
+            ))}
+          </Stack>
+        ) : (
+          <Box
+            sx={{
+              height: '100%',
+              minHeight: '200px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'text.secondary',
+              textAlign: 'center',
+              py: 6,
+            }}
+          >
+            <Event sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              No events scheduled
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 3 }}>
+              for {formatDisplayDate(selectedDate)}
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<Add />}
+              onClick={handleCreateEvent}
+            >
+              Create Event
+            </Button>
+          </Box>
         )}
-   
+      </Box>
+    </Box>
+  </Paper>
+)}
 
       {/* CREATE EVENT MODAL */}
       <Dialog 
