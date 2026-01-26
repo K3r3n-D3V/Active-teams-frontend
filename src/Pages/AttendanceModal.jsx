@@ -1141,6 +1141,106 @@ const [eventStatistics, setEventStatistics] = useState({
 
   const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
+ const findLeaderEmail = async (leaderName) => {
+    if (!leaderName) return "";
+    
+    try {
+      const response = await authFetch(`${BACKEND_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.results?.length > 0) {
+          const foundLeader = data.results.find(person => 
+            person.Name?.toLowerCase() === leaderName.toLowerCase() ||
+            person.FullName?.toLowerCase() === leaderName.toLowerCase()
+          );
+          
+          if (foundLeader?.Email) {
+            return foundLeader.Email;
+          }
+        }
+      }
+      
+      return "";
+      
+    } catch (error) {
+      console.error("Error searching for leader email:", error);
+      return "";
+    }
+  };
+
+    const createConsolidationTasks = async (attendees, eventId) => {
+    if (!attendees || attendees.length === 0) return;
+
+    for (const attendee of attendees) {
+      const hasDecision = attendee.decision && attendee.decision.length > 0;
+      
+      if (!hasDecision) {
+        continue;
+      }
+
+      try {
+        let assignedLeader = attendee.leader144 || attendee.leader12 || attendee.leader1 || currentUser?.name || "";
+        
+        if (!assignedLeader && currentUser) {
+          assignedLeader = `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
+        }
+        
+        if (!assignedLeader) {
+          console.warn(`Could not determine leader for ${attendee.fullName}`);
+          continue;
+        }
+
+        const leaderEmail = await findLeaderEmail(assignedLeader);
+        const decisionType = attendee.decision.toLowerCase() === 're-commitment' ? 'recommitment' : 'first_time';
+
+        const nameParts = (attendee.fullName || "").split(" ");
+        const firstName = nameParts[0] || "";
+        const lastName = nameParts.slice(1).join(" ") || "";
+
+        const consolidationPayload = {
+          person_name: firstName,
+          person_surname: lastName,
+          person_email: attendee.email || "",
+          person_phone: attendee.phone || "",
+          decision_type: decisionType,
+          decision_date: new Date().toISOString().split("T")[0],
+          assigned_to: assignedLeader,
+          assigned_to_email: leaderEmail,
+          leaders: [
+            attendee.leader1 || currentUser?.name || "",
+            attendee.leader12 || "",
+            attendee.leader144 || "",
+            ""
+          ],
+          event_id: eventId,
+          is_check_in: true,
+          attendance_status: "checked_in"
+        };
+
+        const response = await authFetch(`${BACKEND_URL}/consolidations`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(consolidationPayload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error(`Failed to create consolidation task for ${attendee.fullName}:`, errorData);
+          continue;
+        }
+
+        const result = await response.json();
+        console.log(`✅ Consolidation task created for ${attendee.fullName}:`, result);
+      } catch (error) {
+        console.error(`Error creating consolidation task for ${attendee.fullName}:`, error);
+      }
+    }
+  };
+
+
 const loadEventStatistics = async () => {
   if (!event) return;
   
@@ -1840,102 +1940,6 @@ const getAllCommonAttendees = () => {
     person.email.toLowerCase().includes(associateSearch.toLowerCase())
   );
 
-  const createConsolidationTasks = async (attendees, eventId) => {
-  if (!attendees || attendees.length === 0) return;
-
-  const findLeaderEmail = async (leaderName) => {
-    if (!leaderName) return "";
-    
-    try {
-      const response = await authFetch(`${BACKEND_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.results?.length > 0) {
-          const foundLeader = data.results.find(person => 
-            person.Name?.toLowerCase() === leaderName.toLowerCase() ||
-            person.FullName?.toLowerCase() === leaderName.toLowerCase()
-          );
-          
-          if (foundLeader?.Email) {
-            return foundLeader.Email;
-          }
-        }
-      }
-      
-      return "";
-      
-    } catch (error) {
-      console.error("Error searching for leader email:", error);
-      return "";
-    }
-  };
-
-  for (const attendee of attendees) {
-    const hasDecision = attendee.decision && attendee.decision.length > 0;
-    
-    if (!hasDecision) {
-      continue;
-    }
-
-    try {
-      let assignedLeader = attendee.leader144 || attendee.leader12 || attendee.leader1 || currentUser?.name || "";
-      
-      if (!assignedLeader && currentUser) {
-        assignedLeader = `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
-      }
-      
-      if (!assignedLeader) {
-        console.warn(`Could not determine leader for ${attendee.fullName}`);
-        continue;
-      }
-
-      const leaderEmail = await findLeaderEmail(assignedLeader);
-      const decisionType = attendee.decision.toLowerCase() === 're-commitment' ? 'recommitment' : 'first_time';
-
-      const nameParts = (attendee.fullName || "").split(" ");
-      const firstName = nameParts[0] || "";
-      const lastName = nameParts.slice(1).join(" ") || "";
-
-      const consolidationPayload = {
-        person_name: firstName,
-        person_surname: lastName,
-        person_email: attendee.email || "",
-        person_phone: attendee.phone || "",
-        decision_type: decisionType,
-        decision_date: new Date().toISOString().split("T")[0],
-        assigned_to: assignedLeader,
-        assigned_to_email: leaderEmail,
-        leaders: [
-          attendee.leader1 || currentUser?.name || "",
-          attendee.leader12 || "",
-          attendee.leader144 || "",
-          ""
-        ],
-        event_id: eventId,
-        is_check_in: true,
-        attendance_status: "checked_in"
-      };
-
-      const response = await authFetch(`${BACKEND_URL}/consolidations`, {
-        method: "POST",
-        body: JSON.stringify(consolidationPayload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error(`Failed to create consolidation task for ${attendee.fullName}:`, errorData);
-        continue;
-      }
-
-      const result = await response.json();
-      console.log(`✅ Consolidation task created for ${attendee.fullName}:`, result);
-    } catch (error) {
-      console.error(`Error creating consolidation task for ${attendee.fullName}:`, error);
-    }
-  }
-};
-
 const handleSave = async () => {
   const allPeople = getAllCommonAttendees();
   console.log("[SAVE] All people for save:", allPeople.length);
@@ -1973,20 +1977,20 @@ const handleSave = async () => {
         return null;
       }
 
-      const attendee = {
-        id: person.id,
-        name: person.fullName || "",
-        email: person.email || "",
-        fullName: person.fullName || "",
-        leader1: person.leader1 || "",
-        leader12: person.leader12 || "",
-        leader144: person.leader144 || "",
-        phone: person.phone || "",
-        time: new Date().toISOString(),
-        decision: decisions[id] ? decisionTypes[id] || "" : "",
-        checked_in: true,
-        isPersistent: true
-      };
+const attendee = {
+  id: person.id,
+  name: person.fullName || "",
+  email: person.email || "",
+  fullName: person.fullName || "",
+  leader1: person.leader1 || "", 
+  leader12: person.leader12 || "",
+  leader144: person.leader144 || "",
+  phone: person.phone || "",
+  time: new Date().toISOString(),
+  decision: decisions[id] ? decisionTypes[id] || "" : "",
+  checked_in: true,
+  isPersistent: true
+};
 
       if (isTicketedEvent) {
         attendee.priceTier = priceTiers[id]?.name || "";
@@ -2066,11 +2070,10 @@ const handleSave = async () => {
 
 if (result && result.success) {
   await createConsolidationTasks(selectedAttendees, eventId);
-  
   await loadEventStatistics();
-  
-  toast.success("Attendance saved successfully!");
+  toast.success("Attendance saved successfully! Consolidation tasks created.");
 
+  
   if (typeof onAttendanceSubmitted === "function") {
     await onAttendanceSubmitted();
   }
