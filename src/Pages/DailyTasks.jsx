@@ -111,8 +111,8 @@ export default function DailyTasks() {
 
   const isSameDay = (date1, date2) => {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate();
   };
 
   const isDateInRange = (date, startDate, endDate) => {
@@ -204,9 +204,9 @@ export default function DailyTasks() {
       const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`);
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
-      
+
       const tasksArray = Array.isArray(data) ? data : data.tasks || [];
-      
+
       // Debug logging
       console.log("=== DEBUG: Tasks from API ===");
       tasksArray.forEach((task, index) => {
@@ -222,21 +222,21 @@ export default function DailyTasks() {
         });
       });
       console.log("=== END DEBUG ===");
-      
+
       const normalizedTasks = tasksArray.map((task) => {
         const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
-        
+
         // Determine what to show as assignedTo
         let assignedTo = "";
-        
+
         if (isConsolidation) {
           // For consolidation tasks: use leader name, NOT email
           // Check all possible leader name fields
-          assignedTo = task.leader_name || 
-                      task.leader_assigned || 
-                      task.assigned_to || 
-                      "";
-          
+          assignedTo = task.leader_name ||
+            task.leader_assigned ||
+            task.assigned_to ||
+            "";
+
           // Debug logging for consolidation tasks
           if (isConsolidation) {
             console.log(`Consolidation task ${task._id}:`, {
@@ -247,7 +247,7 @@ export default function DailyTasks() {
               final_assignedTo: assignedTo
             });
           }
-          
+
           // If we still have an email (not a name), show placeholder
           if (assignedTo.includes('@')) {
             assignedTo = "Consolidation Leader";
@@ -256,7 +256,7 @@ export default function DailyTasks() {
           // For regular tasks
           assignedTo = task.name || task.assignedfor || "";
         }
-        
+
         return {
           ...task,
           assignedTo: assignedTo,
@@ -267,15 +267,15 @@ export default function DailyTasks() {
           // Ensure all consolidation fields are preserved
           leader_name: task.leader_name || task.leader_assigned,
           leader_assigned: task.leader_assigned,
-          consolidation_name: task.consolidation_name || 
-            (isConsolidation 
+          consolidation_name: task.consolidation_name ||
+            (isConsolidation
               ? `${task.person_name || ''} ${task.person_surname || ''} - ${task.decision_display_name || 'Consolidation'}`
               : task.name),
           decision_display_name: task.decision_display_name,
           is_consolidation_task: isConsolidation,
         };
       });
-      
+
       setTasks(normalizedTasks);
     } catch (err) {
       console.error("Error fetching user tasks:", err.message);
@@ -390,16 +390,16 @@ export default function DailyTasks() {
 
   const updateTask = async (taskId, updatedData) => {
     try {
-      const isConsolidationTask = selectedTask?.taskType === 'consolidation' || 
-                                  selectedTask?.is_consolidation_task;
-      
+      const isConsolidationTask = selectedTask?.taskType === 'consolidation' ||
+        selectedTask?.is_consolidation_task;
+
       if (isConsolidationTask) {
         // Preserve the original leader assignment
         updatedData.name = selectedTask.leader_name || selectedTask.name;
         updatedData.leader_name = selectedTask.leader_name;
         updatedData.leader_assigned = selectedTask.leader_assigned;
       }
-      
+
       const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -407,12 +407,12 @@ export default function DailyTasks() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update task");
-      
+
       setTasks((prev) =>
         prev.map((t) =>
-          t._id === taskId ? { 
-            ...t, 
-            ...data.updatedTask, 
+          t._id === taskId ? {
+            ...t,
+            ...data.updatedTask,
             date: data.updatedTask.followup_date,
             ...(isConsolidationTask && {
               leader_name: selectedTask.leader_name,
@@ -433,11 +433,11 @@ export default function DailyTasks() {
       toast.info("This task has been marked as completed and cannot be edited.");
       return;
     }
-    
+
     setSelectedTask(task);
     setFormType(task.type);
     setIsModalOpen(true);
-    
+
     setTaskData({
       taskType: task.taskType || "",
       recipient: {
@@ -465,18 +465,18 @@ export default function DailyTasks() {
         throw new Error("Person details not found. Please select a valid recipient.");
       }
 
-      const isConsolidationTask = selectedTask?.taskType === 'consolidation' || 
-                                  selectedTask?.is_consolidation_task;
-      
+      const isConsolidationTask = selectedTask?.taskType === 'consolidation' ||
+        selectedTask?.is_consolidation_task;
+
       const taskPayload = {
         memberID: user.id,
-        name: isConsolidationTask 
+        name: isConsolidationTask
           ? taskData.assignedTo
           : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-        taskType: taskData.taskType || 
-                  (isConsolidationTask 
-                    ? "consolidation" 
-                    : formType === "call" ? "Call Task" : "Visit Task"),
+        taskType: taskData.taskType ||
+          (isConsolidationTask
+            ? "consolidation"
+            : formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
           name: `${person.Name} ${person.Surname || ""}`.trim(),
           phone: person.Phone || person.Number || "",
@@ -589,7 +589,7 @@ export default function DailyTasks() {
         return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
       });
 
-      let colWidthsXml = columnWidths.map(width => 
+      let colWidthsXml = columnWidths.map(width =>
         `<x:Width>${width}</x:Width>`
       ).join('\n                  ');
 
@@ -667,14 +667,14 @@ export default function DailyTasks() {
           </body>
         </html>`;
 
-      const blob = new Blob([html], { 
-        type: 'application/vnd.ms-excel;charset=utf-8;' 
+      const blob = new Blob([html], {
+        type: 'application/vnd.ms-excel;charset=utf-8;'
       });
 
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
       const fileName = `filtered_tasks_${user?.name || 'user'}_${new Date().toISOString().split('T')[0]}.xls`;
-      
+
       link.href = url;
       link.download = fileName;
       link.style.display = 'none';
@@ -706,7 +706,7 @@ export default function DailyTasks() {
   }, [filteredTasks]);
 
   return (
-    <div style={{ 
+    <div style={{
       height: '100vh',
       overflow: 'hidden',
       display: 'flex',
@@ -715,9 +715,9 @@ export default function DailyTasks() {
       paddingTop: '5rem'
     }}>
       {/* Header section */}
-      <div style={{ 
-        maxWidth: '1200px', 
-        margin: '0 auto', 
+      <div style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
         padding: '16px 16px 0 16px',
         width: '100%',
         flexShrink: 0,
@@ -732,32 +732,32 @@ export default function DailyTasks() {
           boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
           border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
         }}>
-          <h1 style={{ 
+          <h1 style={{
             fontSize: 'clamp(48px, 8vw, 72px)',
-            fontWeight: '700', 
-            margin: 0, 
+            fontWeight: '700',
+            margin: 0,
             letterSpacing: '-2px',
             lineHeight: '1.2'
           }}>
             {totalCount}
           </h1>
-          <p style={{ 
+          <p style={{
             marginTop: '8px',
             fontSize: '14px',
-            letterSpacing: '1px', 
-            textTransform: 'uppercase', 
-            color: isDarkMode ? '#aaa' : '#6b7280', 
-            fontWeight: '600' 
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            color: isDarkMode ? '#aaa' : '#6b7280',
+            fontWeight: '600'
           }}>
             Tasks Complete
           </p>
 
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
             gap: '12px',
             marginTop: '24px',
-            flexWrap: 'wrap' 
+            flexWrap: 'wrap'
           }}>
             <button
               style={{
@@ -803,7 +803,7 @@ export default function DailyTasks() {
             >
               <UserPlus size={18} /> Visit Task
             </button>
-            
+
             {user?.role === 'admin' && (
               <button
                 style={{
@@ -855,7 +855,7 @@ export default function DailyTasks() {
               <option value="previousMonth">Previous Month</option>
             </select>
           </div>
-          
+
           <div style={{ marginTop: '12px' }}>
             <button
               style={{
@@ -885,9 +885,9 @@ export default function DailyTasks() {
           </div>
         </div>
 
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
           gap: '8px',
           marginTop: '20px',
           flexWrap: 'wrap',
@@ -919,160 +919,160 @@ export default function DailyTasks() {
       </div>
 
       {/* Task list container */}
-      <div style={{ 
+      <div style={{
         flex: 1,
         overflowY: 'auto',
-        maxWidth: '1200px', 
-        margin: '0 auto', 
+        maxWidth: '1200px',
+        margin: '0 auto',
         padding: '0 16px 16px 16px',
         width: '100%',
         boxSizing: 'border-box'
       }}>
-<div style={{ marginTop: '16px' }}>
-  {loading ? (
-    <p style={{ 
-      textAlign: 'center', 
-      color: isDarkMode ? '#aaa' : '#6b7280', 
-      fontStyle: 'italic', 
-      padding: '20px'
-    }}>
-      Loading tasks...
-    </p>
-  ) : filteredTasks.length === 0 ? (
-    <p style={{ 
-      textAlign: 'center', 
-      color: isDarkMode ? '#aaa' : '#6b7280',
-      padding: '20px'
-    }}>
-      No tasks yet.
-    </p>
-  ) : (
-    filteredTasks.map((task) => {
-      // Get the recipient name
-      const recipientName = task.contacted_person?.name || "";
-      
-      // Determine if it's a consolidation task
-      const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
-      
-      // Get the assigned/leader name EXACTLY as shown in modal
-      // This should match what's in task.assignedTo
-      const assignedDisplay = task.assignedTo || "";
-      
-      return (
-        <div
-          key={task._id}
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-            padding: '16px',
-            borderRadius: '12px',
-            border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-            marginBottom: '10px',
-            cursor: 'pointer',
-            boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-          }}
-        >
-          <div
-            style={{ 
-              cursor: 'pointer',
-              flex: 1,
-              minWidth: 0
-            }}
-            onClick={() => handleEdit(task)}
-          >
-            {/* Recipient Name */}
-            <p style={{ 
-              fontWeight: '700', 
-              color: isDarkMode ? '#fff' : '#1a1a24', 
-              margin: '0 0 4px 0', 
-              fontSize: '15px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+        <div style={{ marginTop: '16px' }}>
+          {loading ? (
+            <p style={{
+              textAlign: 'center',
+              color: isDarkMode ? '#aaa' : '#6b7280',
+              fontStyle: 'italic',
+              padding: '20px'
             }}>
-              {recipientName || 'No recipient'}
+              Loading tasks...
             </p>
-            
-            {/* Assigned To - EXACTLY as shown in modal */}
-            <p style={{ 
-              fontSize: '13px',
-              color: isDarkMode ? '#aaa' : '#6b7280', 
-              margin: '0 0 4px 0',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+          ) : filteredTasks.length === 0 ? (
+            <p style={{
+              textAlign: 'center',
+              color: isDarkMode ? '#aaa' : '#6b7280',
+              padding: '20px'
             }}>
-              {task.assignedTo || (user ? `${user.name} ${user.surname}` : '') || 'Not assigned'}
+              No tasks yet.
             </p>
-            
-            {task.isRecurring && (
-              <span style={{
-                fontSize: '10px',
-                fontWeight: '700',
-                backgroundColor: '#fde047',
-                color: '#854d0e',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                display: 'inline-block',
-                marginTop: '6px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}>
-                Recurring
-              </span>
-            )}
-          </div>
-          <div style={{ 
-            textAlign: 'right',
-            marginLeft: '12px',
-            flexShrink: 0
-          }}>
-            <span
-              style={{
-                display: 'inline-block',
-                padding: '5px 12px',
-                borderRadius: '16px',
-                fontSize: '12px',
-                fontWeight: '600',
-                textTransform: 'capitalize',
-                border: '2px solid',
-                cursor: 'pointer',
-                backgroundColor: task.status === "open" 
-                  ? (isDarkMode ? '#2d2d2d' : '#ffffff') 
-                  : task.status === "completed" 
-                    ? (isDarkMode ? '#fff' : '#000')
-                    : (isDarkMode ? '#3a3a3a' : '#e5e5e5'),
-                color: task.status === "open" 
-                  ? (isDarkMode ? '#fff' : '#000')
-                  : task.status === "completed" 
-                    ? (isDarkMode ? '#000' : '#fff')
-                    : (isDarkMode ? '#fff' : '#1a1a24'),
-                borderColor: task.status === "open" 
-                  ? (isDarkMode ? '#fff' : '#000')
-                  : task.status === "completed" 
-                    ? (isDarkMode ? '#fff' : '#000')
-                    : (isDarkMode ? '#444' : '#6b7280'),
-              }}
-              onClick={() => handleEdit(task)}
-            >
-              {task.status}
-            </span>
-            <div style={{ 
-              fontSize: '11px',
-              color: isDarkMode ? '#aaa' : '#6b7280', 
-              marginTop: '6px',
-              fontWeight: '500' 
-            }}>
-              {formatDate(task.date)}
-            </div>
-          </div>
+          ) : (
+            filteredTasks.map((task) => {
+              // Get the recipient name
+              const recipientName = task.contacted_person?.name || "";
+
+              // Determine if it's a consolidation task
+              const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
+
+              // Get the assigned/leader name EXACTLY as shown in modal
+              // This should match what's in task.assignedTo
+              const assignedDisplay = task.assignedTo || "";
+
+              return (
+                <div
+                  key={task._id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                    marginBottom: '10px',
+                    cursor: 'pointer',
+                    boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                  }}
+                >
+                  <div
+                    style={{
+                      cursor: 'pointer',
+                      flex: 1,
+                      minWidth: 0
+                    }}
+                    onClick={() => handleEdit(task)}
+                  >
+                    {/* Recipient Name */}
+                    <p style={{
+                      fontWeight: '700',
+                      color: isDarkMode ? '#fff' : '#1a1a24',
+                      margin: '0 0 4px 0',
+                      fontSize: '15px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {recipientName || 'No recipient'}
+                    </p>
+
+                    {/* Assigned To - EXACTLY as shown in modal */}
+                    <p style={{
+                      fontSize: '13px',
+                      color: isDarkMode ? '#aaa' : '#6b7280',
+                      margin: '0 0 4px 0',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {task.assignedTo || (user ? `${user.name} ${user.surname}` : '') || 'Not assigned'}
+                    </p>
+
+                    {task.isRecurring && (
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        backgroundColor: '#fde047',
+                        color: '#854d0e',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        display: 'inline-block',
+                        marginTop: '6px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}>
+                        Recurring
+                      </span>
+                    )}
+                  </div>
+                  <div style={{
+                    textAlign: 'right',
+                    marginLeft: '12px',
+                    flexShrink: 0
+                  }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '5px 12px',
+                        borderRadius: '16px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        textTransform: 'capitalize',
+                        border: '2px solid',
+                        cursor: 'pointer',
+                        backgroundColor: task.status === "open"
+                          ? (isDarkMode ? '#2d2d2d' : '#ffffff')
+                          : task.status === "completed"
+                            ? (isDarkMode ? '#fff' : '#000')
+                            : (isDarkMode ? '#3a3a3a' : '#e5e5e5'),
+                        color: task.status === "open"
+                          ? (isDarkMode ? '#fff' : '#000')
+                          : task.status === "completed"
+                            ? (isDarkMode ? '#000' : '#fff')
+                            : (isDarkMode ? '#fff' : '#1a1a24'),
+                        borderColor: task.status === "open"
+                          ? (isDarkMode ? '#fff' : '#000')
+                          : task.status === "completed"
+                            ? (isDarkMode ? '#fff' : '#000')
+                            : (isDarkMode ? '#444' : '#6b7280'),
+                      }}
+                      onClick={() => handleEdit(task)}
+                    >
+                      {task.status}
+                    </span>
+                    <div style={{
+                      fontSize: '11px',
+                      color: isDarkMode ? '#aaa' : '#6b7280',
+                      marginTop: '6px',
+                      fontWeight: '500'
+                    }}>
+                      {formatDate(task.date)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
-      );
-    })
-  )}
-</div>
       </div>
 
       {isAddTypeModalOpen && (
@@ -1102,8 +1102,8 @@ export default function DailyTasks() {
               border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
             }}
           >
-            <h2 style={{ 
-              margin: 0, 
+            <h2 style={{
+              margin: 0,
               fontSize: "20px",
               fontWeight: "700",
               textAlign: 'center'
@@ -1170,26 +1170,26 @@ export default function DailyTasks() {
 
       <Modal isOpen={isModalOpen} onClose={handleClose} isDarkMode={isDarkMode}>
         <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleSubmit}>
-          <h3 style={{ 
-            fontSize: '20px', 
-            fontWeight: 'bold', 
-            color: isDarkMode ? '#fff' : '#1a1a24', 
+          <h3 style={{
+            fontSize: '20px',
+            fontWeight: 'bold',
+            color: isDarkMode ? '#fff' : '#1a1a24',
             margin: 0,
             textAlign: 'center'
           }}>
-            {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task 
-              ? "Consolidation Task" 
+            {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
+              ? "Consolidation Task"
               : formType === "call" ? "Call Task" : "Visit Task"
             }
           </h3>
 
           <div>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '6px' 
+            <label style={{
+              display: 'block',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: isDarkMode ? '#fff' : '#1a1a24',
+              marginBottom: '6px'
             }}>
               Task Type
             </label>
@@ -1219,12 +1219,12 @@ export default function DailyTasks() {
           </div>
 
           <div style={{ position: 'relative' }}>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '6px' 
+            <label style={{
+              display: 'block',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: isDarkMode ? '#fff' : '#1a1a24',
+              marginBottom: '6px'
             }}>
               Recipient
             </label>
@@ -1313,8 +1313,8 @@ export default function DailyTasks() {
                 marginBottom: '6px',
               }}
             >
-              {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task 
-                ? "Leader Assigned" 
+              {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
+                ? "Leader Assigned"
                 : "Assigned To"
               }
             </label>
@@ -1395,12 +1395,12 @@ export default function DailyTasks() {
           </div>
 
           <div>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '6px' 
+            <label style={{
+              display: 'block',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: isDarkMode ? '#fff' : '#1a1a24',
+              marginBottom: '6px'
             }}>
               Due Date & Time
             </label>
@@ -1424,12 +1424,12 @@ export default function DailyTasks() {
           </div>
 
           <div>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '6px' 
+            <label style={{
+              display: 'block',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: isDarkMode ? '#fff' : '#1a1a24',
+              marginBottom: '6px'
             }}>
               Task Stage
             </label>

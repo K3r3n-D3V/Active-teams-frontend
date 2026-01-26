@@ -1237,7 +1237,7 @@ const createConsolidationTasks = async (attendees, eventId) => {
         ? 'recommitment' 
         : 'first_time';
       
-      console.log(`  🎯 Decision type: ${decisionType}`);
+      console.log(`Decision type: ${decisionType}`);
 
       const consolidationPayload = {
         person_name: firstName,
@@ -1259,7 +1259,7 @@ const createConsolidationTasks = async (attendees, eventId) => {
         attendance_status: "checked_in"
       };
 
-      console.log(`  📤 Sending consolidation payload:`, consolidationPayload);
+      console.log(`Sending consolidation payload:`, consolidationPayload);
 
       const response = await authFetch(`${BACKEND_URL}/consolidations`, {
         method: "POST",
@@ -1271,19 +1271,19 @@ const createConsolidationTasks = async (attendees, eventId) => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error(`  ❌ Failed to create consolidation task for ${firstName} ${lastName}:`, errorData);
+        console.error(`Failed to create consolidation task for ${firstName} ${lastName}:`, errorData);
         continue;
       }
 
       const result = await response.json();
-      console.log(`  ✅ Consolidation task created successfully for ${firstName} ${lastName}:`, result);
+      console.log(`Consolidation task created successfully for ${firstName} ${lastName}:`, result);
       
     } catch (error) {
-      console.error(`  ❌ Error creating consolidation task for ${attendee.fullName}:`, error);
+      console.error(`Error creating consolidation task for ${attendee.fullName}:`, error);
     }
   }
   
-  console.log("✅ Finished creating consolidation tasks");
+  console.log("Finished creating consolidation tasks");
 };
 
 

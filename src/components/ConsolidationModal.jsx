@@ -134,7 +134,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     const hasConsolidationStage = person.Stage === "Consolidate";
     const hasDecisionHistory = person.DecisionHistory && person.DecisionHistory.length > 0;
     
-    console.log("🔍 Consolidation check for:", personName, {
+    console.log("Consolidation check for:", personName, {
       isInConsolidatedList,
       hasConsolidationStage,
       hasDecisionHistory,
@@ -151,7 +151,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     const leader144 = person["Leader @144"] || person.leader144;
     const leader1728 = person["Leader @1728"] || person.leader1728;
 
-    console.log("👥 Person's leader relationships:", {
+    console.log("Person's leader relationships:", {
       leader1,
       leader12, 
       leader144,
@@ -159,35 +159,35 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     });
 
     if (leader1728 && leader1728.trim()) {
-      console.log("✅ Assigning to highest leader: Leader @1728:", leader1728);
+      console.log("Assigning to highest leader: Leader @1728:", leader1728);
       return { 
         leader: leader1728, 
         level: 1728,
         hasLeader: true
       };
     } else if (leader144 && leader144.trim()) {
-      console.log("✅ Assigning to highest leader: Leader @144:", leader144);
+      console.log("Assigning to highest leader: Leader @144:", leader144);
       return { 
         leader: leader144, 
         level: 144,
         hasLeader: true
       };
     } else if (leader12 && leader12.trim()) {
-      console.log("✅ Assigning to highest leader: Leader @12:", leader12);
+      console.log("Assigning to highest leader: Leader @12:", leader12);
       return { 
         leader: leader12, 
         level: 12,
         hasLeader: true
       };
     } else if (leader1 && leader1.trim()) {
-      console.log("✅ Assigning to highest leader: Leader @1:", leader1);
+      console.log("Assigning to highest leader: Leader @1:", leader1);
       return { 
         leader: leader1, 
         level: 1,
         hasLeader: true
       };
     } else {
-      console.log("⚠️ No leaders found for person");
+      console.log("No leaders found for person");
       return { 
         leader: "No Leader Assigned", 
         level: 0,
@@ -210,7 +210,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         setError("");
       }
       
-      console.log("🎯 Auto-assigned to highest leader:", leaderInfo);
+      console.log("Auto-assigned to highest leader:", leaderInfo);
     } else {
       setAssignedTo("");
       setAlreadyConsolidated(false);
@@ -220,7 +220,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
 
   const handleTaskStageChange = (event) => {
     setTaskStage(event.target.value);
-    console.log("📝 Decision type changed to:", event.target.value);
+    console.log("Decision type changed to:", event.target.value);
   };
 
   
@@ -240,13 +240,13 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           );
           
           if (foundLeader?.Email) {
-            console.log(`✅ Found leader email via API: ${foundLeader.Email}`);
+            console.log(`Found leader email via API: ${foundLeader.Email}`);
             return foundLeader.Email;
           }
         }
       }
       
-      console.log(`⚠️ Could not find email for leader: ${leaderName}`);
+      console.log(`Could not find email for leader: ${leaderName}`);
       return "";
       
     } catch (error) {
@@ -259,7 +259,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const handleFinish = async () => {
     // Prevent double submission
     if (isSubmitting) {
-      console.log("⚠️ Submission already in progress, ignoring click");
+      console.log("Submission already in progress, ignoring click");
       return;
     }
 
@@ -307,7 +307,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
 
     
-    console.log("🔍 PRE-CONSOLIDATION CHECK - Person status:", {
+    console.log("PRE-CONSOLIDATION CHECK - Person status:", {
       name: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
       email: recipient.Email || recipient.email,
       isCheckedIn: false, 
@@ -341,9 +341,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         attendance_status: "not_checked_in"
       };
 
-      console.log("📤 Sending consolidation data (NO CHECK-IN):", consolidationData);
-      console.log("🔑 Using authFetch for consolidation creation...");
-
       
       const response = await authFetch(`${BASE_URL}/consolidations`, {
         method: "POST",
@@ -352,7 +349,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       
       if (response.ok) {
         const responseData = await response.json();
-        console.log("✅ Consolidation creation response:", responseData);
+        console.log("Consolidation creation response:", responseData);
 
         
         onFinish({
@@ -380,7 +377,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         setIsSubmitting(false); // Reset on success
       } else {
         const errorData = await response.json();
-        console.error("❌ Consolidation creation failed:", {
+        console.error("Consolidation creation failed:", {
           status: response.status,
           data: errorData,
         });
@@ -396,7 +393,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       }
       
     } catch (err) {
-      console.error("❌ Error creating consolidation:", err);
+      console.error("Error creating consolidation:", err);
       
       // Reset submission flag on error so user can retry
       setIsSubmitting(false);
