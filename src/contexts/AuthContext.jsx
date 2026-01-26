@@ -107,7 +107,7 @@ export const AuthProvider = ({ children }) => {
   const refreshId = localStorage.getItem(KEY_REFRESH_ID);
   
   if (!refresh || !refreshId) {
-    console.error('❌ No refresh token or refresh ID found');
+    console.error(' No refresh token or refresh ID found');
     logout();
     return false;
   }
@@ -120,7 +120,7 @@ export const AuthProvider = ({ children }) => {
   setRefreshInProgress(true);
 
   try {
-    console.log('🔄 Attempting token refresh...');
+    console.log(' Attempting token refresh...');
     const res = await fetch(`${BACKEND_URL}/refresh-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -132,9 +132,8 @@ export const AuthProvider = ({ children }) => {
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
-      console.error('❌ Token refresh failed:', res.status, errorData);
+      console.error(' Token refresh failed:', res.status, errorData);
       
-      // Only logout if it's a 401/403 (invalid refresh token)
       if (res.status === 401 || res.status === 403) {
         logout();
       }
@@ -143,7 +142,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     const data = await res.json();
-    console.log('✅ Token refresh successful');
+    console.log(' Token refresh successful');
     
     localStorage.setItem(KEY_ACCESS, data.access_token);
     localStorage.setItem(KEY_REFRESH, data.refresh_token);
@@ -151,8 +150,7 @@ export const AuthProvider = ({ children }) => {
     
     return true;
   } catch (e) {
-    console.error('❌ Refresh attempt error:', e);
-    // Don't logout on network errors, only on auth errors
+    console.error(' Refresh attempt error:', e);
     return false;
   } finally {
     setRefreshInProgress(false);
@@ -165,10 +163,10 @@ export const AuthProvider = ({ children }) => {
   
   // Check if token is expired
   if (accessToken && isTokenExpired(accessToken)) {
-    console.log('🔄 Access token expired, attempting refresh...');
+    console.log(' Access token expired, attempting refresh...');
     const refreshed = await attemptRefresh();
     if (!refreshed) {
-      console.error('❌ Token refresh failed during pre-check');
+      console.error(' Token refresh failed during pre-check');
       // Don't logout here - let the calling code handle it
       throw new Error('Token refresh failed');
     }
@@ -189,7 +187,7 @@ export const AuthProvider = ({ children }) => {
     
     // Only try refresh once on 401
     if (res.status === 401 && !refreshInProgress) {
-      console.log('🔄 Got 401, attempting token refresh...');
+      console.log(' Got 401, attempting token refresh...');
       const refreshed = await attemptRefresh();
       
       if (refreshed) {
@@ -199,7 +197,7 @@ export const AuthProvider = ({ children }) => {
         
         // If still 401 after refresh, it's a permission/auth issue
         if (retryRes.status === 401) {
-          console.warn('⚠️ Still 401 after token refresh - likely auth expired completely');
+          console.warn(' Still 401 after token refresh - likely auth expired completely');
           // Only NOW should we consider logging out
           logout();
           throw new Error('Authentication expired');
@@ -208,7 +206,7 @@ export const AuthProvider = ({ children }) => {
         return retryRes;
       } else {
         // Refresh failed - session is truly dead
-        console.error('❌ Token refresh failed on 401 retry');
+        console.error(' Token refresh failed on 401 retry');
         logout();
         throw new Error('Authentication failed - please log in again');
       }
