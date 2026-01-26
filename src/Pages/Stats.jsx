@@ -20,6 +20,7 @@ import { AuthContext } from "../contexts/AuthContext";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 const StatsDashboard = () => {
+  console.log(">>> StatsDashboard function body executed — component is alive");
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
@@ -85,7 +86,7 @@ useEffect(() => {
         name: cell.eventName || "—",
         date: cell.date ? new Date(cell.date).toLocaleDateString() : "—",
         leader: cell.eventLeaderName || "—",
-        status: cell.status || "incomplete",
+        status: cell.Status || "incomplete",
         location: cell.location || "—",
         id: cell._id?.slice(-6) + "..."
       }))
@@ -96,42 +97,123 @@ useEffect(() => {
   }
 }, [cells, cellsLoading]);
 
-  const fetchOverdueCells = useCallback(async () => {
-    if (isFetchingRef.current) return;
-    setCellsLoading(true);
-    setCellsError(null);
-    
-    try {
-      const url = `${BACKEND_URL}/events/cells`;
-      const res = await authFetch(url);
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Failed to load cells: ${res.status} – ${errText}`);
+  const fetchOverdueCells = useCallback(async (forceRefresh = false) => {
+
+    if (isFetchingRef.current && !forceRefresh) {
+    console.log("   Already fetching — skipping duplicate call");
+    return;
+  }
+
+  console.log(">>> ENTERED fetchOverdueCells", { forceRefresh, period });
+
+  isFetchingRef.current = true;
+  setCellsLoading(true);
+  setCellsError(null);
+
+    console.log("→ Starting fetchOverdueCells", { forceRefresh, period, startDate: '2026-01-01' });
+
+  try {
+    const startDate = '2026-01-22';   // ← adjust this date as needed
+    // or dynamically:
+    // const startDate = new Date().toISOString().split('T')[0];   // today
+    // or: beginning of selected period
+
+    let allEvents = [];
+    let page = 1;
+    const limit = 90;           // can be 100–250 depending on response size
+
+    while (true) {
+      console.log(`   Fetching cells page ${page}  (limit=${limit}, start=${startDate})`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 100000);
+
+      try {
+        const url = `${BACKEND_URL}/events/cells?page=${page}&limit=${limit}&start_date=${startDate}`;
+  console.log(" → URL:", url);
+
+  const res = await authFetch(url, { signal: controller.signal });
+  clearTimeout(timeoutId);
+
+  console.log(` ← Response status: ${res.status}`);
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => 'No error details');
+    console.warn(`Failed page ${page}: ${res.status} – ${errText}`);
+    throw new Error(`Cells page ${page} failed: ${res.status} – ${errText}`);
+  }
+
+  // Success path – no errText needed here
+  const json = await res.json();
+  const pageEvents = json.cells || json.data || json.events || json.results || [];
+  console.log(` ← Got ${pageEvents.length} cells on page ${page}`);
+
+  if (pageEvents.length === 0) break;
+
+        allEvents.push(...pageEvents);
+
+        if (pageEvents.length < limit) break;
+        page++;
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          console.warn(`Cell fetch timeout on page ${page}`);
+        } else {
+          console.error(`Cell fetch error on page ${page}:`, err);
+        }
+        break;
       }
-      const data = await res.json();
-      const allCells = data.cells || data.data || data || [];
-
-      const overdueCells = allCells.filter(cell => {
-        const status = (cell.status || "").toLowerCase().trim();
-        return (
-          status === "Did Not Meet" ||
-          status === "past due" ||
-          status === "late" ||
-          (status === "incomplete" && cell.date && new Date(cell.date) < new Date())
-        );
-      });
-
-      console.log("Overdue cells:", overdueCells);
-
-      setCells(overdueCells);
-    } catch (err) {
-      console.error("Error fetching overdue cells:", err);
-      setCellsError(err.message || "Could not load overdue cells");
-      toast.error("Failed to load overdue cells");
-    } finally {
-      setCellsLoading(false);
     }
-  }, [authFetch]);
+
+    console.log(`← Total cells fetched: ${allEvents.length}`);
+   if (allEvents.length > 0) {
+     console.table(allEvents.slice(0, 5));   // first 5 only
+   }
+
+    // ────────────────────────────────────────────────
+    // Filter only incomplete / overdue / missed cells
+    // ────────────────────────────────────────────────
+const overdueCells = allEvents.filter(cell => {
+  // 1. Get status safely
+  const status = (cell.status || cell.Status || '').toString().trim().toLowerCase();
+
+  // 2. Check if it's explicitly "Incomplete"
+  const isIncomplete = 
+    status === 'incomplete' ||
+    status.includes('incomplete') ||
+    status === 'incomp' ||
+    status === 'not completed';
+
+  // 3. Date check – must be valid AND strictly in the past (before today)
+  const cellDate = cell.date ? new Date(cell.date) : null;
+  const isValidDate = cellDate && !isNaN(cellDate.getTime());
+
+  // Important: compare only the date part (ignore time)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);           // reset to midnight today
+
+  const isPast = isValidDate && cellDate < today;  // ← strictly before today
+
+  // Final condition: Incomplete AND date is in the past
+  return isIncomplete && isPast;
+});
+      console.log(`Filtered down to ${overdueCells.length} overdue/incomplete cells (from ${allEvents.length} total)`);
+
+      if (overdueCells.length > 0) {
+        console.table(overdueCells.slice(0, 5), ['eventName', 'date', 'status', 'eventLeaderName']);
+      }
+
+  setCells(overdueCells);   // ← only set the filtered ones
+  console.log(`Set cells state with ${overdueCells.length} overdue cells`);
+
+  } catch (err) {
+    console.error("Overdue cells fetch failed:", err);
+    setCellsError(err.message || "Failed to load overdue cells");
+    toast.error("Could not load overdue cells");
+  } finally {
+    setCellsLoading(false);
+    isFetchingRef.current = false;
+    console.log("fetchOverdueCells finished / released lock");
+  }
+}, [authFetch]);
 
   const fetchStats = useCallback(async (forceRefresh = false) => {
     if (isFetchingRef.current && !forceRefresh) return;
@@ -151,7 +233,7 @@ useEffect(() => {
       setStats({
         overview: data.overview,
         events: data.events || [],
-        overdueCells: data.overdueCells || [],
+        overdueCells: data.fetchOverdueCells || [],
         allTasks: data.allTasks || [],
         allUsers: data.allUsers || [],
         groupedTasks: data.groupedTasks || [],
@@ -174,15 +256,14 @@ useEffect(() => {
     setPeriod(e.target.value);
   };
 
-  useEffect(() => {
-    fetchStats();
-    fetchOverdueCells();
-  }, [period]);
-
-  useEffect(() => {
-    fetchStats();
-    fetchOverdueCells();
-  }, []);
+ useEffect(() => {
+  console.log(
+    "[OVERDUE + STATS FETCH TRIGGER]",
+    { period, timestamp: new Date().toISOString() }
+  );
+  fetchOverdueCells();
+  fetchStats();
+}, [period, fetchOverdueCells, fetchStats]);
 
   const filteredOverdueCells = useMemo(() => {
     return [...cells].sort((a, b) => {
@@ -220,7 +301,7 @@ useEffect(() => {
           "Location": cell.location || "",
           "Event Leader": cell.eventLeaderName || "",
           "Leader Email": cell.eventLeaderEmail || "",
-          "Status": cell.status || "incomplete",
+          "Status": cell.Status || "incomplete",
           "Description": cell.description || "",
           "Attendees Count": cell.attendees ? cell.attendees.length : 0,
           "Is Recurring": cell.isRecurring ? "Yes" : "No",
@@ -274,7 +355,7 @@ useEffect(() => {
           "Event Leader": event.eventLeaderName || "",
           "Leader Email": event.eventLeaderEmail || "",
           "Description": event.description || "",
-          "Status": event.status || "incomplete",
+          "Status": event.Status || "incomplete",
           "Is Recurring": event.isRecurring ? "Yes" : "No",
           "Created At": event.created_at ? formatDateForExcel(event.created_at) : "",
           "Updated At": event.updated_at ? formatDateForExcel(event.updated_at) : ""
@@ -869,6 +950,9 @@ useEffect(() => {
               <Typography variant="body2" color="text.secondary">
                 {getPeriodDisplayText(period)} • {filteredOverdueCells.length} found
               </Typography>
+              <Typography variant="caption" color="error" sx={{ mt: 1 }}>
+                (raw cells count: {cells.length})
+              </Typography>
             </Box>
 
             <Box display="flex" gap={1.5} alignItems="center">
@@ -1005,7 +1089,7 @@ useEffect(() => {
 
                         <Box textAlign="right">
                           <Chip 
-                            label={cell.status?.toUpperCase() || 'OVERDUE'} 
+                            label={cell.Status?.toUpperCase() || 'OVERDUE'} 
                             color="warning" 
                             size="small" 
                             sx={{ minWidth: 90 }}
@@ -1532,7 +1616,7 @@ useEffect(() => {
                         Leader: {cell.eventLeaderName || 'Not assigned'} • {cell.location || 'No location'}
                       </Typography>
                       <Typography variant="caption" color="error" fontWeight="medium">
-                        {formatDate(cell.date)} — {cell.status?.toUpperCase() || 'INCOMPLETE'}
+                        {formatDate(cell.date)} — {cell.Status?.toUpperCase() || 'INCOMPLETE'}
                       </Typography>
                     </Box>
                     <Chip label={cell.attendees?.length || 0} size="small" />
