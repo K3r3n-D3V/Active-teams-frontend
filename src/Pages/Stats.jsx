@@ -1100,11 +1100,9 @@ const overdueCells = allEvents.filter(cell => {
                   <Card 
                     key={cell._id}
                     variant="outlined"
-                    sx={{ 
-                      borderLeft: '5px solid',
-                      borderColor: 'warning.main',
+                    sx={{
                       transition: 'all 0.18s ease',
-                      '&:hover': { 
+                      '&:hover': {
                         boxShadow: 4,
                         transform: 'translateY(-2px)'
                       }
@@ -1128,12 +1126,6 @@ const overdueCells = allEvents.filter(cell => {
                               <Typography variant="body2" color="text.secondary">
                                 <People fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
                                 Leader: {cell.eventLeaderName}
-                              </Typography>
-                            )}
-                            {cell.location && (
-                              <Typography variant="body2" color="text.secondary">
-                                <LocationOn fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
-                                {cell.location}
                               </Typography>
                             )}
                           </Stack>
@@ -1346,155 +1338,155 @@ const overdueCells = allEvents.filter(cell => {
         )}
 
         {activeTab === 2 && (
-  <Paper
-    sx={{
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      borderRadius: 2,
-      boxShadow: 1,
-      minHeight: { xs: 'auto', md: '500px' },
-    }}
-  >
-    {/* Header with title + Create button */}
-    <Box
-      sx={{
-        p: { xs: 2, md: 2.5 },
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-        flexShrink: 0,
-      }}
-    >
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 2,
-        }}
-      >
-        <Typography variant="subtitle1" fontWeight="medium">
-          Event Calendar ({filteredEvents.length} events)
-        </Typography>
-
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<Add />}
-          onClick={handleCreateEvent}
+        <Paper
+          sx={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            borderRadius: 2,
+            boxShadow: 1,
+            minHeight: { xs: 'auto', md: '500px' },
+          }}
         >
-          Create Event
-        </Button>
-      </Box>
-    </Box>
-
-    {/* Main calendar + events panel */}
-    <Box
-      sx={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: { xs: 'column', md: 'row' },
-        gap: 0,
-        overflow: 'hidden',
-      }}
-    >
-      {/* Calendar grid side */}
-      <Box
-        sx={{
-          flex: { xs: '1 1 auto', md: '0 0 420px' }, // fixed width on larger screens
-          overflowY: 'auto',
-          p: { xs: 2, md: 2.5 },
-          borderRight: { md: '1px solid' },
-          borderColor: 'divider',
-        }}
-      >
-        {EnhancedCalendar}
-      </Box>
-
-      {/* Events list side */}
-      <Box
-        sx={{
-          flex: 1,
-          overflowY: 'auto',
-          p: { xs: 2, md: 2.5 },
-          bgcolor: 'background.default',
-        }}
-      >
-        <Typography variant="subtitle1" gutterBottom sx={{ mb: 2 }}>
-          Events on {formatDisplayDate(selectedDate)}
-        </Typography>
-
-        {eventsOnSelectedDate.length > 0 ? (
-          <Stack spacing={1.5}>
-            {eventsOnSelectedDate.map((e) => (
-              <Card
-                key={e._id}
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  borderRadius: 2,
-                  transition: 'all 0.2s',
-                  '&:hover': { boxShadow: 3, transform: 'translateY(-2px)' },
-                }}
-              >
-                <Typography variant="subtitle2" fontWeight="medium">
-                  {e.eventName}
-                </Typography>
-                <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  <Chip
-                    label={e.eventTypeName || 'Event'}
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                  />
-                  <Typography variant="body2" color="text.secondary">
-                    {e.time || 'No time'} • {e.location || 'No location'}
-                  </Typography>
-                </Box>
-                {e.eventLeaderName && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Leader: {e.eventLeaderName}
-                  </Typography>
-                )}
-              </Card>
-            ))}
-          </Stack>
-        ) : (
+          {/* Header with title + Create button */}
           <Box
             sx={{
-              height: '100%',
-              minHeight: '200px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'text.secondary',
-              textAlign: 'center',
-              py: 6,
+              p: { xs: 2, md: 2.5 },
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              flexShrink: 0,
             }}
           >
-            <Event sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              No events scheduled
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 3 }}>
-              for {formatDisplayDate(selectedDate)}
-            </Typography>
-            <Button
-              variant="outlined"
-              startIcon={<Add />}
-              onClick={handleCreateEvent}
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 2,
+              }}
             >
-              Create Event
-            </Button>
+              <Typography variant="subtitle1" fontWeight="medium">
+                Event Calendar ({filteredEvents.length} events)
+              </Typography>
+
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<Add />}
+                onClick={handleCreateEvent}
+              >
+                Create Event
+              </Button>
+            </Box>
           </Box>
-        )}
-      </Box>
-    </Box>
-  </Paper>
-)}
+
+          {/* Main calendar + events panel */}
+          <Box
+            sx={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: { xs: 'column', md: 'row' },
+              gap: 0,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Calendar grid side */}
+            <Box
+              sx={{
+                flex: { xs: '1 1 auto', md: '0 0 420px' }, // fixed width on larger screens
+                overflowY: 'auto',
+                p: { xs: 2, md: 2.5 },
+                borderRight: { md: '1px solid' },
+                borderColor: 'divider',
+              }}
+            >
+              {EnhancedCalendar}
+            </Box>
+
+            {/* Events list side */}
+            <Box
+              sx={{
+                flex: 1,
+                overflowY: 'auto',
+                p: { xs: 2, md: 2.5 },
+                bgcolor: 'background.default',
+              }}
+            >
+              <Typography variant="subtitle1" gutterBottom sx={{ mb: 2 }}>
+                Events on {formatDisplayDate(selectedDate)}
+              </Typography>
+
+              {eventsOnSelectedDate.length > 0 ? (
+                <Stack spacing={1.5}>
+                  {eventsOnSelectedDate.map((e) => (
+                    <Card
+                      key={e._id}
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        transition: 'all 0.2s',
+                        '&:hover': { boxShadow: 3, transform: 'translateY(-2px)' },
+                      }}
+                    >
+                      <Typography variant="subtitle2" fontWeight="medium">
+                        {e.eventName}
+                      </Typography>
+                      <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        <Chip
+                          label={e.eventTypeName || 'Event'}
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                        />
+                        <Typography variant="body2" color="text.secondary">
+                          {e.time || 'No time'} • {e.location || 'No location'}
+                        </Typography>
+                      </Box>
+                      {e.eventLeaderName && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          Leader: {e.eventLeaderName}
+                        </Typography>
+                      )}
+                    </Card>
+                  ))}
+                </Stack>
+              ) : (
+                <Box
+                  sx={{
+                    height: '100%',
+                    minHeight: '200px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'text.secondary',
+                    textAlign: 'center',
+                    py: 6,
+                  }}
+                >
+                  <Event sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    No events scheduled
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 3 }}>
+                    for {formatDisplayDate(selectedDate)}
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    startIcon={<Add />}
+                    onClick={handleCreateEvent}
+                  >
+                    Create Event
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        </Paper>
+      )}
 
       {/* CREATE EVENT MODAL */}
       <Dialog 
@@ -1665,7 +1657,7 @@ const overdueCells = allEvents.filter(cell => {
       {/* OVERDUE CELLS MODAL */}
       <Dialog open={overdueModalOpen} onClose={() => setOverdueModalOpen(false)} maxWidth="md" fullWidth fullScreen={isXsDown}>
         <DialogTitle sx={{
-          background: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
+          background: 'warning',
           color: 'white', 
           p: 3
         }}>
@@ -1703,7 +1695,7 @@ const overdueCells = allEvents.filter(cell => {
                         {cell.eventName || 'Unnamed Cell'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Leader: {cell.eventLeaderName || 'Not assigned'} • {cell.location || 'No location'}
+                        Leader: {cell.eventLeaderName || 'Not assigned'} 
                       </Typography>
                       <Typography variant="caption" color="error" fontWeight="medium">
                         {formatDate(cell.date)} — {cell.Status?.toUpperCase() || 'INCOMPLETE'}
