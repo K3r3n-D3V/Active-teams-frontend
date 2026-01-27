@@ -1210,26 +1210,26 @@ const createConsolidationTasks = async (attendees, eventId) => {
       
       if (attendee.leader144 && attendee.leader144.trim()) {
         assignedLeader = attendee.leader144.trim();
-        console.log(`  ✅ Using Leader @144: ${assignedLeader}`);
+        console.log(`Using Leader @144: ${assignedLeader}`);
       } else if (attendee.leader12 && attendee.leader12.trim()) {
         assignedLeader = attendee.leader12.trim();
-        console.log(`  ✅ Using Leader @12: ${assignedLeader}`);
+        console.log(`Using Leader @12: ${assignedLeader}`);
       } else if (attendee.leader1 && attendee.leader1.trim()) {
         assignedLeader = attendee.leader1.trim();
-        console.log(`  ✅ Using Leader @1: ${assignedLeader}`);
+        console.log(`Using Leader @1: ${assignedLeader}`);
       } else if (currentUser) {
         assignedLeader = `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
-        console.log(`  ⚠️ Using current user as leader: ${assignedLeader}`);
+        console.log(`Using current user as leader: ${assignedLeader}`);
       }
       
       if (!assignedLeader) {
-        console.warn(`  ❌ Could not determine leader for ${firstName} ${lastName}`);
+        console.warn(`Could not determine leader for ${firstName} ${lastName}`);
         continue;
       }
 
       // Get leader email
       const leaderEmail = await findLeaderEmail(assignedLeader);
-      console.log(`  📧 Leader email: ${leaderEmail || "not found"}`);
+      console.log(`Leader email: ${leaderEmail || "not found"}`);
 
       // Parse decision type
       const decisionType = attendee.decision.toLowerCase().includes('re-commitment') || 
