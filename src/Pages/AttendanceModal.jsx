@@ -1426,9 +1426,14 @@ useEffect(() => {
       console.error("Error pre-loading people in AttendanceModal:", err);
     }
   };
-  const fetchPeople = async (q) => {
+  const fetchPeople = async (q = "") => {
     if (!q.trim()) {
-      setSearchResults([]);
+      if (preloadedPeople.length > 0) {
+        console.log(" Showing preloaded people list");
+        setPeople(preloadedPeople.slice(0, 50)); 
+      } else {
+        setPeople([]);
+      }
       return;
     }
 
