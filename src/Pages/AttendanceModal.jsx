@@ -2053,7 +2053,6 @@ const attendee = {
 
     console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
 
-    // FIX: Only mark as "Did Not Meet" if NO attendees AND NO headcount
     const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
     
     console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
@@ -2694,7 +2693,6 @@ if (result && result.success) {
       minWidth: isMobile ? 140 : 200,
       maxHeight: 300,
       overflowY: "auto",
-      // border: "2px solid blue",
     },
     decisionMenuItem: {
       padding: "10px 12px",
