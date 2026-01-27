@@ -1455,15 +1455,12 @@ useEffect(() => {
         const fullNameLower =
           `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
 
-        // Case 1: query appears anywhere in full name
         if (fullNameLower.includes(queryLower)) return true;
 
-        // Case 2: query words all appear (in any order) — helps with typos / partial matches
         const queryWords = queryLower.split(/\s+/).filter(Boolean);
         return queryWords.every((word) => fullNameLower.includes(word));
       });
 
-      // Format the results consistently
       const formatted = filtered.map((p) => ({
         id: p._id,
         fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
