@@ -1426,51 +1426,41 @@ useEffect(() => {
       console.error("Error pre-loading people in AttendanceModal:", err);
     }
   };
-  const fetchPeople = async (q = "") => {
+  const fetchPeople = async (q) => {
     if (!q.trim()) {
-      if (preloadedPeople.length > 0) {
-        console.log(" Showing preloaded people list");
-        setPeople(preloadedPeople.slice(0, 50)); 
-      } else {
-        setPeople([]);
-      }
+      setSearchResults([]);
       return;
     }
 
-    const parts = q.trim().split(/\s+/);
-    const name = parts[0];
-    const surname = parts.slice(1).join(" ");
+    const query = q.trim();
+    // We keep original casing for display, but lowercase for comparison
+    const queryLower = query.toLowerCase();
 
     try {
-      const token = localStorage.getItem("token");
-      const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Send the full typed string to the backend
+      // (most APIs can handle searching across both name + surname fields)
+      const res = await authFetch(
+        `${BACKEND_URL}/people?name=${encodeURIComponent(query)}`
+      );
 
       if (!res.ok) throw new Error("Failed to fetch people");
 
       const data = await res.json();
+      const results = data?.results || [];
 
-      let filtered = (data?.results || data?.people || []).filter(p =>
-        p.Name.toLowerCase().includes(name.toLowerCase()) &&
-        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
-      );
+      // ────────────────────────────────────────────────
+      // Client-side filtering that supports compound first names
+      // ────────────────────────────────────────────────
+      const filtered = results.filter((p) => {
+        const fullNameLower =
+          `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
 
-      // Sort the results
-      filtered.sort((a, b) => {
-        const nameA = (a.Name || "").toLowerCase();
-        const nameB = (b.Name || "").toLowerCase();
-        const surnameA = (a.Surname || "").toLowerCase();
-        const surnameB = (b.Surname || "").toLowerCase();
+        if (fullNameLower.includes(queryLower)) return true;
 
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        if (surnameA < surnameB) return -1;
-        if (surnameA > surnameB) return 1;
-        return 0;
+        const queryWords = queryLower.split(/\s+/).filter(Boolean);
+        return queryWords.every((word) => fullNameLower.includes(word));
       });
 
-      // Format the results consistently
       const formatted = filtered.map((p) => ({
         id: p._id,
         fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),

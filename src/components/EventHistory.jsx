@@ -100,9 +100,20 @@ const EventHistory = React.memo(function EventHistory({
 
     let data = [];
 
+    // Function that sorts people in viewDetails in alphabetical order
+    const sortAlphabetically = (arr) =>
+       [...arr].sort((a, b) =>
+       `${a.name || ''} ${a.surname || ''}`
+        .toLowerCase()
+        .localeCompare(
+       `${b.name || ''} ${b.surname || ''}`.toLowerCase()
+        )
+      );
+
     switch (type) {
       case 'attendance':
-        data = event.attendanceData || event.attendees || [];
+        data = sortAlphabetically(event.attendanceData || event.attendees || []);
+
         console.log('Attendance data with leaders:', data.slice(0, 2).map(d => ({
           name: d.name,
           leader1: d.leader1,
@@ -112,7 +123,8 @@ const EventHistory = React.memo(function EventHistory({
         if (onViewDetails) onViewDetails(event, data);
         break;
       case 'newPeople':
-        data = event.newPeopleData || event.new_people || [];
+        data = sortAlphabetically(event.newPeopleData || event.new_people || []);
+
         console.log('New people data with leaders:', data.slice(0, 2).map(d => ({
           name: d.name,
           leader1: d.leader1,
@@ -122,7 +134,8 @@ const EventHistory = React.memo(function EventHistory({
         if (onViewNewPeople) onViewNewPeople(event, data);
         break;
       case 'consolidated':
-        data = event.consolidatedData || event.consolidations || [];
+        data = sortAlphabetically(event.consolidatedData || event.consolidations || []);
+
         console.log('Consolidation data with leaders:', data.slice(0, 2).map(d => ({
           name: d.name,
           leader1: d.leader1,
