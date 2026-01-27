@@ -1257,7 +1257,7 @@ const createConsolidationTasks = async (attendees, eventId) => {
         event_id: eventId,
         is_check_in: true,
         attendance_status: "checked_in",
-        source: "cell_consolidation"
+        source: "event_consolidation"
       };
 
       console.log(`Sending consolidation payload:`, consolidationPayload);
