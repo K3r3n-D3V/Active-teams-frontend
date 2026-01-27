@@ -7,6 +7,7 @@ import { AuthContext } from "./contexts/AuthContext";
 
 import Sidebar from "./components/Sidebar";
 import TopbarProfile from "./components/TopbarProfile";
+import EventTypeSelector from "./components/EventTypeSelector";
 
 import Home from "./Pages/Home";
 import Profile from "./Pages/Profile";
@@ -33,6 +34,7 @@ import NotFound from "./Pages/NotFound";
 const ProtectedHome = withAuthCheck(Home, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 const ProtectedProfile = withAuthCheck(Profile, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 const ProtectedPeople = withAuthCheck(People, ['admin', 'leader', 'leaderAt12']);
+const ProtectedEventTypeSelector = withAuthCheck(EventTypeSelector, ['admin', 'leader', 'leaderAt12', 'user', 'registrant'], true);
 const ProtectedEvents = withAuthCheck(Events, ['admin', 'leader', 'leaderAt12', 'user', 'registrant'], true); 
 const ProtectedStats = withAuthCheck(Stats, ['admin', 'leader', 'leaderAt12']);
 const ProtectedCheckIn = withAuthCheck(ServiceCheckIn, ['admin', 'registrant']);
@@ -131,7 +133,8 @@ const { user, loading } = React.useContext(AuthContext);
             <Route path="/admin" element={<ProtectedAdmin />} />
             <Route path="/profile" element={<ProtectedProfile title="Profile" />} />
             <Route path="/people" element={<ProtectedPeople title="People" />} />
-            <Route path="/events" element={<ProtectedEvents title="Events" />} />
+            <Route path="/events" element={<ProtectedEventTypeSelector title="Events" />} />
+            <Route path="/events/list" element={<ProtectedEvents title="Events" />} />
             <Route path="/stats" element={<ProtectedStats title="Stats" />} />
             <Route path="/create-events" element={<ProtectedCreateEvents title="Create Events" />} />
             <Route path="/edit-event/:id" element={<ProtectedCreateEvents title="Create Events Edit" />} />

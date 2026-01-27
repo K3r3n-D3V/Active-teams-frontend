@@ -1,3 +1,20 @@
+/**
+ * Events.jsx - Main events management page component
+ *
+ * This component provides a comprehensive interface for managing church/community events.
+ * It includes:
+ * - Event listing with filtering and pagination
+ * - Event creation, editing, and deletion
+ * - Attendance tracking
+ * - Event type management
+ * - Mobile-responsive design
+ * - Role-based access control
+ *
+ * The component supports two views:
+ * 1. Event type selection landing page (/events)
+ * 2. Filtered events list (/events/list?type=EventType)
+ */
+
 import React, {
   useState,
   useEffect,
@@ -6,12 +23,15 @@ import React, {
   useCallback,
 } from "react";
 import { useTheme } from "@mui/material/styles";
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AttendanceModal from "./AttendanceModal";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Tooltip from "@mui/material/Tooltip";
+
 import {
   Box,
   useMediaQuery,
@@ -39,7 +59,18 @@ import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
+import { useEventCache } from "../components/EventCacheContext";
 
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
+/**
+ * Formats recurring days into a human-readable string
+ * @param {Array} recurringDays - Array of day names (e.g., ['Monday', 'Wednesday'])
+ * @returns {string|null} Formatted string or null if no recurring days
+ */
 const formatRecurringDays = (recurringDays) => {
   if (!recurringDays || recurringDays.length === 0) {
     return null;
@@ -69,6 +100,12 @@ const formatRecurringDays = (recurringDays) => {
   return `Every ${sorted.join(", ")} & ${last}`;
 };
 
+/**
+ * Calculates the next occurrence date for recurring events
+ * @param {Array} recurringDays - Array of day names for recurring events
+ * @param {Date} fromDate - Starting date to calculate from (defaults to today)
+ * @returns {Date|null} Next occurrence date or null if no recurring days
+ */
 const getNextOccurrence = (recurringDays, fromDate = new Date()) => {
   if (!recurringDays || recurringDays.length === 0) {
     return null;
@@ -114,6 +151,14 @@ const getNextOccurrence = (recurringDays, fromDate = new Date()) => {
   return nextDate;
 };
 
+// ============================================
+// STYLES AND THEMING
+// ============================================
+
+/**
+ * Inline styles object for the Events component
+ * Contains styling for various UI elements including containers, cards, modals, etc.
+ */
 const styles = {
   container: {
     minHeight: "100vh",
@@ -711,6 +756,32 @@ columns.push({
   return columns;
 };
 
+// ============================================
+// SUB-COMPONENTS
+// ============================================
+
+/**
+ * MobileEventCard - Mobile-optimized event display component
+ * 
+ * Renders individual events as cards for mobile/tablet views.
+ * Provides touch-friendly interface with action buttons for
+ * attendance, editing, and deletion based on user permissions.
+ * 
+ * @param {Object} event - The event object to display
+ * @param {Function} onOpenAttendance - Callback for opening attendance modal
+ * @param {Function} onEdit - Callback for editing the event
+ * @param {Function} onDelete - Callback for deleting the event
+ * @param {boolean} isOverdue - Whether the event is overdue
+ * @param {Function} formatDate - Date formatting function
+ * @param {Object} theme - MUI theme object
+ * @param {Object} styles - Component styles object
+ * @param {boolean} isAdmin - Whether current user is admin
+ * @param {boolean} isRegularUser - Whether current user is regular user
+ * @param {boolean} isRegistrant - Whether current user is registrant
+ * @param {boolean} isLeaderAt12 - Whether current user is leader at 12
+ * @param {string} userRole - Current user's role
+ * @param {Object} eventTypeStyles - Event type styling configuration
+ */
 const MobileEventCard = ({
   event,
   onOpenAttendance,
@@ -858,8 +929,31 @@ const isValidObjectId = (id) => {
   return /^[0-9a-fA-F]{24}$/.test(id);
 };
 
+// ============================================
+// MAIN COMPONENT
+// ============================================
+
+/**
+ * Events Component - Main events management page
+ * 
+ * This component handles the display and management of events in the application.
+ * It provides functionality for:
+ * - Viewing events in a table format
+ * - Filtering events by type (via URL parameters)
+ * - Creating, editing, and deleting events
+ * - Managing event attendance and registrations
+ * - Handling recurring events and their occurrences
+ * 
+ * The component uses URL search parameters to maintain filter state
+ * and provides back navigation to the event type selector landing page.
+ * 
+ * @param {Object} props - Component props (none currently used)
+ * @returns {JSX.Element} The rendered Events component
+ */
 const Events = () => {
-const { authFetch, logout } = React.useContext(AuthContext);
+  const { authFetch, logout } = React.useContext(AuthContext);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
@@ -886,9 +980,21 @@ const { authFetch, logout } = React.useContext(AuthContext);
 
   console.log("User role:", userRole, "Is Leader at 12:", isLeaderAt12);
 
+  // ============================================
+  // CONSTANTS AND CONFIGURATION
+  // ============================================
+
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = "2025-11-30";
 
+  // ============================================
+  // STATE MANAGEMENT
+  // ============================================
+
+  /**
+   * State variables for managing component data and UI state
+   */
+  const { eventTypes, setEventTypes, allEvents, setAllEvents } = useEventCache();
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
   const [, setActiveFilters] = useState({});
@@ -915,7 +1021,6 @@ const { authFetch, logout } = React.useContext(AuthContext);
   const [toDeleteType, setToDeleteType] = useState(null);
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState(null);
-  const [eventTypes, setEventTypes] = useState([]);
 
   const initialViewFilter = useMemo(() => {
     if (isLeaderAt12) {
@@ -934,6 +1039,21 @@ const { authFetch, logout } = React.useContext(AuthContext);
     day: "all",
     eventType: "all",
   });
+
+  // Get the selected event type from URL
+  const selectedType = searchParams.get('type');
+
+  // ============================================
+  // EVENT HANDLERS
+  // ============================================
+
+  /**
+   * handleBackToSelection - Navigates back to the event type selection landing page
+   * Clears any URL parameters to return to the main events page
+   */
+  const handleBackToSelection = () => {
+    navigate('/events');
+  };
 
   const cacheRef = useRef({
     data: new Map(),
@@ -996,7 +1116,24 @@ const { authFetch, logout } = React.useContext(AuthContext);
     ];
   }, [eventTypes]);
 
+  // ============================================
+  // DATA FETCHING FUNCTIONS
+  // ============================================
 
+  /**
+   * fetchEvents - Fetches events from the backend API with optional filtering
+   * 
+   * This function handles the core data fetching for events, including:
+   * - Building query parameters based on filters
+   * - Making authenticated API calls
+   * - Processing and transforming event data
+   * - Handling recurring events and their occurrences
+   * - Managing loading states and error handling
+   * 
+   * @param {Object} filters - Optional filters to apply to the event query
+   * @param {boolean} showLoader - Whether to show loading indicators (default: true)
+   * @returns {Promise<void>}
+   */
   const fetchEvents = useCallback(
   async (filters = {}, showLoader = true) => {
     if (showLoader) {
@@ -1233,6 +1370,14 @@ const { authFetch, logout } = React.useContext(AuthContext);
     }
   }, [BACKEND_URL]);
 
+  // ============================================
+  // SIDE EFFECTS AND DATA FETCHING
+  // ============================================
+
+  /**
+   * useEffect hook to initialize user profile and set up initial state
+   * Runs once on component mount to get user information from localStorage
+   */
   useEffect(() => {
   const getUserProfile = () => {
     const userProfile = localStorage.getItem("userProfile");
@@ -2396,31 +2541,19 @@ const handlePreviousPage = useCallback(() => {
   );
 
   useEffect(() => {
-    fetchEventTypes();
-  }, [fetchEventTypes]);
-
-  useEffect(() => {
-    const savedEventTypes = localStorage.getItem("customEventTypes");
-    if (savedEventTypes) {
-      try {
-        const parsed = JSON.parse(savedEventTypes);
-        setCustomEventTypes(parsed);
-        setUserCreatedEventTypes(parsed);
-        setEventTypes(parsed.map((type) => type.name));
-      } catch (error) {
-        console.error("Error parsing saved event types:", error);
-      }
+    if (!eventTypes) {
+      fetchEventTypes();
     }
-  }, []);
+  }, [fetchEventTypes, eventTypes]);
 
   useEffect(() => {
-    if (customEventTypes.length > 0) {
+    if (eventTypes && eventTypes.length > 0) {
       localStorage.setItem(
-        "customEventTypes",
-        JSON.stringify(customEventTypes)
+        "eventTypes",
+        JSON.stringify(eventTypes)
       );
     }
-  }, [customEventTypes]);
+  }, [eventTypes]);
 
   useEffect(() => {
     if (eventTypes.length === 0) {
@@ -2498,6 +2631,32 @@ const handlePreviousPage = useCallback(() => {
     isLeaderAt12,
     DEFAULT_API_START_DATE,
   ]);
+
+  // URL-based filtering effect
+  useEffect(() => {
+    const typeParam = searchParams.get('type');
+
+    if (typeParam) {
+      // Set the filter to this type
+      setSelectedEventTypeFilter(typeParam);
+
+      // Update your filterOptions state
+      setFilterOptions(prev => ({
+        ...prev,
+        eventType: typeParam
+      }));
+
+      console.log('🔍 Auto-filtering by type:', typeParam);
+    } else {
+      // No filter - show all events
+      setSelectedEventTypeFilter('all');
+      setFilterOptions(prev => ({
+        ...prev,
+        eventType: 'all'
+      }));
+    }
+  }, [searchParams]);
+
 const StatusBadges = ({
   selectedStatus,
   setSelectedStatus,
@@ -2613,418 +2772,24 @@ const ViewFilterButtons = () => {
   );
 };
 
-  const EventTypeSelector = ({
-    eventTypes,
-    selectedEventTypeFilter,
-    setSelectedEventTypeFilter,
-    fetchEvents,
-    setCurrentPage,
-    rowsPerPage,
-    selectedStatus,
-    searchQuery,
-    viewFilter,
-    DEFAULT_API_START_DATE,
-    isLeaderAt12,
-    isAdmin,
-    isRegistrant,
-    isRegularUser,
-    setEditingEventType,
-    setEventTypesModalOpen,
-    setToDeleteType,
-    setConfirmDeleteOpen,
-  }) => {
-    const [hoveredType, setHoveredType] = useState(null);
-    const [menuAnchor, setMenuAnchor] = useState(null);
-    const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
-    const [isCollapsed, setIsCollapsed] = useState(false);
-    const theme = useTheme();
-    const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
-    const isDarkMode = theme.palette.mode === "dark";
+  // ============================================
+  // MAIN RENDER
+  // ============================================
 
-    const canEditEventTypes = isAdmin;
+  // ============================================
+  // MAIN RENDER
+  // ============================================
 
-    const handleEventTypeClick = (typeValue) => {
-      setSelectedEventTypeFilter(typeValue);
-      setCurrentPage(1);
-
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        event_type: typeValue === "all" ? "CELLS" : typeValue,
-        _t: Date.now(),
-      };
-
-      if (selectedStatus !== "all") {
-        fetchParams.status = selectedStatus;
-      }
-
-      if (searchQuery.trim()) {
-        fetchParams.search = searchQuery.trim();
-      }
-
-      if (typeValue === "all" || typeValue === "CELLS") {
-        if (isAdmin) {
-          if (viewFilter === "personal") {
-            fetchParams.personal = true;
-          }
-        } else if (isRegistrant || isRegularUser) {
-          fetchParams.personal = true;
-        } else if (isLeaderAt12) {
-          fetchParams.leader_at_12_view = true;
-          fetchParams.include_subordinate_cells = true;
-
-          if (viewFilter === "personal") {
-            fetchParams.show_personal_cells = true;
-            fetchParams.personal = true;
-          } else {
-            fetchParams.show_all_authorized = true;
-          }
-        }
-      } else {
-        delete fetchParams.personal;
-        delete fetchParams.leader_at_12_view;
-        delete fetchParams.show_personal_cells;
-        delete fetchParams.show_all_authorized;
-        delete fetchParams.include_subordinate_cells;
-      }
-      fetchEvents(fetchParams, true);
-    };
-
-    const mobileEventTypeStyles = {
-      container: {
-        backgroundColor: isDarkMode
-          ? theme.palette.background.paper
-          : "#f8f9fa",
-        borderRadius: "12px",
-        padding: isMobileView ? "0.75rem" : "1rem",
-        marginBottom: isMobileView ? "0.5rem" : "1rem",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
-        border: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"}`,
-        position: "relative",
-        color: isDarkMode ? theme.palette.text.primary : "inherit",
-      },
-      headerRow: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: isCollapsed ? "0" : "0.5rem",
-        cursor: "pointer",
-      },
-      header: {
-        fontSize: isMobileView ? "0.7rem" : "0.875rem",
-        fontWeight: "600",
-        color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
-        textTransform: "uppercase",
-        letterSpacing: "0.5px",
-      },
-      selectedTypeDisplay: {
-        fontSize: isMobileView ? "0.85rem" : "1rem",
-        fontWeight: "600",
-        color: isDarkMode ? theme.palette.primary.main : "#007bff",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.25rem",
-        flex: 1,
-        marginLeft: "0.5rem",
-      },
-      collapseButton: {
-        background: "none",
-        border: "none",
-        color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
-        cursor: "pointer",
-        padding: "0.25rem",
-        borderRadius: "4px",
-        fontSize: "0.8rem",
-      },
-      typesGrid: {
-        display: isCollapsed ? "none" : "flex",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: isMobileView ? "0.35rem" : "0.5rem",
-        marginTop: "0.5rem",
-      },
-      typeCard: {
-        padding: isMobileView ? "0.4rem 0.6rem" : "0.6rem 0.8rem",
-        borderRadius: "8px",
-        border: `1px solid ${
-          isDarkMode ? theme.palette.divider : "transparent"
-        }`,
-        backgroundColor: isDarkMode
-          ? theme.palette.background.default
-          : "white",
-        cursor: "pointer",
-        transition: "all 0.2s ease",
-        position: "relative",
-        minWidth: isMobileView ? "80px" : "100px",
-        minHeight: "40px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: isMobileView ? "0.7rem" : "0.8rem",
-        fontWeight: "500",
-      },
-      typeCardActive: {
-        borderColor: "#007bff",
-        backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
-        transform: "scale(1.02)",
-        boxShadow: "0 2px 8px rgba(0, 123, 255, 0.2)",
-      },
-      typeCardHover: {
-        borderColor: isDarkMode ? theme.palette.primary.main : "#ddd",
-        transform: "translateY(-1px)",
-        boxShadow: isDarkMode
-          ? "0 2px 4px rgba(0,0,0,0.2)"
-          : "0 2px 4px rgba(0,0,0,0.1)",
-      },
-    };
-
-    const allTypes = useMemo(() => {
-      const availableTypes = eventTypes
-        .map((t) => t.name || t)
-        .filter((name) => name && name !== "all");
-
-      if (isAdmin) {
-        const adminTypes = ["all"];
-        availableTypes.forEach((type) => {
-          adminTypes.push(type);
-        });
-        return adminTypes;
-      } else if (isRegistrant) {
-        const registrantTypes = ["all"];
-        availableTypes.forEach((type) => {
-          registrantTypes.push(type);
-        });
-
-        return registrantTypes;
-      } else if (isLeaderAt12) {
-        const leaderTypes = ["all"];
-        availableTypes.forEach((type) => {
-          leaderTypes.push(type);
-        });
-        return leaderTypes;
-      } else if (isRegularUser) {
-        return ["all"];
-      } else {
-        return ["all"];
-      }
-    }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser]);
-
-    const getDisplayName = (type) => {
-      if (!type) return "";
-      if (type === "all") {
-        return "ALL CELLS";
-      }
-      return typeof type === "string" ? type : type.name || String(type);
-    };
-
-    const getTypeValue = (type) => {
-      if (type === "all") return "all";
-      return typeof type === "string" ? type : type.name || String(type);
-    };
-
-    const handleMenuOpen = (event, type) => {
-      event.stopPropagation();
-      setMenuAnchor(event.currentTarget);
-      setSelectedTypeForMenu(type);
-    };
-
-    const handleMenuClose = () => {
-      setMenuAnchor(null);
-      setSelectedTypeForMenu(null);
-    };
-
-    const handleEditEventType = () => {
-      if (selectedTypeForMenu && selectedTypeForMenu !== "all") {
-        const eventTypeToEdit = eventTypes.find(
-          (et) => et.name?.toLowerCase() === selectedTypeForMenu.toLowerCase()
-        ) || { name: selectedTypeForMenu };
-
-        setEditingEventType(eventTypeToEdit);
-        setEventTypesModalOpen(true);
-      }
-      handleMenuClose();
-    };
-
-    const handleDeleteEventType = () => {
-      if (selectedTypeForMenu && selectedTypeForMenu !== "all") {
-        const exactEventType = eventTypes.find((et) => {
-          const etName = et.name || et.eventType || et.eventTypeName || "";
-          return etName.toLowerCase() === selectedTypeForMenu.toLowerCase();
-        });
-
-        const typeToDelete = exactEventType
-          ? exactEventType.name ||
-            exactEventType.eventType ||
-            exactEventType.eventTypeName
-          : selectedTypeForMenu;
-
-        setToDeleteType(typeToDelete);
-        setConfirmDeleteOpen(true);
-      }
-      handleMenuClose();
-    };
-
-    const shouldShowSelector =
-      isAdmin || isRegistrant || isLeaderAt12 || isRegularUser;
-
-    if (!shouldShowSelector) {
-      return null;
-    }
-
-    useEffect(() => {
-      if (isMobileView) {
-        setIsCollapsed(true);
-      }
-    }, [isMobileView]);
-
-    return (
-      <div style={mobileEventTypeStyles.container}>
-        <div
-          style={mobileEventTypeStyles.headerRow}
-          onClick={() => isMobileView && setIsCollapsed(!isCollapsed)}
-        >
-          <div style={mobileEventTypeStyles.header}>
-            {isAdmin
-              ? "Event Types"
-              : isRegistrant
-              ? "Event Types"
-              : isLeaderAt12
-              ? "Cells & Events"
-              : "Your Cells"}
-          </div>
-
-          <div style={mobileEventTypeStyles.selectedTypeDisplay}>
-            <span>•</span>
-            <span>
-              {selectedEventTypeFilter === "all" && isLeaderAt12
-                ? "ALL CELLS"
-                : getDisplayName(selectedEventTypeFilter)}
-            </span>
-          </div>
-
-          {isMobileView && (
-            <button
-              style={mobileEventTypeStyles.collapseButton}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsCollapsed(!isCollapsed);
-              }}
-            >
-              {isCollapsed ? "▼" : "▲"}
-            </button>
-          )}
-        </div>
-
-        <div style={mobileEventTypeStyles.typesGrid}>
-          {allTypes.map((type) => {
-            const displayName = getDisplayName(type);
-            const typeValue = getTypeValue(type);
-            const isActive = selectedEventTypeFilter === typeValue;
-            const isHovered = hoveredType === typeValue;
-
-            const showMenu = canEditEventTypes && typeValue !== "all";
-
-            return (
-              <div
-                key={typeValue}
-                style={{
-                  ...mobileEventTypeStyles.typeCard,
-                  ...(isActive ? mobileEventTypeStyles.typeCardActive : {}),
-                  ...(isHovered && !isActive
-                    ? mobileEventTypeStyles.typeCardHover
-                    : {}),
-                }}
-                onClick={() => handleEventTypeClick(typeValue)}
-                onMouseEnter={() => setHoveredType(typeValue)}
-                onMouseLeave={() => setHoveredType(null)}
-              >
-                <span>{displayName}</span>
-
-                {showMenu && (
-                  <IconButton
-                    size="small"
-                    onClick={(e) => handleMenuOpen(e, typeValue)}
-                    sx={{
-                      position: "absolute",
-                      top: 2,
-                      right: 2,
-                      width: 20,
-                      height: 20,
-                      backgroundColor: isDarkMode
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.04)",
-                      "&:hover": {
-                        backgroundColor: isDarkMode
-                          ? "rgba(255,255,255,0.2)"
-                          : "rgba(0,0,0,0.08)",
-                      },
-                      color: isDarkMode ? "#fff" : "#000",
-                      fontSize: "12px",
-                      padding: "1px",
-                      minWidth: "auto",
-                      opacity: isMobileView ? 1 : isHovered || isActive ? 1 : 0,
-                      transition: "opacity 0.2s ease",
-                    }}
-                  >
-                    ⋮
-                  </IconButton>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <Popover
-          open={Boolean(menuAnchor)}
-          anchorEl={menuAnchor}
-          onClose={handleMenuClose}
-          anchorOrigin={{
-            vertical: "bottom",
-            horizontal: "right",
-          }}
-          transformOrigin={{
-            vertical: "top",
-            horizontal: "right",
-          }}
-          sx={{
-            "& .MuiPaper-root": {
-              backgroundColor: isDarkMode
-                ? theme.palette.background.paper
-                : "#fff",
-              color: isDarkMode ? theme.palette.text.primary : "#000",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-              borderRadius: "8px",
-              minWidth: "120px",
-            },
-          }}
-        >
-          <MenuItem onClick={handleEditEventType} sx={{ fontSize: "14px" }}>
-            <ListItemIcon sx={{ minWidth: 36 }}>
-              <EditIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Edit</ListItemText>
-          </MenuItem>
-          <MenuItem
-            onClick={handleDeleteEventType}
-            sx={{
-              fontSize: "14px",
-              color: theme.palette.error.main,
-              "&:hover": {
-                backgroundColor: theme.palette.error.light + "20",
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-              <DeleteIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Delete</ListItemText>
-          </MenuItem>
-        </Popover>
-      </div>
-    );
-  };
-
+  /**
+   * Main component render - Returns the complete Events page UI
+   * 
+   * This includes:
+   * - Header with back navigation and title
+   * - Search and filter controls
+   * - Events table with pagination
+   * - Floating action button for creating events
+   * - Various modal dialogs for event management
+   */
   return (
     <Box
       sx={{
@@ -3045,6 +2810,77 @@ const ViewFilterButtons = () => {
           : "#f5f7fa",
       }}
     >
+      {/* ============================================
+          NEW: BACK BUTTON AND BREADCRUMB
+          ============================================ */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          mb: 2,
+          p: 2,
+          backgroundColor: isDarkMode
+            ? theme.palette.background.paper
+            : '#fff',
+          borderRadius: 2,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        }}
+      >
+        {/* Back Button */}
+        <Tooltip title="Back to Event Types">
+          <IconButton
+            onClick={handleBackToSelection}
+            sx={{
+              backgroundColor: isDarkMode
+                ? 'rgba(255,255,255,0.1)'
+                : 'rgba(0,0,0,0.05)',
+              '&:hover': {
+                backgroundColor: isDarkMode
+                  ? 'rgba(255,255,255,0.2)'
+                  : 'rgba(0,0,0,0.1)',
+              },
+            }}
+          >
+            <ArrowBackIcon />
+          </IconButton>
+        </Tooltip>
+
+        {/* Breadcrumb */}
+        <Box>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ cursor: 'pointer' }}
+            onClick={handleBackToSelection}
+          >
+            Events
+          </Typography>
+          {selectedType && (
+            <>
+              <Typography variant="body2" component="span" color="text.secondary">
+                {' / '}
+              </Typography>
+              <Typography variant="body2" component="span" fontWeight={600}>
+                {selectedType}
+              </Typography>
+            </>
+          )}
+        </Box>
+
+        {/* Optional: Clear Filter Button */}
+        {selectedType && (
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => navigate('/events/list')}
+            sx={{ ml: 'auto' }}
+          >
+            Show All Events
+          </Button>
+        )}
+      </Box>
+
       <Box
         sx={{
           padding: isMobileView ? "1rem" : "1.5rem",
@@ -3055,26 +2891,7 @@ const ViewFilterButtons = () => {
           backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
         }}
       >
-        <EventTypeSelector
-          eventTypes={eventTypes}
-          selectedEventTypeFilter={selectedEventTypeFilter}
-          setSelectedEventTypeFilter={setSelectedEventTypeFilter}
-          fetchEvents={fetchEvents}
-          setCurrentPage={setCurrentPage}
-          rowsPerPage={rowsPerPage}
-          selectedStatus={selectedStatus}
-          searchQuery={searchQuery}
-          viewFilter={viewFilter}
-          DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
-          isLeaderAt12={isLeaderAt12}
-          isAdmin={isAdmin}
-          isRegistrant={isRegistrant}
-          isRegularUser={isRegularUser}
-          setEditingEventType={setEditingEventType}
-          setEventTypesModalOpen={setEventTypesModalOpen}
-          setToDeleteType={setToDeleteType}
-          setConfirmDeleteOpen={setConfirmDeleteOpen}
-        />
+
         <Box
           sx={{
             display: "flex",
