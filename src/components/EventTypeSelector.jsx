@@ -4,21 +4,22 @@ import {
     Typography,
     CircularProgress,
     Container,
-    MenuItem,
-    Select,
-    FormControl,
-    InputLabel,
     Paper,
-    Button
+    Card,
+    CardContent,
+    CardActionArea,
+    TextField,
+    InputAdornment
 } from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate } from "react-router-dom";
 import { useEventCache } from "./EventCacheContext";
 
 const EventTypeSelector = () => {
     const { eventTypes, setEventTypes, allEvents, setAllEvents } = useEventCache();
-    const [selectedType, setSelectedType] = useState("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const navigate = useNavigate();
     const BACKENDURL = import.meta.env.VITE_BACKEND_URL;
@@ -71,14 +72,19 @@ const EventTypeSelector = () => {
         }
     }, []);
 
-
-    const handleGo = () => {
-        if (!selectedType) {
+    const handleTypeClick = (typeName) => {
+        if (!typeName) {
             navigate("/events/list");
         } else {
-            navigate(`/events/list?type=${encodeURIComponent(selectedType)}`);
+            navigate(`/events/list?type=${encodeURIComponent(typeName)}`);
         }
     };
+
+    // Filter event types based on search query (search both name and description)
+    const filteredEventTypes = eventTypes?.filter((type) =>
+        type.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        type.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    ) || [];
 
     if (loading) {
         return (
@@ -97,39 +103,115 @@ const EventTypeSelector = () => {
     }
 
     return (
-        <Container maxWidth="sm" sx={{ mt: 10 }}>
-            <Paper sx={{ p: 4 }}>
-                <Typography variant="h5" gutterBottom>
+        <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+            <Paper sx={{ p: 3 }}>
+                <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
                     Select Event Type
                 </Typography>
 
-                <FormControl fullWidth sx={{ mt: 2 }}>
-                    <InputLabel>Event Type</InputLabel>
-                    <Select
-                        value={selectedType}
-                        label="Event Type"
-                        onChange={(e) => setSelectedType(e.target.value)}
-                    >
-                        <MenuItem value="">
-                            <em>All Events</em>
-                        </MenuItem>
-
-                        {eventTypes && eventTypes.map((type) => (
-                            <MenuItem key={type.name} value={type.name}>
-                                {type.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-
-                <Button
-                    variant="contained"
+                {/* Search Field */}
+                <TextField
                     fullWidth
-                    sx={{ mt: 3 }}
-                    onClick={handleGo}
+                    placeholder="Search event types..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    sx={{ mb: 3 }}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                    }}
+                />
+
+                <Box
+                    sx={{
+                        maxHeight: '500px',
+                        overflowY: 'auto',
+                        display: 'grid',
+                        gridTemplateColumns: {
+                            xs: '1fr',
+                            sm: 'repeat(2, 1fr)',
+                            md: 'repeat(3, 1fr)'
+                        },
+                        gap: 2,
+                        pr: 1
+                    }}
                 >
-                    Open Events
-                </Button>
+                    {/* All Events Card - Show only if search is empty or matches "all" */}
+                    {(!searchQuery || "all events".includes(searchQuery.toLowerCase())) && (
+                        <Card 
+                            elevation={2}
+                            sx={{ 
+                                '&:hover': { 
+                                    elevation: 4,
+                                    transform: 'translateY(-2px)',
+                                    transition: 'all 0.2s'
+                                }
+                            }}
+                        >
+                            <CardActionArea onClick={() => handleTypeClick("")}>
+                                <CardContent sx={{ py: 2, px: 2 }}>
+                                    <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+                                        All Events
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                                        View all events across all types
+                                    </Typography>
+                                </CardContent>
+                            </CardActionArea>
+                        </Card>
+                    )}
+
+                    {/* Event Type Cards */}
+                    {filteredEventTypes.map((type) => (
+                        <Card 
+                            key={type.name}
+                            elevation={2}
+                            sx={{ 
+                                '&:hover': { 
+                                    elevation: 4,
+                                    transform: 'translateY(-2px)',
+                                    transition: 'all 0.2s'
+                                }
+                            }}
+                        >
+                            <CardActionArea onClick={() => handleTypeClick(type.name)}>
+                                <CardContent sx={{ py: 2, px: 2 }}>
+                                    <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+                                        {type.name}
+                                    </Typography>
+                                    {type.description && (
+                                        <Typography 
+                                            variant="body2" 
+                                            color="text.secondary" 
+                                            sx={{ 
+                                                fontSize: '0.875rem',
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 2,
+                                                WebkitBoxOrient: 'vertical',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis'
+                                            }}
+                                        >
+                                            {type.description}
+                                        </Typography>
+                                    )}
+                                </CardContent>
+                            </CardActionArea>
+                        </Card>
+                    ))}
+
+                    {/* No Results Message */}
+                    {filteredEventTypes.length === 0 && searchQuery && (
+                        <Box sx={{ gridColumn: '1 / -1', textAlign: 'center', py: 4 }}>
+                            <Typography color="text.secondary">
+                                No event types found matching "{searchQuery}"
+                            </Typography>
+                        </Box>
+                    )}
+                </Box>
             </Paper>
         </Container>
     );

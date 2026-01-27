@@ -954,6 +954,7 @@ const Events = () => {
   const { authFetch, logout } = React.useContext(AuthContext);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const typeParam = useMemo(() => searchParams.get('type'), [searchParams.toString()]);
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
@@ -2415,12 +2416,6 @@ const handlePreviousPage = useCallback(() => {
   }, [BACKEND_URL]);
 
   useEffect(() => {
-    if (eventTypes && eventTypes.length > 0 && !selectedEventTypeFilter) {
-      setSelectedEventTypeFilter("all");
-    }
-  }, [eventTypes?.length, selectedEventTypeFilter]);
-
-  useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem("access_token");
       const userProfile = localStorage.getItem("userProfile");
@@ -2561,6 +2556,13 @@ const handlePreviousPage = useCallback(() => {
       return;
     }
 
+    let effectiveTypeFilter = selectedEventTypeFilter;
+    if (effectiveTypeFilter !== "all" && !eventTypes.some(et => et.name === effectiveTypeFilter)) {
+      effectiveTypeFilter = "all";
+      setSelectedEventTypeFilter("all");
+      setFilterOptions(prev => ({ ...prev, eventType: "all" }));
+    }
+
     const fetchParams = {
       page: currentPage,
       limit: rowsPerPage,
@@ -2575,12 +2577,12 @@ const handlePreviousPage = useCallback(() => {
       fetchParams.search = searchQuery.trim();
     }
 
-    if (selectedEventTypeFilter === "all") {
+    if (effectiveTypeFilter === "all") {
       fetchParams.event_type = "CELLS";
-    } else if (selectedEventTypeFilter === "CELLS") {
+    } else if (effectiveTypeFilter === "CELLS") {
       fetchParams.event_type = "CELLS";
     } else {
-      fetchParams.event_type = selectedEventTypeFilter;
+      fetchParams.event_type = effectiveTypeFilter;
     }
 
     if (fetchParams.event_type === "CELLS") {
@@ -2635,8 +2637,6 @@ const handlePreviousPage = useCallback(() => {
 
   // URL-based filtering effect
   useEffect(() => {
-    const typeParam = searchParams.get('type');
-
     if (typeParam) {
       // Set the filter to this type
       setSelectedEventTypeFilter(typeParam);
@@ -2656,7 +2656,7 @@ const handlePreviousPage = useCallback(() => {
         eventType: 'all'
       }));
     }
-  }, [searchParams]);
+  }, [typeParam]);
 
 const StatusBadges = ({
   selectedStatus,
