@@ -1141,6 +1141,19 @@ const [eventStatistics, setEventStatistics] = useState({
 
   const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
+const clearGlobalPeopleCache = () => {
+    try {
+      if (typeof window !== "undefined") {
+        // remove any window-level cache object used elsewhere
+        delete window.globalPeopleCache;
+        // expose a no-op reference for other modules that might call this
+        window.clearGlobalPeopleCache = () => { delete window.globalPeopleCache; };
+      }
+    } catch (err) {
+      console.warn("Failed to clear global people cache", err);
+    }
+  };
+
 const loadEventStatistics = async () => {
   if (!event) return;
   
@@ -1336,6 +1349,76 @@ const loadPersistentAttendees = async (eventId) => {
 };
 
 
+
+ const loadPreloadedPeople = async (forceRefresh = false) => {
+    const now = Date.now();
+
+    // If not forcing, try using existing cache if fresh
+    if (
+      !forceRefresh &&
+      typeof window !== 'undefined' &&
+      window.globalPeopleCache &&
+      window.globalPeopleCache.data?.length > 0 &&
+      window.globalPeopleCache.timestamp &&
+      now - window.globalPeopleCache.timestamp < (window.globalPeopleCache.expiry || 5 * 60 * 1000)
+    ) {
+      console.log("Using cached people data in AttendanceModal");
+      setPreloadedPeople(window.globalPeopleCache.data);
+
+      if (activeTab === 1 && !associateSearch.trim()) {
+        setPeople(window.globalPeopleCache.data.slice(0, 50));
+      }
+      return;
+    }
+
+    // Otherwise fetch fresh people from backend and rebuild cache
+    try {
+      console.log(forceRefresh ? "Force-refreshing people cache" : "Fetching fresh people for AttendanceModal cache");
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const params = new URLSearchParams();
+      params.append("perPage", "100");
+      params.append("page", "1");
+
+      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, {
+        headers,
+      });
+
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+      const data = await res.json();
+      const peopleArray = data.people || data.results || [];
+
+      const formatted = peopleArray.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p["Leader at 1"] || p.leader1 || p.leaders?.[0] || "",
+        leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || p.leaders?.[1] || "",
+        leader144: p["Leader @144"] || p["Leader at 144"] || p.leader144 || p.leaders?.[2] || "",
+        phone: p.Number || p.Phone || p.phone || "",
+        searchText: `${(p.Name || p.name || "")} ${(p.Surname || p.surname || "")} ${(p.Email || p.email || "")}`.toLowerCase()
+      }));
+
+      // set a window cache for quick reuse (other code references window.globalPeopleCache)
+      window.globalPeopleCache = {
+        data: formatted,
+        timestamp: now,
+        expiry: 5 * 60 * 1000,
+      };
+
+      setPreloadedPeople(formatted);
+      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
+
+      if (activeTab === 1 && !associateSearch.trim()) {
+        setPeople(formatted.slice(0, 50));
+      }
+    } catch (err) {
+      console.error("Error pre-loading people in AttendanceModal:", err);
+    }
+  };
+
 useEffect(() => {
   if (isOpen && event) {
     let eventId = event._id || event.id;
@@ -1363,69 +1446,7 @@ useEffect(() => {
     setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
   }
 }, [isOpen, event]);
-  const loadPreloadedPeople = async () => {
-    const now = Date.now();
 
-    if (
-      typeof window.globalPeopleCache !== 'undefined' &&
-      window.globalPeopleCache.data?.length > 0 &&
-      window.globalPeopleCache.timestamp &&
-      now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
-    ) {
-      console.log("Using cached people data in AttendanceModal");
-      setPreloadedPeople(window.globalPeopleCache.data);
-
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(window.globalPeopleCache.data.slice(0, 50));
-      }
-      return;
-    }
-
-    try {
-      console.log("Fetching fresh people data for AttendanceModal cache");
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const params = new URLSearchParams();
-      params.append("perPage", "100");
-      params.append("page", "1");
-
-      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, {
-        headers,
-      });
-
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
-        phone: p.Number || p.Phone || p.phone || "",
-      }));
-
-      // Update global cache
-      window.globalPeopleCache = {
-        data: formatted,
-        timestamp: now,
-        expiry: 5 * 60 * 1000,
-      };
-
-      setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
-
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(formatted.slice(0, 50));
-      }
-    } catch (err) {
-      console.error("Error pre-loading people in AttendanceModal:", err);
-    }
-  };
   const fetchPeople = async (q) => {
     if (!q.trim()) {
       setSearchResults([]);
@@ -2081,13 +2102,10 @@ if (result && result.success) {
   const handlePersonAdded = (newPerson) => {
     console.log(" New person added:", newPerson);
 
-    if (typeof window.globalPeopleCache !== 'undefined') {
-      window.globalPeopleCache.data = [];
-      window.globalPeopleCache.timestamp = null;
-    }
-
+    // Clear caches and reload fresh people from DB
+    clearGlobalPeopleCache();
+    loadPreloadedPeople(true);
     fetchPeople();
-    loadPreloadedPeople();
 
     if (event && event.eventType === "cell") {
       fetchCommonAttendees(event._id || event.id);
