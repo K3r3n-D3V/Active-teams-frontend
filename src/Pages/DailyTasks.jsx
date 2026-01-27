@@ -1004,7 +1004,7 @@ export default function DailyTasks() {
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap'
                     }}>
-                      {task.assignedTo || (user ? `${user.name} ${user.surname}` : '') || 'Not assigned'}
+                      {(user ? `${user.name} ${user.surname}` : '') || 'Not assigned'}
                     </p>
 
                     {task.isRecurring && (
