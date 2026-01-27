@@ -38,6 +38,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [deactivationWeeks, setDeactivationWeeks] = useState(2);
   const [deactivationReason, setDeactivationReason] = useState('');
   const [isToggling, setIsToggling] = useState(false);
+  const [isPermanent,setIsPermanent] = useState(false)
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -166,8 +167,10 @@ const handleDeactivateCell = async () => {
     const userToken = localStorage.getItem("access_token") || token;
     
     const params = new URLSearchParams({
-      weeks: deactivationWeeks.toString()
+      weeks: deactivationWeeks.toString(),
+      "is_permanent_deact":isPermanent
     });
+    console.log("BOOL",isPermanent)
     
     if (deactivationReason) {
       params.append('reason', deactivationReason);
@@ -381,7 +384,7 @@ const handleDeactivateCell = async () => {
       }
     });
     
-    return cleanData;
+    return {...cleanData,isPermanent};
   };
 
   const handleSubmit = async () => {
@@ -431,6 +434,7 @@ const handleDeactivateCell = async () => {
         endpoint = `/events/cells/${identifier}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
+        
         
         if (newEventName && newEventName !== originalEventName) {
           const confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\nThis will update ONLY this specific event.\n\nContinue?`;
@@ -1134,7 +1138,10 @@ const handleDeactivateCell = async () => {
             <InputLabel>Deactivation Period</InputLabel>
             <Select
               value={deactivationWeeks}
-              onChange={(e) => setDeactivationWeeks(e.target.value)}
+              onChange={(e) =>{ 
+                setDeactivationWeeks(e.target.value);
+                if (e.target.value === -1) setIsPermanent(true)
+              }}
               label="Deactivation Period"
             >
               <MenuItem value={1}>1 Week</MenuItem>
