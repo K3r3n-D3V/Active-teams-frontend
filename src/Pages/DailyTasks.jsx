@@ -219,6 +219,8 @@ export default function DailyTasks() {
           assignedfor: task.assignedfor,
           name: task.name,
           assigned_to: task.assigned_to,
+          source_display: task.source_display,
+        consolidation_source: task.consolidation_source
         });
       });
       console.log("=== END DEBUG ===");
@@ -958,118 +960,144 @@ export default function DailyTasks() {
               // This should match what's in task.assignedTo
               const assignedDisplay = task.assignedTo || "";
 
-              return (
+               // Get the source display
+              const sourceDisplay = task.source_display || "Manual";
+              
+            return (
+              <div
+                key={task._id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                  marginBottom: '10px',
+                  cursor: 'pointer',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                }}
+              >
                 <div
-                  key={task._id}
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-                    padding: '16px',
-                    borderRadius: '12px',
-                    border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                    marginBottom: '10px',
                     cursor: 'pointer',
-                    boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                    flex: 1,
+                    minWidth: 0
                   }}
+                  onClick={() => handleEdit(task)}
                 >
-                  <div
+                  {/* Recipient Name */}
+                  <p style={{
+                    fontWeight: '700',
+                    color: isDarkMode ? '#fff' : '#1a1a24',
+                    margin: '0 0 4px 0',
+                    fontSize: '15px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {recipientName || 'No recipient'}
+                  </p>
+
+                  {/* Assigned To - EXACTLY as shown in modal */}
+                  <p style={{
+                    fontSize: '13px',
+                    color: isDarkMode ? '#aaa' : '#6b7280',
+                    margin: '0 0 4px 0',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {assignedDisplay || 'Not assigned'}
+                  </p>
+
+                  {/* Consolidation Source Badge */}
+                  {isConsolidation && sourceDisplay && sourceDisplay !== "Manual" && (
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      backgroundColor: sourceDisplay === "Service" ? '#dcfce7' : 
+                                      sourceDisplay === "Cell" ? '#fef3c7' : '#e0e7ff',
+                      color: sourceDisplay === "Service" ? '#166534' : 
+                            sourceDisplay === "Cell" ? '#92400e' : '#3730a3',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      display: 'inline-block',
+                      marginTop: '4px',
+                      marginRight: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      {sourceDisplay} Consolidation
+                    </span>
+                  )}
+
+                  {/* Recurring Badge */}
+                  {task.isRecurring && (
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      backgroundColor: '#fde047',
+                      color: '#854d0e',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      display: 'inline-block',
+                      marginTop: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      Recurring
+                    </span>
+                  )}
+                </div>
+                
+                <div style={{
+                  textAlign: 'right',
+                  marginLeft: '12px',
+                  flexShrink: 0
+                }}>
+                  <span
                     style={{
+                      display: 'inline-block',
+                      padding: '5px 12px',
+                      borderRadius: '16px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      textTransform: 'capitalize',
+                      border: '2px solid',
                       cursor: 'pointer',
-                      flex: 1,
-                      minWidth: 0
+                      backgroundColor: task.status === "open"
+                        ? (isDarkMode ? '#2d2d2d' : '#ffffff')
+                        : task.status === "completed"
+                          ? (isDarkMode ? '#fff' : '#000')
+                          : (isDarkMode ? '#3a3a3a' : '#e5e5e5'),
+                      color: task.status === "open"
+                        ? (isDarkMode ? '#fff' : '#000')
+                        : task.status === "completed"
+                          ? (isDarkMode ? '#000' : '#fff')
+                          : (isDarkMode ? '#fff' : '#1a1a24'),
+                      borderColor: task.status === "open"
+                        ? (isDarkMode ? '#fff' : '#000')
+                        : task.status === "completed"
+                          ? (isDarkMode ? '#fff' : '#000')
+                          : (isDarkMode ? '#444' : '#6b7280'),
                     }}
                     onClick={() => handleEdit(task)}
                   >
-                    {/* Recipient Name */}
-                    <p style={{
-                      fontWeight: '700',
-                      color: isDarkMode ? '#fff' : '#1a1a24',
-                      margin: '0 0 4px 0',
-                      fontSize: '15px',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {recipientName || 'No recipient'}
-                    </p>
-
-                    {/* Assigned To - EXACTLY as shown in modal */}
-                    <p style={{
-                      fontSize: '13px',
-                      color: isDarkMode ? '#aaa' : '#6b7280',
-                      margin: '0 0 4px 0',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {(user ? `${user.name} ${user.surname}` : '') || 'Not assigned'}
-                    </p>
-
-                    {task.isRecurring && (
-                      <span style={{
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        backgroundColor: '#fde047',
-                        color: '#854d0e',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        display: 'inline-block',
-                        marginTop: '6px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                      }}>
-                        Recurring
-                      </span>
-                    )}
-                  </div>
+                    {task.status}
+                  </span>
                   <div style={{
-                    textAlign: 'right',
-                    marginLeft: '12px',
-                    flexShrink: 0
+                    fontSize: '11px',
+                    color: isDarkMode ? '#aaa' : '#6b7280',
+                    marginTop: '6px',
+                    fontWeight: '500'
                   }}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        padding: '5px 12px',
-                        borderRadius: '16px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        textTransform: 'capitalize',
-                        border: '2px solid',
-                        cursor: 'pointer',
-                        backgroundColor: task.status === "open"
-                          ? (isDarkMode ? '#2d2d2d' : '#ffffff')
-                          : task.status === "completed"
-                            ? (isDarkMode ? '#fff' : '#000')
-                            : (isDarkMode ? '#3a3a3a' : '#e5e5e5'),
-                        color: task.status === "open"
-                          ? (isDarkMode ? '#fff' : '#000')
-                          : task.status === "completed"
-                            ? (isDarkMode ? '#000' : '#fff')
-                            : (isDarkMode ? '#fff' : '#1a1a24'),
-                        borderColor: task.status === "open"
-                          ? (isDarkMode ? '#fff' : '#000')
-                          : task.status === "completed"
-                            ? (isDarkMode ? '#fff' : '#000')
-                            : (isDarkMode ? '#444' : '#6b7280'),
-                      }}
-                      onClick={() => handleEdit(task)}
-                    >
-                      {task.status}
-                    </span>
-                    <div style={{
-                      fontSize: '11px',
-                      color: isDarkMode ? '#aaa' : '#6b7280',
-                      marginTop: '6px',
-                      fontWeight: '500'
-                    }}>
-                      {formatDate(task.date)}
-                    </div>
+                    {formatDate(task.date)}
                   </div>
                 </div>
-              );
+              </div>
+            );
             })
           )}
         </div>

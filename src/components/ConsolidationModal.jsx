@@ -338,7 +338,8 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
         ],
         
         is_check_in: false,
-        attendance_status: "not_checked_in"
+        attendance_status: "not_checked_in",
+        source: "service_consolidation"
       };
 
       
