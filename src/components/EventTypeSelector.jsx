@@ -114,7 +114,7 @@ const EventTypeSelector = () => {
                             <em>All Events</em>
                         </MenuItem>
 
-                        {eventTypes.map((type) => (
+                        {eventTypes && eventTypes.map((type) => (
                             <MenuItem key={type.name} value={type.name}>
                                 {type.name}
                             </MenuItem>

@@ -1110,6 +1110,7 @@ const Events = () => {
   }, [currentPage, rowsPerPage, totalEvents]);
 
   const allEventTypes = useMemo(() => {
+    if (!eventTypes) return ["all"];
     return [
       "all",
       ...eventTypes.map((t) => (typeof t === "string" ? t : t.name)),
@@ -2414,10 +2415,10 @@ const handlePreviousPage = useCallback(() => {
   }, [BACKEND_URL]);
 
   useEffect(() => {
-    if (eventTypes.length > 0 && !selectedEventTypeFilter) {
+    if (eventTypes && eventTypes.length > 0 && !selectedEventTypeFilter) {
       setSelectedEventTypeFilter("all");
     }
-  }, [eventTypes.length, selectedEventTypeFilter]);
+  }, [eventTypes?.length, selectedEventTypeFilter]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -2556,7 +2557,7 @@ const handlePreviousPage = useCallback(() => {
   }, [eventTypes]);
 
   useEffect(() => {
-    if (eventTypes.length === 0) {
+    if (!eventTypes || eventTypes.length === 0) {
       return;
     }
 
@@ -2624,7 +2625,7 @@ const handlePreviousPage = useCallback(() => {
     viewFilter,
     currentPage,
     rowsPerPage,
-    eventTypes.length,
+    eventTypes?.length,
     isAdmin,
     isRegistrant,
     isRegularUser,
