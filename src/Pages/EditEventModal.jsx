@@ -219,7 +219,7 @@ const handleDeactivateCell = async () => {
     // Success message
     toast.success(
       <div>
-        <div>{result.message}</div>
+        <div>{new Date(result.deactivation_end) < new Date()?"You cell has been successfully deactivated":result.message}</div>
         <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
           Will auto-reactivate on: {new Date(result.deactivation_end) < new Date()?"Never":new Date(result.deactivation_end).toLocaleDateString()}
         </div>
