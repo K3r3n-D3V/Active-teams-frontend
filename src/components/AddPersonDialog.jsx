@@ -54,6 +54,19 @@ const uniformInputSx = {
   },
 };
 
+const readOnlySx = {  // NEW: Simple read-only style
+  ...uniformInputSx,
+  "& .MuiOutlinedInput-root": {
+    ...uniformInputSx["& .MuiOutlinedInput-root"],
+    backgroundColor: "grey.100",
+    "& .MuiOutlinedInput-notchedOutline": { borderColor: "grey.300" },
+  },
+  "& .MuiOutlinedInput-input": {
+    ...uniformInputSx["& .MuiOutlinedInput-input"],
+    color: "text.disabled",
+  },
+};
+
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -102,37 +115,56 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     }
   }, [open]);
 
+  // NEW: Full fetch helper for edit mode
+  const fetchFullPerson = useCallback(async (id) => {
+    if (!id || !isEdit) return null;
+    try {
+      const response = await authFetch(`${BASE_URL}/people/${id}`);
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (err) {
+      console.error('Full fetch error:', err);
+    }
+    return null;
+  }, [authFetch, isEdit]);
+
   // Initialize form with person data when opening in edit mode
   useEffect(() => {
-    if (open && isEdit && formData) {
-      // Check if any leader field has data to determine whether to show the section
-      const hasLeaderData = formData.leader1 || formData.leader12 || formData.leader144;
-      setShowLeaderFields(hasLeaderData);
-      
-      // Ensure all fields are properly set from formData
-      const updatedFormData = {
-        ...initialFormState,
-        ...formData,
-        name: formData.name || formData.Name || "",
-        surname: formData.surname || formData.Surname || "",
-        dob: formData.dob || formData.DOB || formData.dateOfBirth || "",
-        address: formData.address || formData.Address || formData.homeAddress || "",
-        email: formData.email || formData.Email || "",
-        number: formData.number || formData.Number || formData.phone || formData.Phone || "",
-        gender: formData.gender || formData.Gender || "",
-        invitedBy: formData.invitedBy || formData.InvitedBy || "",
-        leader1: formData.leader1 || formData["Leader @1"] || "",
-        leader12: formData.leader12 || formData["Leader @12"] || "",
-        leader144: formData.leader144 || formData["Leader @144"] || "",
-        stage: formData.stage || formData.Stage || "Win",
+    if (open && isEdit && personId) {
+      const initForm = async () => {
+        let initData = formData || initialFormState;
+        // If partial (e.g., no address/DOB), fetch full
+        if (!initData.address || !initData.dob || !initData.invitedBy) {
+          const fullPerson = await fetchFullPerson(personId);
+          if (fullPerson) {
+            initData = {
+              ...initialFormState,
+              ...fullPerson,
+              name: fullPerson.Name || fullPerson.name || initData.name,
+              surname: fullPerson.Surname || fullPerson.surname || initData.surname,
+              dob: fullPerson.Birthday ? fullPerson.Birthday.replace(/\//g, '-') : (fullPerson.dob || initData.dob),  // Format DOB
+              address: fullPerson.Address || fullPerson.address || initData.address,
+              email: fullPerson.Email || fullPerson.email || initData.email,
+              number: fullPerson.Number || fullPerson.number || initData.number,
+              gender: fullPerson.Gender || fullPerson.gender || initData.gender,
+              invitedBy: fullPerson.InvitedBy || fullPerson.invitedBy || initData.invitedBy,
+              leader1: fullPerson["Leader @1"] || fullPerson.leader1 || initData.leader1,
+              leader12: fullPerson["Leader @12"] || fullPerson.leader12 || initData.leader12,
+              leader144: fullPerson["Leader @144"] || fullPerson.leader144 || initData.leader144,
+              stage: fullPerson.Stage || fullPerson.stage || "Win",
+            };
+          }
+        }
+        
+        // Check if any leader field has data to determine whether to show the section
+        const hasLeaderData = initData.leader1 || initData.leader12 || initData.leader144;
+        setShowLeaderFields(hasLeaderData);
+        setFormData(initData);
       };
-      
-      // Only update if there are actual changes to avoid infinite loops
-      if (JSON.stringify(updatedFormData) !== JSON.stringify(formData)) {
-        setFormData(updatedFormData);
-      }
+      initForm();
     }
-  }, [open, isEdit, formData, setFormData]);
+  }, [open, isEdit, personId, formData, setFormData, fetchFullPerson]);
 
   const peopleOptions = useMemo(() => {
     return peopleList.map(person => {
@@ -247,9 +279,27 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       .slice(0, 50);
   }, []);
 
+  // UPDATED: Render read-only TextField for abilities in edit mode
   const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
     const currentValue = formData[name] || "";
+    const isReadOnly = isEdit;  // Lock in edit mode
+    const onChangeHandler = isInvite ? handleInvitedByChange : undefined;  // No handler in edit
     
+    if (isReadOnly) {
+      return (
+        <TextField
+          margin="normal"
+          fullWidth
+          label={label}
+          value={currentValue}
+          disabled
+          InputProps={{ readOnly: true, sx: readOnlySx }}
+          helperText="(View Only)"
+          sx={readOnlySx}
+        />
+      );
+    }
+
     return (
       <Autocomplete
         freeSolo
@@ -377,7 +427,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         gender: formData.gender,
         email: formData.email,
         number: formData.number,
-        dob: formData.dob,
+        dob: formData.dob.replace(/-/g, "/"),  // NEW: Back to DB format on save
         address: formData.address,
         leaders: leaders,
         stage: formData.stage || "Win", 
@@ -511,10 +561,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           <Collapse in={showLeaderFields}>
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1 }}>
-                Additional Leaders
+                Additional Leaders {isEdit ? "(View Only)" : ""}
               </Typography>
               
-              {/* Only Leader @1 is editable, others are disabled */}
+              {/* Only Leader @1 is editable, others are disabled - but read-only in edit */}
               {renderAutocomplete('leader1', 'Leader @1', false, true)}
               {renderAutocomplete('leader12', 'Leader @12', false, true)}
               {renderAutocomplete('leader144', 'Leader @144', false, true)}
@@ -530,8 +580,9 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
                 variant="outlined"
                 color="primary"
                 size="small"
+                disabled={isEdit}  // NEW: Disable toggle in edit
               >
-                View Additional Leaders
+                {isEdit ? "View Leaders" : "View Additional Leaders"}
               </Button>
             </Box>
           )}
