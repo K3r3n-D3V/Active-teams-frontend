@@ -1158,7 +1158,7 @@ const { authFetch, logout } = React.useContext(AuthContext);
       if (!error.message.includes('401') && !error.message.includes('Session expired')) {
         const errorMessage = error.message || 'Failed to load events';
         toast.error(`Failed to load events: ${errorMessage}`);
-      }setEvents
+      }
       
       setEvents([]);
     } finally {
