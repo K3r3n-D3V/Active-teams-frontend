@@ -64,7 +64,7 @@ const allMenuItems = [
     label: 'Service Check-in', 
     path: '/service-check-in', 
     icon: HowToReg, 
-    roles: ['admin', 'registrant'] 
+    roles: ['admin', 'registrant', 'leaderAt12', 'leader'] 
   },
   { 
     label: 'Daily Tasks', 
