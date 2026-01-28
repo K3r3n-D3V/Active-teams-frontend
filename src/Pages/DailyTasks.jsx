@@ -288,33 +288,46 @@ export default function DailyTasks() {
   };
 
   const fetchPeople = async (q) => {
-    if (!q.trim()) return setSearchResults([]);
-    const parts = q.trim().split(/\s+/);
-    const name = parts[0];
-    const surname = parts.slice(1).join(" ");
+    if (!q.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const query = q.trim();
+    // We keep original casing for display, but lowercase for comparison
+    const queryLower = query.toLowerCase();
+
     try {
-      const res = await authFetch(`${API_URL}/people?name=${encodeURIComponent(name)}`);
-      if (!res.ok) throw new Error("Failed to fetch people");
-      const data = await res.json();
-      let filtered = (data?.results || []).filter(p =>
-        p.Name.toLowerCase().includes(name.toLowerCase()) &&
-        (!surname || p.Surname.toLowerCase().includes(surname.toLowerCase()))
+      // Send the full typed string to the backend
+      // (most APIs can handle searching across both name + surname fields)
+      const res = await authFetch(
+        `${API_URL}/people?name=${encodeURIComponent(query)}`
       );
-      filtered.sort((a, b) => {
-        const nameA = a.Name.toLowerCase();
-        const nameB = b.Name.toLowerCase();
-        const surnameA = (a.Surname || "").toLowerCase();
-        const surnameB = (b.Surname || "").toLowerCase();
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        if (surnameA < surnameB) return -1;
-        if (surnameA > surnameB) return 1;
-        return 0;
+
+      if (!res.ok) throw new Error("Failed to fetch people");
+
+      const data = await res.json();
+      const results = data?.results || [];
+
+      // ────────────────────────────────────────────────
+      // Client-side filtering that supports compound first names
+      // ────────────────────────────────────────────────
+      const filtered = results.filter((p) => {
+        const fullNameLower =
+          `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
+
+        // Case 1: query appears anywhere in full name
+        if (fullNameLower.includes(queryLower)) return true;
+
+        // Case 2: query words all appear (in any order) — helps with typos / partial matches
+        const queryWords = queryLower.split(/\s+/).filter(Boolean);
+        return queryWords.every((word) => fullNameLower.includes(word));
       });
+
       setSearchResults(filtered);
     } catch (err) {
       console.error("Error fetching people:", err);
-      toast.error(err.message);
+      toast.error(err.message || "Failed to search people");
       setSearchResults([]);
     }
   };
