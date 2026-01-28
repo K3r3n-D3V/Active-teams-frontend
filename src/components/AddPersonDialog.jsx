@@ -102,7 +102,6 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     }
   }, [open]);
 
-  // Full fetch helper for edit mode (from first code)
   const fetchFullPerson = useCallback(async (id) => {
     if (!id || !isEdit) return null;
     try {
@@ -116,7 +115,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     return null;
   }, [authFetch, isEdit]);
 
-  // Initialize form with person data when opening in edit mode (from first code)
+  // Initialize form with person data when opening in edit mode
   useEffect(() => {
     if (open && isEdit && personId) {
       const initForm = async () => {
@@ -211,39 +210,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     setErrors(prev => ({ ...prev, [name]: "" }));
   };
 
-  // const handleInvitedByChange = (value) => {
-  //   if (!value) {
-  //     setFormData(prev => ({
-  //       ...prev,
-  //       invitedBy: "",
-  //       leader1: "",
-  //       leader12: "",
-  //       leader144: ""
-  //     }));
-  //     setShowLeaderFields(false);
-  //     return;
-  //   }
-
-  //   const label = typeof value === "string" ? value : value.label;
-    
-  //   const person = peopleList.find(
-  //     p => `${p.Name} ${p.Surname}`.trim() === label.trim() ||
-  //          p.FullName?.trim() === label.trim()
-  //   );
-
-  //   setFormData(prev => ({
-  //     ...prev,
-  //     invitedBy: label,
-  //     leader1: person?.["Leader @1"] || "",
-  //     leader12: person?.["Leader @12"] || "",
-  //     leader144: person?.["Leader @144"] || ""
-  //   }));
-
-  //   // Show leader fields if any leader data is populated
-  //   const hasLeaderData = person?.["Leader @1"] || person?.["Leader @12"] || person?.["Leader @144"];
-  //   setShowLeaderFields(hasLeaderData);
-  // };
-const handleInvitedByChange = (value) => {
+  const handleInvitedByChange = (value) => {
   if (!value) {
     setFormData(prev => ({
       ...prev,
@@ -275,14 +242,12 @@ const handleInvitedByChange = (value) => {
     return;
   }
 
-  // ✅ Use the full name (or email as fallback) for the inviter
   const inviterName = `${person.Name || ""} ${person.Surname || ""}`.trim() || person.Email || label;
   
   let leader1 = person["Leader @1"] || "";
   let leader12 = person["Leader @12"] || "";
   let leader144 = person["Leader @144"] || "";
   
-  // Place the inviter in the first available/empty leadership slot
   if (!leader1) {
     leader1 = inviterName;
   } else if (!leader12) {
@@ -438,74 +403,7 @@ const handleInvitedByChange = (value) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // const handleSaveClick = async () => {
-  //   if (!validate() || isSubmitting) return;
-  //   setIsSubmitting(true);
-
-  //   try {
-  //     const leaders = [
-  //       formData.leader1 || "",
-  //       formData.leader12 || "",
-  //       formData.leader144 || ""
-  //     ].filter(leader => leader.trim() !== "");
-
-  //     const payload = {
-  //       invitedBy: formData.invitedBy,
-  //       name: formData.name,
-  //       surname: formData.surname,
-  //       gender: formData.gender,
-  //       email: formData.email,
-  //       number: formData.number,
-  //       dob: formData.dob.replace(/-/g, "/"),
-  //       address: formData.address,
-  //       leaders: leaders,
-  //       stage: formData.stage || "Win", 
-  //     };
-
-  //     let response;
-
-  //     if (isEdit && personId) {
-  //       // Use authFetch for PATCH request
-  //       response = await authFetch(`${BASE_URL}/people/${personId}`, {
-  //         method: "PATCH",
-  //         body: JSON.stringify(payload),
-  //       });
-
-  //       if (response.ok) {
-  //         const data = await response.json();
-  //         onSave({ ...payload, _id: personId });
-  //       } else {
-  //         const errorData = await response.json();
-  //         throw new Error(errorData.detail || "Update failed");
-  //       }
-  //     } else {
-  //       // Use authFetch for POST request
-  //       response = await authFetch(`${BASE_URL}/people`, {
-  //         method: "POST",
-  //         body: JSON.stringify(payload),
-  //       });
-
-  //       if (response.ok) {
-  //         const data = await response.json();
-  //         onSave(data);
-  //       } else {
-  //         const errorData = await response.json();
-  //         throw new Error(errorData.detail || "Save failed");
-  //       }
-  //     }
-
-  //     if (!isEdit) {
-  //       setFormData(initialFormState);
-  //     }
-  //     onClose();
-  //   } catch (err) {
-  //     const msg = err.message || "An error occurred";
-  //     toast.error(`Error: ${msg}`);
-  //   } finally {
-  //     setIsSubmitting(false);
-  //   }
-  // };
-const handleSaveClick = async () => {
+  const handleSaveClick = async () => {
   if (!validate() || isSubmitting) return;
   setIsSubmitting(true);
 
@@ -560,7 +458,6 @@ const handleSaveClick = async () => {
           leader144: createdPerson["Leader @144"] || createdPerson.leader144 || ""
         };
         
-        // Show what the backend actually assigned
         console.log("Backend assigned leaders:", backendLeaders);
         
         // Pass the complete data back with backend-assigned leaders
@@ -671,7 +568,6 @@ const handleSaveClick = async () => {
             required: true 
           })}
 
-          {/* Leader Fields Section - Hidden by default */}
           <Collapse in={showLeaderFields}>
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1 }}>
