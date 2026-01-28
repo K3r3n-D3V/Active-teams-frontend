@@ -2802,7 +2802,7 @@ const Events = () => {
               minWidth: 200,
               backgroundColor: "transparent !important",
               "& .MuiInputBase-root": {
-                backgroundColor: "transparent !important",
+                backgroundColor: "transparent  !important",
               },
               "& .MuiInputBase-input": {
                 fontSize: isMobileView ? "14px" : "0.95rem",
