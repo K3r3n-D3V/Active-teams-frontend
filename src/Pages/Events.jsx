@@ -12,6 +12,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Tooltip from "@mui/material/Tooltip";
+// import SearchIcon from '@mui/icons-material/Search';
 import {
   Box,
   useMediaQuery,
@@ -2186,7 +2187,14 @@ const handlePreviousPage = useCallback(() => {
   const handleSearchChange = useCallback((e) => {
     const value = e.target.value;
     setSearchQuery(value);
-  }, []);
+
+    fetchEvents(
+      {
+        search: value
+      },
+      false // optional: prevents loader flicker
+    );
+  }, [fetchEvents]);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -3162,7 +3170,7 @@ const ViewFilterButtons = () => {
               whiteSpace: "nowrap",
             }}
           >
-            {loading ? "⏳" : "SEARCH"}
+            {loading ? "⏳" : <SearchIcon></SearchIcon>}
           </Button>
 
           <Button
@@ -3180,7 +3188,7 @@ const ViewFilterButtons = () => {
               },
             }}
           >
-            {loading ? "⏳" : "CLEAR ALL"}
+            {loading ? "⏳" : "❌"}
           </Button>
         </Box>
 
