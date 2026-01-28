@@ -384,7 +384,7 @@ const handleDeactivateCell = async () => {
       }
     });
     
-    return {...cleanData,isPermanent};
+    return {...cleanData,"is_permanent_deact":isPermanent};
   };
 
   const handleSubmit = async () => {
