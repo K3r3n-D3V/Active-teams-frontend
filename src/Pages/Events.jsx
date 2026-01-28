@@ -31,6 +31,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
+import GetAppIcon from "@mui/icons-material/GetApp";
 
 import Eventsfilter from "./AddPersonToEvents";
 import CreateEvents from "./CreateEvents";
@@ -980,6 +981,196 @@ const { authFetch, logout } = React.useContext(AuthContext);
     cacheRef.current.data.clear();
     cacheRef.current.timestamp.clear();
   }, []);
+
+const escapeHtml = (s) =>
+    String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const buildXlsFromRows = (rows, fileBaseName = "export") => {
+    if (!rows || rows.length === 0) {
+      toast.info("No data to export");
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+    const columnWidths = headers.map((header) => {
+      let maxLength = header.length;
+      rows.forEach((r) => {
+        const v = String(r[header] || "");
+        if (v.length > maxLength) maxLength = v.length;
+      });
+      return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
+    });
+
+    const xmlCols = columnWidths
+      .map(
+        (w, i) =>
+          `                    <x:Column ss:Index="${i + 1}" ss:AutoFitWidth="0" ss:Width="${w}"/>`,
+      )
+      .join("\n");
+
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+        <head>
+          <meta charset="utf-8">
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>${escapeHtml(fileBaseName)}</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                  <x:WorksheetColumns>
+${xmlCols}
+                  </x:WorksheetColumns>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            table { border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; }
+            th { background-color: #a3aca3ff; color: white; font-weight: bold; padding: 12px 8px; text-align: center; border: 1px solid #ddd; font-size: 11pt; white-space: nowrap; }
+            td { padding: 8px; border: 1px solid #ddd; font-size: 10pt; text-align: left; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+          </style>
+        </head>
+        <body>
+          <table border="1">
+            <thead><tr>
+    `;
+
+    headers.forEach((h) => {
+      html += `                <th>${escapeHtml(h)}</th>\n`;
+    });
+    html += `              </tr></thead><tbody>\n`;
+
+    rows.forEach((row) => {
+      html += `              <tr>\n`;
+      headers.forEach((h) => {
+        html += `                <td>${escapeHtml(row[h] || "")}</td>\n`;
+      });
+      html += `              </tr>\n`;
+    });
+
+    html += `            </tbody></table></body></html>`;
+
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const fileName = `${fileBaseName}_${new Date().toISOString().split("T")[0]}.xls`;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
+
+  const normalizeEventAttendance = (event) => {
+    if (!event) return [];
+    // attendance may live under event.attendance (object keyed by week/date) or event.attendees
+    const eventDate = event.date;
+    let weekAttendance = event.attendance || {};
+    if (weekAttendance && typeof weekAttendance === "object" && !weekAttendance.status) {
+      weekAttendance = weekAttendance[eventDate] || {};
+    }
+    const attendees = weekAttendance?.attendees || event.attendees || [];
+
+    // map to rows similar to AttendanceModal
+    return (attendees || []).map((att) => ({
+      "Event ID": event._id || event.id || "",
+      "Event Name": event.eventName || event.Event_Name || event.name || "",
+      "Event Date": formatDate(event.date),
+      "Attendee ID": att.id || att._id || "",
+      "Name": att.fullName || att.name || "",
+      "Email": att.email || "",
+      "Leader @12": att.leader12 || "",
+      "Leader @144": att.leader144 || "",
+      "Phone": att.phone || "",
+      "Checked In Time": att.time || "",
+      "Decision": att.decision || "",
+      "Price Tier": att.priceTier || att.price_tier || "",
+      "Payment Method": att.paymentMethod || "",
+      "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
+      "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
+      "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
+    }));
+  };
+
+  const fetchEventFull = async (event) => {
+    try {
+      let eventId = event._id || event.id;
+      if (!eventId) return event;
+      if (eventId.includes("_")) eventId = eventId.split("_")[0];
+      const token = localStorage.getItem("access_token");
+      const res = await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res && res.ok) {
+        const data = await res.json();
+        return data || event;
+      }
+      return event;
+    } catch (err) {
+      console.error("Failed to fetch full event:", err);
+      return event;
+    }
+  };
+
+  const downloadEventAttendance = async (event) => {
+    try {
+      const fullEvent = await fetchEventFull(event);
+      const rows = normalizeEventAttendance(fullEvent);
+      if (!rows || rows.length === 0) {
+        toast.info("No attendees found for this event.");
+        return;
+      }
+      buildXlsFromRows(rows, `attendance_${(fullEvent.eventName || "event").replace(/\s/g,"_")}`);
+    } catch (err) {
+      console.error("Download event attendance failed:", err);
+      toast.error("Failed to download event attendance");
+    }
+  };
+
+  const downloadEventsByStatus = async (status) => {
+    try {
+      if (!status || (status !== "complete" && status !== "did_not_meet")) {
+        toast.info("Download is available only for 'complete' and 'did_not_meet' statuses.");
+        return;
+      }
+
+      // Gather rows for each event matching selected status from current list
+      const eventsToExport = events.filter((ev) => {
+        const s = (ev.status || ev.Status || "").toString().toLowerCase().replace(/\s/g, "_");
+        const didNot = ev.did_not_meet || ev.status === "did_not_meet" || s === "did_not_meet";
+        if (status === "did_not_meet") return didNot;
+        return s === "complete";
+      });
+
+      if (!eventsToExport.length) {
+        toast.info("No events with the selected status to export.");
+        return;
+      }
+
+      // fetch full events in parallel (to ensure attendance present)
+      const fullEvents = await Promise.all(eventsToExport.map((ev) => fetchEventFull(ev)));
+      const allRows = fullEvents.flatMap((ev) => normalizeEventAttendance(ev));
+
+      if (!allRows.length) {
+        toast.info("No attendees found for selected events.");
+        return;
+      }
+
+      buildXlsFromRows(allRows, `events_${status}`);
+    } catch (err) {
+      console.error("Download events by status failed:", err);
+      toast.error("Failed to download events for selected status");
+    }
+  };
 
   const paginatedEvents = useMemo(() => events, [events]);
   const startIndex = useMemo(() => {
@@ -3195,11 +3386,28 @@ const ViewFilterButtons = () => {
             px: 1,
           }}
         >
-          <StatusBadges
-            selectedStatus={selectedStatus}
-            setSelectedStatus={setSelectedStatus}
-            setCurrentPage={setCurrentPage}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <StatusBadges
+              selectedStatus={selectedStatus}
+              setSelectedStatus={setSelectedStatus}
+              setCurrentPage={setCurrentPage}
+            />
+            {/* Main bulk download: visible only for complete / did_not_meet */}
+            {(selectedStatus === "complete" || selectedStatus === "did_not_meet") && (
+              <Button
+                variant="outlined"
+                startIcon={<GetAppIcon />}
+                onClick={() => downloadEventsByStatus(selectedStatus)}
+                disabled={isLoading || events.length === 0}
+                sx={{
+                  minWidth: 160,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                DOWNLOAD {selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} ATTENDANCE
+              </Button>
+            )}
+          </div>
           <ViewFilterButtons />
         </Box>
       </Box>

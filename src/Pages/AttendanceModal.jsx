@@ -1,4 +1,4 @@
-import { useState, useEffect,  useContext, useMemo} from "react";
+import { useState, useEffect, useContext, useMemo } from "react";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -13,7 +13,7 @@ import { AuthContext } from "../contexts/AuthContext";
 
 const AddPersonToEvents = ({ isOpen, onClose }) => {
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isDarkMode = theme.palette.mode === "dark";
   console.log("AddPersonToEvents - isDarkMode:", isDarkMode);
   const { authFetch } = useContext(AuthContext);
 
@@ -27,7 +27,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     dob: "",
     address: "",
   });
-  
+
   const [peopleList, setPeopleList] = useState([]);
   const [isLoadingPeople, setIsLoadingPeople] = useState(false);
   const [inviterSearchInput, setInviterSearchInput] = useState("");
@@ -38,7 +38,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
   const [autoFilledLeaders, setAutoFilledLeaders] = useState({
     leader1: "",
     leader12: "",
-    leader144: ""
+    leader144: "",
   });
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
@@ -55,7 +55,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     setIsLoadingPeople(true);
     try {
       const response = await authFetch(`${BACKEND_URL}/cache/people`);
-      
+
       if (response.ok) {
         const data = await response.json();
         const cachedData = data.cached_data || [];
@@ -74,7 +74,9 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const fetchPeopleFallback = async () => {
     try {
-      const response = await authFetch(`${BACKEND_URL}/people/simple?per_page=1000`);
+      const response = await authFetch(
+        `${BACKEND_URL}/people/simple?per_page=1000`,
+      );
       if (response.ok) {
         const data = await response.json();
         const peopleData = data.results || [];
@@ -89,7 +91,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   // Create people options
   const peopleOptions = useMemo(() => {
-    return peopleList.map(person => {
+    return peopleList.map((person) => {
       const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
       return {
         id: person._id,
@@ -100,7 +102,8 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
         leader12: person["Leader @12"] || "",
         leader144: person["Leader @144"] || "",
         leader1728: person["Leader @1728"] || "",
-        searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase()
+        searchText:
+          `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase(),
       };
     });
   }, [peopleList]);
@@ -110,14 +113,15 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     if (!inputValue) {
       return peopleOptions.slice(0, 30);
     }
-    
+
     const searchTerm = inputValue.toLowerCase();
     return peopleOptions
-      .filter(option => 
-        option.searchText.includes(searchTerm) ||
-        option.fullName.toLowerCase().includes(searchTerm) ||
-        option.email.toLowerCase().includes(searchTerm) ||
-        (option.phone && option.phone.includes(searchTerm))
+      .filter(
+        (option) =>
+          option.searchText.includes(searchTerm) ||
+          option.fullName.toLowerCase().includes(searchTerm) ||
+          option.email.toLowerCase().includes(searchTerm) ||
+          (option.phone && option.phone.includes(searchTerm)),
       )
       .slice(0, 50);
   };
@@ -128,11 +132,11 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const handleInviterSelect = (person) => {
     console.log("Selected inviter:", person.fullName);
-    
-    setFormData(prev => ({ ...prev, invitedBy: person.fullName }));
+
+    setFormData((prev) => ({ ...prev, invitedBy: person.fullName }));
     setInviterSearchInput(person.fullName);
     setShowInviterDropdown(false);
-    setTouched(prev => ({ ...prev, invitedBy: true }));
+    setTouched((prev) => ({ ...prev, invitedBy: true }));
 
     const normalizedFull = (person.fullName || "").trim().toLowerCase();
     const leader1Raw = (person.leader1 || "").trim().toLowerCase();
@@ -150,14 +154,17 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
     let leadersToFill;
     const isLeader144 = leader12Raw && !leader144Raw && !leader1728Raw;
-    const isLeader12 = leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
-    const isLeader1 = (leader1Raw === normalizedFull) || (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
+    const isLeader12 =
+      leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
+    const isLeader1 =
+      leader1Raw === normalizedFull ||
+      (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
 
     console.log("Leadership detection:", {
       isLeader144,
       isLeader12,
       isLeader1,
-      isSelfL1: leader1Raw === normalizedFull
+      isSelfL1: leader1Raw === normalizedFull,
     });
 
     if (isLeader144) {
@@ -167,24 +174,21 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
         leader144: person.fullName || "",
       };
       console.log("DETECTED: Leader @144");
-    }
-    else if (isLeader12) {
+    } else if (isLeader12) {
       leadersToFill = {
         leader1: person.leader1 || "",
         leader12: person.fullName || "",
         leader144: "",
       };
       console.log("DETECTED: Leader @12");
-    }
-    else if (isLeader1) {
+    } else if (isLeader1) {
       leadersToFill = {
         leader1: person.fullName || "",
         leader12: "",
         leader144: "",
       };
       console.log("DETECTED: Leader @1");
-    }
-    else {
+    } else {
       leadersToFill = {
         leader1: person.leader1 || "",
         leader12: person.leader12 || "",
@@ -200,65 +204,65 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
   const handleInviterInputChange = (value) => {
     setInviterSearchInput(value);
     setShowInviterDropdown(true);
-    setTouched(prev => ({ ...prev, invitedBy: true }));
-    
+    setTouched((prev) => ({ ...prev, invitedBy: true }));
+
     if (value.trim() === "") {
-      setFormData(prev => ({ ...prev, invitedBy: "" }));
+      setFormData((prev) => ({ ...prev, invitedBy: "" }));
       setAutoFilledLeaders({
         leader1: "",
         leader12: "",
-        leader144: ""
+        leader144: "",
       });
     }
   };
 
-const handleSubmit = async (finalLeaderInfo) => {
-  try {
-    const payload = {
-      invitedBy: formData.invitedBy,
-      name: formData.name,
-      surname: formData.surname,
-      gender: formData.gender,
-      email: formData.email,
-      number: formData.mobile,
-      dob: formData.dob,
-      address: formData.address,
-      leaders: [
-        finalLeaderInfo.leader1 || "",
-        finalLeaderInfo.leader12 || "",
-        finalLeaderInfo.leader144 || "",
-        finalLeaderInfo.leader1728 || ""
-      ].filter(leader => leader.trim() !== ""),
-      stage: "Win",
-    };
+  const handleSubmit = async (finalLeaderInfo) => {
+    try {
+      const payload = {
+        invitedBy: formData.invitedBy,
+        name: formData.name,
+        surname: formData.surname,
+        gender: formData.gender,
+        email: formData.email,
+        number: formData.mobile,
+        dob: formData.dob,
+        address: formData.address,
+        leaders: [
+          finalLeaderInfo.leader1 || "",
+          finalLeaderInfo.leader12 || "",
+          finalLeaderInfo.leader144 || "",
+          finalLeaderInfo.leader1728 || "",
+        ].filter((leader) => leader.trim() !== ""),
+        stage: "Win",
+      };
 
-    console.log("Submitting new person:", payload);
-        const response = await authFetch(`${BACKEND_URL}/people`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
+      console.log("Submitting new person:", payload);
+      const response = await authFetch(`${BACKEND_URL}/people`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Failed to create person');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to create person");
+      }
+
+      const result = await response.json();
+      console.log("Person created:", result);
+      toast.success("Person created successfully!");
+      await authFetch(`${BACKEND_URL}/cache/refresh`, { method: "POST" });
+      handleClose();
+    } catch (error) {
+      console.error("Error creating person:", error);
+      toast.error(`Error: ${error.message}`);
     }
-
-    const result = await response.json();
-    console.log("Person created:", result);
-    toast.success("Person created successfully!");
-    await authFetch(`${BACKEND_URL}/cache/refresh`, { method: 'POST' });
-     handleClose();
-    
-  } catch (error) {
-    console.error("Error creating person:", error);
-    toast.error(`Error: ${error.message}`);
-  }
-};
+  };
   const isFieldEmpty = (fieldName) => {
-    const value = fieldName === 'invitedBy' ? inviterSearchInput : formData[fieldName];
+    const value =
+      fieldName === "invitedBy" ? inviterSearchInput : formData[fieldName];
     return !value || value.trim() === "";
   };
 
@@ -275,15 +279,17 @@ const handleSubmit = async (finalLeaderInfo) => {
       mobile: formData.mobile?.trim(),
       dob: formData.dob?.trim(),
       address: formData.address?.trim(),
-      invitedBy: formData.invitedBy?.trim() 
+      invitedBy: formData.invitedBy?.trim(),
     };
-    
+
     const missingFields = Object.entries(requiredFields)
       .filter(([key, value]) => !value)
       .map(([key]) => key);
 
     if (missingFields.length > 0) {
-      toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      toast.error(
+        `Please fill in all required fields: ${missingFields.join(", ")}`,
+      );
       return false;
     }
 
@@ -314,7 +320,7 @@ const handleSubmit = async (finalLeaderInfo) => {
       address: "",
     });
     setInviterSearchInput("");
-    setPeopleList([]); 
+    setPeopleList([]);
     setShowInviterDropdown(false);
     setShowLeaderModal(false);
     setAttemptedSubmit(false);
@@ -322,7 +328,7 @@ const handleSubmit = async (finalLeaderInfo) => {
     setAutoFilledLeaders({
       leader1: "",
       leader12: "",
-      leader144: ""
+      leader144: "",
     });
     onClose();
   };
@@ -497,23 +503,41 @@ const handleSubmit = async (finalLeaderInfo) => {
         <div style={styles.modal}>
           <h2 style={styles.title}>Create New Person</h2>
           <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '20px',
-              marginBottom: '20px',
-              borderBottom: `1px solid ${theme.palette.divider}`,
-              paddingBottom: '10px'
-            }}>
-              <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>NEW PERSON INFO</div>
-              <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>LEADER INFO</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "20px",
+                marginBottom: "20px",
+                borderBottom: `1px solid ${theme.palette.divider}`,
+                paddingBottom: "10px",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "600",
+                  color: theme.palette.text.secondary,
+                }}
+              >
+                NEW PERSON INFO
+              </div>
+              <div
+                style={{
+                  fontWeight: "600",
+                  color: theme.palette.text.secondary,
+                }}
+              >
+                LEADER INFO
+              </div>
             </div>
 
             {/* Invited By Field - FIXED to match AddPersonDialog */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Invited By
-                {showError('invitedBy') && <span style={styles.required}>Required</span>}
+                {showError("invitedBy") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="text"
@@ -526,14 +550,20 @@ const handleSubmit = async (finalLeaderInfo) => {
                   setTimeout(() => {
                     setShowInviterDropdown(false);
                   }, 200);
-                  setTouched(prev => ({ ...prev, invitedBy: true }));
+                  setTouched((prev) => ({ ...prev, invitedBy: true }));
                 }}
-                style={showError('invitedBy') ? styles.inputError : styles.input}
-                placeholder={isLoadingPeople ? "Loading people..." : "Type to search all people..."}
+                style={
+                  showError("invitedBy") ? styles.inputError : styles.input
+                }
+                placeholder={
+                  isLoadingPeople
+                    ? "Loading people..."
+                    : "Type to search all people..."
+                }
                 autoComplete="off"
                 disabled={isLoadingPeople}
               />
-              
+
               {showInviterDropdown && (
                 <div style={styles.dropdown}>
                   {isLoadingPeople ? (
@@ -544,13 +574,24 @@ const handleSubmit = async (finalLeaderInfo) => {
                         key={person.id}
                         style={styles.dropdownItem}
                         onClick={() => handleInviterSelect(person)}
-                        onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
-                        onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
+                        onMouseEnter={(e) =>
+                          (e.target.style.background =
+                            theme.palette.action.hover)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.target.style.background =
+                            theme.palette.background.paper)
+                        }
                       >
                         <div style={{ fontWeight: "500", marginBottom: "4px" }}>
                           {person.fullName}
                         </div>
-                        <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: theme.palette.text.secondary,
+                          }}
+                        >
                           {person.email || person.phone || "No contact info"}
                           {person.leader1 && (
                             <div style={{ marginTop: "2px", fontSize: "11px" }}>
@@ -562,8 +603,8 @@ const handleSubmit = async (finalLeaderInfo) => {
                     ))
                   ) : inviterSearchInput.trim() === "" ? (
                     <div style={styles.dropdownEmpty}>
-                      {peopleOptions.length > 0 
-                        ? "Start typing to search people..." 
+                      {peopleOptions.length > 0
+                        ? "Start typing to search people..."
                         : "No people data available"}
                     </div>
                   ) : (
@@ -573,9 +614,15 @@ const handleSubmit = async (finalLeaderInfo) => {
                   )}
                 </div>
               )}
-              
+
               {isLoadingPeople && (
-                <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: theme.palette.text.secondary,
+                    marginTop: "4px",
+                  }}
+                >
                   Loading people data...
                 </div>
               )}
@@ -585,28 +632,38 @@ const handleSubmit = async (finalLeaderInfo) => {
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Name
-                {showError('name') && <span style={styles.required}>Required</span>}
+                {showError("name") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, name: true }))}
-                style={showError('name') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                onBlur={() => setTouched((prev) => ({ ...prev, name: true }))}
+                style={showError("name") ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Surname
-                {showError('surname') && <span style={styles.required}>Required</span>}
+                {showError("surname") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="text"
                 value={formData.surname}
-                onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, surname: true }))}
-                style={showError('surname') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, surname: e.target.value })
+                }
+                onBlur={() =>
+                  setTouched((prev) => ({ ...prev, surname: true }))
+                }
+                style={showError("surname") ? styles.inputError : styles.input}
               />
             </div>
 
@@ -619,7 +676,9 @@ const handleSubmit = async (finalLeaderInfo) => {
                     name="gender"
                     value="Male"
                     checked={formData.gender === "Male"}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, gender: e.target.value })
+                    }
                   />
                   Male
                 </label>
@@ -629,7 +688,9 @@ const handleSubmit = async (finalLeaderInfo) => {
                     name="gender"
                     value="Female"
                     checked={formData.gender === "Female"}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, gender: e.target.value })
+                    }
                   />
                   Female
                 </label>
@@ -639,57 +700,75 @@ const handleSubmit = async (finalLeaderInfo) => {
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Email Address
-                {showError('email') && <span style={styles.required}>Required</span>}
+                {showError("email") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, email: true }))}
-                style={showError('email') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
+                style={showError("email") ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Mobile Number
-                {showError('mobile') && <span style={styles.required}>Required</span>}
+                {showError("mobile") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="tel"
                 value={formData.mobile}
                 maxLength={10}
-                onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, mobile: true }))}
-                style={showError('mobile') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, mobile: e.target.value })
+                }
+                onBlur={() => setTouched((prev) => ({ ...prev, mobile: true }))}
+                style={showError("mobile") ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Date Of Birth
-                {showError('dob') && <span style={styles.required}>Required</span>}
+                {showError("dob") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="date"
                 value={formData.dob}
-                onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, dob: true }))}
-                style={showError('dob') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, dob: e.target.value })
+                }
+                onBlur={() => setTouched((prev) => ({ ...prev, dob: true }))}
+                style={showError("dob") ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Home Address
-                {showError('address') && <span style={styles.required}>Required</span>}
+                {showError("address") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="text"
                 value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, address: true }))}
-                style={showError('address') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, address: e.target.value })
+                }
+                onBlur={() =>
+                  setTouched((prev) => ({ ...prev, address: true }))
+                }
+                style={showError("address") ? styles.inputError : styles.input}
               />
             </div>
 
@@ -699,8 +778,12 @@ const handleSubmit = async (finalLeaderInfo) => {
                 style={styles.closeBtn}
                 onClick={handleClose}
                 disabled={isLoadingPeople}
-                onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
-                onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
+                onMouseEnter={(e) =>
+                  (e.target.style.background = theme.palette.action.hover)
+                }
+                onMouseLeave={(e) =>
+                  (e.target.style.background = theme.palette.background.paper)
+                }
               >
                 CANCEL
               </button>
@@ -709,8 +792,12 @@ const handleSubmit = async (finalLeaderInfo) => {
                 style={styles.nextBtn}
                 onClick={handleNext}
                 disabled={isLoadingPeople}
-                onMouseEnter={(e) => e.target.style.background = theme.palette.primary.dark}
-                onMouseLeave={(e) => e.target.style.background = theme.palette.primary.main}
+                onMouseEnter={(e) =>
+                  (e.target.style.background = theme.palette.primary.dark)
+                }
+                onMouseLeave={(e) =>
+                  (e.target.style.background = theme.palette.primary.main)
+                }
               >
                 NEXT
               </button>
@@ -727,7 +814,7 @@ const handleSubmit = async (finalLeaderInfo) => {
           onBack={() => setShowLeaderModal(false)}
           onSubmit={handleSubmit}
           personData={formData}
-          preloadedPeople={peopleOptions} 
+          preloadedPeople={peopleOptions}
           autoFilledLeaders={autoFilledLeaders}
         />
       )}
@@ -735,33 +822,39 @@ const handleSubmit = async (finalLeaderInfo) => {
   );
 };
 
-const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
+const LeaderSelectionModal = ({
+  isOpen,
+  onBack,
+  onSubmit,
+  preloadedPeople = [],
+  autoFilledLeaders,
+}) => {
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
-    const { authFetch } = useContext(AuthContext);
+  const isDarkMode = theme.palette.mode === "dark";
+  const { authFetch } = useContext(AuthContext);
 
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
-    leader144: ""
+    leader144: "",
   });
 
   const [leaderSearches, setLeaderSearches] = useState({
     leader1: "",
     leader12: "",
-    leader144: ""
+    leader144: "",
   });
 
   const [leaderResults, setLeaderResults] = useState({
     leader1: [],
     leader12: [],
-    leader144: []
+    leader144: [],
   });
 
   const [, setShowDropdowns] = useState({
     leader1: false,
     leader12: false,
-    leader144: false
+    leader144: false,
   });
 
   const [, setLoadingLeaders] = useState(false);
@@ -773,7 +866,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       const filledLeaders = {
         leader1: autoFilledLeaders.leader1 || "",
         leader12: autoFilledLeaders.leader12 || "",
-        leader144: autoFilledLeaders.leader144 || ""
+        leader144: autoFilledLeaders.leader144 || "",
       };
 
       setLeaderData(filledLeaders);
@@ -792,7 +885,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       const filteredFromCache = preloadedPeople.filter(
         (person) =>
           person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          person.email.toLowerCase().includes(searchTerm.toLowerCase())
+          person.email.toLowerCase().includes(searchTerm.toLowerCase()),
       );
 
       if (filteredFromCache.length > 0) {
@@ -808,19 +901,48 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
         params.append("name", searchTerm);
         params.append("perPage", "15");
 
-        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const res = await authFetch(
+          `${BACKEND_URL}/people?${params.toString()}`,
+          { headers },
+        );
         const data = await res.json();
         const peopleArray = data.people || data.results || [];
 
         const formatted = peopleArray.map((p) => {
-          const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
-          const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
-          const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-          const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+          const leader1 =
+            p["Leader @1"] ||
+            p["Leader at 1"] ||
+            p["Leader @ 1"] ||
+            p.leader1 ||
+            (p.leaders && p.leaders[0]) ||
+            "";
+          const leader12 =
+            p["Leader @12"] ||
+            p["Leader at 12"] ||
+            p["Leader @ 12"] ||
+            p.leader12 ||
+            (p.leaders && p.leaders[1]) ||
+            "";
+          const leader144 =
+            p["Leader @144"] ||
+            p["Leader at 144"] ||
+            p["Leader @ 144"] ||
+            p.leader144 ||
+            (p.leaders && p.leaders[2]) ||
+            "";
+          const leader1728 =
+            p["Leader @1728"] ||
+            p["Leader @ 1728"] ||
+            p["Leader at 1728"] ||
+            p["Leader @ 1728"] ||
+            p.leader1728 ||
+            (p.leaders && p.leaders[3]) ||
+            "";
 
           return {
             id: p._id,
-            fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+            fullName:
+              `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
             email: p.Email || p.email || "",
             leader1: leader1,
             leader12: leader12,
@@ -829,7 +951,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
           };
         });
 
-        setLeaderResults(prev => ({ ...prev, [leaderField]: formatted }));
+        setLeaderResults((prev) => ({ ...prev, [leaderField]: formatted }));
       }
     } catch (err) {
       console.error(`Error fetching leaders for ${leaderField}:`, err);
@@ -841,14 +963,14 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   useEffect(() => {
     const delays = {};
 
-    ['leader1', 'leader12', 'leader144'].forEach(field => {
+    ["leader1", "leader12", "leader144"].forEach((field) => {
       const searchTerm = leaderSearches[field];
       if (searchTerm.length >= 1) {
         delays[field] = setTimeout(() => {
           fetchLeaders(searchTerm, field);
         }, 150);
       } else {
-        setLeaderResults(prev => ({ ...prev, [field]: [] }));
+        setLeaderResults((prev) => ({ ...prev, [field]: [] }));
       }
     });
 
@@ -858,20 +980,20 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   }, [leaderSearches, preloadedPeople]);
 
   const handleLeaderSelect = (person, field) => {
-    setLeaderData(prev => ({ ...prev, [field]: person.fullName }));
-    setLeaderSearches(prev => ({ ...prev, [field]: person.fullName }));
-    setShowDropdowns(prev => ({ ...prev, [field]: false }));
+    setLeaderData((prev) => ({ ...prev, [field]: person.fullName }));
+    setLeaderSearches((prev) => ({ ...prev, [field]: person.fullName }));
+    setShowDropdowns((prev) => ({ ...prev, [field]: false }));
   };
 
   const handleSearchChange = (e, field) => {
     const value = e.target.value;
-    setLeaderSearches(prev => ({ ...prev, [field]: value }));
-    setShowDropdowns(prev => ({ ...prev, [field]: true }));
+    setLeaderSearches((prev) => ({ ...prev, [field]: value }));
+    setShowDropdowns((prev) => ({ ...prev, [field]: true }));
   };
 
   const handleClearField = (field) => {
-    setLeaderData(prev => ({ ...prev, [field]: "" }));
-    setLeaderSearches(prev => ({ ...prev, [field]: "" }));
+    setLeaderData((prev) => ({ ...prev, [field]: "" }));
+    setLeaderSearches((prev) => ({ ...prev, [field]: "" }));
   };
 
   const handleSubmitLeaders = () => {
@@ -879,7 +1001,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       leader1: leaderData.leader1 || "",
       leader12: leaderData.leader12 || "",
       leader144: leaderData.leader144 || "",
-      leader1728: ""
+      leader1728: "",
     };
     onSubmit(finalLeaderInfo);
   };
@@ -887,7 +1009,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   const leaderLabels = {
     leader1: "Leader @1",
     leader12: "Leader @12",
-    leader144: "Leader @144"
+    leader144: "Leader @144",
   };
 
   const styles = {
@@ -1015,10 +1137,10 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       fontSize: "14px",
       fontWeight: "500",
       flex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "6px",
     },
     submitBtn: {
       backgroundColor: theme.palette.primary.main,
@@ -1030,7 +1152,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       fontSize: "14px",
       fontWeight: "500",
       flex: 1,
-    }
+    },
   };
 
   if (!isOpen) return null;
@@ -1041,30 +1163,34 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
         <h2 style={styles.title}>Set Leadership</h2>
 
         <div style={styles.leaderGroup}>
-          {['leader1', 'leader12', 'leader144'].map((field) => (
+          {["leader1", "leader12", "leader144"].map((field) => (
             <div key={field} style={styles.inputGroup}>
               <label style={styles.label}>{leaderLabels[field]}</label>
 
               <div style={styles.inputContainer}>
                 <input
                   value={leaderSearches[field]}
-                  onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
+                  onBlur={() =>
+                    setTimeout(
+                      () =>
+                        setShowDropdowns((prev) => ({
+                          ...prev,
+                          [field]: false,
+                        })),
+                      200,
+                    )
+                  }
                   style={styles.input}
                   placeholder={`Type to search...`}
                   autoComplete="off"
                 />
-
               </div>
             </div>
           ))}
         </div>
 
         <div style={styles.buttonGroup}>
-          <button
-            type="button"
-            style={styles.backBtn}
-            onClick={onBack}
-          >
+          <button type="button" style={styles.backBtn} onClick={onBack}>
             <ArrowLeft size={16} />
             Back
           </button>
@@ -1090,7 +1216,14 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   );
 };
 
-const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
+const AttendanceModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  event,
+  onAttendanceSubmitted,
+  currentUser,
+}) => {
   const { authFetch } = useContext(AuthContext);
   const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
@@ -1106,7 +1239,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [people, setPeople] = useState([]);
   const [, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
-  const [loading,] = useState(false);
+  const [loading] = useState(false);
 
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
@@ -1114,7 +1247,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
-  const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
+  const [persistentCommonAttendees, setPersistentCommonAttendees] = useState(
+    [],
+  );
   const [preloadedPeople, setPreloadedPeople] = useState([]);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
@@ -1128,393 +1263,424 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     { value: "first-time", label: "First-time commitment" },
     { value: "re-commitment", label: "Re-commitment" },
   ];
-const [eventStatistics, setEventStatistics] = useState({
-  totalAssociated: 0,
-  lastAttendanceCount: 0,
-  lastHeadcount: 0,
-  lastDecisionsCount: 0,
-  lastAttendanceBreakdown: {
-    first_time: 0,
-    recommitment: 0
-  }
-});
+  const [eventStatistics, setEventStatistics] = useState({
+    totalAssociated: 0,
+    lastAttendanceCount: 0,
+    lastHeadcount: 0,
+    lastDecisionsCount: 0,
+    lastAttendanceBreakdown: {
+      first_time: 0,
+      recommitment: 0,
+    },
+  });
 
-  const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
+  const availablePaymentMethods = [
+    ...new Set(eventPriceTiers.map((t) => t.paymentMethod)),
+  ];
 
- const findLeaderEmail = async (leaderName) => {
+  const findLeaderEmail = async (leaderName) => {
     if (!leaderName) return "";
-    
+
     try {
-      const response = await authFetch(`${BACKEND_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`);
-      
+      const response = await authFetch(
+        `${BACKEND_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`,
+      );
+
       if (response.ok) {
         const data = await response.json();
         if (data?.results?.length > 0) {
-          const foundLeader = data.results.find(person => 
-            person.Name?.toLowerCase() === leaderName.toLowerCase() ||
-            person.FullName?.toLowerCase() === leaderName.toLowerCase()
+          const foundLeader = data.results.find(
+            (person) =>
+              person.Name?.toLowerCase() === leaderName.toLowerCase() ||
+              person.FullName?.toLowerCase() === leaderName.toLowerCase(),
           );
-          
+
           if (foundLeader?.Email) {
             return foundLeader.Email;
           }
         }
       }
-      
+
       return "";
-      
     } catch (error) {
       console.error("Error searching for leader email:", error);
       return "";
     }
   };
 
-const createConsolidationTasks = async (attendees, eventId) => {
-  if (!attendees || attendees.length === 0) return;
+  const createConsolidationTasks = async (attendees, eventId) => {
+    if (!attendees || attendees.length === 0) return;
 
-  console.log("Creating consolidation tasks for", attendees.length, "attendees");
+    console.log(
+      "Creating consolidation tasks for",
+      attendees.length,
+      "attendees",
+    );
 
-  for (const attendee of attendees) {
-    const hasDecision = attendee.decision && attendee.decision.length > 0;
-    
-    if (!hasDecision) {
-      console.log(`Skipping ${attendee.fullName} - no decision made`);
-      continue;
+    for (const attendee of attendees) {
+      const hasDecision = attendee.decision && attendee.decision.length > 0;
+
+      if (!hasDecision) {
+        console.log(`Skipping ${attendee.fullName} - no decision made`);
+        continue;
+      }
+
+      try {
+        // Better name parsing - handle various formats
+        let firstName = "";
+        let lastName = "";
+
+        if (attendee.name && attendee.surname) {
+          // If we already have separate fields
+          firstName = attendee.name;
+          lastName = attendee.surname;
+        } else if (attendee.fullName) {
+          // Parse fullName more reliably
+          const nameParts = attendee.fullName.trim().split(/\s+/);
+          firstName = nameParts[0] || "";
+          lastName = nameParts.slice(1).join(" ") || "";
+        }
+
+        console.log(`Processing: ${firstName} ${lastName}`, {
+          fullName: attendee.fullName,
+          firstName,
+          lastName,
+          decision: attendee.decision,
+        });
+
+        // Determine assigned leader with fallback hierarchy
+        let assignedLeader = "";
+
+        if (attendee.leader144 && attendee.leader144.trim()) {
+          assignedLeader = attendee.leader144.trim();
+          console.log(`Using Leader @144: ${assignedLeader}`);
+        } else if (attendee.leader12 && attendee.leader12.trim()) {
+          assignedLeader = attendee.leader12.trim();
+          console.log(`Using Leader @12: ${assignedLeader}`);
+        } else if (attendee.leader1 && attendee.leader1.trim()) {
+          assignedLeader = attendee.leader1.trim();
+          console.log(`Using Leader @1: ${assignedLeader}`);
+        } else if (currentUser) {
+          assignedLeader =
+            `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
+          console.log(`Using current user as leader: ${assignedLeader}`);
+        }
+
+        if (!assignedLeader) {
+          console.warn(
+            `Could not determine leader for ${firstName} ${lastName}`,
+          );
+          continue;
+        }
+
+        // Get leader email
+        const leaderEmail = await findLeaderEmail(assignedLeader);
+        console.log(`Leader email: ${leaderEmail || "not found"}`);
+
+        // Parse decision type
+        const decisionType =
+          attendee.decision.toLowerCase().includes("re-commitment") ||
+          attendee.decision.toLowerCase().includes("recommitment")
+            ? "recommitment"
+            : "first_time";
+
+        console.log(`Decision type: ${decisionType}`);
+
+        const consolidationPayload = {
+          person_name: firstName,
+          person_surname: lastName,
+          person_email: attendee.email || "",
+          person_phone: attendee.phone || "",
+          decision_type: decisionType,
+          decision_date: new Date().toISOString().split("T")[0],
+          assigned_to: assignedLeader,
+          assigned_to_email: leaderEmail,
+          leaders: [
+            attendee.leader1 || "",
+            attendee.leader12 || "",
+            attendee.leader144 || "",
+            "",
+          ],
+          event_id: eventId,
+          is_check_in: true,
+          attendance_status: "checked_in",
+          source: "event_consolidation",
+        };
+
+        console.log(`Sending consolidation payload:`, consolidationPayload);
+
+        const response = await authFetch(`${BACKEND_URL}/consolidations`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(consolidationPayload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error(
+            `Failed to create consolidation task for ${firstName} ${lastName}:`,
+            errorData,
+          );
+          continue;
+        }
+
+        const result = await response.json();
+        console.log(
+          `Consolidation task created successfully for ${firstName} ${lastName}:`,
+          result,
+        );
+      } catch (error) {
+        console.error(
+          `Error creating consolidation task for ${attendee.fullName}:`,
+          error,
+        );
+      }
     }
+
+    console.log("Finished creating consolidation tasks");
+  };
+
+  const loadEventStatistics = async () => {
+    if (!event) return;
 
     try {
-      // Better name parsing - handle various formats
-      let firstName = "";
-      let lastName = "";
-      
-      if (attendee.name && attendee.surname) {
-        // If we already have separate fields
-        firstName = attendee.name;
-        lastName = attendee.surname;
-      } else if (attendee.fullName) {
-        // Parse fullName more reliably
-        const nameParts = attendee.fullName.trim().split(/\s+/);
-        firstName = nameParts[0] || "";
-        lastName = nameParts.slice(1).join(" ") || "";
-      }
-      
-      console.log(`Processing: ${firstName} ${lastName}`, {
-        fullName: attendee.fullName,
-        firstName,
-        lastName,
-        decision: attendee.decision
-      });
-
-      // Determine assigned leader with fallback hierarchy
-      let assignedLeader = "";
-      
-      if (attendee.leader144 && attendee.leader144.trim()) {
-        assignedLeader = attendee.leader144.trim();
-        console.log(`Using Leader @144: ${assignedLeader}`);
-      } else if (attendee.leader12 && attendee.leader12.trim()) {
-        assignedLeader = attendee.leader12.trim();
-        console.log(`Using Leader @12: ${assignedLeader}`);
-      } else if (attendee.leader1 && attendee.leader1.trim()) {
-        assignedLeader = attendee.leader1.trim();
-        console.log(`Using Leader @1: ${assignedLeader}`);
-      } else if (currentUser) {
-        assignedLeader = `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
-        console.log(`Using current user as leader: ${assignedLeader}`);
-      }
-      
-      if (!assignedLeader) {
-        console.warn(`Could not determine leader for ${firstName} ${lastName}`);
-        continue;
+      let eventId = event._id || event.id;
+      if (eventId && eventId.includes("_")) {
+        eventId = eventId.split("_")[0];
       }
 
-      // Get leader email
-      const leaderEmail = await findLeaderEmail(assignedLeader);
-      console.log(`Leader email: ${leaderEmail || "not found"}`);
+      const eventDate = event.date;
+      const attendanceData = event.attendance || {};
 
-      // Parse decision type
-      const decisionType = attendee.decision.toLowerCase().includes('re-commitment') || 
-                          attendee.decision.toLowerCase().includes('recommitment')
-        ? 'recommitment' 
-        : 'first_time';
-      
-      console.log(`Decision type: ${decisionType}`);
-
-      const consolidationPayload = {
-        person_name: firstName,
-        person_surname: lastName,
-        person_email: attendee.email || "",
-        person_phone: attendee.phone || "",
-        decision_type: decisionType,
-        decision_date: new Date().toISOString().split("T")[0],
-        assigned_to: assignedLeader,
-        assigned_to_email: leaderEmail,
-        leaders: [
-          attendee.leader1 || "",
-          attendee.leader12 || "",
-          attendee.leader144 || "",
-          ""
-        ],
-        event_id: eventId,
-        is_check_in: true,
-        attendance_status: "checked_in",
-        source: "event_consolidation"
-      };
-
-      console.log(`Sending consolidation payload:`, consolidationPayload);
-
-      const response = await authFetch(`${BACKEND_URL}/consolidations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(consolidationPayload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error(`Failed to create consolidation task for ${firstName} ${lastName}:`, errorData);
-        continue;
+      let weekAttendance = attendanceData;
+      if (
+        attendanceData &&
+        typeof attendanceData === "object" &&
+        !attendanceData.status
+      ) {
+        weekAttendance = attendanceData[eventDate] || {};
       }
 
-      const result = await response.json();
-      console.log(`Consolidation task created successfully for ${firstName} ${lastName}:`, result);
-      
-    } catch (error) {
-      console.error(`Error creating consolidation task for ${attendee.fullName}:`, error);
-    }
-  }
-  
-  console.log("Finished creating consolidation tasks");
-};
+      if (weekAttendance && weekAttendance.status) {
+        const stats = weekAttendance.statistics || {};
+        const attendees = weekAttendance.attendees || [];
 
+        let firstTimeCount = 0;
+        let recommitmentCount = 0;
 
-const loadEventStatistics = async () => {
-  if (!event) return;
-  
-  try {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
-
-    const eventDate = event.date;
-    const attendanceData = event.attendance || {};
-    
-    let weekAttendance = attendanceData;
-    if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
-      weekAttendance = attendanceData[eventDate] || {};
-    }
-    
-    if (weekAttendance && weekAttendance.status) {
-      const stats = weekAttendance.statistics || {};
-      const attendees = weekAttendance.attendees || [];
-      
-      let firstTimeCount = 0;
-      let recommitmentCount = 0;
-      
-      attendees.forEach(att => {
-        const decision = (att.decision || "").toLowerCase();
-        if (decision.includes("first")) {
-          firstTimeCount++;
-        } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
-          recommitmentCount++;
-        }
-      });
-      
-      setEventStatistics({
-        totalAssociated: weekAttendance.persistent_attendees?.length || 0,
-        lastAttendanceCount: weekAttendance.checked_in_count || attendees.length,
-        lastHeadcount: weekAttendance.total_headcounts || 0,
-        lastDecisionsCount: firstTimeCount + recommitmentCount,
-        lastAttendanceBreakdown: {
-          first_time: firstTimeCount,
-          recommitment: recommitmentCount
-        }
-      });
-      
-      if (weekAttendance.total_headcounts > 0) {
-        setManualHeadcount(weekAttendance.total_headcounts.toString());
-      }
-      
-      return;
-    }
-    
-    const token = localStorage.getItem("token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/statistics`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    if (response.ok) {
-      const data = await response.json();
-      
-      if (data.statistics) {
-        setEventStatistics({
-          totalAssociated: data.statistics.total_associated || 0,
-          lastAttendanceCount: data.statistics.last_attendance_count || 0,
-          lastHeadcount: data.statistics.last_headcount || 0,
-          lastDecisionsCount: data.statistics.last_decisions_count || 0,
-          lastAttendanceBreakdown: data.statistics.last_attendance_breakdown || {
-            first_time: 0,
-            recommitment: 0
+        attendees.forEach((att) => {
+          const decision = (att.decision || "").toLowerCase();
+          if (decision.includes("first")) {
+            firstTimeCount++;
+          } else if (
+            decision.includes("re-commitment") ||
+            decision.includes("recommitment")
+          ) {
+            recommitmentCount++;
           }
         });
-      }
-    }
-  } catch (error) {
-    console.error("Error loading event statistics:", error);
-  }
-};
 
-const loadWeeklyCheckins = () => {
-  if (!event) {
-    setCheckedIn({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-    return;
-  }
-  
-  setCheckedIn({});
-  setDecisions({});
-  setDecisionTypes({});
-  setPriceTiers({});
-  setPaymentMethods({});
-  setPaidAmounts({});
-  
-  const eventDate = event.date;
-  
-  if (!eventDate) {
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-    return;
-  }
-  
-  const attendanceData = event.attendance || {};
-  let weekAttendance = attendanceData;
-  
-  if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
-    weekAttendance = attendanceData[eventDate] || {};
-  }
-  
-  if (!weekAttendance || !weekAttendance.status) {
-    setCheckedIn({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-    return;
-  }
-  
-  const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
-  const hasHeadcount = weekAttendance.total_headcounts > 0;
-  
-  const isActuallyDidNotMeet = (
-    weekAttendance.status === "did_not_meet" && 
-    !hasAttendees && 
-    !hasHeadcount
-  );
-  
-  setDidNotMeet(isActuallyDidNotMeet);
-  
-  if (hasAttendees) {
-    const newCheckedIn = {};
-    const newDecisions = {};
-    const newDecisionTypes = {};
-    const newPriceTiers = {};
-    const newPaymentMethods = {};
-    const newPaidAmounts = {};
-    
-    weekAttendance.attendees.forEach(att => {
-      if (att.id) {
-        newCheckedIn[att.id] = true;
-        
-        if (att.decision) {
-          newDecisions[att.id] = true;
-          newDecisionTypes[att.id] = att.decision;
+        setEventStatistics({
+          totalAssociated: weekAttendance.persistent_attendees?.length || 0,
+          lastAttendanceCount:
+            weekAttendance.checked_in_count || attendees.length,
+          lastHeadcount: weekAttendance.total_headcounts || 0,
+          lastDecisionsCount: firstTimeCount + recommitmentCount,
+          lastAttendanceBreakdown: {
+            first_time: firstTimeCount,
+            recommitment: recommitmentCount,
+          },
+        });
+
+        if (weekAttendance.total_headcounts > 0) {
+          setManualHeadcount(weekAttendance.total_headcounts.toString());
         }
-        
-        if (isTicketedEvent) {
-          if (att.priceTier || att.price) {
-            newPriceTiers[att.id] = {
-              name: att.priceTier || "",
-              price: att.price || 0,
-              ageGroup: att.ageGroup || "",
-              memberType: att.memberType || ""
-            };
-          }
-          if (att.paymentMethod) {
-            newPaymentMethods[att.id] = att.paymentMethod;
-          }
-          if (att.paid !== undefined) {
-            newPaidAmounts[att.id] = att.paid;
-          }
+
+        return;
+      }
+
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/statistics`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data.statistics) {
+          setEventStatistics({
+            totalAssociated: data.statistics.total_associated || 0,
+            lastAttendanceCount: data.statistics.last_attendance_count || 0,
+            lastHeadcount: data.statistics.last_headcount || 0,
+            lastDecisionsCount: data.statistics.last_decisions_count || 0,
+            lastAttendanceBreakdown: data.statistics
+              .last_attendance_breakdown || {
+              first_time: 0,
+              recommitment: 0,
+            },
+          });
         }
       }
-    });
-    
-    setCheckedIn(newCheckedIn);
-    setDecisions(newDecisions);
-    setDecisionTypes(newDecisionTypes);
-    setPriceTiers(newPriceTiers);
-    setPaymentMethods(newPaymentMethods);
-    setPaidAmounts(newPaidAmounts);
-  } else {
+    } catch (error) {
+      console.error("Error loading event statistics:", error);
+    }
+  };
+
+  const loadWeeklyCheckins = () => {
+    if (!event) {
+      setCheckedIn({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+      return;
+    }
+
     setCheckedIn({});
-  }
-  
-  const headcount = weekAttendance.total_headcounts || 0;
-  setManualHeadcount(headcount.toString());
-};
+    setDecisions({});
+    setDecisionTypes({});
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
 
-const loadPersistentAttendees = async (eventId) => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    if (response.ok) {
-      const data = await response.json();
-      const allAttendees = data.persistent_attendees || [];
-      setPersistentCommonAttendees(allAttendees);
-    }
-  } catch (error) {
-    console.error("Error loading attendees:", error);
-  }
-};
-
-
-useEffect(() => {
-  if (isOpen && event) {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
-
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
-    
-    const loadAllData = async () => {
-      await loadEventStatistics();
-      await loadPersistentAttendees(eventId);
-      loadWeeklyCheckins(); 
-    };
-
-    loadAllData();
-    fetchPeople();
-    
-    const weekAttendance = event.attendance || {};
     const eventDate = event.date;
-    const thisWeekData = weekAttendance[eventDate] || weekAttendance;
-    
-    setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
-  }
-}, [isOpen, event]);
+
+    if (!eventDate) {
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+      return;
+    }
+
+    const attendanceData = event.attendance || {};
+    let weekAttendance = attendanceData;
+
+    if (
+      attendanceData &&
+      typeof attendanceData === "object" &&
+      !attendanceData.status
+    ) {
+      weekAttendance = attendanceData[eventDate] || {};
+    }
+
+    if (!weekAttendance || !weekAttendance.status) {
+      setCheckedIn({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+      return;
+    }
+
+    const hasAttendees =
+      weekAttendance.attendees && weekAttendance.attendees.length > 0;
+    const hasHeadcount = weekAttendance.total_headcounts > 0;
+
+    const isActuallyDidNotMeet =
+      weekAttendance.status === "did_not_meet" &&
+      !hasAttendees &&
+      !hasHeadcount;
+
+    setDidNotMeet(isActuallyDidNotMeet);
+
+    if (hasAttendees) {
+      const newCheckedIn = {};
+      const newDecisions = {};
+      const newDecisionTypes = {};
+      const newPriceTiers = {};
+      const newPaymentMethods = {};
+      const newPaidAmounts = {};
+
+      weekAttendance.attendees.forEach((att) => {
+        if (att.id) {
+          newCheckedIn[att.id] = true;
+
+          if (att.decision) {
+            newDecisions[att.id] = true;
+            newDecisionTypes[att.id] = att.decision;
+          }
+
+          if (isTicketedEvent) {
+            if (att.priceTier || att.price) {
+              newPriceTiers[att.id] = {
+                name: att.priceTier || "",
+                price: att.price || 0,
+                ageGroup: att.ageGroup || "",
+                memberType: att.memberType || "",
+              };
+            }
+            if (att.paymentMethod) {
+              newPaymentMethods[att.id] = att.paymentMethod;
+            }
+            if (att.paid !== undefined) {
+              newPaidAmounts[att.id] = att.paid;
+            }
+          }
+        }
+      });
+
+      setCheckedIn(newCheckedIn);
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+      setPriceTiers(newPriceTiers);
+      setPaymentMethods(newPaymentMethods);
+      setPaidAmounts(newPaidAmounts);
+    } else {
+      setCheckedIn({});
+    }
+
+    const headcount = weekAttendance.total_headcounts || 0;
+    setManualHeadcount(headcount.toString());
+  };
+
+  const loadPersistentAttendees = async (eventId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const allAttendees = data.persistent_attendees || [];
+        setPersistentCommonAttendees(allAttendees);
+      }
+    } catch (error) {
+      console.error("Error loading attendees:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && event) {
+      let eventId = event._id || event.id;
+      if (eventId && eventId.includes("_")) {
+        eventId = eventId.split("_")[0];
+      }
+
+      setSearchName("");
+      setAssociateSearch("");
+      setActiveTab(0);
+
+      const loadAllData = async () => {
+        await loadEventStatistics();
+        await loadPersistentAttendees(eventId);
+        loadWeeklyCheckins();
+      };
+
+      loadAllData();
+      fetchPeople();
+
+      const weekAttendance = event.attendance || {};
+      const eventDate = event.date;
+      const thisWeekData = weekAttendance[eventDate] || weekAttendance;
+
+      setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
+    }
+  }, [isOpen, event]);
   const loadPreloadedPeople = async () => {
     const now = Date.now();
 
     if (
-      typeof window.globalPeopleCache !== 'undefined' &&
+      typeof window.globalPeopleCache !== "undefined" &&
       window.globalPeopleCache.data?.length > 0 &&
       window.globalPeopleCache.timestamp &&
       now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
@@ -1537,9 +1703,12 @@ useEffect(() => {
       params.append("perPage", "100");
       params.append("page", "1");
 
-      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, {
-        headers,
-      });
+      const res = await authFetch(
+        `${BACKEND_URL}/people?${params.toString()}`,
+        {
+          headers,
+        },
+      );
 
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
@@ -1548,11 +1717,30 @@ useEffect(() => {
 
       const formatted = peopleArray.map((p) => ({
         id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        fullName:
+          `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
         email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+        leader1:
+          p["Leader @1"] ||
+          p["Leader at 1"] ||
+          p["Leader @ 1"] ||
+          p.leader1 ||
+          p.leaders?.[0] ||
+          "",
+        leader12:
+          p["Leader @12"] ||
+          p["Leader at 12"] ||
+          p["Leader @ 12"] ||
+          p.leader12 ||
+          p.leaders?.[1] ||
+          "",
+        leader144:
+          p["Leader @144"] ||
+          p["Leader at 144"] ||
+          p["Leader @ 144"] ||
+          p.leader144 ||
+          p.leaders?.[2] ||
+          "",
         phone: p.Number || p.Phone || p.phone || "",
       }));
 
@@ -1564,7 +1752,9 @@ useEffect(() => {
       };
 
       setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
+      console.log(
+        `Pre-loaded ${formatted.length} people into AttendanceModal cache`,
+      );
 
       if (activeTab === 1 && !associateSearch.trim()) {
         setPeople(formatted.slice(0, 50));
@@ -1577,7 +1767,7 @@ useEffect(() => {
     if (!q.trim()) {
       if (preloadedPeople.length > 0) {
         console.log(" Showing preloaded people list");
-        setPeople(preloadedPeople.slice(0, 50)); 
+        setPeople(preloadedPeople.slice(0, 50));
       } else {
         setPeople([]);
       }
@@ -1590,17 +1780,23 @@ useEffect(() => {
 
     try {
       const token = localStorage.getItem("token");
-      const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authFetch(
+        `${BACKEND_URL}/people?name=${encodeURIComponent(name)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (!res.ok) throw new Error("Failed to fetch people");
 
       const data = await res.json();
 
-      let filtered = (data?.results || data?.people || []).filter(p =>
-        p.Name.toLowerCase().includes(name.toLowerCase()) &&
-        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+      let filtered = (data?.results || data?.people || []).filter(
+        (p) =>
+          p.Name.toLowerCase().includes(name.toLowerCase()) &&
+          (!surname ||
+            (p.Surname &&
+              p.Surname.toLowerCase().includes(surname.toLowerCase()))),
       );
 
       // Sort the results
@@ -1620,11 +1816,30 @@ useEffect(() => {
       // Format the results consistently
       const formatted = filtered.map((p) => ({
         id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        fullName:
+          `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
         email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
+        leader1:
+          p["Leader @1"] ||
+          p["Leader at 1"] ||
+          p["Leader @ 1"] ||
+          p.leader1 ||
+          (p.leaders && p.leaders[0]) ||
+          "",
+        leader12:
+          p["Leader @12"] ||
+          p["Leader at 12"] ||
+          p["Leader @ 12"] ||
+          p.leader12 ||
+          (p.leaders && p.leaders[1]) ||
+          "",
+        leader144:
+          p["Leader @144"] ||
+          p["Leader at 144"] ||
+          p["Leader @ 144"] ||
+          p.leader144 ||
+          (p.leaders && p.leaders[2]) ||
+          "",
         phone: p.Number || p.Phone || p.phone || "",
       }));
 
@@ -1647,15 +1862,16 @@ useEffect(() => {
 
       const res = await authFetch(
         `${BACKEND_URL}/events/cell/${cellId}/common-attendees`,
-        { headers }
+        { headers },
       );
       const data = await res.json();
       const attendeesArray = data.common_attendees || [];
 
       const formatted = attendeesArray.map((p) => ({
         id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""
-          }`.trim(),
+        fullName: `${p.Name || p.name || ""} ${
+          p.Surname || p.surname || ""
+        }`.trim(),
         email: p.Email || p.email || "",
         leader12: p["Leader @12"] || p.leader12 || "",
         leader144: p["Leader @144"] || p.leader144 || "",
@@ -1691,25 +1907,32 @@ useEffect(() => {
         Authorization: `Bearer ${token}`,
       };
 
-      const formattedAttendees = attendees.map(p => ({
-        id: p.id || p._id || "",
-        name: p.fullName || p.name || "",
-        fullName: p.fullName || p.name || "",
-        email: p.email || "",
-        leader12: p.leader12 || "",
-        leader144: p.leader144 || "",
-        phone: p.phone || ""
-      })).filter(p => p.id);
+      const formattedAttendees = attendees
+        .map((p) => ({
+          id: p.id || p._id || "",
+          name: p.fullName || p.name || "",
+          fullName: p.fullName || p.name || "",
+          email: p.email || "",
+          leader12: p.leader12 || "",
+          leader144: p.leader144 || "",
+          phone: p.phone || "",
+        }))
+        .filter((p) => p.id);
 
-      console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
+      console.log(
+        `Saving ${formattedAttendees.length} attendees for event: ${eventId}`,
+      );
 
-      const response = await authFetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify({
-          persistent_attendees: formattedAttendees
-        }),
-      });
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        {
+          method: "PUT",
+          headers: headers,
+          body: JSON.stringify({
+            persistent_attendees: formattedAttendees,
+          }),
+        },
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -1718,7 +1941,6 @@ useEffect(() => {
 
       console.log(" Attendees saved to database");
       return true;
-
     } catch (error) {
       console.error("Error saving:", error);
       toast.error("Failed to save attendees");
@@ -1730,15 +1952,17 @@ useEffect(() => {
     const now = new Date();
     const year = now.getFullYear();
     const week = getWeekNumber(now);
-    return `${year}-W${week.toString().padStart(2, '0')}`;
+    return `${year}-W${week.toString().padStart(2, "0")}`;
   }
 
   function getWeekNumber(date) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const d = new Date(
+      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+    );
     const dayNum = d.getUTCDay() || 7;
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
   }
 
   useEffect(() => {
@@ -1763,7 +1987,7 @@ useEffect(() => {
         if (associateSearch.trim()) {
           fetchPeople(associateSearch);
         } else {
-          fetchPeople(""); 
+          fetchPeople("");
         }
       }
     }, 300);
@@ -1772,14 +1996,14 @@ useEffect(() => {
   }, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
   const handleCheckIn = (id) => {
-    setCheckedIn(prev => {
+    setCheckedIn((prev) => {
       const isNowChecked = !prev[id];
       const newState = { ...prev, [id]: isNowChecked };
       if (isNowChecked) {
         toast.success("Person checked in for this week");
       } else {
-        setDecisions(prevDec => ({ ...prevDec, [id]: false }));
-        setDecisionTypes(prevTypes => {
+        setDecisions((prevDec) => ({ ...prevDec, [id]: false }));
+        setDecisionTypes((prevTypes) => {
           const updated = { ...prevTypes };
           delete updated[id];
           return updated;
@@ -1858,9 +2082,9 @@ useEffect(() => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            persistent_attendees: attendees
+            persistent_attendees: attendees,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1869,7 +2093,6 @@ useEffect(() => {
 
       console.log(` Saved ${attendees.length} attendees to database`);
       return true;
-
     } catch (error) {
       console.error(" Failed to save:", error);
       toast.error("Failed to save attendees list");
@@ -1877,13 +2100,16 @@ useEffect(() => {
     }
   };
 
-
   const handleAssociatePerson = async (person) => {
-    const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
+    const isAlreadyAdded = persistentCommonAttendees.some(
+      (p) => p.id === person.id,
+    );
 
     if (isAlreadyAdded) {
       if (window.confirm(`Remove ${person.fullName}?`)) {
-        const updated = persistentCommonAttendees.filter(p => p.id !== person.id);
+        const updated = persistentCommonAttendees.filter(
+          (p) => p.id !== person.id,
+        );
 
         setPersistentCommonAttendees(updated);
         await saveAllAttendeesToDatabase(updated);
@@ -1900,259 +2126,409 @@ useEffect(() => {
     }
   };
 
-const getAllCommonAttendees = () => {  
-  const persistent = [...(persistentCommonAttendees || [])];
-  let savedAttendees = [];
-  
-  if (event?.attendance?.attendees?.length > 0) {
-    savedAttendees = event.attendance.attendees;
-  }
-  else if (event?.attendees?.length > 0) {
-    savedAttendees = event.attendees;
-  }
-  
-  const combinedMap = new Map();
-  
-  persistent.forEach(att => {
-    if (att && att.id) {
-      const attendeeId = att.id || att._id || "";
-      if (attendeeId) {
-        combinedMap.set(attendeeId, {
-          ...att,
-          id: attendeeId,
-          fullName: att.fullName || att.name || "Unknown Person",
-          email: att.email || "",
-          leader12: att.leader12 || "",
-          leader144: att.leader144 || "",
-          phone: att.phone || "",
-          isPersistent: true
-        });
-      }
+  const getAllCommonAttendees = () => {
+    const persistent = [...(persistentCommonAttendees || [])];
+    let savedAttendees = [];
+
+    if (event?.attendance?.attendees?.length > 0) {
+      savedAttendees = event.attendance.attendees;
+    } else if (event?.attendees?.length > 0) {
+      savedAttendees = event.attendees;
     }
-  });
-  
-  savedAttendees.forEach(savedAtt => {
-    if (savedAtt && savedAtt.id) {
-      const attendeeId = savedAtt.id || savedAtt._id || "";
-      if (attendeeId) {
-        const existing = combinedMap.get(attendeeId) || {};
-        combinedMap.set(attendeeId, {
-          ...existing,
-          ...savedAtt,
-          id: attendeeId,
-          fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
-          email: savedAtt.email || existing.email || "",
-          leader12: savedAtt.leader12 || existing.leader12 || "",
-          leader144: savedAtt.leader144 || existing.leader144 || "",
-          phone: savedAtt.phone || existing.phone || "",
-          checked_in: savedAtt.checked_in !== false,
-          decision: savedAtt.decision || existing.decision || "",
-          isPersistent: existing.isPersistent || false
-        });
+
+    const combinedMap = new Map();
+
+    persistent.forEach((att) => {
+      if (att && att.id) {
+        const attendeeId = att.id || att._id || "";
+        if (attendeeId) {
+          combinedMap.set(attendeeId, {
+            ...att,
+            id: attendeeId,
+            fullName: att.fullName || att.name || "Unknown Person",
+            email: att.email || "",
+            leader12: att.leader12 || "",
+            leader144: att.leader144 || "",
+            phone: att.phone || "",
+            isPersistent: true,
+          });
+        }
       }
-    }
-  });
-  
-  return Array.from(combinedMap.values());
-};
+    });
+
+    savedAttendees.forEach((savedAtt) => {
+      if (savedAtt && savedAtt.id) {
+        const attendeeId = savedAtt.id || savedAtt._id || "";
+        if (attendeeId) {
+          const existing = combinedMap.get(attendeeId) || {};
+          combinedMap.set(attendeeId, {
+            ...existing,
+            ...savedAtt,
+            id: attendeeId,
+            fullName:
+              savedAtt.fullName ||
+              savedAtt.name ||
+              existing.fullName ||
+              "Unknown Person",
+            email: savedAtt.email || existing.email || "",
+            leader12: savedAtt.leader12 || existing.leader12 || "",
+            leader144: savedAtt.leader144 || existing.leader144 || "",
+            phone: savedAtt.phone || existing.phone || "",
+            checked_in: savedAtt.checked_in !== false,
+            decision: savedAtt.decision || existing.decision || "",
+            isPersistent: existing.isPersistent || false,
+          });
+        }
+      }
+    });
+
+    return Array.from(combinedMap.values());
+  };
 
   const attendeesCount = Object.keys(checkedIn).filter(
-    (id) => checkedIn[id]
+    (id) => checkedIn[id],
   ).length;
   const decisionsCount = Object.keys(decisions).filter(
-    (id) => decisions[id]
+    (id) => decisions[id],
   ).length;
   const firstTimeCount = Object.values(decisionTypes).filter(
-    (type) => type === "first-time"
+    (type) => type === "first-time",
   ).length;
   const reCommitmentCount = Object.values(decisionTypes).filter(
-    (type) => type === "re-commitment"
+    (type) => type === "re-commitment",
   ).length;
 
   const totalPaid = Object.values(paidAmounts).reduce(
     (sum, amount) => sum + amount,
-    0
+    0,
   );
   const totalOwing = Object.keys(checkedIn)
     .filter((id) => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
 
-  const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
-    person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
-    person.email.toLowerCase().includes(searchName.toLowerCase())
+  const filteredCommonAttendees = getAllCommonAttendees().filter(
+    (person) =>
+      person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
+      person.email.toLowerCase().includes(searchName.toLowerCase()),
   );
 
-  const filteredPeople = people.filter(person =>
-    person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
-    person.email.toLowerCase().includes(associateSearch.toLowerCase())
+  const filteredPeople = people.filter(
+    (person) =>
+      person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
+      person.email.toLowerCase().includes(associateSearch.toLowerCase()),
   );
 
-const handleSave = async () => {
-  const allPeople = getAllCommonAttendees();
-  console.log("[SAVE] All people for save:", allPeople.length);
+  const handleSave = async () => {
+    const allPeople = getAllCommonAttendees();
+    console.log("[SAVE] All people for save:", allPeople.length);
 
-  const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-  console.log("[SAVE] Checked-in attendees:", attendeesList.length, attendeesList);
+    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+    console.log(
+      "[SAVE] Checked-in attendees:",
+      attendeesList.length,
+      attendeesList,
+    );
 
-  // Get manual headcount from input
-  const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
+    // Get manual headcount from input
+    const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-  console.log("[SAVE] === DEBUG INFO ===");
-  console.log("[SAVE] Did not meet state:", didNotMeet);
-  console.log("[SAVE] Attendees checked in:", attendeesList.length);
-  console.log("[SAVE] Manual headcount:", finalHeadcount);
-  console.log("[SAVE] Decisions count:", decisionsCount);
+    console.log("[SAVE] === DEBUG INFO ===");
+    console.log("[SAVE] Did not meet state:", didNotMeet);
+    console.log("[SAVE] Attendees checked in:", attendeesList.length);
+    console.log("[SAVE] Manual headcount:", finalHeadcount);
+    console.log("[SAVE] Decisions count:", decisionsCount);
 
-  // Get clean event ID
-  let eventId = event?.id || event?._id;
-  if (eventId && eventId.includes("_")) {
-    const parts = eventId.split("_");
-    eventId = parts[0];
-  }
-
-  if (!eventId) {
-    toast.error("Event ID is missing, cannot submit attendance.");
-    return;
-  }
-
-  try {
-    const selectedAttendees = attendeesList.map((id) => {
-      const person = allPeople.find((p) => p && p.id === id);
-
-      if (!person) {
-        console.warn(`[SAVE] Person with id ${id} not found in allPeople`);
-        return null;
-      }
-
-const attendee = {
-  id: person.id,
-  name: person.fullName || "",
-  email: person.email || "",
-  fullName: person.fullName || "",
-  leader1: person.leader1 || "", 
-  leader12: person.leader12 || "",
-  leader144: person.leader144 || "",
-  phone: person.phone || "",
-  time: new Date().toISOString(),
-  decision: decisions[id] ? decisionTypes[id] || "" : "",
-  checked_in: true,
-  isPersistent: true
-};
-
-      if (isTicketedEvent) {
-        attendee.priceTier = priceTiers[id]?.name || "";
-        attendee.price = priceTiers[id]?.price || 0;
-        attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-        attendee.memberType = priceTiers[id]?.memberType || "";
-        attendee.paymentMethod = paymentMethods[id] || "";
-        attendee.paid = paidAmounts[id] || 0;
-        attendee.owing = calculateOwing(id);
-      }
-
-      return attendee;
-    }).filter(attendee => attendee !== null);
-
-    console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
-
-    const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
-    
-    console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
-    console.log("[SAVE] Reason - didNotMeet:", didNotMeet);
-    console.log("[SAVE] Reason - attendees:", attendeesList.length);
-    console.log("[SAVE] Reason - headcount:", finalHeadcount);
-
-    const payload = {
-      attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
-      persistent_attendees: allPeople.map(p => ({
-        id: p.id,
-        name: p.fullName,
-        fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone
-      })),
-      leaderEmail: currentUser?.email || "",
-      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-      did_not_meet: shouldMarkAsDidNotMeet, // This will be FALSE if we have attendees
-      isTicketed: isTicketedEvent,
-      week: get_current_week_identifier(),
-      headcount: finalHeadcount  
-    };
-    
-    console.log("[SAVE] Full payload being sent:");
-    console.log("[SAVE] - did_not_meet:", payload.did_not_meet);
-    console.log("[SAVE] - attendees count:", payload.attendees.length);
-    console.log("[SAVE] - headcount:", payload.headcount);
-    console.log("[SAVE] - week:", payload.week);
-
-    let result;
-
-    if (typeof onSubmit === "function") {
-      result = await onSubmit(payload);
-    } else {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[SAVE] Server error response:", errorText);
-        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-      }
-
-      result = await response.json();
+    // Get clean event ID
+    let eventId = event?.id || event?._id;
+    if (eventId && eventId.includes("_")) {
+      const parts = eventId.split("_");
+      eventId = parts[0];
     }
 
-    console.log("[SAVE] Save result:", result);
+    if (!eventId) {
+      toast.error("Event ID is missing, cannot submit attendance.");
+      return;
+    }
 
-if (result && result.success) {
-  await createConsolidationTasks(selectedAttendees, eventId);
-  await loadEventStatistics();
-  toast.success("Attendance saved successfully! Consolidation tasks created.");
+    try {
+      const selectedAttendees = attendeesList
+        .map((id) => {
+          const person = allPeople.find((p) => p && p.id === id);
 
-  
-  if (typeof onAttendanceSubmitted === "function") {
-    await onAttendanceSubmitted();
-  }
-  
-  if (typeof onClose === "function") {
-    onClose();
-  }
-  if (typeof onAttendanceSubmitted === "function") {
-    console.log("[SAVE] Calling onAttendanceSubmitted to refresh data");
-    await onAttendanceSubmitted();
-  }
-  
-  if (typeof onClose === "function") {
-    onClose();
-  }
-} else {
-  console.error("[SAVE] Save failed:", result);
-  throw new Error(result?.message || "Failed to save attendance");
-}
+          if (!person) {
+            console.warn(`[SAVE] Person with id ${id} not found in allPeople`);
+            return null;
+          }
 
-  } catch (error) {
-    console.error("[SAVE] Error saving attendance:", error);
-    toast.error(error.message || "Failed to save attendance. Please try again.");
-  }
-};
+          const attendee = {
+            id: person.id,
+            name: person.fullName || "",
+            email: person.email || "",
+            fullName: person.fullName || "",
+            leader1: person.leader1 || "",
+            leader12: person.leader12 || "",
+            leader144: person.leader144 || "",
+            phone: person.phone || "",
+            time: new Date().toISOString(),
+            decision: decisions[id] ? decisionTypes[id] || "" : "",
+            checked_in: true,
+            isPersistent: true,
+          };
 
-  const handleSubmitAttendance = (attendanceData) => {
+          if (isTicketedEvent) {
+            attendee.priceTier = priceTiers[id]?.name || "";
+            attendee.price = priceTiers[id]?.price || 0;
+            attendee.ageGroup = priceTiers[id]?.ageGroup || "";
+            attendee.memberType = priceTiers[id]?.memberType || "";
+            attendee.paymentMethod = paymentMethods[id] || "";
+            attendee.paid = paidAmounts[id] || 0;
+            attendee.owing = calculateOwing(id);
+          }
 
-    if (onSubmit) {
-      return onSubmit(attendanceData);
-    } else {
-      console.error("No onSubmit prop provided to AttendanceModal");
-      return Promise.resolve({ success: false, message: "No submit handler" });
+          return attendee;
+        })
+        .filter((attendee) => attendee !== null);
+
+      console.log(
+        "[SAVE] Final selected attendees:",
+        selectedAttendees.length,
+        selectedAttendees,
+      );
+
+      const shouldMarkAsDidNotMeet =
+        didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
+
+      console.log(
+        "[SAVE] Should mark as 'Did Not Meet'?",
+        shouldMarkAsDidNotMeet,
+      );
+      console.log("[SAVE] Reason - didNotMeet:", didNotMeet);
+      console.log("[SAVE] Reason - attendees:", attendeesList.length);
+      console.log("[SAVE] Reason - headcount:", finalHeadcount);
+
+      const payload = {
+        attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
+        persistent_attendees: allPeople.map((p) => ({
+          id: p.id,
+          name: p.fullName,
+          fullName: p.fullName,
+          email: p.email,
+          leader12: p.leader12,
+          leader144: p.leader144,
+          phone: p.phone,
+        })),
+        leaderEmail: currentUser?.email || "",
+        leaderName:
+          `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        did_not_meet: shouldMarkAsDidNotMeet, // This will be FALSE if we have attendees
+        isTicketed: isTicketedEvent,
+        week: get_current_week_identifier(),
+        headcount: finalHeadcount,
+      };
+
+      console.log("[SAVE] Full payload being sent:");
+      console.log("[SAVE] - did_not_meet:", payload.did_not_meet);
+      console.log("[SAVE] - attendees count:", payload.attendees.length);
+      console.log("[SAVE] - headcount:", payload.headcount);
+      console.log("[SAVE] - week:", payload.week);
+
+      let result;
+
+      if (typeof onSubmit === "function") {
+        result = await onSubmit(payload);
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        const response = await authFetch(
+          `${BACKEND_URL}/submit-attendance/${eventId}`,
+          {
+            method: "PUT",
+            headers: headers,
+            body: JSON.stringify(payload),
+          },
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("[SAVE] Server error response:", errorText);
+          throw new Error(
+            `HTTP error! status: ${response.status}, details: ${errorText}`,
+          );
+        }
+
+        result = await response.json();
+      }
+
+      console.log("[SAVE] Save result:", result);
+
+      if (result && result.success) {
+        await createConsolidationTasks(selectedAttendees, eventId);
+        await loadEventStatistics();
+        toast.success(
+          "Attendance saved successfully! Consolidation tasks created.",
+        );
+
+        if (typeof onAttendanceSubmitted === "function") {
+          await onAttendanceSubmitted();
+        }
+
+        if (typeof onClose === "function") {
+          onClose();
+        }
+        if (typeof onAttendanceSubmitted === "function") {
+          console.log("[SAVE] Calling onAttendanceSubmitted to refresh data");
+          await onAttendanceSubmitted();
+        }
+
+        if (typeof onClose === "function") {
+          onClose();
+        }
+      } else {
+        console.error("[SAVE] Save failed:", result);
+        throw new Error(result?.message || "Failed to save attendance");
+      }
+    } catch (error) {
+      console.error("[SAVE] Error saving attendance:", error);
+      toast.error(
+        error.message || "Failed to save attendance. Please try again.",
+      );
+    }
+  };
+
+  const downloadCheckedInAttendance = () => {
+    try {
+      const all = getAllCommonAttendees();
+      const selected = all.filter((p) => checkedIn[p.id]);
+      if (!selected || selected.length === 0) {
+        toast.info("No checked-in attendees to export.");
+        return;
+      }
+
+      const formatted = selected.map((person) => {
+        const id = person.id || "";
+        const name = person.fullName || "";
+        const email = person.email || "";
+        const leader12 = person.leader12 || "";
+        const leader144 = person.leader144 || "";
+        const phone = person.phone || "";
+        const checkedTime = new Date().toLocaleString();
+        const decision = decisionTypes[id] || "";
+        const priceTier = priceTiers[id]?.name || "";
+        const price =
+          priceTiers[id]?.price !== undefined
+            ? `R${priceTiers[id].price.toFixed(2)}`
+            : "";
+        const paymentMethod = paymentMethods[id] || "";
+        const paid =
+          paidAmounts[id] !== undefined ? `R${paidAmounts[id].toFixed(2)}` : "";
+        const owing = calculateOwing(id)
+          ? `R${calculateOwing(id).toFixed(2)}`
+          : "";
+
+        return {
+          ID: id,
+          Name: name,
+          Email: email,
+          "Leader @12": leader12,
+          "Leader @144": leader144,
+          Phone: phone,
+          "Checked In Time": checkedTime,
+          Decision: decision,
+          "Price Tier": priceTier,
+          "Payment Method": paymentMethod,
+          Price: price,
+          Paid: paid,
+          Owing: owing,
+        };
+      });
+
+      const headers = Object.keys(formatted[0]);
+      const columnWidths = headers.map((header) => {
+        let maxLength = header.length;
+        formatted.forEach((row) => {
+          const v = String(row[header] || "");
+          if (v.length > maxLength) maxLength = v.length;
+        });
+        return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
+      });
+
+      const xmlCols = columnWidths
+        .map(
+          (w, i) =>
+            `                    <x:Column ss:Index="${i + 1}" ss:AutoFitWidth="0" ss:Width="${w}"/>`,
+        )
+        .join("\n");
+
+      let html = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+          <head>
+            <meta charset="utf-8">
+            <!--[if gte mso 9]>
+            <xml>
+              <x:ExcelWorkbook>
+                <x:ExcelWorksheets>
+                  <x:ExcelWorksheet>
+                    <x:Name>Attendance</x:Name>
+                    <x:WorksheetOptions>
+                      <x:DisplayGridlines/>
+                    </x:WorksheetOptions>
+                    <x:WorksheetColumns>
+${xmlCols}
+                    </x:WorksheetColumns>
+                  </x:ExcelWorksheet>
+                </x:ExcelWorksheets>
+              </x:ExcelWorkbook>
+            </xml>
+            <![endif]-->
+            <style>
+              table { border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; }
+              th { background-color: #a3aca3ff; color: white; font-weight: bold; padding: 12px 8px; text-align: center; border: 1px solid #ddd; font-size: 11pt; white-space: nowrap; }
+              td { padding: 8px; border: 1px solid #ddd; font-size: 10pt; text-align: left; }
+              tr:nth-child(even) { background-color: #f2f2f2; }
+            </style>
+          </head>
+          <body>
+            <table border="1">
+              <thead><tr>
+      `;
+
+      headers.forEach((h) => {
+        html += `                <th>${h}</th>\n`;
+      });
+      html += `              </tr></thead><tbody>\n`;
+
+      formatted.forEach((row) => {
+        html += `              <tr>\n`;
+        headers.forEach((h) => {
+          const val = row[h] || "";
+          html += `                <td>${String(val).replace(/</g, "&lt;").replace(/>/g, "&gt;")}</td>\n`;
+        });
+        html += `              </tr>\n`;
+      });
+
+      html += `            </tbody></table></body></html>`;
+
+      const blob = new Blob([html], {
+        type: "application/vnd.ms-excel;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const fileName = `attendance_${(event?.Event_Name || event?.eventName || event?.EventName || "event").toString().replace(/\s/g, "_")}_${new Date().toISOString().split("T")[0]}.xls`;
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+    } catch (err) {
+      console.error("Error exporting attendance:", err);
+      toast.error("Failed to export attendance: "(err.message || ""));
     }
   };
   const handleDidNotMeet = () => {
@@ -2160,79 +2536,86 @@ if (result && result.success) {
   };
 
   const confirmDidNotMeet = async () => {
-  setShowDidNotMeetConfirm(false);
-  setDidNotMeet(true);
-  setCheckedIn({});
-  setDecisions({});
-  setManualHeadcount("");
-  setPriceTiers({});
-  setPaymentMethods({});
-  setPaidAmounts({});
+    setShowDidNotMeetConfirm(false);
+    setDidNotMeet(true);
+    setCheckedIn({});
+    setDecisions({});
+    setManualHeadcount("");
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
 
-  try {
-    const eventId = event?.id || event?._id;
-    if (!eventId) {
-      toast.error("Event ID is missing, cannot submit attendance.");
-      return;
-    }
-
-    const allPeople = getAllCommonAttendees();
-    const payload = {
-      attendees: [],
-      persistent_attendees: allPeople.map(p => ({
-        id: p.id,
-        fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone
-      })),
-      leaderEmail: currentUser?.email || "",
-      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-      did_not_meet: true,
-      isTicketed: isTicketedEvent,
-      week: get_current_week_identifier()
-    };
-
-    let result;
-
-    if (typeof onSubmit === "function") {
-      result = await onSubmit(payload);
-    } else {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await authFetch(
-        `${BACKEND_URL}/submit-attendance/${eventId}`,
-        {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(payload),
-        }
-      );
-      result = await response.json();
-      result.success = response.ok;
-    }
-
-    if (result?.success) {
-      if (typeof onAttendanceSubmitted === "function") {
-        onAttendanceSubmitted();
+    try {
+      const eventId = event?.id || event?._id;
+      if (!eventId) {
+        toast.error("Event ID is missing, cannot submit attendance.");
+        return;
       }
 
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    } else {
-      toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+      const allPeople = getAllCommonAttendees();
+      const payload = {
+        attendees: [],
+        persistent_attendees: allPeople.map((p) => ({
+          id: p.id,
+          fullName: p.fullName,
+          email: p.email,
+          leader12: p.leader12,
+          leader144: p.leader144,
+          phone: p.phone,
+        })),
+        leaderEmail: currentUser?.email || "",
+        leaderName:
+          `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        did_not_meet: true,
+        isTicketed: isTicketedEvent,
+        week: get_current_week_identifier(),
+      };
+
+      let result;
+
+      if (typeof onSubmit === "function") {
+        result = await onSubmit(payload);
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        const response = await authFetch(
+          `${BACKEND_URL}/submit-attendance/${eventId}`,
+          {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(payload),
+          },
+        );
+        result = await response.json();
+        result.success = response.ok;
+      }
+
+      if (result?.success) {
+        if (typeof onAttendanceSubmitted === "function") {
+          onAttendanceSubmitted();
+        }
+
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+      } else {
+        toast.error(
+          result?.message ||
+            result?.detail ||
+            "Failed to mark event as 'Did Not Meet'.",
+        );
+      }
+    } catch (error) {
+      console.error(" Error marking event as 'Did Not Meet':", error);
+      toast.error(
+        "Something went wrong while marking event as 'Did Not Meet'.",
+      );
     }
-  } catch (error) {
-    console.error(" Error marking event as 'Did Not Meet':", error);
-    toast.error("Something went wrong while marking event as 'Did Not Meet'.");
-  }
-};
+  };
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
@@ -2241,7 +2624,7 @@ if (result && result.success) {
   const handlePersonAdded = (newPerson) => {
     console.log(" New person added:", newPerson);
 
-    if (typeof window.globalPeopleCache !== 'undefined') {
+    if (typeof window.globalPeopleCache !== "undefined") {
       window.globalPeopleCache.data = [];
       window.globalPeopleCache.timestamp = null;
     }
@@ -2256,10 +2639,9 @@ if (result && result.success) {
     toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
   };
 
-
   const renderMobileAttendeeCard = (person) => {
     const isPersistent = persistentCommonAttendees.some(
-      (p) => p.id === person.id
+      (p) => p.id === person.id,
     );
     const isCheckedIn = checkedIn[person.id];
 
@@ -2267,14 +2649,23 @@ if (result && result.success) {
       <div key={person.id} style={styles.mobileAttendeeCard}>
         <div style={styles.mobileCardRow}>
           <div style={styles.mobileCardInfo}>
-  
             <div style={styles.mobileCardEmail}>{person.email}</div>
             {!isTicketedEvent && (
               <>
-                <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: theme.palette.text.secondary,
+                  }}
+                >
                   Leader @12: {person.leader12}
                 </div>
-                <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: theme.palette.text.secondary,
+                  }}
+                >
                   Phone: {person.phone}
                 </div>
               </>
@@ -2307,15 +2698,15 @@ if (result && result.success) {
                   style={styles.priceTierButton}
                   onClick={() =>
                     setOpenPriceTierDropdown(
-                      openPriceTierDropdown === person.id ? null : person.id
+                      openPriceTierDropdown === person.id ? null : person.id,
                     )
                   }
                 >
                   <span>
                     {priceTiers[person.id]
                       ? `${priceTiers[person.id].name} (R${priceTiers[
-                        person.id
-                      ].price.toFixed(2)})`
+                          person.id
+                        ].price.toFixed(2)})`
                       : "Select Price Tier"}
                   </span>
                   <ChevronDown size={16} />
@@ -2331,14 +2722,20 @@ if (result && result.success) {
                             handlePriceTierSelect(person.id, index)
                           }
                           onMouseEnter={(e) =>
-                            (e.target.style.background = theme.palette.action.hover)
+                            (e.target.style.background =
+                              theme.palette.action.hover)
                           }
                           onMouseLeave={(e) =>
                             (e.target.style.background = "transparent")
                           }
                         >
                           {tier.name} - R{parseFloat(tier.price).toFixed(2)}
-                          <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: theme.palette.text.secondary,
+                            }}
+                          >
                             {tier.ageGroup} • {tier.memberType}
                           </div>
                         </div>
@@ -2366,7 +2763,7 @@ if (result && result.success) {
                   style={styles.paymentButton}
                   onClick={() =>
                     setOpenPaymentDropdown(
-                      openPaymentDropdown === person.id ? null : person.id
+                      openPaymentDropdown === person.id ? null : person.id,
                     )
                   }
                 >
@@ -2383,7 +2780,8 @@ if (result && result.success) {
                           handlePaymentMethodSelect(person.id, method)
                         }
                         onMouseEnter={(e) =>
-                          (e.target.style.background = theme.palette.action.hover)
+                          (e.target.style.background =
+                            theme.palette.action.hover)
                         }
                         onMouseLeave={(e) =>
                           (e.target.style.background = "transparent")
@@ -2450,15 +2848,15 @@ if (result && result.success) {
                   style={styles.decisionButton}
                   onClick={() =>
                     setOpenDecisionDropdown(
-                      openDecisionDropdown === person.id ? null : person.id
+                      openDecisionDropdown === person.id ? null : person.id,
                     )
                   }
                 >
                   <span>
                     {decisionTypes[person.id]
                       ? decisionOptions.find(
-                        (opt) => opt.value === decisionTypes[person.id]
-                      )?.label
+                          (opt) => opt.value === decisionTypes[person.id],
+                        )?.label
                       : "Select Decision"}
                   </span>
                   <ChevronDown size={16} />
@@ -2473,7 +2871,8 @@ if (result && result.success) {
                           handleDecisionTypeSelect(person.id, option.value)
                         }
                         onMouseEnter={(e) =>
-                          (e.target.style.background = theme.palette.action.hover)
+                          (e.target.style.background =
+                            theme.palette.action.hover)
                         }
                         onMouseLeave={(e) =>
                           (e.target.style.background = "transparent")
@@ -2702,7 +3101,6 @@ if (result && result.success) {
       color: theme.palette.text.primary,
       transition: "background 0.15s",
     },
-
 
     priceTierButton: {
       display: "flex",
@@ -2944,7 +3342,7 @@ if (result && result.success) {
       fontWeight: 600,
       color: theme.palette.text.primary,
       margin: 0,
-      textAlign: 'center',
+      textAlign: "center",
     },
     confirmBody: {
       marginBottom: 20,
@@ -3068,25 +3466,25 @@ if (result && result.success) {
                       padding: "14px 14px 14px 45px",
                       fontSize: 16,
                       borderRadius: 8,
-                      border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`,
-                      backgroundColor: isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper,
-                      color: isDarkMode ? theme.palette.text.primary : '#000',
+                      border: `1px solid ${isDarkMode ? "#555" : "#ccc"}`,
+                      backgroundColor: isDarkMode
+                        ? theme.palette.background.default
+                        : theme.palette.background.paper,
+                      color: isDarkMode ? theme.palette.text.primary : "#000",
                       outline: "none",
                       boxSizing: "border-box",
                     }}
                     onFocus={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.action.hover :
-                        theme.palette.background.default;
-                      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+                      e.target.style.backgroundColor = isDarkMode
+                        ? theme.palette.action.hover
+                        : theme.palette.background.default;
+                      e.target.style.borderColor = isDarkMode ? "#777" : "#999";
                     }}
                     onBlur={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper;
-                      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+                      e.target.style.backgroundColor = isDarkMode
+                        ? theme.palette.background.default
+                        : theme.palette.background.paper;
+                      e.target.style.borderColor = isDarkMode ? "#555" : "#ccc";
                     }}
                   />
                 </div>
@@ -3172,15 +3570,12 @@ if (result && result.success) {
                         )}
                         {filteredCommonAttendees.map((person) => {
                           const isPersistent = persistentCommonAttendees.some(
-                            (p) => p.id === person.id
+                            (p) => p.id === person.id,
                           );
 
                           return (
                             <tr key={person.id}>
-                              <td style={styles.td}>
-                                {person.fullName}
-                              
-                              </td>
+                              <td style={styles.td}>{person.fullName}</td>
                               <td style={styles.td}>{person.email}</td>
                               {!isTicketedEvent && (
                                 <>
@@ -3237,77 +3632,78 @@ if (result && result.success) {
                                               openPriceTierDropdown ===
                                                 person.id
                                                 ? null
-                                                : person.id
+                                                : person.id,
                                             );
                                           }}
                                         >
                                           <span>
                                             {priceTiers[person.id]
-                                              ? `${priceTiers[person.id].name
-                                              } (R${priceTiers[
-                                                person.id
-                                              ].price.toFixed(2)})`
+                                              ? `${
+                                                  priceTiers[person.id].name
+                                                } (R${priceTiers[
+                                                  person.id
+                                                ].price.toFixed(2)})`
                                               : "Select Price Tier"}
                                           </span>
                                           <ChevronDown size={16} />
                                         </button>
                                         {openPriceTierDropdown ===
                                           person.id && (
-                                            <div style={styles.decisionMenu}>
-                                              {eventPriceTiers &&
-                                                eventPriceTiers.length > 0 ? (
-                                                eventPriceTiers.map(
-                                                  (tier, index) => (
-                                                    <div
-                                                      key={index}
-                                                      style={
-                                                        styles.decisionMenuItem
-                                                      }
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handlePriceTierSelect(
-                                                          person.id,
-                                                          index
-                                                        );
-                                                      }}
-                                                      onMouseEnter={(e) =>
+                                          <div style={styles.decisionMenu}>
+                                            {eventPriceTiers &&
+                                            eventPriceTiers.length > 0 ? (
+                                              eventPriceTiers.map(
+                                                (tier, index) => (
+                                                  <div
+                                                    key={index}
+                                                    style={
+                                                      styles.decisionMenuItem
+                                                    }
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handlePriceTierSelect(
+                                                        person.id,
+                                                        index,
+                                                      );
+                                                    }}
+                                                    onMouseEnter={(e) =>
                                                       (e.target.style.background =
                                                         "#f0f0f0")
-                                                      }
-                                                      onMouseLeave={(e) =>
+                                                    }
+                                                    onMouseLeave={(e) =>
                                                       (e.target.style.background =
                                                         "transparent")
-                                                      }
+                                                    }
+                                                  >
+                                                    {tier.name} - R
+                                                    {parseFloat(
+                                                      tier.price,
+                                                    ).toFixed(2)}
+                                                    <div
+                                                      style={{
+                                                        fontSize: "12px",
+                                                        color: "#666",
+                                                      }}
                                                     >
-                                                      {tier.name} - R
-                                                      {parseFloat(
-                                                        tier.price
-                                                      ).toFixed(2)}
-                                                      <div
-                                                        style={{
-                                                          fontSize: "12px",
-                                                          color: "#666",
-                                                        }}
-                                                      >
-                                                        {tier.ageGroup} •{" "}
-                                                        {tier.memberType}
-                                                      </div>
+                                                      {tier.ageGroup} •{" "}
+                                                      {tier.memberType}
                                                     </div>
-                                                  )
-                                                )
-                                              ) : (
-                                                <div
-                                                  style={{
-                                                    padding: "12px",
-                                                    textAlign: "center",
-                                                    color: "#999",
-                                                  }}
-                                                >
-                                                  No price tiers available
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
+                                                  </div>
+                                                ),
+                                              )
+                                            ) : (
+                                              <div
+                                                style={{
+                                                  padding: "12px",
+                                                  textAlign: "center",
+                                                  color: "#999",
+                                                }}
+                                              >
+                                                No price tiers available
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     ) : (
                                       <button
@@ -3335,7 +3731,7 @@ if (result && result.success) {
                                             setOpenPaymentDropdown(
                                               openPaymentDropdown === person.id
                                                 ? null
-                                                : person.id
+                                                : person.id,
                                             )
                                           }
                                         >
@@ -3357,21 +3753,21 @@ if (result && result.success) {
                                                   onClick={() =>
                                                     handlePaymentMethodSelect(
                                                       person.id,
-                                                      method
+                                                      method,
                                                     )
                                                   }
                                                   onMouseEnter={(e) =>
-                                                  (e.target.style.background =
-                                                    "#f0f0f0")
+                                                    (e.target.style.background =
+                                                      "#f0f0f0")
                                                   }
                                                   onMouseLeave={(e) =>
-                                                  (e.target.style.background =
-                                                    "transparent")
+                                                    (e.target.style.background =
+                                                      "transparent")
                                                   }
                                                 >
                                                   {method}
                                                 </div>
-                                              )
+                                              ),
                                             )}
                                           </div>
                                         )}
@@ -3392,7 +3788,7 @@ if (result && result.success) {
                                     style={{ ...styles.td, textAlign: "right" }}
                                   >
                                     {checkedIn[person.id] &&
-                                      priceTiers[person.id] ? (
+                                    priceTiers[person.id] ? (
                                       <span style={styles.priceInput}>
                                         R
                                         {priceTiers[person.id].price.toFixed(2)}
@@ -3414,7 +3810,7 @@ if (result && result.success) {
                                         onChange={(e) =>
                                           handlePaidAmountChange(
                                             person.id,
-                                            e.target.value
+                                            e.target.value,
                                           )
                                         }
                                         placeholder="0.00"
@@ -3429,7 +3825,7 @@ if (result && result.success) {
                                     style={{ ...styles.td, textAlign: "right" }}
                                   >
                                     {checkedIn[person.id] &&
-                                      priceTiers[person.id] ? (
+                                    priceTiers[person.id] ? (
                                       <span
                                         style={{
                                           ...styles.owingText,
@@ -3459,17 +3855,17 @@ if (result && result.success) {
                                           setOpenDecisionDropdown(
                                             openDecisionDropdown === person.id
                                               ? null
-                                              : person.id
+                                              : person.id,
                                           )
                                         }
                                       >
                                         <span>
                                           {decisionTypes[person.id]
                                             ? decisionOptions.find(
-                                              (opt) =>
-                                                opt.value ===
-                                                decisionTypes[person.id]
-                                            )?.label
+                                                (opt) =>
+                                                  opt.value ===
+                                                  decisionTypes[person.id],
+                                              )?.label
                                             : "Select Decision"}
                                         </span>
                                         <ChevronDown size={16} />
@@ -3483,16 +3879,16 @@ if (result && result.success) {
                                               onClick={() =>
                                                 handleDecisionTypeSelect(
                                                   person.id,
-                                                  option.value
+                                                  option.value,
                                                 )
                                               }
                                               onMouseEnter={(e) =>
-                                              (e.currentTarget.style.background =
-                                                theme.palette.action.hover)
+                                                (e.currentTarget.style.background =
+                                                  theme.palette.action.hover)
                                               }
                                               onMouseLeave={(e) =>
-                                              (e.target.style.background =
-                                                "transparent")
+                                                (e.target.style.background =
+                                                  "transparent")
                                               }
                                             >
                                               {option.label}
@@ -3521,70 +3917,97 @@ if (result && result.success) {
                   </div>
                 )}
 
-<div style={styles.statsContainer}>
-  <div style={styles.statBox}>
-    <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
-      {persistentCommonAttendees.length}
-    </div>
-    <div style={styles.statLabel}>Associated People</div>
-  </div>
-  
-  <div style={styles.statBox}>
-    <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
-      {eventStatistics.lastAttendanceCount > 0 ? eventStatistics.lastAttendanceCount : attendeesCount}
-    </div>
-    <div style={styles.statLabel}>Attendees</div>
-  </div>
-  
-  <div style={styles.statBoxInput}>
-    <input
-      type="number"
-      value={eventStatistics.lastHeadcount > 0 ? eventStatistics.lastHeadcount.toString() : manualHeadcount}
-      onChange={(e) => setManualHeadcount(e.target.value)}
-      placeholder="0"
-      style={styles.headcountInput}
-      min="0"
-    />
-    <div style={styles.statLabel}>Total Headcounts</div>
-  </div>
-  
-  {!isTicketedEvent && (
-    <div style={styles.statBox}>
-      <div style={{ ...styles.statNumber, color: "#ffc107" }}>
-        {eventStatistics.lastDecisionsCount > 0 ? eventStatistics.lastDecisionsCount : decisionsCount}
-      </div>
-      <div style={styles.statLabel}>Decisions</div>
-      {(eventStatistics.lastDecisionsCount > 0 || decisionsCount > 0) && (
-        <div style={styles.decisionBreakdown}>
-          <span>First-time: {eventStatistics.lastAttendanceBreakdown?.first_time || firstTimeCount}</span>
-          <span>Re-commitment: {eventStatistics.lastAttendanceBreakdown?.recommitment || reCommitmentCount}</span>
-        </div>
-      )}
-    </div>
-  )}
+                <div style={styles.statsContainer}>
+                  <div style={styles.statBox}>
+                    <div
+                      style={{
+                        ...styles.statNumber,
+                        color: theme.palette.info.main,
+                      }}
+                    >
+                      {persistentCommonAttendees.length}
+                    </div>
+                    <div style={styles.statLabel}>Associated People</div>
+                  </div>
 
-  {isTicketedEvent && (
-    <>
-      <div style={styles.statBox}>
-        <div style={{ ...styles.statNumber, color: "#28a745" }}>
-          R{totalPaid.toFixed(2)}
-        </div>
-        <div style={styles.statLabel}>Total Paid</div>
-      </div>
-      <div style={styles.statBox}>
-        <div
-          style={{
-            ...styles.statNumber,
-            color: totalOwing === 0 ? "#28a745" : "#dc3545",
-          }}
-        >
-          R{totalOwing.toFixed(2)}
-        </div>
-        <div style={styles.statLabel}>Total Owing</div>
-      </div>
-    </>
-  )}
-</div>
+                  <div style={styles.statBox}>
+                    <div
+                      style={{
+                        ...styles.statNumber,
+                        color: theme.palette.success.main,
+                      }}
+                    >
+                      {eventStatistics.lastAttendanceCount > 0
+                        ? eventStatistics.lastAttendanceCount
+                        : attendeesCount}
+                    </div>
+                    <div style={styles.statLabel}>Attendees</div>
+                  </div>
+
+                  <div style={styles.statBoxInput}>
+                    <input
+                      type="number"
+                      value={
+                        eventStatistics.lastHeadcount > 0
+                          ? eventStatistics.lastHeadcount.toString()
+                          : manualHeadcount
+                      }
+                      onChange={(e) => setManualHeadcount(e.target.value)}
+                      placeholder="0"
+                      style={styles.headcountInput}
+                      min="0"
+                    />
+                    <div style={styles.statLabel}>Total Headcounts</div>
+                  </div>
+
+                  {!isTicketedEvent && (
+                    <div style={styles.statBox}>
+                      <div style={{ ...styles.statNumber, color: "#ffc107" }}>
+                        {eventStatistics.lastDecisionsCount > 0
+                          ? eventStatistics.lastDecisionsCount
+                          : decisionsCount}
+                      </div>
+                      <div style={styles.statLabel}>Decisions</div>
+                      {(eventStatistics.lastDecisionsCount > 0 ||
+                        decisionsCount > 0) && (
+                        <div style={styles.decisionBreakdown}>
+                          <span>
+                            First-time:{" "}
+                            {eventStatistics.lastAttendanceBreakdown
+                              ?.first_time || firstTimeCount}
+                          </span>
+                          <span>
+                            Re-commitment:{" "}
+                            {eventStatistics.lastAttendanceBreakdown
+                              ?.recommitment || reCommitmentCount}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {isTicketedEvent && (
+                    <>
+                      <div style={styles.statBox}>
+                        <div style={{ ...styles.statNumber, color: "#28a745" }}>
+                          R{totalPaid.toFixed(2)}
+                        </div>
+                        <div style={styles.statLabel}>Total Paid</div>
+                      </div>
+                      <div style={styles.statBox}>
+                        <div
+                          style={{
+                            ...styles.statNumber,
+                            color: totalOwing === 0 ? "#28a745" : "#dc3545",
+                          }}
+                        >
+                          R{totalOwing.toFixed(2)}
+                        </div>
+                        <div style={styles.statLabel}>Total Owing</div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </>
             )}
 
@@ -3602,25 +4025,25 @@ if (result && result.success) {
                       padding: "14px 14px 14px 45px",
                       fontSize: 16,
                       borderRadius: 8,
-                      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
-                      backgroundColor: isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper,
-                      color: isDarkMode ? theme.palette.text.primary : '#000',
+                      border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
+                      backgroundColor: isDarkMode
+                        ? theme.palette.background.default
+                        : theme.palette.background.paper,
+                      color: isDarkMode ? theme.palette.text.primary : "#000",
                       outline: "none",
                       boxSizing: "border-box",
                     }}
                     onFocus={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.action.hover :
-                        theme.palette.background.default;
-                      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+                      e.target.style.backgroundColor = isDarkMode
+                        ? theme.palette.action.hover
+                        : theme.palette.background.default;
+                      e.target.style.borderColor = isDarkMode ? "#777" : "#999";
                     }}
                     onBlur={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper;
-                      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+                      e.target.style.backgroundColor = isDarkMode
+                        ? theme.palette.background.default
+                        : theme.palette.background.paper;
+                      e.target.style.borderColor = isDarkMode ? "#555" : "#ccc";
                     }}
                   />
                 </div>
@@ -3644,7 +4067,7 @@ if (result && result.success) {
                     )}
                     {filteredPeople.map((person) => {
                       const isAlreadyAdded = persistentCommonAttendees.some(
-                        (p) => p.id === person.id
+                        (p) => p.id === person.id,
                       );
 
                       return (
@@ -3726,7 +4149,7 @@ if (result && result.success) {
                         )}
                         {filteredPeople.map((person) => {
                           const isAlreadyAdded = persistentCommonAttendees.some(
-                            (p) => p.id === person.id
+                            (p) => p.id === person.id,
                           );
 
                           return (
@@ -3771,8 +4194,24 @@ if (result && result.success) {
 
           <div style={styles.footer}>
             <button style={styles.closeBtn} onClick={onClose}>
-
               CLOSE
+            </button>
+            <button
+              style={{
+                ...styles.saveBtn,
+                background: attendeesCount > 0 ? "#1976d2" : "#ccc",
+                cursor: attendeesCount > 0 ? "pointer" : "not-allowed",
+                minWidth: 180,
+              }}
+              onClick={downloadCheckedInAttendance}
+              disabled={attendeesCount === 0}
+              title={
+                attendeesCount === 0
+                  ? "Check in at least one person to enable download"
+                  : "Download checked-in attendance (XLS)"
+              }
+            >
+              DOWNLOAD ATTENDANCE (XLS)
             </button>
             <div
               style={{
@@ -3849,8 +4288,6 @@ if (result && result.success) {
 `}
       </style>
     </>
-
   );
-
 };
 export default AttendanceModal;
