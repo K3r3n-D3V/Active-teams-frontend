@@ -59,7 +59,7 @@ const { user, loading } = React.useContext(AuthContext);
 
   useEffect(() => {
     console.log('🔍 Debug Info:', {
-      user: !!user,
+      user: !user,
       userRole: user?.role,
       loading,
       showSplash,
