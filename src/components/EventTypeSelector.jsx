@@ -318,13 +318,13 @@ const EventTypeSelector = () => {
                 sx={{
                     p: 3,
                     borderRadius: "16px",
-                    background: isDark 
+                    background: isDark
                         ? "linear-gradient(180deg, rgba(25,25,25,0.95), rgba(15,15,15,0.95))"
                         : "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245,245,245,0.95))",
-                    border: isDark 
+                    border: isDark
                         ? "1px solid rgba(255,255,255,0.06)"
                         : "1px solid rgba(0,0,0,0.08)",
-                    boxShadow: isDark 
+                    boxShadow: isDark
                         ? "0 20px 50px rgba(0,0,0,0.5)"
                         : "0 20px 50px rgba(0,0,0,0.08)",
                 }}
@@ -332,7 +332,7 @@ const EventTypeSelector = () => {
                 {/* Header with Title and Toggle */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
                     <Typography variant="h5" sx={{ color: isDark ? "#fff" : "#000" }}>Select Event Type</Typography>
-                    
+
                     <ToggleButtonGroup
                         value={viewMode}
                         exclusive
@@ -387,18 +387,86 @@ const EventTypeSelector = () => {
                         maxHeight: viewMode === 'grid' ? '600px' : 'none',
                         overflowY: viewMode === 'grid' ? 'auto' : 'visible',
                         display: 'grid',
-                        gridTemplateColumns: viewMode === 'grid' 
+                        gridTemplateColumns: viewMode === 'grid'
                             ? { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }
                             : '1fr',
                         gap: viewMode === 'grid' ? 2 : 1.5,
                         pr: viewMode === 'grid' ? 1 : 0
                     }}
                 >
+                    {/* ALL CELLS — PINNED AT TOP */}
+                    <Card
+                        elevation={0}
+                        sx={{
+                            position: "sticky",
+                            top: 0,
+                            zIndex: 5,
+                            borderRadius: "14px",
+                            cursor: "pointer",
+                            background: isDark
+                                ? "linear-gradient(180deg, rgba(32,32,32,0.98), rgba(20,20,20,0.98))"
+                                : "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,248,248,0.98))",
+                            border: isDark
+                                ? "1px solid rgba(255,255,255,0.08)"
+                                : "1px solid rgba(0,0,0,0.08)",
+                            boxShadow: isDark
+                                ? "0 10px 25px rgba(0,0,0,0.4)"
+                                : "0 10px 25px rgba(0,0,0,0.1)",
+                            transition: "all 0.25s ease",
+                            "&::before": {
+                                content: '""',
+                                position: "absolute",
+                                left: 0,
+                                top: 0,
+                                height: "100%",
+                                width: "6px",
+                                background: "linear-gradient(180deg, #00c6ff, #00ff99)",
+                                borderTopLeftRadius: "14px",
+                                borderBottomLeftRadius: "14px",
+                            },
+                            "&:hover": {
+                                transform: "translateY(-4px)",
+                                boxShadow: isDark
+                                    ? "0 18px 40px rgba(0,0,0,0.55)"
+                                    : "0 18px 40px rgba(0,0,0,0.18)",
+                            },
+                        }}
+                    >
+                        <CardActionArea onClick={() => handleTypeClick("cell")}>
+                            <CardContent sx={{ py: 2.2, px: 2.5 }}>
+                                <Typography
+                                    variant="subtitle1"
+                                    sx={{
+                                        fontWeight: 700,
+                                        color: isDark ? "#fff" : "#000",
+                                        letterSpacing: "0.3px",
+                                    }}
+                                >
+                                    All Cells
+                                </Typography>
+
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        mt: 0.3,
+                                        color: isDark
+                                            ? "rgba(255,255,255,0.65)"
+                                            : "rgba(0,0,0,0.6)",
+                                    }}
+                                >
+                                    View all cell events across the church
+                                </Typography>
+                            </CardContent>
+                        </CardActionArea>
+                    </Card>
+
+
                     {/* Event Type Cards */}
                     {filteredEventTypes.map((type) => {
                         const isCells = type.name && type.name.toUpperCase() === "CELLS";
-                        
+
                         return (
+
                             <Card
                                 key={type.name}
                                 elevation={0}
@@ -407,13 +475,13 @@ const EventTypeSelector = () => {
                                     borderRadius: "14px",
                                     overflow: "visible",
                                     cursor: "pointer",
-                                    background: isDark 
+                                    background: isDark
                                         ? "linear-gradient(180deg, rgba(28,28,28,0.95), rgba(18,18,18,0.95))"
                                         : "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(250,250,250,0.95))",
-                                    border: isDark 
+                                    border: isDark
                                         ? "1px solid rgba(255,255,255,0.06)"
                                         : "1px solid rgba(0,0,0,0.08)",
-                                    boxShadow: isDark 
+                                    boxShadow: isDark
                                         ? "0 10px 25px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03)"
                                         : "0 10px 25px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.5)",
                                     transition: "all 0.25s ease",
@@ -428,7 +496,7 @@ const EventTypeSelector = () => {
                                     },
                                     "&:hover": {
                                         transform: "translateY(-6px) scale(1.01)",
-                                        boxShadow: isDark 
+                                        boxShadow: isDark
                                             ? "0 20px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,180,255,0.35)"
                                             : "0 20px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,180,255,0.35)",
                                     },
@@ -437,13 +505,13 @@ const EventTypeSelector = () => {
                                     borderRadius: "12px",
                                     overflow: "visible",
                                     cursor: "pointer",
-                                    background: isDark 
+                                    background: isDark
                                         ? "linear-gradient(180deg, rgba(28,28,28,0.95), rgba(18,18,18,0.95))"
                                         : "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(250,250,250,0.95))",
-                                    border: isDark 
+                                    border: isDark
                                         ? "1px solid rgba(255,255,255,0.06)"
                                         : "1px solid rgba(0,0,0,0.08)",
-                                    boxShadow: isDark 
+                                    boxShadow: isDark
                                         ? "0 8px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)"
                                         : "0 8px 20px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.5)",
                                     transition: "all 0.25s ease",
@@ -460,15 +528,15 @@ const EventTypeSelector = () => {
                                     },
                                     "&:hover": {
                                         transform: "translateX(4px)",
-                                        boxShadow: isDark 
+                                        boxShadow: isDark
                                             ? "0 15px 35px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,180,255,0.35)"
                                             : "0 15px 35px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,180,255,0.35)",
                                     },
                                 }}
                             >
                                 <CardActionArea onClick={() => handleTypeClick(type.name)} sx={{ flex: 1 }}>
-                                    <CardContent sx={viewMode === 'grid' 
-                                        ? { py: 2.2, px: 2.5, pr: 7 } 
+                                    <CardContent sx={viewMode === 'grid'
+                                        ? { py: 2.2, px: 2.5, pr: 7 }
                                         : { py: 2, px: 2.5, pr: 7, display: 'flex', flexDirection: 'column', justifyContent: 'center' }
                                     }>
                                         <Typography
@@ -501,7 +569,7 @@ const EventTypeSelector = () => {
                                     </CardContent>
                                 </CardActionArea>
 
-                                
+
                             </Card>
                         );
                     })}

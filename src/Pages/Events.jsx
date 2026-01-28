@@ -31,6 +31,10 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Tooltip from "@mui/material/Tooltip";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import Menu from "@mui/material/Menu";
+import ListItemText from "@mui/material/ListItemText";
+
 
 import {
   Box,
@@ -46,11 +50,10 @@ import SearchIcon from "@mui/icons-material/Search";
 import Popover from "@mui/material/Popover";
 import MenuItem from "@mui/material/MenuItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
 import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 
@@ -155,6 +158,7 @@ const getNextOccurrence = (recurringDays, fromDate = new Date()) => {
 
   return nextDate;
 };
+
 
 // ============================================
 // STYLES AND THEMING
@@ -2479,11 +2483,11 @@ const Events = () => {
       } else if (isLeaderAt12) {
         fetchParams.leader_at_12_view = true;
         fetchParams.include_subordinate_cells = true;
-        
+
         if (currentUserLeaderAt1) {
           fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
         }
-        
+
         if (viewFilter === "personal") {
           fetchParams.show_personal_cells = true;
           fetchParams.personal = true;
@@ -2548,7 +2552,7 @@ const Events = () => {
         const eventTypeName = typeof et === "string" ? et : et.name;
         return eventTypeName === typeParam;
       });
-      
+
       if (matchingType) {
         setSelectedEventTypeObj(matchingType);
       }
@@ -2568,6 +2572,9 @@ const Events = () => {
       fetchParamsRef.current = null;
     };
   }, []);
+
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+  const menuOpen = Boolean(menuAnchorEl);
 
   // StatusBadges and ViewFilterButtons components are now imported from separate files
   // See: StatusBadges.jsx and ViewFilterButtons.jsx in the components directory
@@ -2673,304 +2680,84 @@ const Events = () => {
           {selectedType && isAdmin && selectedType.toUpperCase() !== "CELLS" && (
             <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
               {/* Edit Button */}
-              <Tooltip title="Edit Event Type" arrow>
+              <Tooltip title="Actions" arrow>
                 <IconButton
                   size="small"
+                  onClick={(e) => {
+                    e.stopPropagation(); // prevent card click
+                    setMenuAnchorEl(e.currentTarget);
+                  }}
+                  sx={{
+                    backgroundColor: isDarkMode
+                      ? "rgba(255,255,255,0.06)"
+                      : "rgba(0,0,0,0.06)",
+                    color: isDarkMode ? "#fff" : "#000",
+                    width: 28,
+                    height: 28,
+                    "&:hover": {
+                      backgroundColor: isDarkMode
+                        ? "rgba(255,255,255,0.12)"
+                        : "rgba(0,0,0,0.12)",
+                    },
+                  }}
+                >
+                  <MoreVertIcon sx={{ fontSize: "1.1rem" }} />
+                </IconButton>
+              </Tooltip>
+
+              <Menu
+                anchorEl={menuAnchorEl}
+                open={menuOpen}
+                onClose={() => setMenuAnchorEl(null)}
+                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                transformOrigin={{ vertical: "top", horizontal: "right" }}
+              >
+                {/* EDIT */}
+                <MenuItem
                   onClick={() => {
                     const typeObj = customEventTypes.find(
-                      t => t.name === selectedType
+                      (t) => t.name === selectedType
                     );
+
                     if (typeObj) {
                       setEditingEventType(typeObj);
                       setEventTypesModalOpen(true);
                     }
-                  }}
-                  sx={{
-                    backgroundColor: isDarkMode
-                      ? 'rgba(0,122,255,0.1)'
-                      : 'rgba(0,122,255,0.08)',
-                    color: '#007aff',
-                    width: 28,
-                    height: 28,
-                    '&:hover': {
-                      backgroundColor: isDarkMode
-                        ? 'rgba(0,122,255,0.2)'
-                        : 'rgba(0,122,255,0.15)',
-                    },
-                  }}
-                >
-                  <EditIcon sx={{ fontSize: '1rem' }} />
-                </IconButton>
-              </Tooltip>
 
-              {/* Delete Button */}
-              <Tooltip title="Delete Event Type" arrow>
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    const typeObj = customEventTypes.find(
-                      t => t.name === selectedType
-                    );
-                    if (typeObj) {
-                      setToDeleteType(typeObj);
-                      setConfirmDeleteOpen(true);
-                    }
-                  }}
-                  sx={{
-                    backgroundColor: isDarkMode
-                      ? 'rgba(255,59,48,0.1)'
-                      : 'rgba(255,59,48,0.08)',
-                    color: '#ff3b30',
-                    width: 28,
-                    height: 28,
-                    '&:hover': {
-                      backgroundColor: isDarkMode
-                        ? 'rgba(255,59,48,0.2)'
-                        : 'rgba(255,59,48,0.15)',
-                    },
+                    setMenuAnchorEl(null);
                   }}
                 >
-                  <DeleteIcon sx={{ fontSize: '1rem' }} />
-                </IconButton>
-              </Tooltip>
+                  <ListItemIcon>
+                    <EditIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Edit</ListItemText>
+                </MenuItem>
+
+                {/* DELETE */}
+                <MenuItem
+                  onClick={() => {
+                    setConfirmDeleteOpen(true);
+                    setToDeleteType(selectedType);
+                    setMenuAnchorEl(null);
+                  }}
+                  sx={{ color: "error.main" }}
+                >
+                  <ListItemIcon sx={{ color: "error.main" }}>
+                    <DeleteIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Delete</ListItemText>
+                </MenuItem>
+              </Menu>
             </Box>
           )}
         </Box>
 
         {/* Optional: Clear Filter Button */}
-        {selectedType && (
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={() => navigate('/events/list')}
-            sx={{ ml: 'auto' }}
-          >
-            Show All Events
-          </Button>
-        )}
+
       </Box>
 
       {/* Event Types Cards Section */}
-      {customEventTypes && customEventTypes.length > 0 && (
-        <Box
-          sx={{
-            padding: isMobileView ? "1rem" : "1.5rem",
-            borderRadius: "16px",
-            marginBottom: isMobileView ? "0.5rem" : "1rem",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-            flexShrink: 0,
-            backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
-          }}
-        >
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            Event Types
-          </Typography>
-          
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)", lg: "repeat(4, 1fr)" },
-              gap: 1.5,
-            }}
-          >
-            {/* CELLS Event Type - Special Card (Not Editable/Deletable) - Fetched from Database */}
-            {customEventTypes.find((type) => type.name && type.name.toUpperCase() === "CELLS") && (
-              <Card
-                sx={{
-                  position: "relative",
-                  borderRadius: "12px",
-                  overflow: "hidden",
-                  cursor: "pointer",
-                  background: isDarkMode
-                    ? "linear-gradient(135deg, rgba(0,198,255,0.1), rgba(0,255,153,0.05))"
-                    : "linear-gradient(135deg, rgba(0,198,255,0.05), rgba(0,255,153,0.02))",
-                  border: isDarkMode ? "2px solid #00c6ff" : "2px solid #00c6ff",
-                  boxShadow: isDarkMode
-                    ? "0 8px 20px rgba(0,198,255,0.2), inset 0 1px 0 rgba(255,255,255,0.05)"
-                    : "0 8px 20px rgba(0,198,255,0.1)",
-                  transition: "all 0.25s ease",
-                  "&:hover": {
-                    transform: "translateY(-4px)",
-                    boxShadow: isDarkMode
-                      ? "0 12px 28px rgba(0,198,255,0.3)"
-                      : "0 12px 28px rgba(0,198,255,0.2)",
-                  },
-                }}
-                onClick={() => {
-                  const cellsType = customEventTypes.find((type) => type.name && type.name.toUpperCase() === "CELLS");
-                  setSelectedEventTypeFilter(cellsType.name);
-                  setSelectedEventTypeObj(cellsType);
-                  navigate(`/events/list?type=${encodeURIComponent(cellsType.name)}`);
-                }}
-              >
-                <CardContent sx={{ pb: 1.5 }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "start", mb: 1 }}>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 700,
-                        color: "#00c6ff",
-                        fontSize: "1rem",
-                      }}
-                    >
-                      🎯 CELLS
-                    </Typography>
-                    <Typography
-                      sx={{
-                        fontSize: "0.7rem",
-                        backgroundColor: isDarkMode ? "rgba(0,198,255,0.2)" : "rgba(0,198,255,0.1)",
-                        color: "#00c6ff",
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "4px",
-                        fontWeight: 600,
-                      }}
-                    >
-                      CORE
-                    </Typography>
-                  </Box>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: isDarkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    {customEventTypes.find((type) => type.name && type.name.toUpperCase() === "CELLS")?.description || "Main event type for group gatherings"}
-                  </Typography>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Other Custom Event Types */}
-            {customEventTypes
-              .filter((type) => type.name && type.name.toUpperCase() !== "CELLS")
-              .map((type) => (
-                <Card
-                  key={type.name}
-                  sx={{
-                    position: "relative",
-                    borderRadius: "12px",
-                    overflow: "hidden",
-                    cursor: "pointer",
-                    background: isDarkMode
-                      ? "linear-gradient(135deg, rgba(100,100,100,0.1), rgba(80,80,80,0.05))"
-                      : "linear-gradient(135deg, rgba(100,100,100,0.05), rgba(80,80,80,0.02))",
-                    border: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
-                    boxShadow: isDarkMode
-                      ? "0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.03)"
-                      : "0 4px 12px rgba(0,0,0,0.05)",
-                    transition: "all 0.25s ease",
-                    "&:hover": {
-                      transform: "translateY(-4px)",
-                      boxShadow: isDarkMode
-                        ? "0 8px 20px rgba(0,0,0,0.3)"
-                        : "0 8px 20px rgba(0,0,0,0.1)",
-                    },
-                  }}
-                  onClick={() => {
-                    setSelectedEventTypeFilter(type.name);
-                    setSelectedEventTypeObj(type);
-                    navigate(`/events/list?type=${encodeURIComponent(type.name)}`);
-                  }}
-                >
-                  <CardContent sx={{ pb: 1, position: "relative", pr: 5 }}>
-                    <Typography
-                      variant="subtitle2"
-                      sx={{
-                        fontWeight: 600,
-                        color: isDarkMode ? "#fff" : "#000",
-                        fontSize: "0.95rem",
-                      }}
-                    >
-                      {type.name}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: isDarkMode ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)",
-                        fontSize: "0.8rem",
-                        mt: 0.5,
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {type.description || "Custom event type"}
-                    </Typography>
-
-                    {/* Action Buttons (Edit & Delete) - Only for Admins */}
-                    {isAdmin && (
-                      <Box
-                        sx={{
-                          position: "absolute",
-                          top: 8,
-                          right: 8,
-                          display: "flex",
-                          gap: 0.5,
-                        }}
-                      >
-                        {/* Edit Button */}
-                        <Tooltip title="Edit Event Type" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingEventType(type);
-                              setEventTypesModalOpen(true);
-                            }}
-                            sx={{
-                              backgroundColor: isDarkMode
-                                ? "rgba(0,122,255,0.1)"
-                                : "rgba(0,122,255,0.08)",
-                              color: "#007aff",
-                              "&:hover": {
-                                backgroundColor: isDarkMode
-                                  ? "rgba(0,122,255,0.2)"
-                                  : "rgba(0,122,255,0.15)",
-                              },
-                              width: 32,
-                              height: 32,
-                            }}
-                          >
-                            <EditIcon sx={{ fontSize: "1rem" }} />
-                          </IconButton>
-                        </Tooltip>
-
-                        {/* Delete Button */}
-                        <Tooltip title="Delete Event Type" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setToDeleteType(type);
-                              setConfirmDeleteOpen(true);
-                            }}
-                            sx={{
-                              backgroundColor: isDarkMode
-                                ? "rgba(255,59,48,0.1)"
-                                : "rgba(255,59,48,0.08)",
-                              color: "#ff3b30",
-                              "&:hover": {
-                                backgroundColor: isDarkMode
-                                  ? "rgba(255,59,48,0.2)"
-                                  : "rgba(255,59,48,0.15)",
-                              },
-                              width: 32,
-                              height: 32,
-                            }}
-                          >
-                            <DeleteIcon sx={{ fontSize: "1rem" }} />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-          </Box>
-        </Box>
-      )}
+      
 
       <Box
         sx={{
