@@ -1,4 +1,4 @@
-import { useState, useEffect,  useContext, useMemo} from "react";
+import { useState, useEffect, useContext, useMemo } from "react";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -27,7 +27,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     dob: "",
     address: "",
   });
-  
+
   const [peopleList, setPeopleList] = useState([]);
   const [isLoadingPeople, setIsLoadingPeople] = useState(false);
   const [inviterSearchInput, setInviterSearchInput] = useState("");
@@ -55,7 +55,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     setIsLoadingPeople(true);
     try {
       const response = await authFetch(`${BACKEND_URL}/cache/people`);
-      
+
       if (response.ok) {
         const data = await response.json();
         const cachedData = data.cached_data || [];
@@ -110,10 +110,10 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     if (!inputValue) {
       return peopleOptions.slice(0, 30);
     }
-    
+
     const searchTerm = inputValue.toLowerCase();
     return peopleOptions
-      .filter(option => 
+      .filter(option =>
         option.searchText.includes(searchTerm) ||
         option.fullName.toLowerCase().includes(searchTerm) ||
         option.email.toLowerCase().includes(searchTerm) ||
@@ -128,7 +128,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const handleInviterSelect = (person) => {
     console.log("Selected inviter:", person.fullName);
-    
+
     setFormData(prev => ({ ...prev, invitedBy: person.fullName }));
     setInviterSearchInput(person.fullName);
     setShowInviterDropdown(false);
@@ -201,7 +201,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     setInviterSearchInput(value);
     setShowInviterDropdown(true);
     setTouched(prev => ({ ...prev, invitedBy: true }));
-    
+
     if (value.trim() === "") {
       setFormData(prev => ({ ...prev, invitedBy: "" }));
       setAutoFilledLeaders({
@@ -212,51 +212,51 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     }
   };
 
-const handleSubmit = async (finalLeaderInfo) => {
-  try {
-    const payload = {
-      invitedBy: formData.invitedBy,
-      name: formData.name,
-      surname: formData.surname,
-      gender: formData.gender,
-      email: formData.email,
-      number: formData.mobile,
-      dob: formData.dob,
-      address: formData.address,
-      leaders: [
-        finalLeaderInfo.leader1 || "",
-        finalLeaderInfo.leader12 || "",
-        finalLeaderInfo.leader144 || "",
-        finalLeaderInfo.leader1728 || ""
-      ].filter(leader => leader.trim() !== ""),
-      stage: "Win",
-    };
+  const handleSubmit = async (finalLeaderInfo) => {
+    try {
+      const payload = {
+        invitedBy: formData.invitedBy,
+        name: formData.name,
+        surname: formData.surname,
+        gender: formData.gender,
+        email: formData.email,
+        number: formData.mobile,
+        dob: formData.dob,
+        address: formData.address,
+        leaders: [
+          finalLeaderInfo.leader1 || "",
+          finalLeaderInfo.leader12 || "",
+          finalLeaderInfo.leader144 || "",
+          finalLeaderInfo.leader1728 || ""
+        ].filter(leader => leader.trim() !== ""),
+        stage: "Win",
+      };
 
-    console.log("Submitting new person:", payload);
-        const response = await authFetch(`${BACKEND_URL}/people`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
+      console.log("Submitting new person:", payload);
+      const response = await authFetch(`${BACKEND_URL}/people`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Failed to create person');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to create person');
+      }
+
+      const result = await response.json();
+      console.log("Person created:", result);
+      toast.success("Person created successfully!");
+      await authFetch(`${BACKEND_URL}/cache/refresh`, { method: 'POST' });
+      handleClose();
+
+    } catch (error) {
+      console.error("Error creating person:", error);
+      toast.error(`Error: ${error.message}`);
     }
-
-    const result = await response.json();
-    console.log("Person created:", result);
-    toast.success("Person created successfully!");
-    await authFetch(`${BACKEND_URL}/cache/refresh`, { method: 'POST' });
-     handleClose();
-    
-  } catch (error) {
-    console.error("Error creating person:", error);
-    toast.error(`Error: ${error.message}`);
-  }
-};
+  };
   const isFieldEmpty = (fieldName) => {
     const value = fieldName === 'invitedBy' ? inviterSearchInput : formData[fieldName];
     return !value || value.trim() === "";
@@ -275,9 +275,9 @@ const handleSubmit = async (finalLeaderInfo) => {
       mobile: formData.mobile?.trim(),
       dob: formData.dob?.trim(),
       address: formData.address?.trim(),
-      invitedBy: formData.invitedBy?.trim() 
+      invitedBy: formData.invitedBy?.trim()
     };
-    
+
     const missingFields = Object.entries(requiredFields)
       .filter(([key, value]) => !value)
       .map(([key]) => key);
@@ -314,7 +314,7 @@ const handleSubmit = async (finalLeaderInfo) => {
       address: "",
     });
     setInviterSearchInput("");
-    setPeopleList([]); 
+    setPeopleList([]);
     setShowInviterDropdown(false);
     setShowLeaderModal(false);
     setAttemptedSubmit(false);
@@ -533,7 +533,7 @@ const handleSubmit = async (finalLeaderInfo) => {
                 autoComplete="off"
                 disabled={isLoadingPeople}
               />
-              
+
               {showInviterDropdown && (
                 <div style={styles.dropdown}>
                   {isLoadingPeople ? (
@@ -562,8 +562,8 @@ const handleSubmit = async (finalLeaderInfo) => {
                     ))
                   ) : inviterSearchInput.trim() === "" ? (
                     <div style={styles.dropdownEmpty}>
-                      {peopleOptions.length > 0 
-                        ? "Start typing to search people..." 
+                      {peopleOptions.length > 0
+                        ? "Start typing to search people..."
                         : "No people data available"}
                     </div>
                   ) : (
@@ -573,7 +573,7 @@ const handleSubmit = async (finalLeaderInfo) => {
                   )}
                 </div>
               )}
-              
+
               {isLoadingPeople && (
                 <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
                   Loading people data...
@@ -727,7 +727,7 @@ const handleSubmit = async (finalLeaderInfo) => {
           onBack={() => setShowLeaderModal(false)}
           onSubmit={handleSubmit}
           personData={formData}
-          preloadedPeople={peopleOptions} 
+          preloadedPeople={peopleOptions}
           autoFilledLeaders={autoFilledLeaders}
         />
       )}
@@ -738,7 +738,7 @@ const handleSubmit = async (finalLeaderInfo) => {
 const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-    const { authFetch } = useContext(AuthContext);
+  const { authFetch } = useContext(AuthContext);
 
   const [leaderData, setLeaderData] = useState({
     leader1: "",
@@ -1128,396 +1128,237 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     { value: "first-time", label: "First-time commitment" },
     { value: "re-commitment", label: "Re-commitment" },
   ];
-const [eventStatistics, setEventStatistics] = useState({
-  totalAssociated: 0,
-  lastAttendanceCount: 0,
-  lastHeadcount: 0,
-  lastDecisionsCount: 0,
-  lastAttendanceBreakdown: {
-    first_time: 0,
-    recommitment: 0
-  }
-});
+  const [eventStatistics, setEventStatistics] = useState({
+    totalAssociated: 0,
+    lastAttendanceCount: 0,
+    lastHeadcount: 0,
+    lastDecisionsCount: 0,
+    lastAttendanceBreakdown: {
+      first_time: 0,
+      recommitment: 0
+    }
+  });
 
   const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
- const findLeaderEmail = async (leaderName) => {
-    if (!leaderName) return "";
-    
+  const clearGlobalPeopleCache = () => {
     try {
-      const response = await authFetch(`${BACKEND_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.results?.length > 0) {
-          const foundLeader = data.results.find(person => 
-            person.Name?.toLowerCase() === leaderName.toLowerCase() ||
-            person.FullName?.toLowerCase() === leaderName.toLowerCase()
-          );
-          
-          if (foundLeader?.Email) {
-            return foundLeader.Email;
-          }
-        }
+      if (typeof window !== "undefined") {
+        // remove any window-level cache object used elsewhere
+        delete window.globalPeopleCache;
+        window.clearGlobalPeopleCache = () => { delete window.globalPeopleCache; };
       }
-      
-      return "";
-      
-    } catch (error) {
-      console.error("Error searching for leader email:", error);
-      return "";
+    } catch (err) {
+      console.warn("Failed to clear global people cache", err);
     }
   };
 
-const createConsolidationTasks = async (attendees, eventId) => {
-  if (!attendees || attendees.length === 0) return;
-
-  console.log("Creating consolidation tasks for", attendees.length, "attendees");
-
-  for (const attendee of attendees) {
-    const hasDecision = attendee.decision && attendee.decision.length > 0;
-    
-    if (!hasDecision) {
-      console.log(`Skipping ${attendee.fullName} - no decision made`);
-      continue;
-    }
+  const loadEventStatistics = async () => {
+    if (!event) return;
 
     try {
-      // Better name parsing - handle various formats
-      let firstName = "";
-      let lastName = "";
-      
-      if (attendee.name && attendee.surname) {
-        // If we already have separate fields
-        firstName = attendee.name;
-        lastName = attendee.surname;
-      } else if (attendee.fullName) {
-        // Parse fullName more reliably
-        const nameParts = attendee.fullName.trim().split(/\s+/);
-        firstName = nameParts[0] || "";
-        lastName = nameParts.slice(1).join(" ") || "";
-      }
-      
-      console.log(`Processing: ${firstName} ${lastName}`, {
-        fullName: attendee.fullName,
-        firstName,
-        lastName,
-        decision: attendee.decision
-      });
-
-      // Determine assigned leader with fallback hierarchy
-      let assignedLeader = "";
-      
-      if (attendee.leader144 && attendee.leader144.trim()) {
-        assignedLeader = attendee.leader144.trim();
-        console.log(`Using Leader @144: ${assignedLeader}`);
-      } else if (attendee.leader12 && attendee.leader12.trim()) {
-        assignedLeader = attendee.leader12.trim();
-        console.log(`Using Leader @12: ${assignedLeader}`);
-      } else if (attendee.leader1 && attendee.leader1.trim()) {
-        assignedLeader = attendee.leader1.trim();
-        console.log(`Using Leader @1: ${assignedLeader}`);
-      } else if (currentUser) {
-        assignedLeader = `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
-        console.log(`Using current user as leader: ${assignedLeader}`);
-      }
-      
-      if (!assignedLeader) {
-        console.warn(`Could not determine leader for ${firstName} ${lastName}`);
-        continue;
+      let eventId = event._id || event.id;
+      if (eventId && eventId.includes("_")) {
+        eventId = eventId.split("_")[0];
       }
 
-      // Get leader email
-      const leaderEmail = await findLeaderEmail(assignedLeader);
-      console.log(`Leader email: ${leaderEmail || "not found"}`);
+      const eventDate = event.date;
+      const attendanceData = event.attendance || {};
 
-      // Parse decision type
-      const decisionType = attendee.decision.toLowerCase().includes('re-commitment') || 
-                          attendee.decision.toLowerCase().includes('recommitment')
-        ? 'recommitment' 
-        : 'first_time';
-      
-      console.log(`Decision type: ${decisionType}`);
-
-      const consolidationPayload = {
-        person_name: firstName,
-        person_surname: lastName,
-        person_email: attendee.email || "",
-        person_phone: attendee.phone || "",
-        decision_type: decisionType,
-        decision_date: new Date().toISOString().split("T")[0],
-        assigned_to: assignedLeader,
-        assigned_to_email: leaderEmail,
-        leaders: [
-          attendee.leader1 || "",
-          attendee.leader12 || "",
-          attendee.leader144 || "",
-          ""
-        ],
-        event_id: eventId,
-        is_check_in: true,
-        attendance_status: "checked_in",
-        source: "event_consolidation"
-      };
-
-      console.log(`Sending consolidation payload:`, consolidationPayload);
-
-      const response = await authFetch(`${BACKEND_URL}/consolidations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(consolidationPayload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error(`Failed to create consolidation task for ${firstName} ${lastName}:`, errorData);
-        continue;
+      let weekAttendance = attendanceData;
+      if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
+        weekAttendance = attendanceData[eventDate] || {};
       }
 
-      const result = await response.json();
-      console.log(`Consolidation task created successfully for ${firstName} ${lastName}:`, result);
-      
+      if (weekAttendance && weekAttendance.status) {
+        const stats = weekAttendance.statistics || {};
+        const attendees = weekAttendance.attendees || [];
+
+        let firstTimeCount = 0;
+        let recommitmentCount = 0;
+
+        attendees.forEach(att => {
+          const decision = (att.decision || "").toLowerCase();
+          if (decision.includes("first")) {
+            firstTimeCount++;
+          } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+            recommitmentCount++;
+          }
+        });
+
+        setEventStatistics({
+          totalAssociated: weekAttendance.persistent_attendees?.length || 0,
+          lastAttendanceCount: weekAttendance.checked_in_count || attendees.length,
+          lastHeadcount: weekAttendance.total_headcounts || 0,
+          lastDecisionsCount: firstTimeCount + recommitmentCount,
+          lastAttendanceBreakdown: {
+            first_time: firstTimeCount,
+            recommitment: recommitmentCount
+          }
+        });
+
+        if (weekAttendance.total_headcounts > 0) {
+          setManualHeadcount(weekAttendance.total_headcounts.toString());
+        }
+
+        return;
+      }
+
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/statistics`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data.statistics) {
+          setEventStatistics({
+            totalAssociated: data.statistics.total_associated || 0,
+            lastAttendanceCount: data.statistics.last_attendance_count || 0,
+            lastHeadcount: data.statistics.last_headcount || 0,
+            lastDecisionsCount: data.statistics.last_decisions_count || 0,
+            lastAttendanceBreakdown: data.statistics.last_attendance_breakdown || {
+              first_time: 0,
+              recommitment: 0
+            }
+          });
+        }
+      }
     } catch (error) {
-      console.error(`Error creating consolidation task for ${attendee.fullName}:`, error);
+      console.error("Error loading event statistics:", error);
     }
-  }
-  
-  console.log("Finished creating consolidation tasks");
-};
+  };
 
-
-const loadEventStatistics = async () => {
-  if (!event) return;
-  
-  try {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
+  const loadWeeklyCheckins = () => {
+    if (!event) {
+      setCheckedIn({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+      return;
     }
+
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
 
     const eventDate = event.date;
+
+    if (!eventDate) {
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+      return;
+    }
+
     const attendanceData = event.attendance || {};
-    
     let weekAttendance = attendanceData;
+
     if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
       weekAttendance = attendanceData[eventDate] || {};
     }
-    
-    if (weekAttendance && weekAttendance.status) {
-      const stats = weekAttendance.statistics || {};
-      const attendees = weekAttendance.attendees || [];
-      
-      let firstTimeCount = 0;
-      let recommitmentCount = 0;
-      
-      attendees.forEach(att => {
-        const decision = (att.decision || "").toLowerCase();
-        if (decision.includes("first")) {
-          firstTimeCount++;
-        } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
-          recommitmentCount++;
-        }
-      });
-      
-      setEventStatistics({
-        totalAssociated: weekAttendance.persistent_attendees?.length || 0,
-        lastAttendanceCount: weekAttendance.checked_in_count || attendees.length,
-        lastHeadcount: weekAttendance.total_headcounts || 0,
-        lastDecisionsCount: firstTimeCount + recommitmentCount,
-        lastAttendanceBreakdown: {
-          first_time: firstTimeCount,
-          recommitment: recommitmentCount
-        }
-      });
-      
-      if (weekAttendance.total_headcounts > 0) {
-        setManualHeadcount(weekAttendance.total_headcounts.toString());
-      }
-      
+
+    if (!weekAttendance || !weekAttendance.status) {
+      setCheckedIn({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
       return;
     }
-    
-    const token = localStorage.getItem("token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/statistics`,
-      { headers: { Authorization: `Bearer ${token}` } }
+
+    const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
+    const hasHeadcount = weekAttendance.total_headcounts > 0;
+
+    const isActuallyDidNotMeet = (
+      weekAttendance.status === "did_not_meet" &&
+      !hasAttendees &&
+      !hasHeadcount
     );
 
-    if (response.ok) {
-      const data = await response.json();
-      
-      if (data.statistics) {
-        setEventStatistics({
-          totalAssociated: data.statistics.total_associated || 0,
-          lastAttendanceCount: data.statistics.last_attendance_count || 0,
-          lastHeadcount: data.statistics.last_headcount || 0,
-          lastDecisionsCount: data.statistics.last_decisions_count || 0,
-          lastAttendanceBreakdown: data.statistics.last_attendance_breakdown || {
-            first_time: 0,
-            recommitment: 0
-          }
-        });
-      }
-    }
-  } catch (error) {
-    console.error("Error loading event statistics:", error);
-  }
-};
+    setDidNotMeet(isActuallyDidNotMeet);
 
-const loadWeeklyCheckins = () => {
-  if (!event) {
-    setCheckedIn({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-    return;
-  }
-  
-  setCheckedIn({});
-  setDecisions({});
-  setDecisionTypes({});
-  setPriceTiers({});
-  setPaymentMethods({});
-  setPaidAmounts({});
-  
-  const eventDate = event.date;
-  
-  if (!eventDate) {
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-    return;
-  }
-  
-  const attendanceData = event.attendance || {};
-  let weekAttendance = attendanceData;
-  
-  if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
-    weekAttendance = attendanceData[eventDate] || {};
-  }
-  
-  if (!weekAttendance || !weekAttendance.status) {
-    setCheckedIn({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-    return;
-  }
-  
-  const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
-  const hasHeadcount = weekAttendance.total_headcounts > 0;
-  
-  const isActuallyDidNotMeet = (
-    weekAttendance.status === "did_not_meet" && 
-    !hasAttendees && 
-    !hasHeadcount
-  );
-  
-  setDidNotMeet(isActuallyDidNotMeet);
-  
-  if (hasAttendees) {
-    const newCheckedIn = {};
-    const newDecisions = {};
-    const newDecisionTypes = {};
-    const newPriceTiers = {};
-    const newPaymentMethods = {};
-    const newPaidAmounts = {};
-    
-    weekAttendance.attendees.forEach(att => {
-      if (att.id) {
-        newCheckedIn[att.id] = true;
-        
-        if (att.decision) {
-          newDecisions[att.id] = true;
-          newDecisionTypes[att.id] = att.decision;
-        }
-        
-        if (isTicketedEvent) {
-          if (att.priceTier || att.price) {
-            newPriceTiers[att.id] = {
-              name: att.priceTier || "",
-              price: att.price || 0,
-              ageGroup: att.ageGroup || "",
-              memberType: att.memberType || ""
-            };
+    if (hasAttendees) {
+      const newCheckedIn = {};
+      const newDecisions = {};
+      const newDecisionTypes = {};
+      const newPriceTiers = {};
+      const newPaymentMethods = {};
+      const newPaidAmounts = {};
+
+      weekAttendance.attendees.forEach(att => {
+        if (att.id) {
+          newCheckedIn[att.id] = true;
+
+          if (att.decision) {
+            newDecisions[att.id] = true;
+            newDecisionTypes[att.id] = att.decision;
           }
-          if (att.paymentMethod) {
-            newPaymentMethods[att.id] = att.paymentMethod;
-          }
-          if (att.paid !== undefined) {
-            newPaidAmounts[att.id] = att.paid;
+
+          if (isTicketedEvent) {
+            if (att.priceTier || att.price) {
+              newPriceTiers[att.id] = {
+                name: att.priceTier || "",
+                price: att.price || 0,
+                ageGroup: att.ageGroup || "",
+                memberType: att.memberType || ""
+              };
+            }
+            if (att.paymentMethod) {
+              newPaymentMethods[att.id] = att.paymentMethod;
+            }
+            if (att.paid !== undefined) {
+              newPaidAmounts[att.id] = att.paid;
+            }
           }
         }
+      });
+
+      setCheckedIn(newCheckedIn);
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+      setPriceTiers(newPriceTiers);
+      setPaymentMethods(newPaymentMethods);
+      setPaidAmounts(newPaidAmounts);
+    } else {
+      setCheckedIn({});
+    }
+
+    const headcount = weekAttendance.total_headcounts || 0;
+    setManualHeadcount(headcount.toString());
+  };
+
+  const loadPersistentAttendees = async (eventId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const allAttendees = data.persistent_attendees || [];
+        setPersistentCommonAttendees(allAttendees);
       }
-    });
-    
-    setCheckedIn(newCheckedIn);
-    setDecisions(newDecisions);
-    setDecisionTypes(newDecisionTypes);
-    setPriceTiers(newPriceTiers);
-    setPaymentMethods(newPaymentMethods);
-    setPaidAmounts(newPaidAmounts);
-  } else {
-    setCheckedIn({});
-  }
-  
-  const headcount = weekAttendance.total_headcounts || 0;
-  setManualHeadcount(headcount.toString());
-};
-
-const loadPersistentAttendees = async (eventId) => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    if (response.ok) {
-      const data = await response.json();
-      const allAttendees = data.persistent_attendees || [];
-      setPersistentCommonAttendees(allAttendees);
+    } catch (error) {
+      console.error("Error loading attendees:", error);
     }
-  } catch (error) {
-    console.error("Error loading attendees:", error);
-  }
-};
+  };
 
 
-useEffect(() => {
-  if (isOpen && event) {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
 
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
-    
-    const loadAllData = async () => {
-      await loadEventStatistics();
-      await loadPersistentAttendees(eventId);
-      loadWeeklyCheckins(); 
-    };
-
-    loadAllData();
-    fetchPeople();
-    
-    const weekAttendance = event.attendance || {};
-    const eventDate = event.date;
-    const thisWeekData = weekAttendance[eventDate] || weekAttendance;
-    
-    setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
-  }
-}, [isOpen, event]);
-  const loadPreloadedPeople = async () => {
+  const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
 
     if (
-      typeof window.globalPeopleCache !== 'undefined' &&
+      !forceRefresh &&
+      typeof window !== 'undefined' &&
+      window.globalPeopleCache &&
       window.globalPeopleCache.data?.length > 0 &&
       window.globalPeopleCache.timestamp &&
-      now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
+      now - window.globalPeopleCache.timestamp < (window.globalPeopleCache.expiry || 5 * 60 * 1000)
     ) {
       console.log("Using cached people data in AttendanceModal");
       setPreloadedPeople(window.globalPeopleCache.data);
@@ -1528,8 +1369,9 @@ useEffect(() => {
       return;
     }
 
+    // Otherwise fetch fresh people from backend and rebuild cache
     try {
-      console.log("Fetching fresh people data for AttendanceModal cache");
+      console.log(forceRefresh ? "Force-refreshing people cache" : "Fetching fresh people for AttendanceModal cache");
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -1550,13 +1392,14 @@ useEffect(() => {
         id: p._id,
         fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
         email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+        leader1: p["Leader @1"] || p["Leader at 1"] || p.leader1 || p.leaders?.[0] || "",
+        leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || p.leaders?.[1] || "",
+        leader144: p["Leader @144"] || p["Leader at 144"] || p.leader144 || p.leaders?.[2] || "",
         phone: p.Number || p.Phone || p.phone || "",
+        searchText: `${(p.Name || p.name || "")} ${(p.Surname || p.surname || "")} ${(p.Email || p.email || "")}`.toLowerCase()
       }));
 
-      // Update global cache
+      // set a window cache for quick reuse (other code references window.globalPeopleCache)
       window.globalPeopleCache = {
         data: formatted,
         timestamp: now,
@@ -1573,51 +1416,75 @@ useEffect(() => {
       console.error("Error pre-loading people in AttendanceModal:", err);
     }
   };
-  const fetchPeople = async (q = "") => {
+
+  useEffect(() => {
+    if (isOpen && event) {
+      let eventId = event._id || event.id;
+      if (eventId && eventId.includes("_")) {
+        eventId = eventId.split("_")[0];
+      }
+
+      setSearchName("");
+      setAssociateSearch("");
+      setActiveTab(0);
+
+      const loadAllData = async () => {
+        await loadEventStatistics();
+        await loadPersistentAttendees(eventId);
+        loadWeeklyCheckins();
+      };
+
+      loadAllData();
+      fetchPeople();
+
+      const weekAttendance = event.attendance || {};
+      const eventDate = event.date;
+      const thisWeekData = weekAttendance[eventDate] || weekAttendance;
+
+      setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
+    }
+  }, [isOpen, event]);
+
+  const fetchPeople = async (q) => {
     if (!q.trim()) {
       if (preloadedPeople.length > 0) {
         console.log(" Showing preloaded people list");
-        setPeople(preloadedPeople.slice(0, 50)); 
+        setPeople(preloadedPeople.slice(0, 50));
       } else {
         setPeople([]);
       }
       return;
     }
 
-    const parts = q.trim().split(/\s+/);
-    const name = parts[0];
-    const surname = parts.slice(1).join(" ");
+    const query = q.trim();
+    // We keep original casing for display, but lowercase for comparison
+    const queryLower = query.toLowerCase();
 
     try {
-      const token = localStorage.getItem("token");
-      const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Send the full typed string to the backend
+      // (most APIs can handle searching across both name + surname fields)
+      const res = await authFetch(
+        `${BACKEND_URL}/people?name=${encodeURIComponent(query)}`
+      );
 
       if (!res.ok) throw new Error("Failed to fetch people");
 
       const data = await res.json();
+      const results = data?.results || [];
 
-      let filtered = (data?.results || data?.people || []).filter(p =>
-        p.Name.toLowerCase().includes(name.toLowerCase()) &&
-        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
-      );
+      // ────────────────────────────────────────────────
+      // Client-side filtering that supports compound first names
+      // ────────────────────────────────────────────────
+      const filtered = results.filter((p) => {
+        const fullNameLower =
+          `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
 
-      // Sort the results
-      filtered.sort((a, b) => {
-        const nameA = (a.Name || "").toLowerCase();
-        const nameB = (b.Name || "").toLowerCase();
-        const surnameA = (a.Surname || "").toLowerCase();
-        const surnameB = (b.Surname || "").toLowerCase();
+        if (fullNameLower.includes(queryLower)) return true;
 
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        if (surnameA < surnameB) return -1;
-        if (surnameA > surnameB) return 1;
-        return 0;
+        const queryWords = queryLower.split(/\s+/).filter(Boolean);
+        return queryWords.every((word) => fullNameLower.includes(word));
       });
 
-      // Format the results consistently
       const formatted = filtered.map((p) => ({
         id: p._id,
         fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
@@ -1763,7 +1630,7 @@ useEffect(() => {
         if (associateSearch.trim()) {
           fetchPeople(associateSearch);
         } else {
-          fetchPeople(""); 
+          fetchPeople("");
         }
       }
     }, 300);
@@ -1882,14 +1749,9 @@ useEffect(() => {
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
     if (isAlreadyAdded) {
-      if (window.confirm(`Remove ${person.fullName}?`)) {
-        const updated = persistentCommonAttendees.filter(p => p.id !== person.id);
-
-        setPersistentCommonAttendees(updated);
-        await saveAllAttendeesToDatabase(updated);
-
-        toast.success(`${person.fullName} removed from attendees list`);
-      }
+      // In associate tab, we don't remove - just show a message
+      toast.info(`${person.fullName} is already in attendees list`);
+      return;
     } else {
       const updated = [...persistentCommonAttendees, person];
       setPersistentCommonAttendees(updated);
@@ -1900,61 +1762,123 @@ useEffect(() => {
     }
   };
 
-const getAllCommonAttendees = () => {  
-  const persistent = [...(persistentCommonAttendees || [])];
-  let savedAttendees = [];
-  
-  if (event?.attendance?.attendees?.length > 0) {
-    savedAttendees = event.attendance.attendees;
-  }
-  else if (event?.attendees?.length > 0) {
-    savedAttendees = event.attendees;
-  }
-  
-  const combinedMap = new Map();
-  
-  persistent.forEach(att => {
-    if (att && att.id) {
-      const attendeeId = att.id || att._id || "";
-      if (attendeeId) {
-        combinedMap.set(attendeeId, {
-          ...att,
-          id: attendeeId,
-          fullName: att.fullName || att.name || "Unknown Person",
-          email: att.email || "",
-          leader12: att.leader12 || "",
-          leader144: att.leader144 || "",
-          phone: att.phone || "",
-          isPersistent: true
+  const handleRemoveAttendee = async (personId, personName) => {
+    try {
+      const updatedAttendees = persistentCommonAttendees.filter(p => p.id !== personId);
+
+      setCheckedIn(prev => {
+        const newState = { ...prev };
+        delete newState[personId];
+        return newState;
+      });
+
+      // Remove from decisions if exists
+      setDecisions(prev => {
+        const newState = { ...prev };
+        delete newState[personId];
+        return newState;
+      });
+
+      // Remove from decision types if exists
+      setDecisionTypes(prev => {
+        const newState = { ...prev };
+        delete newState[personId];
+        return newState;
+      });
+
+      // Remove from ticketed event states if exists
+      if (isTicketedEvent) {
+        setPriceTiers(prev => {
+          const newState = { ...prev };
+          delete newState[personId];
+          return newState;
+        });
+
+        setPaymentMethods(prev => {
+          const newState = { ...prev };
+          delete newState[personId];
+          return newState;
+        });
+
+        setPaidAmounts(prev => {
+          const newState = { ...prev };
+          delete newState[personId];
+          return newState;
         });
       }
-    }
-  });
-  
-  savedAttendees.forEach(savedAtt => {
-    if (savedAtt && savedAtt.id) {
-      const attendeeId = savedAtt.id || savedAtt._id || "";
-      if (attendeeId) {
-        const existing = combinedMap.get(attendeeId) || {};
-        combinedMap.set(attendeeId, {
-          ...existing,
-          ...savedAtt,
-          id: attendeeId,
-          fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
-          email: savedAtt.email || existing.email || "",
-          leader12: savedAtt.leader12 || existing.leader12 || "",
-          leader144: savedAtt.leader144 || existing.leader144 || "",
-          phone: savedAtt.phone || existing.phone || "",
-          checked_in: savedAtt.checked_in !== false,
-          decision: savedAtt.decision || existing.decision || "",
-          isPersistent: existing.isPersistent || false
-        });
+
+      // Update state
+      setPersistentCommonAttendees(updatedAttendees);
+
+      // Save to database
+      const success = await saveAllAttendeesToDatabase(updatedAttendees);
+
+      if (success) {
+        toast.success(`${personName} removed from attendees`);
+      } else {
+        toast.error("Failed to remove attendee from database");
       }
+    } catch (error) {
+      console.error("Error removing attendee:", error);
+      toast.error("Error removing attendee");
     }
-  });
-  
-  return Array.from(combinedMap.values());
-};
+  };
+
+  const getAllCommonAttendees = () => {
+    const persistent = [...(persistentCommonAttendees || [])];
+    let savedAttendees = [];
+
+    if (event?.attendance?.attendees?.length > 0) {
+      savedAttendees = event.attendance.attendees;
+    }
+    else if (event?.attendees?.length > 0) {
+      savedAttendees = event.attendees;
+    }
+
+    const combinedMap = new Map();
+
+    persistent.forEach(att => {
+      if (att && att.id) {
+        const attendeeId = att.id || att._id || "";
+        if (attendeeId) {
+          combinedMap.set(attendeeId, {
+            ...att,
+            id: attendeeId,
+            fullName: att.fullName || att.name || "Unknown Person",
+            email: att.email || "",
+            leader12: att.leader12 || "",
+            leader144: att.leader144 || "",
+            phone: att.phone || "",
+            isPersistent: true
+          });
+        }
+      }
+    });
+
+    savedAttendees.forEach(savedAtt => {
+      if (savedAtt && savedAtt.id) {
+        const attendeeId = savedAtt.id || savedAtt._id || "";
+        if (attendeeId) {
+          const existing = combinedMap.get(attendeeId) || {};
+          combinedMap.set(attendeeId, {
+            ...existing,
+            ...savedAtt,
+            id: attendeeId,
+            fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
+            email: savedAtt.email || existing.email || "",
+            leader12: savedAtt.leader12 || existing.leader12 || "",
+            leader144: savedAtt.leader144 || existing.leader144 || "",
+            phone: savedAtt.phone || existing.phone || "",
+            checked_in: savedAtt.checked_in !== false,
+            decision: savedAtt.decision || existing.decision || "",
+            isPersistent: existing.isPersistent || false
+          });
+        }
+      }
+    });
+
+    return Array.from(combinedMap.values());
+  };
 
   const attendeesCount = Object.keys(checkedIn).filter(
     (id) => checkedIn[id]
@@ -1987,164 +1911,161 @@ const getAllCommonAttendees = () => {
     person.email.toLowerCase().includes(associateSearch.toLowerCase())
   );
 
-const handleSave = async () => {
-  const allPeople = getAllCommonAttendees();
-  console.log("[SAVE] All people for save:", allPeople.length);
+  const handleSave = async () => {
+    const allPeople = getAllCommonAttendees();
+    console.log("[SAVE] All people for save:", allPeople.length);
 
-  const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-  console.log("[SAVE] Checked-in attendees:", attendeesList.length, attendeesList);
+    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+    console.log("[SAVE] Checked-in attendees:", attendeesList.length, attendeesList);
 
-  // Get manual headcount from input
-  const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
+    // Get manual headcount from input
+    const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-  console.log("[SAVE] === DEBUG INFO ===");
-  console.log("[SAVE] Did not meet state:", didNotMeet);
-  console.log("[SAVE] Attendees checked in:", attendeesList.length);
-  console.log("[SAVE] Manual headcount:", finalHeadcount);
-  console.log("[SAVE] Decisions count:", decisionsCount);
+    console.log("[SAVE] === DEBUG INFO ===");
+    console.log("[SAVE] Did not meet state:", didNotMeet);
+    console.log("[SAVE] Attendees checked in:", attendeesList.length);
+    console.log("[SAVE] Manual headcount:", finalHeadcount);
+    console.log("[SAVE] Decisions count:", decisionsCount);
 
-  // Get clean event ID
-  let eventId = event?.id || event?._id;
-  if (eventId && eventId.includes("_")) {
-    const parts = eventId.split("_");
-    eventId = parts[0];
-  }
-
-  if (!eventId) {
-    toast.error("Event ID is missing, cannot submit attendance.");
-    return;
-  }
-
-  try {
-    const selectedAttendees = attendeesList.map((id) => {
-      const person = allPeople.find((p) => p && p.id === id);
-
-      if (!person) {
-        console.warn(`[SAVE] Person with id ${id} not found in allPeople`);
-        return null;
-      }
-
-const attendee = {
-  id: person.id,
-  name: person.fullName || "",
-  email: person.email || "",
-  fullName: person.fullName || "",
-  leader1: person.leader1 || "", 
-  leader12: person.leader12 || "",
-  leader144: person.leader144 || "",
-  phone: person.phone || "",
-  time: new Date().toISOString(),
-  decision: decisions[id] ? decisionTypes[id] || "" : "",
-  checked_in: true,
-  isPersistent: true
-};
-
-      if (isTicketedEvent) {
-        attendee.priceTier = priceTiers[id]?.name || "";
-        attendee.price = priceTiers[id]?.price || 0;
-        attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-        attendee.memberType = priceTiers[id]?.memberType || "";
-        attendee.paymentMethod = paymentMethods[id] || "";
-        attendee.paid = paidAmounts[id] || 0;
-        attendee.owing = calculateOwing(id);
-      }
-
-      return attendee;
-    }).filter(attendee => attendee !== null);
-
-    console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
-
-    const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
-    
-    console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
-    console.log("[SAVE] Reason - didNotMeet:", didNotMeet);
-    console.log("[SAVE] Reason - attendees:", attendeesList.length);
-    console.log("[SAVE] Reason - headcount:", finalHeadcount);
-
-    const payload = {
-      attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
-      persistent_attendees: allPeople.map(p => ({
-        id: p.id,
-        name: p.fullName,
-        fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone
-      })),
-      leaderEmail: currentUser?.email || "",
-      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-      did_not_meet: shouldMarkAsDidNotMeet, // This will be FALSE if we have attendees
-      isTicketed: isTicketedEvent,
-      week: get_current_week_identifier(),
-      headcount: finalHeadcount  
-    };
-    
-    console.log("[SAVE] Full payload being sent:");
-    console.log("[SAVE] - did_not_meet:", payload.did_not_meet);
-    console.log("[SAVE] - attendees count:", payload.attendees.length);
-    console.log("[SAVE] - headcount:", payload.headcount);
-    console.log("[SAVE] - week:", payload.week);
-
-    let result;
-
-    if (typeof onSubmit === "function") {
-      result = await onSubmit(payload);
-    } else {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[SAVE] Server error response:", errorText);
-        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-      }
-
-      result = await response.json();
+    // Get clean event ID
+    let eventId = event?.id || event?._id;
+    if (eventId && eventId.includes("_")) {
+      const parts = eventId.split("_");
+      eventId = parts[0];
     }
 
-    console.log("[SAVE] Save result:", result);
+    if (!eventId) {
+      toast.error("Event ID is missing, cannot submit attendance.");
+      return;
+    }
 
-if (result && result.success) {
-  await createConsolidationTasks(selectedAttendees, eventId);
-  await loadEventStatistics();
-  toast.success("Attendance saved successfully! Consolidation tasks created.");
+    try {
+      const selectedAttendees = attendeesList.map((id) => {
+        const person = allPeople.find((p) => p && p.id === id);
 
-  
-  if (typeof onAttendanceSubmitted === "function") {
-    await onAttendanceSubmitted();
-  }
-  
-  if (typeof onClose === "function") {
-    onClose();
-  }
-  if (typeof onAttendanceSubmitted === "function") {
-    console.log("[SAVE] Calling onAttendanceSubmitted to refresh data");
-    await onAttendanceSubmitted();
-  }
-  
-  if (typeof onClose === "function") {
-    onClose();
-  }
-} else {
-  console.error("[SAVE] Save failed:", result);
-  throw new Error(result?.message || "Failed to save attendance");
-}
+        if (!person) {
+          console.warn(`[SAVE] Person with id ${id} not found in allPeople`);
+          return null;
+        }
 
-  } catch (error) {
-    console.error("[SAVE] Error saving attendance:", error);
-    toast.error(error.message || "Failed to save attendance. Please try again.");
-  }
-};
+        const attendee = {
+          id: person.id,
+          name: person.fullName || "",
+          email: person.email || "",
+          fullName: person.fullName || "",
+          leader12: person.leader12 || "",
+          leader144: person.leader144 || "",
+          phone: person.phone || "",
+          time: new Date().toISOString(),
+          decision: decisions[id] ? decisionTypes[id] || "" : "",
+          checked_in: true,
+          isPersistent: true
+        };
+
+        if (isTicketedEvent) {
+          attendee.priceTier = priceTiers[id]?.name || "";
+          attendee.price = priceTiers[id]?.price || 0;
+          attendee.ageGroup = priceTiers[id]?.ageGroup || "";
+          attendee.memberType = priceTiers[id]?.memberType || "";
+          attendee.paymentMethod = paymentMethods[id] || "";
+          attendee.paid = paidAmounts[id] || 0;
+          attendee.owing = calculateOwing(id);
+        }
+
+        return attendee;
+      }).filter(attendee => attendee !== null);
+
+      console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
+
+      // FIX: Only mark as "Did Not Meet" if NO attendees AND NO headcount
+      const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
+
+      console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
+      console.log("[SAVE] Reason - didNotMeet:", didNotMeet);
+      console.log("[SAVE] Reason - attendees:", attendeesList.length);
+      console.log("[SAVE] Reason - headcount:", finalHeadcount);
+
+      const payload = {
+        attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
+        persistent_attendees: allPeople.map(p => ({
+          id: p.id,
+          name: p.fullName,
+          fullName: p.fullName,
+          email: p.email,
+          leader12: p.leader12,
+          leader144: p.leader144,
+          phone: p.phone
+        })),
+        leaderEmail: currentUser?.email || "",
+        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        did_not_meet: shouldMarkAsDidNotMeet, // This will be FALSE if we have attendees
+        isTicketed: isTicketedEvent,
+        week: get_current_week_identifier(),
+        headcount: finalHeadcount
+      };
+
+      console.log("[SAVE] Full payload being sent:");
+      console.log("[SAVE] - did_not_meet:", payload.did_not_meet);
+      console.log("[SAVE] - attendees count:", payload.attendees.length);
+      console.log("[SAVE] - headcount:", payload.headcount);
+      console.log("[SAVE] - week:", payload.week);
+
+      let result;
+
+      if (typeof onSubmit === "function") {
+        result = await onSubmit(payload);
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+          method: "PUT",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("[SAVE] Server error response:", errorText);
+          throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+        }
+
+        result = await response.json();
+      }
+
+      console.log("[SAVE] Save result:", result);
+
+      if (result && result.success) {
+        await loadEventStatistics();
+
+        if (typeof onAttendanceSubmitted === "function") {
+          await onAttendanceSubmitted();
+        }
+
+        if (typeof onClose === "function") {
+          onClose();
+        }
+        if (typeof onAttendanceSubmitted === "function") {
+          console.log("[SAVE] Calling onAttendanceSubmitted to refresh data");
+          await onAttendanceSubmitted();
+        }
+
+        if (typeof onClose === "function") {
+          onClose();
+        }
+      } else {
+        console.error("[SAVE] Save failed:", result);
+        throw new Error(result?.message || "Failed to save attendance");
+      }
+
+    } catch (error) {
+      console.error("[SAVE] Error saving attendance:", error);
+      toast.error(error.message || "Failed to save attendance. Please try again.");
+    }
+  };
 
   const handleSubmitAttendance = (attendanceData) => {
 
@@ -2160,79 +2081,79 @@ if (result && result.success) {
   };
 
   const confirmDidNotMeet = async () => {
-  setShowDidNotMeetConfirm(false);
-  setDidNotMeet(true);
-  setCheckedIn({});
-  setDecisions({});
-  setManualHeadcount("");
-  setPriceTiers({});
-  setPaymentMethods({});
-  setPaidAmounts({});
+    setShowDidNotMeetConfirm(false);
+    setDidNotMeet(true);
+    setCheckedIn({});
+    setDecisions({});
+    setManualHeadcount("");
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
 
-  try {
-    const eventId = event?.id || event?._id;
-    if (!eventId) {
-      toast.error("Event ID is missing, cannot submit attendance.");
-      return;
-    }
-
-    const allPeople = getAllCommonAttendees();
-    const payload = {
-      attendees: [],
-      persistent_attendees: allPeople.map(p => ({
-        id: p.id,
-        fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone
-      })),
-      leaderEmail: currentUser?.email || "",
-      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-      did_not_meet: true,
-      isTicketed: isTicketedEvent,
-      week: get_current_week_identifier()
-    };
-
-    let result;
-
-    if (typeof onSubmit === "function") {
-      result = await onSubmit(payload);
-    } else {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await authFetch(
-        `${BACKEND_URL}/submit-attendance/${eventId}`,
-        {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(payload),
-        }
-      );
-      result = await response.json();
-      result.success = response.ok;
-    }
-
-    if (result?.success) {
-      if (typeof onAttendanceSubmitted === "function") {
-        onAttendanceSubmitted();
+    try {
+      const eventId = event?.id || event?._id;
+      if (!eventId) {
+        toast.error("Event ID is missing, cannot submit attendance.");
+        return;
       }
 
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    } else {
-      toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+      const allPeople = getAllCommonAttendees();
+      const payload = {
+        attendees: [],
+        persistent_attendees: allPeople.map(p => ({
+          id: p.id,
+          fullName: p.fullName,
+          email: p.email,
+          leader12: p.leader12,
+          leader144: p.leader144,
+          phone: p.phone
+        })),
+        leaderEmail: currentUser?.email || "",
+        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        did_not_meet: true,
+        isTicketed: isTicketedEvent,
+        week: get_current_week_identifier()
+      };
+
+      let result;
+
+      if (typeof onSubmit === "function") {
+        result = await onSubmit(payload);
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        const response = await authFetch(
+          `${BACKEND_URL}/submit-attendance/${eventId}`,
+          {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(payload),
+          }
+        );
+        result = await response.json();
+        result.success = response.ok;
+      }
+
+      if (result?.success) {
+        if (typeof onAttendanceSubmitted === "function") {
+          onAttendanceSubmitted();
+        }
+
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+      } else {
+        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+      }
+    } catch (error) {
+      console.error(" Error marking event as 'Did Not Meet':", error);
+      toast.error("Something went wrong while marking event as 'Did Not Meet'.");
     }
-  } catch (error) {
-    console.error(" Error marking event as 'Did Not Meet':", error);
-    toast.error("Something went wrong while marking event as 'Did Not Meet'.");
-  }
-};
+  };
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
@@ -2241,13 +2162,10 @@ if (result && result.success) {
   const handlePersonAdded = (newPerson) => {
     console.log(" New person added:", newPerson);
 
-    if (typeof window.globalPeopleCache !== 'undefined') {
-      window.globalPeopleCache.data = [];
-      window.globalPeopleCache.timestamp = null;
-    }
-
+    // Clear caches and reload fresh people from DB
+    clearGlobalPeopleCache();
+    loadPreloadedPeople(true);
     fetchPeople();
-    loadPreloadedPeople();
 
     if (event && event.eventType === "cell") {
       fetchCommonAttendees(event._id || event.id);
@@ -2267,7 +2185,28 @@ if (result && result.success) {
       <div key={person.id} style={styles.mobileAttendeeCard}>
         <div style={styles.mobileCardRow}>
           <div style={styles.mobileCardInfo}>
-  
+            <div style={styles.mobileCardName}>
+              {person.fullName}
+              <button
+                onClick={() => handleRemoveAttendee(person.id, person.fullName)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px",
+                  marginLeft: "8px",
+                  borderRadius: "4px",
+                  color: theme.palette.error.main,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  verticalAlign: "middle",
+                }}
+                title="Remove from attendees"
+              >
+                <X size={16} />
+              </button>
+            </div>
             <div style={styles.mobileCardEmail}>{person.email}</div>
             {!isTicketedEvent && (
               <>
@@ -2492,7 +2431,6 @@ if (result && result.success) {
     );
   };
 
-  // Theme-aware styles
   const styles = {
     overlay: {
       position: "fixed",
@@ -2617,8 +2555,6 @@ if (result && result.success) {
       // overflowX: "auto",
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
-      // overflowY: "hidden",
-      // border: "2px solid red",
       paddingBottom: 8,
     },
     table: {
@@ -2997,6 +2933,23 @@ if (result && result.success) {
       display: "block",
       fontWeight: 600,
     },
+    removeButton: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      padding: "4px",
+      borderRadius: "4px",
+      color: theme.palette.error.main,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      margin: "0 auto",
+      transition: "all 0.2s",
+      '&:hover': {
+        background: theme.palette.error.light,
+        color: theme.palette.error.contrastText,
+      }
+    },
   };
   if (!isOpen) return null;
 
@@ -3106,54 +3059,26 @@ if (result && result.success) {
                         <tr>
                           <th style={styles.th}>Attendees Name</th>
                           <th style={styles.th}>Attendees Email</th>
-
-                          {/* Show regular columns for non-ticketed events */}
-                          {!isTicketedEvent && (
-                            <>
-                              <th style={styles.th}>Attendees Leader @12</th>
-                              <th style={styles.th}>Attendees Leader @144</th>
-                              <th style={styles.th}>Attendees Number</th>
-                            </>
-                          )}
-
+                          <th style={styles.th}>Attendees Leader @12</th>
+                          <th style={styles.th}>Attendees Leader @144</th>
+                          <th style={styles.th}>Attendees Number</th>
                           <th style={{ ...styles.th, textAlign: "center" }}>
                             Check In
                           </th>
-
-                          {/* Show ticketed event columns ONLY for ticketed events */}
-                          {isTicketedEvent && (
-                            <>
-                              <th style={{ ...styles.th, textAlign: "center" }}>
-                                Price Tier
-                              </th>
-                              <th style={{ ...styles.th, textAlign: "center" }}>
-                                Payment Method
-                              </th>
-                              <th style={{ ...styles.th, textAlign: "right" }}>
-                                Price
-                              </th>
-                              <th style={{ ...styles.th, textAlign: "right" }}>
-                                Paid
-                              </th>
-                              <th style={{ ...styles.th, textAlign: "right" }}>
-                                Owing
-                              </th>
-                            </>
-                          )}
-
-                          {/* Show decision column ONLY for non-ticketed events */}
-                          {!isTicketedEvent && (
-                            <th style={{ ...styles.th, textAlign: "center" }}>
-                              Decision
-                            </th>
-                          )}
+                          <th style={{ ...styles.th, textAlign: "center" }}>
+                            Decision
+                          </th>
+                          {/* REMOVE BUTTON AT THE END */}
+                          <th style={{ ...styles.th, textAlign: "center", width: "50px" }}>
+                            Remove
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {loading && (
                           <tr>
                             <td
-                              colSpan={isTicketedEvent ? "8" : "7"}
+                              colSpan="8"
                               style={{ ...styles.td, textAlign: "center" }}
                             >
                               Loading...
@@ -3163,7 +3088,7 @@ if (result && result.success) {
                         {!loading && filteredCommonAttendees.length === 0 && (
                           <tr>
                             <td
-                              colSpan={isTicketedEvent ? "8" : "7"}
+                              colSpan="8"
                               style={{ ...styles.td, textAlign: "center" }}
                             >
                               No attendees found.
@@ -3178,17 +3103,16 @@ if (result && result.success) {
                           return (
                             <tr key={person.id}>
                               <td style={styles.td}>
-                                {person.fullName}
-                              
+                                {person.fullName || "Unknown Name"}
                               </td>
-                              <td style={styles.td}>{person.email}</td>
-                              {!isTicketedEvent && (
-                                <>
-                                  <td style={styles.td}>{person.leader12}</td>
-                                  <td style={styles.td}>{person.leader144}</td>
-                                  <td style={styles.td}>{person.phone}</td>
-                                </>
-                              )}
+
+                              <td style={styles.td}>{person.email || "No email"}</td>
+
+                              <td style={styles.td}>{person.leader12 || ""}</td>
+
+                              <td style={styles.td}>{person.leader144 || ""}</td>
+
+                              <td style={styles.td}>{person.phone || ""}</td>
 
                               <td style={{ ...styles.td, ...styles.radioCell }}>
                                 <button
@@ -3199,7 +3123,7 @@ if (result && result.success) {
                                       : {}),
                                   }}
                                   onClick={() =>
-                                    handleCheckIn(person.id, person.fullName)
+                                    handleCheckIn(person.id, person.fullName || "Unknown")
                                   }
                                 >
                                   {checkedIn[person.id] && (
@@ -3210,309 +3134,84 @@ if (result && result.success) {
                                 </button>
                               </td>
 
-                              {isTicketedEvent && (
-                                <>
-                                  <td
-                                    style={{
-                                      ...styles.td,
-                                      ...styles.radioCell,
-                                    }}
-                                  >
-                                    {checkedIn[person.id] ? (
-                                      <div
-                                        style={{
-                                          ...styles.decisionDropdown,
-                                          position: "relative",
-                                          zIndex:
-                                            openPriceTierDropdown === person.id
-                                              ? 10001
-                                              : 1,
-                                        }}
-                                      >
-                                        <button
-                                          style={styles.priceTierButton}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setOpenPriceTierDropdown(
-                                              openPriceTierDropdown ===
-                                                person.id
-                                                ? null
-                                                : person.id
-                                            );
-                                          }}
-                                        >
-                                          <span>
-                                            {priceTiers[person.id]
-                                              ? `${priceTiers[person.id].name
-                                              } (R${priceTiers[
-                                                person.id
-                                              ].price.toFixed(2)})`
-                                              : "Select Price Tier"}
-                                          </span>
-                                          <ChevronDown size={16} />
-                                        </button>
-                                        {openPriceTierDropdown ===
-                                          person.id && (
-                                            <div style={styles.decisionMenu}>
-                                              {eventPriceTiers &&
-                                                eventPriceTiers.length > 0 ? (
-                                                eventPriceTiers.map(
-                                                  (tier, index) => (
-                                                    <div
-                                                      key={index}
-                                                      style={
-                                                        styles.decisionMenuItem
-                                                      }
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handlePriceTierSelect(
-                                                          person.id,
-                                                          index
-                                                        );
-                                                      }}
-                                                      onMouseEnter={(e) =>
-                                                      (e.target.style.background =
-                                                        "#f0f0f0")
-                                                      }
-                                                      onMouseLeave={(e) =>
-                                                      (e.target.style.background =
-                                                        "transparent")
-                                                      }
-                                                    >
-                                                      {tier.name} - R
-                                                      {parseFloat(
-                                                        tier.price
-                                                      ).toFixed(2)}
-                                                      <div
-                                                        style={{
-                                                          fontSize: "12px",
-                                                          color: "#666",
-                                                        }}
-                                                      >
-                                                        {tier.ageGroup} •{" "}
-                                                        {tier.memberType}
-                                                      </div>
-                                                    </div>
-                                                  )
-                                                )
-                                              ) : (
-                                                <div
-                                                  style={{
-                                                    padding: "12px",
-                                                    textAlign: "center",
-                                                    color: "#999",
-                                                  }}
-                                                >
-                                                  No price tiers available
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                      </div>
-                                    ) : (
-                                      <button
-                                        style={{
-                                          ...styles.radioButton,
-                                          opacity: 0.3,
-                                          cursor: "not-allowed",
-                                        }}
-                                        disabled
-                                      />
-                                    )}
-                                  </td>
-
-                                  <td
-                                    style={{
-                                      ...styles.td,
-                                      ...styles.radioCell,
-                                    }}
-                                  >
-                                    {checkedIn[person.id] ? (
-                                      <div style={styles.decisionDropdown}>
-                                        <button
-                                          style={styles.paymentButton}
-                                          onClick={() =>
-                                            setOpenPaymentDropdown(
-                                              openPaymentDropdown === person.id
-                                                ? null
-                                                : person.id
-                                            )
-                                          }
-                                        >
-                                          <span>
-                                            {paymentMethods[person.id] ||
-                                              "Select Payment"}
-                                          </span>
-                                          <ChevronDown size={16} />
-                                        </button>
-                                        {openPaymentDropdown === person.id && (
-                                          <div style={styles.decisionMenu}>
-                                            {availablePaymentMethods.map(
-                                              (method, index) => (
-                                                <div
-                                                  key={index}
-                                                  style={
-                                                    styles.decisionMenuItem
-                                                  }
-                                                  onClick={() =>
-                                                    handlePaymentMethodSelect(
-                                                      person.id,
-                                                      method
-                                                    )
-                                                  }
-                                                  onMouseEnter={(e) =>
-                                                  (e.target.style.background =
-                                                    "#f0f0f0")
-                                                  }
-                                                  onMouseLeave={(e) =>
-                                                  (e.target.style.background =
-                                                    "transparent")
-                                                  }
-                                                >
-                                                  {method}
-                                                </div>
-                                              )
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <button
-                                        style={{
-                                          ...styles.radioButton,
-                                          opacity: 0.3,
-                                          cursor: "not-allowed",
-                                        }}
-                                        disabled
-                                      />
-                                    )}
-                                  </td>
-
-                                  <td
-                                    style={{ ...styles.td, textAlign: "right" }}
-                                  >
-                                    {checkedIn[person.id] &&
-                                      priceTiers[person.id] ? (
-                                      <span style={styles.priceInput}>
-                                        R
-                                        {priceTiers[person.id].price.toFixed(2)}
-                                      </span>
-                                    ) : (
-                                      <span style={{ color: "#ccc" }}>-</span>
-                                    )}
-                                  </td>
-
-                                  <td
-                                    style={{ ...styles.td, textAlign: "right" }}
-                                  >
-                                    {checkedIn[person.id] ? (
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={paidAmounts[person.id] || ""}
-                                        onChange={(e) =>
-                                          handlePaidAmountChange(
-                                            person.id,
-                                            e.target.value
-                                          )
-                                        }
-                                        placeholder="0.00"
-                                        style={styles.paidInput}
-                                      />
-                                    ) : (
-                                      <span style={{ color: "#ccc" }}>-</span>
-                                    )}
-                                  </td>
-
-                                  <td
-                                    style={{ ...styles.td, textAlign: "right" }}
-                                  >
-                                    {checkedIn[person.id] &&
-                                      priceTiers[person.id] ? (
-                                      <span
-                                        style={{
-                                          ...styles.owingText,
-                                          ...(calculateOwing(person.id) === 0
-                                            ? styles.owingPositive
-                                            : styles.owingNegative),
-                                        }}
-                                      >
-                                        R{calculateOwing(person.id).toFixed(2)}
-                                      </span>
-                                    ) : (
-                                      <span style={{ color: "#ccc" }}>-</span>
-                                    )}
-                                  </td>
-                                </>
-                              )}
-
-                              {!isTicketedEvent && (
-                                <td
-                                  style={{ ...styles.td, ...styles.radioCell }}
-                                >
-                                  {checkedIn[person.id] ? (
-                                    <div style={styles.decisionDropdown}>
-                                      <button
-                                        style={styles.decisionButton}
-                                        onClick={() =>
-                                          setOpenDecisionDropdown(
-                                            openDecisionDropdown === person.id
-                                              ? null
-                                              : person.id
-                                          )
-                                        }
-                                      >
-                                        <span>
-                                          {decisionTypes[person.id]
-                                            ? decisionOptions.find(
-                                              (opt) =>
-                                                opt.value ===
-                                                decisionTypes[person.id]
-                                            )?.label
-                                            : "Select Decision"}
-                                        </span>
-                                        <ChevronDown size={16} />
-                                      </button>
-                                      {openDecisionDropdown === person.id && (
-                                        <div style={styles.decisionMenu}>
-                                          {decisionOptions.map((option) => (
-                                            <div
-                                              key={option.value}
-                                              style={styles.decisionMenuItem}
-                                              onClick={() =>
-                                                handleDecisionTypeSelect(
-                                                  person.id,
-                                                  option.value
-                                                )
-                                              }
-                                              onMouseEnter={(e) =>
-                                              (e.currentTarget.style.background =
-                                                theme.palette.action.hover)
-                                              }
-                                              onMouseLeave={(e) =>
-                                              (e.target.style.background =
-                                                "transparent")
-                                              }
-                                            >
-                                              {option.label}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
+                              {/* Column 7: Decision */}
+                              <td style={{ ...styles.td, ...styles.radioCell }}>
+                                {checkedIn[person.id] ? (
+                                  <div style={styles.decisionDropdown}>
                                     <button
-                                      style={{
-                                        ...styles.radioButton,
-                                        opacity: 0.3,
-                                        cursor: "not-allowed",
-                                      }}
-                                      disabled
-                                    />
-                                  )}
-                                </td>
-                              )}
+                                      style={styles.decisionButton}
+                                      onClick={() =>
+                                        setOpenDecisionDropdown(
+                                          openDecisionDropdown === person.id
+                                            ? null
+                                            : person.id
+                                        )
+                                      }
+                                    >
+                                      <span>
+                                        {decisionTypes[person.id]
+                                          ? decisionOptions.find(
+                                            (opt) => opt.value === decisionTypes[person.id]
+                                          )?.label
+                                          : "Select Decision"}
+                                      </span>
+                                      <ChevronDown size={16} />
+                                    </button>
+                                    {openDecisionDropdown === person.id && (
+                                      <div style={styles.decisionMenu}>
+                                        {decisionOptions.map((option) => (
+                                          <div
+                                            key={option.value}
+                                            style={styles.decisionMenuItem}
+                                            onClick={() =>
+                                              handleDecisionTypeSelect(person.id, option.value)
+                                            }
+                                            onMouseEnter={(e) =>
+                                              (e.currentTarget.style.background = theme.palette.action.hover)
+                                            }
+                                            onMouseLeave={(e) =>
+                                              (e.target.style.background = "transparent")
+                                            }
+                                          >
+                                            {option.label}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <button
+                                    style={{
+                                      ...styles.radioButton,
+                                      opacity: 0.3,
+                                      cursor: "not-allowed",
+                                    }}
+                                    disabled
+                                  />
+                                )}
+                              </td>
+
+                              {/* Column 8: Remove button - MUST BE THE LAST COLUMN */}
+                              <td style={{ ...styles.td, textAlign: "center" }}>
+                                <button
+                                  onClick={() => handleRemoveAttendee(person.id, person.fullName || "Unknown")}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    padding: "4px",
+                                    borderRadius: "4px",
+                                    color: theme.palette.error.main,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    margin: "0 auto",
+                                  }}
+                                  title="Remove from attendees"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </td>
                             </tr>
                           );
                         })}
@@ -3521,70 +3220,70 @@ if (result && result.success) {
                   </div>
                 )}
 
-<div style={styles.statsContainer}>
-  <div style={styles.statBox}>
-    <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
-      {persistentCommonAttendees.length}
-    </div>
-    <div style={styles.statLabel}>Associated People</div>
-  </div>
-  
-  <div style={styles.statBox}>
-    <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
-      {eventStatistics.lastAttendanceCount > 0 ? eventStatistics.lastAttendanceCount : attendeesCount}
-    </div>
-    <div style={styles.statLabel}>Attendees</div>
-  </div>
-  
-  <div style={styles.statBoxInput}>
-    <input
-      type="number"
-      value={eventStatistics.lastHeadcount > 0 ? eventStatistics.lastHeadcount.toString() : manualHeadcount}
-      onChange={(e) => setManualHeadcount(e.target.value)}
-      placeholder="0"
-      style={styles.headcountInput}
-      min="0"
-    />
-    <div style={styles.statLabel}>Total Headcounts</div>
-  </div>
-  
-  {!isTicketedEvent && (
-    <div style={styles.statBox}>
-      <div style={{ ...styles.statNumber, color: "#ffc107" }}>
-        {eventStatistics.lastDecisionsCount > 0 ? eventStatistics.lastDecisionsCount : decisionsCount}
-      </div>
-      <div style={styles.statLabel}>Decisions</div>
-      {(eventStatistics.lastDecisionsCount > 0 || decisionsCount > 0) && (
-        <div style={styles.decisionBreakdown}>
-          <span>First-time: {eventStatistics.lastAttendanceBreakdown?.first_time || firstTimeCount}</span>
-          <span>Re-commitment: {eventStatistics.lastAttendanceBreakdown?.recommitment || reCommitmentCount}</span>
-        </div>
-      )}
-    </div>
-  )}
+                <div style={styles.statsContainer}>
+                  <div style={styles.statBox}>
+                    <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
+                      {persistentCommonAttendees.length}
+                    </div>
+                    <div style={styles.statLabel}>Associated People</div>
+                  </div>
 
-  {isTicketedEvent && (
-    <>
-      <div style={styles.statBox}>
-        <div style={{ ...styles.statNumber, color: "#28a745" }}>
-          R{totalPaid.toFixed(2)}
-        </div>
-        <div style={styles.statLabel}>Total Paid</div>
-      </div>
-      <div style={styles.statBox}>
-        <div
-          style={{
-            ...styles.statNumber,
-            color: totalOwing === 0 ? "#28a745" : "#dc3545",
-          }}
-        >
-          R{totalOwing.toFixed(2)}
-        </div>
-        <div style={styles.statLabel}>Total Owing</div>
-      </div>
-    </>
-  )}
-</div>
+                  <div style={styles.statBox}>
+                    <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
+                      {eventStatistics.lastAttendanceCount > 0 ? eventStatistics.lastAttendanceCount : attendeesCount}
+                    </div>
+                    <div style={styles.statLabel}>Attendees</div>
+                  </div>
+
+                  <div style={styles.statBoxInput}>
+                    <input
+                      type="number"
+                      value={eventStatistics.lastHeadcount > 0 ? eventStatistics.lastHeadcount.toString() : manualHeadcount}
+                      onChange={(e) => setManualHeadcount(e.target.value)}
+                      placeholder="0"
+                      style={styles.headcountInput}
+                      min="0"
+                    />
+                    <div style={styles.statLabel}>Total Headcounts</div>
+                  </div>
+
+                  {!isTicketedEvent && (
+                    <div style={styles.statBox}>
+                      <div style={{ ...styles.statNumber, color: "#ffc107" }}>
+                        {eventStatistics.lastDecisionsCount > 0 ? eventStatistics.lastDecisionsCount : decisionsCount}
+                      </div>
+                      <div style={styles.statLabel}>Decisions</div>
+                      {(eventStatistics.lastDecisionsCount > 0 || decisionsCount > 0) && (
+                        <div style={styles.decisionBreakdown}>
+                          <span>First-time: {eventStatistics.lastAttendanceBreakdown?.first_time || firstTimeCount}</span>
+                          <span>Re-commitment: {eventStatistics.lastAttendanceBreakdown?.recommitment || reCommitmentCount}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {isTicketedEvent && (
+                    <>
+                      <div style={styles.statBox}>
+                        <div style={{ ...styles.statNumber, color: "#28a745" }}>
+                          R{totalPaid.toFixed(2)}
+                        </div>
+                        <div style={styles.statLabel}>Total Paid</div>
+                      </div>
+                      <div style={styles.statBox}>
+                        <div
+                          style={{
+                            ...styles.statNumber,
+                            color: totalOwing === 0 ? "#28a745" : "#dc3545",
+                          }}
+                        >
+                          R{totalOwing.toFixed(2)}
+                        </div>
+                        <div style={styles.statLabel}>Total Owing</div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </>
             )}
 
@@ -3668,20 +3367,18 @@ if (result && result.success) {
                               style={{
                                 ...styles.iconButton,
                                 color: isAlreadyAdded ? "#dc3545" : "#6366f1",
-                                cursor: "pointer",
+                                cursor: isAlreadyAdded ? "not-allowed" : "pointer",
+                                opacity: isAlreadyAdded ? 0.3 : 1,
                               }}
                               onClick={() => handleAssociatePerson(person)}
+                              disabled={isAlreadyAdded}
                               title={
                                 isAlreadyAdded
-                                  ? "Remove from common attendees"
+                                  ? "Already added"
                                   : "Add to common attendees"
                               }
                             >
-                              {isAlreadyAdded ? (
-                                <X size={20} />
-                              ) : (
-                                <UserPlus size={20} />
-                              )}
+                              <UserPlus size={20} />
                             </button>
                           </div>
                         </div>
@@ -3747,13 +3444,17 @@ if (result && result.success) {
                                 <button
                                   style={{
                                     ...styles.iconButton,
+                                    color: isAlreadyAdded ? "#dc3545" : "#6366f1",
+                                    cursor: isAlreadyAdded ? "not-allowed" : "pointer",
                                     opacity: isAlreadyAdded ? 0.3 : 1,
-                                    cursor: isAlreadyAdded
-                                      ? "not-allowed"
-                                      : "pointer",
                                   }}
                                   onClick={() => handleAssociatePerson(person)}
                                   disabled={isAlreadyAdded}
+                                  title={
+                                    isAlreadyAdded
+                                      ? "Already added"
+                                      : "Add to common attendees"
+                                  }
                                 >
                                   <UserPlus size={20} />
                                 </button>
