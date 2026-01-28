@@ -54,19 +54,6 @@ const uniformInputSx = {
   },
 };
 
-const readOnlySx = {  // NEW: Simple read-only style
-  ...uniformInputSx,
-  "& .MuiOutlinedInput-root": {
-    ...uniformInputSx["& .MuiOutlinedInput-root"],
-    backgroundColor: "grey.100",
-    "& .MuiOutlinedInput-notchedOutline": { borderColor: "grey.300" },
-  },
-  "& .MuiOutlinedInput-input": {
-    ...uniformInputSx["& .MuiOutlinedInput-input"],
-    color: "text.disabled",
-  },
-};
-
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -115,7 +102,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     }
   }, [open]);
 
-  // NEW: Full fetch helper for edit mode
+  // Full fetch helper for edit mode (from first code)
   const fetchFullPerson = useCallback(async (id) => {
     if (!id || !isEdit) return null;
     try {
@@ -129,7 +116,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     return null;
   }, [authFetch, isEdit]);
 
-  // Initialize form with person data when opening in edit mode
+  // Initialize form with person data when opening in edit mode (from first code)
   useEffect(() => {
     if (open && isEdit && personId) {
       const initForm = async () => {
@@ -224,38 +211,98 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     setErrors(prev => ({ ...prev, [name]: "" }));
   };
 
-  const handleInvitedByChange = (value) => {
-    if (!value) {
-      setFormData(prev => ({
-        ...prev,
-        invitedBy: "",
-        leader1: "",
-        leader12: "",
-        leader144: ""
-      }));
-      setShowLeaderFields(false);
-      return;
-    }
+  // const handleInvitedByChange = (value) => {
+  //   if (!value) {
+  //     setFormData(prev => ({
+  //       ...prev,
+  //       invitedBy: "",
+  //       leader1: "",
+  //       leader12: "",
+  //       leader144: ""
+  //     }));
+  //     setShowLeaderFields(false);
+  //     return;
+  //   }
 
-    const label = typeof value === "string" ? value : value.label;
+  //   const label = typeof value === "string" ? value : value.label;
     
-    const person = peopleList.find(
-      p => `${p.Name} ${p.Surname}`.trim() === label.trim() ||
-           p.FullName?.trim() === label.trim()
-    );
+  //   const person = peopleList.find(
+  //     p => `${p.Name} ${p.Surname}`.trim() === label.trim() ||
+  //          p.FullName?.trim() === label.trim()
+  //   );
 
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     invitedBy: label,
+  //     leader1: person?.["Leader @1"] || "",
+  //     leader12: person?.["Leader @12"] || "",
+  //     leader144: person?.["Leader @144"] || ""
+  //   }));
+
+  //   // Show leader fields if any leader data is populated
+  //   const hasLeaderData = person?.["Leader @1"] || person?.["Leader @12"] || person?.["Leader @144"];
+  //   setShowLeaderFields(hasLeaderData);
+  // };
+const handleInvitedByChange = (value) => {
+  if (!value) {
+    setFormData(prev => ({
+      ...prev,
+      invitedBy: "",
+      leader1: "",
+      leader12: "",
+      leader144: ""
+    }));
+    setShowLeaderFields(false);
+    return;
+  }
+
+  const label = typeof value === "string" ? value : value.label;
+  
+  const person = peopleList.find(
+    p => `${p.Name} ${p.Surname}`.trim() === label.trim() ||
+         p.FullName?.trim() === label.trim()
+  );
+
+  if (!person) {
     setFormData(prev => ({
       ...prev,
       invitedBy: label,
-      leader1: person?.["Leader @1"] || "",
-      leader12: person?.["Leader @12"] || "",
-      leader144: person?.["Leader @144"] || ""
+      leader1: "",
+      leader12: "",
+      leader144: ""
     }));
+    setShowLeaderFields(false);
+    return;
+  }
 
-    // Show leader fields if any leader data is populated
-    const hasLeaderData = person?.["Leader @1"] || person?.["Leader @12"] || person?.["Leader @144"];
-    setShowLeaderFields(hasLeaderData);
-  };
+  // ✅ Use the full name (or email as fallback) for the inviter
+  const inviterName = `${person.Name || ""} ${person.Surname || ""}`.trim() || person.Email || label;
+  
+  let leader1 = person["Leader @1"] || "";
+  let leader12 = person["Leader @12"] || "";
+  let leader144 = person["Leader @144"] || "";
+  
+  // Place the inviter in the first available/empty leadership slot
+  if (!leader1) {
+    leader1 = inviterName;
+  } else if (!leader12) {
+    leader12 = inviterName;
+  } else if (!leader144) {
+    leader144 = inviterName;
+  }
+
+  setFormData(prev => ({
+    ...prev,
+    invitedBy: label,
+    leader1: leader1,
+    leader12: leader12,
+    leader144: leader144
+  }));
+
+  // Show leader fields if any leader data is populated
+  const hasLeaderData = leader1 || leader12 || leader144;
+  setShowLeaderFields(hasLeaderData);
+};
 
   const handleSearchInputChange = (field, value) => {
     setSearchInputs(prev => ({
@@ -279,27 +326,9 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       .slice(0, 50);
   }, []);
 
-  // UPDATED: Render read-only TextField for abilities in edit mode
   const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
     const currentValue = formData[name] || "";
-    const isReadOnly = isEdit;  // Lock in edit mode
-    const onChangeHandler = isInvite ? handleInvitedByChange : undefined;  // No handler in edit
     
-    if (isReadOnly) {
-      return (
-        <TextField
-          margin="normal"
-          fullWidth
-          label={label}
-          value={currentValue}
-          disabled
-          InputProps={{ readOnly: true, sx: readOnlySx }}
-          helperText="(View Only)"
-          sx={readOnlySx}
-        />
-      );
-    }
-
     return (
       <Autocomplete
         freeSolo
@@ -409,73 +438,158 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSaveClick = async () => {
-    if (!validate() || isSubmitting) return;
-    setIsSubmitting(true);
+  // const handleSaveClick = async () => {
+  //   if (!validate() || isSubmitting) return;
+  //   setIsSubmitting(true);
 
-    try {
-      const leaders = [
-        formData.leader1 || "",
-        formData.leader12 || "",
-        formData.leader144 || ""
-      ].filter(leader => leader.trim() !== "");
+  //   try {
+  //     const leaders = [
+  //       formData.leader1 || "",
+  //       formData.leader12 || "",
+  //       formData.leader144 || ""
+  //     ].filter(leader => leader.trim() !== "");
 
-      const payload = {
-        invitedBy: formData.invitedBy,
-        name: formData.name,
-        surname: formData.surname,
-        gender: formData.gender,
-        email: formData.email,
-        number: formData.number,
-        dob: formData.dob.replace(/-/g, "/"),  // NEW: Back to DB format on save
-        address: formData.address,
-        leaders: leaders,
-        stage: formData.stage || "Win", 
-      };
+  //     const payload = {
+  //       invitedBy: formData.invitedBy,
+  //       name: formData.name,
+  //       surname: formData.surname,
+  //       gender: formData.gender,
+  //       email: formData.email,
+  //       number: formData.number,
+  //       dob: formData.dob.replace(/-/g, "/"),
+  //       address: formData.address,
+  //       leaders: leaders,
+  //       stage: formData.stage || "Win", 
+  //     };
 
-      let response;
+  //     let response;
 
-      if (isEdit && personId) {
-        // Use authFetch for PATCH request
-        response = await authFetch(`${BASE_URL}/people/${personId}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
+  //     if (isEdit && personId) {
+  //       // Use authFetch for PATCH request
+  //       response = await authFetch(`${BASE_URL}/people/${personId}`, {
+  //         method: "PATCH",
+  //         body: JSON.stringify(payload),
+  //       });
 
-        if (response.ok) {
-          const data = await response.json();
-          onSave({ ...payload, _id: personId });
-        } else {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || "Update failed");
-        }
+  //       if (response.ok) {
+  //         const data = await response.json();
+  //         onSave({ ...payload, _id: personId });
+  //       } else {
+  //         const errorData = await response.json();
+  //         throw new Error(errorData.detail || "Update failed");
+  //       }
+  //     } else {
+  //       // Use authFetch for POST request
+  //       response = await authFetch(`${BASE_URL}/people`, {
+  //         method: "POST",
+  //         body: JSON.stringify(payload),
+  //       });
+
+  //       if (response.ok) {
+  //         const data = await response.json();
+  //         onSave(data);
+  //       } else {
+  //         const errorData = await response.json();
+  //         throw new Error(errorData.detail || "Save failed");
+  //       }
+  //     }
+
+  //     if (!isEdit) {
+  //       setFormData(initialFormState);
+  //     }
+  //     onClose();
+  //   } catch (err) {
+  //     const msg = err.message || "An error occurred";
+  //     toast.error(`Error: ${msg}`);
+  //   } finally {
+  //     setIsSubmitting(false);
+  //   }
+  // };
+const handleSaveClick = async () => {
+  if (!validate() || isSubmitting) return;
+  setIsSubmitting(true);
+
+  try {
+    const leaders = [
+      formData.leader1 || "",
+      formData.leader12 || "",
+      formData.leader144 || ""
+    ].filter(leader => leader.trim() !== "");
+
+    const payload = {
+      invitedBy: formData.invitedBy,
+      name: formData.name,
+      surname: formData.surname,
+      gender: formData.gender,
+      email: formData.email,
+      number: formData.number,
+      dob: formData.dob.replace(/-/g, "/"),
+      address: formData.address,
+      leaders: leaders,
+      stage: formData.stage || "Win", 
+    };
+
+    let response;
+
+    if (isEdit && personId) {
+      response = await authFetch(`${BASE_URL}/people/${personId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        onSave({ ...payload, _id: personId });
       } else {
-        // Use authFetch for POST request
-        response = await authFetch(`${BASE_URL}/people`, {
-          method: "POST",
-          body: JSON.stringify(payload),
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Update failed");
+      }
+    } else {
+      response = await authFetch(`${BASE_URL}/people`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        const createdPerson = data.person || data;
+        const backendLeaders = {
+          leader1: createdPerson["Leader @1"] || createdPerson.leader1 || "",
+          leader12: createdPerson["Leader @12"] || createdPerson.leader12 || "",
+          leader144: createdPerson["Leader @144"] || createdPerson.leader144 || ""
+        };
+        
+        // Show what the backend actually assigned
+        console.log("Backend assigned leaders:", backendLeaders);
+        
+        // Pass the complete data back with backend-assigned leaders
+        onSave({
+          ...data,
+          person: {
+            ...createdPerson,
+            leader1: backendLeaders.leader1,
+            leader12: backendLeaders.leader12,
+            leader144: backendLeaders.leader144
+          }
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          onSave(data);
-        } else {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || "Save failed");
-        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Save failed");
       }
-
-      if (!isEdit) {
-        setFormData(initialFormState);
-      }
-      onClose();
-    } catch (err) {
-      const msg = err.message || "An error occurred";
-      toast.error(`Error: ${msg}`);
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+
+    if (!isEdit) {
+      setFormData(initialFormState);
+    }
+    onClose();
+  } catch (err) {
+    const msg = err.message || "An error occurred";
+    toast.error(`Error: ${msg}`);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleClose = () => {
     if (isSubmitting) return;
@@ -561,10 +675,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           <Collapse in={showLeaderFields}>
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1 }}>
-                Additional Leaders {isEdit ? "(View Only)" : ""}
+                Additional Leaders
               </Typography>
               
-              {/* Only Leader @1 is editable, others are disabled - but read-only in edit */}
+              {/* Only Leader @1 is editable, others are disabled */}
               {renderAutocomplete('leader1', 'Leader @1', false, true)}
               {renderAutocomplete('leader12', 'Leader @12', false, true)}
               {renderAutocomplete('leader144', 'Leader @144', false, true)}
@@ -580,9 +694,8 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
                 variant="outlined"
                 color="primary"
                 size="small"
-                disabled={isEdit}  // NEW: Disable toggle in edit
               >
-                {isEdit ? "View Leaders" : "View Additional Leaders"}
+                View Additional Leaders
               </Button>
             </Box>
           )}
