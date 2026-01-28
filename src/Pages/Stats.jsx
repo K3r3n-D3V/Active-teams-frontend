@@ -215,41 +215,138 @@ const overdueCells = allEvents.filter(cell => {
   }
 }, [authFetch]);
 
-  const fetchStats = useCallback(async (forceRefresh = false) => {
-    if (isFetchingRef.current && !forceRefresh) return;
-    isFetchingRef.current = true;
-    setStats(prev => ({ ...prev, loading: true, error: null }));
-    try {
-      const response = await authFetch(
-        `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}`,
-        { retryOnAuthFailure: true, maxRetries: 1 }
-      );
-      if (!response.ok) {
-        const errorText = await response.text();
-        if (response.status === 401) throw new Error('Authentication required');
-        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+const fetchAllTasks = useCallback(async (forceRefresh = false) => {
+  if (isFetchingRef.current && !forceRefresh) return;
+  isFetchingRef.current = true;
+
+  setStats(prev => ({ ...prev, loading: true, error: null }));
+
+  try {
+    // THIS IS KEY: Use the old endpoint that returns tasks visible to the current user
+    // This is what gave you the "477 tasks under ntumbalvie@gmail.com" before
+    const userString = localStorage.getItem("userProfile");
+
+    const res = await authFetch(`${BACKEND_URL}/tasks`);
+
+    if (!res.ok) throw new Error("Failed to fetch tasks");
+
+    const data = await res.json();
+    const rawTasks = Array.isArray(data) ? data : data.tasks || data.data || [];
+
+    // Normalize tasks
+    const normalizedTasks = rawTasks.map(task => ({
+      ...task,
+      assignedTo: task.assignedfor || task.assignedTo || task.assigned_to || null,
+      status: (task.status || "open").toString().toLowerCase(),
+    }));
+
+    // Group by assignedTo email
+    const groups = normalizedTasks.reduce((acc, task) => {
+      const email = task.assignedTo || "unassigned";
+      if (!acc[email]) {
+        acc[email] = { tasks: [], email };
       }
-      const data = await response.json();
-      setStats({
-        overview: data.overview,
-        events: data.events || [],
-        overdueCells: data.fetchOverdueCells || [],
-        allTasks: data.allTasks || [],
-        allUsers: data.allUsers || [],
-        groupedTasks: data.groupedTasks || [],
-        dateRange: data.date_range || { start: '', end: '' },
-        loading: false,
-        error: null
-      });
-    } catch (err) {
-      // ... fallback logic unchanged
-      console.error("Fetch stats error:", err);
-      // Keep your fallback logic here if needed
-      setStats(prev => ({ ...prev, loading: false, error: err.message }));
-    } finally {
-      isFetchingRef.current = false;
-    }
-  }, [period, authFetch]);
+      acc[email].tasks.push(task);
+      return acc;
+    }, {});
+
+    // Convert to array and enrich with names + counts
+    const groupedArray = Object.values(groups).map(group => {
+      const tasks = group.tasks;
+      const total = tasks.length;
+      const completed = tasks.filter(t => 
+        t.status === "completed" || t.status === "done" || t.status === "closed"
+      ).length;
+      const incomplete = total - completed;
+
+      // Try to get a nice name from any task that has it
+      let fullName = "Unknown User";
+      const nameFromTask = tasks.find(t => 
+        t.assigned_person_name || 
+        t.assignedToName || 
+        t.assigned_for_name
+      );
+      if (nameFromTask) {
+        fullName = nameFromTask.assigned_person_name || 
+                   nameFromTask.assignedToName || 
+                   nameFromTask.assigned_for_name ||
+                   group.email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase());
+      } else {
+        // Fallback: pretty print email
+        const namePart = group.email.split('@')[0];
+        fullName = namePart.split('.').map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ');
+      }
+
+      return {
+        user: { email: group.email, fullName },
+        tasks,
+        totalCount: total,
+        completedCount: completed,
+        incompleteCount: incomplete,
+      };
+    });
+
+    // Sort: incomplete first, then by total tasks descending
+    groupedArray.sort((a, b) => {
+      if (a.incompleteCount > 0 && b.incompleteCount === 0) return -1;
+      if (b.incompleteCount > 0 && a.incompleteCount === 0) return 1;
+      return b.totalCount - a.totalCount;
+    });
+
+    setStats(prev => ({
+      ...prev,
+      allTasks: normalizedTasks,
+      groupedTasks: groupedArray,
+      loading: false,
+    }));
+
+    console.log(`Successfully loaded ${normalizedTasks.length} tasks across ${groupedArray.length} people`);
+
+  } catch (err) {
+    console.error("fetchAllTasks error:", err);
+    setStats(prev => ({ ...prev, loading: false, error: err.message }));
+    toast.error("Failed to load tasks");
+  } finally {
+    isFetchingRef.current = false;
+  }
+}, [period, authFetch]);
+  // const fetchStats = useCallback(async (forceRefresh = false) => {
+  //   if (isFetchingRef.current && !forceRefresh) return;
+  //   isFetchingRef.current = true;
+  //   setStats(prev => ({ ...prev, loading: true, error: null }));
+  //   try {
+  //     const response = await authFetch(
+  //       `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}`,
+  //       { retryOnAuthFailure: true, maxRetries: 1 }
+  //     );
+  //     if (!response.ok) {
+  //       const errorText = await response.text();
+  //       if (response.status === 401) throw new Error('Authentication required');
+  //       throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+  //     }
+  //     const data = await response.json();
+  //     setStats({
+  //       overview: data.overview,
+  //       events: data.events || [],
+  //       overdueCells: data.fetchOverdueCells || [],
+  //       allTasks: data.allTasks || [],
+  //       allUsers: data.allUsers || [],
+  //       groupedTasks: data.groupedTasks || [],
+  //       dateRange: data.date_range || { start: '', end: '' },
+  //       loading: false,
+  //       error: null
+  //     });
+  //   } catch (err) {
+  //     // ... fallback logic unchanged
+  //     console.error("Fetch stats error:", err);
+  //     // Keep your fallback logic here if needed
+  //     setStats(prev => ({ ...prev, loading: false, error: err.message }));
+  //   } finally {
+  //     isFetchingRef.current = false;
+  //   }
+  // }, [period, authFetch]);
 
   const handlePeriodChange = (e) => {
     if (isFetchingRef.current) return;
@@ -262,8 +359,8 @@ const overdueCells = allEvents.filter(cell => {
     { period, timestamp: new Date().toISOString() }
   );
   fetchOverdueCells();
-  fetchStats();
-}, [period, fetchOverdueCells, fetchStats]);
+  fetchAllTasks();
+}, [period, fetchOverdueCells, fetchAllTasks]);
 
   const filteredOverdueCells = useMemo(() => {
     return [...cells].sort((a, b) => {
@@ -532,7 +629,7 @@ const overdueCells = allEvents.filter(cell => {
       });
 
       setSnackbar({ open: true, message: 'Event created successfully!', severity: 'success' });
-      fetchStats();
+      fetchAllTasks();
       
     } catch (err) {
       console.error("Create event failed:", err);
@@ -925,7 +1022,7 @@ const overdueCells = allEvents.filter(cell => {
   if (stats.error && !stats.overview) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
-        <Alert severity="error" action={<Button onClick={() => fetchStats()}>Retry</Button>}>
+        <Alert severity="error" action={<Button onClick={() => fetchAllTasks()}>Retry</Button>}>
           {stats.error}
         </Alert>
       </Box>
@@ -953,7 +1050,7 @@ const overdueCells = allEvents.filter(cell => {
               {periodOptions.map(opt => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
             </Select>
           </FormControl>
-          <Tooltip title="Refresh"><IconButton onClick={() => fetchStats(true)} disabled={stats.loading}><Refresh /></IconButton></Tooltip>
+          <Tooltip title="Refresh"><IconButton onClick={() => fetchAllTasks(true)} disabled={stats.loading}><Refresh /></IconButton></Tooltip>
           <Button variant="outlined" size="small" startIcon={<Download />} onClick={downloadFilteredStats}>
             Download
           </Button>
