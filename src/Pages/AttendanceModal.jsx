@@ -1141,18 +1141,152 @@ const [eventStatistics, setEventStatistics] = useState({
 
   const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
-const clearGlobalPeopleCache = () => {
+ const findLeaderEmail = async (leaderName) => {
+    if (!leaderName) return "";
+    
     try {
-      if (typeof window !== "undefined") {
-        // remove any window-level cache object used elsewhere
-        delete window.globalPeopleCache;
-        // expose a no-op reference for other modules that might call this
-        window.clearGlobalPeopleCache = () => { delete window.globalPeopleCache; };
+      const response = await authFetch(`${BACKEND_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.results?.length > 0) {
+          const foundLeader = data.results.find(person => 
+            person.Name?.toLowerCase() === leaderName.toLowerCase() ||
+            person.FullName?.toLowerCase() === leaderName.toLowerCase()
+          );
+          
+          if (foundLeader?.Email) {
+            return foundLeader.Email;
+          }
+        }
       }
-    } catch (err) {
-      console.warn("Failed to clear global people cache", err);
+      
+      return "";
+      
+    } catch (error) {
+      console.error("Error searching for leader email:", error);
+      return "";
     }
   };
+
+const createConsolidationTasks = async (attendees, eventId) => {
+  if (!attendees || attendees.length === 0) return;
+
+  console.log("Creating consolidation tasks for", attendees.length, "attendees");
+
+  for (const attendee of attendees) {
+    const hasDecision = attendee.decision && attendee.decision.length > 0;
+    
+    if (!hasDecision) {
+      console.log(`Skipping ${attendee.fullName} - no decision made`);
+      continue;
+    }
+
+    try {
+      // Better name parsing - handle various formats
+      let firstName = "";
+      let lastName = "";
+      
+      if (attendee.name && attendee.surname) {
+        // If we already have separate fields
+        firstName = attendee.name;
+        lastName = attendee.surname;
+      } else if (attendee.fullName) {
+        // Parse fullName more reliably
+        const nameParts = attendee.fullName.trim().split(/\s+/);
+        firstName = nameParts[0] || "";
+        lastName = nameParts.slice(1).join(" ") || "";
+      }
+      
+      console.log(`Processing: ${firstName} ${lastName}`, {
+        fullName: attendee.fullName,
+        firstName,
+        lastName,
+        decision: attendee.decision
+      });
+
+      // Determine assigned leader with fallback hierarchy
+      let assignedLeader = "";
+      
+      if (attendee.leader144 && attendee.leader144.trim()) {
+        assignedLeader = attendee.leader144.trim();
+        console.log(`Using Leader @144: ${assignedLeader}`);
+      } else if (attendee.leader12 && attendee.leader12.trim()) {
+        assignedLeader = attendee.leader12.trim();
+        console.log(`Using Leader @12: ${assignedLeader}`);
+      } else if (attendee.leader1 && attendee.leader1.trim()) {
+        assignedLeader = attendee.leader1.trim();
+        console.log(`Using Leader @1: ${assignedLeader}`);
+      } else if (currentUser) {
+        assignedLeader = `${currentUser.name || ""} ${currentUser.surname || ""}`.trim();
+        console.log(`Using current user as leader: ${assignedLeader}`);
+      }
+      
+      if (!assignedLeader) {
+        console.warn(`Could not determine leader for ${firstName} ${lastName}`);
+        continue;
+      }
+
+      // Get leader email
+      const leaderEmail = await findLeaderEmail(assignedLeader);
+      console.log(`Leader email: ${leaderEmail || "not found"}`);
+
+      // Parse decision type
+      const decisionType = attendee.decision.toLowerCase().includes('re-commitment') || 
+                          attendee.decision.toLowerCase().includes('recommitment')
+        ? 'recommitment' 
+        : 'first_time';
+      
+      console.log(`Decision type: ${decisionType}`);
+
+      const consolidationPayload = {
+        person_name: firstName,
+        person_surname: lastName,
+        person_email: attendee.email || "",
+        person_phone: attendee.phone || "",
+        decision_type: decisionType,
+        decision_date: new Date().toISOString().split("T")[0],
+        assigned_to: assignedLeader,
+        assigned_to_email: leaderEmail,
+        leaders: [
+          attendee.leader1 || "",
+          attendee.leader12 || "",
+          attendee.leader144 || "",
+          ""
+        ],
+        event_id: eventId,
+        is_check_in: true,
+        attendance_status: "checked_in",
+        source: "event_consolidation"
+      };
+
+      console.log(`Sending consolidation payload:`, consolidationPayload);
+
+      const response = await authFetch(`${BACKEND_URL}/consolidations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(consolidationPayload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(`Failed to create consolidation task for ${firstName} ${lastName}:`, errorData);
+        continue;
+      }
+
+      const result = await response.json();
+      console.log(`Consolidation task created successfully for ${firstName} ${lastName}:`, result);
+      
+    } catch (error) {
+      console.error(`Error creating consolidation task for ${attendee.fullName}:`, error);
+    }
+  }
+  
+  console.log("Finished creating consolidation tasks");
+};
+
 
 const loadEventStatistics = async () => {
   if (!event) return;
@@ -1349,76 +1483,6 @@ const loadPersistentAttendees = async (eventId) => {
 };
 
 
-
- const loadPreloadedPeople = async (forceRefresh = false) => {
-    const now = Date.now();
-
-    // If not forcing, try using existing cache if fresh
-    if (
-      !forceRefresh &&
-      typeof window !== 'undefined' &&
-      window.globalPeopleCache &&
-      window.globalPeopleCache.data?.length > 0 &&
-      window.globalPeopleCache.timestamp &&
-      now - window.globalPeopleCache.timestamp < (window.globalPeopleCache.expiry || 5 * 60 * 1000)
-    ) {
-      console.log("Using cached people data in AttendanceModal");
-      setPreloadedPeople(window.globalPeopleCache.data);
-
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(window.globalPeopleCache.data.slice(0, 50));
-      }
-      return;
-    }
-
-    // Otherwise fetch fresh people from backend and rebuild cache
-    try {
-      console.log(forceRefresh ? "Force-refreshing people cache" : "Fetching fresh people for AttendanceModal cache");
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const params = new URLSearchParams();
-      params.append("perPage", "100");
-      params.append("page", "1");
-
-      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, {
-        headers,
-      });
-
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p.leader1 || p.leaders?.[0] || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || p.leaders?.[1] || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p.leader144 || p.leaders?.[2] || "",
-        phone: p.Number || p.Phone || p.phone || "",
-        searchText: `${(p.Name || p.name || "")} ${(p.Surname || p.surname || "")} ${(p.Email || p.email || "")}`.toLowerCase()
-      }));
-
-      // set a window cache for quick reuse (other code references window.globalPeopleCache)
-      window.globalPeopleCache = {
-        data: formatted,
-        timestamp: now,
-        expiry: 5 * 60 * 1000,
-      };
-
-      setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
-
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(formatted.slice(0, 50));
-      }
-    } catch (err) {
-      console.error("Error pre-loading people in AttendanceModal:", err);
-    }
-  };
-
 useEffect(() => {
   if (isOpen && event) {
     let eventId = event._id || event.id;
@@ -1446,8 +1510,70 @@ useEffect(() => {
     setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
   }
 }, [isOpen, event]);
+  const loadPreloadedPeople = async () => {
+    const now = Date.now();
 
-  const fetchPeople = async (q) => {
+    if (
+      typeof window.globalPeopleCache !== 'undefined' &&
+      window.globalPeopleCache.data?.length > 0 &&
+      window.globalPeopleCache.timestamp &&
+      now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
+    ) {
+      console.log("Using cached people data in AttendanceModal");
+      setPreloadedPeople(window.globalPeopleCache.data);
+
+      if (activeTab === 1 && !associateSearch.trim()) {
+        setPeople(window.globalPeopleCache.data.slice(0, 50));
+      }
+      return;
+    }
+
+    try {
+      console.log("Fetching fresh people data for AttendanceModal cache");
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const params = new URLSearchParams();
+      params.append("perPage", "100");
+      params.append("page", "1");
+
+      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, {
+        headers,
+      });
+
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+      const data = await res.json();
+      const peopleArray = data.people || data.results || [];
+
+      const formatted = peopleArray.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
+        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
+        leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+        phone: p.Number || p.Phone || p.phone || "",
+      }));
+
+      // Update global cache
+      window.globalPeopleCache = {
+        data: formatted,
+        timestamp: now,
+        expiry: 5 * 60 * 1000,
+      };
+
+      setPreloadedPeople(formatted);
+      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
+
+      if (activeTab === 1 && !associateSearch.trim()) {
+        setPeople(formatted.slice(0, 50));
+      }
+    } catch (err) {
+      console.error("Error pre-loading people in AttendanceModal:", err);
+    }
+  };
+  const fetchPeople = async (q = "") => {
     if (!q.trim()) {
       if (preloadedPeople.length > 0) {
         console.log(" Showing preloaded people list");
@@ -1458,35 +1584,40 @@ useEffect(() => {
       return;
     }
 
-    const query = q.trim();
-    // We keep original casing for display, but lowercase for comparison
-    const queryLower = query.toLowerCase();
+    const parts = q.trim().split(/\s+/);
+    const name = parts[0];
+    const surname = parts.slice(1).join(" ");
 
     try {
-      // Send the full typed string to the backend
-      // (most APIs can handle searching across both name + surname fields)
-      const res = await authFetch(
-        `${BACKEND_URL}/people?name=${encodeURIComponent(query)}`
-      );
+      const token = localStorage.getItem("token");
+      const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (!res.ok) throw new Error("Failed to fetch people");
 
       const data = await res.json();
-      const results = data?.results || [];
 
-      // ────────────────────────────────────────────────
-      // Client-side filtering that supports compound first names
-      // ────────────────────────────────────────────────
-      const filtered = results.filter((p) => {
-        const fullNameLower =
-          `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
+      let filtered = (data?.results || data?.people || []).filter(p =>
+        p.Name.toLowerCase().includes(name.toLowerCase()) &&
+        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+      );
 
-        if (fullNameLower.includes(queryLower)) return true;
+      // Sort the results
+      filtered.sort((a, b) => {
+        const nameA = (a.Name || "").toLowerCase();
+        const nameB = (b.Name || "").toLowerCase();
+        const surnameA = (a.Surname || "").toLowerCase();
+        const surnameB = (b.Surname || "").toLowerCase();
 
-        const queryWords = queryLower.split(/\s+/).filter(Boolean);
-        return queryWords.every((word) => fullNameLower.includes(word));
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        if (surnameA < surnameB) return -1;
+        if (surnameA > surnameB) return 1;
+        return 0;
       });
 
+      // Format the results consistently
       const formatted = filtered.map((p) => ({
         id: p._id,
         fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
@@ -1893,19 +2024,20 @@ const handleSave = async () => {
         return null;
       }
 
-      const attendee = {
-        id: person.id,
-        name: person.fullName || "",
-        email: person.email || "",
-        fullName: person.fullName || "",
-        leader12: person.leader12 || "",
-        leader144: person.leader144 || "",
-        phone: person.phone || "",
-        time: new Date().toISOString(),
-        decision: decisions[id] ? decisionTypes[id] || "" : "",
-        checked_in: true,
-        isPersistent: true
-      };
+const attendee = {
+  id: person.id,
+  name: person.fullName || "",
+  email: person.email || "",
+  fullName: person.fullName || "",
+  leader1: person.leader1 || "", 
+  leader12: person.leader12 || "",
+  leader144: person.leader144 || "",
+  phone: person.phone || "",
+  time: new Date().toISOString(),
+  decision: decisions[id] ? decisionTypes[id] || "" : "",
+  checked_in: true,
+  isPersistent: true
+};
 
       if (isTicketedEvent) {
         attendee.priceTier = priceTiers[id]?.name || "";
@@ -1922,7 +2054,6 @@ const handleSave = async () => {
 
     console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
 
-    // FIX: Only mark as "Did Not Meet" if NO attendees AND NO headcount
     const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
     
     console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
@@ -1984,7 +2115,10 @@ const handleSave = async () => {
     console.log("[SAVE] Save result:", result);
 
 if (result && result.success) {
+  await createConsolidationTasks(selectedAttendees, eventId);
   await loadEventStatistics();
+  toast.success("Attendance saved successfully! Consolidation tasks created.");
+
   
   if (typeof onAttendanceSubmitted === "function") {
     await onAttendanceSubmitted();
@@ -2107,10 +2241,13 @@ if (result && result.success) {
   const handlePersonAdded = (newPerson) => {
     console.log(" New person added:", newPerson);
 
-    // Clear caches and reload fresh people from DB
-    clearGlobalPeopleCache();
-    loadPreloadedPeople(true);
+    if (typeof window.globalPeopleCache !== 'undefined') {
+      window.globalPeopleCache.data = [];
+      window.globalPeopleCache.timestamp = null;
+    }
+
     fetchPeople();
+    loadPreloadedPeople();
 
     if (event && event.eventType === "cell") {
       fetchCommonAttendees(event._id || event.id);
@@ -2557,7 +2694,6 @@ if (result && result.success) {
       minWidth: isMobile ? 140 : 200,
       maxHeight: 300,
       overflowY: "auto",
-      // border: "2px solid blue",
     },
     decisionMenuItem: {
       padding: "10px 12px",
