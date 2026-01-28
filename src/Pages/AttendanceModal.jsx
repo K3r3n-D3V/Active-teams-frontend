@@ -33,7 +33,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
   const [inviterSearchInput, setInviterSearchInput] = useState("");
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
   const [showLeaderModal, setShowLeaderModal] = useState(false);
-  const [touched, setTouched] = useState({});
+  const [, setTouched] = useState({});
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [autoFilledLeaders, setAutoFilledLeaders] = useState({
     leader1: "",
@@ -50,7 +50,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  // Function to fetch people - SAME AS AddPersonDialog
+  // Function to fetch people 
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
     try {
@@ -104,13 +104,11 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
       };
     });
   }, [peopleList]);
-
   // Filter function
   const filterPeopleOptions = (inputValue) => {
     if (!inputValue) {
       return peopleOptions.slice(0, 30);
     }
-
     const searchTerm = inputValue.toLowerCase();
     return peopleOptions
       .filter(option =>
@@ -240,7 +238,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
         },
         body: JSON.stringify(payload)
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to create person');
@@ -752,7 +749,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
     leader144: ""
   });
 
-  const [leaderResults, setLeaderResults] = useState({
+  const [, setLeaderResults] = useState({
     leader1: [],
     leader12: [],
     leader144: []
@@ -1144,7 +1141,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const clearGlobalPeopleCache = () => {
     try {
       if (typeof window !== "undefined") {
-        // remove any window-level cache object used elsewhere
         delete window.globalPeopleCache;
         window.clearGlobalPeopleCache = () => { delete window.globalPeopleCache; };
       }
@@ -1152,25 +1148,24 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       console.warn("Failed to clear global people cache", err);
     }
   };
-
   const loadEventStatistics = async () => {
     if (!event) return;
 
     try {
-      let eventId = event._id || event.id;
-      if (eventId && eventId.includes("_")) {
-        eventId = eventId.split("_")[0];
-      }
-
+      // Get current week's date from the event
       const eventDate = event.date;
       const attendanceData = event.attendance || {};
 
+      // Get attendance for THIS specific week
       let weekAttendance = attendanceData;
-      if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
+      if (attendanceData && typeof attendanceData === 'object') {
         weekAttendance = attendanceData[eventDate] || {};
       }
 
-      if (weekAttendance && weekAttendance.status) {
+      const isCompleted = weekAttendance?.status === "complete";
+
+      if (isCompleted) {
+        // Show saved statistics for completed weeks
         const stats = weekAttendance.statistics || {};
         const attendees = weekAttendance.attendees || [];
 
@@ -1200,31 +1195,19 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         if (weekAttendance.total_headcounts > 0) {
           setManualHeadcount(weekAttendance.total_headcounts.toString());
         }
-
-        return;
-      }
-
-      const token = localStorage.getItem("token");
-      const response = await authFetch(
-        `${BACKEND_URL}/events/${eventId}/statistics`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-
-        if (data.statistics) {
-          setEventStatistics({
-            totalAssociated: data.statistics.total_associated || 0,
-            lastAttendanceCount: data.statistics.last_attendance_count || 0,
-            lastHeadcount: data.statistics.last_headcount || 0,
-            lastDecisionsCount: data.statistics.last_decisions_count || 0,
-            lastAttendanceBreakdown: data.statistics.last_attendance_breakdown || {
-              first_time: 0,
-              recommitment: 0
-            }
-          });
-        }
+      } else {
+        // For incomplete weeks, only show persistent attendees count
+        setEventStatistics({
+          totalAssociated: persistentCommonAttendees.length,
+          lastAttendanceCount: 0,
+          lastHeadcount: 0,
+          lastDecisionsCount: 0,
+          lastAttendanceBreakdown: {
+            first_time: 0,
+            recommitment: 0
+          }
+        });
+        setManualHeadcount("0");
       }
     } catch (error) {
       console.error("Error loading event statistics:", error);
@@ -1257,76 +1240,75 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     const attendanceData = event.attendance || {};
     let weekAttendance = attendanceData;
 
-    if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
+    if (attendanceData && typeof attendanceData === 'object') {
       weekAttendance = attendanceData[eventDate] || {};
     }
 
-    if (!weekAttendance || !weekAttendance.status) {
+    const isCompleted = weekAttendance?.status === "complete";
+    const isDidNotMeet = weekAttendance?.status === "did_not_meet";
+
+    if (isCompleted) {
+      // Only load check-ins for COMPLETED weeks
+      const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
+      const hasHeadcount = weekAttendance.total_headcounts > 0;
+      console.log("Loading completed week attendance:", hasHeadcount);
+
+      if (hasAttendees) {
+        const newCheckedIn = {};
+        const newDecisions = {};
+        const newDecisionTypes = {};
+        const newPriceTiers = {};
+        const newPaymentMethods = {};
+        const newPaidAmounts = {};
+        weekAttendance.attendees.forEach(att => {
+          if (att.id) {
+            newCheckedIn[att.id] = true;
+
+            if (att.decision) {
+              newDecisions[att.id] = true;
+              newDecisionTypes[att.id] = att.decision;
+            }
+
+            if (isTicketedEvent) {
+              if (att.priceTier || att.price) {
+                newPriceTiers[att.id] = {
+                  name: att.priceTier || "",
+                  price: att.price || 0,
+                  ageGroup: att.ageGroup || "",
+                  memberType: att.memberType || ""
+                };
+              }
+              if (att.paymentMethod) {
+                newPaymentMethods[att.id] = att.paymentMethod;
+              }
+              if (att.paid !== undefined) {
+                newPaidAmounts[att.id] = att.paid;
+              }
+            }
+          }
+        });
+
+        setCheckedIn(newCheckedIn);
+        setDecisions(newDecisions);
+        setDecisionTypes(newDecisionTypes);
+        setPriceTiers(newPriceTiers);
+        setPaymentMethods(newPaymentMethods);
+        setPaidAmounts(newPaidAmounts);
+      }
+
+      const headcount = weekAttendance.total_headcounts || 0;
+      setManualHeadcount(headcount.toString());
+      setDidNotMeet(false);
+    } else if (isDidNotMeet) {
+      // Handle "did not meet" weeks
+      setDidNotMeet(true);
+      setCheckedIn({});
+      setManualHeadcount("0");
+    } else {
       setCheckedIn({});
       setManualHeadcount("0");
       setDidNotMeet(false);
-      return;
     }
-
-    const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
-    const hasHeadcount = weekAttendance.total_headcounts > 0;
-
-    const isActuallyDidNotMeet = (
-      weekAttendance.status === "did_not_meet" &&
-      !hasAttendees &&
-      !hasHeadcount
-    );
-
-    setDidNotMeet(isActuallyDidNotMeet);
-
-    if (hasAttendees) {
-      const newCheckedIn = {};
-      const newDecisions = {};
-      const newDecisionTypes = {};
-      const newPriceTiers = {};
-      const newPaymentMethods = {};
-      const newPaidAmounts = {};
-
-      weekAttendance.attendees.forEach(att => {
-        if (att.id) {
-          newCheckedIn[att.id] = true;
-
-          if (att.decision) {
-            newDecisions[att.id] = true;
-            newDecisionTypes[att.id] = att.decision;
-          }
-
-          if (isTicketedEvent) {
-            if (att.priceTier || att.price) {
-              newPriceTiers[att.id] = {
-                name: att.priceTier || "",
-                price: att.price || 0,
-                ageGroup: att.ageGroup || "",
-                memberType: att.memberType || ""
-              };
-            }
-            if (att.paymentMethod) {
-              newPaymentMethods[att.id] = att.paymentMethod;
-            }
-            if (att.paid !== undefined) {
-              newPaidAmounts[att.id] = att.paid;
-            }
-          }
-        }
-      });
-
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-      setPriceTiers(newPriceTiers);
-      setPaymentMethods(newPaymentMethods);
-      setPaidAmounts(newPaidAmounts);
-    } else {
-      setCheckedIn({});
-    }
-
-    const headcount = weekAttendance.total_headcounts || 0;
-    setManualHeadcount(headcount.toString());
   };
 
   const loadPersistentAttendees = async (eventId) => {
@@ -1399,7 +1381,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         searchText: `${(p.Name || p.name || "")} ${(p.Surname || p.surname || "")} ${(p.Email || p.email || "")}`.toLowerCase()
       }));
 
-      // set a window cache for quick reuse (other code references window.globalPeopleCache)
       window.globalPeopleCache = {
         data: formatted,
         timestamp: now,
@@ -1457,12 +1438,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
 
     const query = q.trim();
-    // We keep original casing for display, but lowercase for comparison
     const queryLower = query.toLowerCase();
 
     try {
-      // Send the full typed string to the backend
-      // (most APIs can handle searching across both name + surname fields)
       const res = await authFetch(
         `${BACKEND_URL}/people?name=${encodeURIComponent(query)}`
       );
@@ -1471,10 +1449,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       const data = await res.json();
       const results = data?.results || [];
-
-      // ────────────────────────────────────────────────
-      // Client-side filtering that supports compound first names
-      // ────────────────────────────────────────────────
       const filtered = results.filter((p) => {
         const fullNameLower =
           `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
@@ -1682,7 +1656,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }));
     setOpenPriceTierDropdown(null);
   };
-
   const handlePaymentMethodSelect = (id, method) => {
     setPaymentMethods((prev) => ({
       ...prev,
@@ -1698,7 +1671,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       [id]: numValue,
     }));
   };
-
   const calculateOwing = (id) => {
     const price = priceTiers[id]?.price || 0;
     const paid = paidAmounts[id] || 0;
@@ -1743,8 +1715,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       return false;
     }
   };
-
-
   const handleAssociatePerson = async (person) => {
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
@@ -1779,7 +1749,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         return newState;
       });
 
-      // Remove from decision types if exists
       setDecisionTypes(prev => {
         const newState = { ...prev };
         delete newState[personId];
@@ -1892,7 +1861,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const reCommitmentCount = Object.values(decisionTypes).filter(
     (type) => type === "re-commitment"
   ).length;
-
   const totalPaid = Object.values(paidAmounts).reduce(
     (sum, amount) => sum + amount,
     0
@@ -1900,7 +1868,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const totalOwing = Object.keys(checkedIn)
     .filter((id) => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
-
   const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
     person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
     person.email.toLowerCase().includes(searchName.toLowerCase())
@@ -1977,13 +1944,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
 
-      // FIX: Only mark as "Did Not Meet" if NO attendees AND NO headcount
+      // Only mark as "Did Not Meet" if NO attendees AND NO headcount
       const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
 
       console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
       console.log("[SAVE] Reason - didNotMeet:", didNotMeet);
-      console.log("[SAVE] Reason - attendees:", attendeesList.length);
-      console.log("[SAVE] Reason - headcount:", finalHeadcount);
 
       const payload = {
         attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
@@ -2020,13 +1985,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         };
-
         const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
           method: "PUT",
           headers: headers,
           body: JSON.stringify(payload),
         });
-
         if (!response.ok) {
           const errorText = await response.text();
           console.error("[SAVE] Server error response:", errorText);
@@ -3005,7 +2968,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
               </>
             )}
           </div>
-
           <div style={styles.contentArea}>
             {activeTab === 0 && (
               <>
@@ -3068,7 +3030,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                           <th style={{ ...styles.th, textAlign: "center" }}>
                             Decision
                           </th>
-                          {/* REMOVE BUTTON AT THE END */}
                           <th style={{ ...styles.th, textAlign: "center", width: "50px" }}>
                             Remove
                           </th>
@@ -3191,7 +3152,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                                 )}
                               </td>
 
-                              {/* Column 8: Remove button - MUST BE THE LAST COLUMN */}
                               <td style={{ ...styles.td, textAlign: "center" }}>
                                 <button
                                   onClick={() => handleRemoveAttendee(person.id, person.fullName || "Unknown")}
@@ -3219,7 +3179,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                     </table>
                   </div>
                 )}
-
                 <div style={styles.statsContainer}>
                   <div style={styles.statBox}>
                     <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
@@ -3230,7 +3189,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
                   <div style={styles.statBox}>
                     <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
-                      {eventStatistics.lastAttendanceCount > 0 ? eventStatistics.lastAttendanceCount : attendeesCount}
+                      {/* Show current week's checked-in count only */}
+                      {Object.keys(checkedIn).filter(id => checkedIn[id]).length}
                     </div>
                     <div style={styles.statLabel}>Attendees</div>
                   </div>
@@ -3238,7 +3198,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                   <div style={styles.statBoxInput}>
                     <input
                       type="number"
-                      value={eventStatistics.lastHeadcount > 0 ? eventStatistics.lastHeadcount.toString() : manualHeadcount}
+                      value={manualHeadcount}
                       onChange={(e) => setManualHeadcount(e.target.value)}
                       placeholder="0"
                       style={styles.headcountInput}
@@ -3250,13 +3210,14 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                   {!isTicketedEvent && (
                     <div style={styles.statBox}>
                       <div style={{ ...styles.statNumber, color: "#ffc107" }}>
-                        {eventStatistics.lastDecisionsCount > 0 ? eventStatistics.lastDecisionsCount : decisionsCount}
+                        {/* Show current week's decisions*/}
+                        {Object.keys(decisions).filter(id => decisions[id]).length}
                       </div>
                       <div style={styles.statLabel}>Decisions</div>
-                      {(eventStatistics.lastDecisionsCount > 0 || decisionsCount > 0) && (
+                      {Object.keys(decisions).filter(id => decisions[id]).length > 0 && (
                         <div style={styles.decisionBreakdown}>
-                          <span>First-time: {eventStatistics.lastAttendanceBreakdown?.first_time || firstTimeCount}</span>
-                          <span>Re-commitment: {eventStatistics.lastAttendanceBreakdown?.recommitment || reCommitmentCount}</span>
+                          <span>First-time: {Object.values(decisionTypes).filter(type => type === "first-time").length}</span>
+                          <span>Re-commitment: {Object.values(decisionTypes).filter(type => type === "re-commitment").length}</span>
                         </div>
                       )}
                     </div>
@@ -3550,7 +3511,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 `}
       </style>
     </>
-
   );
 
 };
