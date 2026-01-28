@@ -1172,13 +1172,13 @@ const [eventStatistics, setEventStatistics] = useState({
 const createConsolidationTasks = async (attendees, eventId) => {
   if (!attendees || attendees.length === 0) return;
 
-  console.log("🔄 Creating consolidation tasks for", attendees.length, "attendees");
+  console.log("Creating consolidation tasks for", attendees.length, "attendees");
 
   for (const attendee of attendees) {
     const hasDecision = attendee.decision && attendee.decision.length > 0;
     
     if (!hasDecision) {
-      console.log(`⏭️ Skipping ${attendee.fullName} - no decision made`);
+      console.log(`Skipping ${attendee.fullName} - no decision made`);
       continue;
     }
 
@@ -1198,7 +1198,7 @@ const createConsolidationTasks = async (attendees, eventId) => {
         lastName = nameParts.slice(1).join(" ") || "";
       }
       
-      console.log(`📝 Processing: ${firstName} ${lastName}`, {
+      console.log(`Processing: ${firstName} ${lastName}`, {
         fullName: attendee.fullName,
         firstName,
         lastName,
