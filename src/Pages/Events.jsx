@@ -1125,7 +1125,7 @@ const { authFetch, logout } = React.useContext(AuthContext);
             }
             
             const data = await retryResponse.json();
-            setEvents(data.events || []);
+            (data.events || []);
             setTotalEvents(data.total_events || 0);
             setTotalPages(data.total_pages || 1);
             return;

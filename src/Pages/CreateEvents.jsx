@@ -12,6 +12,7 @@ import {
   Typography,
   useTheme,
   IconButton,
+  Alert
 } from "@mui/material";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PersonIcon from "@mui/icons-material/Person";
@@ -21,6 +22,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
+import { useRef } from "react";
 
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -415,6 +417,7 @@ useEffect(() => {
     setPriceTiers([]);
     setErrors({});
   };
+  const formAlert = useRef()
 
   const validateForm = () => {
     const newErrors = {};
@@ -424,6 +427,8 @@ useEffect(() => {
     if (!formData.location) newErrors.location = "Location is required";
     if (!formData.eventLeader) newErrors.eventLeader = "Event leader is required";
     if (!formData.description) newErrors.description = "Description is required";
+    if (!formData.date) newErrors.date = "Date is required";
+    if (!formData.time) newErrors.time = "Time is required";
 
     if (!isGlobalEvent) {
       if (hasPersonSteps && formData.recurringDays.length === 0) {
@@ -473,7 +478,7 @@ useEffect(() => {
 
  const handleSubmit = async (e) => {
   e.preventDefault();
-  if (!validateForm()) return;
+  if (!validateForm()){return setTimeout(()=>{formAlert.current.scrollIntoView({behavior:"smooth"})},200)};
 
   setIsSubmitting(true);
 
@@ -832,6 +837,13 @@ useEffect(() => {
               {eventId ? "Edit Event" : "Create New Event"}
             </Typography>
           )}
+          { Object.keys(errors).length !== 0 && <Alert
+          ref={formAlert}
+          sx={{
+            marginBottom:"20px"
+          }} severity="error">Please fill In all required fields</Alert>
+          }
+
 
           <form onSubmit={handleSubmit}>
             <TextField
@@ -1277,7 +1289,7 @@ useEffect(() => {
               setFormData((prev) => ({
                 ...prev,
                 eventLeader: selectedName,
-                eventName: selectedName,
+                // eventName: selectedName,
                 leader1: person.leader1 || "",
                 leader12: person.leader12 || "",
               }));
