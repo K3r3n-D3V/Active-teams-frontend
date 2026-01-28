@@ -558,6 +558,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       "is_recurring",
       "isrecurring",
       "recurring",
+      "is_active",
     ];
 
     const exactMatch = excludedFields.includes(key);
