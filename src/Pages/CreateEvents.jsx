@@ -55,10 +55,10 @@ const CreateEvents = ({
   const [peopleData, setPeopleData] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
-
+  
   const isAdmin = user?.role === "admin";
   console.log("view role", isAdmin)
-
+  
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
     eventName: "",
@@ -72,7 +72,21 @@ const CreateEvents = ({
     leader1: "",
     leader12: "",
   });
+  const [isRecurring, setIsRecurring] = useState(false);
+  const handleIsRecurringChange = (e) => {
+  const checked = e.target.checked;
+  setIsRecurring(checked);
 
+  if (!checked) {
+    setFormData((prev) => ({
+      ...prev,
+      recurringDays: [],
+    }));
+  }
+};
+
+  
+  
   const [errors, setErrors] = useState({});
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -520,6 +534,8 @@ useEffect(() => {
       status: "open",
       leader1: formData.leader1 || "",
       leader12: formData.leader12 || "",
+      isRecurring: isRecurring,
+      recurringDays: isRecurring ? formData.recurringDays : [],
     };
 
     if (formData.date && formData.time) {
@@ -844,7 +860,7 @@ useEffect(() => {
                   }
                   return displayValue;
                 })()
-              }
+              }Create 
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
@@ -1054,6 +1070,24 @@ useEffect(() => {
             </Box>
 
             <Box mb={3}>
+
+              <Typography
+                fontWeight="bold"
+                mb={1}
+                sx={darkModeStyles.sectionTitle}
+              >
+                Is Recurring? {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
+              </Typography>    
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isRecurring}
+                    onChange={handleIsRecurringChange}
+                  />
+                }
+                label="Yes"
+              />
               <Typography
                 fontWeight="bold"
                 mb={1}
@@ -1074,6 +1108,7 @@ useEffect(() => {
                       <Checkbox
                         checked={formData.recurringDays.includes(day)}
                         onChange={() => handleDayChange(day)}
+                        disabled={!isRecurring}
                       />
                     }
                     label={day}
