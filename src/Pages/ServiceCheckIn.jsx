@@ -53,6 +53,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
 import EventHistoryModal from "../components/EventHistoryModal";
 import { AuthContext } from "../contexts/AuthContext";
+import * as XLSX from 'xlsx';
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -1123,41 +1124,85 @@ function ServiceCheckIn() {
     }
   };
 
-  const downloadCSV = (data, filename) => {
-    if (!data || data.length === 0) {
-      toast.error("No data to download");
-      return;
-    }
+  const exportToExcel = (data, filename = "export") => {
+  if (!data || data.length === 0) {
+    toast.error("No data to export");
+    return;
+  }
 
-    const headers = Object.keys(data[0]);
+  const headers = [
+    "Name", "Surname", "Email", "Phone",
+    "Leader @1", "Leader @12", "Leader @144",
+    "CheckIn_Time", "Status"
+  ];
 
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row =>
-        headers.map(header => {
-          const value = row[header];
-          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value || '';
-        }).join(',')
-      )
-    ].join('\n');
+  const worksheetData = data.map(row => {
+    const ordered = {};
+    headers.forEach(h => ordered[h] = row[h] ?? '');
+    return ordered;
+  });
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+  const ws = XLSX.utils.json_to_sheet(worksheetData, { header: headers });
+
+  // Auto-size columns (optional but nice)
+  ws['!cols'] = headers.map((h, i) => {
+    let maxw = h.length;
+    worksheetData.forEach(row => {
+      const val = String(row[h] || '');
+      if (val.length > maxw) maxw = val.length;
+    });
+    return { wch: maxw + 3 };
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Present Attendees");
+
+  const today = new Date().toISOString().split('T')[0];
+  const fullFilename = `${filename}_${today}.xlsx`;
+
+  try {
+    // Generate binary string
+    const wbout = XLSX.write(wb, {
+      bookType: 'xlsx',
+      type: 'binary',
+      compression: true   // ← helps reduce size + can fix some corruptions
+    });
+
+    // Convert binary string → ArrayBuffer
+    const buf = s2ab(wbout);
+
+    const blob = new Blob([buf], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+
     const url = URL.createObjectURL(blob);
-
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fullFilename;
+    link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
 
-    toast.success(`Downloaded ${data.length} records`);
-  };
+    // Cleanup
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(`Exported ${data.length} records`);
+  } catch (err) {
+    console.error("Excel export failed:", err);
+    toast.error("Failed to create Excel file – check console");
+  }
+};
+
+// Helper – make sure this is defined exactly like this
+function s2ab(s) {
+  const buf = new ArrayBuffer(s.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < s.length; i++) {
+    view[i] = s.charCodeAt(i) & 0xff;
+  }
+  return buf;
+}
 
   const handleAddPersonClick = () => {
     if (!currentEventId) {
@@ -2914,12 +2959,12 @@ function ServiceCheckIn() {
                 CheckIn_Time: attendee.time || '',
                 Status: 'Present'
               }));
-              downloadCSV(dataToDownload, `Present_Attendees_${currentEventId}`);
+              exportToExcel(dataToDownload, `Present_Attendees_${currentEventId}`);
             }}
             size={isSmDown ? "small" : "medium"}
             disabled={modalFilteredAttendees.length === 0}
           >
-            Download
+            Download XSLX
           </Button>
           <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>
             Close
