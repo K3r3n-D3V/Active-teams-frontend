@@ -2400,10 +2400,21 @@ const Events = () => {
   );
 
   useEffect(() => {
-    if (!eventTypes) {
-      fetchEventTypes();
+    if (typeParam) {
+      setSelectedEventTypeFilter(prev => (prev !== typeParam ? typeParam : prev));
+
+      const matchingType = eventTypes?.find(et => {
+        const name = typeof et === "string" ? et : et.name;
+        return name === typeParam;
+      });
+
+      setSelectedEventTypeObj(matchingType || null);
+    } else {
+      setSelectedEventTypeFilter("");
+      setSelectedEventTypeObj(null);
     }
-  }, [fetchEventTypes, eventTypes]);
+  }, [typeParam, eventTypes]); // ✅ add eventTypes
+
 
   useEffect(() => {
     if (eventTypes && eventTypes.length > 0) {
@@ -2716,18 +2727,17 @@ const Events = () => {
                 <MenuItem
                   onClick={() => {
                     // Try to find the event type with case-insensitive matching
-                    const typeObj = customEventTypes.find(
-                      (t) => t.name?.toUpperCase() === selectedType?.toUpperCase()
+                    const typeObj = (eventTypes || []).find((t) =>
+                      (typeof t === "string" ? t : t.name)?.toUpperCase() === selectedType?.toUpperCase()
                     );
 
-                    if (typeObj) {
+                    if (typeObj && typeof typeObj !== "string") {
                       setEditingEventType(typeObj);
                       setEventTypesModalOpen(true);
                     } else {
-                      console.error("Event type not found:", selectedType);
-                      console.log("Available event types:", customEventTypes.map(t => t.name));
                       toast.error("Could not find event type to edit");
                     }
+
 
                     setMenuAnchorEl(null);
                   }}
@@ -2762,7 +2772,7 @@ const Events = () => {
       </Box>
 
       {/* Event Types Cards Section */}
-      
+
 
       <Box
         sx={{
