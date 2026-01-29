@@ -462,7 +462,7 @@ const EventTypeSelector = () => {
                             },
                         }}
                     >
-                        <CardActionArea onClick={() => handleTypeClick("cell")}>
+                        <CardActionArea onClick={() => handleTypeClick("CELLS")}>
                             <CardContent sx={{ py: 2.2, px: 2.5 }}>
                                 <Typography
                                     variant="subtitle1"
