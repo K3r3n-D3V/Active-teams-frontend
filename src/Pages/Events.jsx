@@ -852,16 +852,34 @@ const Events = () => {
 const visibleEvents = events.filter(event => {
   if (!user) return false;
 
-  // Global events: everyone sees
-  if (event.isGlobal === true) return true;
+  const userRole = user.role?.toLowerCase() || "";
 
-  // Non-global events: only admins can see
-  if (user.role === "admin") return true;
+  // Admins see everything
+  if (userRole === "admin") return true;
 
-  // Everyone else cannot see non-global events
-  return false;
+  // Leader at 12 sees everything
+  const isLeaderAt12 = 
+    userRole.includes("leader at 12") ||
+    userRole.includes("leader@12") ||
+    userRole.includes("leader @12") ||
+    userRole.includes("leader at12") ||
+    userRole === "leader at 12";
+  
+  if (isLeaderAt12) return true;
+
+  // Leader at 144 sees ONLY global events
+  const isLeader144 = 
+    userRole.includes("leader at 144") ||
+    userRole.includes("leader@144") ||
+    userRole.includes("leader144");
+  
+  if (isLeader144) {
+    return event.isGlobal === true;
+  }
+
+  // Everyone else (regular users, registrants) sees only global events
+  return event.isGlobal === true;
 });
-
 
   const [, setActiveFilters] = useState({});
   const [loading, setLoading] = useState(true);
@@ -888,26 +906,55 @@ const visibleEvents = events.filter(event => {
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState(null);
 
-  const initialViewFilter = useMemo(() => {
-    if (isLeaderAt12) {
-      return "all";
-    } else if (isRegularUser || isRegistrant) {
-      return "personal";
-    } else if (isAdmin) {
-      return "all";
-    }
-    return "all";
-  }, [isLeaderAt12, isRegularUser, isRegistrant, isAdmin]);
+ // Define view options per role - more granular control
+const getDefaultViewFilter = () => {
+  const role = userRole.toLowerCase();
 
-  const [viewFilter, setViewFilter] = useState(initialViewFilter);
-  const [filterOptions, setFilterOptions] = useState({
-    leader: "",
-    day: "all",
-    eventType: "all",
-  });
+  if (role === "admin") {
+    return "all";                    // admins see everything by default
+  }
 
-  // Get the selected event type from URL
-  const selectedType = searchParams.get('type');
+  if (role.includes("leader at 144") || 
+      role.includes("leader@144") || 
+      role.includes("leader144") ||
+      role.includes("leader at 1728") || 
+      role.includes("leader@1728")) {
+    return "all_under_me";           // new option: see own + subordinates
+    // Alternative: return "personal";  // only own if you want stricter
+  }
+
+  if (isLeaderAt12) {
+    return "all_under_me";           // Leader@12 sees their group + below
+    // or "personal" if you want them restricted
+  }
+
+  if (isRegularUser || isRegistrant) {
+    return "personal";               // normal users only see their own
+  }
+
+  // Unknown / fallback role — be safe
+  return "personal";
+};
+
+const initialViewFilter = useMemo(() => getDefaultViewFilter(), [
+  userRole,
+  isLeaderAt12,
+  isRegularUser,
+  isRegistrant,
+  isAdmin,
+]);
+
+const [viewFilter, setViewFilter] = useState(initialViewFilter);
+
+// You can keep filterOptions the same
+const [filterOptions, setFilterOptions] = useState({
+  leader: "",
+  day: "all",
+  eventType: "all",
+});
+
+// Get the selected event type from URL
+const selectedType = searchParams.get('type')
 
   // ============================================
   // EVENT HANDLERS
@@ -974,7 +1021,7 @@ const visibleEvents = events.filter(event => {
     cacheRef.current.timestamp.clear();
   }, []);
 
-  const paginatedEvents = useMemo(() => events, [events]);
+
   const startIndex = useMemo(() => {
     return totalEvents > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
   }, [currentPage, rowsPerPage, totalEvents]);
@@ -2333,10 +2380,10 @@ const visibleEvents = events.filter(event => {
   }, []);
 
   // Memoize the dynamic columns generation to prevent unnecessary recalculations
-  const memoizedColumns = useMemo(
-    () => generateDynamicColumns(paginatedEvents, isOverdue, selectedEventTypeFilter),
-    [paginatedEvents, isOverdue, selectedEventTypeFilter]
-  );
+const memoizedColumns = useMemo(
+  () => generateDynamicColumns(events, isOverdue, selectedEventTypeFilter),
+  [events, isOverdue, selectedEventTypeFilter]
+);
 
   const handleSaveEventType = useCallback(
     async (eventTypeData, eventTypeId = null) => {
@@ -2956,10 +3003,10 @@ const visibleEvents = events.filter(event => {
                       color: isDarkMode ? theme.palette.text.primary : "#666",
                     }}
                   >
-                    Loading events...
-                  </Typography>
+                                Loading events...
+                </Typography>
                 </Box>
-              ) : paginatedEvents.length === 0 ? (
+                ) : visibleEvents.length === 0 ? (
                 <Box
                   sx={{
                     textAlign: "center",
@@ -2972,10 +3019,10 @@ const visibleEvents = events.filter(event => {
                   </Typography>
                 </Box>
               ) : (
-                paginatedEvents.map((event) => (
-                  <MobileEventCard
-                    key={event._id}
-                    event={event}
+                   visibleEvents.map((event) => (
+                    <MobileEventCard
+                      key={event._id}
+                      event={event}
                     onOpenAttendance={() => handleCaptureClick(event)}
                     onEdit={() => handleEditEvent(event)}
                     onDelete={() => handleDeleteEvent(event)}
@@ -3108,18 +3155,18 @@ const visibleEvents = events.filter(event => {
                 <Box sx={{ p: 3, width: "100%" }}>
                   <LinearProgress />
                   <Typography sx={{ mt: 2, textAlign: "center" }}>
-                    Loading events...
-                  </Typography>
-                </Box>
-              ) : paginatedEvents.length === 0 ? (
-                <Typography sx={{ p: 3, textAlign: "center" }}>
+                  Loading events...
+</Typography>
+</Box>
+) : visibleEvents.length === 0 ? (
+<Typography sx={{ p: 3, textAlign: "center" }}>
                   No events found matching your criteria.
                 </Typography>
               ) : (
                 <Box sx={{ height: "calc(100vh - 450px)", minHeight: "500px" }}>
                   <DataGrid
-                    rows={paginatedEvents.map((event, idx) => {
-                      const id = event._id || event.id || event.UUID || idx;
+  rows={visibleEvents.map((event, idx) => {
+    const id = event._id || event.id || event.UUID || idx;
 
                       const isRecurring =
                         event.is_recurring ||
