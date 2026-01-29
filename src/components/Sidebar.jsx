@@ -116,7 +116,7 @@ export default function Sidebar({ mode, setMode }) {
           const data = await response.json();
           hasCell = data.hasCell || false;
           setUserHasCell(hasCell);
-          console.log('🔍 User cell check:', data);
+          console.log(' User cell check:', data);
         } catch (error) {
           console.error('Error checking user cell:', error);
           hasCell = false;
