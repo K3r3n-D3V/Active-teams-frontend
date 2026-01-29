@@ -2996,8 +2996,7 @@ ${xmlCols}
     isLeaderAt12,
     DEFAULT_API_START_DATE,
   ]);
-  // ...existing code...
-  // ...existing code...
+  
   const StatusBadges = ({
     selectedStatus,
     setSelectedStatus,
@@ -3049,81 +3048,70 @@ ${xmlCols}
           </button>
         ))}
 
-        {/* Period selector (small badges) */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 6 }}>
-          <button
-            onClick={() => setPeriod("current")}
-            style={{
-              ...styles.statusBadge,
-              padding: "0.4rem 0.6rem",
-              fontSize: "0.75rem",
-              backgroundColor: period === "current" ? "#007bff" : "#f1f3f5",
-              color: period === "current" ? "#fff" : "#6c757d",
-              borderColor: period === "current" ? "#007bff" : "#ddd",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-            title="Current week"
-          >
-            This week
-          </button>
-          <button
-            onClick={() => setPeriod("previous")}
-            style={{
-              ...styles.statusBadge,
-              padding: "0.4rem 0.6rem",
-              fontSize: "0.75rem",
-              backgroundColor: period === "previous" ? "#007bff" : "#f1f3f5",
-              color: period === "previous" ? "#fff" : "#6c757d",
-              borderColor: period === "previous" ? "#007bff" : "#ddd",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-            title="Previous week"
-          >
-            Prev week
-          </button>
-        </div>
+        {/* Period selector + Bulk download: show only when COMPLETE or DID NOT MEET selected */}
+        {canDownload && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 6 }}>
+            <button
+              onClick={() => setPeriod("current")}
+              style={{
+                ...styles.statusBadge,
+                padding: "0.4rem 0.6rem",
+                fontSize: "0.75rem",
+                backgroundColor: period === "current" ? "#007bff" : "#f1f3f5",
+                color: period === "current" ? "#fff" : "#6c757d",
+                borderColor: period === "current" ? "#007bff" : "#ddd",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              title="Current week"
+            >
+              This week
+            </button>
+            <button
+              onClick={() => setPeriod("previous")}
+              style={{
+                ...styles.statusBadge,
+                padding: "0.4rem 0.6rem",
+                fontSize: "0.75rem",
+                backgroundColor: period === "previous" ? "#007bff" : "#f1f3f5",
+                color: period === "previous" ? "#fff" : "#6c757d",
+                borderColor: period === "previous" ? "#007bff" : "#ddd",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              title="Previous week"
+            >
+              Prev week
+            </button>
 
-        {/* Bulk download badge: same sizing / styling as other badges */}
-        <button
-          key="download-bulk"
-          onClick={() => {
-            if (canDownload) downloadEventsByStatus(selectedStatus, period);
-            else toast.info("Select COMPLETE or DID NOT MEET to enable download");
-          }}
-          title={
-            canDownload
-              ? `Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance (${period})`
-              : "Select COMPLETE or DID NOT MEET to enable download"
-          }
-          style={{
-            ...styles.statusBadge,
-            // visually stand out when enabled
-            backgroundColor: canDownload ? "#1976d2" : "#f1f3f5",
-            color: canDownload ? "#fff" : "#6c757d",
-            borderColor: canDownload ? "#1976d2" : "#ddd",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            cursor: canDownload ? "pointer" : "not-allowed",
-            whiteSpace: "nowrap",
-          }}
-          disabled={!canDownload}
-        >
-          <GetAppIcon
-            fontSize="small"
-            style={{ color: canDownload ? "#fff" : "#6c757d" }}
-          />
-          <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
-            DOWNLOAD
-            {selectedStatus === "complete" ? " COMPLETED" : " DID NOT MEET"}
-          </span>
-        </button>
+            {/* Bulk download badge: same sizing / styling as other badges */}
+            <button
+              key="download-bulk"
+              onClick={() => downloadEventsByStatus(selectedStatus, period)}
+              title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance (${period})`}
+              style={{
+                ...styles.statusBadge,
+                backgroundColor: "#1976d2",
+                color: "#fff",
+                borderColor: "#1976d2",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <GetAppIcon fontSize="small" style={{ color: "#fff" }} />
+              <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                DOWNLOAD
+                {selectedStatus === "complete" ? " COMPLETED" : " DID NOT MEET"}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     );
   };
-// ...existing code...
 
 
   const ViewFilterButtons = () => {
