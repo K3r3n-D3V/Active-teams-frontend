@@ -4,6 +4,7 @@ import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
+import { useTaskUpdate } from '../contexts/TaskUpdateContext';
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -62,6 +63,8 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 }
 
 export default function DailyTasks() {
+
+  const { notifyTaskUpdate } = useTaskUpdate();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
@@ -160,6 +163,42 @@ export default function DailyTasks() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
+  // Add this function in DailyTasks component
+const markTaskComplete = async (taskId) => {
+  try {
+    const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        status: "completed",
+        taskStage: "Completed" 
+      }),
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to update task");
+    
+    // Update local state
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === taskId ? { 
+          ...t, 
+          status: "completed",
+          ...data.updatedTask 
+        } : t
+      )
+    );
+    
+    toast.success("Task marked as completed!");
+     notifyTaskUpdate()
+    // Trigger a re-fetch for stats (optional)
+    fetchUserTasks(); // This will update the local tasks list
+    
+  } catch (err) {
+    console.error("Error completing task:", err.message);
+    toast.error("Failed to update task: " + err.message);
+  }
+};
   const fetchTaskTypes = async () => {
     try {
       const res = await authFetch(`${API_URL}/tasktypes`);
@@ -337,26 +376,63 @@ export default function DailyTasks() {
     setTaskData({ ...taskData, [name]: value });
   };
 
+  // const updateTask = async (taskId, updatedData) => {
+  //   try {
+  //     const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+  //       method: "PUT",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify(updatedData),
+  //     });
+  //     const data = await res.json();
+  //     if (!res.ok) throw new Error(data.message || "Failed to update task");
+  //     setTasks((prev) =>
+  //       prev.map((t) =>
+  //         t._id === taskId ? { ...t, ...data.updatedTask, date: data.updatedTask.followup_date } : t
+  //       )
+  //     );
+  //     handleClose();
+  //   } catch (err) {
+  //     console.error("Error updating task:", err.message);
+  //     toast.error("Failed to update task: " + err.message);
+  //   }
+  // };
   const updateTask = async (taskId, updatedData) => {
-    try {
-      const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedData),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update task");
-      setTasks((prev) =>
-        prev.map((t) =>
-          t._id === taskId ? { ...t, ...data.updatedTask, date: data.updatedTask.followup_date } : t
-        )
-      );
-      handleClose();
-    } catch (err) {
-      console.error("Error updating task:", err.message);
-      toast.error("Failed to update task: " + err.message);
-    }
-  };
+  try {
+    // Ensure status and taskStage are synchronized
+    const payload = {
+      ...updatedData,
+      status: updatedData.taskStage || updatedData.status,
+    };
+    
+    const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to update task");
+    
+    // Update with both status fields
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === taskId ? { 
+          ...t, 
+          ...data.updatedTask,
+          status: data.updatedTask.status || data.updatedTask.taskStage,
+          date: data.updatedTask.followup_date 
+        } : t
+      )
+    );
+    
+    handleClose();
+    fetchUserTasks(); // Refresh the task list
+      notifyTaskUpdate();
+  } catch (err) {
+    console.error("Error updating task:", err.message);
+    toast.error("Failed to update task: " + err.message);
+  }
+};
 
   const handleEdit = (task) => {
     if (task.status?.toLowerCase() === "completed") {
@@ -625,15 +701,13 @@ ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${
   // Total count number
   const [totalCount, setTotalCount] = useState(0);
 
+// Update the useEffect for totalCount
 useEffect(() => {
   const count = filteredTasks.filter(
-    (t) =>
-      (t.status || "").toLowerCase() === "completed" ||
-      (t.status || "").toLowerCase() === "awaiting task"
+    (t) => (t.status || "").toLowerCase() === "completed"
   ).length;
-
   setTotalCount(count);
-}, [filteredTasks, updateTask]); 
+}, [filteredTasks]); // Remove updateTask from dependencies
 
   return (
     <div style={{ 
@@ -972,7 +1046,14 @@ useEffect(() => {
                           ? (isDarkMode ? '#fff' : '#000')
                           : (isDarkMode ? '#444' : '#6b7280'),
                     }}
-                    onClick={() => handleEdit(task)}
+                    onClick={(e) => {
+    e.stopPropagation(); // Prevent event bubbling
+    if (task.status === "open") {
+      markTaskComplete(task._id);
+    } else {
+      handleEdit(task);
+    }
+  }}
                   >
                     {task.status}
                   </span>
