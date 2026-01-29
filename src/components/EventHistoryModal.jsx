@@ -7,6 +7,7 @@ import {
     Card, CardContent, Stack, Divider, Tooltip
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
+import * as XLSX from 'xlsx';
 
 const EventHistoryModal = React.memo(({
     open,
@@ -85,76 +86,129 @@ const EventHistoryModal = React.memo(({
         onClose();
     };
 
-    const downloadCSV = () => {
-        if (!filteredData || filteredData.length === 0) return;
+    const downloadExcel = () => {
+        if (!filteredData || filteredData.length === 0) {
+            toast?.info?.("No data to export") || alert("No data to export");
+            return;
+        }
 
-        const headers = [];
-        let csvRows = [];
+        let headers = [];
+        let dataRows = [];
 
         if (type === 'attendance') {
-            headers.push('Name', 'Surname', 'Email', 'Phone', 'Leader @1', 'Leader @12', 'Leader @144', 'CheckIn_Time');
-            csvRows = filteredData.map(item => [
-                item.name || '',
-                item.surname || '',
-                item.email || '',
-                item.phone || '',
-                item.leader1 || '',
-                item.leader12 || '',
-                item.leader144 || '',
-                item.time || ''
+            headers = [
+            'Name', 'Surname', 'Email', 'Phone',
+            'Leader @1', 'Leader @12', 'Leader @144', 'CheckIn_Time'
+            ];
+            dataRows = filteredData.map(item => [
+            item.name || '',
+            item.surname || '',
+            item.email || '',
+            item.phone || '',
+            item.leader1 || '',
+            item.leader12 || '',
+            item.leader144 || '',
+            item.time || ''
             ]);
-        } else if (type === 'newPeople') {
-            headers.push('Name', 'Surname', 'Email', 'Phone', 'Gender', 'InvitedBy', 'Leader @1', 'Leader @12', 'Leader @144');
-            csvRows = filteredData.map(item => [
-                item.name || '',
-                item.surname || '',
-                item.email || '',
-                item.phone || '',
-                item.gender || '',
-                item.invitedBy || '',
-                item.leader1 || '',
-                item.leader12 || '',
-                item.leader144 || ''
+        } 
+        else if (type === 'newPeople') {
+            headers = [
+            'Name', 'Surname', 'Email', 'Phone', 'Gender', 
+            'InvitedBy', 'Leader @1', 'Leader @12', 'Leader @144'
+            ];
+            dataRows = filteredData.map(item => [
+            item.name || '',
+            item.surname || '',
+            item.email || '',
+            item.phone || '',
+            item.gender || '',
+            item.invitedBy || '',
+            item.leader1 || '',
+            item.leader12 || '',
+            item.leader144 || ''
             ]);
-        } else {
-            headers.push('Name', 'Surname', 'Email', 'Phone', 'Leader @1', 'Leader @12', 'Leader @144', 'Decision_Type', 'Assigned_To', 'Status');
-            csvRows = filteredData.map(item => [
-                item.name || item.person_name || '',
-                item.surname || item.person_surname || '',
-                item.email || item.person_email || '',
-                item.phone || item.person_phone || '',
-                item.leader1 || '',
-                item.leader12 || '',
-                item.leader144 || '',
-                item.decision_type || item.consolidation_type || '',
-                item.assigned_to || '',
-                item.status || ''
+        } 
+        else {  // consolidated / default
+            headers = [
+            'Name', 'Surname', 'Email', 'Phone',
+            'Leader @1', 'Leader @12', 'Leader @144',
+            'Decision_Type', 'Assigned_To', 'Status'
+            ];
+            dataRows = filteredData.map(item => [
+            item.name || item.person_name || '',
+            item.surname || item.person_surname || '',
+            item.email || item.person_email || '',
+            item.phone || item.person_phone || '',
+            item.leader1 || '',
+            item.leader12 || '',
+            item.leader144 || '',
+            item.decision_type || item.consolidation_type || '',
+            item.assigned_to || '',
+            item.status || ''
             ]);
         }
 
-        const csvContent = [
-            headers.join(','),
-            ...csvRows.map(row => row.map(cell => {
-                if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"') || cell.includes('\n'))) {
-                    return `"${cell.replace(/"/g, '""')}"`;
-                }
-                return cell;
-            }).join(','))
-        ].join('\n');
+        // Create worksheet
+        const ws = XLSX.utils.aoa_to_sheet([
+            headers,           // header row
+            ...dataRows        // data rows
+        ]);
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
+        // Optional: auto-size columns
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        ws['!cols'] = [];
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            let maxw = 10;
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+            const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+            if (!cell?.v) continue;
+            const len = String(cell.v).length;
+            if (len > maxw) maxw = len;
+            }
+            ws['!cols'][C] = { wch: maxw + 3 };
+        }
 
-        const eventName = event?.eventName || 'Event';
-        const filename = `${type}_${eventName.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, type === 'attendance' ? "Present" :
+                                            type === 'newPeople' ? "New People" :
+                                            "Consolidated");
 
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Filename
+        const eventName = (event?.eventName || 'Event').replace(/[^a-z0-9]/gi, '_');
+        const today = new Date().toISOString().split('T')[0];
+        const filename = `${type}_${eventName}_${today}.xlsx`;
+
+        // Trigger download (reliable browser method)
+        try {
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+
+            function s2ab(s) {
+            const buf = new ArrayBuffer(s.length);
+            const view = new Uint8Array(buf);
+            for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+            return buf;
+            }
+
+            const blob = new Blob([s2ab(wbout)], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            });
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast?.success?.(`Downloaded ${filteredData.length} records`);
+        } catch (err) {
+            console.error("Excel export failed:", err);
+            toast?.error?.("Failed to create Excel file");
+        }
     };
 
     if (!open) return null;
@@ -376,11 +430,11 @@ const EventHistoryModal = React.memo(({
                 <Button
                     variant="outlined"
                     startIcon={<DownloadIcon />}
-                    onClick={downloadCSV}
+                    onClick={downloadExcel}
                     size={isSmDown ? "small" : "medium"}
                     disabled={filteredData.length === 0}
                 >
-                    Download CSV
+                    Download XSLX
                 </Button>
                 <Button
                     onClick={handleClose}
