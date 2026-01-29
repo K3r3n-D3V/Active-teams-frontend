@@ -69,6 +69,9 @@ const EventTypesModal = ({
     },
   };
 
+  const [isGlobal, setIsGlobal] = useState(false);
+
+
   useEffect(() => {
     if (open && selectedEventType) {
       setFormData({
@@ -329,6 +332,31 @@ const EventTypesModal = ({
                 sx={{ ...darkModeStyles.input }}
               />
             </CardContent>
+
+            <div className="event-setting">
+            <p style={{ marginLeft: "24px", fontWeight: "600", mb: 2 }}> IsGlobal Event </p>
+
+            <label style={{ marginLeft: "18px"}}>
+              <input
+                type="radio"
+                name="isGlobal"
+                checked={isGlobal === true}
+                onChange={() => setIsGlobal(true)}
+              />
+              Ture
+            </label>
+
+            <label>
+              <input
+                type="radio"
+                name="isGlobal"
+                checked={isGlobal === false}
+                onChange={() => setIsGlobal(false)}
+              />
+              False
+            </label>
+          </div>
+
           </Card>
 
           <Card variant="outlined">
@@ -343,7 +371,7 @@ const EventTypesModal = ({
                   flexDirection: "column",
                   gap: 2,
                 }}
-              >
+              />
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -365,7 +393,7 @@ const EventTypesModal = ({
                   }
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
                 />
-
+                  <br></br>
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -379,7 +407,7 @@ const EventTypesModal = ({
                   label={
                     <Box>
                       <Typography variant="subtitle1" fontWeight="500">
-                        Global Event
+                        Training
                       </Typography>
                      
                     </Box>
@@ -387,7 +415,7 @@ const EventTypesModal = ({
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
                 />
 
-                <FormControlLabel
+                {/* <FormControlLabel
                   control={
                     <Checkbox
                       name="hasPersonSteps"
@@ -397,16 +425,16 @@ const EventTypesModal = ({
                       disabled={loading}
                     />
                   }
-                  label={
+                   label={
                     <Box>
                       <Typography variant="subtitle1" fontWeight="500">
-                        Personal Steps Event
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
+                  Personal Steps Event
+                    </Typography>
+                  </Box>
+                   }
+                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
                 />
-              </Box>
+              </Box> */}
 
               {errors.submit && (
                 <Typography variant="body2" sx={{ color: 'error.main', mt: 2 }}>

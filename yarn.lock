@@ -1081,6 +1081,8 @@
   version "0.25.9"
   resolved "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.25.9.tgz"
   integrity sha512-PPOl1mi6lpLNQxnGoyAfschAodRFYXJ+9fs6WHXz7CSWKbOqiMZsubC+BQsVKuul+3vKLuwTHsS2c2y9EoKwxQ==
+<<<<<<< HEAD
+=======
 
 "@esbuild/netbsd-arm64@0.25.9":
   version "0.25.9"
@@ -1126,6 +1128,7 @@
   version "0.25.9"
   resolved "https://registry.yarnpkg.com/@esbuild/win32-x64/-/win32-x64-0.25.9.tgz#585624dc829cfb6e7c0aa6c3ca7d7e6daa87e34f"
   integrity sha512-PPOl1mi6lpLNQxnGoyAfschAodRFYXJ+9fs6WHXz7CSWKbOqiMZsubC+BQsVKuul+3vKLuwTHsS2c2y9EoKwxQ==
+>>>>>>> 21fd152f3bdbec707cf485f6493bad88aff82c0d
 
 "@eslint-community/eslint-utils@^4.2.0":
   version "4.7.0"
@@ -1527,6 +1530,8 @@
   version "4.49.0"
   resolved "https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.49.0.tgz"
   integrity sha512-gEtqFbzmZLFk2xKh7g0Rlo8xzho8KrEFEkzvHbfUGkrgXOpZ4XagQ6n+wIZFNh1nTb8UD16J4nFSFKXYgnbdBg==
+<<<<<<< HEAD
+=======
 
 "@rollup/rollup-win32-arm64-msvc@4.49.0":
   version "4.49.0"
@@ -1542,6 +1547,7 @@
   version "4.49.0"
   resolved "https://registry.yarnpkg.com/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.49.0.tgz#c2a0e3b81262a7e9dd12ce18b350a97558dd50bc"
   integrity sha512-gEtqFbzmZLFk2xKh7g0Rlo8xzho8KrEFEkzvHbfUGkrgXOpZ4XagQ6n+wIZFNh1nTb8UD16J4nFSFKXYgnbdBg==
+>>>>>>> 21fd152f3bdbec707cf485f6493bad88aff82c0d
 
 "@swc/helpers@^0.5.0":
   version "0.5.17"
