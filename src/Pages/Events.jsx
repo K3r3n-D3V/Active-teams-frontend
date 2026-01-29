@@ -2715,13 +2715,18 @@ const Events = () => {
                 {/* EDIT */}
                 <MenuItem
                   onClick={() => {
+                    // Try to find the event type with case-insensitive matching
                     const typeObj = customEventTypes.find(
-                      (t) => t.name === selectedType
+                      (t) => t.name?.toUpperCase() === selectedType?.toUpperCase()
                     );
 
                     if (typeObj) {
                       setEditingEventType(typeObj);
                       setEventTypesModalOpen(true);
+                    } else {
+                      console.error("Event type not found:", selectedType);
+                      console.log("Available event types:", customEventTypes.map(t => t.name));
+                      toast.error("Could not find event type to edit");
                     }
 
                     setMenuAnchorEl(null);

@@ -54,6 +54,30 @@ const EventTypeSelector = () => {
     const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
     const userRole = currentUser?.role?.toLowerCase() || "";
     const isAdmin = userRole === "admin";
+    // --- Role helpers (mirrors server-side role parsing patterns) ---
+    const isLeaderAt12 =
+        userRole.includes("leaderat12") ||
+        userRole.includes("leader at 12") ||
+        userRole.includes("leader@12");
+
+    const isRegistrant = userRole === "registrant";
+    const isLeader = userRole === "leader";
+    const isLeader144 = userRole === "leader144";
+    const isManager = userRole === "manager";
+
+    // "Leader" here means anyone who should be allowed to see Global event types.
+    // (Regular "user" must NOT see Global event types.)
+    const canSeeGlobalEventTypes =
+        isAdmin || isRegistrant || isLeader || isLeader144 || isLeaderAt12 || isManager;
+
+    // Non-global event types: ONLY admin, registrant, leader@12.
+    const canSeeNonGlobalEventTypes = isAdmin || isRegistrant || isLeaderAt12;
+
+    const canSeeEventType = (type) => {
+        const isGlobalType = Boolean(type?.isGlobal);
+        return isGlobalType ? canSeeGlobalEventTypes : canSeeNonGlobalEventTypes;
+    };
+
 
     const fetchEventTypesAndCache = async () => {
         try {
@@ -290,11 +314,17 @@ const EventTypeSelector = () => {
         }
     };
 
+    // Apply role-based visibility before any UI filtering/search
+    const visibleEventTypes = (eventTypes || []).filter(canSeeEventType);
+
     // Filter event types based on search query (search both name and description)
-    const filteredEventTypes = eventTypes?.filter((type) =>
-        type.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        type.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    ) || [];
+    const filteredEventTypes = visibleEventTypes.filter((type) => {
+        const q = searchQuery.toLowerCase();
+        return (
+            type?.name?.toLowerCase().includes(q) ||
+            type?.description?.toLowerCase().includes(q)
+        );
+    });
 
     if (loading) {
         return (
