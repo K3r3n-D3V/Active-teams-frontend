@@ -1093,6 +1093,8 @@ const { authFetch, logout } = React.useContext(AuthContext);
       const fullUrl = `${endpoint}?${queryString}`;
       console.log("Fetching from:", fullUrl);
       console.log("Parameters:", params);
+      console.log("FETCH CALLED WITH:", filters);
+
 
       const response = await authFetch(fullUrl, {
         method: "GET",
@@ -2184,17 +2186,42 @@ const handlePreviousPage = useCallback(() => {
     ]
   );
 
-  const handleSearchChange = useCallback((e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
+  const searchTimeoutRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+
+  const handleSearchChange = (e) => {
+  const value = e.target.value;
+  setSearchQuery(value);
+
+  // Clear previous debounce timer
+  if (searchTimeoutRef.current) {
+    clearTimeout(searchTimeoutRef.current);
+  }
+
+  // Start new debounce timer
+  searchTimeoutRef.current = setTimeout(() => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     fetchEvents(
       {
-        search: value
+        search: value,
+        page: 1,
+        status: selectedStatus, // stays on current tab
       },
-      false // optional: prevents loader flicker
+      false, // prevents loader flicker
+      controller.signal
     );
-  }, [fetchEvents]);
+  }, 350); // speed
+};
+
+
 
   useEffect(() => {
     const checkAccess = async () => {
