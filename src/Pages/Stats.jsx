@@ -171,30 +171,36 @@ useEffect(() => {
     // ────────────────────────────────────────────────
     // Filter only incomplete / overdue / missed cells
     // ────────────────────────────────────────────────
-const overdueCells = allEvents.filter(cell => {
-  // 1. Get status safely
-  const status = (cell.status || cell.Status || '').toString().trim().toLowerCase();
+    const overdueCells = allEvents.filter(cell => {
+      //Get status safely
+      const status = (cell.status || cell.Status || '').toString().trim().toLowerCase();
 
-  // 2. Check if it's explicitly "Incomplete"
-  const isIncomplete = 
-    status === 'incomplete' ||
-    status.includes('incomplete') ||
-    status === 'incomp' ||
-    status === 'not completed';
+      //Check if it's explicitly "Incomplete"
+      const isIncomplete = 
+        status === 'incomplete' ||
+        status.includes('incomplete') ||
+        status === 'incomp' ||
+        status === 'not completed';
 
-  // 3. Date check – must be valid AND strictly in the past (before today)
-  const cellDate = cell.date ? new Date(cell.date) : null;
-  const isValidDate = cellDate && !isNaN(cellDate.getTime());
+      //Date check – must be valid AND strictly in the past (before today)
+      const cellDate = cell.date ? new Date(cell.date) : null;
+      const isValidDate = cellDate && !isNaN(cellDate.getTime());
 
-  // Important: compare only the date part (ignore time)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);           // reset to midnight today
+      // compare only the date part (ignore time)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);           // reset to midnight today
 
-  const isPast = isValidDate && cellDate < today;  // ← strictly before today
+      const isPast = isValidDate && cellDate < today;  // strictly before today
 
-  // Final condition: Incomplete AND date is in the past
-  return isIncomplete && isPast;
-});
+      if (isIncomplete && isPast) {
+              return {
+                ...cell,
+                status: 'overdue',           
+              };
+            }
+      
+      return cell;
+    })
       console.log(`Filtered down to ${overdueCells.length} overdue/incomplete cells (from ${allEvents.length} total)`);
 
       if (overdueCells.length > 0) {
