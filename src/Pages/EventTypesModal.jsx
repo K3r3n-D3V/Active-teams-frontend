@@ -69,7 +69,7 @@ const EventTypesModal = ({
     },
   };
 
-  const [isGlobal, setIsGlobal] = useState(false);
+  
 
 
   useEffect(() => {
@@ -334,28 +334,35 @@ const EventTypesModal = ({
             </CardContent>
 
             <div className="event-setting">
-            <p style={{ marginLeft: "24px", fontWeight: "600", mb: 2 }}> IsGlobal Event </p>
+            <p style={{ marginLeft: "24px", fontWeight: "600", mb: 2 }}>
+              Is Global Event
+            </p>
 
-            <label style={{ marginLeft: "18px"}}>
+            <label style={{ marginLeft: "18px" }}>
               <input
                 type="radio"
                 name="isGlobal"
-                checked={isGlobal === true}
-                onChange={() => setIsGlobal(true)}
+                checked={formData.isGlobal === true}
+                onChange={() =>
+                  setFormData(prev => ({ ...prev, isGlobal: true }))
+                }
               />
-              Ture
+              True
             </label>
 
-            <label>
+            <label style={{ marginLeft: "12px" }}>
               <input
                 type="radio"
                 name="isGlobal"
-                checked={isGlobal === false}
-                onChange={() => setIsGlobal(false)}
+                checked={formData.isGlobal === false}
+                onChange={() =>
+                  setFormData(prev => ({ ...prev, isGlobal: false }))
+                }
               />
               False
             </label>
           </div>
+
 
           </Card>
 
@@ -394,7 +401,7 @@ const EventTypesModal = ({
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
                 />
                   <br></br>
-                <FormControlLabel
+                {/* <FormControlLabel
                   control={
                     <Checkbox
                       name="isGlobal"
@@ -413,7 +420,7 @@ const EventTypesModal = ({
                     </Box>
                   }
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
-                />
+                /> */}
 
                 {/* <FormControlLabel
                   control={

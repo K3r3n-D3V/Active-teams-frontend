@@ -835,6 +835,7 @@ const Events = () => {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = "2025-11-30";
 
+  
   // ============================================
   // STATE MANAGEMENT
   // ============================================
@@ -845,6 +846,23 @@ const Events = () => {
   const { eventTypes, setEventTypes, allEvents, setAllEvents } = useEventCache();
   const [showFilter, setShowFilter] = useState(false);
   const [events, setEvents] = useState([]);
+  const [user, setUser] = useState(null);
+
+// Filter events for the current user
+const visibleEvents = events.filter(event => {
+  if (!user) return false;
+
+  // Global events: everyone sees
+  if (event.isGlobal === true) return true;
+
+  // Non-global events: only admins can see
+  if (user.role === "admin") return true;
+
+  // Everyone else cannot see non-global events
+  return false;
+});
+
+
   const [, setActiveFilters] = useState({});
   const [loading, setLoading] = useState(true);
   const [, setUserCreatedEventTypes] = useState([]);
