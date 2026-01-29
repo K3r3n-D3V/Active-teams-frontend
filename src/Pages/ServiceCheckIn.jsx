@@ -97,6 +97,7 @@ function ServiceCheckIn() {
   const [consolidatedRowsPerPage, setConsolidatedRowsPerPage] = useState(100);
   const [activeTab, setActiveTab] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [checkInLoading, setCheckInLoading] = useState(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     open: false,
     personId: null,
@@ -711,20 +712,34 @@ function ServiceCheckIn() {
       return [];
     }
   };
-
   const handleToggleCheckIn = async (attendee) => {
     if (!currentEventId) {
       toast.error("Please select an event");
       return;
     }
 
+    if (checkInLoading.has(attendee._id)) {
+      console.log(`Check-in already in progress for ${attendee.name} ${attendee.surname}`);
+      return;
+    }
+
     try {
+      setCheckInLoading(prev => new Set(prev).add(attendee._id));
+
       const isCurrentlyPresent = realTimeData?.present_attendees?.some(a =>
         a.id === attendee._id || a._id === attendee._id
       );
       const fullName = `${attendee.name} ${attendee.surname}`.trim();
 
       if (!isCurrentlyPresent) {
+        const alreadyCheckedIn = realTimeData?.present_attendees?.some(a =>
+          (a.id === attendee._id || a._id === attendee._id)
+        );
+
+        if (alreadyCheckedIn) {
+          toast.warning(`${fullName} is already checked in`);
+          return;
+        }
 
         const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
           method: "POST",
@@ -736,6 +751,7 @@ function ServiceCheckIn() {
               fullName: fullName,
               email: attendee.email,
               phone: attendee.phone,
+              number: attendee.number,
               leader12: attendee.leader12
             },
             type: "attendee"
@@ -746,10 +762,16 @@ function ServiceCheckIn() {
           const data = await response.json();
           if (data.success) {
             toast.success(`${fullName} checked in successfully`);
+          } else if (data.message && data.message.includes("already checked in")) {
+            toast.warning(`${fullName} is already checked in`);
+            const freshData = await fetchRealTimeEventData(currentEventId);
+            if (freshData) {
+              setRealTimeData(freshData);
+            }
+            return;
           }
         }
       } else {
-
         const response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
           method: "DELETE",
           body: JSON.stringify({
@@ -775,6 +797,12 @@ function ServiceCheckIn() {
     } catch (err) {
       console.error("Error in toggle check-in:", err);
       toast.error(err.message || "Failed to toggle check-in");
+    } finally {
+      setCheckInLoading(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(attendee._id);
+        return newSet;
+      });
     }
   };
 
@@ -1649,6 +1677,7 @@ function ServiceCheckIn() {
         renderCell: (params) => {
           const fullName = `${params.row.name || ''} ${params.row.surname || ''}`.trim();
           const isDisabled = !currentEventId;
+          const isCheckInLoading = checkInLoading.has(params.row._id);
 
           return (
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center' }}>
@@ -1666,15 +1695,15 @@ function ServiceCheckIn() {
                         });
                       }
                     }}
-                    disabled={isDisabled}
+                    disabled={isDisabled || isCheckInLoading}
                     sx={{
                       padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                      '&:hover': !isDisabled ? {
+                      '&:hover': !isDisabled && !isCheckInLoading ? {
                         backgroundColor: theme.palette.error.main + '20',
                         transform: 'scale(1.1)'
                       } : {},
                       transition: 'transform 0.2s',
-                      opacity: isDisabled ? 0.5 : 1,
+                      opacity: (isDisabled || isCheckInLoading) ? 0.5 : 1,
                       color: isDisabled ? 'text.disabled' : ''
                     }}
                   >
@@ -1691,15 +1720,15 @@ function ServiceCheckIn() {
                     onClick={() => {
                       if (!isDisabled) handleEditClick(params.row);
                     }}
-                    disabled={isDisabled}
+                    disabled={isDisabled || isCheckInLoading}
                     sx={{
                       padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                      '&:hover': !isDisabled ? {
+                      '&:hover': !isDisabled && !isCheckInLoading ? {
                         backgroundColor: theme.palette.primary.main + '20',
                         transform: 'scale(1.1)'
                       } : {},
                       transition: 'transform 0.2s',
-                      opacity: isDisabled ? 0.5 : 1,
+                      opacity: (isDisabled || isCheckInLoading) ? 0.5 : 1,
                       color: isDisabled ? 'text.disabled' : ''
                     }}
                   >
@@ -1708,21 +1737,25 @@ function ServiceCheckIn() {
                 </span>
               </Tooltip>
 
-              <Tooltip title={isDisabled ? "Please select an event first" : (params.row.present ? "Checked in" : "Check in")}>
+              <Tooltip title={
+                isDisabled ? "Please select an event first" :
+                  isCheckInLoading ? "Processing..." :
+                    (params.row.present ? "Checked in" : "Check in")
+              }>
                 <span>
                   <IconButton
                     size="medium"
                     color={isDisabled ? "default" : "success"}
-                    disabled={isDisabled}
-                    onClick={() => !isDisabled && handleToggleCheckIn(params.row)}
+                    disabled={isDisabled || isCheckInLoading}
+                    onClick={() => !isDisabled && !isCheckInLoading && handleToggleCheckIn(params.row)}
                     sx={{
                       padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                      '&:hover': !isDisabled ? {
+                      '&:hover': !isDisabled && !isCheckInLoading ? {
                         backgroundColor: theme.palette.success.main + '20',
                         transform: 'scale(1.1)'
                       } : {},
                       transition: 'transform 0.2s',
-                      opacity: isDisabled ? 0.5 : 1,
+                      opacity: (isDisabled || isCheckInLoading) ? 0.5 : 1,
                       color: isDisabled ? 'text.disabled' : ''
                     }}
                   >
