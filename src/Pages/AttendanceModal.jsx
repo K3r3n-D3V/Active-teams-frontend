@@ -1285,11 +1285,7 @@ const AttendanceModal = ({
       console.warn("Failed to clear global people cache", err);
     }
   };
-  const loadEventStatistics = async () => {
-    if (!event) return;
 
-    console.log("Finished creating consolidation tasks");
-  };
 
   const loadEventStatistics = async () => {
     if (!event) return;
@@ -2209,6 +2205,33 @@ const AttendanceModal = ({
     }
   };
 
+  const downloadCheckedInAttendance = () => {
+    try {
+      const allPeople = getAllCommonAttendees();
+      const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+
+      if (attendeesList.length === 0) {
+        toast.info("No checked-in attendees to export");
+        return;
+      }
+
+      // Build headers and rows
+      const headers = ["Name", "Email", "Leader @12", "Leader @144", "Phone", "Decision", "Checked In"];
+      const formatted = attendeesList.map((id) => {
+        const person = allPeople.find((p) => p && p.id === id) || {};
+        return {
+          Name: person.fullName || "",
+          Email: person.email || "",
+          "Leader @12": person.leader12 || "",
+          "Leader @144": person.leader144 || "",
+          Phone: person.phone || "",
+          Decision: decisionTypes[id] || "",
+          "Checked In": "Yes",
+        };
+      });
+
+      // Column widths for Excel
+      const columnWidths = [200, 220, 160, 160, 120, 140, 80];
       const xmlCols = columnWidths
         .map(
           (w, i) =>
@@ -2269,7 +2292,10 @@ ${xmlCols}
         type: "application/vnd.ms-excel;charset=utf-8;",
       });
       const url = URL.createObjectURL(blob);
-      const fileName = `attendance_${(event?.Event_Name || event?.eventName || event?.EventName || "event").toString().replace(/\s/g, "_")}_${new Date().toISOString().split("T")[0]}.xls`;
+      const safeEventName = (event?.Event_Name || event?.eventName || event?.EventName || "event")
+        .toString()
+        .replace(/\s/g, "_");
+      const fileName = `attendance_${safeEventName}_${new Date().toISOString().split("T")[0]}.xls`;
       const link = document.createElement("a");
       link.href = url;
       link.download = fileName;
@@ -2281,7 +2307,7 @@ ${xmlCols}
       }, 100);
     } catch (err) {
       console.error("Error exporting attendance:", err);
-      toast.error("Failed to export attendance: "(err.message || ""));
+      toast.error("Failed to export attendance: " + (err?.message || ""));
     }
   };
   const handleDidNotMeet = () => {
