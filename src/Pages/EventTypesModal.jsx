@@ -414,7 +414,7 @@ const EventTypesModal = ({
                   label={
                     <Box>
                       <Typography variant="subtitle1" fontWeight="500">
-                        Training
+                              Training 
                       </Typography>
                      
                     </Box>
