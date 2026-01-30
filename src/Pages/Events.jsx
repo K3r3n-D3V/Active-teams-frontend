@@ -1084,6 +1084,7 @@ const { authFetch, logout } = React.useContext(AuthContext);
           params.personal = true;
         }
       }
+      
 
       Object.keys(params).forEach(
         key => (params[key] === undefined || params[key] === '') && delete params[key]
