@@ -335,7 +335,7 @@ const EventTypesModal = ({
 
             <div className="event-setting">
             <p style={{ marginLeft: "24px", fontWeight: "600", mb: 2 }}>
-              Is Global Event
+              isGlobal Event
             </p>
 
             <label style={{ marginLeft: "18px" }}>
@@ -414,7 +414,7 @@ const EventTypesModal = ({
                   label={
                     <Box>
                       <Typography variant="subtitle1" fontWeight="500">
-                              Training 
+                        Training 
                       </Typography>
                      
                     </Box>
