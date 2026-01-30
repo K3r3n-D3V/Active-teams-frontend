@@ -54,19 +54,6 @@ const uniformInputSx = {
   },
 };
 
-const readOnlySx = {  // NEW: Simple read-only style
-  ...uniformInputSx,
-  "& .MuiOutlinedInput-root": {
-    ...uniformInputSx["& .MuiOutlinedInput-root"],
-    backgroundColor: "grey.100",
-    "& .MuiOutlinedInput-notchedOutline": { borderColor: "grey.300" },
-  },
-  "& .MuiOutlinedInput-input": {
-    ...uniformInputSx["& .MuiOutlinedInput-input"],
-    color: "text.disabled",
-  },
-};
-
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -87,7 +74,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const { authFetch } = useContext(AuthContext);
-  
+
   const [peopleList, setPeopleList] = useState([]);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -100,7 +87,6 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
   });
   const [showLeaderFields, setShowLeaderFields] = useState(false);
 
-  // Reset form when dialog closes
   useEffect(() => {
     if (!open) {
       setIsSubmitting(false);
@@ -115,7 +101,6 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     }
   }, [open]);
 
-  // NEW: Full fetch helper for edit mode
   const fetchFullPerson = useCallback(async (id) => {
     if (!id || !isEdit) return null;
     try {
@@ -129,48 +114,44 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     return null;
   }, [authFetch, isEdit]);
 
-  // Initialize form with person data when opening in edit mode
   useEffect(() => {
     if (open && isEdit && personId) {
       const initForm = async () => {
-        let initData = formData || initialFormState;
-        // If partial (e.g., no address/DOB), fetch full
-        if (!initData.address || !initData.dob || !initData.invitedBy) {
-          const fullPerson = await fetchFullPerson(personId);
-          if (fullPerson) {
-            initData = {
-              ...initialFormState,
-              ...fullPerson,
-              name: fullPerson.Name || fullPerson.name || initData.name,
-              surname: fullPerson.Surname || fullPerson.surname || initData.surname,
-              dob: fullPerson.Birthday ? fullPerson.Birthday.replace(/\//g, '-') : (fullPerson.dob || initData.dob),  // Format DOB
-              address: fullPerson.Address || fullPerson.address || initData.address,
-              email: fullPerson.Email || fullPerson.email || initData.email,
-              number: fullPerson.Number || fullPerson.number || initData.number,
-              gender: fullPerson.Gender || fullPerson.gender || initData.gender,
-              invitedBy: fullPerson.InvitedBy || fullPerson.invitedBy || initData.invitedBy,
-              leader1: fullPerson["Leader @1"] || fullPerson.leader1 || initData.leader1,
-              leader12: fullPerson["Leader @12"] || fullPerson.leader12 || initData.leader12,
-              leader144: fullPerson["Leader @144"] || fullPerson.leader144 || initData.leader144,
-              stage: fullPerson.Stage || fullPerson.stage || "Win",
-            };
-          }
+        const fullPerson = await fetchFullPerson(personId);
+
+        let initData;
+        if (fullPerson) {
+          initData = {
+            name: fullPerson.Name || "",
+            surname: fullPerson.Surname || "",
+            dob: fullPerson.Birthday ? fullPerson.Birthday.replace(/\//g, '-') : "",
+            address: fullPerson.Address || "",
+            email: fullPerson.Email || "",
+            number: fullPerson.Number || "",
+            gender: fullPerson.Gender || "",
+            invitedBy: fullPerson.InvitedBy || "",
+            leader1: fullPerson["Leader @1"] || "",
+            leader12: fullPerson["Leader @12"] || "",
+            leader144: fullPerson["Leader @144"] || "",
+            stage: fullPerson.Stage || "Win",
+          };
+        } else {
+          initData = initialFormState;
         }
-        
-        // Check if any leader field has data to determine whether to show the section
+
         const hasLeaderData = initData.leader1 || initData.leader12 || initData.leader144;
         setShowLeaderFields(hasLeaderData);
         setFormData(initData);
       };
       initForm();
     }
-  }, [open, isEdit, personId, formData, setFormData, fetchFullPerson]);
+  }, [open, isEdit, personId, fetchFullPerson]);
 
   const peopleOptions = useMemo(() => {
     return peopleList.map(person => {
       const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
-      return { 
-        label: fullName, 
+      return {
+        label: fullName,
         person,
         FullName: person.FullName || fullName,
         Email: person.Email || "",
@@ -185,9 +166,8 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     const fetchAllPeople = async () => {
       setIsLoadingPeople(true);
       try {
-        // Use authFetch instead of axios
         const response = await authFetch(`${BASE_URL}/cache/people`);
-        
+
         if (response.ok) {
           const data = await response.json();
           const cachedData = data.cached_data || [];
@@ -204,7 +184,6 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
     const fetchPeopleFallback = async () => {
       try {
-        // Use authFetch instead of axios
         const response = await authFetch(`${BASE_URL}/people/simple?per_page=1000`);
         if (response.ok) {
           const data = await response.json();
@@ -238,22 +217,47 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     }
 
     const label = typeof value === "string" ? value : value.label;
-    
+
     const person = peopleList.find(
       p => `${p.Name} ${p.Surname}`.trim() === label.trim() ||
-           p.FullName?.trim() === label.trim()
+        p.FullName?.trim() === label.trim()
     );
+
+    if (!person) {
+      setFormData(prev => ({
+        ...prev,
+        invitedBy: label,
+        leader1: "",
+        leader12: "",
+        leader144: ""
+      }));
+      setShowLeaderFields(false);
+      return;
+    }
+
+    const inviterName = `${person.Name || ""} ${person.Surname || ""}`.trim() || person.Email || label;
+
+    let leader1 = person["Leader @1"] || "";
+    let leader12 = person["Leader @12"] || "";
+    let leader144 = person["Leader @144"] || "";
+
+    if (!leader1) {
+      leader1 = inviterName;
+    } else if (!leader12) {
+      leader12 = inviterName;
+    } else if (!leader144) {
+      leader144 = inviterName;
+    }
 
     setFormData(prev => ({
       ...prev,
       invitedBy: label,
-      leader1: person?.["Leader @1"] || "",
-      leader12: person?.["Leader @12"] || "",
-      leader144: person?.["Leader @144"] || ""
+      leader1: leader1,
+      leader12: leader12,
+      leader144: leader144
     }));
 
-    // Show leader fields if any leader data is populated
-    const hasLeaderData = person?.["Leader @1"] || person?.["Leader @12"] || person?.["Leader @144"];
+    const hasLeaderData = leader1 || leader12 || leader144;
     setShowLeaderFields(hasLeaderData);
   };
 
@@ -268,10 +272,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     if (!inputValue) {
       return options.slice(0, 30);
     }
-    
+
     const searchTerm = inputValue.toLowerCase();
     return options
-      .filter(option => 
+      .filter(option =>
         option.searchText.includes(searchTerm) ||
         option.label.toLowerCase().includes(searchTerm) ||
         option.Email.toLowerCase().includes(searchTerm)
@@ -279,26 +283,8 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       .slice(0, 50);
   }, []);
 
-  // UPDATED: Render read-only TextField for abilities in edit mode
   const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
     const currentValue = formData[name] || "";
-    const isReadOnly = isEdit;  // Lock in edit mode
-    const onChangeHandler = isInvite ? handleInvitedByChange : undefined;  // No handler in edit
-    
-    if (isReadOnly) {
-      return (
-        <TextField
-          margin="normal"
-          fullWidth
-          label={label}
-          value={currentValue}
-          disabled
-          InputProps={{ readOnly: true, sx: readOnlySx }}
-          helperText="(View Only)"
-          sx={readOnlySx}
-        />
-      );
-    }
 
     return (
       <Autocomplete
@@ -311,9 +297,9 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         }}
         filterOptions={filterOptions}
         value={
-          peopleOptions.find(option => 
+          peopleOptions.find(option =>
             option.label === currentValue
-          ) || 
+          ) ||
           (currentValue ? { label: currentValue } : null)
         }
         onChange={(e, newValue) => {
@@ -322,8 +308,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           } else {
             const value = newValue ? (typeof newValue === "string" ? newValue : newValue.label) : "";
             setFormData(prev => ({ ...prev, [name]: value }));
-            
-            // Show leader fields when any leader field gets data
+
             if (value && !showLeaderFields) {
               setShowLeaderFields(true);
             }
@@ -331,11 +316,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         }}
         onInputChange={(e, newInputValue, reason) => {
           handleSearchInputChange(name, newInputValue);
-          
+
           if (reason === "input") {
             setFormData(prev => ({ ...prev, [name]: newInputValue }));
-            
-            // Show leader fields when user starts typing in a leader field
+
             if (newInputValue && !showLeaderFields) {
               setShowLeaderFields(true);
             }
@@ -379,7 +363,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         onChange={handleInputChange}
         error={!!errors[name]}
         helperText={errors[name] || helperText}
-        InputLabelProps={{ 
+        InputLabelProps={{
           shrink: type === "date" || Boolean(currentValue)
         }}
         sx={uniformInputSx}
@@ -398,13 +382,13 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     const requiredFields = [
       'name', 'surname', 'dob', 'address', 'email', 'number', 'gender'
     ];
-    
+
     requiredFields.forEach((field) => {
       if (!formData[field]?.trim()) {
         newErrors[field] = 'This field is required';
       }
     });
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -427,16 +411,16 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         gender: formData.gender,
         email: formData.email,
         number: formData.number,
-        dob: formData.dob.replace(/-/g, "/"),  // NEW: Back to DB format on save
+        phone: formData.number,
+        dob: formData.dob.replace(/-/g, "/"),
         address: formData.address,
         leaders: leaders,
-        stage: formData.stage || "Win", 
+        stage: formData.stage || "Win",
       };
 
       let response;
 
       if (isEdit && personId) {
-        // Use authFetch for PATCH request
         response = await authFetch(`${BASE_URL}/people/${personId}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
@@ -444,13 +428,31 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
         if (response.ok) {
           const data = await response.json();
-          onSave({ ...payload, _id: personId });
+
+          const normalizedData = {
+            _id: personId,
+            name: data.Name || payload.name,
+            surname: data.Surname || payload.surname,
+            email: data.Email || payload.email,
+            number: data.Number || payload.phone,
+            phone: data.Number || payload.phone,
+            gender: data.Gender || payload.gender,
+            address: data.Address || payload.address,
+            birthday: data.Birthday || payload.dob,
+            invitedBy: data.InvitedBy || payload.invitedBy,
+            leader1: data["Leader @1"] || "",
+            leader12: data["Leader @12"] || "",
+            leader144: data["Leader @144"] || "",
+            stage: data.Stage || payload.stage || "Win",
+            fullName: `${data.Name || payload.name} ${data.Surname || payload.surname}`.trim()
+          };
+
+          onSave(normalizedData);
         } else {
           const errorData = await response.json();
           throw new Error(errorData.detail || "Update failed");
         }
       } else {
-        // Use authFetch for POST request
         response = await authFetch(`${BASE_URL}/people`, {
           method: "POST",
           body: JSON.stringify(payload),
@@ -458,7 +460,22 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
         if (response.ok) {
           const data = await response.json();
-          onSave(data);
+          const createdPerson = data.person || data;
+          const backendLeaders = {
+            leader1: createdPerson["Leader @1"] || createdPerson.leader1 || "",
+            leader12: createdPerson["Leader @12"] || createdPerson.leader12 || "",
+            leader144: createdPerson["Leader @144"] || createdPerson.leader144 || ""
+          };
+
+          onSave({
+            ...data,
+            person: {
+              ...createdPerson,
+              leader1: backendLeaders.leader1,
+              leader12: backendLeaders.leader12,
+              leader144: backendLeaders.leader144
+            }
+          });
         } else {
           const errorData = await response.json();
           throw new Error(errorData.detail || "Save failed");
@@ -504,12 +521,12 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       maxWidth="md"
       fullWidth
       disableEscapeKeyDown={isSubmitting}
-      PaperProps={{ 
-        sx: { 
+      PaperProps={{
+        sx: {
           borderRadius: 3,
           m: 2,
           maxHeight: '90vh',
-        } 
+        }
       }}
     >
       <DialogTitle sx={{ pb: 1 }}>
@@ -517,7 +534,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           {isEdit ? "Update Person" : "Add New Person"}
         </Typography>
       </DialogTitle>
-      
+
       <DialogContent dividers>
         {Object.keys(errors).length > 0 && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setErrors({})}>
@@ -536,35 +553,34 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         <Box>
           {renderTextField('name', 'First Name *', { required: true })}
           {renderTextField('surname', 'Last Name *', { required: true })}
-          {renderTextField('dob', 'Date of Birth *', { 
-            type: 'date', 
-            required: true 
+          {renderTextField('dob', 'Date of Birth *', {
+            type: 'date',
+            required: true
           })}
           {renderAutocomplete('invitedBy', 'Invited By', true, false)}
-          {renderTextField('address', 'Home Address *', { 
-            required: true 
+          {renderTextField('address', 'Home Address *', {
+            required: true
           })}
-          {renderTextField('email', 'Email Address *', { 
-            type: 'email', 
-            required: true 
+          {renderTextField('email', 'Email Address *', {
+            type: 'email',
+            required: true
           })}
-          {renderTextField('number', 'Phone Number *', { 
-            required: true 
+          {renderTextField('number', 'Phone Number *', {
+            required: true
           })}
-          {renderTextField('gender', 'Gender *', { 
-            select: true, 
+          {renderTextField('gender', 'Gender *', {
+            select: true,
             selectOptions: ['Male', 'Female'],
-            required: true 
+            required: true
           })}
 
-          {/* Leader Fields Section - Hidden by default */}
           <Collapse in={showLeaderFields}>
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1 }}>
-                Additional Leaders {isEdit ? "(View Only)" : ""}
+                Additional Leaders
               </Typography>
-              
-              {/* Only Leader @1 is editable, others are disabled - but read-only in edit */}
+
+              {/* Only Leader @1 is editable, others are disabled */}
               {renderAutocomplete('leader1', 'Leader @1', false, true)}
               {renderAutocomplete('leader12', 'Leader @12', false, true)}
               {renderAutocomplete('leader144', 'Leader @144', false, true)}
@@ -574,25 +590,24 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           {/* Show toggle button only when leader fields are hidden and no leader data exists */}
           {!showLeaderFields && !formData.leader1 && !formData.leader12 && !formData.leader144 && (
             <Box sx={{ mt: 2, textAlign: 'center' }}>
-              <Button 
+              <Button
                 onClick={toggleLeaderFields}
                 startIcon={<LeaderIcon />}
                 variant="outlined"
                 color="primary"
                 size="small"
-                disabled={isEdit}  // NEW: Disable toggle in edit
               >
-                {isEdit ? "View Leaders" : "View Additional Leaders"}
+                View Additional Leaders
               </Button>
             </Box>
           )}
         </Box>
       </DialogContent>
-      
+
       <DialogActions sx={{ p: 2 }}>
-        <Button 
-          onClick={handleClose} 
-          color="inherit" 
+        <Button
+          onClick={handleClose}
+          color="inherit"
           disabled={isSubmitting}
         >
           Cancel

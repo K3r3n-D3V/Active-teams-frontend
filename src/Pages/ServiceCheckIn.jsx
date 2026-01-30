@@ -98,6 +98,7 @@ function ServiceCheckIn() {
   const [consolidatedRowsPerPage, setConsolidatedRowsPerPage] = useState(100);
   const [activeTab, setActiveTab] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [checkInLoading, setCheckInLoading] = useState(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     open: false,
     personId: null,
@@ -118,7 +119,7 @@ function ServiceCheckIn() {
     homeAddress: "",
     invitedBy: "",
     email: "",
-    phone: "",
+    number: "",
     gender: "",
     leader1: "",
     leader12: "",
@@ -276,13 +277,6 @@ function ServiceCheckIn() {
 
       const data = await response.json();
       if (data.success) {
-        console.log('Real-time data received:', {
-          presentCount: data.present_count,
-          newPeopleCount: data.new_people_count,
-          consolidationCount: data.consolidation_count,
-          newPeopleArray: data.new_people,
-          consolidationsArray: data.consolidations
-        });
         return data;
       }
 
@@ -372,12 +366,14 @@ function ServiceCheckIn() {
             surname: p.Surname || "",
             email: p.Email || "",
             phone: p.Number || "",
+            number: p.Number || "",
             leader1: p["Leader @1"] || "",
             leader12: p["Leader @12"] || "",
             leader144: p["Leader @144"] || "",
             gender: p.Gender || "",
             address: p.Address || "",
             birthday: p.Birthday || "",
+            dob: p.Birthday || "",
             invitedBy: p.InvitedBy || "",
             stage: p.Stage || "",
             fullName: p.FullName || `${p.Name || ''} ${p.Surname || ''}`.trim()
@@ -717,20 +713,34 @@ function ServiceCheckIn() {
       return [];
     }
   };
-
   const handleToggleCheckIn = async (attendee) => {
     if (!currentEventId) {
       toast.error("Please select an event");
       return;
     }
 
+    if (checkInLoading.has(attendee._id)) {
+      console.log(`Check-in already in progress for ${attendee.name} ${attendee.surname}`);
+      return;
+    }
+
     try {
+      setCheckInLoading(prev => new Set(prev).add(attendee._id));
+
       const isCurrentlyPresent = realTimeData?.present_attendees?.some(a =>
         a.id === attendee._id || a._id === attendee._id
       );
       const fullName = `${attendee.name} ${attendee.surname}`.trim();
 
       if (!isCurrentlyPresent) {
+        const alreadyCheckedIn = realTimeData?.present_attendees?.some(a =>
+          (a.id === attendee._id || a._id === attendee._id)
+        );
+
+        if (alreadyCheckedIn) {
+          toast.warning(`${fullName} is already checked in`);
+          return;
+        }
 
         const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
           method: "POST",
@@ -742,6 +752,7 @@ function ServiceCheckIn() {
               fullName: fullName,
               email: attendee.email,
               phone: attendee.phone,
+              number: attendee.number,
               leader12: attendee.leader12
             },
             type: "attendee"
@@ -752,10 +763,16 @@ function ServiceCheckIn() {
           const data = await response.json();
           if (data.success) {
             toast.success(`${fullName} checked in successfully`);
+          } else if (data.message && data.message.includes("already checked in")) {
+            toast.warning(`${fullName} is already checked in`);
+            const freshData = await fetchRealTimeEventData(currentEventId);
+            if (freshData) {
+              setRealTimeData(freshData);
+            }
+            return;
           }
         }
       } else {
-
         const response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
           method: "DELETE",
           body: JSON.stringify({
@@ -781,6 +798,12 @@ function ServiceCheckIn() {
     } catch (err) {
       console.error("Error in toggle check-in:", err);
       toast.error(err.message || "Failed to toggle check-in");
+    } finally {
+      setCheckInLoading(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(attendee._id);
+        return newSet;
+      });
     }
   };
 
@@ -809,7 +832,7 @@ function ServiceCheckIn() {
           name: formData.name,
           surname: formData.surname,
           email: formData.email,
-          phone: formData.phone,
+          number: formData.number,
           gender: formData.gender,
           invitedBy: formData.invitedBy,
           leader1: formData.leader1,
@@ -830,6 +853,34 @@ function ServiceCheckIn() {
           const data = await updateResponse.json();
           toast.success(`${formData.name} ${formData.surname} updated successfully`);
 
+          const normalizedUpdate = {
+            _id: editingPerson._id,
+            name: data.Name || formData.name,
+            surname: data.Surname || formData.surname,
+            email: data.Email || formData.email,
+            phone: data.Number || formData.number,
+            number: data.Number || formData.number,
+            address: data.Address || formData.address,
+            homeAddress: data.Address || formData.address,
+            birthday: data.Birthday || formData.dob,
+            dob: data.Birthday ? data.Birthday.replace(/\//g, '-') : formData.dob,
+            gender: data.Gender || formData.gender,
+            invitedBy: data.InvitedBy || formData.invitedBy,
+            leader1: data["Leader @1"] || formData.leader1,
+            leader12: data["Leader @12"] || formData.leader12,
+            leader144: data["Leader @144"] || formData.leader144,
+            stage: data.Stage || formData.stage || "Win",
+            fullName: data.FullName || `${data.Name || formData.name} ${data.Surname || formData.surname}`.trim()
+          };
+
+          setAttendees(prev =>
+            prev.map(person =>
+              person._id === editingPerson._id
+                ? normalizedUpdate
+                : person
+            )
+          );
+
           setAttendees(prev =>
             prev.map(person =>
               person._id === editingPerson._id
@@ -837,6 +888,28 @@ function ServiceCheckIn() {
                 : person
             )
           );
+
+          setRealTimeData(prev => {
+            if (!prev) return prev;
+
+            const updatedNewPeople = (prev.new_people || []).map(np =>
+              (np.id === editingPerson._id || np._id === editingPerson._id)
+                ? { ...np, ...normalizedUpdate, id: editingPerson._id }
+                : np
+            );
+
+            const updatedPresentAttendees = (prev.present_attendees || []).map(att =>
+              (att.id === editingPerson._id || att._id === editingPerson._id)
+                ? { ...att, ...normalizedUpdate, id: editingPerson._id }
+                : att
+            );
+
+            return {
+              ...prev,
+              new_people: updatedNewPeople,
+              present_attendees: updatedPresentAttendees
+            };
+          });
 
           setOpenDialog(false);
           setEditingPerson(null);
@@ -861,7 +934,7 @@ function ServiceCheckIn() {
               name: newPersonData.Name || formData.name,
               surname: newPersonData.Surname || formData.surname,
               email: newPersonData.Email || formData.email,
-              phone: newPersonData.Number || formData.phone,
+              number: newPersonData.Number || formData.number,
               gender: newPersonData.Gender || formData.gender,
               invitedBy: newPersonData.InvitedBy || formData.invitedBy,
               stage: "First Time"
@@ -909,7 +982,7 @@ function ServiceCheckIn() {
             name: newPersonData.Name || formData.name,
             surname: newPersonData.Surname || formData.surname,
             email: newPersonData.Email || formData.email,
-            phone: newPersonData.Number || formData.phone,
+            number: newPersonData.Number || formData.number,
             gender: newPersonData.Gender || formData.gender,
             invitedBy: newPersonData.InvitedBy || formData.invitedBy,
             leader1: formData.leader1 || "",
@@ -1058,9 +1131,9 @@ function ServiceCheckIn() {
       name: person.name || "",
       surname: person.surname || "",
       dob: person.dob || person.dateOfBirth || person.birthday || "",
-      homeAddress: person.homeAddress || person.address || "",
+      address: person.homeAddress || person.address || "",
       email: person.email || "",
-      phone: person.phone || person.Number || "",
+      number: person.phone || person.Number || person.number || "",
       gender: person.gender || "",
       invitedBy: person.invitedBy || "",
       leader1: person.leader1 || "",
@@ -1344,15 +1417,16 @@ function s2ab(s) {
     const fullPresentAttendees = (realTimeData?.present_attendees || []).map(a => {
       const fullPerson = attendees.find(att => att._id === (a.id || a._id)) || {};
       return {
-        ...fullPerson,
         ...a,
-        name: a.name || fullPerson.name || '',
-        surname: a.surname || fullPerson.surname || '',
-        email: a.email || fullPerson.email || '',
-        phone: a.phone || fullPerson.phone || '',
-        leader1: a.leader1 || fullPerson.leader1 || '',
-        leader12: a.leader12 || fullPerson.leader12 || '',
-        leader144: a.leader144 || fullPerson.leader144 || '',
+        ...fullPerson,
+        name: fullPerson.name || a.name || '',
+        surname: fullPerson.surname || a.surname || '',
+        email: fullPerson.email || a.email || '',
+        phone: fullPerson.phone || a.phone || '',
+        number: fullPerson.number || a.number || '',
+        leader1: fullPerson.leader1 || a.leader1 || '',
+        leader12: fullPerson.leader12 || a.leader12 || '',
+        leader144: fullPerson.leader144 || a.leader144 || '',
         id: a.id || a._id,
         _id: a.id || a._id
       };
@@ -1374,14 +1448,18 @@ function s2ab(s) {
     const fullNewPeople = (realTimeData?.new_people || []).map(np => {
       const fullPerson = attendees.find(att => att._id === np.id) || {};
       return {
-        ...fullPerson,
         ...np,
-        name: np.name || fullPerson.name || '',
-        surname: np.surname || fullPerson.surname || '',
-        email: np.email || fullPerson.email || '',
-        phone: np.phone || fullPerson.phone || '',
-        invitedBy: np.invitedBy || fullPerson.invitedBy || '',
-        gender: np.gender || fullPerson.gender || '',
+        ...fullPerson,
+        name: fullPerson.name || np.name || '',
+        surname: fullPerson.surname || np.surname || '',
+        email: fullPerson.email || np.email || '',
+        phone: fullPerson.phone || np.phone || '',
+        number: fullPerson.number || np.number || '',
+        invitedBy: fullPerson.invitedBy || np.invitedBy || '',
+        gender: fullPerson.gender || np.gender || '',
+        leader1: fullPerson.leader1 || np.leader1 || '',
+        leader12: fullPerson.leader12 || np.leader12 || '',
+        leader144: fullPerson.leader144 || np.leader144 || '',
       };
     });
 
@@ -1409,12 +1487,12 @@ function s2ab(s) {
       );
 
       return {
-        ...foundPerson,
         ...cons,
-        person_name: cons.person_name || foundPerson?.name || '',
-        person_surname: cons.person_surname || foundPerson?.surname || '',
-        person_email: cons.person_email || foundPerson?.email || '',
-        person_phone: cons.person_phone || foundPerson?.phone || '',
+        ...foundPerson,
+        person_name: foundPerson?.name || cons.person_name || '',
+        person_surname: foundPerson?.surname || cons.person_surname || '',
+        person_email: foundPerson?.email || cons.person_email || '',
+        person_phone: foundPerson?.phone || cons.person_phone || '',
         assigned_to: cons.assigned_to || cons.assignedTo || '',
         decision_type: cons.decision_type || cons.consolidation_type || '',
         notes: cons.notes || ''
@@ -1545,7 +1623,7 @@ function s2ab(s) {
               fontSize: isXsDown ? '0.7rem' : (isSmDown ? '0.75rem' : '0.9rem'),
               width: '100%'
             }}>
-              {params.row.phone || '—'}
+              {params.row.number || '—'}
             </Typography>
           )
         },
@@ -1644,6 +1722,7 @@ function s2ab(s) {
         renderCell: (params) => {
           const fullName = `${params.row.name || ''} ${params.row.surname || ''}`.trim();
           const isDisabled = !currentEventId;
+          const isCheckInLoading = checkInLoading.has(params.row._id);
 
           return (
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'center' }}>
@@ -1661,15 +1740,15 @@ function s2ab(s) {
                         });
                       }
                     }}
-                    disabled={isDisabled}
+                    disabled={isDisabled || isCheckInLoading}
                     sx={{
                       padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                      '&:hover': !isDisabled ? {
+                      '&:hover': !isDisabled && !isCheckInLoading ? {
                         backgroundColor: theme.palette.error.main + '20',
                         transform: 'scale(1.1)'
                       } : {},
                       transition: 'transform 0.2s',
-                      opacity: isDisabled ? 0.5 : 1,
+                      opacity: (isDisabled || isCheckInLoading) ? 0.5 : 1,
                       color: isDisabled ? 'text.disabled' : ''
                     }}
                   >
@@ -1686,15 +1765,15 @@ function s2ab(s) {
                     onClick={() => {
                       if (!isDisabled) handleEditClick(params.row);
                     }}
-                    disabled={isDisabled}
+                    disabled={isDisabled || isCheckInLoading}
                     sx={{
                       padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                      '&:hover': !isDisabled ? {
+                      '&:hover': !isDisabled && !isCheckInLoading ? {
                         backgroundColor: theme.palette.primary.main + '20',
                         transform: 'scale(1.1)'
                       } : {},
                       transition: 'transform 0.2s',
-                      opacity: isDisabled ? 0.5 : 1,
+                      opacity: (isDisabled || isCheckInLoading) ? 0.5 : 1,
                       color: isDisabled ? 'text.disabled' : ''
                     }}
                   >
@@ -1703,21 +1782,25 @@ function s2ab(s) {
                 </span>
               </Tooltip>
 
-              <Tooltip title={isDisabled ? "Please select an event first" : (params.row.present ? "Checked in" : "Check in")}>
+              <Tooltip title={
+                isDisabled ? "Please select an event first" :
+                  isCheckInLoading ? "Processing..." :
+                    (params.row.present ? "Checked in" : "Check in")
+              }>
                 <span>
                   <IconButton
                     size="medium"
                     color={isDisabled ? "default" : "success"}
-                    disabled={isDisabled}
-                    onClick={() => !isDisabled && handleToggleCheckIn(params.row)}
+                    disabled={isDisabled || isCheckInLoading}
+                    onClick={() => !isDisabled && !isCheckInLoading && handleToggleCheckIn(params.row)}
                     sx={{
                       padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
-                      '&:hover': !isDisabled ? {
+                      '&:hover': !isDisabled && !isCheckInLoading ? {
                         backgroundColor: theme.palette.success.main + '20',
                         transform: 'scale(1.1)'
                       } : {},
                       transition: 'transform 0.2s',
-                      opacity: isDisabled ? 0.5 : 1,
+                      opacity: (isDisabled || isCheckInLoading) ? 0.5 : 1,
                       color: isDisabled ? 'text.disabled' : ''
                     }}
                   >
@@ -2307,7 +2390,7 @@ function s2ab(s) {
 
   useEffect(() => {
     if (!hasInitialized.current) {
-      console.log('🚀 Service Check-In mounted - fetching fresh data from backend...');
+      console.log('Service Check-In mounted - fetching fresh data from backend...');
       hasInitialized.current = true;
 
 
@@ -2322,8 +2405,6 @@ function s2ab(s) {
 
   useEffect(() => {
     if (attendees.length > 0 && search.includes('gav')) {
-      console.log('Searching for Gavin Enslin...');
-
       const potentialGavins = attendees.filter(person => {
         const fullName = `${person.name || ''} ${person.surname || ''}`.toLowerCase();
         const firstName = (person.name || '').toLowerCase();
@@ -2335,7 +2416,7 @@ function s2ab(s) {
         return isEnslin && isGavin;
       });
 
-      console.log('👤 Potential Gavin Enslin matches:', potentialGavins.map(p => ({
+      console.log('Potential Gavin Enslin matches:', potentialGavins.map(p => ({
         name: p.name,
         surname: p.surname,
         fullName: `${p.name} ${p.surname}`,
