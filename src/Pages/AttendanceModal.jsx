@@ -1236,8 +1236,7 @@ const AttendanceModal = ({
   const [people, setPeople] = useState([]);
   const [, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
-  const [loading] = useState(false);
-
+  const [loading,] = useState(false);
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
@@ -1286,169 +1285,228 @@ const AttendanceModal = ({
     }
   };
 
+const loadEventStatistics = async () => {
+  if (!event) return;
 
-  const loadEventStatistics = async () => {
-    if (!event) return;
-
-    try {
-      // Get current week's date from the event
-      const eventDate = event.date;
-      const attendanceData = event.attendance || {};
-
-      // Get attendance for THIS specific week
-      let weekAttendance = attendanceData;
-      if (attendanceData && typeof attendanceData === 'object') {
-        weekAttendance = attendanceData[eventDate] || {};
-      }
-
-      const isCompleted = weekAttendance?.status === "complete";
-
-      if (isCompleted) {
-        // Show saved statistics for completed weeks
-        const stats = weekAttendance.statistics || {};
-        const attendees = weekAttendance.attendees || [];
-
-        let firstTimeCount = 0;
-        let recommitmentCount = 0;
-
-        attendees.forEach(att => {
-          const decision = (att.decision || "").toLowerCase();
-          if (decision.includes("first")) {
-            firstTimeCount++;
-          } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
-            recommitmentCount++;
-          }
-        });
-
-        setEventStatistics({
-          totalAssociated: weekAttendance.persistent_attendees?.length || 0,
-          lastAttendanceCount: weekAttendance.checked_in_count || attendees.length,
-          lastHeadcount: weekAttendance.total_headcounts || 0,
-          lastDecisionsCount: firstTimeCount + recommitmentCount,
-          lastAttendanceBreakdown: {
-            first_time: firstTimeCount,
-            recommitment: recommitmentCount
-          }
-        });
-
-        if (weekAttendance.total_headcounts > 0) {
-          setManualHeadcount(weekAttendance.total_headcounts.toString());
-        }
-      } else {
-        // For incomplete weeks, only show persistent attendees count
-        setEventStatistics({
-          totalAssociated: persistentCommonAttendees.length,
-          lastAttendanceCount: 0,
-          lastHeadcount: 0,
-          lastDecisionsCount: 0,
-          lastAttendanceBreakdown: {
-            first_time: 0,
-            recommitment: 0
-          }
-        });
-        setManualHeadcount("0");
-      }
-    } catch (error) {
-      console.error("Error loading event statistics:", error);
-    }
-  };
-
-  const loadWeeklyCheckins = () => {
-    if (!event) {
-      setCheckedIn({});
-      setManualHeadcount("0");
-      setDidNotMeet(false);
-      return;
-    }
-
-    setCheckedIn({});
-    setDecisions({});
-    setDecisionTypes({});
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
-
+  try {
     const eventDate = event.date;
-
-    if (!eventDate) {
-      setManualHeadcount("0");
-      setDidNotMeet(false);
-      return;
-    }
+    console.log(" Loading stats for:", eventDate);
 
     const attendanceData = event.attendance || {};
-    let weekAttendance = attendanceData;
-
-    if (attendanceData && typeof attendanceData === 'object') {
-      weekAttendance = attendanceData[eventDate] || {};
+    console.log(" Full attendance data structure:", attendanceData);
+    let weekAttendance = {};
+    
+    if (attendanceData.status === "complete") {
+      console.log(" Found completed data directly in attendance object");
+      weekAttendance = attendanceData;
+    } else {
+      console.log(" Searching for date key in attendance data...");
+      
+      // Try all possible date formats
+      const possibleKeys = Object.keys(attendanceData).filter(key => 
+        typeof attendanceData[key] === 'object' && attendanceData[key] !== null
+      );
+      
+      console.log("Possible date keys:", possibleKeys);
+      
+      // Try to match the date in any format
+      for (const key of possibleKeys) {
+        const data = attendanceData[key];
+        
+        // Check if this looks like week data
+        if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
+          console.log(` Checking key "${key}":`, {
+            status: data.status,
+            attendees: data.attendees?.length || 0
+          });
+          
+          if (data.status === "complete") {
+            weekAttendance = data;
+            console.log(` Using completed week from key: "${key}"`);
+            break;
+          }
+        }
+      }
     }
+
+    console.log(" Final week attendance data:", {
+      status: weekAttendance?.status,
+      attendeesCount: weekAttendance?.attendees?.length || 0,
+      headcount: weekAttendance?.total_headcounts || 0
+    });
 
     const isCompleted = weekAttendance?.status === "complete";
-    const isDidNotMeet = weekAttendance?.status === "did_not_meet";
 
     if (isCompleted) {
-      // Only load check-ins for COMPLETED weeks
-      const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
-      const hasHeadcount = weekAttendance.total_headcounts > 0;
-      console.log("Loading completed week attendance:", hasHeadcount);
+      const attendees = weekAttendance.attendees || [];
+      console.log(" Loading COMPLETED week with", attendees.length, "attendees");
 
-      if (hasAttendees) {
-        const newCheckedIn = {};
-        const newDecisions = {};
-        const newDecisionTypes = {};
-        const newPriceTiers = {};
-        const newPaymentMethods = {};
-        const newPaidAmounts = {};
-        weekAttendance.attendees.forEach(att => {
-          if (att.id) {
-            newCheckedIn[att.id] = true;
+      let firstTimeCount = 0;
+      let recommitmentCount = 0;
 
-            if (att.decision) {
-              newDecisions[att.id] = true;
-              newDecisionTypes[att.id] = att.decision;
+      attendees.forEach(att => {
+        const decision = (att.decision || "").toLowerCase();
+        if (decision.includes("first")) {
+          firstTimeCount++;
+        } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+          recommitmentCount++;
+        }
+      });
+
+      setEventStatistics({
+        totalAssociated: persistentCommonAttendees.length,
+        lastAttendanceCount: attendees.length,
+        lastHeadcount: weekAttendance.total_headcounts || 0,
+        lastDecisionsCount: firstTimeCount + recommitmentCount,
+        lastAttendanceBreakdown: {
+          first_time: firstTimeCount,
+          recommitment: recommitmentCount
+        }
+      });
+
+      if (weekAttendance.total_headcounts > 0) {
+        setManualHeadcount(weekAttendance.total_headcounts.toString());
+      } else {
+        setManualHeadcount("0");
+      }
+      
+    } else {
+      // For INCOMPLETE weeks or no data found
+      console.log(" No completed week data found, showing zeros");
+      setEventStatistics({
+        totalAssociated: persistentCommonAttendees.length,
+        lastAttendanceCount: 0,
+        lastHeadcount: 0,
+        lastDecisionsCount: 0,
+        lastAttendanceBreakdown: {
+          first_time: 0,
+          recommitment: 0
+        }
+      });
+      setManualHeadcount("0");
+    }
+  } catch (error) {
+    console.error("Error loading event statistics:", error);
+  }
+};
+
+const formatDateToISO = (dateString) => {
+  try {
+    const parts = dateString.match(/\d+/g);
+    if (parts && parts.length === 3) {
+      const day = parts[0].padStart(2, '0');
+      const month = parts[1].padStart(2, '0');
+      const year = parts[2];
+      return `${year}-${month}-${day}`;
+    }
+    return dateString;
+  } catch (e) {
+    return dateString;
+  }
+};
+
+const loadWeeklyCheckins = () => {
+  if (!event) {
+    setCheckedIn({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+    return;
+  }
+
+  // Reset all states
+  setCheckedIn({});
+  setDecisions({});
+  setDecisionTypes({});
+  setPriceTiers({});
+  setPaymentMethods({});
+  setPaidAmounts({});
+  setManualHeadcount("0");
+  setDidNotMeet(false);
+
+  const attendanceData = event.attendance || {};
+  console.log(" Loading checkins from:", attendanceData);
+
+  // Find completed week data
+  let weekAttendance = {};
+  
+  if (attendanceData.status === "complete") {
+    weekAttendance = attendanceData;
+    console.log(" Found checkin data directly");
+  } else {
+    // Look for completed week in object keys
+    const possibleKeys = Object.keys(attendanceData).filter(key => 
+      typeof attendanceData[key] === 'object'
+    );
+    
+    for (const key of possibleKeys) {
+      const data = attendanceData[key];
+      if (data && data.status === "complete") {
+        weekAttendance = data;
+        console.log(` Found checkins in key: "${key}"`);
+        break;
+      }
+    }
+  }
+
+  const isCompleted = weekAttendance?.status === "complete";
+
+  if (isCompleted) {
+    console.log(" Loading completed week checkins");
+    
+    const attendees = weekAttendance.attendees || [];
+    
+    if (attendees.length > 0) {
+      const newCheckedIn = {};
+      const newDecisions = {};
+      const newDecisionTypes = {};
+      const newPriceTiers = {};
+      const newPaymentMethods = {};
+      const newPaidAmounts = {};
+      
+      attendees.forEach(att => {
+        if (att.id) {
+          newCheckedIn[att.id] = true;
+
+          if (att.decision) {
+            newDecisions[att.id] = true;
+            newDecisionTypes[att.id] = att.decision;
+          }
+
+          if (isTicketedEvent) {
+            if (att.priceTier || att.price) {
+              newPriceTiers[att.id] = {
+                name: att.priceTier || "",
+                price: att.price || 0,
+                ageGroup: att.ageGroup || "",
+                memberType: att.memberType || ""
+              };
             }
-
-            if (isTicketedEvent) {
-              if (att.priceTier || att.price) {
-                newPriceTiers[att.id] = {
-                  name: att.priceTier || "",
-                  price: att.price || 0,
-                  ageGroup: att.ageGroup || "",
-                  memberType: att.memberType || ""
-                };
-              }
-              if (att.paymentMethod) {
-                newPaymentMethods[att.id] = att.paymentMethod;
-              }
-              if (att.paid !== undefined) {
-                newPaidAmounts[att.id] = att.paid;
-              }
+            if (att.paymentMethod) {
+              newPaymentMethods[att.id] = att.paymentMethod;
+            }
+            if (att.paid !== undefined) {
+              newPaidAmounts[att.id] = att.paid;
             }
           }
-        });
+        }
+      });
 
-        setCheckedIn(newCheckedIn);
-        setDecisions(newDecisions);
-        setDecisionTypes(newDecisionTypes);
-        setPriceTiers(newPriceTiers);
-        setPaymentMethods(newPaymentMethods);
-        setPaidAmounts(newPaidAmounts);
-      }
-
-      const headcount = weekAttendance.total_headcounts || 0;
-      setManualHeadcount(headcount.toString());
-      setDidNotMeet(false);
-    } else if (isDidNotMeet) {
-      // Handle "did not meet" weeks
-      setDidNotMeet(true);
-      setCheckedIn({});
-      setManualHeadcount("0");
-    } else {
-      setCheckedIn({});
-      setManualHeadcount("0");
-      setDidNotMeet(false);
+      console.log("👥 Setting", attendees.length, "checkins");
+      setCheckedIn(newCheckedIn);
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+      setPriceTiers(newPriceTiers);
+      setPaymentMethods(newPaymentMethods);
+      setPaidAmounts(newPaidAmounts);
     }
-  };
+
+    const headcount = weekAttendance.total_headcounts || 0;
+    setManualHeadcount(headcount.toString());
+    
+  } else {
+    console.log(" No checkins to load");
+  }
+};
 
   const loadPersistentAttendees = async (eventId) => {
     try {
@@ -1467,8 +1525,6 @@ const AttendanceModal = ({
       console.error("Error loading attendees:", error);
     }
   };
-
-
 
   const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
@@ -1542,34 +1598,51 @@ const AttendanceModal = ({
       console.error("Error pre-loading people in AttendanceModal:", err);
     }
   };
-
   useEffect(() => {
-    if (isOpen && event) {
-      let eventId = event._id || event.id;
-      if (eventId && eventId.includes("_")) {
-        eventId = eventId.split("_")[0];
-      }
-
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-
-      const loadAllData = async () => {
-        await loadEventStatistics();
-        await loadPersistentAttendees(eventId);
-        loadWeeklyCheckins();
-      };
-
-      loadAllData();
-      fetchPeople();
-
-      const weekAttendance = event.attendance || {};
-      const eventDate = event.date;
-      const thisWeekData = weekAttendance[eventDate] || weekAttendance;
-
-      setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
+  if (isOpen && event) {
+    let eventId = event._id || event.id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
     }
-  }, [isOpen, event]);
+    console.log(" Opening modal for event:", eventId, "Date:", event.date);
+
+    // Reset all form states
+    setSearchName("");
+    setAssociateSearch("");
+    setActiveTab(0);
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+
+    const loadAllData = async () => {
+      console.log(" Loading all data...");
+      
+      // Load persistent attendees first
+      await loadPersistentAttendees(eventId);
+      
+      // Then load statistics
+      await loadEventStatistics();
+      
+      // Finally load check-ins
+      loadWeeklyCheckins();
+    };
+
+    loadAllData();
+    fetchPeople();
+
+    // Set "did not meet" status only if this week is marked as such
+    const attendanceData = event.attendance || {};
+    const eventDate = event.date;
+    const weekAttendance = attendanceData[eventDate] || {};
+    
+    setDidNotMeet(weekAttendance?.status === "did_not_meet" || false);
+  }
+}, [isOpen, event]);
 
   const fetchPeople = async (q) => {
     if (!q.trim()) {

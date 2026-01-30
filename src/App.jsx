@@ -56,7 +56,7 @@ const { user, loading } = React.useContext(AuthContext);
   const hideLayout = noLayoutRoutes.includes(location.pathname);
 
   useEffect(() => {
-    console.log('🔍 Debug Info:', {
+    console.log(' Debug Info:', {
       user: !!user,
       userRole: user?.role,
       loading,
