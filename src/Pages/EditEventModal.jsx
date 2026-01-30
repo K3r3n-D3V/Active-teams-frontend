@@ -1142,7 +1142,11 @@ const handleDeactivateCell = async () => {
               value={deactivationWeeks}
               onChange={(e) =>{ 
                 setDeactivationWeeks(e.target.value);
-                if (e.target.value === -1) setIsPermanent(true)
+                if (e.target.value === -1) {
+                  setIsPermanent(true)
+                } else {
+                  setIsPermanent(false)
+                }
               }}
               label="Deactivation Period"
             >
