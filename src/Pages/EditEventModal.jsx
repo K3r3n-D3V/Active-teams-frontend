@@ -127,7 +127,9 @@ console.log("EditEventModal rendered with event:", fieldMapping);
       });
 
       setFormData(initialData);
-      setIsActiveToggle(initialData.is_active !== undefined ? initialData.is_active : true);
+      console.log("TOGGLE STATE",initialData.is_active === true || initialData.is_active === false ? initialData.is_active : true)
+        // ,initialData.is_active !== undefined ? initialData.is_active : true)
+      setIsActiveToggle(initialData.is_active === true || initialData.is_active === false ? initialData.is_active : true);
 
       const editableFields = Object.keys(initialData).filter(key =>
         !['_id', 'id', '__v', 'UUID', 'created_at', 'updated_at',
@@ -1140,7 +1142,11 @@ const handleDeactivateCell = async () => {
               value={deactivationWeeks}
               onChange={(e) =>{ 
                 setDeactivationWeeks(e.target.value);
-                if (e.target.value === -1) setIsPermanent(true)
+                if (e.target.value === -1) {
+                  setIsPermanent(true)
+                } else {
+                  setIsPermanent(false)
+                }
               }}
               label="Deactivation Period"
             >
