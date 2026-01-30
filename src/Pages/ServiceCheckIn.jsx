@@ -1454,7 +1454,7 @@ function s2ab(s) {
         surname: fullPerson.surname || np.surname || '',
         email: fullPerson.email || np.email || '',
         phone: fullPerson.phone || np.phone || '',
-        number: fullPerson.number || np.number || '',
+        number: fullPerson.Number || np.Number || '',
         invitedBy: fullPerson.invitedBy || np.invitedBy || '',
         gender: fullPerson.gender || np.gender || '',
         leader1: fullPerson.leader1 || np.leader1 || '',

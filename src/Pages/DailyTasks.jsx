@@ -237,7 +237,7 @@ export default function DailyTasks() {
           assignedTo = task.leader_name ||
             task.leader_assigned ||
             task.assigned_to ||
-            "";
+            `${user.name || ""} ${user.surname || ""}`.trim() ;
 
           // Debug logging for consolidation tasks
           if (isConsolidation) {
