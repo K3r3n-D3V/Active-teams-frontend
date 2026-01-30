@@ -361,14 +361,62 @@ export default function AdminDashboard() {
   const getRoleDisplay = (role) => role.charAt(0).toUpperCase() + role.slice(1);
   const getInitials = (name) => name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2);
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filterKey = `${normalizedSearch}|${selectedRole}`;
+
   const filteredUsers = useMemo(() => users.filter(user => {
     const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          user.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = selectedRole === 'all' || user.role === selectedRole;
     return matchesSearch && matchesRole;
-  }), [users, searchTerm, selectedRole]);
+  })
+   .sort((a, b) => a.name.localeCompare(b.name)), // This line ensures that the user's names appear in alphabetical order 
+   [users, searchTerm, selectedRole]);
 
-  const paginatedUsers = filteredUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+  // Resets pagination to first page whenever filters change(searchTerm & selectedRole)
+//     useEffect(() => {
+//     setPage(0);
+// }, [searchTerm, selectedRole]);
+
+const pageMemoryRef = useRef({}); //memory store , does not cause reRenders
+const prevFilterKeyRef = useRef(filterKey);
+
+useEffect(() => {
+  const prevKey = prevFilterKeyRef.current;
+
+  if (prevKey !== filterKey) {
+    // Saves page for the filter we are leaving
+    pageMemoryRef.current[prevKey] = page;
+    prevFilterKeyRef.current = filterKey;
+  }
+}, [filterKey, page]);
+
+useEffect(() => {
+  const rememberedPage = pageMemoryRef.current[filterKey] ?? 0;
+  setPage(rememberedPage);
+}, [filterKey]);
+const handlePageChange = (event, newPage) => {
+  setPage(newPage);
+  pageMemoryRef.current[filterKey] = newPage;
+};
+useEffect(() => {
+  const maxPage = Math.max(
+    0,
+    Math.ceil(filteredUsers.length / rowsPerPage) - 1
+  );
+
+  if (page > maxPage) {
+    setPage(maxPage);
+    pageMemoryRef.current[filterKey] = maxPage;
+  }
+}, [filteredUsers.length, rowsPerPage, page, filterKey]);
+const paginatedUsers = useMemo(() => {
+  const start = page * rowsPerPage;
+  return filteredUsers.slice(start, start + rowsPerPage);
+}, [filteredUsers, page, rowsPerPage]);
+
+  // const paginatedUsers = filteredUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const getRoleCount = (roleName) => users.filter(u => u.role === roleName).length;
 
