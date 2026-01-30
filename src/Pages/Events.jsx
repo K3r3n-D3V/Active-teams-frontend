@@ -3093,9 +3093,10 @@ ${xmlCols}
               title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance (${period})`}
               style={{
                 ...styles.statusBadge,
-                backgroundColor: "#1976d2",
-                color: "#fff",
+                backgroundColor: "#fff",
+                color: "#1976d2",
                 borderColor: "#1976d2",
+                borderWidth:2,
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "8px",
@@ -3103,7 +3104,7 @@ ${xmlCols}
                 whiteSpace: "nowrap",
               }}
             >
-              <GetAppIcon fontSize="small" style={{ color: "#fff" }} />
+              <GetAppIcon fontSize="small" style={{ color: "#1976d2" }} />
               <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
                 DOWNLOAD
                 {selectedStatus === "complete" ? " COMPLETED" : " DID NOT MEET"}
