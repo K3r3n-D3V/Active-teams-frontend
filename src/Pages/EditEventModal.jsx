@@ -16,16 +16,20 @@ import {
 import { toast } from 'react-toastify';
 
 const USER_ROLES = {
-  ADMIN: 'admin', LEADER_1: 'leader1', LEADER_12: 'leader12', 
-  LEADER_144: 'leader144', REGISTRANT: 'registrant', USER: 'user'
+  ADMIN: 'admin',
+  LEADER_1: 'leader1',
+  LEADER_12: 'leader12',
+  LEADER_144: 'leader144',
+  REGISTRANT: 'registrant',
+  USER: 'user'
 };
 
 const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [editScope, setEditScope] = useState('single');
-  const [contextFilter, ] = useState('all');
-  const [isCellEvent, setIsCellEvent] = useState(false); 
+  const [contextFilter,] = useState('all');
+  const [isCellEvent, setIsCellEvent] = useState(false);
   const [, setPersonIdentifier] = useState('');
   const [originalPersonIdentifier, setOriginalPersonIdentifier] = useState('');
   const [originalContext, setOriginalContext] = useState({ day: null, location: null, eventName: null });
@@ -38,7 +42,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [deactivationWeeks, setDeactivationWeeks] = useState(2);
   const [deactivationReason, setDeactivationReason] = useState('');
   const [isToggling, setIsToggling] = useState(false);
-  const [isPermanent,setIsPermanent] = useState(false)
+  const [isPermanent, setIsPermanent] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -52,10 +56,18 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
   const isAdmin = loggedInUserRole === USER_ROLES.ADMIN;
   const isLeader1 = loggedInUserRole === USER_ROLES.LEADER_1;
-  // const isLeader12 = loggedInUserRole === USER_ROLES.LEADER_12;
+  const isLeader12 = loggedInUserRole === USER_ROLES.LEADER_12;
   const isLeader144 = loggedInUserRole === USER_ROLES.LEADER_144;
+
+  // ✅ Admin + Leader1 can EDIT leader fields
   const hasEditPermission = isAdmin || isLeader1;
-  
+
+  // ✅ Only Leader1/Leader12/Admin can SEE leader@ fields (Task 1 updated)
+  const canViewLeaderAtFields = isAdmin || isLeader1 || isLeader12;
+
+  // Canonical list of Leader@ fields
+  const LEADER_AT_FIELDS = ['leader1', 'leader12', 'Leader at 12'];
+
   const fieldMapping = {
     'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
     'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
@@ -66,7 +78,9 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     'Event Name': ['Event Name', 'eventName'],
     'status': ['status', 'Status'],
   };
-console.log("EditEventModal rendered with event:", fieldMapping);
+
+  console.log("EditEventModal rendered with event:", fieldMapping);
+
   const getFieldPermissions = useCallback((field) => {
     const fl = field.toLowerCase();
     const isWeekId = fl.includes('week') && (fl.includes('identifier') || fl.includes('id'));
@@ -75,22 +89,25 @@ console.log("EditEventModal rendered with event:", fieldMapping);
     const isEventType = fl.includes('event') && (fl.includes('type') || fl === 'eventtype');
     const isRestrictedLeader = fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12');
 
-    if (isWeekId || isOriginalEventId || isComposedEventId) 
+    if (isWeekId || isOriginalEventId || isComposedEventId)
       return { disabled: true, reason: 'This field cannot be edited' };
     if (isEventType) return { disabled: true, reason: 'Event type cannot be edited' };
+
+    // ✅ Admin OR Leader1 can edit leader fields (already correct, now emphasized)
     if (isRestrictedLeader) {
       if (isLeader144) return { disabled: true, reason: 'Leader at 144 cannot edit leader fields' };
       if (!hasEditPermission) return { disabled: true, reason: 'Leader fields can only be edited by administrators and Leader 1' };
     }
+
     return { disabled: false, reason: null };
   }, [hasEditPermission, isLeader144]);
 
   const isFieldDisabled = useCallback((field) => getFieldPermissions(field).disabled, [getFieldPermissions]);
   const getDisabledReason = useCallback((field) => getFieldPermissions(field).reason, [getFieldPermissions]);
 
-  const cleanEventId = (event) => {
-    if (!event) return null;
-    const cleanEvent = { ...event };
+  const cleanEventId = (evt) => {
+    if (!evt) return null;
+    const cleanEvent = { ...evt };
     if (cleanEvent._id?.includes?.('_')) cleanEvent._id = cleanEvent._id.split('_')[0];
     if (cleanEvent.id?.includes?.('_')) cleanEvent.id = cleanEvent.id.split('_')[0];
     return cleanEvent;
@@ -99,6 +116,7 @@ console.log("EditEventModal rendered with event:", fieldMapping);
   useEffect(() => {
     if (event) {
       const cleanEvent = cleanEventId(event);
+
       const identifier = cleanEvent.Leader || cleanEvent.eventLeader || cleanEvent.eventLeaderName || '';
       setOriginalPersonIdentifier(identifier);
       setPersonIdentifier(identifier);
@@ -107,35 +125,53 @@ console.log("EditEventModal rendered with event:", fieldMapping);
       const location = cleanEvent.Address || cleanEvent.location || null;
       const eventName = cleanEvent['Event Name'] || cleanEvent.eventName || null;
       setOriginalContext({ day, location, eventName });
+
       const eventType = cleanEvent['Event Type'] || cleanEvent.eventType || '';
       const isCell = eventType.toLowerCase() === 'cells';
       setIsCellEvent(isCell);
-      
+
       if (isCell) {
-        setEditScope('person'); 
+        setEditScope('person');
       } else {
-        setEditScope('single'); 
+        setEditScope('single');
       }
 
       const initialData = {};
       Object.keys(cleanEvent).forEach(key => {
-        const systemFields = ['_id', '__v', 'id', 'UUID', 'created_at', 'updated_at',
-          'persistent_attendees', 'attendees', 'total_attendance', 'isEventType', 'eventTypeId', 'last_updated'];
-        if (!systemFields.includes(key)) {
-          initialData[key] = cleanEvent[key] ?? '';
-        }
+        const systemFields = [
+          '_id', '__v', 'id', 'UUID', 'created_at', 'updated_at',
+          'persistent_attendees', 'attendees', 'total_attendance',
+          'isEventType', 'eventTypeId', 'last_updated'
+        ];
+
+        // Task 2: remove has person steps from UI entirely
+        const blockedHasPersonSteps = [
+          'hasPersonSteps', 'haspersonsteps', 'has_person_steps', 'Has Person Steps', 'Has_person_steps'
+        ];
+
+        if (systemFields.includes(key)) return;
+        if (blockedHasPersonSteps.includes(key)) return;
+
+        // ✅ Task 1 updated: Leader@ fields only exist in UI for cells + Admin/Leader1/Leader12
+        if (LEADER_AT_FIELDS.includes(key) && !(isCell && canViewLeaderAtFields)) return;
+
+        initialData[key] = cleanEvent[key] ?? '';
       });
 
       setFormData(initialData);
       setIsActiveToggle(initialData.is_active !== undefined ? initialData.is_active : true);
 
       const editableFields = Object.keys(initialData).filter(key =>
-        !['_id', 'id', '__v', 'UUID', 'created_at', 'updated_at',
+        ![
+          '_id', 'id', '__v', 'UUID', 'created_at', 'updated_at',
           'persistent_attendees', 'attendees', 'total_attendance',
-          'isEventType', 'eventTypeId', 'last_updated'].includes(key)
+          'isEventType', 'eventTypeId', 'last_updated'
+        ].includes(key)
       );
+
       setAvailableFields(editableFields);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event]);
 
   useEffect(() => {
@@ -161,124 +197,27 @@ console.log("EditEventModal rendered with event:", fieldMapping);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-const handleDeactivateCell = async () => {
-  try {
-    setIsToggling(true);
-    const userToken = localStorage.getItem("access_token") || token;
-    
-    const params = new URLSearchParams({
-      weeks: deactivationWeeks.toString(),
-      "is_permanent_deact":isPermanent
-    });
-    console.log("BOOL",isPermanent)
-    
-    if (deactivationReason) {
-      params.append('reason', deactivationReason);
-    }
-    
-    // Determine the deactivation scope
-    if (editScope === 'single' || !isCellEvent) {
-      // Deactivate specific cell by EXACT cell name
-      const cellName = formData.eventName || formData['Event Name'];
-      
-      // For OLD format cells: "Cynthia Bebel - Die Fakkel High School - School cell - Thursday"
-      // For NEW format cells: "Gia Home Cell"
-      params.append('cell_identifier', cellName);
-      params.append('person_name', originalPersonIdentifier);
-      
-      if (originalContext.day) {
-        params.append('day_of_week', originalContext.day);
-      }
-    } else {
-      // Person scope
-      if (contextFilter === 'all') {
-        params.append('cell_identifier', originalPersonIdentifier);
-      } else if (contextFilter === 'day' && originalContext.day) {
-        params.append('cell_identifier', originalPersonIdentifier);
-        params.append('day_of_week', originalContext.day);
-      } else if (contextFilter === 'eventName' && originalContext.eventName) {
-        // Deactivate by EXACT cell name
-        params.append('cell_identifier', originalContext.eventName);
-        params.append('person_name', originalPersonIdentifier);
-      }
-    }
-    
-    console.log("Calling endpoint with:", params.toString());
-    
-    const response = await fetch(`${BACKEND_URL}/cells/deactivate?${params.toString()}`, {
-      method: 'PUT',
-      headers: { 
-        'Authorization': `Bearer ${userToken}` 
-      }
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Deactivation failed');
-    }
-    
-    const result = await response.json();
-    
-    // Success message
-    toast.success(
-      <div>
-        <div>{new Date(result.deactivation_end) < new Date()?"You cell has been successfully deactivated":result.message}</div>
-        <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
-          Will auto-reactivate on: {new Date(result.deactivation_end) < new Date()?"Never":new Date(result.deactivation_end).toLocaleDateString()}
-        </div>
-      </div>
-    );
-    
-    // Update local state
-    setIsActiveToggle(false);
-    setFormData(prev => ({
-      ...prev, 
-      is_active: false,
-      deactivation_start: new Date().toISOString(),
-      deactivation_end: result.deactivation_end,
-      deactivation_reason: deactivationReason
-    }));
-    
-    // Close and reset
-    setDeactivationDialogOpen(false);
-    setDeactivationReason('');
-    setDeactivationWeeks(2);
-    
-    if (refreshEvents) refreshEvents();
-    
-  } catch (error) {
-    console.error('Deactivation error:', error);
-    toast.error(error.message);
-    setIsActiveToggle(true);
-  } finally {
-    setIsToggling(false);
-  }
-};
-
-  const handleReactivateCell = async () => {
+  const handleDeactivateCell = async () => {
     try {
       setIsToggling(true);
       const userToken = localStorage.getItem("access_token") || token;
-      if (!userToken) {
-        toast.error("No authentication token found. Please log in again.");
-        setIsToggling(false);
-        return;
-      }
-      
-      const params = new URLSearchParams();
-      let endpoint = '/cells/reactivate';
-      
+
+      const params = new URLSearchParams({
+        weeks: deactivationWeeks.toString(),
+        "is_permanent_deact": isPermanent
+      });
+
+      if (deactivationReason) params.append('reason', deactivationReason);
+
       if (editScope === 'single' || !isCellEvent) {
-        // Reactivate specific cell
-        const cellName = formData.eventName || formData['Event Name'] || originalContext.eventName;
+        const cellName = formData.eventName || formData['Event Name'];
         params.append('cell_identifier', cellName);
         params.append('person_name', originalPersonIdentifier);
-        
+
         if (originalContext.day) {
           params.append('day_of_week', originalContext.day);
         }
       } else {
-        // Reactivate based on person scope
         if (contextFilter === 'all') {
           params.append('cell_identifier', originalPersonIdentifier);
         } else if (contextFilter === 'day' && originalContext.day) {
@@ -289,34 +228,113 @@ const handleDeactivateCell = async () => {
           params.append('person_name', originalPersonIdentifier);
         }
       }
-      
-      const response = await fetch(`${BACKEND_URL}${endpoint}?${params.toString()}`, {
+
+      const response = await fetch(`${BACKEND_URL}/cells/deactivate?${params.toString()}`, {
         method: 'PUT',
-        headers: { 
-          'Authorization': `Bearer ${userToken}` 
+        headers: {
+          'Authorization': `Bearer ${userToken}`
         }
       });
-      
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Deactivation failed');
+      }
+
+      const result = await response.json();
+
+      toast.success(
+        <div>
+          <div>{new Date(result.deactivation_end) < new Date() ? "You cell has been successfully deactivated" : result.message}</div>
+          <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
+            Will auto-reactivate on: {new Date(result.deactivation_end) < new Date() ? "Never" : new Date(result.deactivation_end).toLocaleDateString()}
+          </div>
+        </div>
+      );
+
+      setIsActiveToggle(false);
+      setFormData(prev => ({
+        ...prev,
+        is_active: false,
+        deactivation_start: new Date().toISOString(),
+        deactivation_end: result.deactivation_end,
+        deactivation_reason: deactivationReason
+      }));
+
+      setDeactivationDialogOpen(false);
+      setDeactivationReason('');
+      setDeactivationWeeks(2);
+
+      if (refreshEvents) refreshEvents();
+
+    } catch (error) {
+      console.error('Deactivation error:', error);
+      toast.error(error.message);
+      setIsActiveToggle(true);
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  const handleReactivateCell = async () => {
+    try {
+      setIsToggling(true);
+      const userToken = localStorage.getItem("access_token") || token;
+      if (!userToken) {
+        toast.error("No authentication token found. Please log in again.");
+        setIsToggling(false);
+        return;
+      }
+
+      const params = new URLSearchParams();
+      let endpoint = '/cells/reactivate';
+
+      if (editScope === 'single' || !isCellEvent) {
+        const cellName = formData.eventName || formData['Event Name'] || originalContext.eventName;
+        params.append('cell_identifier', cellName);
+        params.append('person_name', originalPersonIdentifier);
+
+        if (originalContext.day) {
+          params.append('day_of_week', originalContext.day);
+        }
+      } else {
+        if (contextFilter === 'all') {
+          params.append('cell_identifier', originalPersonIdentifier);
+        } else if (contextFilter === 'day' && originalContext.day) {
+          params.append('cell_identifier', originalPersonIdentifier);
+          params.append('day_of_week', originalContext.day);
+        } else if (contextFilter === 'eventName' && originalContext.eventName) {
+          params.append('cell_identifier', originalContext.eventName);
+          params.append('person_name', originalPersonIdentifier);
+        }
+      }
+
+      const response = await fetch(`${BACKEND_URL}${endpoint}?${params.toString()}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${userToken}`
+        }
+      });
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || `HTTP ${response.status}`);
       }
-      
+
       const result = await response.json();
       toast.success(result.message);
-      
-      // Update local state
+
       setIsActiveToggle(true);
       setFormData(prev => ({
-        ...prev, 
+        ...prev,
         is_active: true,
         deactivation_start: null,
         deactivation_end: null,
         deactivation_reason: null
       }));
-      
+
       if (refreshEvents) refreshEvents();
-      
+
     } catch (error) {
       console.error('Reactivation error:', error);
       toast.error(`Failed to reactivate: ${error.message}`);
@@ -325,72 +343,72 @@ const handleDeactivateCell = async () => {
       setIsToggling(false);
     }
   };
-  console.log("THE EVENT",event)
 
   const handleActiveToggle = (newValue) => {
     if (isToggling || isFieldDisabled('is_active')) return;
-    
+
     if (newValue === false) {
-      // Show deactivation dialog
       setDeactivationDialogOpen(true);
     } else {
-      // Immediate reactivation
       handleReactivateCell();
     }
   };
 
   const prepareUpdateData = () => {
     const cleanData = {};
-    
+
     changedFields.forEach(field => {
       if (isFieldDisabled(field)) return;
+
+      const fl = field.toLowerCase();
+      if (fl === 'haspersonsteps' || fl === 'has_person_steps' || fl === 'has person steps') return;
+
       const value = formData[field];
-      
+
       if (value === '' || value === null || value === undefined) {
         cleanData[field] = null;
       } else {
         cleanData[field] = value;
       }
-      
-      // Special handling for status fields
+
       if (field === 'status' || field === 'Status') {
         cleanData['status'] = value;
         cleanData['Status'] = value;
       }
-      
+
       if (field === 'eventName' || field === 'Event Name') {
         cleanData['eventName'] = value;
         cleanData['Event Name'] = value;
       }
-      
+
       if (field === 'Day' || field === 'day') {
         cleanData['Day'] = value;
         cleanData['day'] = value;
       }
-      
+
       if (field === 'Address' || field === 'location') {
         cleanData['Address'] = value;
         cleanData['location'] = value;
       }
-      
+
       if (field === 'Time' || field === 'time') {
         cleanData['Time'] = value;
         cleanData['time'] = value;
       }
-      
+
       if (field === 'Email' || field === 'eventLeaderEmail') {
         cleanData['Email'] = value;
         cleanData['eventLeaderEmail'] = value;
       }
     });
-    
-    return {...cleanData,"is_permanent_deact":isPermanent};
+
+    return { ...cleanData, "is_permanent_deact": isPermanent };
   };
 
   const handleSubmit = async () => {
     try {
       setLoading(true);
-      
+
       if (changedFields.length === 0) {
         toast.info("No changes made");
         onClose();
@@ -405,7 +423,7 @@ const handleDeactivateCell = async () => {
       }
 
       const updateData = prepareUpdateData();
-      
+
       if (Object.keys(updateData).length === 0) {
         toast.info("No valid changes to save");
         setLoading(false);
@@ -416,26 +434,25 @@ const handleDeactivateCell = async () => {
 
       const originalEventName = event['Event Name'] || event.eventName;
       const originalDay = event.Day || event.day;
-      // const originalPerson = event.Leader || event.eventLeader || event.eventLeaderName;
-      
+      const originalEventId = event._id || event.id || event.UUID;
+
       const newEventName = formData['Event Name'] || formData.eventName;
       const newDay = formData.Day || formData.day;
 
       if (editScope === 'single') {
-        let identifier = event._id || event.id || event.UUID;
+        let identifier = originalEventId;
         if (identifier?.includes?.('_')) identifier = identifier.split('_')[0];
-        
+
         if (!identifier) {
           toast.error("Cannot update: Event ID not found");
           setLoading(false);
           return;
         }
-        
+
         endpoint = `/events/cells/${identifier}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
-        
-        
+
         if (newEventName && newEventName !== originalEventName) {
           const confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\nThis will update ONLY this specific event.\n\nContinue?`;
           if (!window.confirm(confirmMsg)) {
@@ -443,35 +460,35 @@ const handleDeactivateCell = async () => {
             return;
           }
         }
-      } 
+      }
       else if (editScope === 'person') {
         if (!originalPersonIdentifier) {
           toast.error("Cannot update: Person identifier not found");
           setLoading(false);
           return;
         }
-        
+
         if (!originalEventName) {
           toast.error("Cannot update: Original event name is required for 'Update All'");
           setLoading(false);
           return;
         }
-        
+
         if (!originalDay) {
           toast.error("Cannot update: Original day is required for 'Update All'");
           setLoading(false);
           return;
         }
-        
+
         endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/event/${encodeURIComponent(originalEventName)}/day/${encodeURIComponent(originalDay)}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
-        
+
         let confirmMsg = `This will update ONLY:\n\n`;
         confirmMsg += `• Person: ${originalPersonIdentifier}\n`;
         confirmMsg += `• Event name: "${originalEventName}"\n`;
         confirmMsg += `• Day: ${originalDay}\n\n`;
-        
+
         const changes = [];
         if (newEventName && newEventName !== originalEventName) {
           changes.push(`Event name: "${originalEventName}" → "${newEventName}"`);
@@ -479,20 +496,20 @@ const handleDeactivateCell = async () => {
         if (newDay && newDay !== originalDay) {
           changes.push(`Day: ${originalDay} → ${newDay}`);
         }
-        
-        const otherFields = changedFields.filter(f => 
+
+        const otherFields = changedFields.filter(f =>
           !['Event Name', 'eventName', 'Day', 'day'].includes(f)
         );
         if (otherFields.length > 0) {
           changes.push(`Other fields: ${otherFields.join(', ')}`);
         }
-        
+
         if (changes.length > 0) {
           confirmMsg += `Changes:\n${changes.join('\n')}\n\n`;
         }
-        
+
         confirmMsg += `Continue?`;
-        
+
         if (!window.confirm(confirmMsg)) {
           setLoading(false);
           return;
@@ -507,11 +524,11 @@ const handleDeactivateCell = async () => {
       }
 
       const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-        method, 
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${userToken}` 
-        }, 
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userToken}`
+        },
         body
       });
 
@@ -519,7 +536,7 @@ const handleDeactivateCell = async () => {
         const errorText = await response.text();
         let errorData;
         try { errorData = JSON.parse(errorText); } catch { errorData = { detail: errorText }; }
-        
+
         if (response.status === 404) {
           toast.error(`Not found: ${errorData.detail || 'The event or events could not be found'}`);
         } else if (response.status === 401) {
@@ -530,12 +547,12 @@ const handleDeactivateCell = async () => {
         } else {
           toast.error(`Update failed: ${errorData.detail || errorData.message || `Error ${response.status}`}`);
         }
-        
+
         throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
       }
 
       const result = await response.json();
-      
+
       if (editScope === 'person') {
         if (result.success) {
           if (result.modified_count === 0) {
@@ -557,7 +574,7 @@ const handleDeactivateCell = async () => {
           toast.error(result.message || 'Update failed');
         }
       }
-      
+
       onClose(true);
 
     } catch (error) {
@@ -575,7 +592,12 @@ const handleDeactivateCell = async () => {
     const isChanged = changedFields.includes(field);
     const isDisabled = isFieldDisabled(field);
     const disabledReason = getDisabledReason(field);
-    const displayName = field.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, str => str.toUpperCase()).trim();
+    const displayName = field
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/_/g, ' ')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+
     const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
     const fl = field.toLowerCase();
 
@@ -587,35 +609,60 @@ const handleDeactivateCell = async () => {
       </Box>
     );
 
+    // Task 2: remove has person steps field everywhere
+    if (fl === 'haspersonsteps' || fl === 'has_person_steps' || fl === 'has person steps') return null;
+
+    // ✅ Task 1 updated: Leader@ fields only visible on cells, and only to Admin/Leader1/Leader12
+    if (LEADER_AT_FIELDS.includes(field) && !(isCellEvent && canViewLeaderAtFields)) return null;
+
     // Skip these fields entirely
-    if (field === 'is_active' || field === 'Display date' || field === 'Display_date' || 
-        field === 'display_date' || field === 'did_not_meet' || field === 'Did_not_meet' ||
-        field === 'S' || field === 's' || field === 'Data-recurring' || field === 'data-recurring' ||
-        field === 'is_recurring' || field === 'isRecurring' || field === 'is_overdue' || 
-        field === 'isOverdue') {
+    if (
+      field === 'is_active' ||
+      field === 'Display date' || field === 'Display_date' || field === 'display_date' ||
+      field === 'did_not_meet' || field === 'Did_not_meet' ||
+      field === 'S' || field === 's' ||
+      field === 'Data-recurring' || field === 'data-recurring' ||
+      field === 'is_recurring' || field === 'isRecurring' ||
+      field === 'is_overdue' || field === 'isOverdue'
+    ) {
       return null;
     }
 
     if ((fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) || field === 'date') {
       let dateValue = '';
+
       if (value) {
         try {
           const date = new Date(value);
           if (!isNaN(date.getTime())) {
-            dateValue = date.toISOString().slice(0, 16);
+            const pad = (n) => String(n).padStart(2, '0');
+            dateValue =
+              date.getFullYear() + '-' +
+              pad(date.getMonth() + 1) + '-' +
+              pad(date.getDate()) + 'T' +
+              pad(date.getHours()) + ':' +
+              pad(date.getMinutes());
           }
         } catch (e) {
           console.warn(`Invalid date for ${field}:`, value, e);
         }
       }
-      
+
       const content = (
-        <TextField fullWidth margin="normal" label={labelContent} type="datetime-local"
+        <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
+          type="datetime-local"
           value={dateValue}
           onChange={(e) => handleChange(field, e.target.value)}
-          InputLabelProps={{ shrink: true }} error={isChanged}
-          helperText={isChanged ? "Changed" : ""} disabled={isDisabled} />
+          InputLabelProps={{ shrink: true }}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
+        />
       );
+
       return isDisabled && disabledReason ? (
         <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
       ) : <Box key={field}>{content}</Box>;
@@ -623,9 +670,18 @@ const handleDeactivateCell = async () => {
 
     if (fl.includes('time') && !fl.includes('datetime')) {
       const content = (
-        <TextField fullWidth margin="normal" label={labelContent} type="time" value={value || ''}
-          onChange={(e) => handleChange(field, e.target.value)} InputLabelProps={{ shrink: true }}
-          error={isChanged} helperText={isChanged ? "Changed" : ""} disabled={isDisabled} />
+        <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
+          type="time"
+          value={value || ''}
+          onChange={(e) => handleChange(field, e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
+        />
       );
       return isDisabled && disabledReason ? (
         <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
@@ -634,9 +690,17 @@ const handleDeactivateCell = async () => {
 
     if (fl.includes('email')) {
       const content = (
-        <TextField fullWidth margin="normal" label={labelContent} value={value} type="email"
-          onChange={(e) => handleChange(field, e.target.value)} error={isChanged}
-          helperText={isChanged ? "Changed" : ""} disabled={isDisabled} />
+        <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
+          value={value}
+          type="email"
+          onChange={(e) => handleChange(field, e.target.value)}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
+        />
       );
       return isDisabled && disabledReason ? (
         <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
@@ -647,9 +711,16 @@ const handleDeactivateCell = async () => {
       const content = (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 1 }}>
           <FormControlLabel
-            control={<Switch checked={!!value} onChange={(e) => handleChange(field, e.target.checked)}
-              color={isChanged ? "warning" : "primary"} disabled={isDisabled} />}
-            label={labelContent} />
+            control={
+              <Switch
+                checked={!!value}
+                onChange={(e) => handleChange(field, e.target.checked)}
+                color={isChanged ? "warning" : "primary"}
+                disabled={isDisabled}
+              />
+            }
+            label={labelContent}
+          />
         </Box>
       );
       return isDisabled && disabledReason ? (
@@ -668,14 +739,22 @@ const handleDeactivateCell = async () => {
           </Typography>
           <FormGroup row>
             {days.map(day => (
-              <FormControlLabel key={day}
-                control={<Checkbox checked={value.includes(day)}
-                  onChange={(e) => {
-                    if (isDisabled) return;
-                    const newValue = e.target.checked ? [...value, day] : value.filter(d => d !== day);
-                    handleChange(field, newValue);
-                  }} size="small" disabled={isDisabled} />}
-                label={day.substring(0, 3)} />
+              <FormControlLabel
+                key={day}
+                control={
+                  <Checkbox
+                    checked={value.includes(day)}
+                    onChange={(e) => {
+                      if (isDisabled) return;
+                      const newValue = e.target.checked ? [...value, day] : value.filter(d => d !== day);
+                      handleChange(field, newValue);
+                    }}
+                    size="small"
+                    disabled={isDisabled}
+                  />
+                }
+                label={day.substring(0, 3)}
+              />
             ))}
           </FormGroup>
           {!isDisabled && (
@@ -694,8 +773,12 @@ const handleDeactivateCell = async () => {
       const content = (
         <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
           <InputLabel>{displayName}</InputLabel>
-          <Select value={value || ''} label={displayName}
-            onChange={(e) => handleChange(field, e.target.value)} disabled={isDisabled}>
+          <Select
+            value={value || ''}
+            label={displayName}
+            onChange={(e) => handleChange(field, e.target.value)}
+            disabled={isDisabled}
+          >
             <MenuItem value="">None</MenuItem>
             {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
               .map(day => <MenuItem key={day} value={day}>{day}</MenuItem>)}
@@ -713,8 +796,12 @@ const handleDeactivateCell = async () => {
       const content = (
         <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
           <InputLabel>Status</InputLabel>
-          <Select value={value || ''} label="Status"
-            onChange={(e) => handleChange(field, e.target.value)} disabled={isDisabled}>
+          <Select
+            value={value || ''}
+            label="Status"
+            onChange={(e) => handleChange(field, e.target.value)}
+            disabled={isDisabled}
+          >
             <MenuItem value="">None</MenuItem>
             {statusOptions.map(status => (
               <MenuItem key={status} value={status}>
@@ -732,9 +819,18 @@ const handleDeactivateCell = async () => {
 
     if (fl.includes('description') || (typeof value === 'string' && value.length > 50)) {
       const content = (
-        <TextField fullWidth margin="normal" label={labelContent} value={value}
-          onChange={(e) => handleChange(field, e.target.value)} multiline rows={3}
-          error={isChanged} helperText={isChanged ? "Changed" : ""} disabled={isDisabled} />
+        <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
+          value={value}
+          onChange={(e) => handleChange(field, e.target.value)}
+          multiline
+          rows={3}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
+        />
       );
       return isDisabled && disabledReason ? (
         <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
@@ -742,10 +838,18 @@ const handleDeactivateCell = async () => {
     }
 
     const content = (
-      <TextField fullWidth margin="normal" label={labelContent} value={value}
-        onChange={(e) => handleChange(field, e.target.value)} error={isChanged}
-        helperText={isChanged ? "Changed" : ""} disabled={isDisabled} />
+      <TextField
+        fullWidth
+        margin="normal"
+        label={labelContent}
+        value={value}
+        onChange={(e) => handleChange(field, e.target.value)}
+        error={isChanged}
+        helperText={isChanged ? "Changed" : ""}
+        disabled={isDisabled}
+      />
     );
+
     return isDisabled && disabledReason ? (
       <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
     ) : <Box key={field}>{content}</Box>;
@@ -755,60 +859,64 @@ const handleDeactivateCell = async () => {
     const isCurrentlyActive = formData.is_active !== false;
     const deactivationEnd = formData.deactivation_end || formData.deactivationEnd;
     const currentDeactivationReason = formData.deactivation_reason || formData.deactivationReason;
-    
+
     return (
-      <Box sx={{ mb: 3, p: 2, border: '1px solid',
+      <Box sx={{
+        mb: 3, p: 2, border: '1px solid',
         borderColor: isCurrentlyActive ? 'success.main' : 'warning.main', borderRadius: 2,
-        bgcolor: isCurrentlyActive ? 'success.50' : 'warning.50' }}>
+        bgcolor: isCurrentlyActive ? 'success.50' : 'warning.50'
+      }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1,
-            color: isCurrentlyActive ? 'success.dark' : 'warning.dark' }}>
-            {isCurrentlyActive ? (<><PlayArrow color="success" />{isCellEvent ? 'Cell' : 'Event'} is Active</>) : 
+          <Typography variant="subtitle1" sx={{
+            display: 'flex', alignItems: 'center', gap: 1,
+            color: isCurrentlyActive ? 'success.dark' : 'warning.dark'
+          }}>
+            {isCurrentlyActive ? (<><PlayArrow color="success" />{isCellEvent ? 'Cell' : 'Event'} is Active</>) :
               (<><Pause color="warning" />{isCellEvent ? 'Cell' : 'Event'} is Deactivated</>)}
           </Typography>
-          <FormControlLabel control={
-              <Switch checked={isActiveToggle}
-                onChange={(e) => {
-                  handleActiveToggle(e.target.checked);
-                }}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isActiveToggle}
+                onChange={(e) => handleActiveToggle(e.target.checked)}
                 disabled={isToggling || isFieldDisabled('is_active')}
-                color={isCurrentlyActive ? "success" : "warning"} />
+                color={isCurrentlyActive ? "success" : "warning"}
+              />
             }
             label={<Typography variant="body2">{isActiveToggle ? 'Active' : 'Deactivated'}{isToggling && '...'}</Typography>}
-            sx={{ m: 0 }} />
+            sx={{ m: 0 }}
+          />
         </Box>
-       {!isCurrentlyActive && deactivationEnd && (
-  <Alert
-    severity="warning"
-    icon={false}
-    sx={{ mt: 1, mb: 1 }}
-  >
-    <Typography variant="body2">
-      <strong>Deactivated until:</strong>{' '}
-      {new Date(deactivationEnd) < new Date()? "Never": new Date(deactivationEnd).toLocaleDateString('en-ZA', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })}
-    </Typography>
 
-    {currentDeactivationReason && (
-      <Typography variant="body2" sx={{ mt: 0.5 }}>
-        <strong>Reason:</strong> {currentDeactivationReason}
-      </Typography>
-    )}
-  </Alert>
-)}
+        {!isCurrentlyActive && deactivationEnd && (
+          <Alert severity="warning" icon={false} sx={{ mt: 1, mb: 1 }}>
+            <Typography variant="body2">
+              <strong>Deactivated until:</strong>{' '}
+              {new Date(deactivationEnd) < new Date()
+                ? "Never"
+                : new Date(deactivationEnd).toLocaleDateString('en-ZA', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+            </Typography>
 
-        
+            {currentDeactivationReason && (
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                <strong>Reason:</strong> {currentDeactivationReason}
+              </Typography>
+            )}
+          </Alert>
+        )}
+
         {editScope === 'person' && isCellEvent && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            {contextFilter === 'day' && originalContext.day && 
+            {contextFilter === 'day' && originalContext.day &&
               `${isActiveToggle ? 'Deactivating' : 'Activating'} only ${originalContext.day} cells`}
-            {contextFilter === 'eventName' && originalContext.eventName && 
+            {contextFilter === 'eventName' && originalContext.eventName &&
               `${isActiveToggle ? 'Deactivating' : 'Activating'} only "${originalContext.eventName}" cells`}
-            {contextFilter === 'all' && 
+            {contextFilter === 'all' &&
               `${isActiveToggle ? 'Deactivating' : 'Activating'} ALL cells for this person`}
           </Typography>
         )}
@@ -818,28 +926,63 @@ const handleDeactivateCell = async () => {
 
   if (!event) return null;
 
-  const personFields = availableFields.filter(f =>
-    ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email',
-      'leader1', 'leader12', 'Leader at 12'].includes(f)
-  );
+  // Task 1 updated: Leader@ fields appear ONLY for cells + Admin/Leader1/Leader12
+  const personFields = availableFields.filter(f => {
+    const isPersonCore = [
+      'Leader', 'eventLeader', 'eventLeaderName',
+      'Email', 'eventLeaderEmail', 'email',
+    ].includes(f);
 
+    const isLeaderAt = LEADER_AT_FIELDS.includes(f);
+
+    if (isLeaderAt) return isCellEvent && canViewLeaderAtFields;
+    return isPersonCore;
+  });
+
+  // Task 2: removed has person steps
   const eventFields = availableFields.filter(f => {
     const fl = f.toLowerCase();
-    const allowed = ['eventname', 'event name', 'event type', 'eventtypename', 'description',
-      'status', 'isticketed', 'isglobal', 'haspersonsteps'];
+    const allowed = [
+      'eventname', 'event name',
+      'event type', 'eventtypename',
+      'description',
+      'status',
+      'isticketed',
+      'isglobal',
+    ];
     return allowed.includes(fl);
   });
 
   const locationFields = availableFields.filter(f => ['Address', 'location', 'address'].includes(f));
   const timeFields = availableFields.filter(f => ['date', 'Date Of Event', 'time', 'Time', 'Day', 'recurring_day'].includes(f));
+
   const otherFields = availableFields.filter(f => {
-    const skipFields = ['is_active', 'Display date', 'Display_date', 'display_date', 
-                        'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring', 
-                        'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue'];
+    const skipFields = [
+      'is_active', 'Display date', 'Display_date', 'display_date',
+      'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring',
+      'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue',
+      // Task 2 block
+      'hasPersonSteps', 'haspersonsteps', 'has_person_steps', 'Has Person Steps', 'Has_person_steps',
+      // Task 1 prevent leaking into “Other Fields”
+      ...LEADER_AT_FIELDS
+    ];
     return ![...personFields, ...eventFields, ...locationFields, ...timeFields, ...skipFields].includes(f);
   });
-  
+
   const eventName = formData.eventName || formData['Event Name'] || 'Unnamed Event';
+
+  const SIMPLE_FIELDS = [
+    'eventName', 'Event Name',
+    'eventLeader', 'Leader',
+    'eventLeaderEmail', 'Email',
+    'date', 'Date Of Event',
+    'time', 'Time',
+    'location', 'Address',
+    'status',
+    'recurring_day', 'Day',
+    'description',
+    ...(isCellEvent && canViewLeaderAtFields ? LEADER_AT_FIELDS : []),
+  ];
 
   return (
     <>
@@ -867,37 +1010,37 @@ const handleDeactivateCell = async () => {
         </DialogTitle>
 
         <DialogContent dividers>
-  <Box sx={{ pt: 1 }}>
-    {renderActiveStatusSection()}
+          <Box sx={{ pt: 1 }}>
+            {renderActiveStatusSection()}
 
-    <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-      <Typography variant="subtitle2" gutterBottom>
-        Update Method:
-      </Typography>
+            <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Update Method:
+              </Typography>
 
-      <FormControl fullWidth>
-        {isCellEvent ? (
-          <Box sx={{ 
-            p: 2, 
-            border: 1, 
-            borderColor: 'primary.main', 
-            borderRadius: 1, 
-            bgcolor: 'primary.50' 
-          }}>
-            <Typography variant="body2" fontWeight="bold" color="primary.main">
-              Update All Recurring Events
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Required for Cell consistency. All occurrences will be updated.
-            </Typography>
-          </Box>
+              <FormControl fullWidth>
+                {isCellEvent ? (
+                  <Box sx={{
+                    p: 2,
+                    border: 1,
+                    borderColor: 'primary.main',
+                    borderRadius: 1,
+                    bgcolor: 'primary.50'
+                  }}>
+                    <Typography variant="body2" fontWeight="bold" color="primary.main">
+                      Update All Recurring Events
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Required for Cell consistency. All occurrences will be updated.
+                    </Typography>
+                  </Box>
                 ) : (
-                  <Box sx={{ 
-                    p: 2, 
-                    border: 1, 
-                    borderColor: 'success.main', 
-                    borderRadius: 1, 
-                    bgcolor: 'success.50' 
+                  <Box sx={{
+                    p: 2,
+                    border: 1,
+                    borderColor: 'success.main',
+                    borderRadius: 1,
+                    bgcolor: 'success.50'
                   }}>
                     <Typography variant="body2" fontWeight="bold" color="success.main">
                       Single Event Only
@@ -912,7 +1055,7 @@ const handleDeactivateCell = async () => {
               {isCellEvent && (
                 <Alert severity="info" sx={{ mt: 2 }}>
                   <Typography variant="body2">
-                     Changes will apply to all occurrences.
+                    Changes will apply to all occurrences.
                   </Typography>
                 </Alert>
               )}
@@ -927,6 +1070,10 @@ const handleDeactivateCell = async () => {
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
                   {changedFields.map(field => {
+                    const fl = field.toLowerCase();
+                    if (fl === 'haspersonsteps' || fl === 'has_person_steps' || fl === 'has person steps') return null;
+                    if (LEADER_AT_FIELDS.includes(field) && !(isCellEvent && canViewLeaderAtFields)) return null;
+
                     const displayField = field
                       .replace(/([A-Z])/g, ' $1')
                       .replace(/_/g, ' ')
@@ -1053,10 +1200,7 @@ const handleDeactivateCell = async () => {
               </Box>
             ) : (
               <Grid container spacing={2}>
-                {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email',
-                  'date', 'Date Of Event', 'time', 'Time', 'location', 'Address',
-                  'status',
-                  'recurring_day', 'Day', 'description', 'leader1', 'leader12', 'Leader at 12']
+                {SIMPLE_FIELDS
                   .filter(field => availableFields.includes(field))
                   .map(field => (
                     <Grid item xs={12} md={6} key={field}>
@@ -1111,7 +1255,7 @@ const handleDeactivateCell = async () => {
         open={deactivationDialogOpen}
         onClose={() => {
           setDeactivationDialogOpen(false);
-          setIsActiveToggle(true); 
+          setIsActiveToggle(true);
         }}
         maxWidth="sm"
         fullWidth
@@ -1124,23 +1268,23 @@ const handleDeactivateCell = async () => {
         <DialogContent>
           <Typography variant="body1" gutterBottom>
             {editScope === 'person' ? (
-              contextFilter === 'day' && originalContext.day ? 
+              contextFilter === 'day' && originalContext.day ?
                 `You are about to deactivate ${originalContext.day} cells for "${originalPersonIdentifier}".` :
-              contextFilter === 'eventName' && originalContext.eventName ?
-                `You are about to deactivate "${originalContext.eventName}" cells for "${originalPersonIdentifier}".` :
-                `You are about to deactivate ALL cells for "${originalPersonIdentifier}".`
+                contextFilter === 'eventName' && originalContext.eventName ?
+                  `You are about to deactivate "${originalContext.eventName}" cells for "${originalPersonIdentifier}".` :
+                  `You are about to deactivate ALL cells for "${originalPersonIdentifier}".`
             ) : (
               `You are about to deactivate "${eventName}".`
             )}
           </Typography>
-          
+
           <FormControl fullWidth margin="normal">
             <InputLabel>Deactivation Period</InputLabel>
             <Select
               value={deactivationWeeks}
-              onChange={(e) =>{ 
+              onChange={(e) => {
                 setDeactivationWeeks(e.target.value);
-                if (e.target.value === -1) setIsPermanent(true)
+                if (e.target.value === -1) setIsPermanent(true);
               }}
               label="Deactivation Period"
             >
@@ -1153,7 +1297,7 @@ const handleDeactivateCell = async () => {
               <MenuItem value={-1}>Never</MenuItem>
             </Select>
           </FormControl>
-          
+
           <TextField
             fullWidth
             margin="normal"
@@ -1164,7 +1308,7 @@ const handleDeactivateCell = async () => {
             multiline
             rows={2}
           />
-          
+
           <Alert severity="info" sx={{ mt: 2 }}>
             <Typography variant="body2">
               The cell will automatically reactivate after the deactivation period ends.
@@ -1172,10 +1316,10 @@ const handleDeactivateCell = async () => {
           </Alert>
         </DialogContent>
         <DialogActions>
-          <Button 
+          <Button
             onClick={() => {
               setDeactivationDialogOpen(false);
-              setIsActiveToggle(true); 
+              setIsActiveToggle(true);
             }}
             disabled={isToggling}
           >
