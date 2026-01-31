@@ -1966,7 +1966,6 @@ const loadWeeklyCheckins = () => {
     );
 
     if (isAlreadyAdded) {
-      // In associate tab, we don't remove - just show a message
       toast.info(`${person.fullName} is already in attendees list`);
       return;
     } else {

@@ -1124,16 +1124,16 @@ const Events = () => {
     CACHE_DURATION: 24 * 60 * 60 * 1000,
   });
 
-  const getCacheKey = useCallback((params) => {
-    return JSON.stringify({
-      page: params.page,
-      limit: params.limit,
-      status: params.status,
-      event_type: params.event_type,
-      search: params.search,
-      personal: params.personal,
-    });
-  }, []);
+  // const getCacheKey = useCallback((params) => {
+  //   return JSON.stringify({
+  //     page: params.page,
+  //     limit: params.limit,
+  //     status: params.status,
+  //     event_type: params.event_type,
+  //     search: params.search,
+  //     personal: params.personal,
+  //   });
+  // }, []);
 
   const getCachedData = useCallback((key) => {
     const cached = cacheRef.current.data.get(key);
@@ -1148,16 +1148,16 @@ const Events = () => {
     return null;
   }, []);
 
-  const setCachedData = useCallback((key, data) => {
-    cacheRef.current.data.set(key, data);
-    cacheRef.current.timestamp.set(key, Date.now());
+  // const setCachedData = useCallback((key, data) => {
+  //   cacheRef.current.data.set(key, data);
+  //   cacheRef.current.timestamp.set(key, Date.now());
 
-    if (cacheRef.current.data.size > 50) {
-      const firstKey = cacheRef.current.data.keys().next().value;
-      cacheRef.current.data.delete(firstKey);
-      cacheRef.current.timestamp.delete(firstKey);
-    }
-  }, []);
+  //   if (cacheRef.current.data.size > 50) {
+  //     const firstKey = cacheRef.current.data.keys().next().value;
+  //     cacheRef.current.data.delete(firstKey);
+  //     cacheRef.current.timestamp.delete(firstKey);
+  //   }
+  // }, []);
 
   const clearCache = useCallback(() => {
     cacheRef.current.data.clear();
@@ -1330,13 +1330,12 @@ ${xmlCols}
     }
   };
 
- 
+
   const isDateInWeek = (dateStr, which = "current") => {
     if (!dateStr) return false;
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return false;
 
-    // Treat week as Monday .. Sunday
     const today = new Date();
     const day = today.getDay(); // 0 (Sun) - 6 (Sat)
     const diffToMonday = (day + 6) % 7; // days since Monday
