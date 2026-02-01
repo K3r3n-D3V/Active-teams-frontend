@@ -15,6 +15,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import CategoryIcon from '@mui/icons-material/Category';
 import DescriptionIcon from '@mui/icons-material/Description';
+import PublicIcon from '@mui/icons-material/Public';
 
 const EventTypesModal = ({
   open,
@@ -27,10 +28,10 @@ const EventTypesModal = ({
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
+    description: "",
     isTicketed: false,
     isGlobal: false,
     hasPersonSteps: false,
-    description: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -116,25 +117,15 @@ const EventTypesModal = ({
     return Object.keys(newErrors).length === 0;
   };
 
- const handleCheckboxChange = (name) => (event) => {
-  const { checked } = event.target;
-  
-  setFormData((prev) => {
-    const newData = { ...prev, [name]: checked };
+  const handleCheckboxChange = (name) => (event) => {
+    const { checked } = event.target;
     
-    if (name === "isGlobal" && checked) {
-      newData.hasPersonSteps = false;
-    } else if (name === "hasPersonSteps" && checked) {
-      newData.isGlobal = false;
-    }
-    
-    return newData;
-  });
+    setFormData((prev) => ({ ...prev, [name]: checked }));
 
-  if (errors[name]) {
-    setErrors((prev) => ({ ...prev, [name]: "" }));
-  }
-};
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -158,10 +149,10 @@ const EventTypesModal = ({
   const resetForm = () => {
     setFormData({
       name: "",
+      description: "",
       isTicketed: false,
       isGlobal: false,
       hasPersonSteps: false,
-      description: "",
     });
     setErrors({});
   };
@@ -286,11 +277,7 @@ const EventTypesModal = ({
         <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
           <Card variant="outlined" sx={{ mb: 3 }}>
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: "600", mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CategoryIcon fontSize="small" />
-                Basic Information
-              </Typography>
-              
+            
               <TextField
                 inputRef={nameInputRef}
                 label="Event Type Name"
@@ -328,6 +315,46 @@ const EventTypesModal = ({
                 disabled={loading}
                 sx={{ ...darkModeStyles.input }}
               />
+
+              {/* IsGlobal option placed right below the Description box */}
+              <Box sx={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: 2,
+                mt: 3,
+                pt: 2,
+                borderTop: `1px solid ${theme.palette.divider}`
+              }}>
+                <Typography variant="subtitle2" fontWeight="600" sx={{ color: 'text.primary' }}>
+                  IsGlobal Event:
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      name="isGlobalTrue"
+                      checked={formData.isGlobal === true}
+                      onChange={() => setFormData(prev => ({ ...prev, isGlobal: true }))}
+                      color="primary"
+                      disabled={loading}
+                    />
+                  }
+                  label="True"
+                  sx={{ color: darkModeStyles.formControlLabel.color }}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      name="isGlobalFalse"
+                      checked={formData.isGlobal === false}
+                      onChange={() => setFormData(prev => ({ ...prev, isGlobal: false }))}
+                      color="primary"
+                      disabled={loading}
+                    />
+                  }
+                  label="False"
+                  sx={{ color: darkModeStyles.formControlLabel.color }}
+                />
+              </Box>
             </CardContent>
           </Card>
 
@@ -359,29 +386,7 @@ const EventTypesModal = ({
                       <Typography variant="subtitle1" fontWeight="500">
                         Ticketed Event
                       </Typography>
-                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
-                />
-
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      name="isGlobal"
-                      checked={formData.isGlobal}
-                      onChange={handleCheckboxChange("isGlobal")}
-                      color="primary"
-                      disabled={loading}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle1" fontWeight="500">
-                        Global Event
-                      </Typography>
-                     
+                   
                     </Box>
                   }
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
@@ -400,8 +405,9 @@ const EventTypesModal = ({
                   label={
                     <Box>
                       <Typography variant="subtitle1" fontWeight="500">
-                        Personal Steps Event
+                        Training
                       </Typography>
+
                     </Box>
                   }
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}

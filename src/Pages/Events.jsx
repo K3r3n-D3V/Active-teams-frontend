@@ -12,6 +12,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Tooltip from "@mui/material/Tooltip";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {
   Box,
   useMediaQuery,
@@ -1052,22 +1053,30 @@ const Events = () => {
   }, [isDarkMode, theme]);
   console.log(eventTypeStyles);
 
-  const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
-  const userRole = currentUser?.role?.toLowerCase() || "";
+const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+const userRole = currentUser?.role || "";
 
-  const isAdmin = userRole === "admin";
-  const isRegistrant = userRole === "registrant";
-  const isRegularUser = userRole === "user";
+const normalizedRole = userRole.toLowerCase();
 
-  const isLeaderAt12 =
-    userRole.toLowerCase().includes("leaderat12") ||
-    userRole.toLowerCase().includes("leader at 12") ||
-    userRole.toLowerCase().includes("leader@12") ||
-    userRole.toLowerCase().includes("leader @12") ||
-    userRole.toLowerCase() === "leaderat12" ||
-    userRole.toLowerCase() === "leader at 12";
+const isAdmin = normalizedRole === "admin";
+const isRegistrant = normalizedRole === "registrant";
+const isRegularUser = normalizedRole === "user";
+const isLeaderAt12 = 
+  normalizedRole === "leaderat12" ||
+  normalizedRole.includes("leaderat12") ||
+  normalizedRole.includes("leader at 12") ||
+  normalizedRole.includes("leader@12");
 
-  console.log("User role:", userRole, "Is Leader at 12:", isLeaderAt12);
+const isLeader = normalizedRole === "leader" && !isLeaderAt12;
+
+console.log("=== ROLE DEBUG ===");
+console.log("User role:", userRole);
+console.log("Normalized role:", normalizedRole);
+console.log("isAdmin:", isAdmin);
+console.log("isRegistrant:", isRegistrant);
+console.log("isRegularUser:", isRegularUser);
+console.log("isLeader:", isLeader);
+console.log("isLeaderAt12:", isLeaderAt12);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = "2025-11-30";
@@ -1099,6 +1108,11 @@ const Events = () => {
   const [eventTypesModalOpen, setEventTypesModalOpen] = useState(false);
   const [editingEventType, setEditingEventType] = useState(null);
   const [eventTypes, setEventTypes] = useState([]);
+const [showingEvents, setShowingEvents] = useState(false);
+const [eventTypeSearch, setEventTypeSearch] = useState("");
+const [viewMode, setViewMode] = useState("grid"); // "grid" or "table"
+const [menuAnchor, setMenuAnchor] = useState(null);
+const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
 
   const initialViewFilter = useMemo(() => {
     if (isLeaderAt12) {
@@ -1135,18 +1149,18 @@ const Events = () => {
   //   });
   // }, []);
 
-  const getCachedData = useCallback((key) => {
-    const cached = cacheRef.current.data.get(key);
-    const timestamp = cacheRef.current.timestamp.get(key);
+  // const getCachedData = useCallback((key) => {
+  //   const cached = cacheRef.current.data.get(key);
+  //   const timestamp = cacheRef.current.timestamp.get(key);
 
-    if (cached && timestamp) {
-      const age = Date.now() - timestamp;
-      if (age < cacheRef.current.CACHE_DURATION) {
-        return cached;
-      }
-    }
-    return null;
-  }, []);
+  //   if (cached && timestamp) {
+  //     const age = Date.now() - timestamp;
+  //     if (age < cacheRef.current.CACHE_DURATION) {
+  //       return cached;
+  //     }
+  //   }
+  //   return null;
+  // }, []);
 
   // const setCachedData = useCallback((key, data) => {
   //   cacheRef.current.data.set(key, data);
@@ -1330,7 +1344,6 @@ ${xmlCols}
     }
   };
 
-
   const isDateInWeek = (dateStr, which = "current") => {
     if (!dateStr) return false;
     const d = new Date(dateStr);
@@ -1457,8 +1470,6 @@ ${xmlCols}
       toast.error("Failed to download events for selected status");
     }
   };
-
-
   const paginatedEvents = useMemo(() => events, [events]);
   const startIndex = useMemo(() => {
     return totalEvents > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0;
@@ -1474,250 +1485,508 @@ ${xmlCols}
     ];
   }, [eventTypes]);
 
-  const fetchEvents = useCallback(
-    async (filters = {}, showLoader = true) => {
-      if (showLoader) {
-        setLoading(true);
-        setIsLoading(true);
+const fetchEvents = useCallback(
+  async (filters = {}, showLoader = true) => {
+    if (showLoader) {
+      setLoading(true);
+      setIsLoading(true);
+    }
+
+    try {
+      // Check token first
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        console.log("No token found, redirecting to login");
+        logout();
+        window.location.href = "/login";
+        return;
       }
 
-      try {
-        // Check token first
-        const token = localStorage.getItem("access_token");
-        if (!token) {
-          console.log("No token found, redirecting to login");
-          logout();
-          window.location.href = "/login";
-          return;
-        }
+      const params = {
+        page: filters.page || currentPage,
+        limit: filters.limit || rowsPerPage,
+        start_date: filters.start_date || DEFAULT_API_START_DATE,
+      };
 
-        const params = {
-          page: filters.page || currentPage,
-          limit: filters.limit || rowsPerPage,
-          start_date: filters.start_date || DEFAULT_API_START_DATE,
-        };
+      if (filters.status && filters.status !== "all")
+        params.status = filters.status;
+      if (filters.search) params.search = filters.search;
+      if (filters.event_type) params.event_type = filters.event_type;
 
-        if (filters.status && filters.status !== "all")
-          params.status = filters.status;
-        if (filters.search) params.search = filters.search;
-        if (filters.event_type) params.event_type = filters.event_type;
+      let endpoint;
 
-        let endpoint;
+      if (
+        filters.event_type === "CELLS" ||
+        filters.event_type === "all" ||
+        !filters.event_type
+      ) {
+        endpoint = `${BACKEND_URL}/events/cells`;
 
-        if (
-          filters.event_type === "CELLS" ||
-          filters.event_type === "all" ||
-          !filters.event_type
-        ) {
-          endpoint = `${BACKEND_URL}/events/cells`;
+        console.log("=== FETCH EVENTS DEBUG ===");
+        console.log("Current user role:", userRole);
+        console.log("isAdmin:", isAdmin);
+        console.log("isLeader:", isLeader);
+        console.log("isLeaderAt12:", isLeaderAt12);
+        console.log("isRegistrant:", isRegistrant);
+        console.log("isRegularUser:", isRegularUser);
+        console.log("View filter:", viewFilter);
 
-          console.log("Current user role:", userRole);
-          console.log("Is Leader at 12:", isLeaderAt12);
-          console.log("View filter:", viewFilter);
+        if (isLeaderAt12) {
+          console.log("LEADER AT 12 MODE ACTIVATED - Can see ALL events");
+          params.leader_at_12_view = true;
+          params.isLeaderAt12 = true;
 
-          if (isLeaderAt12) {
-            console.log("LEADER AT 12 MODE ACTIVATED");
-            params.leader_at_12_view = true;
-            params.isLeaderAt12 = true;
-
-            if (viewFilter === "personal") {
-              console.log("   Personal view for Leader at 12");
-              params.show_personal_cells = true;
-              params.personal = true;
-            } else {
-              console.log("   View All Under Me for Leader at 12");
-              params.show_all_authorized = true;
-              params.include_subordinate_cells = true;
-            }
-
-            params.firstName = currentUser?.name || "";
-            params.userSurname = currentUser?.surname || "";
-
-            const userFullName =
-              `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim();
-            if (userFullName) {
-              params.userFullName = userFullName;
-            }
-
-            if (currentUserLeaderAt1) {
-              params.leader_at_1_identifier = currentUserLeaderAt1;
-            }
-          } else if (isAdmin) {
-            console.log("Admin mode");
-            if (viewFilter === "personal") {
-              params.personal = true;
-            }
-          } else if (isRegistrant || isRegularUser) {
-            console.log("Regular user/registrant mode");
+          if (viewFilter === "personal") {
+            console.log("   Personal view for Leader at 12");
+            params.show_personal_cells = true;
             params.personal = true;
           } else {
+            console.log("   View All Under Me for Leader at 12");
+            params.show_all_authorized = true;
+            params.include_subordinate_cells = true;
+          }
+
+          params.firstName = currentUser?.name || "";
+          params.userSurname = currentUser?.surname || "";
+
+          const userFullName =
+            `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim();
+          if (userFullName) {
+            params.userFullName = userFullName;
+          }
+
+          if (currentUserLeaderAt1) {
+            params.leader_at_1_identifier = currentUserLeaderAt1;
+          }
+        } else if (isAdmin) {
+          console.log("ADMIN MODE - Can see ALL events");
+          if (viewFilter === "personal") {
             params.personal = true;
           }
+          // Admin doesn't need require_global_events - they see everything
+        } else if (isLeader) {
+          console.log("REGULAR LEADER MODE - Can see ONLY GLOBAL events");
+          params.personal = true;
+          params.require_global_events = true; // Critical - tells backend to filter
+        } else if (isRegistrant) {
+          console.log("REGISTRANT MODE - Can see ONLY GLOBAL events");
+          params.personal = true;
+          params.require_global_events = true; // Critical - tells backend to filter
+        } else if (isRegularUser) {
+          console.log("USER MODE - Can see ONLY GLOBAL events");
+          params.personal = true;
+          params.require_global_events = true; // Critical - tells backend to filter
         } else {
-          endpoint = `${BACKEND_URL}/events/other`;
-
-          if (isAdmin && viewFilter === "personal") {
-            params.personal = true;
-          } else if (isRegularUser || isRegistrant) {
-            params.personal = true;
-          }
+          console.log("UNKNOWN ROLE - Defaulting to personal view");
+          params.personal = true;
+          params.require_global_events = true; // Safe default
         }
+      } else {
+        endpoint = `${BACKEND_URL}/events/other`;
 
-        Object.keys(params).forEach(
-          (key) =>
-            (params[key] === undefined || params[key] === "") &&
-            delete params[key],
-        );
-
-        const queryString = new URLSearchParams(params).toString();
-        const fullUrl = `${endpoint}?${queryString}`;
-        console.log("Fetching from:", fullUrl);
-        console.log("Parameters:", params);
-
-        const response = await authFetch(fullUrl, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Response error:", errorText);
-
-          if (response.status === 401) {
-            console.log("Authentication failed, attempting refresh...");
-            try {
-              // Try to refresh token
-              await refreshToken();
-              // Retry the request
-              const newToken = localStorage.getItem("access_token");
-              const retryResponse = await fetch(fullUrl, {
-                method: "GET",
-                headers: {
-                  Authorization: `Bearer ${newToken}`,
-                  "Content-Type": "application/json",
-                },
-              });
-
-              if (!retryResponse.ok) {
-                throw new Error(
-                  `HTTP ${retryResponse.status}: ${await retryResponse.text()}`,
-                );
-              }
-
-              const data = await retryResponse.json();
-              data.events || [];
-              setTotalEvents(data.total_events || 0);
-              setTotalPages(data.total_pages || 1);
-              return;
-            } catch (refreshError) {
-              console.error("Token refresh failed:", refreshError);
-              toast.error("Session expired. Please log in again.");
-              setTimeout(() => {
-                logout();
-                window.location.href = "/login";
-              }, 1500);
-              return;
-            }
-          }
-
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-
-        const data = await response.json();
-
-        console.log("Got data:", data.events?.length, "events");
-        console.log("User info:", data.user_info);
-
-        setEvents(data.events || []);
-        setTotalEvents(data.total_events || 0);
-        setTotalPages(data.total_pages || 1);
-      } catch (error) {
-        console.error("Error:", error);
-
-        // Don't show error if it's an auth issue (already handled)
-        if (
-          !error.message.includes("401") &&
-          !error.message.includes("Session expired")
-        ) {
-          const errorMessage = error.message || "Failed to load events";
-          toast.error(`Failed to load events: ${errorMessage}`);
-        }
-
-        setEvents([]);
-      } finally {
-        if (showLoader) {
-          setLoading(false);
-          setIsLoading(false);
+        console.log("=== FETCH OTHER EVENTS DEBUG ===");
+        console.log("User role:", userRole);
+        console.log("Event type filter:", filters.event_type);
+        
+        if (isAdmin && viewFilter === "personal") {
+          params.personal = true;
+        } else if (isLeaderAt12) {
+          // Leader at 12 can see all
+          params.personal = true;
+        } else if (isLeader || isRegistrant || isRegularUser) {
+          console.log(`${isLeader ? 'LEADER' : isRegistrant ? 'REGISTRANT' : 'USER'} - Requiring global events`);
+          params.personal = true;
+          params.require_global_events = true; // Critical for non-cell events too
         }
       }
-    },
-    [
-      currentPage,
-      rowsPerPage,
-      authFetch,
-      BACKEND_URL,
-      DEFAULT_API_START_DATE,
-      isLeaderAt12,
-      isAdmin,
-      isRegularUser,
-      isRegistrant,
-      viewFilter,
-      currentUserLeaderAt1,
-      currentUser,
-      userRole,
-      logout,
-    ],
-  );
 
-  const fetchEventTypes = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("access_token");
-      const response = await authFetch(`${BACKEND_URL}/event-types`, {
+      Object.keys(params).forEach(
+        (key) =>
+          (params[key] === undefined || params[key] === "") &&
+          delete params[key],
+      );
+
+      const queryString = new URLSearchParams(params).toString();
+      const fullUrl = `${endpoint}?${queryString}`;
+      console.log("Fetching from:", fullUrl);
+      console.log("Parameters:", params);
+
+      const response = await authFetch(fullUrl, {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: Failed to fetch event types`);
-      }
+        const errorText = await response.text();
+        console.error("Response error:", errorText);
 
-      const eventTypesData = await response.json();
-      const actualEventTypes = eventTypesData.filter(
-        (item) => item.isEventType === true,
-      );
+        if (response.status === 401) {
+          console.log("Authentication failed, attempting refresh...");
+          try {
+            // Try to refresh token
+            await refreshToken();
+            // Retry the request
+            const newToken = localStorage.getItem("access_token");
+            const retryResponse = await fetch(fullUrl, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${newToken}`,
+                "Content-Type": "application/json",
+              },
+            });
 
-      setEventTypes(actualEventTypes);
-      setCustomEventTypes(actualEventTypes);
-      setUserCreatedEventTypes(actualEventTypes);
-      localStorage.setItem("eventTypes", JSON.stringify(actualEventTypes));
+            if (!retryResponse.ok) {
+              throw new Error(
+                `HTTP ${retryResponse.status}: ${await retryResponse.text()}`,
+              );
+            }
 
-      return actualEventTypes;
-    } catch (error) {
-      console.error("Error fetching event types:", error);
-      try {
-        const cachedTypes = localStorage.getItem("eventTypes");
-        if (cachedTypes) {
-          const parsed = JSON.parse(cachedTypes);
-          const uppercasedCached = parsed.map((type) => ({
-            ...type,
-            name: type.name ? type.name.toUpperCase() : type.name,
-            displayName: type.name ? type.name.toUpperCase() : type.name,
-          }));
-          setEventTypes(uppercasedCached);
-          setCustomEventTypes(uppercasedCached);
-          setUserCreatedEventTypes(uppercasedCached);
-          return uppercasedCached;
+            const data = await retryResponse.json();
+            data.events || [];
+            setTotalEvents(data.total_events || 0);
+            setTotalPages(data.total_pages || 1);
+            return;
+          } catch (refreshError) {
+            console.error("Token refresh failed:", refreshError);
+            toast.error("Session expired. Please log in again.");
+            setTimeout(() => {
+              logout();
+              window.location.href = "/login";
+            }, 1500);
+            return;
+          }
         }
-      } catch (cacheError) {
-        console.error("Cache read failed:", cacheError);
+
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
+
+      const data = await response.json();
+
+      console.log("Got data:", data.events?.length, "events");
+      console.log("User info:", data.user_info);
+
+      // Optional: Double-check filtering on frontend (as backup)
+      const eventsToShow = data.events || [];
+      
+      // If backend filtering fails, add frontend filtering as backup
+      if (isLeader || isRegistrant || isRegularUser) {
+        console.log("Applying frontend backup filtering for global events...");
+        try {
+          const eventTypeMapStr = localStorage.getItem("eventTypeMap");
+          const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
+          
+          const filteredEvents = eventsToShow.filter(event => {
+            const eventTypeName = event.eventType || event.event_type;
+            if (!eventTypeName) return false;
+            
+            const typeInfo = eventTypeMap[eventTypeName.toLowerCase()];
+            if (!typeInfo) return false;
+            
+            return typeInfo.isGlobal === true;
+          });
+          
+          console.log(`Backend returned ${eventsToShow.length} events, frontend filtered to ${filteredEvents.length} global events`);
+          setEvents(filteredEvents);
+        } catch (filterError) {
+          console.error("Frontend filtering failed:", filterError);
+          setEvents(eventsToShow);
+        }
+      } else {
+        setEvents(eventsToShow);
+      }
+      
+      setTotalEvents(data.total_events || 0);
+      setTotalPages(data.total_pages || 1);
+    } catch (error) {
+      console.error("Error:", error);
+
+      // Don't show error if it's an auth issue (already handled)
+      if (
+        !error.message.includes("401") &&
+        !error.message.includes("Session expired")
+      ) {
+        const errorMessage = error.message || "Failed to load events";
+        toast.error(`Failed to load events: ${errorMessage}`);
+      }
+
+      setEvents([]);
+    } finally {
+      if (showLoader) {
+        setLoading(false);
+        setIsLoading(false);
+      }
+    }
+  },
+  [
+    currentPage,
+    rowsPerPage,
+    authFetch,
+    BACKEND_URL,
+    DEFAULT_API_START_DATE,
+    isLeaderAt12,
+    isAdmin,
+    isRegularUser,
+    isRegistrant,
+    isLeader, 
+    viewFilter,
+    currentUserLeaderAt1,
+    currentUser,
+    userRole,
+    logout,
+  ],
+);
+
+const fetchEventTypes = useCallback(async (retryCount = 0) => {
+  const MAX_RETRIES = 2;
+  
+  try {
+    console.log("=== FETCHING EVENT TYPES ===");
+    
+    // Check authentication
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      console.warn("No authentication token available for fetching event types");
+      toast.warning("Please log in to access event types");
       return [];
     }
-  }, [BACKEND_URL]);
+
+    // Get user info for debugging
+    const userProfile = localStorage.getItem("userProfile");
+    const user = userProfile ? JSON.parse(userProfile) : {};
+    console.log("Fetching event types for user:", user.email || "Unknown");
+    
+    const response = await authFetch(`${BACKEND_URL}/event-types`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
+      // Add timeout
+      signal: AbortSignal.timeout(15000) // 15 second timeout
+    });
+
+    if (!response.ok) {
+      const status = response.status;
+      const errorText = await response.text();
+      
+      console.error(`Event types fetch failed: HTTP ${status}`, errorText);
+      
+      // Handle specific status codes
+      if (status === 401 || status === 403) {
+        console.log("Authentication issue, attempting refresh...");
+        
+        // Try to refresh token and retry
+        if (retryCount < MAX_RETRIES) {
+          try {
+            await refreshToken();
+            return fetchEventTypes(retryCount + 1);
+          } catch (refreshError) {
+            console.error("Token refresh failed:", refreshError);
+          }
+        }
+        
+        toast.error("Session expired. Please log in again.");
+        setTimeout(() => {
+          logout();
+          window.location.href = "/login";
+        }, 2000);
+        return [];
+      }
+      
+      if (status === 404) {
+        console.warn("Event types endpoint not found, using defaults");
+        return createDefaultEventTypes();
+      }
+      
+      throw new Error(`Failed to fetch event types: HTTP ${status}`);
+    }
+
+    const eventTypesData = await response.json();
+    console.log("API Response - Event Types:", eventTypesData);
+
+    // Handle different response formats
+    let eventTypesArray = [];
+    
+    if (Array.isArray(eventTypesData)) {
+      eventTypesArray = eventTypesData;
+    } else if (eventTypesData.eventTypes) {
+      eventTypesArray = eventTypesData.eventTypes;
+    } else if (eventTypesData.data) {
+      eventTypesArray = eventTypesData.data;
+    } else if (typeof eventTypesData === 'object') {
+      // Convert object to array
+      eventTypesArray = Object.values(eventTypesData);
+    }
+    
+    // Filter for actual event types
+    const actualEventTypes = eventTypesArray.filter(item => {
+      // Multiple ways to identify event types
+      return (
+        item.isEventType === true ||
+        item.type === "event_type" ||
+        item.event_type === true ||
+        item.category === "event_type" ||
+        item.is_active !== false
+      );
+    });
+
+    console.log("Filtered Event Types:", actualEventTypes);
+
+    if (actualEventTypes.length === 0) {
+      console.warn("No event types returned from API, using defaults");
+      return createDefaultEventTypes();
+    }
+
+    // Process and store event types
+    const eventTypeMap = {};
+    const eventTypeList = [];
+    
+    // Add "All Cells" as default first
+    const allCellsType = {
+      name: "ALL CELLS",
+      description: "View all cell events across the church",
+      isGlobal: true,
+      isDefault: true,
+      icon: "📊",
+      color: "#007bff"
+    };
+    
+    eventTypeMap["all cells"] = allCellsType;
+    eventTypeMap["all"] = allCellsType;
+    eventTypeList.push(allCellsType);
+    
+    // Process API event types
+    actualEventTypes.forEach((type, index) => {
+      const typeName = (type.name || type.event_type_name || `Event Type ${index}`).toString().trim();
+      const description = type.description || 
+                         type.desc || 
+                         type.eventTypeDescription || 
+                         type.event_type_description ||
+                         getDefaultDescription(typeName);
+      
+      const eventTypeObj = {
+        name: typeName.toUpperCase(),
+        originalName: typeName,
+        description: description,
+        isGlobal: type.isGlobal === true,
+        icon: type.icon || type.eventTypeIcon || getDefaultIcon(typeName),
+        color: type.color || type.eventTypeColor || getDefaultColor(index),
+        isActive: type.isActive !== false,
+        isEventType: true,
+        createdBy: type.createdBy || type.created_by,
+        createdAt: type.createdAt || type.created_at,
+        ...type
+      };
+      
+      // Store in map with lowercase key
+      const lowerName = typeName.toLowerCase();
+      eventTypeMap[lowerName] = eventTypeObj;
+      
+      // Add to list
+      eventTypeList.push(eventTypeObj);
+      
+      console.log(`Processed event type: "${typeName}" -> isGlobal: ${eventTypeObj.isGlobal}`);
+    });
+
+    
+    function getDefaultIcon(name) {
+      const lowerName = name.toLowerCase();
+      if (lowerName.includes("cell")) return "";
+      if (lowerName.includes("class")) return "";
+      if (lowerName.includes("service")) return "";
+      if (lowerName.includes("workshop")) return "";
+      if (lowerName.includes("conference")) return "";
+      if (lowerName.includes("meeting")) return "";
+      return "";
+    }
+    
+    function getDefaultColor(index) {
+      const colors = ["#007bff", "#28a745", "#ffc107", "#dc3545", "#6f42c1", "#20c997", "#fd7e14", "#e83e8c"];
+      return colors[index % colors.length];
+    }
+    
+  
+
+    // Store in localStorage
+    localStorage.setItem("eventTypes", JSON.stringify(eventTypeList));
+    localStorage.setItem("eventTypeMap", JSON.stringify(eventTypeMap));
+    
+    console.log("Stored EventTypeMap with", Object.keys(eventTypeMap).length, "entries");
+    console.log("EventTypeList:", eventTypeList);
+
+    // Update state
+    setEventTypes(eventTypeList);
+    setCustomEventTypes(eventTypeList);
+    setUserCreatedEventTypes(eventTypeList);
+    
+    toast.success(`Loaded ${eventTypeList.length} event types`);
+    
+    return eventTypeList;
+    
+  } catch (error) {
+    console.error("Error in fetchEventTypes:", error);
+    
+    // Handle network errors
+    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+      console.warn("Event types fetch timeout, using cached data");
+    } else if (error.message?.includes("NetworkError") || error.message?.includes("Failed to fetch")) {
+      console.warn("Network error, using cached event types");
+    }
+    
+    // Load from cache
+    try {
+      const cachedTypes = localStorage.getItem("eventTypes");
+      const cachedMap = localStorage.getItem("eventTypeMap");
+      
+      if (cachedTypes) {
+        const parsed = JSON.parse(cachedTypes);
+        console.log("Loaded event types from cache:", parsed.length);
+        
+        // If we have a map, use it
+        if (cachedMap) {
+          console.log("Using cached event type map");
+        } else {
+          // Recreate map from cached types
+          const newMap = {};
+          parsed.forEach(type => {
+            if (type.name) {
+              newMap[type.name.toLowerCase()] = {
+                isGlobal: type.isGlobal === true,
+                name: type.name,
+                description: type.description || "",
+                ...type
+              };
+            }
+          });
+          localStorage.setItem("eventTypeMap", JSON.stringify(newMap));
+        }
+        
+        setEventTypes(parsed);
+        setCustomEventTypes(parsed);
+        setUserCreatedEventTypes(parsed);
+        
+        return parsed;
+      }
+    } catch (cacheError) {
+      console.error("Cache read failed:", cacheError);
+    }
+    
+    const defaults = [
+      {
+        name: "ALL CELLS",
+        description: "View all cell events",
+        isGlobal: true,
+        isDefault: true
+      }
+    ];
+    
+    setEventTypes(defaults);
+    return defaults;
+  }
+}, [BACKEND_URL, authFetch, logout]);
 
   useEffect(() => {
     const getUserProfile = () => {
@@ -1746,6 +2015,564 @@ ${xmlCols}
 
     getUserProfile();
   }, []);
+  
+
+const getFilteredEventTypes = (allEventTypes) => {
+  if (!allEventTypes || allEventTypes.length === 0) return [];
+  try {
+    const eventTypeMapStr = localStorage.getItem("eventTypeMap");
+    const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
+    
+    return allEventTypes.filter(eventType => {
+      const typeName = typeof eventType === 'string' ? eventType : eventType.name || eventType;
+      const typeInfo = eventTypeMap[typeName];
+      
+      if (!typeInfo) return true; 
+      const isGlobalEvent = typeInfo.isGlobal === true;
+      
+      if (isGlobalEvent) {
+        return isAdmin || isLeaderAt12 || isRegistrant || isRegularUser || isLeader;
+      } else {
+        return isAdmin || isLeaderAt12;
+      }
+    });
+  } catch (error) {
+    console.error("Error filtering event types:", error);
+    return allEventTypes;
+  }
+};
+
+
+const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilter }) => {
+  const theme = useTheme();
+  const isMobileView = useMediaQuery(theme.breakpoints.down("md"));
+  const isDarkMode = theme.palette.mode === "dark";
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Get user role info
+  const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+  const userRole = currentUser?.role || "";
+  const normalizedRole = userRole.toLowerCase();
+
+  const isAdmin = normalizedRole === "admin";
+  const isRegistrant = normalizedRole === "registrant";
+  const isRegularUser = normalizedRole === "user";
+  const isLeaderAt12 = 
+    normalizedRole === "leaderat12" ||
+    normalizedRole.includes("leaderat12") ||
+    normalizedRole.includes("leader at 12") ||
+    normalizedRole.includes("leader@12");
+
+  const isLeader = normalizedRole === "leader" && !isLeaderAt12;
+  console.log("view leaders", isLeader)
+
+  // Filter event types based on user role
+  const filteredEventTypes = useMemo(() => {
+    const allTypes = eventTypes
+      .map((t) => t.name || t)
+      .filter((name) => name && name !== "all");
+    
+    try {
+      const eventTypeMapStr = localStorage.getItem("eventTypeMap");
+      const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
+      
+      const filtered = allTypes.filter(typeName => {
+        const typeInfo = eventTypeMap[typeName];
+        
+        if (!typeInfo) {
+          return isAdmin || isLeaderAt12;
+        }
+        
+        const isGlobalEvent = typeInfo.isGlobal === true;
+        
+        if (isGlobalEvent === false) {
+          return isAdmin || isLeaderAt12;
+        }
+        
+        if (isGlobalEvent === true) {
+          return true;
+        }
+        
+        return isAdmin || isLeaderAt12;
+      });
+      
+      return filtered;
+    } catch (error) {
+      console.error("Error filtering event types:", error);
+      return isAdmin || isLeaderAt12 ? allTypes : [];
+    }
+  }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser, userRole]);
+
+
+
+  // Filter based on search
+  const searchFilteredEventTypes = useMemo(() => {
+    const allTypes = ["all", ...filteredEventTypes];
+    
+    return allTypes.filter(type => {
+      const typeName = typeof type === "string" ? type : type.name || type;
+      const description = getEventTypeDescription(typeName).toLowerCase();
+      return typeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             description.includes(searchQuery.toLowerCase());
+    });
+  }, [filteredEventTypes, searchQuery]);
+
+  const styles = {
+    container: {
+      backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
+      borderRadius: "16px",
+      padding: isMobileView ? "1rem" : "1.5rem",
+      marginBottom: "1rem",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+      border: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"}`,
+    },
+    searchContainer: {
+      marginBottom: "1.5rem",
+    },
+    searchInput: {
+      "& .MuiOutlinedInput-root": {
+        borderRadius: "12px",
+        backgroundColor: isDarkMode ? "rgba(255,255,255,0.05)" : "#fff",
+        "& fieldset": {
+          borderColor: isDarkMode ? theme.palette.divider : "#ddd",
+        },
+        "&:hover fieldset": {
+          borderColor: isDarkMode ? theme.palette.primary.main : "#007bff",
+        },
+        "&.Mui-focused fieldset": {
+          borderColor: isDarkMode ? theme.palette.primary.main : "#007bff",
+        },
+      },
+    },
+    gridContainer: {
+      display: "grid",
+      gridTemplateColumns: isMobileView ? "repeat(auto-fill, minmax(150px, 1fr))" : "repeat(auto-fill, minmax(200px, 1fr))",
+      gap: isMobileView ? "0.75rem" : "1rem",
+      width: "100%",
+    },
+    card: {
+      backgroundColor: isDarkMode ? theme.palette.background.default : "#fff",
+      borderRadius: "12px",
+      padding: isMobileView ? "1rem" : "1.25rem",
+      cursor: "pointer",
+      border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+      transition: "all 0.3s ease",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      textAlign: "center",
+      height: isMobileView ? "140px" : "160px",
+      minHeight: isMobileView ? "140px" : "160px",
+      overflow: "hidden",
+      position: "relative",
+      "&:hover": {
+        transform: "translateY(-4px)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        borderColor: "#007bff",
+      },
+    },
+    cardActive: {
+      borderColor: "#007bff",
+      backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
+      transform: "scale(1.02)",
+      boxShadow: "0 4px 16px rgba(0, 123, 255, 0.2)",
+    },
+    icon: {
+      fontSize: isMobileView ? "32px" : "40px",
+      marginBottom: "0.75rem",
+    },
+    name: {
+      fontSize: isMobileView ? "13px" : "14px",
+      fontWeight: 600,
+      color: isDarkMode ? theme.palette.text.primary : "#333",
+      marginBottom: "0.5rem",
+      lineHeight: 1.2,
+      width: "100%",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      display: "-webkit-box",
+      WebkitLineClamp: 2,
+      WebkitBoxOrient: "vertical",
+    },
+    description: {
+      fontSize: isMobileView ? "11px" : "12px",
+      color: isDarkMode ? theme.palette.text.secondary : "#666",
+      lineHeight: 1.3,
+      width: "100%",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      display: "-webkit-box",
+      WebkitLineClamp: 3, // Show more description lines
+      WebkitBoxOrient: "vertical",
+    },
+    noResults: {
+      textAlign: "center",
+      padding: "3rem 1rem",
+      color: isDarkMode ? theme.palette.text.secondary : "#666",
+    },
+  };
+
+  return (
+    <Box sx={styles.container}>
+      {/* SEARCH BAR FOR EVENT TYPES */}
+      <Box sx={styles.searchContainer}>
+        <TextField
+          fullWidth
+          placeholder="Search event types..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+          sx={styles.searchInput}
+        />
+      </Box>
+
+      {/* EVENT TYPE GRID - WITHOUT EVENT COUNTS */}
+      {searchFilteredEventTypes.length === 0 ? (
+        <Box sx={styles.noResults}>
+          <SearchIcon sx={{ fontSize: 48, color: "#ccc", mb: 2 }} />
+          <Typography variant="h6" gutterBottom>
+            No event types found
+          </Typography>
+          <Typography variant="body2">
+            Try a different search term
+          </Typography>
+        </Box>
+      ) : (
+        <Box sx={styles.gridContainer}>
+          {searchFilteredEventTypes.map((type) => {
+            const typeName = typeof type === "string" ? type : type.name || type;
+            const isActive = selectedEventTypeFilter === typeName || 
+                            (typeName === "all" && selectedEventTypeFilter === "all");
+
+            return (
+              <Box
+                key={typeName}
+                sx={{
+                  ...styles.card,
+                  ...(isActive ? styles.cardActive : {}),
+                }}
+                onClick={() => onEventTypeClick(typeName)}
+              >
+                <Box sx={styles.icon}>
+                  {getEventTypeIcon(typeName)}
+                </Box>
+                <Typography sx={styles.name}>
+                  {typeName === "all" ? "ALL EVENTS" : typeName}
+                </Typography>
+                <Typography sx={styles.description}>
+                  {getEventTypeDescription(typeName)}
+                </Typography>
+                {/* REMOVED EVENT COUNT DISPLAY */}
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+const ViewToggle = () => (
+  <Box sx={{ 
+    display: "flex", 
+    gap: 1, 
+    alignItems: "center", 
+    backgroundColor: isDarkMode ? "rgba(255,255,255,0.05)" : "#f5f5f5",
+    padding: "4px",
+    borderRadius: "8px",
+    border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`
+  }}>
+    <Button
+      variant={viewMode === "grid" ? "contained" : "text"}
+      size="small"
+      onClick={() => {
+        setViewMode("grid");
+        // setShowingEventsForType(false);
+      }}
+      sx={{
+        minWidth: "auto",
+        padding: "4px 12px",
+        fontSize: "0.75rem",
+        fontWeight: 600,
+        backgroundColor: viewMode === "grid" ? "#007bff" : "transparent",
+        color: viewMode === "grid" ? "#fff" : isDarkMode ? theme.palette.text.secondary : "#666",
+        "&:hover": {
+          backgroundColor: viewMode === "grid" ? "#0056b3" : isDarkMode ? "rgba(255,255,255,0.1)" : "#f0f0f0",
+        },
+      }}
+    >
+      Grid
+    </Button>
+    <Button
+      variant={viewMode === "table" ? "contained" : "text"}
+      size="small"
+      onClick={() => {
+        setViewMode("table");
+        // setShowingEventsForType(false); // Reset when switching to table view
+      }}
+      sx={{
+        minWidth: "auto",
+        padding: "4px 12px",
+        fontSize: "0.75rem",
+        fontWeight: 600,
+        backgroundColor: viewMode === "table" ? "#007bff" : "transparent",
+        color: viewMode === "table" ? "#fff" : isDarkMode ? theme.palette.text.secondary : "#666",
+        "&:hover": {
+          backgroundColor: viewMode === "table" ? "#0056b3" : isDarkMode ? "rgba(255,255,255,0.1)" : "#f0f0f0",
+        },
+      }}
+    >
+      Table
+    </Button>
+  </Box>
+);
+
+const EventTypesList = ({ 
+  eventTypes, 
+  selectedEventTypeFilter, 
+  onSelectEventType,
+  onBackToGrid 
+}) => {
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === "dark";
+  const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const styles = {
+    container: {
+      display: "flex",
+      flexDirection: "column",
+      height: "100%",
+      padding: isMobileView ? "16px" : "24px",
+      backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+    },
+    header: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "24px",
+    },
+    title: {
+      fontSize: isMobileView ? "20px" : "24px",
+      fontWeight: "bold",
+      color: isDarkMode ? theme.palette.text.primary : "#333",
+    },
+    searchContainer: {
+      marginBottom: "24px",
+    },
+    searchInput: {
+      width: "100%",
+      "& .MuiOutlinedInput-root": {
+        backgroundColor: isDarkMode ? theme.palette.background.default : "#f8f9fa",
+        borderRadius: "12px",
+      },
+      "& .MuiInputBase-input": {
+        padding: "14px 16px",
+        fontSize: "14px",
+      },
+    },
+    eventTypesContainer: {
+      flex: 1,
+      overflowY: "auto",
+      display: "flex",
+      flexDirection: "column",
+      gap: "12px",
+    },
+    eventTypeItem: {
+      display: "flex",
+      alignItems: "center",
+      padding: "16px 20px",
+      borderRadius: "12px",
+      cursor: "pointer",
+      transition: "all 0.2s ease",
+      backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "#f8f9fa",
+      border: `1px solid transparent`,
+      "&:hover": {
+        transform: "translateX(4px)",
+        backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
+        borderColor: "#007bff",
+      },
+    },
+    eventTypeItemActive: {
+      backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.15)" : "#d0e7ff",
+      borderColor: "#007bff",
+      "&:hover": {
+        backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.2)" : "#b8d9ff",
+      },
+    },
+    eventTypeIcon: {
+      fontSize: "24px",
+      marginRight: "16px",
+      minWidth: "24px",
+    },
+    eventTypeContent: {
+      flex: 1,
+    },
+    eventTypeName: {
+      fontSize: "16px",
+      fontWeight: 600,
+      color: isDarkMode ? theme.palette.text.primary : "#333",
+      marginBottom: "4px",
+    },
+    eventTypeDescription: {
+      fontSize: "14px",
+      color: isDarkMode ? theme.palette.text.secondary : "#666",
+      lineHeight: 1.4,
+    },
+    // eventTypeCount: {
+    //   fontSize: "14px",
+    //   fontWeight: "bold",
+    //   color: isDarkMode ? theme.palette.text.secondary : "#666",
+    //   backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "#e9ecef",
+    //   padding: "4px 12px",
+    //   borderRadius: "20px",
+    //   minWidth: "40px",
+    //   textAlign: "center",
+    // },
+    eventTypeCountActive: {
+      backgroundColor: "#007bff",
+      color: "#fff",
+    },
+    noResults: {
+      textAlign: "center",
+      padding: "60px 20px",
+      color: isDarkMode ? theme.palette.text.secondary : "#666",
+    },
+  };
+
+  // Get event counts for each type
+  const getEventTypeCount = (eventType) => {
+    if (eventType === "all") return events.length;
+    return events.filter(e => 
+      e.eventType?.toLowerCase() === eventType.toLowerCase() ||
+      e.event_type?.toLowerCase() === eventType.toLowerCase()
+    ).length;
+  };
+
+  // Filter event types based on search query
+  const filteredEventTypes = eventTypes.filter(type => {
+    const typeName = typeof type === "string" ? type : type.name || type;
+    return typeName.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  // Get icon and description for event type
+  const getEventTypeIcon = (typeName) => {
+    if (typeName === "all") return "📊";
+    if (typeName.includes("CELL") || typeName.includes("Cell")) return "🏠";
+    if (typeName.includes("Class") || typeName.includes("class")) return "🎓";
+    if (typeName.includes("Service") || typeName.includes("service")) return "⛪";
+    if (typeName.includes("Workshop") || typeName.includes("workshop")) return "🔧";
+    if (typeName.includes("Conference") || typeName.includes("conference")) return "👥";
+    return "";
+  };
+
+  const getEventTypeDescription = (typeName) => {
+    if (typeName === "all") return "View all cell events across the church";
+    if (typeName.includes("CELL") || typeName.includes("Cell")) return "Cell group meetings and events";
+    if (typeName.includes("Class") || typeName.includes("class")) return "Educational classes and training";
+    if (typeName.includes("Service") || typeName.includes("service")) return "Church services and worship";
+    if (typeName.includes("Workshop") || typeName.includes("workshop")) return "Workshops and practical sessions";
+    if (typeName.includes("Conference") || typeName.includes("conference")) return "Conferences and large meetings";
+    return "General events and activities";
+  };
+
+  return (
+    <Box sx={styles.container}>
+      {/* HEADER WITH BACK BUTTON */}
+      <Box sx={styles.header}>
+        <Typography sx={styles.title}>Select Event Type</Typography>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={onBackToGrid}
+          startIcon={<ArrowBackIcon />}
+          sx={{ 
+            borderColor: isDarkMode ? theme.palette.divider : "#ccc",
+            color: isDarkMode ? theme.palette.text.primary : "#333",
+            '&:hover': {
+              borderColor: isDarkMode ? theme.palette.primary.main : "#007bff",
+              backgroundColor: isDarkMode ? 'rgba(0, 123, 255, 0.1)' : '#f8f9fa'
+            }
+          }}
+        >
+          Back to Grid
+        </Button>
+      </Box>
+
+      {/* SEARCH BAR */}
+      <Box sx={styles.searchContainer}>
+        <TextField
+          fullWidth
+          placeholder="Search event types..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+            sx: { borderRadius: "12px" }
+          }}
+          sx={styles.searchInput}
+        />
+      </Box>
+
+      {/* EVENT TYPES LIST */}
+      {filteredEventTypes.length === 0 ? (
+        <Box sx={styles.noResults}>
+          <SearchIcon sx={{ fontSize: 48, color: "#ccc", mb: 2 }} />
+          <Typography variant="h6" gutterBottom>
+            No event types found
+          </Typography>
+          <Typography variant="body2">
+            Try a different search term
+          </Typography>
+        </Box>
+      ) : (
+        <Box sx={styles.eventTypesContainer}>
+          {filteredEventTypes.map((type) => {
+            const typeName = typeof type === "string" ? type : type.name || type;
+            const count = getEventTypeCount(typeName);
+            const isActive = selectedEventTypeFilter === typeName || 
+                            (typeName === "all" && selectedEventTypeFilter === "all");
+
+            return (
+              <Box
+                key={typeName}
+                sx={{
+                  ...styles.eventTypeItem,
+                  ...(isActive ? styles.eventTypeItemActive : {}),
+                }}
+                onClick={() => onSelectEventType(typeName)}
+              >
+                <Box sx={styles.eventTypeIcon}>
+                  {getEventTypeIcon(typeName)}
+                </Box>
+                <Box sx={styles.eventTypeContent}>
+                  <Typography sx={styles.eventTypeName}>
+                    {typeName === "all" ? "All Cells" : typeName}
+                  </Typography>
+                  <Typography sx={styles.eventTypeDescription}>
+                    {getEventTypeDescription(typeName)}
+                  </Typography>
+                </Box>
+            
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+    </Box>
+  );
+};
 
   const clearAllFilters = useCallback(() => {
     setSearchQuery("");
@@ -2704,6 +3531,7 @@ ${xmlCols}
         const currentUser = JSON.parse(userProfile);
         const userRole = currentUser?.role?.toLowerCase() || "";
         const email = currentUser?.email || "";
+        console.log(email)
 
         const isAdmin = userRole === "admin";
         const isLeaderAt12 =
@@ -3181,770 +4009,817 @@ ${xmlCols}
     );
   };
 
-  const EventTypeSelector = ({
-    eventTypes,
-    selectedEventTypeFilter,
-    setSelectedEventTypeFilter,
-    fetchEvents,
-    setCurrentPage,
-    rowsPerPage,
-    selectedStatus,
-    searchQuery,
-    viewFilter,
-    DEFAULT_API_START_DATE,
-    isLeaderAt12,
-    isAdmin,
-    isRegistrant,
-    isRegularUser,
-    setEditingEventType,
-    setEventTypesModalOpen,
-    setToDeleteType,
-    setConfirmDeleteOpen,
-  }) => {
-    const [hoveredType, setHoveredType] = useState(null);
-    const [menuAnchor, setMenuAnchor] = useState(null);
-    const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
-    const [isCollapsed, setIsCollapsed] = useState(false);
-    const theme = useTheme();
-    const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
-    const isDarkMode = theme.palette.mode === "dark";
 
-    const canEditEventTypes = isAdmin;
+const EventTypeSelector = ({
+  eventTypes,
+  selectedEventTypeFilter,
+  setSelectedEventTypeFilter,
+  fetchEvents,
+  setCurrentPage,
+  rowsPerPage,
+  selectedStatus,
+  searchQuery,
+  viewFilter,
+  DEFAULT_API_START_DATE,
+  setEditingEventType,
+  setEventTypesModalOpen,
+  setToDeleteType,
+  setConfirmDeleteOpen,
+}) => {
+  const [hoveredType, setHoveredType] = useState(null);
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const theme = useTheme();
+  const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
+  const isDarkMode = theme.palette.mode === "dark";
+  // Get user role info
+const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+const userRole = currentUser?.role || "";
+const normalizedRole = userRole.toLowerCase();
 
-    const handleEventTypeClick = (typeValue) => {
-      setSelectedEventTypeFilter(typeValue);
-      setCurrentPage(1);
+const isAdmin = normalizedRole === "admin";
+const isRegistrant = normalizedRole === "registrant";
+const isRegularUser = normalizedRole === "user";
+const isLeaderAt12 = 
+  normalizedRole === "leaderat12" ||
+  normalizedRole.includes("leaderat12") ||
+  normalizedRole.includes("leader at 12") ||
+  normalizedRole.includes("leader@12");
 
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        event_type: typeValue === "all" ? "CELLS" : typeValue,
-        _t: Date.now(),
-      };
+const isLeader = normalizedRole === "leader" && !isLeaderAt12;
 
-      if (selectedStatus !== "all") {
-        fetchParams.status = selectedStatus;
+console.log("=== EventTypeSelector ROLE DEBUG ===");
+console.log("User role:", userRole);
+console.log("Normalized role:", normalizedRole);
+console.log("isAdmin:", isAdmin);
+console.log("isRegistrant:", isRegistrant);
+console.log("isRegularUser:", isRegularUser);
+console.log("isLeader:", isLeader);
+console.log("isLeaderAt12:", isLeaderAt12);
+  const canEditEventTypes = isAdmin;
+
+const filteredEventTypes = useMemo(() => {
+  const allTypes = eventTypes
+    .map((t) => t.name || t)
+    .filter((name) => name && name !== "all");
+  
+  try {
+    const eventTypeMapStr = localStorage.getItem("eventTypeMap");
+    const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
+    
+    return allTypes.filter(typeName => {
+      const typeInfo = eventTypeMap[typeName];
+      
+      if (!typeInfo) {
+        // No info = restricted to Admin & LeaderAt12
+        return isAdmin || isLeaderAt12;
       }
-
-      if (searchQuery.trim()) {
-        fetchParams.search = searchQuery.trim();
+      
+      const isGlobalEvent = typeInfo.isGlobal === true;
+      
+      // CRITICAL: isGlobal: false = ONLY Admin & LeaderAt12
+      if (isGlobalEvent === false) {
+        return isAdmin || isLeaderAt12;
       }
-
-      if (typeValue === "all" || typeValue === "CELLS") {
-        if (isAdmin) {
-          if (viewFilter === "personal") {
-            fetchParams.personal = true;
-          }
-        } else if (isRegistrant || isRegularUser) {
-          fetchParams.personal = true;
-        } else if (isLeaderAt12) {
-          fetchParams.leader_at_12_view = true;
-          fetchParams.include_subordinate_cells = true;
-
-          if (viewFilter === "personal") {
-            fetchParams.show_personal_cells = true;
-            fetchParams.personal = true;
-          } else {
-            fetchParams.show_all_authorized = true;
-          }
-        }
-      } else {
-        delete fetchParams.personal;
-        delete fetchParams.leader_at_12_view;
-        delete fetchParams.show_personal_cells;
-        delete fetchParams.show_all_authorized;
-        delete fetchParams.include_subordinate_cells;
+      
+      // isGlobal: true = Everyone can see
+      if (isGlobalEvent === true) {
+        return true;
       }
-      fetchEvents(fetchParams, true);
+      
+      // Fallback: treat undefined as restricted
+      return isAdmin || isLeaderAt12;
+    });
+  } catch (error) {
+    console.error("Error filtering event types:", error);
+    return isAdmin || isLeaderAt12 ? allTypes : [];
+  }
+}, [eventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser, userRole]);
+
+  const handleEventTypeClick = (typeValue) => {
+    setSelectedEventTypeFilter(typeValue);
+    setCurrentPage(1);
+
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      event_type: typeValue === "all" ? "CELLS" : typeValue,
+      _t: Date.now(),
     };
 
-    const mobileEventTypeStyles = {
-      container: {
-        backgroundColor: isDarkMode
-          ? theme.palette.background.paper
-          : "#f8f9fa",
-        borderRadius: "12px",
-        padding: isMobileView ? "0.75rem" : "1rem",
-        marginBottom: isMobileView ? "0.5rem" : "1rem",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
-        border: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"}`,
-        position: "relative",
-        color: isDarkMode ? theme.palette.text.primary : "inherit",
-      },
-      headerRow: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: isCollapsed ? "0" : "0.5rem",
-        cursor: "pointer",
-      },
-      header: {
-        fontSize: isMobileView ? "0.7rem" : "0.875rem",
-        fontWeight: "600",
-        color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
-        textTransform: "uppercase",
-        letterSpacing: "0.5px",
-      },
-      selectedTypeDisplay: {
-        fontSize: isMobileView ? "0.85rem" : "1rem",
-        fontWeight: "600",
-        color: isDarkMode ? theme.palette.primary.main : "#007bff",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.25rem",
-        flex: 1,
-        marginLeft: "0.5rem",
-      },
-      collapseButton: {
-        background: "none",
-        border: "none",
-        color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
-        cursor: "pointer",
-        padding: "0.25rem",
-        borderRadius: "4px",
-        fontSize: "0.8rem",
-      },
-      typesGrid: {
-        display: isCollapsed ? "none" : "flex",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: isMobileView ? "0.35rem" : "0.5rem",
-        marginTop: "0.5rem",
-      },
-      typeCard: {
-        padding: isMobileView ? "0.4rem 0.6rem" : "0.6rem 0.8rem",
-        borderRadius: "8px",
-        border: `1px solid ${
-          isDarkMode ? theme.palette.divider : "transparent"
-        }`,
-        backgroundColor: isDarkMode
-          ? theme.palette.background.default
-          : "white",
-        cursor: "pointer",
-        transition: "all 0.2s ease",
-        position: "relative",
-        minWidth: isMobileView ? "80px" : "100px",
-        minHeight: "40px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: isMobileView ? "0.7rem" : "0.8rem",
-        fontWeight: "500",
-      },
-      typeCardActive: {
-        borderColor: "#007bff",
-        backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
-        transform: "scale(1.02)",
-        boxShadow: "0 2px 8px rgba(0, 123, 255, 0.2)",
-      },
-      typeCardHover: {
-        borderColor: isDarkMode ? theme.palette.primary.main : "#ddd",
-        transform: "translateY(-1px)",
-        boxShadow: isDarkMode
-          ? "0 2px 4px rgba(0,0,0,0.2)"
-          : "0 2px 4px rgba(0,0,0,0.1)",
-      },
-    };
-
-    const allTypes = useMemo(() => {
-      const availableTypes = eventTypes
-        .map((t) => t.name || t)
-        .filter((name) => name && name !== "all");
-
-      if (isAdmin) {
-        const adminTypes = ["all"];
-        availableTypes.forEach((type) => {
-          adminTypes.push(type);
-        });
-        return adminTypes;
-      } else if (isRegistrant) {
-        const registrantTypes = ["all"];
-        availableTypes.forEach((type) => {
-          registrantTypes.push(type);
-        });
-
-        return registrantTypes;
-      } else if (isLeaderAt12) {
-        const leaderTypes = ["all"];
-        availableTypes.forEach((type) => {
-          leaderTypes.push(type);
-        });
-        return leaderTypes;
-      } else if (isRegularUser) {
-        return ["all"];
-      } else {
-        return ["all"];
-      }
-    }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser]);
-
-    const getDisplayName = (type) => {
-      if (!type) return "";
-      if (type === "all") {
-        return "ALL CELLS";
-      }
-      return typeof type === "string" ? type : type.name || String(type);
-    };
-
-    const getTypeValue = (type) => {
-      if (type === "all") return "all";
-      return typeof type === "string" ? type : type.name || String(type);
-    };
-
-    const handleMenuOpen = (event, type) => {
-      event.stopPropagation();
-      setMenuAnchor(event.currentTarget);
-      setSelectedTypeForMenu(type);
-    };
-
-    const handleMenuClose = () => {
-      setMenuAnchor(null);
-      setSelectedTypeForMenu(null);
-    };
-
-    const handleEditEventType = () => {
-      if (selectedTypeForMenu && selectedTypeForMenu !== "all") {
-        const eventTypeToEdit = eventTypes.find(
-          (et) => et.name?.toLowerCase() === selectedTypeForMenu.toLowerCase(),
-        ) || { name: selectedTypeForMenu };
-
-        setEditingEventType(eventTypeToEdit);
-        setEventTypesModalOpen(true);
-      }
-      handleMenuClose();
-    };
-
-    const handleDeleteEventType = () => {
-      if (selectedTypeForMenu && selectedTypeForMenu !== "all") {
-        const exactEventType = eventTypes.find((et) => {
-          const etName = et.name || et.eventType || et.eventTypeName || "";
-          return etName.toLowerCase() === selectedTypeForMenu.toLowerCase();
-        });
-
-        const typeToDelete = exactEventType
-          ? exactEventType.name ||
-            exactEventType.eventType ||
-            exactEventType.eventTypeName
-          : selectedTypeForMenu;
-
-        setToDeleteType(typeToDelete);
-        setConfirmDeleteOpen(true);
-      }
-      handleMenuClose();
-    };
-
-    const shouldShowSelector =
-      isAdmin || isRegistrant || isLeaderAt12 || isRegularUser;
-
-    if (!shouldShowSelector) {
-      return null;
+    if (selectedStatus !== "all") {
+      fetchParams.status = selectedStatus;
     }
 
-    useEffect(() => {
-      if (isMobileView) {
-        setIsCollapsed(true);
+    if (searchQuery.trim()) {
+      fetchParams.search = searchQuery.trim();
+    }
+
+    if (typeValue === "all" || typeValue === "CELLS") {
+      if (isAdmin) {
+        if (viewFilter === "personal") {
+          fetchParams.personal = true;
+        }
+      } else if (isRegistrant || isRegularUser) {
+        fetchParams.personal = true;
+      } else if (isLeaderAt12) {
+        fetchParams.leader_at_12_view = true;
+        fetchParams.include_subordinate_cells = true;
+
+        if (viewFilter === "personal") {
+          fetchParams.show_personal_cells = true;
+          fetchParams.personal = true;
+        } else {
+          fetchParams.show_all_authorized = true;
+        }
+      } else if (isLeader) {
+        fetchParams.personal = true;
       }
-    }, [isMobileView]);
+    } else {
+      delete fetchParams.personal;
+      delete fetchParams.leader_at_12_view;
+      delete fetchParams.show_personal_cells;
+      delete fetchParams.show_all_authorized;
+      delete fetchParams.include_subordinate_cells;
+    }
+    fetchEvents(fetchParams, true);
+  };
 
-    return (
-      <div style={mobileEventTypeStyles.container}>
-        <div
-          style={mobileEventTypeStyles.headerRow}
-          onClick={() => isMobileView && setIsCollapsed(!isCollapsed)}
-        >
-          <div style={mobileEventTypeStyles.header}>
-            {isAdmin
-              ? "Event Types"
-              : isRegistrant
-                ? "Event Types"
-                : isLeaderAt12
-                  ? "Cells & Events"
-                  : "Your Cells"}
-          </div>
+  const eventTypeStyles = {
+    container: {
+      backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
+      borderRadius: "12px",
+      padding: isMobileView ? "0.75rem" : "1rem",
+      marginBottom: isMobileView ? "0.5rem" : "1rem",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
+      border: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"}`,
+      position: "relative",
+      color: isDarkMode ? theme.palette.text.primary : "inherit",
+    },
+    headerRow: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: isCollapsed ? "0" : "0.5rem",
+      cursor: "pointer",
+    },
+    header: {
+      fontSize: isMobileView ? "0.7rem" : "0.875rem",
+      fontWeight: "600",
+      color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px",
+    },
+    selectedTypeDisplay: {
+      fontSize: isMobileView ? "0.85rem" : "1rem",
+      fontWeight: "600",
+      color: isDarkMode ? theme.palette.primary.main : "#007bff",
+      display: "flex",
+      alignItems: "center",
+      gap: "0.25rem",
+      flex: 1,
+      marginLeft: "0.5rem",
+    },
+    collapseButton: {
+      background: "none",
+      border: "none",
+      color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
+      cursor: "pointer",
+      padding: "0.25rem",
+      borderRadius: "4px",
+      fontSize: "0.8rem",
+    },
+    typesGrid: {
+      display: isCollapsed ? "none" : "flex",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: isMobileView ? "0.35rem" : "0.5rem",
+      marginTop: "0.5rem",
+    },
+    typeCard: {
+      padding: isMobileView ? "0.4rem 0.6rem" : "0.6rem 0.8rem",
+      borderRadius: "8px",
+      border: `1px solid ${isDarkMode ? theme.palette.divider : "transparent"}`,
+      backgroundColor: isDarkMode ? theme.palette.background.default : "white",
+      cursor: "pointer",
+      transition: "all 0.2s ease",
+      position: "relative",
+      minWidth: isMobileView ? "80px" : "100px",
+      minHeight: "40px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: isMobileView ? "0.7rem" : "0.8rem",
+      fontWeight: "500",
+    },
+    typeCardActive: {
+      borderColor: "#007bff",
+      backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
+      transform: "scale(1.02)",
+      boxShadow: "0 2px 8px rgba(0, 123, 255, 0.2)",
+    },
+    typeCardHover: {
+      borderColor: isDarkMode ? theme.palette.primary.main : "#ddd",
+      transform: "translateY(-1px)",
+      boxShadow: isDarkMode ? "0 2px 4px rgba(0,0,0,0.2)" : "0 2px 4px rgba(0,0,0,0.1)",
+    },
+  };
 
-          <div style={mobileEventTypeStyles.selectedTypeDisplay}>
-            <span>•</span>
-            <span>
-              {selectedEventTypeFilter === "all" && isLeaderAt12
-                ? "ALL CELLS"
-                : getDisplayName(selectedEventTypeFilter)}
-            </span>
-          </div>
+  const allTypes = useMemo(() => {
+    const availableTypes = filteredEventTypes;
+    const shouldSeeAll = isAdmin || isLeaderAt12 || isLeader || isRegistrant || isRegularUser;
+    
+    console.log("DEBUG - Available filtered types:", availableTypes);
+    console.log("DEBUG - Should see 'all' option:", shouldSeeAll);
+    
+    if (shouldSeeAll) {
+      return ["all", ...availableTypes];
+    } else {
+      return ["all"];
+    }
+  }, [filteredEventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser]);
 
-          {isMobileView && (
-            <button
-              style={mobileEventTypeStyles.collapseButton}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsCollapsed(!isCollapsed);
+  const getDisplayName = (type) => {
+    if (!type) return "";
+    if (type === "all") {
+      return "ALL CELLS";
+    }
+    return typeof type === "string" ? type : type.name || String(type);
+  };
+
+  const getTypeValue = (type) => {
+    if (type === "all") return "all";
+    return typeof type === "string" ? type : type.name || String(type);
+  };
+
+  const handleMenuOpen = (event, type) => {
+    event.stopPropagation();
+    setMenuAnchor(event.currentTarget);
+    setSelectedTypeForMenu(type);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setSelectedTypeForMenu(null);
+  };
+
+  const handleEditEventType = () => {
+    if (selectedTypeForMenu && selectedTypeForMenu !== "all") {
+      const eventTypeToEdit = eventTypes.find(
+        (et) => et.name?.toLowerCase() === selectedTypeForMenu.toLowerCase(),
+      ) || { name: selectedTypeForMenu };
+
+      setEditingEventType(eventTypeToEdit);
+      setEventTypesModalOpen(true);
+    }
+    handleMenuClose();
+  };
+
+  const handleDeleteEventType = () => {
+    if (selectedTypeForMenu && selectedTypeForMenu !== "all") {
+      const exactEventType = eventTypes.find((et) => {
+        const etName = et.name || et.eventType || et.eventTypeName || "";
+        return etName.toLowerCase() === selectedTypeForMenu.toLowerCase();
+      });
+
+      const typeToDelete = exactEventType
+        ? exactEventType.name || exactEventType.eventType || exactEventType.eventTypeName
+        : selectedTypeForMenu;
+
+      setToDeleteType(typeToDelete);
+      setConfirmDeleteOpen(true);
+    }
+    handleMenuClose();
+  };
+
+  const shouldShowSelector = isAdmin || isRegistrant || isLeaderAt12 || isLeader || isRegularUser;
+
+  if (!shouldShowSelector) {
+    return null;
+  }
+
+  // useEffect(() => {
+  //   if (isMobileView) {
+  //     setIsCollapsed(true);
+  //   }
+  // }, [isMobileView]);
+
+  return (
+    <div style={eventTypeStyles.container}>
+      <div
+        style={eventTypeStyles.headerRow}
+        onClick={() => isMobileView && setIsCollapsed(!isCollapsed)}
+      >
+        <div style={eventTypeStyles.header}>
+          {isAdmin
+            ? "Event Types"
+            : isRegistrant
+            ? "Event Types"
+            : isLeaderAt12
+            ? "Cells & Events"
+            : isLeader
+            ? "Your Events"
+            : "Your Cells"}
+        </div>
+
+        <div style={eventTypeStyles.selectedTypeDisplay}>
+          <span>•</span>
+          <span>
+            {selectedEventTypeFilter === "all" && (isLeaderAt12 || isLeader)
+              ? "ALL CELLS"
+              : getDisplayName(selectedEventTypeFilter)}
+          </span>
+        </div>
+
+        {isMobileView && (
+          <button
+            style={eventTypeStyles.collapseButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsCollapsed(!isCollapsed);
+            }}
+          >
+            {isCollapsed ? "▼" : "▲"}
+          </button>
+        )}
+      </div>
+
+      <div style={eventTypeStyles.typesGrid}>
+        {allTypes.map((type) => {
+          const displayName = getDisplayName(type);
+          const typeValue = getTypeValue(type);
+          const isActive = selectedEventTypeFilter === typeValue;
+          const isHovered = hoveredType === typeValue;
+
+          const showMenu = canEditEventTypes && typeValue !== "all";
+
+          return (
+            <div
+              key={typeValue}
+              style={{
+                ...eventTypeStyles.typeCard,
+                ...(isActive ? eventTypeStyles.typeCardActive : {}),
+                ...(isHovered && !isActive ? eventTypeStyles.typeCardHover : {}),
               }}
+              onClick={() => handleEventTypeClick(typeValue)}
+              onMouseEnter={() => setHoveredType(typeValue)}
+              onMouseLeave={() => setHoveredType(null)}
             >
-              {isCollapsed ? "▼" : "▲"}
-            </button>
-          )}
-        </div>
+              <span>{displayName}</span>
 
-        <div style={mobileEventTypeStyles.typesGrid}>
-          {allTypes.map((type) => {
-            const displayName = getDisplayName(type);
-            const typeValue = getTypeValue(type);
-            const isActive = selectedEventTypeFilter === typeValue;
-            const isHovered = hoveredType === typeValue;
+              {showMenu && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => handleMenuOpen(e, typeValue)}
+                  sx={{
+                    position: "absolute",
+                    top: 2,
+                    right: 2,
+                    width: 20,
+                    height: 20,
+                    backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
+                    "&:hover": {
+                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.08)",
+                    },
+                    color: isDarkMode ? "#fff" : "#000",
+                    fontSize: "12px",
+                    padding: "1px",
+                    minWidth: "auto",
+                    opacity: isMobileView ? 1 : isHovered || isActive ? 1 : 0,
+                    transition: "opacity 0.2s ease",
+                  }}
+                >
+                  ⋮
+                </IconButton>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
-            const showMenu = canEditEventTypes && typeValue !== "all";
-
-            return (
-              <div
-                key={typeValue}
-                style={{
-                  ...mobileEventTypeStyles.typeCard,
-                  ...(isActive ? mobileEventTypeStyles.typeCardActive : {}),
-                  ...(isHovered && !isActive
-                    ? mobileEventTypeStyles.typeCardHover
-                    : {}),
-                }}
-                onClick={() => handleEventTypeClick(typeValue)}
-                onMouseEnter={() => setHoveredType(typeValue)}
-                onMouseLeave={() => setHoveredType(null)}
-              >
-                <span>{displayName}</span>
-
-                {showMenu && (
-                  <IconButton
-                    size="small"
-                    onClick={(e) => handleMenuOpen(e, typeValue)}
-                    sx={{
-                      position: "absolute",
-                      top: 2,
-                      right: 2,
-                      width: 20,
-                      height: 20,
-                      backgroundColor: isDarkMode
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.04)",
-                      "&:hover": {
-                        backgroundColor: isDarkMode
-                          ? "rgba(255,255,255,0.2)"
-                          : "rgba(0,0,0,0.08)",
-                      },
-                      color: isDarkMode ? "#fff" : "#000",
-                      fontSize: "12px",
-                      padding: "1px",
-                      minWidth: "auto",
-                      opacity: isMobileView ? 1 : isHovered || isActive ? 1 : 0,
-                      transition: "opacity 0.2s ease",
-                    }}
-                  >
-                    ⋮
-                  </IconButton>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <Popover
-          open={Boolean(menuAnchor)}
-          anchorEl={menuAnchor}
-          onClose={handleMenuClose}
-          anchorOrigin={{
-            vertical: "bottom",
-            horizontal: "right",
-          }}
-          transformOrigin={{
-            vertical: "top",
-            horizontal: "right",
-          }}
+      <Popover
+        open={Boolean(menuAnchor)}
+        anchorEl={menuAnchor}
+        onClose={handleMenuClose}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        sx={{
+          "& .MuiPaper-root": {
+            backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+            color: isDarkMode ? theme.palette.text.primary : "#000",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            borderRadius: "8px",
+            minWidth: "120px",
+          },
+        }}
+      >
+        <MenuItem onClick={handleEditEventType} sx={{ fontSize: "14px" }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <EditIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Edit</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={handleDeleteEventType}
           sx={{
-            "& .MuiPaper-root": {
-              backgroundColor: isDarkMode
-                ? theme.palette.background.paper
-                : "#fff",
-              color: isDarkMode ? theme.palette.text.primary : "#000",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-              borderRadius: "8px",
-              minWidth: "120px",
+            fontSize: "14px",
+            color: theme.palette.error.main,
+            "&:hover": {
+              backgroundColor: theme.palette.error.light + "20",
             },
           }}
         >
-          <MenuItem onClick={handleEditEventType} sx={{ fontSize: "14px" }}>
-            <ListItemIcon sx={{ minWidth: 36 }}>
-              <EditIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Edit</ListItemText>
-          </MenuItem>
-          <MenuItem
-            onClick={handleDeleteEventType}
-            sx={{
-              fontSize: "14px",
-              color: theme.palette.error.main,
-              "&:hover": {
-                backgroundColor: theme.palette.error.light + "20",
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-              <DeleteIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Delete</ListItemText>
-          </MenuItem>
-        </Popover>
-      </div>
-    );
-  };
+          <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+            <DeleteIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Delete</ListItemText>
+        </MenuItem>
+      </Popover>
+    </div>
+  );
+};
 
-  return (
+return (
+  <Box
+    sx={{
+      height: "100vh",
+      fontFamily: "system-ui, sans-serif",
+      padding: isMobileView ? "0.5rem" : "1rem",
+      paddingTop: isMobileView ? "4rem" : "5rem",
+      paddingBottom: "1rem",
+      boxSizing: "border-box",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      position: "relative",
+      width: "100%",
+      maxWidth: "100vw",
+      backgroundColor: isDarkMode
+        ? theme.palette.background.default
+        : "#f5f7fa",
+    }}
+  >
+    {/* TOP HEADER WITH TOGGLE - ALWAYS SHOWN */}
     <Box
       sx={{
-        height: "100vh",
-        fontFamily: "system-ui, sans-serif",
-        padding: isMobileView ? "0.5rem" : "1rem",
-        paddingTop: isMobileView ? "4rem" : "5rem",
-        paddingBottom: "1rem",
-        boxSizing: "border-box",
+        padding: isMobileView ? "1rem" : "1.5rem",
+        borderRadius: "16px",
+        marginBottom: isMobileView ? "0.5rem" : "1rem",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+        flexShrink: 0,
+        backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+      }}
+    >
+      <Box sx={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "center",
+        mb: 2
+      }}>
+        <Typography variant="h5" sx={{ 
+          fontWeight: "bold", 
+          color: isDarkMode ? theme.palette.text.primary : "#333",
+        }}>
+          {showingEvents ? "Events" : 
+           viewMode === "grid" ? "Select Event Type" : "Event Types"}
+        </Typography>
+        
+        {/* VIEW TOGGLE - GRID/TABLE */}
+   <Box sx={{ 
+  display: "flex", 
+  justifyContent: "space-between", 
+  alignItems: "center",
+  mb: 2
+}}>
+  {/* <Typography variant="h5" sx={{ 
+    fontWeight: "bold", 
+    color: isDarkMode ? theme.palette.text.primary : "#333",
+  }}>
+    {showingEvents ? "Events" : "Event Types"}
+  </Typography> */}
+  
+  {/* VIEW TOGGLE - GRID/TABLE - ONLY SHOW WHEN NOT VIEWING EVENTS */}
+  {!showingEvents && (
+    <Box sx={{ 
+      display: "flex", 
+      gap: 1, 
+      alignItems: "center",
+      backgroundColor: isDarkMode ? "rgba(255,255,255,0.05)" : "#f5f5f5",
+      padding: "4px",
+      borderRadius: "8px",
+      border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`
+    }}>
+      <Button
+        variant={viewMode === "grid" ? "contained" : "text"}
+        size="small"
+        onClick={() => {
+          setViewMode("grid");
+          setShowingEvents(false);
+        }}
+        sx={{
+          minWidth: "auto",
+          padding: "4px 12px",
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          backgroundColor: viewMode === "grid" ? "#007bff" : "transparent",
+          color: viewMode === "grid" ? "#fff" : isDarkMode ? theme.palette.text.secondary : "#666",
+        }}
+      >
+        Grid
+      </Button>
+      <Button
+        variant={viewMode === "table" ? "contained" : "text"}
+        size="small"
+        onClick={() => {
+          setViewMode("table");
+          setShowingEvents(false);
+        }}
+        sx={{
+          minWidth: "auto",
+          padding: "4px 12px",
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          backgroundColor: viewMode === "table" ? "#007bff" : "transparent",
+          color: viewMode === "table" ? "#fff" : isDarkMode ? theme.palette.text.secondary : "#666",
+        }}
+      >
+        Table
+      </Button>
+    </Box>
+  )}
+</Box>
+    </Box>
+      {/* WHEN SHOWING EVENTS - Show back button */}
+      {showingEvents && (
+        <Box sx={{ 
+          display: "flex", 
+          alignItems: "center", 
+          gap: 2,
+          mb: 2
+        }}>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => {
+              setShowingEvents(false);
+              setSelectedStatus("incomplete");
+              setSearchQuery("");
+            }}
+            startIcon={<ArrowBackIcon />}
+            sx={{ 
+              borderColor: isDarkMode ? theme.palette.divider : "#ccc",
+              color: isDarkMode ? theme.palette.text.primary : "#333",
+            }}
+          >
+            Back
+          </Button>
+          {/* <Typography variant="body1" sx={{ 
+            fontWeight: 600,
+            color: isDarkMode ? theme.palette.primary.main : "#007bff",
+          }}>
+            Showing: {selectedEventTypeFilter === "all" ? "ALL CELLS" : selectedEventTypeFilter}
+          </Typography> */}
+        </Box>
+      )}
+      
+      {showingEvents ? (
+        <>
+          {/* SEARCH BAR FOR EVENTS */}
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              alignItems: "center",
+              marginBottom: isMobileView ? "0.75rem" : "1.5rem",
+              flexWrap: "wrap",
+              px: 1,
+            }}
+          >
+            <TextField
+              size="small"
+              placeholder="Search by Event Name, Leader, or Email..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  handleSearchSubmit();
+                }
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                flex: 1,
+                minWidth: 200,
+                backgroundColor: "transparent !important",
+                "& .MuiInputBase-root": {
+                  backgroundColor: "transparent !important",
+                },
+                "& .MuiInputBase-input": {
+                  fontSize: isMobileView ? "14px" : "0.95rem",
+                  padding: isMobileView ? "0.6rem 0.8rem" : "0.75rem 1rem",
+                  color: isDarkMode ? theme.palette.text.primary : "#000",
+                  backgroundColor: "transparent !important",
+                },
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "transparent !important",
+                  "& fieldset": {
+                    borderColor: isDarkMode ? theme.palette.divider : "#ccc",
+                    backgroundColor: "transparent !important",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: isDarkMode
+                      ? theme.palette.primary.main
+                      : "#007bff",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: isDarkMode
+                      ? theme.palette.primary.main
+                      : "#007bff",
+                  },
+                  "&:hover": {
+                    backgroundColor: "transparent !important",
+                  },
+                  "&.Mui-focused": {
+                    backgroundColor: "transparent !important",
+                  },
+                },
+              }}
+            />
+
+            <Button
+              variant="contained"
+              onClick={handleSearchSubmit}
+              disabled={loading}
+              sx={{
+                padding: isMobileView ? "0.6rem 1rem" : "0.75rem 1.5rem",
+                fontSize: isMobileView ? "14px" : "0.95rem",
+                whiteSpace: "nowrap",
+                backgroundColor: "#007bff",
+                "&:hover": {
+                  backgroundColor: "#0056b3",
+                },
+              }}
+            >
+              {loading ? "⏳" : "SEARCH"}
+            </Button>
+
+            <Button
+              variant="outlined"
+              onClick={clearAllFilters}
+              disabled={loading}
+              sx={{
+                padding: isMobileView ? "0.6rem 1rem" : "0.75rem 1.5rem",
+                fontSize: isMobileView ? "14px" : "0.95rem",
+                whiteSpace: "nowrap",
+                backgroundColor: "#6c757d",
+                color: "white",
+                "&:hover": {
+                  backgroundColor: "#5a6268",
+                },
+              }}
+            >
+              {loading ? "⏳" : "CLEAR ALL"}
+            </Button>
+          </Box>
+
+          {/* STATUS BADGES AND VIEW FILTERS */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1.5rem",
+              flexWrap: "wrap",
+              gap: "1rem",
+              px: 1,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <StatusBadges
+                selectedStatus={selectedStatus}
+                setSelectedStatus={setSelectedStatus}
+                setCurrentPage={setCurrentPage}
+              />
+            </div>
+            <ViewFilterButtons />
+          </Box>
+        </>
+      ) : (
+        /* WHEN NOT SHOWING EVENTS - Show event type search (CENTERED AND SMALLER) */
+        <Box sx={{ 
+          display: "flex", 
+          justifyContent: "center",
+          mb: 2 
+        }}>
+          <Box sx={{ 
+            width: "100%", 
+            maxWidth: "800px" 
+          }}>
+            <TextField
+              fullWidth
+              placeholder="Search event types..."
+              value={eventTypeSearch}
+              onChange={(e) => setEventTypeSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+                sx: { 
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  height: "60px"
+                }
+              }}
+              size="small"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: "8px",
+                },
+              }}
+            />
+          </Box>
+        </Box>
+      )}
+    </Box>
+
+    {/* MAIN CONTENT AREA */}
+    <Box
+      sx={{
+        flexGrow: 1,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        position: "relative",
-        width: "100%",
-        maxWidth: "100vw",
-        backgroundColor: isDarkMode
-          ? theme.palette.background.default
-          : "#f5f7fa",
+        borderRadius: "16px",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+        backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
       }}
     >
-      <Box
-        sx={{
-          padding: isMobileView ? "1rem" : "1.5rem",
-          borderRadius: "16px",
-          marginBottom: isMobileView ? "0.5rem" : "1rem",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-          flexShrink: 0,
-          backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
-        }}
-      >
-        <EventTypeSelector
-          eventTypes={eventTypes}
-          selectedEventTypeFilter={selectedEventTypeFilter}
-          setSelectedEventTypeFilter={setSelectedEventTypeFilter}
-          fetchEvents={fetchEvents}
-          setCurrentPage={setCurrentPage}
-          rowsPerPage={rowsPerPage}
-          selectedStatus={selectedStatus}
-          searchQuery={searchQuery}
-          viewFilter={viewFilter}
-          DEFAULT_API_START_DATE={DEFAULT_API_START_DATE}
-          isLeaderAt12={isLeaderAt12}
-          isAdmin={isAdmin}
-          isRegistrant={isRegistrant}
-          isRegularUser={isRegularUser}
-          setEditingEventType={setEditingEventType}
-          setEventTypesModalOpen={setEventTypesModalOpen}
-          setToDeleteType={setToDeleteType}
-          setConfirmDeleteOpen={setConfirmDeleteOpen}
-        />
-        <Box
-          sx={{
-            display: "flex",
-            gap: 2,
-            alignItems: "center",
-            marginBottom: isMobileView ? "0.75rem" : "1.5rem",
-            flexWrap: "wrap",
-            px: 1,
-          }}
-        >
-          <TextField
-            size="small"
-            placeholder="Search by Event Name, Leader, or Email..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            onKeyPress={(e) => {
-              if (e.key === "Enter") {
-                handleSearchSubmit();
-              }
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              flex: 1,
-              minWidth: 200,
-              backgroundColor: "transparent !important",
-              "& .MuiInputBase-root": {
-                backgroundColor: "transparent !important",
-              },
-              "& .MuiInputBase-input": {
-                fontSize: isMobileView ? "14px" : "0.95rem",
-                padding: isMobileView ? "0.6rem 0.8rem" : "0.75rem 1rem",
-                color: isDarkMode ? theme.palette.text.primary : "#000",
-                backgroundColor: "transparent !important",
-              },
-              "& .MuiOutlinedInput-root": {
-                backgroundColor: "transparent !important",
-                "& fieldset": {
-                  borderColor: isDarkMode ? theme.palette.divider : "#ccc",
-                  backgroundColor: "transparent !important",
-                },
-                "&:hover fieldset": {
-                  borderColor: isDarkMode
-                    ? theme.palette.primary.main
-                    : "#007bff",
-                },
-                "&.Mui-focused fieldset": {
-                  borderColor: isDarkMode
-                    ? theme.palette.primary.main
-                    : "#007bff",
-                },
-                "&:hover": {
-                  backgroundColor: "transparent !important",
-                },
-                "&.Mui-focused": {
-                  backgroundColor: "transparent !important",
-                },
-              },
-              "& input": {
-                backgroundColor: "transparent !important",
-              },
-              "& input:-webkit-autofill": {
-                WebkitBoxShadow: isDarkMode
-                  ? "0 0 0 1000px #1a1a1a inset !important"
-                  : "0 0 0 1000px white inset !important",
-                WebkitTextFillColor: isDarkMode
-                  ? "#fff !important"
-                  : "#000 !important",
-              },
-            }}
-          />
-
-          <Button
-            variant="contained"
-            onClick={handleSearchSubmit}
-            disabled={loading}
-            sx={{
-              padding: isMobileView ? "0.6rem 1rem" : "0.75rem 1.5rem",
-              fontSize: isMobileView ? "14px" : "0.95rem",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {loading ? "⏳" : "SEARCH"}
-          </Button>
-
-          <Button
-            variant="outlined"
-            onClick={clearAllFilters}
-            disabled={loading}
-            sx={{
-              padding: isMobileView ? "0.6rem 1rem" : "0.75rem 1.5rem",
-              fontSize: isMobileView ? "14px" : "0.95rem",
-              whiteSpace: "nowrap",
-              backgroundColor: "#6c757d",
-              color: "white",
-              "&:hover": {
-                backgroundColor: "#5a6268",
-              },
-            }}
-          >
-            {loading ? "⏳" : "CLEAR ALL"}
-          </Button>
-        </Box>
-
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1.5rem",
-            flexWrap: "wrap",
-            gap: "1rem",
-            px: 1,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <StatusBadges
-              selectedStatus={selectedStatus}
-              setSelectedStatus={setSelectedStatus}
-              setCurrentPage={setCurrentPage}
-            />
-            
-          </div>
-          <ViewFilterButtons />
-        </Box>
-      </Box>
-
-      <Box
-        sx={{
-          flexGrow: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          borderRadius: "16px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-          backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
-        }}
-      >
-        {isMobileView ? (
-          <>
-            <Box
-              sx={{
-                flexGrow: 1,
-                overflowY: "auto",
-                padding: "0.75rem",
-              }}
-            >
-              {loading ? (
-                <Box sx={{ width: "100%", p: 2 }}>
-                  <LinearProgress />
-                  <Typography
-                    sx={{
-                      mt: 2,
-                      textAlign: "center",
-                      color: isDarkMode ? theme.palette.text.primary : "#666",
-                    }}
-                  >
-                    Loading events...
-                  </Typography>
-                </Box>
-              ) : paginatedEvents.length === 0 ? (
-                <Box
+      {showingEvents ? (
+        isMobileView ? (
+          // MOBILE EVENTS VIEW
+          <Box sx={{ flexGrow: 1, overflowY: "auto", padding: "0.75rem" }}>
+            {loading ? (
+              <Box sx={{ width: "100%", p: 2 }}>
+                <LinearProgress />
+                <Typography
                   sx={{
+                    mt: 2,
                     textAlign: "center",
-                    padding: "2rem",
                     color: isDarkMode ? theme.palette.text.primary : "#666",
                   }}
                 >
-                  <Typography>
-                    No events found matching your criteria.
-                  </Typography>
-                </Box>
-              ) : (
-                paginatedEvents.map((event) => (
-                  <MobileEventCard
-                    key={event._id}
-                    event={event}
-                    onOpenAttendance={() => handleCaptureClick(event)}
-                    onEdit={() => handleEditEvent(event)}
-                    onDelete={() => handleDeleteEvent(event)}
-                    isOverdue={isOverdue(event)}
-                    formatDate={formatDate}
-                    theme={theme}
-                    styles={styles}
-                    isAdmin={isAdmin}
-                    isLeaderAt12={isLeaderAt12}
-                    currentUserLeaderAt1={currentUserLeaderAt1}
-                    selectedEventTypeFilter={selectedEventTypeFilter}
-                  />
-                ))
-              )}
-            </Box>
-
-            <Box
-              sx={{
-                padding: "1rem",
-                borderTop: `1px solid ${
-                  isDarkMode ? theme.palette.divider : "#e9ecef"
-                }`,
-                backgroundColor: isDarkMode
-                  ? theme.palette.background.paper
-                  : "#f8f9fa",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-                alignItems: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Typography
-                variant="body2"
+                  Loading events...
+                </Typography>
+              </Box>
+            ) : paginatedEvents.length === 0 ? (
+              <Box
                 sx={{
-                  color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
+                  textAlign: "center",
+                  padding: "2rem",
+                  color: isDarkMode ? theme.palette.text.primary : "#666",
                 }}
               >
-                {totalEvents > 0
-                  ? `${startIndex}-${endIndex} of ${totalEvents}`
-                  : "0-0 of 0"}
-              </Typography>
-              <Box
-                sx={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-              >
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={handlePreviousPage}
-                  disabled={currentPage === 1 || loading}
-                  sx={{
-                    minWidth: "auto",
-                    color: isDarkMode ? theme.palette.text.primary : "#007bff",
-                    borderColor: isDarkMode ? theme.palette.divider : "#007bff",
-                    "&:hover": {
-                      backgroundColor: isDarkMode
-                        ? "rgba(255,255,255,0.05)"
-                        : "rgba(0,123,255,0.1)",
-                      borderColor: isDarkMode
-                        ? theme.palette.primary.main
-                        : "#0056b3",
-                    },
-                    "&:disabled": {
-                      color: isDarkMode
-                        ? theme.palette.text.disabled
-                        : "#6c757d",
-                      borderColor: isDarkMode
-                        ? theme.palette.divider
-                        : "#dee2e6",
-                    },
-                  }}
-                >
-                  {loading ? "⏳" : "◀ Prev"}
-                </Button>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    padding: "0 0.5rem",
-                    color: isDarkMode
-                      ? theme.palette.text.secondary
-                      : "#6c757d",
-                  }}
-                >
-                  {currentPage} / {totalPages}
+                <Typography>
+                  No events found matching your criteria.
                 </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={handleNextPage}
-                  disabled={
-                    currentPage >= totalPages || loading || totalPages === 0
-                  }
-                  sx={{
-                    minWidth: "auto",
-                    color: isDarkMode ? theme.palette.text.primary : "#007bff",
-                    borderColor: isDarkMode ? theme.palette.divider : "#007bff",
-                    "&:hover": {
-                      backgroundColor: isDarkMode
-                        ? "rgba(255,255,255,0.05)"
-                        : "rgba(0,123,255,0.1)",
-                      borderColor: isDarkMode
-                        ? theme.palette.primary.main
-                        : "#0056b3",
-                    },
-                    "&:disabled": {
-                      color: isDarkMode
-                        ? theme.palette.text.disabled
-                        : "#6c757d",
-                      borderColor: isDarkMode
-                        ? theme.palette.divider
-                        : "#dee2e6",
-                    },
-                  }}
-                >
-                  {loading ? "⏳" : "Next ▶"}
-                </Button>
               </Box>
-            </Box>
-          </>
+            ) : (
+              paginatedEvents.map((event) => (
+                <MobileEventCard
+                  key={event._id}
+                  event={event}
+                  onOpenAttendance={() => handleCaptureClick(event)}
+                  onEdit={() => handleEditEvent(event)}
+                  onDelete={() => handleDeleteEvent(event)}
+                  isOverdue={isOverdue(event)}
+                  formatDate={formatDate}
+                  theme={theme}
+                  styles={styles}
+                  isAdmin={isAdmin}
+                  isLeaderAt12={isLeaderAt12}
+                  currentUserLeaderAt1={currentUserLeaderAt1}
+                  selectedEventTypeFilter={selectedEventTypeFilter}
+                />
+              ))
+            )}
+          </Box>
         ) : (
+          // DESKTOP EVENTS VIEW (DataGrid)
           <>
             <Box
               sx={{
@@ -3997,7 +4872,6 @@ ${xmlCols}
                         minWidth: 200,
                         renderCell: (params) => (
                           <Box sx={{ display: "flex", gap: 1 }}>
-                            {/*  FIXED: Use params.row instead of event */}
                             <Tooltip
                               title={
                                 params.row?.is_recurring
@@ -4054,7 +4928,7 @@ ${xmlCols}
                       },
                     ]}
                     disableRowSelectionOnClick
-                    hideFooterPagination
+                    hideRowSelectionOnClick
                     hideFooter
                     pageSizeOptions={[10, 25, 50, 100]}
                     paginationModel={{
@@ -4152,6 +5026,7 @@ ${xmlCols}
               )}
             </Box>
 
+            {/* DESKTOP PAGINATION */}
             <Box
               sx={{
                 ...styles.paginationContainer,
@@ -4288,245 +5163,592 @@ ${xmlCols}
               </Box>
             </Box>
           </>
-        )}
-      </Box>
+        )
+) : viewMode === "grid" ? (
+  /* GRID VIEW - Event Types as Cards - CENTERED like search bar */
+  <Box sx={{ 
+    flexGrow: 1, 
+    overflowY: "auto",
+    width: "100%",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center", 
+  }}>
+    <Box sx={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+      gap: "20px",
+      width: "100%",
+      maxWidth: "800px", 
+      margin: "0 auto", 
+      padding: "24px 0",
+    }}>
+      {allEventTypes
+        .filter(type => {
+          const typeName = typeof type === "string" ? type : type.name || type;
+          return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
+        })
+        .map((type) => {
+          const typeName = typeof type === "string" ? type : type.name || type;
+          const isAllCells = typeName === "all";
+          
+          return (
+            <Box
+              key={typeName}
+              sx={{
+                backgroundColor: isDarkMode ? theme.palette.background.default : "#fff",
+                borderRadius: "12px",
+                padding: "20px",
+                cursor: "pointer",
+                border: `2px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+                transition: "all 0.3s ease",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "140px",
+                textAlign: "center",
+                position: "relative",
+                width: "100%",
+                "&:hover": {
+                  transform: "translateY(-4px)",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                  borderColor: "#007bff",
+                },
+              }}
+            >
+              <Box
+                onClick={() => {
+                  setSelectedEventTypeFilter(typeName);
+                  setShowingEvents(true);
+                  setCurrentPage(1);
+                  
+                  const fetchParams = {
+                    page: 1,
+                    limit: rowsPerPage,
+                    start_date: DEFAULT_API_START_DATE,
+                    event_type: typeName === "all" ? "CELLS" : typeName,
+                  };
+                  
+                  fetchEvents(fetchParams, true);
+                }}
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Box sx={{ fontSize: "32px", mb: "12px" }}>
+                  {typeName === "all" ? "📊" : 
+                   typeName.includes("CELL") ? "🏠" : 
+                   typeName.includes("Class") ? "🎓" : 
+                   typeName.includes("Service") ? "⛪" : "📅"}
+                </Box>
+                <Typography sx={{ 
+                  fontSize: "16px", 
+                  fontWeight: "600",
+                  color: isDarkMode ? theme.palette.text.primary : "#333",
+                  mb: "4px",
+                  width: "100%",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}>
+                  {typeName === "all" ? "All Cells" : typeName}
+                </Typography>
+              </Box>
 
-      {isAdmin && (
+              {/* EDIT/DELETE MENU */}
+              {isAdmin && !isAllCells && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const eventTypeObj = eventTypes.find(et => 
+                      et.name?.toLowerCase() === typeName.toLowerCase()
+                    ) || { name: typeName };
+                    setSelectedTypeForMenu(eventTypeObj);
+                    setMenuAnchor(e.currentTarget);
+                  }}
+                  sx={{
+                    position: "absolute",
+                    top: "8px",
+                    right: "8px",
+                    width: "28px",
+                    height: "28px",
+                    backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
+                    "&:hover": {
+                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.08)",
+                    },
+                    color: isDarkMode ? "#fff" : "#000",
+                    fontSize: "18px",
+                    padding: "4px",
+                    minWidth: "auto",
+                  }}
+                >
+                  ⋮
+                </IconButton>
+              )}
+            </Box>
+          );
+        })}
+    </Box>
+    
+    {/* NO RESULTS MESSAGE - also centered */}
+    {allEventTypes.filter(type => {
+      const typeName = typeof type === "string" ? type : type.name || type;
+      return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
+    }).length === 0 && (
+      <Box sx={{ 
+        textAlign: "center", 
+        padding: "4rem 1rem",
+        color: isDarkMode ? theme.palette.text.secondary : "#666",
+        width: "100%",
+        maxWidth: "800px",
+        margin: "0 auto",
+      }}>
+        <SearchIcon sx={{ fontSize: 48, color: "#ccc", mb: 2 }} />
+        <Typography variant="h6" gutterBottom>
+          No event types found
+        </Typography>
+        <Typography variant="body2">
+          Try a different search term
+        </Typography>
+      </Box>
+    )}
+  </Box>
+) : (
+   /* TABLE VIEW - Event Types as Vertical List */
+<Box sx={{ flexGrow: 1, overflowY: "auto", padding: "24px" }}>
+  <Box sx={{ maxWidth: "800px", margin: "0 auto" }}>
+    {allEventTypes
+      .filter(type => {
+        const typeName = typeof type === "string" ? type : type.name || type;
+        return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
+      })
+      .map((type) => {
+        const typeName = typeof type === "string" ? type : type.name || type;
+        const isAllCells = typeName === "all";
+        
+      
+        
+        return (
+          <Box
+            key={typeName}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              padding: "16px 20px",
+              marginBottom: "12px",
+              borderRadius: "12px",
+              cursor: "pointer",
+              backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+              border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+              transition: "all 0.2s ease",
+              position: "relative",
+              "&:hover": {
+                transform: "translateX(4px)",
+                backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
+                borderColor: "#007bff",
+              },
+            }}
+          >
+            {/* CLICKABLE AREA */}
+            <Box
+              onClick={() => {
+                setSelectedEventTypeFilter(typeName);
+                setShowingEvents(true);
+                setCurrentPage(1);
+                
+                const fetchParams = {
+                  page: 1,
+                  limit: rowsPerPage,
+                  start_date: DEFAULT_API_START_DATE,
+                  event_type: typeName === "all" ? "CELLS" : typeName,
+                };
+                
+                fetchEvents(fetchParams, true);
+              }}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                flex: 1,
+              }}
+            >
+              <Box sx={{ fontSize: "24px", mr: "16px", minWidth: "24px" }}>
+                {typeName === "all" ? "📊" : 
+                 typeName.includes("CELL") ? "🏠" : 
+                 typeName.includes("Class") ? "🎓" : 
+                 typeName.includes("Service") ? "⛪" : "📅"}
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ 
+                  fontSize: "16px", 
+                  fontWeight: 600,
+                  color: isDarkMode ? theme.palette.text.primary : "#333",
+                  mb: "4px"
+                }}>
+                  {typeName === "all" ? "All Cells" : typeName}
+                </Typography>
+                {/* SHOW DESCRIPTION INSTEAD OF EVENT COUNT */}
+                <Typography sx={{ 
+                  fontSize: "14px", 
+                  color: isDarkMode ? theme.palette.text.secondary : "#666",
+                  lineHeight: 1.4,
+                }}>
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* EDIT/DELETE MENU */}
+            {isAdmin && !isAllCells && (
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const eventTypeObj = eventTypes.find(et => 
+                    et.name?.toLowerCase() === typeName.toLowerCase()
+                  ) || { name: typeName };
+                  setSelectedTypeForMenu(eventTypeObj);
+                  setMenuAnchor(e.currentTarget);
+                }}
+                sx={{
+                  ml: 2,
+                  width: "32px",
+                  height: "32px",
+                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
+                  "&:hover": {
+                    backgroundColor: isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.08)",
+                  },
+                  color: isDarkMode ? "#fff" : "#000",
+                  fontSize: "20px",
+                  padding: "4px",
+                  minWidth: "auto",
+                }}
+              >
+                ⋮
+              </IconButton>
+            )}
+          </Box>
+        );
+      })}
+  </Box>
+</Box>
+      )}
+    </Box>
+
+    {/* EDIT/DELETE MENU POPOVER */}
+    <Popover
+      open={Boolean(menuAnchor)}
+      anchorEl={menuAnchor}
+      onClose={() => {
+        setMenuAnchor(null);
+        setSelectedTypeForMenu(null);
+      }}
+      anchorOrigin={{
+        vertical: "bottom",
+        horizontal: "right",
+      }}
+      transformOrigin={{
+        vertical: "top",
+        horizontal: "right",
+      }}
+      sx={{
+        "& .MuiPaper-root": {
+          backgroundColor: isDarkMode
+            ? theme.palette.background.paper
+            : "#fff",
+          color: isDarkMode ? theme.palette.text.primary : "#000",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          borderRadius: "8px",
+          minWidth: "120px",
+        },
+      }}
+    >
+      <MenuItem 
+        onClick={() => {
+          if (selectedTypeForMenu) {
+            setEditingEventType(selectedTypeForMenu);
+            setEventTypesModalOpen(true);
+          }
+          setMenuAnchor(null);
+        }}
+        sx={{ fontSize: "14px" }}
+      >
+        <ListItemIcon sx={{ minWidth: 36 }}>
+          <EditIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Edit</ListItemText>
+      </MenuItem>
+      <MenuItem
+        onClick={() => {
+          if (selectedTypeForMenu) {
+            setToDeleteType(selectedTypeForMenu);
+            setConfirmDeleteOpen(true);
+          }
+          setMenuAnchor(null);
+        }}
+        sx={{
+          fontSize: "14px",
+          color: theme.palette.error.main,
+          "&:hover": {
+            backgroundColor: theme.palette.error.light + "20",
+          },
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+          <DeleteIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Delete</ListItemText>
+      </MenuItem>
+    </Popover>
+
+    {/* FAB BUTTON FOR ADMIN */}
+    {isAdmin && (
+      <Box
+        sx={{
+          position: "fixed",
+          bottom: "24px",
+          right: "24px",
+          zIndex: 1300,
+        }}
+      >
+        {fabMenuOpen && (
+          <Box
+            sx={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 1299,
+              backgroundColor: "transparent",
+            }}
+            onClick={() => setFabMenuOpen(false)}
+          />
+        )}
+
         <Box
           sx={{
-            position: "fixed",
-            bottom: "24px",
-            right: "24px",
-            zIndex: 1300,
+            ...fabStyles.fabMenu,
+            opacity: fabMenuOpen ? 1 : 0,
+            visibility: fabMenuOpen ? "visible" : "hidden",
+            transform: fabMenuOpen ? "translateY(0)" : "translateY(10px)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            pointerEvents: fabMenuOpen ? "auto" : "none",
           }}
         >
-          {fabMenuOpen && (
-            <Box
-              sx={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                zIndex: 1299,
-                backgroundColor: "transparent",
-              }}
-              onClick={() => setFabMenuOpen(false)}
-            />
-          )}
-
           <Box
-            sx={{
-              ...fabStyles.fabMenu,
-              opacity: fabMenuOpen ? 1 : 0,
-              visibility: fabMenuOpen ? "visible" : "hidden",
-              transform: fabMenuOpen ? "translateY(0)" : "translateY(10px)",
-              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-              pointerEvents: fabMenuOpen ? "auto" : "none",
+            sx={fabStyles.fabMenuItem}
+            onClick={() => {
+              setFabMenuOpen(false);
+              setEventTypesModalOpen(true);
+              setEditingEventType(null);
             }}
+            role="button"
+            tabIndex={fabMenuOpen ? 0 : -1}
+            aria-label="Create Event Type"
           >
-            <Box
-              sx={fabStyles.fabMenuItem}
-              onClick={() => {
-                setFabMenuOpen(false);
-                setEventTypesModalOpen(true);
-                setEditingEventType(null);
-              }}
-              role="button"
-              tabIndex={fabMenuOpen ? 0 : -1}
-              aria-label="Create Event Type"
-            >
-              <Typography sx={fabStyles.fabMenuLabel}>
-                Create Event Type
-              </Typography>
-              <Box sx={fabStyles.fabMenuIcon}></Box>
-            </Box>
-
-            <Box
-              sx={fabStyles.fabMenuItem}
-              onClick={() => {
-                setFabMenuOpen(false);
-                setCreateEventModalOpen(true);
-              }}
-              role="button"
-              tabIndex={fabMenuOpen ? 0 : -1}
-              aria-label="Create Event"
-            >
-              <Typography sx={fabStyles.fabMenuLabel}>Create Event</Typography>
-              <Box sx={fabStyles.fabMenuIcon}></Box>
-            </Box>
+            <Typography sx={fabStyles.fabMenuLabel}>
+              Create Event Type
+            </Typography>
+            <Box sx={fabStyles.fabMenuIcon}></Box>
           </Box>
 
-          <IconButton
-            sx={{
-              backgroundColor: "#007bff",
-              color: "white",
-              width: 56,
-              height: 56,
-              "&:hover": {
-                backgroundColor: "#0056b3",
-                transform: "scale(1.05)",
-              },
-              transform: fabMenuOpen
-                ? "rotate(45deg) scale(1.05)"
-                : "rotate(0deg) scale(1)",
-              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
-              position: "relative",
-              zIndex: 1301,
+          <Box
+            sx={fabStyles.fabMenuItem}
+            onClick={() => {
+              setFabMenuOpen(false);
+              setCreateEventModalOpen(true);
             }}
-            onClick={() => setFabMenuOpen(!fabMenuOpen)}
-            aria-label={fabMenuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={fabMenuOpen}
-            aria-haspopup="true"
+            role="button"
+            tabIndex={fabMenuOpen ? 0 : -1}
+            aria-label="Create Event"
           >
-            +
-          </IconButton>
+            <Typography sx={fabStyles.fabMenuLabel}>Create Event</Typography>
+            <Box sx={fabStyles.fabMenuIcon}></Box>
+          </Box>
         </Box>
-      )}
 
-      <Eventsfilter
-        open={showFilter}
-        onClose={() => setShowFilter(false)}
-        onApplyFilter={applyFilters}
-        events={events}
-        currentFilters={filterOptions}
-        eventTypes={eventTypes}
-      />
-
-      {selectedEvent && (
-        <AttendanceModal
-          isOpen={attendanceModalOpen}
-          onClose={() => {
-            setAttendanceModalOpen(false);
-            setSelectedEvent(null);
+        <IconButton
+          sx={{
+            backgroundColor: "#007bff",
+            color: "white",
+            width: 56,
+            height: 56,
+            "&:hover": {
+              backgroundColor: "#0056b3",
+              transform: "scale(1.05)",
+            },
+            transform: fabMenuOpen
+              ? "rotate(45deg) scale(1.05)"
+              : "rotate(0deg) scale(1)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+            position: "relative",
+            zIndex: 1301,
           }}
-          onSubmit={handleAttendanceSubmit}
-          event={selectedEvent}
-          currentUser={currentUser}
-        />
-      )}
-      {isAdmin && (
-        <EventTypesModal
-          key={editingEventType?._id || "create"}
-          open={eventTypesModalOpen}
-          onClose={handleCloseEventTypesModal}
-          onSubmit={handleSaveEventType}
-          selectedEventType={editingEventType}
-          setSelectedEventTypeObj={setSelectedEventTypeObj}
-        />
-      )}
-      {createEventModalOpen && (
+          onClick={() => setFabMenuOpen(!fabMenuOpen)}
+          aria-label={fabMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={fabMenuOpen}
+          aria-haspopup="true"
+        >
+          +
+        </IconButton>
+      </Box>
+    )}
+
+    {/* MODALS */}
+    <Eventsfilter
+      open={showFilter}
+      onClose={() => setShowFilter(false)}
+      onApplyFilter={applyFilters}
+      events={events}
+      currentFilters={filterOptions}
+      eventTypes={eventTypes}
+    />
+
+    {selectedEvent && (
+      <AttendanceModal
+        isOpen={attendanceModalOpen}
+        onClose={() => {
+          setAttendanceModalOpen(false);
+          setSelectedEvent(null);
+        }}
+        onSubmit={handleAttendanceSubmit}
+        event={selectedEvent}
+        currentUser={currentUser}
+      />
+    )}
+    
+    {isAdmin && (
+      <EventTypesModal
+        key={editingEventType?._id || "create"}
+        open={eventTypesModalOpen}
+        onClose={handleCloseEventTypesModal}
+        onSubmit={handleSaveEventType}
+        selectedEventType={editingEventType}
+        setSelectedEventTypeObj={setSelectedEventTypeObj}
+      />
+    )}
+    
+    {createEventModalOpen && (
+      <Box
+        sx={styles.modalOverlay}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            handleCloseCreateEventModal();
+          }
+        }}
+      >
         <Box
-          sx={styles.modalOverlay}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              handleCloseCreateEventModal();
-            }
+          sx={{
+            ...styles.modalContent,
+            backgroundColor: isDarkMode
+              ? theme.palette.background.paper
+              : "white",
           }}
         >
           <Box
             sx={{
-              ...styles.modalContent,
+              ...styles.modalHeader,
+              backgroundColor: isDarkMode
+                ? theme.palette.background.default
+                : "#333",
+            }}
+          >
+            <Typography sx={styles.modalTitle}>
+              {selectedEventTypeObj?.name === "CELLS"
+                ? "Create New Cell"
+                : "Create New Event"}
+            </Typography>
+            <IconButton
+              sx={styles.modalCloseButton}
+              onClick={() => handleCloseCreateEventModal(false)}
+            >
+              ×
+            </IconButton>
+          </Box>
+          <Box
+            sx={{
+              ...styles.modalBody,
               backgroundColor: isDarkMode
                 ? theme.palette.background.paper
                 : "white",
             }}
           >
-            <Box
-              sx={{
-                ...styles.modalHeader,
-                backgroundColor: isDarkMode
-                  ? theme.palette.background.default
-                  : "#333",
-              }}
-            >
-              <Typography sx={styles.modalTitle}>
-                {selectedEventTypeObj?.name === "CELLS"
-                  ? "Create New Cell"
-                  : "Create New Event"}
-              </Typography>
-              <IconButton
-                sx={styles.modalCloseButton}
-                onClick={() => handleCloseCreateEventModal(false)}
-              >
-                ×
-              </IconButton>
-            </Box>
-            <Box
-              sx={{
-                ...styles.modalBody,
-                backgroundColor: isDarkMode
-                  ? theme.palette.background.paper
-                  : "white",
-              }}
-            >
-              <CreateEvents
-                user={currentUser}
-                isModal={true}
-                onClose={handleCloseCreateEventModal}
-                selectedEventTypeObj={selectedEventTypeObj}
-                selectedEventType={selectedEventTypeFilter}
-                eventTypes={allEventTypes}
-              />
-            </Box>
+            <CreateEvents
+              user={currentUser}
+              isModal={true}
+              onClose={handleCloseCreateEventModal}
+              selectedEventTypeObj={selectedEventTypeObj}
+              selectedEventType={selectedEventTypeFilter}
+              eventTypes={allEventTypes}
+            />
           </Box>
         </Box>
-      )}
-      <EditEventModal
-        isOpen={editModalOpen}
-        onClose={(shouldRefresh = false) => {
-          handleCloseEditModal(shouldRefresh);
-        }}
-        event={selectedEvent}
-        token={token}
-      />
-      <Dialog
-        open={confirmDeleteOpen}
-        onClose={() => setConfirmDeleteOpen(false)}
-        aria-labelledby="delete-dialog-title"
-        aria-describedby="delete-dialog-description"
-        sx={{
-          "& .MuiPaper-root": {
-            backgroundColor: isDarkMode
-              ? theme.palette.background.paper
-              : "#fff",
-            color: isDarkMode ? theme.palette.text.primary : "#000",
-          },
-        }}
-      >
-        <DialogTitle id="delete-dialog-title">Confirm Delete</DialogTitle>
-        <DialogContent>
-          <Typography id="delete-dialog-description">
-            Are you sure you want to delete the event type "{toDeleteType}"?
-            This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmDeleteOpen(false)} color="primary">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteType}
-            color="error"
-            variant="contained"
-            autoFocus
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop={true}
-        closeOnClick
-        pauseOnHover
-        theme={isDarkMode ? "dark" : "light"}
-        style={{ marginTop: "80px" }}
-      />
-    </Box>
-  );
+      </Box>
+    )}
+    
+    <EditEventModal
+      isOpen={editModalOpen}
+      onClose={(shouldRefresh = false) => {
+        handleCloseEditModal(shouldRefresh);
+      }}
+      event={selectedEvent}
+      token={token}
+    />
+    
+    <Dialog
+      open={confirmDeleteOpen}
+      onClose={() => setConfirmDeleteOpen(false)}
+      aria-labelledby="delete-dialog-title"
+      aria-describedby="delete-dialog-description"
+      sx={{
+        "& .MuiPaper-root": {
+          backgroundColor: isDarkMode
+            ? theme.palette.background.paper
+            : "#fff",
+          color: isDarkMode ? theme.palette.text.primary : "#000",
+        },
+      }}
+    >
+      <DialogTitle id="delete-dialog-title">Confirm Delete</DialogTitle>
+      <DialogContent>
+        <Typography id="delete-dialog-description">
+          Are you sure you want to delete the event type "{toDeleteType?.name || toDeleteType}"?
+          This action cannot be undone.
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setConfirmDeleteOpen(false)} color="primary">
+          Cancel
+        </Button>
+        <Button
+          onClick={handleDeleteType}
+          color="error"
+          variant="contained"
+          autoFocus
+        >
+          Delete
+        </Button>
+      </DialogActions>
+    </Dialog>
+    
+    <ToastContainer
+      position="top-right"
+      autoClose={5000}
+      hideProgressBar={false}
+      newestOnTop={true}
+      closeOnClick
+      pauseOnHover
+      theme={isDarkMode ? "dark" : "light"}
+      style={{ marginTop: "80px" }}
+    />
+  </Box>
+);
 };
 export default Events;
