@@ -3826,122 +3826,220 @@ const EventTypesList = ({
     DEFAULT_API_START_DATE,
   ]);
   
-  const StatusBadges = ({
-    selectedStatus,
-    setSelectedStatus,
-    setCurrentPage,
-  }) => {
-    const statuses = [
-      {
-        value: "incomplete",
-        label: "INCOMPLETE",
-        style: styles.statusBadgeIncomplete,
-      },
-      {
-        value: "complete",
-        label: "COMPLETE",
-        style: styles.statusBadgeComplete,
-      },
-      {
-        value: "did_not_meet",
-        label: "DID NOT MEET",
-        style: styles.statusBadgeDidNotMeet,
-      },
-    ];
+const StatusBadges = ({
+  selectedStatus,
+  setSelectedStatus,
+  setCurrentPage,
+}) => {
+  const statuses = [
+    {
+      value: "incomplete",
+      label: "INCOMPLETE",
+      style: styles.statusBadgeIncomplete,
+    },
+    {
+      value: "complete",
+      label: "COMPLETE",
+      style: styles.statusBadgeComplete,
+    },
+    {
+      value: "did_not_meet",
+      label: "DID NOT MEET",
+      style: styles.statusBadgeDidNotMeet,
+    },
+  ];
 
-    const handleStatusClick = (statusValue) => {
-      setSelectedStatus(statusValue);
-      setCurrentPage(1);
-    };
-
-    // allow download only when COMPLETE or DID NOT MEET selected
-    const canDownload =
-      selectedStatus === "complete" || selectedStatus === "did_not_meet";
-
-    // local period state: "current" | "previous"
-    const [period, setPeriod] = useState("current");
-
-    return (
-      <div style={styles.statusBadgeContainer}>
-        {statuses.map((status) => (
-          <button
-            key={status.value}
-            style={{
-              ...styles.statusBadge,
-              ...status.style,
-              ...(selectedStatus === status.value ? styles.statusBadgeActive : {}),
-            }}
-            onClick={() => handleStatusClick(status.value)}
-          >
-            {status.label}
-          </button>
-        ))}
-
-        {/* Period selector + Bulk download: show only when COMPLETE or DID NOT MEET selected */}
-        {canDownload && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 6 }}>
-            <button
-              onClick={() => setPeriod("current")}
-              style={{
-                ...styles.statusBadge,
-                padding: "0.4rem 0.6rem",
-                fontSize: "0.75rem",
-                backgroundColor: period === "current" ? "#007bff" : "#f1f3f5",
-                color: period === "current" ? "#fff" : "#6c757d",
-                borderColor: period === "current" ? "#007bff" : "#ddd",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-              title="Current week"
-            >
-              This week
-            </button>
-            <button
-              onClick={() => setPeriod("previous")}
-              style={{
-                ...styles.statusBadge,
-                padding: "0.4rem 0.6rem",
-                fontSize: "0.75rem",
-                backgroundColor: period === "previous" ? "#007bff" : "#f1f3f5",
-                color: period === "previous" ? "#fff" : "#6c757d",
-                borderColor: period === "previous" ? "#007bff" : "#ddd",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-              title="Previous week"
-            >
-              Prev week
-            </button>
-
-            {/* Bulk download badge: same sizing / styling as other badges */}
-            <button
-              key="download-bulk"
-              onClick={() => downloadEventsByStatus(selectedStatus, period)}
-              title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance (${period})`}
-              style={{
-                ...styles.statusBadge,
-                backgroundColor: "#1976d2",
-                color: "#fff",
-                borderColor: "#1976d2",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <GetAppIcon fontSize="small" style={{ color: "#fff" }} />
-              <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                DOWNLOAD
-                {selectedStatus === "complete" ? " COMPLETED" : " DID NOT MEET"}
-              </span>
-            </button>
-          </div>
-        )}
-      </div>
-    );
+  const handleStatusClick = (statusValue) => {
+    setSelectedStatus(statusValue);
+    setCurrentPage(1);
   };
 
+  // allow download only when COMPLETE or DID NOT MEET selected
+  const canDownload =
+    selectedStatus === "complete" || selectedStatus === "did_not_meet";
+
+  // local period state: "current" | "previous"
+  const [period, setPeriod] = useState("current");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownOpen) {
+        setDropdownOpen(false);
+      }
+    };
+
+    if (dropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
+  return (
+    <div style={styles.statusBadgeContainer}>
+      {statuses.map((status) => (
+        <button
+          key={status.value}
+          style={{
+            ...styles.statusBadge,
+            ...status.style,
+            ...(selectedStatus === status.value ? styles.statusBadgeActive : {}),
+          }}
+          onClick={() => handleStatusClick(status.value)}
+        >
+          {status.label}
+        </button>
+      ))}
+
+      {/* Period selector + Bulk download: show only when COMPLETE or DID NOT MEET selected */}
+      {canDownload && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 6, position: "relative" }}>
+          {/* Dropdown for period selection */}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDropdownOpen(!dropdownOpen);
+              }}
+              style={{
+                ...styles.statusBadge,
+                padding: "0.4rem 0.8rem",
+                fontSize: "0.75rem",
+                backgroundColor: "#f1f3f5",
+                color: "#6c757d",
+                borderColor: "#ddd",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                minWidth: "120px",
+                justifyContent: "space-between",
+              }}
+              title="Select week period"
+            >
+              <span>{period === "current" ? "Current Week" : "Previous Week"}</span>
+              <span style={{ fontSize: "0.7rem" }}>▼</span>
+            </button>
+            
+            {/* Dropdown menu */}
+            {dropdownOpen && (
+              <div style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                zIndex: 1000,
+                backgroundColor: "#fff",
+                border: "1px solid #ddd",
+                borderRadius: "6px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                marginTop: "4px",
+                minWidth: "140px",
+                overflow: "hidden",
+              }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPeriod("current");
+                    setDropdownOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.8rem",
+                    backgroundColor: period === "current" ? "#f1f3f5" : "#fff",
+                    color: "#6c757d",
+                    border: "none",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    fontSize: "0.75rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    borderBottom: "1px solid #eee",
+                    "&:hover": {
+                      backgroundColor: "#f8f9fa",
+                    }
+                  }}
+                >
+                  <span style={{ 
+                    width: "8px", 
+                    height: "8px", 
+                    borderRadius: "50%", 
+                    backgroundColor: period === "current" ? "#6c757d" : "transparent",
+                    border: period === "current" ? "none" : "1px solid #ddd"
+                  }}></span>
+                  Current Week
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPeriod("previous");
+                    setDropdownOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.8rem",
+                    backgroundColor: period === "previous" ? "#f1f3f5" : "#fff",
+                    color: "#6c757d",
+                    border: "none",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    fontSize: "0.75rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    "&:hover": {
+                      backgroundColor: "#f8f9fa",
+                    }
+                  }}
+                >
+                  <span style={{ 
+                    width: "8px", 
+                    height: "8px", 
+                    borderRadius: "50%", 
+                    backgroundColor: period === "previous" ? "#6c757d" : "transparent",
+                    border: period === "previous" ? "none" : "1px solid #ddd"
+                  }}></span>
+                  Previous Week
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Bulk download button - also gray */}
+          <button
+            key="download-bulk"
+            onClick={() => downloadEventsByStatus(selectedStatus, period)}
+            title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance (${period === "current" ? "current week" : "previous week"})`}
+            style={{
+              ...styles.statusBadge,
+              backgroundColor: "#f1f3f5",
+              color: "#6c757d",
+              borderColor: "#ddd",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              padding: "0.4rem 0.8rem",
+              fontSize: "0.75rem",
+            }}
+          >
+            <GetAppIcon fontSize="small" style={{ color: "#6c757d" }} />
+            <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+              DOWNLOAD
+              {selectedStatus === "complete" ? " COMPLETED" : " DID NOT MEET"}
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
   const ViewFilterButtons = () => {
     const shouldShowToggle =
@@ -4008,8 +4106,6 @@ const EventTypesList = ({
       </div>
     );
   };
-
-
 const EventTypeSelector = ({
   eventTypes,
   selectedEventTypeFilter,
