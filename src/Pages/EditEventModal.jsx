@@ -38,6 +38,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [deactivationWeeks, setDeactivationWeeks] = useState(2);
   const [deactivationReason, setDeactivationReason] = useState('');
   const [isToggling, setIsToggling] = useState(false);
+  const [isPermanent,setIsPermanent] = useState(false)
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -167,7 +168,9 @@ const handleDeactivateCell = async () => {
     
     const params = new URLSearchParams({
       weeks: deactivationWeeks.toString(),
+      "is_permanent_deact":isPermanent
     });
+    console.log("BOOL",isPermanent)
     
     if (deactivationReason) {
       params.append('reason', deactivationReason);
@@ -214,9 +217,9 @@ const handleDeactivateCell = async () => {
     // Success message
     toast.success(
       <div>
-        <div>{result.message}</div>
+        <div>{new Date(result.deactivation_end) < new Date()?"You cell has been successfully deactivated":result.message}</div>
         <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
-          Will auto-reactivate on: {new Date(result.deactivation_end).toLocaleDateString()}
+          Will auto-reactivate on: {new Date(result.deactivation_end) < new Date()?"Never":new Date(result.deactivation_end).toLocaleDateString()}
         </div>
       </div>
     );
@@ -317,6 +320,7 @@ const handleDeactivateCell = async () => {
       setIsToggling(false);
     }
   };
+  console.log("THE EVENT",event)
 
   const handleActiveToggle = (newValue) => {
     if (isToggling || isFieldDisabled('is_active')) return;
@@ -375,7 +379,7 @@ const handleDeactivateCell = async () => {
       }
     });
     
-    return cleanData;
+    return {...cleanData,"is_permanent_deact":isPermanent};
   };
 
   const handleSubmit = async () => {
@@ -425,6 +429,7 @@ const handleDeactivateCell = async () => {
         endpoint = `/events/cells/${identifier}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
+        
         
         if (newEventName && newEventName !== originalEventName) {
           const confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\nThis will update ONLY this specific event.\n\nContinue?`;
@@ -775,7 +780,7 @@ const handleDeactivateCell = async () => {
   >
     <Typography variant="body2">
       <strong>Deactivated until:</strong>{' '}
-      {new Date(deactivationEnd).toLocaleDateString('en-ZA', {
+      {new Date(deactivationEnd) < new Date()? "Never": new Date(deactivationEnd).toLocaleDateString('en-ZA', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -1128,7 +1133,10 @@ const handleDeactivateCell = async () => {
             <InputLabel>Deactivation Period</InputLabel>
             <Select
               value={deactivationWeeks}
-              onChange={(e) => setDeactivationWeeks(e.target.value)}
+              onChange={(e) =>{ 
+                setDeactivationWeeks(e.target.value);
+                if (e.target.value === -1) setIsPermanent(true)
+              }}
               label="Deactivation Period"
             >
               <MenuItem value={1}>1 Week</MenuItem>
@@ -1137,6 +1145,7 @@ const handleDeactivateCell = async () => {
               <MenuItem value={4}>4 Weeks</MenuItem>
               <MenuItem value={8}>2 Months</MenuItem>
               <MenuItem value={12}>3 Months</MenuItem>
+              <MenuItem value={-1}>Never</MenuItem>
             </Select>
           </FormControl>
           
