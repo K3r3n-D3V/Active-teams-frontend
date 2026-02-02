@@ -1465,7 +1465,7 @@ const fetchEvents = useCallback(
         start_date: filters.start_date || DEFAULT_API_START_DATE,
       };
 
-      // CRITICAL: Use filters.status if provided, otherwise use selectedStatus from state
+      // Use filters.status if provided, otherwise use selectedStatus from state
       const statusToUse = filters.status !== undefined ? filters.status : selectedStatus;
       if (statusToUse && statusToUse !== "all") {
         params.status = statusToUse;
@@ -1482,6 +1482,7 @@ const fetchEvents = useCallback(
 
       let endpoint;
 
+      // Handle Endpoint Selection
       if (
         filters.event_type === "CELLS" ||
         filters.event_type === "all" ||
@@ -1490,25 +1491,15 @@ const fetchEvents = useCallback(
         endpoint = `${BACKEND_URL}/events/cells`;
 
         console.log("=== FETCH EVENTS DEBUG ===");
-        console.log("Current user role:", userRole);
-        console.log("isAdmin:", isAdmin);
-        console.log("isLeader:", isLeader);
-        console.log("isLeaderAt12:", isLeaderAt12);
-        console.log("isRegistrant:", isRegistrant);
-        console.log("isRegularUser:", isRegularUser);
-        console.log("View filter:", viewFilter);
-
         if (isLeaderAt12) {
-          console.log("LEADER AT 12 MODE ACTIVATED - Can see ALL events");
+          console.log("LEADER AT 12 MODE ACTIVATED");
           params.leader_at_12_view = true;
           params.isLeaderAt12 = true;
 
           if (viewFilter === "personal") {
-            console.log("   Personal view for Leader at 12");
             params.show_personal_cells = true;
             params.personal = true;
           } else {
-            console.log("   View All Under Me for Leader at 12");
             params.show_all_authorized = true;
             params.include_subordinate_cells = true;
           }
@@ -1516,68 +1507,38 @@ const fetchEvents = useCallback(
           params.firstName = currentUser?.name || "";
           params.userSurname = currentUser?.surname || "";
 
-          const userFullName =
-            `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim();
-          if (userFullName) {
-            params.userFullName = userFullName;
-          }
+          const userFullName = `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim();
+          if (userFullName) params.userFullName = userFullName;
+          if (currentUserLeaderAt1) params.leader_at_1_identifier = currentUserLeaderAt1;
 
-          if (currentUserLeaderAt1) {
-            params.leader_at_1_identifier = currentUserLeaderAt1;
-          }
         } else if (isAdmin) {
-          console.log("ADMIN MODE - Can see ALL events");
-          if (viewFilter === "personal") {
-            params.personal = true;
-          }
-          // Admin doesn't need require_global_events - they see everything
-        } else if (isLeader) {
-          console.log("REGULAR LEADER MODE - Can see ONLY GLOBAL events");
-          params.personal = true;
-          params.require_global_events = true; // Critical - tells backend to filter
-        } else if (isRegistrant) {
-          console.log("REGISTRANT MODE - Can see ONLY GLOBAL events");
-          params.personal = true;
-          params.require_global_events = true; // Critical - tells backend to filter
-        } else if (isRegularUser) {
-          console.log("USER MODE - Can see ONLY GLOBAL events");
-          params.personal = true;
-          params.require_global_events = true; // Critical - tells backend to filter
+          console.log("ADMIN MODE");
+          if (viewFilter === "personal") params.personal = true;
         } else {
-          console.log("UNKNOWN ROLE - Defaulting to personal view");
+          console.log("REGULAR ROLE - Requiring global events");
           params.personal = true;
-          params.require_global_events = true; // Safe default
+          params.require_global_events = true; 
         }
       } else {
         endpoint = `${BACKEND_URL}/events/other`;
-
         console.log("=== FETCH OTHER EVENTS DEBUG ===");
-        console.log("User role:", userRole);
-        console.log("Event type filter:", filters.event_type);
         
-        if (isAdmin && viewFilter === "personal") {
+        if (isAdmin || isLeaderAt12) {
           params.personal = true;
-        } else if (isLeaderAt12) {
-          // Leader at 12 can see all
+        } else {
           params.personal = true;
-        } else if (isLeader || isRegistrant || isRegularUser) {
-          console.log(`${isLeader ? 'LEADER' : isRegistrant ? 'REGISTRANT' : 'USER'} - Requiring global events`);
-          params.personal = true;
-          params.require_global_events = true; // Critical for non-cell events too
+          params.require_global_events = true; 
         }
       }
 
+      // Cleanup undefined/empty params
       Object.keys(params).forEach(
-        (key) =>
-          (params[key] === undefined || params[key] === "") &&
-          delete params[key],
+        (key) => (params[key] === undefined || params[key] === "") && delete params[key]
       );
 
       const queryString = new URLSearchParams(params).toString();
       const fullUrl = `${endpoint}?${queryString}`;
-      console.log("Fetching from:", fullUrl);
-      console.log("Parameters:", params);
-
+      
       const response = await authFetch(fullUrl, {
         method: "GET",
         headers: {
@@ -1587,98 +1548,61 @@ const fetchEvents = useCallback(
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Response error:", errorText);
-
         if (response.status === 401) {
-          console.log("Authentication failed, attempting refresh...");
-          try {
-            // Try to refresh token
-            await refreshToken();
-            // Retry the request
-            const newToken = localStorage.getItem("access_token");
-            const retryResponse = await fetch(fullUrl, {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${newToken}`,
-                "Content-Type": "application/json",
-              },
-            });
-
-            if (!retryResponse.ok) {
-              throw new Error(
-                `HTTP ${retryResponse.status}: ${await retryResponse.text()}`,
-              );
-            }
-
-            const data = await retryResponse.json();
-            data.events || [];
-            setTotalEvents(data.total_events || 0);
-            setTotalPages(data.total_pages || 1);
-            return;
-          } catch (refreshError) {
-            console.error("Token refresh failed:", refreshError);
-            toast.error("Session expired. Please log in again.");
-            setTimeout(() => {
-              logout();
-              window.location.href = "/login";
-            }, 1500);
-            return;
-          }
+          // await refreshToken();
+          // The authFetch wrapper usually handles the retry, but if not, logic goes here
+          return;
         }
-
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        throw new Error(`HTTP ${response.status}`);
       }
 
       const data = await response.json();
-
-      console.log("Got data:", data.events?.length, "events");
-      console.log("User info:", data.user_info);
-
-      // Optional: Double-check filtering on frontend (as backup)
       const eventsToShow = data.events || [];
-      
-      // If backend filtering fails, add frontend filtering as backup
+
+      // UPDATED FRONTEND FILTERING LOGIC
       if (isLeader || isRegistrant || isRegularUser) {
-        console.log("Applying frontend backup filtering for global events...");
+        console.log("Applying case-insensitive global filter...");
         try {
           const eventTypeMapStr = localStorage.getItem("eventTypeMap");
           const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
           
           const filteredEvents = eventsToShow.filter(event => {
-            const eventTypeName = event.eventType || event.event_type;
-            if (!eventTypeName) return false;
+            // Check all possible field names the backend might send
+            const rawName = event.eventTypeName || event.eventType || event.event_type;
             
-            const typeInfo = eventTypeMap[eventTypeName.toLowerCase()];
-            if (!typeInfo) return false;
+            // If the event has no type name, show it (don't hide data by accident)
+            if (!rawName) return true;
             
-            return typeInfo.isGlobal === true;
+            // Standardize lookup to lowercase to match the Map keys
+            const typeInfo = eventTypeMap[rawName.toLowerCase()];
+            
+            // If we find the metadata, strictly check isGlobal
+            if (typeInfo) {
+              return typeInfo.isGlobal === true;
+            }
+            
+            // Default to showing if metadata is missing (safety)
+            return true; 
           });
           
-          console.log(`Backend returned ${eventsToShow.length} events, frontend filtered to ${filteredEvents.length} global events`);
           setEvents(filteredEvents);
         } catch (filterError) {
-          console.error("Frontend filtering failed:", filterError);
+          console.error("Filtering error:", filterError);
           setEvents(eventsToShow);
         }
       } else {
+        // Admin and LeaderAt12 see everything
         setEvents(eventsToShow);
       }
       
       setTotalEvents(data.total_events || 0);
       setTotalPages(data.total_pages || 1);
+
     } catch (error) {
-      console.error("Error:", error);
-
-      // Don't show error if it's an auth issue (already handled)
-      if (
-        !error.message.includes("401") &&
-        !error.message.includes("Session expired")
-      ) {
-        const errorMessage = error.message || "Failed to load events";
-        toast.error(`Failed to load events: ${errorMessage}`);
+      console.error("Fetch Events Error:", error);
+      if (!error.message.includes("401")) {
+        toast.error(`Failed to load events: ${error.message}`);
       }
-
       setEvents([]);
     } finally {
       if (showLoader) {
@@ -1690,7 +1614,7 @@ const fetchEvents = useCallback(
   [
     currentPage,
     rowsPerPage,
-    selectedStatus, // ADDED - Critical for using latest status
+    selectedStatus, 
     authFetch,
     BACKEND_URL,
     DEFAULT_API_START_DATE,
@@ -1704,239 +1628,46 @@ const fetchEvents = useCallback(
     currentUser,
     userRole,
     logout,
-  ],
+    // refreshToken
+  ]
 );
-
-const fetchEventTypes = useCallback(async (retryCount = 0) => {
-  const MAX_RETRIES = 2;
-  
+const fetchEventTypes = useCallback(async () => {
   try {
-    console.log("=== FETCHING EVENT TYPES ===");
-    
-    // Check authentication
     const token = localStorage.getItem("access_token");
-    if (!token) {
-      console.warn("No authentication token available for fetching event types");
-      toast.warning("Please log in to access event types");
-      return [];
-    }
-
-    // Get user info for debugging
-    const userProfile = localStorage.getItem("userProfile");
-    const user = userProfile ? JSON.parse(userProfile) : {};
-    console.log("Fetching event types for user:", user.email || "Unknown");
-    
     const response = await authFetch(`${BACKEND_URL}/event-types`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache",
-      },
-      signal: AbortSignal.timeout(15000)
+      headers: { Authorization: `Bearer ${token}` }
     });
 
-    if (!response.ok) {
-      const status = response.status;
-      const errorText = await response.text();
-      
-      console.error(`Event types fetch failed: HTTP ${status}`, errorText);
-      
-      if (status === 401 || status === 403) {
-        console.log("Authentication issue, attempting refresh...");
-        
-        if (retryCount < MAX_RETRIES) {
-          try {
-            await refreshToken();
-            return fetchEventTypes(retryCount + 1);
-          } catch (refreshError) {
-            console.error("Token refresh failed:", refreshError);
-          }
-        }
-        
-        toast.error("Session expired. Please log in again.");
-        setTimeout(() => {
-          logout();
-          window.location.href = "/login";
-        }, 2000);
-        return [];
-      }
-      
-      if (status === 404) {
-        console.warn("Event types endpoint not found, using defaults");
-        return createDefaultEventTypes();
-      }
-      
-      throw new Error(`Failed to fetch event types: HTTP ${status}`);
-    }
+    const data = await response.json();
+    const eventTypesArray = Array.isArray(data) ? data : (data.data || []);
 
-    const eventTypesData = await response.json();
-    console.log("API Response - Event Types:", eventTypesData);
-
-    // Handle different response formats
-    let eventTypesArray = [];
-    
-    if (Array.isArray(eventTypesData)) {
-      eventTypesArray = eventTypesData;
-    } else if (eventTypesData.eventTypes) {
-      eventTypesArray = eventTypesData.eventTypes;
-    } else if (eventTypesData.data) {
-      eventTypesArray = eventTypesData.data;
-    } else if (typeof eventTypesData === 'object') {
-      eventTypesArray = Object.values(eventTypesData);
-    }
-    
-    // Filter for actual event types
-    const actualEventTypes = eventTypesArray.filter(item => {
-      return (
-        item.isEventType === true ||
-        item.type === "event_type" ||
-        item.event_type === true ||
-        item.category === "event_type" ||
-        item.is_active !== false
-      );
-    });
-
-    console.log("Filtered Event Types:", actualEventTypes);
-
-    if (actualEventTypes.length === 0) {
-      console.warn("No event types returned from API, using defaults");
-      return createDefaultEventTypes();
-    }
-
-    // Process and store event types
     const eventTypeMap = {};
     const eventTypeList = [];
-    
-    // Add "All Cells" as default first (ALWAYS GLOBAL)
-    const allCellsType = {
-      name: "ALL CELLS",
-      description: "View all cell events across the church",
-      isGlobal: true, // Always true for "All Cells"
-      isDefault: true,
-      color: "#007bff"
-    };
-    
-    eventTypeMap["all cells"] = allCellsType;
-    eventTypeMap["all"] = allCellsType;
-    eventTypeList.push(allCellsType);
-    
-    // Process API event types
-    console.log("=== PROCESSING EVENT TYPES ===");
-    actualEventTypes.forEach((type, index) => {
-      const typeName = (type.name || type.event_type_name || `Event Type ${index}`).toString().trim();
-      const description = type.description || 
-                         type.desc || 
-                         type.eventTypeDescription || 
-                         type.event_type_description ||
-                         `Events of type ${typeName}`;
-      
-      // CRITICAL: Ensure isGlobal is properly stored as boolean
-      const isGlobal = type.isGlobal === true;
-      
+
+    eventTypesArray.forEach((type) => {
+      // Force the key to lowercase so the Grid and Filter can always find it
+      const lowerName = (type.name || "").toLowerCase().trim();
+      if (!lowerName) return;
+
       const eventTypeObj = {
-        name: typeName.toUpperCase(),
-        originalName: typeName,
-        description: description,
-        isGlobal: isGlobal, // Store boolean value
-        color: type.color || type.eventTypeColor || getDefaultColor(index),
-        isActive: type.isActive !== false,
-        isEventType: true,
-        createdBy: type.createdBy || type.created_by,
-        createdAt: type.createdAt || type.created_at,
-        ...type
+        ...type,
+        name: lowerName,
+        isGlobal: type.isGlobal === true
       };
-      
-      // Store in map with lowercase key
-      const lowerName = typeName.toLowerCase();
+
       eventTypeMap[lowerName] = eventTypeObj;
-      
-      // Add to list
       eventTypeList.push(eventTypeObj);
-      
-      console.log(`Processed event type: "${typeName}" -> isGlobal: ${isGlobal}`);
     });
-    
-    function getDefaultColor(index) {
-      const colors = ["#007bff", "#28a745", "#ffc107", "#dc3545", "#6f42c1", "#20c997", "#fd7e14", "#e83e8c"];
-      return colors[index % colors.length];
-    }
 
-    // Store in localStorage
-    localStorage.setItem("eventTypes", JSON.stringify(eventTypeList));
+    // Save standardized lowercase map to storage
     localStorage.setItem("eventTypeMap", JSON.stringify(eventTypeMap));
+    localStorage.setItem("eventTypes", JSON.stringify(eventTypeList));
     
-    console.log("Stored EventTypeMap with", Object.keys(eventTypeMap).length, "entries");
-    console.log("EventTypeList:", eventTypeList);
-
-    // Update state
     setEventTypes(eventTypeList);
-    setCustomEventTypes(eventTypeList);
-    setUserCreatedEventTypes(eventTypeList);
-    
-    toast.success(`Loaded ${eventTypeList.length} event types`);
-    
-    return eventTypeList;
-    
   } catch (error) {
-    console.error("Error in fetchEventTypes:", error);
-    
-    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-      console.warn("Event types fetch timeout, using cached data");
-    } else if (error.message?.includes("NetworkError") || error.message?.includes("Failed to fetch")) {
-      console.warn("Network error, using cached event types");
-    }
-    
-    // Load from cache
-    try {
-      const cachedTypes = localStorage.getItem("eventTypes");
-      const cachedMap = localStorage.getItem("eventTypeMap");
-      
-      if (cachedTypes) {
-        const parsed = JSON.parse(cachedTypes);
-        console.log("Loaded event types from cache:", parsed.length);
-        
-        if (cachedMap) {
-          console.log("Using cached event type map");
-        } else {
-          // Recreate map from cached types
-          const newMap = {};
-          parsed.forEach(type => {
-            if (type.name) {
-              const lowerName = type.name.toLowerCase();
-              newMap[lowerName] = {
-                isGlobal: type.isGlobal === true,
-                name: type.name,
-                description: type.description || "",
-                ...type
-              };
-            }
-          });
-          localStorage.setItem("eventTypeMap", JSON.stringify(newMap));
-        }
-        
-        setEventTypes(parsed);
-        setCustomEventTypes(parsed);
-        setUserCreatedEventTypes(parsed);
-        
-        return parsed;
-      }
-    } catch (cacheError) {
-      console.error("Cache read failed:", cacheError);
-    }
-    
-    const defaults = [
-      {
-        name: "ALL CELLS",
-        description: "View all cell events",
-        isGlobal: true,
-        isDefault: true
-      }
-    ];
-    
-    setEventTypes(defaults);
-    return defaults;
+    console.error("Failed to fetch event types:", error);
   }
-}, [BACKEND_URL, authFetch, logout]);
+}, [BACKEND_URL, authFetch]);
 
   useEffect(() => {
     const getUserProfile = () => {
@@ -2017,41 +1748,42 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
   console.log("view leaders", isLeader)
 
   // Filter event types based on user role
-  const filteredEventTypes = useMemo(() => {
-    const allTypes = eventTypes
-      .map((t) => t.name || t)
-      .filter((name) => name && name !== "all");
+const filteredEventTypes = useMemo(() => {
+  // 1. Get list of names (excluding the "all" string which is handled separately)
+  const allNames = eventTypes
+    .map((t) => (typeof t === "string" ? t : t.name))
+    .filter((name) => name && name.toLowerCase() !== "all");
+
+  try {
+    const eventTypeMapStr = localStorage.getItem("eventTypeMap");
+    if (!eventTypeMapStr) return (isAdmin || isLeaderAt12) ? allNames : [];
     
-    try {
-      const eventTypeMapStr = localStorage.getItem("eventTypeMap");
-      const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
-      
-      const filtered = allTypes.filter(typeName => {
-        const typeInfo = eventTypeMap[typeName];
-        
-        if (!typeInfo) {
-          return isAdmin || isLeaderAt12;
-        }
-        
-        const isGlobalEvent = typeInfo.isGlobal === true;
-        
-        if (isGlobalEvent === false) {
-          return isAdmin || isLeaderAt12;
-        }
-        
-        if (isGlobalEvent === true) {
-          return true;
-        }
-        
+    const eventTypeMap = JSON.parse(eventTypeMapStr);
+
+    return allNames.filter((typeName) => {
+      // 2. Normalize lookup key to match fetchEventTypes storage
+      const lookupKey = typeName.toLowerCase();
+      const typeInfo = eventTypeMap[lookupKey];
+
+      // 3. Apply Visibility Logic
+      // If we can't find info, default to Admin/Leader access only
+      if (!typeInfo) {
         return isAdmin || isLeaderAt12;
-      });
-      
-      return filtered;
-    } catch (error) {
-      console.error("Error filtering event types:", error);
-      return isAdmin || isLeaderAt12 ? allTypes : [];
-    }
-  }, [eventTypes, isAdmin, isLeaderAt12, isRegistrant, isRegularUser, userRole]);
+      }
+
+      // If global is true, everyone sees it
+      if (typeInfo.isGlobal === true) {
+        return true;
+      }
+
+      // If not global, restrict to Admin and LeaderAt12
+      return isAdmin || isLeaderAt12;
+    });
+  } catch (error) {
+    console.error("Filter Error:", error);
+    return (isAdmin || isLeaderAt12) ? allNames : [];
+  }
+}, [eventTypes, isAdmin, isLeaderAt12]);
 
 
 

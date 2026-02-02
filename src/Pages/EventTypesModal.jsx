@@ -156,54 +156,49 @@ const EventTypesModal = ({
     });
     setErrors({});
   };
+// EventTypesModal.jsx
+const handleSubmit = async () => {
+  if (!validateForm() || loading) return;
 
-  const handleSubmit = async () => {
-    if (!validateForm() || loading) return;
+  setLoading(true);
+  try {
+    // 1. Force name to lowercase before sending to backend
+    const eventTypeName = formData.name.trim().toLowerCase();
+    
+    const eventTypeData = {
+      name: eventTypeName, 
+      eventTypeName: eventTypeName,
+      description: formData.description.trim().toLowerCase(),
+      isTicketed: formData.isTicketed,
+      isGlobal: formData.isGlobal,
+      hasPersonSteps: formData.hasPersonSteps,
+      // 2. Critical: Ensure backend recognizes this as a Type definition
+      isEventType: true, 
+    };
 
-    setLoading(true);
-    try {
-      const eventTypeName = formData.name.trim();
-      
-      const eventTypeData = {
-        name: eventTypeName,
-        description: formData.description.trim(),
-        isTicketed: formData.isTicketed,
-        isGlobal: formData.isGlobal,
-        hasPersonSteps: formData.hasPersonSteps,
-      };
-
-      let result;
-      if (selectedEventType && (selectedEventType.name || selectedEventType._id)) {
-        result = await onSubmit(eventTypeData, selectedEventType._id || selectedEventType.name);
-      } else {
-        result = await onSubmit(eventTypeData);
-      }
-
-      if (setSelectedEventTypeObj) {
-        const completeEventType = {
-          ...eventTypeData,
-          name: eventTypeName,
-          _id: selectedEventType?._id || result?._id || result?.id,
-        };
-        
-        setSelectedEventTypeObj(completeEventType);
-      }
-
-      resetForm();
-      onClose();
-      return result;
-    } catch (error) {
-      if (error.response?.data?.detail) {
-        setErrors({ submit: error.response.data.detail });
-      } else {
-        setErrors({ submit: "Failed to save event type. Please try again." });
-      }
-      
-      throw error;
-    } finally {
-      setLoading(false);
+    let result;
+    if (selectedEventType && (selectedEventType._id || selectedEventType.name)) {
+      result = await onSubmit(eventTypeData, selectedEventType._id || selectedEventType.name);
+    } else {
+      result = await onSubmit(eventTypeData);
     }
-  };
+
+    // Update local state if needed
+    if (setSelectedEventTypeObj) {
+      setSelectedEventTypeObj({
+        ...eventTypeData,
+        _id: selectedEventType?._id || result?._id || result?.id,
+      });
+    }
+
+    resetForm();
+    onClose();
+  } catch (error) {
+    setErrors({ submit: error.response?.data?.detail || "Failed to save event type." });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleClose = () => {
     if (loading) return;
