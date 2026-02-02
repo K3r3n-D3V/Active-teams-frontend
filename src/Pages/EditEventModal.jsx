@@ -152,6 +152,7 @@ console.log("EditEventModal rendered with event:", fieldMapping);
       });
       setChangedFields(changed);
     }
+    console.log("HEY HEY")
   }, [formData, event]);
 
   const handleChange = (field, value) => {
@@ -233,7 +234,6 @@ console.log("EditEventModal rendered with event:", fieldMapping);
         </div>
       </div>
     );
-    handleSubmit(true)
     
     // Update local state
     setIsActiveToggle(false);
@@ -244,13 +244,19 @@ console.log("EditEventModal rendered with event:", fieldMapping);
       deactivation_end: result.deactivation_end,
       deactivation_reason: deactivationReason
     }));
-
+    
     
     // Close and reset
     setDeactivationDialogOpen(false);
     setDeactivationReason('');
     setDeactivationWeeks(2);
     
+    
+    handleSubmit({is_active: false,
+      deactivation_start: new Date().toISOString(),
+      deactivation_end: result.deactivation_end,
+      deactivation_reason: deactivationReason})
+      
     if (refreshEvents) refreshEvents();
     
   } catch (error) {
@@ -394,11 +400,12 @@ console.log("EditEventModal rendered with event:", fieldMapping);
     return {...cleanData,"is_permanent_deact":isPermanent};
   };
 
-  const handleSubmit = async (isDeactivating = false) => {
+  const handleSubmit = async (deactivationInfo = {}) => {
     try {
+      console.log("FIELDS",changedFields)
       setLoading(true);
       
-      if (changedFields.length === 0 && isDeactivating !== true) {
+      if (changedFields.length === 0 && !deactivationInfo) {
         toast.info("No changes made");
         onClose();
         return;
@@ -410,9 +417,9 @@ console.log("EditEventModal rendered with event:", fieldMapping);
         setLoading(false);
         return;
       }
-
-      const updateData = prepareUpdateData();
-      
+     
+      const updateData = deactivationInfo?{...prepareUpdateData(),...deactivationInfo}:prepareUpdateData() ;
+      console.log("data",updateData)
       if (Object.keys(updateData).length === 0) {
         toast.info("No valid changes to save");
         setLoading(false);
@@ -1155,6 +1162,7 @@ console.log("EditEventModal rendered with event:", fieldMapping);
                 }
               }}
               label="Deactivation Period"
+            
             >
               <MenuItem value={1}>1 Week</MenuItem>
               <MenuItem value={2}>2 Weeks</MenuItem>
