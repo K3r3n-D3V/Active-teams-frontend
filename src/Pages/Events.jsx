@@ -1051,7 +1051,7 @@ const Events = () => {
   const eventTypeStyles = useMemo(() => {
     return getEventTypeStyles(isDarkMode, theme);
   }, [isDarkMode, theme]);
-  console.log(eventTypeStyles);
+  // console.log(eventTypeStyles);
 
 const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
 const userRole = currentUser?.role || "";
@@ -1069,14 +1069,6 @@ const isLeaderAt12 =
 
 const isLeader = normalizedRole === "leader" && !isLeaderAt12;
 
-console.log("=== ROLE DEBUG ===");
-console.log("User role:", userRole);
-console.log("Normalized role:", normalizedRole);
-console.log("isAdmin:", isAdmin);
-console.log("isRegistrant:", isRegistrant);
-console.log("isRegularUser:", isRegularUser);
-console.log("isLeader:", isLeader);
-console.log("isLeaderAt12:", isLeaderAt12);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const DEFAULT_API_START_DATE = "2025-11-30";
@@ -1137,41 +1129,6 @@ const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
     timestamp: new Map(),
     CACHE_DURATION: 24 * 60 * 60 * 1000,
   });
-
-  // const getCacheKey = useCallback((params) => {
-  //   return JSON.stringify({
-  //     page: params.page,
-  //     limit: params.limit,
-  //     status: params.status,
-  //     event_type: params.event_type,
-  //     search: params.search,
-  //     personal: params.personal,
-  //   });
-  // }, []);
-
-  // const getCachedData = useCallback((key) => {
-  //   const cached = cacheRef.current.data.get(key);
-  //   const timestamp = cacheRef.current.timestamp.get(key);
-
-  //   if (cached && timestamp) {
-  //     const age = Date.now() - timestamp;
-  //     if (age < cacheRef.current.CACHE_DURATION) {
-  //       return cached;
-  //     }
-  //   }
-  //   return null;
-  // }, []);
-
-  // const setCachedData = useCallback((key, data) => {
-  //   cacheRef.current.data.set(key, data);
-  //   cacheRef.current.timestamp.set(key, Date.now());
-
-  //   if (cacheRef.current.data.size > 50) {
-  //     const firstKey = cacheRef.current.data.keys().next().value;
-  //     cacheRef.current.data.delete(firstKey);
-  //     cacheRef.current.timestamp.delete(firstKey);
-  //   }
-  // }, []);
 
   const clearCache = useCallback(() => {
     cacheRef.current.data.clear();
@@ -1508,8 +1465,18 @@ const fetchEvents = useCallback(
         start_date: filters.start_date || DEFAULT_API_START_DATE,
       };
 
-      if (filters.status && filters.status !== "all")
-        params.status = filters.status;
+      // CRITICAL: Use filters.status if provided, otherwise use selectedStatus from state
+      const statusToUse = filters.status !== undefined ? filters.status : selectedStatus;
+      if (statusToUse && statusToUse !== "all") {
+        params.status = statusToUse;
+      }
+
+      console.log("📊 fetchEvents called with:", {
+        providedStatus: filters.status,
+        currentSelectedStatus: selectedStatus,
+        finalStatus: params.status,
+      });
+
       if (filters.search) params.search = filters.search;
       if (filters.event_type) params.event_type = filters.event_type;
 
@@ -1723,6 +1690,7 @@ const fetchEvents = useCallback(
   [
     currentPage,
     rowsPerPage,
+    selectedStatus, // ADDED - Critical for using latest status
     authFetch,
     BACKEND_URL,
     DEFAULT_API_START_DATE,
@@ -1764,8 +1732,7 @@ const fetchEventTypes = useCallback(async (retryCount = 0) => {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
       },
-      // Add timeout
-      signal: AbortSignal.timeout(15000) // 15 second timeout
+      signal: AbortSignal.timeout(15000)
     });
 
     if (!response.ok) {
@@ -1774,11 +1741,9 @@ const fetchEventTypes = useCallback(async (retryCount = 0) => {
       
       console.error(`Event types fetch failed: HTTP ${status}`, errorText);
       
-      // Handle specific status codes
       if (status === 401 || status === 403) {
         console.log("Authentication issue, attempting refresh...");
         
-        // Try to refresh token and retry
         if (retryCount < MAX_RETRIES) {
           try {
             await refreshToken();
@@ -1817,13 +1782,11 @@ const fetchEventTypes = useCallback(async (retryCount = 0) => {
     } else if (eventTypesData.data) {
       eventTypesArray = eventTypesData.data;
     } else if (typeof eventTypesData === 'object') {
-      // Convert object to array
       eventTypesArray = Object.values(eventTypesData);
     }
     
     // Filter for actual event types
     const actualEventTypes = eventTypesArray.filter(item => {
-      // Multiple ways to identify event types
       return (
         item.isEventType === true ||
         item.type === "event_type" ||
@@ -1844,13 +1807,12 @@ const fetchEventTypes = useCallback(async (retryCount = 0) => {
     const eventTypeMap = {};
     const eventTypeList = [];
     
-    // Add "All Cells" as default first
+    // Add "All Cells" as default first (ALWAYS GLOBAL)
     const allCellsType = {
       name: "ALL CELLS",
       description: "View all cell events across the church",
-      isGlobal: true,
+      isGlobal: true, // Always true for "All Cells"
       isDefault: true,
-      icon: "📊",
       color: "#007bff"
     };
     
@@ -1859,20 +1821,23 @@ const fetchEventTypes = useCallback(async (retryCount = 0) => {
     eventTypeList.push(allCellsType);
     
     // Process API event types
+    console.log("=== PROCESSING EVENT TYPES ===");
     actualEventTypes.forEach((type, index) => {
       const typeName = (type.name || type.event_type_name || `Event Type ${index}`).toString().trim();
       const description = type.description || 
                          type.desc || 
                          type.eventTypeDescription || 
                          type.event_type_description ||
-                         getDefaultDescription(typeName);
+                         `Events of type ${typeName}`;
+      
+      // CRITICAL: Ensure isGlobal is properly stored as boolean
+      const isGlobal = type.isGlobal === true;
       
       const eventTypeObj = {
         name: typeName.toUpperCase(),
         originalName: typeName,
         description: description,
-        isGlobal: type.isGlobal === true,
-        icon: type.icon || type.eventTypeIcon || getDefaultIcon(typeName),
+        isGlobal: isGlobal, // Store boolean value
         color: type.color || type.eventTypeColor || getDefaultColor(index),
         isActive: type.isActive !== false,
         isEventType: true,
@@ -1888,27 +1853,13 @@ const fetchEventTypes = useCallback(async (retryCount = 0) => {
       // Add to list
       eventTypeList.push(eventTypeObj);
       
-      console.log(`Processed event type: "${typeName}" -> isGlobal: ${eventTypeObj.isGlobal}`);
+      console.log(`Processed event type: "${typeName}" -> isGlobal: ${isGlobal}`);
     });
-
-    
-    function getDefaultIcon(name) {
-      const lowerName = name.toLowerCase();
-      if (lowerName.includes("cell")) return "";
-      if (lowerName.includes("class")) return "";
-      if (lowerName.includes("service")) return "";
-      if (lowerName.includes("workshop")) return "";
-      if (lowerName.includes("conference")) return "";
-      if (lowerName.includes("meeting")) return "";
-      return "";
-    }
     
     function getDefaultColor(index) {
       const colors = ["#007bff", "#28a745", "#ffc107", "#dc3545", "#6f42c1", "#20c997", "#fd7e14", "#e83e8c"];
       return colors[index % colors.length];
     }
-    
-  
 
     // Store in localStorage
     localStorage.setItem("eventTypes", JSON.stringify(eventTypeList));
@@ -1929,7 +1880,6 @@ const fetchEventTypes = useCallback(async (retryCount = 0) => {
   } catch (error) {
     console.error("Error in fetchEventTypes:", error);
     
-    // Handle network errors
     if (error.name === 'AbortError' || error.name === 'TimeoutError') {
       console.warn("Event types fetch timeout, using cached data");
     } else if (error.message?.includes("NetworkError") || error.message?.includes("Failed to fetch")) {
@@ -1945,7 +1895,6 @@ const fetchEventTypes = useCallback(async (retryCount = 0) => {
         const parsed = JSON.parse(cachedTypes);
         console.log("Loaded event types from cache:", parsed.length);
         
-        // If we have a map, use it
         if (cachedMap) {
           console.log("Using cached event type map");
         } else {
@@ -1953,7 +1902,8 @@ const fetchEventTypes = useCallback(async (retryCount = 0) => {
           const newMap = {};
           parsed.forEach(type => {
             if (type.name) {
-              newMap[type.name.toLowerCase()] = {
+              const lowerName = type.name.toLowerCase();
+              newMap[lowerName] = {
                 isGlobal: type.isGlobal === true,
                 name: type.name,
                 description: type.description || "",
@@ -3749,83 +3699,96 @@ const EventTypesList = ({
     }
   }, [customEventTypes]);
 
+
   useEffect(() => {
-    if (eventTypes.length === 0) {
-      return;
-    }
+  if (eventTypes.length === 0) {
+    return;
+  }
 
-    const fetchParams = {
-      page: currentPage,
-      limit: rowsPerPage,
-      start_date: DEFAULT_API_START_DATE,
-    };
+  // Only fetch when showing events
+  if (!showingEvents) {
+    return;
+  }
 
-    if (selectedStatus && selectedStatus !== "all") {
-      fetchParams.status = selectedStatus;
-    }
+  console.log(" Main useEffect triggered - selectedStatus:", selectedStatus);
 
-    if (searchQuery.trim()) {
-      fetchParams.search = searchQuery.trim();
-    }
+  const fetchParams = {
+    page: currentPage,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE,
+  };
 
-    if (selectedEventTypeFilter === "all") {
-      fetchParams.event_type = "CELLS";
-    } else if (selectedEventTypeFilter === "CELLS") {
-      fetchParams.event_type = "CELLS";
-    } else {
-      fetchParams.event_type = selectedEventTypeFilter;
-    }
+  if (selectedStatus && selectedStatus !== "all") {
+    fetchParams.status = selectedStatus;
+  }
 
-    if (fetchParams.event_type === "CELLS") {
-      if (isAdmin) {
-        if (viewFilter === "personal") {
-          fetchParams.personal = true;
-        }
-      } else if (isRegistrant || isRegularUser) {
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
+
+  if (selectedEventTypeFilter === "all") {
+    fetchParams.event_type = "CELLS";
+  } else if (selectedEventTypeFilter === "CELLS") {
+    fetchParams.event_type = "CELLS";
+  } else {
+    fetchParams.event_type = selectedEventTypeFilter;
+  }
+
+  if (fetchParams.event_type === "CELLS") {
+    if (isAdmin) {
+      if (viewFilter === "personal") {
         fetchParams.personal = true;
-      } else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
-
-        if (currentUserLeaderAt1) {
-          fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
-        }
-
-        if (viewFilter === "personal") {
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          fetchParams.show_all_authorized = true;
-          fetchParams.include_subordinate_cells = true;
-        }
       }
-    } else {
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
-      delete fetchParams.leader_at_1_identifier;
+    } else if (isRegistrant || isRegularUser) {
+      fetchParams.personal = true;
+    } else if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
+
+      if (currentUserLeaderAt1) {
+        fetchParams.leader_at_1_identifier = currentUserLeaderAt1;
+      }
+
+      if (viewFilter === "personal") {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+        fetchParams.include_subordinate_cells = true;
+      }
     }
+  } else {
+    delete fetchParams.personal;
+    delete fetchParams.leader_at_12_view;
+    delete fetchParams.show_personal_cells;
+    delete fetchParams.show_all_authorized;
+    delete fetchParams.include_subordinate_cells;
+    delete fetchParams.leader_at_1_identifier;
+  }
 
-    Object.keys(fetchParams).forEach(
-      (key) => fetchParams[key] === undefined && delete fetchParams[key],
-    );
+  Object.keys(fetchParams).forEach(
+    (key) => fetchParams[key] === undefined && delete fetchParams[key],
+  );
 
-    fetchEvents(fetchParams, true);
-  }, [
-    selectedEventTypeFilter,
-    selectedStatus,
-    viewFilter,
-    currentPage,
-    rowsPerPage,
-    eventTypes.length,
-    isAdmin,
-    isRegistrant,
-    isRegularUser,
-    isLeaderAt12,
-    DEFAULT_API_START_DATE,
-  ]);
+  console.log(" Fetching with params:", fetchParams);
+  fetchEvents(fetchParams, true);
+}, [
+  selectedEventTypeFilter,
+  selectedStatus, 
+  viewFilter,
+  currentPage,
+  rowsPerPage,
+  eventTypes.length,
+  showingEvents, 
+  isRegistrant,
+  isRegularUser,
+  isLeaderAt12,
+  DEFAULT_API_START_DATE,
+  currentUserLeaderAt1,
+  searchQuery,
+]);
   
+
+
 const StatusBadges = ({
   selectedStatus,
   setSelectedStatus,
@@ -3850,8 +3813,16 @@ const StatusBadges = ({
   ];
 
   const handleStatusClick = (statusValue) => {
+    // Prevent unnecessary re-renders if clicking the same status
+    if (selectedStatus === statusValue) {
+      return;
+    }
+
+    console.log("🔵 Status badge clicked:", statusValue);
     setSelectedStatus(statusValue);
     setCurrentPage(1);
+    
+    // The useEffect will handle the fetch with the new status
   };
 
   // allow download only when COMPLETE or DID NOT MEET selected
@@ -3960,9 +3931,6 @@ const StatusBadges = ({
                     alignItems: "center",
                     gap: "8px",
                     borderBottom: "1px solid #eee",
-                    "&:hover": {
-                      backgroundColor: "#f8f9fa",
-                    }
                   }}
                 >
                   <span style={{ 
@@ -3992,9 +3960,6 @@ const StatusBadges = ({
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
-                    "&:hover": {
-                      backgroundColor: "#f8f9fa",
-                    }
                   }}
                 >
                   <span style={{ 
@@ -4106,7 +4071,8 @@ const StatusBadges = ({
       </div>
     );
   };
-const EventTypeSelector = ({
+
+  const EventTypeSelector = ({
   eventTypes,
   selectedEventTypeFilter,
   setSelectedEventTypeFilter,
@@ -4129,69 +4095,86 @@ const EventTypeSelector = ({
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
+
   // Get user role info
-const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
-const userRole = currentUser?.role || "";
-const normalizedRole = userRole.toLowerCase();
+  const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+  const userRole = currentUser?.role || "";
+  const normalizedRole = userRole.toLowerCase();
 
-const isAdmin = normalizedRole === "admin";
-const isRegistrant = normalizedRole === "registrant";
-const isRegularUser = normalizedRole === "user";
-const isLeaderAt12 = 
-  normalizedRole === "leaderat12" ||
-  normalizedRole.includes("leaderat12") ||
-  normalizedRole.includes("leader at 12") ||
-  normalizedRole.includes("leader@12");
+  const isAdmin = normalizedRole === "admin";
+  const isRegistrant = normalizedRole === "registrant";
+  const isRegularUser = normalizedRole === "user";
+  const isLeaderAt12 = 
+    normalizedRole === "leaderat12" ||
+    normalizedRole.includes("leaderat12") ||
+    normalizedRole.includes("leader at 12") ||
+    normalizedRole.includes("leader@12");
 
-const isLeader = normalizedRole === "leader" && !isLeaderAt12;
+  const isLeader = normalizedRole === "leader" && !isLeaderAt12;
 
-console.log("=== EventTypeSelector ROLE DEBUG ===");
-console.log("User role:", userRole);
-console.log("Normalized role:", normalizedRole);
-console.log("isAdmin:", isAdmin);
-console.log("isRegistrant:", isRegistrant);
-console.log("isRegularUser:", isRegularUser);
-console.log("isLeader:", isLeader);
-console.log("isLeaderAt12:", isLeaderAt12);
   const canEditEventTypes = isAdmin;
 
-const filteredEventTypes = useMemo(() => {
-  const allTypes = eventTypes
-    .map((t) => t.name || t)
-    .filter((name) => name && name !== "all");
-  
-  try {
-    const eventTypeMapStr = localStorage.getItem("eventTypeMap");
-    const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
+  const filteredEventTypes = useMemo(() => {
+    const allTypes = eventTypes
+      .map((t) => t.name || t)
+      .filter((name) => name && name.toLowerCase() !== "all");
     
-    return allTypes.filter(typeName => {
-      const typeInfo = eventTypeMap[typeName];
+    try {
+      const eventTypeMapStr = localStorage.getItem("eventTypeMap");
+      const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
       
-      if (!typeInfo) {
-        // No info = restricted to Admin & LeaderAt12
-        return isAdmin || isLeaderAt12;
+      console.log("=== Event Type Filtering ===");
+      console.log("User Role:", userRole);
+      console.log("isAdmin:", isAdmin);
+      console.log("isLeaderAt12:", isLeaderAt12);
+      console.log("isLeader:", isLeader);
+      console.log("isRegistrant:", isRegistrant);
+      console.log("isRegularUser:", isRegularUser);
+
+      return allTypes.filter(typeName => {
+        const typeInfo = eventTypeMap[typeName.toLowerCase()] || {};
+        const isGlobal = typeInfo.isGlobal === true;
+        
+        console.log(`Checking "${typeName}": isGlobal = ${isGlobal}`);
+
+        // CASE 1: Global Event Types (isGlobal: true) - Show to EVERYONE
+        if (isGlobal) {
+          console.log(`  -> Global = true, showing to everyone`);
+          return true;
+        }
+        
+        // CASE 2: Non-Global Event Types (isGlobal: false) 
+        // Only show to Admin and LeaderAt12
+        if (typeInfo.isGlobal === false) {
+          const showToAdminOrLeaderAt12 = isAdmin || isLeaderAt12;
+          console.log(`  -> Global = false, showing only to Admin/LeaderAt12: ${showToAdminOrLeaderAt12}`);
+          return showToAdminOrLeaderAt12;
+        }
+        
+        // CASE 3: Undefined isGlobal - Show to leaders and above
+        // Regular users and registrants cannot see undefined types
+        if (isRegularUser || isRegistrant) {
+          console.log(`  -> isGlobal undefined, regular user/registrant -> HIDDEN`);
+          return false;
+        }
+        
+        // Leaders, Admin, and LeaderAt12 can see undefined isGlobal types
+        const showToLeadersAndAbove = isAdmin || isLeaderAt12 || isLeader;
+        console.log(`  -> isGlobal undefined, leader/admin/leaderAt12 -> ${showToLeadersAndAbove}`);
+        return showToLeadersAndAbove;
+      });
+    } catch (error) {
+      console.error("Error filtering event types:", error);
+      // On error, show based on user role
+      if (isAdmin || isLeaderAt12) {
+        return allTypes;
+      } else if (isLeader) {
+        return allTypes;
+      } else {
+        return [];
       }
-      
-      const isGlobalEvent = typeInfo.isGlobal === true;
-      
-      // CRITICAL: isGlobal: false = ONLY Admin & LeaderAt12
-      if (isGlobalEvent === false) {
-        return isAdmin || isLeaderAt12;
-      }
-      
-      // isGlobal: true = Everyone can see
-      if (isGlobalEvent === true) {
-        return true;
-      }
-      
-      // Fallback: treat undefined as restricted
-      return isAdmin || isLeaderAt12;
-    });
-  } catch (error) {
-    console.error("Error filtering event types:", error);
-    return isAdmin || isLeaderAt12 ? allTypes : [];
-  }
-}, [eventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser, userRole]);
+    }
+  }, [eventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser, userRole]);
 
   const handleEventTypeClick = (typeValue) => {
     setSelectedEventTypeFilter(typeValue);
@@ -4325,9 +4308,13 @@ const filteredEventTypes = useMemo(() => {
 
   const allTypes = useMemo(() => {
     const availableTypes = filteredEventTypes;
+    
+    console.log("=== FINAL Filtered Types ===");
+    console.log("Available types:", availableTypes);
+    console.log("Total count:", availableTypes.length);
+    
     const shouldSeeAll = isAdmin || isLeaderAt12 || isLeader || isRegistrant || isRegularUser;
     
-    console.log("DEBUG - Available filtered types:", availableTypes);
     console.log("DEBUG - Should see 'all' option:", shouldSeeAll);
     
     if (shouldSeeAll) {
@@ -4395,12 +4382,6 @@ const filteredEventTypes = useMemo(() => {
   if (!shouldShowSelector) {
     return null;
   }
-
-  // useEffect(() => {
-  //   if (isMobileView) {
-  //     setIsCollapsed(true);
-  //   }
-  // }, [isMobileView]);
 
   return (
     <div style={eventTypeStyles.container}>
@@ -4542,7 +4523,6 @@ const filteredEventTypes = useMemo(() => {
     </div>
   );
 };
-
 return (
   <Box
     sx={{

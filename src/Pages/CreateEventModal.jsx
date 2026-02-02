@@ -81,7 +81,7 @@ const handleEventTypeSubmit = async (eventTypeData) => {
       const newEventType = await response.json();
       await fetchEventTypes();
       
-      setSelectedEventTypeFilter(newEventType.name);
+      // setSelectedEventTypeFilter(newEventType.name);
       setSelectedEventTypeObj(newEventType);
       
       setShowEventForm(true);
