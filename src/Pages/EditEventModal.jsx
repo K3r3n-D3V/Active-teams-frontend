@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography,
   Select, MenuItem, FormControl, InputLabel, Switch, FormControlLabel, Grid, Alert,
@@ -163,7 +163,9 @@ console.log("EditEventModal rendered with event:", fieldMapping);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-const handleDeactivateCell = async () => {
+  const  updateCells = useRef();
+
+  const handleDeactivateCell = async () => {
   try {
     setIsToggling(true);
     const userToken = localStorage.getItem("access_token") || token;
@@ -221,6 +223,7 @@ const handleDeactivateCell = async () => {
     
     const result = await response.json();
     
+    
     // Success message
     toast.success(
       <div>
@@ -230,6 +233,7 @@ const handleDeactivateCell = async () => {
         </div>
       </div>
     );
+    handleSubmit(true)
     
     // Update local state
     setIsActiveToggle(false);
@@ -240,6 +244,7 @@ const handleDeactivateCell = async () => {
       deactivation_end: result.deactivation_end,
       deactivation_reason: deactivationReason
     }));
+
     
     // Close and reset
     setDeactivationDialogOpen(false);
@@ -389,11 +394,11 @@ const handleDeactivateCell = async () => {
     return {...cleanData,"is_permanent_deact":isPermanent};
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (isDeactivating = false) => {
     try {
       setLoading(true);
       
-      if (changedFields.length === 0) {
+      if (changedFields.length === 0 && isDeactivating !== true) {
         toast.info("No changes made");
         onClose();
         return;
@@ -1094,6 +1099,7 @@ const handleDeactivateCell = async () => {
                 Cancel
               </Button>
               <Button
+                ref={updateCells}
                 onClick={handleSubmit}
                 variant="contained"
                 disabled={loading || changedFields.length === 0 || changedFields.some(f => isFieldDisabled(f))}
