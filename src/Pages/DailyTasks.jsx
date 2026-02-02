@@ -68,7 +68,7 @@ export default function DailyTasks() {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
-  const { user, authFetch } = useContext(AuthContext); // <-- Now getting user from context
+  const { user, authFetch } = useContext(AuthContext);
 
   const [tasks, setTasks] = useState([]);
   const [taskTypes, setTaskTypes] = useState([]);
@@ -114,8 +114,8 @@ export default function DailyTasks() {
 
   const isSameDay = (date1, date2) => {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate();
   };
 
   const isDateInRange = (date, startDate, endDate) => {
@@ -243,14 +243,80 @@ const markTaskComplete = async (taskId) => {
       const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`);
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
-      const normalizedTasks = (Array.isArray(data) ? data : data.tasks || []).map((task) => ({
-        ...task,
-        assignedTo: task.assignedfor || task.assignedTo,
-        date: task.date || task.followup_date,
-        status: (task.status || "Open").toLowerCase(),
-        taskName: task.name || task.taskName,
-        type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
-      }));
+
+      const tasksArray = Array.isArray(data) ? data : data.tasks || [];
+
+      // Debug logging
+      console.log("=== DEBUG: Tasks from API ===");
+      tasksArray.forEach((task, index) => {
+        console.log(`Task ${index + 1}:`, {
+          id: task._id,
+          taskType: task.taskType,
+          is_consolidation_task: task.is_consolidation_task,
+          leader_name: task.leader_name,
+          leader_assigned: task.leader_assigned,
+          assignedfor: task.assignedfor,
+          name: task.name,
+          assigned_to: task.assigned_to,
+          source_display: task.source_display,
+        consolidation_source: task.consolidation_source
+        });
+      });
+      console.log("=== END DEBUG ===");
+
+      const normalizedTasks = tasksArray.map((task) => {
+        const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
+
+        // Determine what to show as assignedTo
+        let assignedTo = "";
+
+        if (isConsolidation) {
+          // For consolidation tasks: use leader name, NOT email
+          // Check all possible leader name fields
+          assignedTo = task.leader_name ||
+            task.leader_assigned ||
+            task.assigned_to ||
+            `${user.name || ""} ${user.surname || ""}`.trim() ;
+
+          // Debug logging for consolidation tasks
+          if (isConsolidation) {
+            console.log(`Consolidation task ${task._id}:`, {
+              leader_name: task.leader_name,
+              leader_assigned: task.leader_assigned,
+              assigned_to: task.assigned_to,
+              assignedfor: task.assignedfor,
+              final_assignedTo: assignedTo
+            });
+          }
+
+          // If we still have an email (not a name), show placeholder
+          if (assignedTo.includes('@')) {
+            assignedTo = "Consolidation Leader";
+          }
+        } else {
+          // For regular tasks
+          assignedTo = task.name || task.assignedfor || "";
+        }
+
+        return {
+          ...task,
+          assignedTo: assignedTo,
+          date: task.date || task.followup_date,
+          status: (task.status || "Open").toLowerCase(),
+          taskName: task.name || task.taskName,
+          type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
+          // Ensure all consolidation fields are preserved
+          leader_name: task.leader_name || task.leader_assigned,
+          leader_assigned: task.leader_assigned,
+          consolidation_name: task.consolidation_name ||
+            (isConsolidation
+              ? `${task.person_name || ''} ${task.person_surname || ''} - ${task.decision_display_name || 'Consolidation'}`
+              : task.name),
+          decision_display_name: task.decision_display_name,
+          is_consolidation_task: isConsolidation,
+        };
+      });
+
       setTasks(normalizedTasks);
     } catch (err) {
       console.error("Error fetching user tasks:", err.message);
@@ -351,7 +417,7 @@ const markTaskComplete = async (taskId) => {
       fetchUserTasks();
       fetchTaskTypes();
     }
-  }, [user]); // Re-fetch when user changes (e.g., login/logout)
+  }, [user]);
 
   const handleOpen = (type) => {
     setFormType(type);
@@ -439,19 +505,21 @@ const markTaskComplete = async (taskId) => {
       toast.info("This task has been marked as completed and cannot be edited.");
       return;
     }
+
     setSelectedTask(task);
     setFormType(task.type);
     setIsModalOpen(true);
+
     setTaskData({
       taskType: task.taskType || "",
       recipient: {
         Name: task.contacted_person?.name?.split(" ")[0] || "",
         Surname: task.contacted_person?.name?.split(" ")[1] || "",
-        Phone: task.contacted_person?.Number || "",
+        Phone: task.contacted_person?.phone || task.contacted_person?.Number || "",
         Email: task.contacted_person?.email || "",
       },
       recipientDisplay: task.contacted_person?.name || "",
-      assignedTo: task.name || (user ? `${user.name} ${user.surname}` : ""),
+      assignedTo: task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
       dueDate: formatDateTime(task.date),
       status: task.status,
       taskStage: task.status,
@@ -469,10 +537,18 @@ const markTaskComplete = async (taskId) => {
         throw new Error("Person details not found. Please select a valid recipient.");
       }
 
+      const isConsolidationTask = selectedTask?.taskType === 'consolidation' ||
+        selectedTask?.is_consolidation_task;
+
       const taskPayload = {
         memberID: user.id,
-        name: taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-        taskType: taskData.taskType || (formType === "call" ? "Call Task" : "Visit Task"),
+        name: isConsolidationTask
+          ? taskData.assignedTo
+          : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
+        taskType: taskData.taskType ||
+          (isConsolidationTask
+            ? "consolidation"
+            : formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
           name: `${person.Name} ${person.Surname || ""}`.trim(),
           phone: person.Phone || person.Number || "",
@@ -483,6 +559,12 @@ const markTaskComplete = async (taskId) => {
         type: formType || "call",
         assignedfor: user.email,
       };
+
+      if (isConsolidationTask) {
+        taskPayload.leader_name = selectedTask.leader_name || taskData.assignedTo;
+        taskPayload.leader_assigned = selectedTask.leader_assigned || taskData.assignedTo;
+        taskPayload.is_consolidation_task = true;
+      }
 
       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
@@ -542,163 +624,147 @@ const markTaskComplete = async (taskId) => {
     }
 
     return matchesType && matchesDate;
-});
-
- const downloadFilteredTasks = () => {
-  try {
-    if (!filteredTasks || filteredTasks.length === 0) {
-      toast.info("No data to download.");
-;
-      return;
-    }
-
-    // Map tasks to formatted data
-    const formattedTasks = filteredTasks.map(task => ({
-      "Member ID": task.memberID || user.id || "",
-      "Name": task.name || user.name || "",
-      "Task Type": task.taskType || "",
-      "Contact Person": task.contacted_person?.name || "",
-      "Contact Phone": task.contacted_person?.phone || task.contacted_person?.Number || "",
-      "Contact Email": task.contacted_person?.email || "",
-      "Follow-up Date": task.followup_date
-        ? new Date(task.followup_date).toLocaleString()
-        : "",
-      "Status": task.status || "",
-      "Type": task.type || "",
-      "Assigned For": task.assignedfor || user.email || "",
-    }));
-
-    // Get headers
-    const headers = Object.keys(formattedTasks[0]);
-
-    // Calculate column widths based on content
-const columnWidths = headers.map(header => {
-  // Start with header length
-  let maxLength = header.length;
-  
-  // Check all values in this column
-  formattedTasks.forEach(task => {
-    const value = String(task[header] || "");
-    if (value.length > maxLength) {
-      maxLength = value.length;  // Takes the longest value
-    }
   });
-  
-  // Excel width calculation: characters * 7 + 5 (approximate)
-  return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
-});
 
-    // Create column width XML
-    let colWidthsXml = columnWidths.map(width => 
-      `<x:Width>${width}</x:Width>`
-    ).join('\n                  ');
+  const downloadFilteredTasks = () => {
+    try {
+      if (!filteredTasks || filteredTasks.length === 0) {
+        toast.info("No data to download.");
+        return;
+      }
 
-    // Create HTML table with styling
-    let html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-        <head>
-          <meta charset="utf-8">
-          <!--[if gte mso 9]>
-          <xml>
-            <x:ExcelWorkbook>
-              <x:ExcelWorksheets>
-                <x:ExcelWorksheet>
-                  <x:Name>Filtered Tasks</x:Name>
-                  <x:WorksheetOptions>
-                    <x:DisplayGridlines/>
-                  </x:WorksheetOptions>
-                  <x:WorksheetColumns>
-${columnWidths.map((width, index) => `                    <x:Column ss:Index="${index + 1}" ss:AutoFitWidth="0" ss:Width="${width}"/>`).join('\n')}
-                  </x:WorksheetColumns>
-                </x:ExcelWorksheet>
-              </x:ExcelWorksheets>
-            </x:ExcelWorkbook>
-          </xml>
-          <![endif]-->
-          <style>
-            table {
-              border-collapse: collapse;
-              width: 100%;
-              font-family: Calibri, Arial, sans-serif;
-            }
-            th {
-              background-color: #a3aca3ff;
-              color: white;
-              font-weight: bold;
-              padding: 12px 8px;
-              text-align: center;
-              border: 1px solid #ddd;
-              font-size: 11pt;
-              white-space: nowrap;
-            }
-            td {
-              padding: 8px;
-              border: 1px solid #ddd;
-              font-size: 10pt;
-              text-align: left;
-            }
-            tr:nth-child(even) {
-              background-color: #f2f2f2;
-            }
-          </style>
-        </head>
-        <body>
-          <table border="1">
-            <thead>
-              <tr>
-    `;
+      const formattedTasks = filteredTasks.map(task => ({
+        "Member ID": task.memberID || user.id || "",
+        "Name": task.name || user.name || "",
+        "Task Type": task.taskType || "",
+        "Contact Person": task.contacted_person?.name || "",
+        "Contact Phone": task.contacted_person?.phone || task.contacted_person?.Number || "",
+        "Contact Email": task.contacted_person?.email || "",
+        "Follow-up Date": task.followup_date
+          ? new Date(task.followup_date).toLocaleString()
+          : "",
+        "Status": task.status || "",
+        "Type": task.type || "",
+        "Assigned For": task.assignedfor || user.email || "",
+      }));
 
-    // Add headers
-    headers.forEach(header => {
-      html += `                <th>${header}</th>\n`;
-    });
+      const headers = Object.keys(formattedTasks[0]);
 
-    html += `              </tr>\n            </thead>\n            <tbody>\n`;
-
-    // Add data rows
-    formattedTasks.forEach(task => {
-      html += `              <tr>\n`;
-      headers.forEach(header => {
-        const value = task[header] || "";
-        html += `                <td>${value}</td>\n`;
+      const columnWidths = headers.map(header => {
+        let maxLength = header.length;
+        formattedTasks.forEach(task => {
+          const value = String(task[header] || "");
+          if (value.length > maxLength) {
+            maxLength = value.length;
+          }
+        });
+        return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
       });
-      html += `              </tr>\n`;
-    });
 
-    html += `            </tbody>
-          </table>
-        </body>
-      </html>`;
+      let colWidthsXml = columnWidths.map(width =>
+        `<x:Width>${width}</x:Width>`
+      ).join('\n                  ');
 
-    // Create blob and download
-    const blob = new Blob([html], { 
-      type: 'application/vnd.ms-excel;charset=utf-8;' 
-    });
+      let html = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+          <head>
+            <meta charset="utf-8">
+            <!--[if gte mso 9]>
+            <xml>
+              <x:ExcelWorkbook>
+                <x:ExcelWorksheets>
+                  <x:ExcelWorksheet>
+                    <x:Name>Filtered Tasks</x:Name>
+                    <x:WorksheetOptions>
+                      <x:DisplayGridlines/>
+                    </x:WorksheetOptions>
+                    <x:WorksheetColumns>
+      ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${index + 1}" ss:AutoFitWidth="0" ss:Width="${width}"/>`).join('\n')}
+                    </x:WorksheetColumns>
+                  </x:ExcelWorksheet>
+                </x:ExcelWorksheets>
+              </x:ExcelWorkbook>
+            </xml>
+            <![endif]-->
+            <style>
+              table {
+                border-collapse: collapse;
+                width: 100%;
+                font-family: Calibri, Arial, sans-serif;
+              }
+              th {
+                background-color: #a3aca3ff;
+                color: white;
+                font-weight: bold;
+                padding: 12px 8px;
+                text-align: center;
+                border: 1px solid #ddd;
+                font-size: 11pt;
+                white-space: nowrap;
+              }
+              td {
+                padding: 8px;
+                border: 1px solid #ddd;
+                font-size: 10pt;
+                text-align: left;
+              }
+              tr:nth-child(even) {
+                background-color: #f2f2f2;
+              }
+            </style>
+          </head>
+          <body>
+            <table border="1">
+              <thead>
+                <tr>
+      `;
 
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    const fileName = `filtered_tasks_${user?.name || 'user'}_${new Date().toISOString().split('T')[0]}.xls`;
-    
-    link.href = url;
-    link.download = fileName;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
+      headers.forEach(header => {
+        html += `                <th>${header}</th>\n`;
+      });
 
-    // Cleanup
-    setTimeout(() => {
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 100);
+      html += `              </tr>\n            </thead>\n            <tbody>\n`;
 
-    console.log("Download successful!");
-  } catch (error) {
-    console.error("Error downloading Excel file:", error);
-    toast.error("Error creating Excel file: " + error.message);
-  }
-};
+      formattedTasks.forEach(task => {
+        html += `              <tr>\n`;
+        headers.forEach(header => {
+          const value = task[header] || "";
+          html += `                <td>${value}</td>\n`;
+        });
+        html += `              </tr>\n`;
+      });
 
-  // Total count number
+      html += `            </tbody>
+            </table>
+          </body>
+        </html>`;
+
+      const blob = new Blob([html], {
+        type: 'application/vnd.ms-excel;charset=utf-8;'
+      });
+
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      const fileName = `filtered_tasks_${user?.name || 'user'}_${new Date().toISOString().split('T')[0]}.xls`;
+
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+
+      console.log("Download successful!");
+    } catch (error) {
+      console.error("Error downloading Excel file:", error);
+      toast.error("Error creating Excel file: " + error.message);
+    }
+  };
+
   const [totalCount, setTotalCount] = useState(0);
 
 // Update the useEffect for totalCount
@@ -710,19 +776,19 @@ useEffect(() => {
 }, [filteredTasks]); // Remove updateTask from dependencies
 
   return (
-    <div style={{ 
-      height: '100vh', // Make the root container full viewport height
-      overflow: 'hidden', // Prevent root scrolling
+    <div style={{
+      height: '100vh',
+      overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
       backgroundColor: isDarkMode ? '#1e1e1e' : '#f8f9fa',
       paddingTop: '5rem'
     }}>
-      {/* Header section - responsive height */}
-      <div style={{ 
-        maxWidth: '1200px', 
-        margin: '0 auto', 
-        padding: '16px 16px 0 16px', // Reduced padding on mobile
+      {/* Header section */}
+      <div style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '16px 16px 0 16px',
         width: '100%',
         flexShrink: 0,
         boxSizing: 'border-box'
@@ -730,55 +796,55 @@ useEffect(() => {
         <div style={{
           backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
           color: isDarkMode ? '#fff' : '#1a1a24',
-          borderRadius: '16px', // Slightly smaller on mobile
-          padding: '24px 16px', // Reduced padding
+          borderRadius: '16px',
+          padding: '24px 16px',
           textAlign: 'center',
           boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
           border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
         }}>
-          <h1 style={{ 
-            fontSize: 'clamp(48px, 8vw, 72px)', // Responsive font size
-            fontWeight: '700', 
-            margin: 0, 
+          <h1 style={{
+            fontSize: 'clamp(48px, 8vw, 72px)',
+            fontWeight: '700',
+            margin: 0,
             letterSpacing: '-2px',
             lineHeight: '1.2'
           }}>
             {totalCount}
           </h1>
-          <p style={{ 
-            marginTop: '8px', // Reduced margin
-            fontSize: '14px', // Slightly smaller on mobile
-            letterSpacing: '1px', 
-            textTransform: 'uppercase', 
-            color: isDarkMode ? '#aaa' : '#6b7280', 
-            fontWeight: '600' 
+          <p style={{
+            marginTop: '8px',
+            fontSize: '14px',
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            color: isDarkMode ? '#aaa' : '#6b7280',
+            fontWeight: '600'
           }}>
             Tasks Complete
           </p>
 
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            gap: '12px', // Reduced gap
-            marginTop: '24px', // Reduced margin
-            flexWrap: 'wrap' 
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '12px',
+            marginTop: '24px',
+            flexWrap: 'wrap'
           }}>
             <button
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px', // Reduced gap
+                gap: '8px',
                 backgroundColor: isDarkMode ? '#fff' : '#000',
                 color: isDarkMode ? '#000' : '#fff',
                 fontWeight: '600',
-                padding: '12px 20px', // Reduced padding
-                borderRadius: '10px', // Slightly smaller
+                padding: '12px 20px',
+                borderRadius: '10px',
                 border: 'none',
                 cursor: 'pointer',
-                fontSize: '14px', // Smaller font
+                fontSize: '14px',
                 boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                width: '140px', // Fixed width for better mobile layout
+                width: '140px',
                 minHeight: '44px'
               }}
               onClick={() => handleOpen("call")}
@@ -807,7 +873,7 @@ useEffect(() => {
             >
               <UserPlus size={18} /> Visit Task
             </button>
-            
+
             {user?.role === 'admin' && (
               <button
                 style={{
@@ -837,7 +903,7 @@ useEffect(() => {
           <div style={{ marginTop: '20px' }}>
             <select
               style={{
-                padding: '10px 16px', // Reduced padding
+                padding: '10px 16px',
                 borderRadius: '10px',
                 border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
@@ -859,7 +925,7 @@ useEffect(() => {
               <option value="previousMonth">Previous Month</option>
             </select>
           </div>
-          
+
           <div style={{ marginTop: '12px' }}>
             <button
               style={{
@@ -889,30 +955,30 @@ useEffect(() => {
           </div>
         </div>
 
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          gap: '8px', // Reduced gap
-          marginTop: '20px', // Reduced margin
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '8px',
+          marginTop: '20px',
           flexWrap: 'wrap',
-          overflowX: 'auto', // Allow horizontal scrolling on mobile
+          overflowX: 'auto',
           paddingBottom: '8px'
         }}>
           {["all", "call", "visit", "consolidation"].map((type) => (
             <button
               key={type}
               style={{
-                padding: '8px 16px', // Reduced padding
+                padding: '8px 16px',
                 borderRadius: '20px',
                 border: filterType === type ? 'none' : `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 fontWeight: '600',
                 cursor: 'pointer',
                 backgroundColor: filterType === type ? (isDarkMode ? '#fff' : '#000') : (isDarkMode ? '#2d2d2d' : '#ffffff'),
                 color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
-                fontSize: '13px', // Smaller font
+                fontSize: '13px',
                 boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
-                whiteSpace: 'nowrap', // Prevent text wrapping
-                flexShrink: 0 // Don't shrink buttons
+                whiteSpace: 'nowrap',
+                flexShrink: 0
               }}
               onClick={() => setFilterType(type)}
             >
@@ -922,36 +988,50 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Task list container - this is the scrollable area */}
-      <div style={{ 
-        flex: 1, // Take up remaining space
-        overflowY: 'auto', // Enable vertical scrolling here
-        maxWidth: '1200px', 
-        margin: '0 auto', 
-        padding: '0 16px 16px 16px', // Reduced padding
+      {/* Task list container */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '0 16px 16px 16px',
         width: '100%',
         boxSizing: 'border-box'
       }}>
         <div style={{ marginTop: '16px' }}>
           {loading ? (
-            <p style={{ 
-              textAlign: 'center', 
-              color: isDarkMode ? '#aaa' : '#6b7280', 
-              fontStyle: 'italic', 
-              padding: '20px' // Reduced padding
+            <p style={{
+              textAlign: 'center',
+              color: isDarkMode ? '#aaa' : '#6b7280',
+              fontStyle: 'italic',
+              padding: '20px'
             }}>
               Loading tasks...
             </p>
           ) : filteredTasks.length === 0 ? (
-            <p style={{ 
-              textAlign: 'center', 
+            <p style={{
+              textAlign: 'center',
               color: isDarkMode ? '#aaa' : '#6b7280',
               padding: '20px'
             }}>
               No tasks yet.
             </p>
           ) : (
-            filteredTasks.map((task) => (
+            filteredTasks.map((task) => {
+              // Get the recipient name
+              const recipientName = task.contacted_person?.name || "";
+
+              // Determine if it's a consolidation task
+              const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
+
+              // Get the assigned/leader name EXACTLY as shown in modal
+              // This should match what's in task.assignedTo
+              const assignedDisplay = task.assignedTo || "";
+
+               // Get the source display
+              const sourceDisplay = task.source_display || "Manual";
+              
+            return (
               <div
                 key={task._id}
                 style={{
@@ -959,52 +1039,76 @@ useEffect(() => {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-                  padding: '16px', // Reduced padding
-                  borderRadius: '12px', // Slightly smaller
+                  padding: '16px',
+                  borderRadius: '12px',
                   border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                  marginBottom: '10px', // Reduced margin
+                  marginBottom: '10px',
                   cursor: 'pointer',
                   boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
                 }}
               >
                 <div
-                  style={{ 
+                  style={{
                     cursor: 'pointer',
                     flex: 1,
-                    minWidth: 0 // Allow text truncation
+                    minWidth: 0
                   }}
-                  onClick={() => {
-                    toast.success(`Recipient: ${task.contacted_person?.name}\nPhone: ${task.contacted_person?.Number || task.contacted_person?.phone || 'N/A'}\nEmail: ${task.contacted_person?.email || 'N/A'}`);
-                  }}
+                  onClick={() => handleEdit(task)}
                 >
-                  <p style={{ 
-                    fontWeight: '700', 
-                    color: isDarkMode ? '#fff' : '#1a1a24', 
-                    margin: 0, 
-                    fontSize: '15px', // Slightly smaller
+                  {/* Recipient Name */}
+                  <p style={{
+                    fontWeight: '700',
+                    color: isDarkMode ? '#fff' : '#1a1a24',
+                    margin: '0 0 4px 0',
+                    fontSize: '15px',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
                   }}>
-                    {task.contacted_person?.name}
+                    {recipientName || 'No recipient'}
                   </p>
-                  <p style={{ 
-                    fontSize: '13px', // Smaller
-                    color: isDarkMode ? '#aaa' : '#6b7280', 
-                    margin: '4px 0 0 0', // Reduced margin
+
+                  {/* Assigned To - EXACTLY as shown in modal */}
+                  <p style={{
+                    fontSize: '13px',
+                    color: isDarkMode ? '#aaa' : '#6b7280',
+                    margin: '0 0 4px 0',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
                   }}>
-                    {task.name}
+                    {assignedDisplay || 'Not assigned'}
                   </p>
+
+                  {/* Consolidation Source Badge */}
+                  {isConsolidation && sourceDisplay && sourceDisplay !== "Manual" && (
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      backgroundColor: sourceDisplay === "Service" ? '#dcfce7' : 
+                                      sourceDisplay === "Cell" ? '#fef3c7' : '#e0e7ff',
+                      color: sourceDisplay === "Service" ? '#166534' : 
+                            sourceDisplay === "Cell" ? '#92400e' : '#3730a3',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      display: 'inline-block',
+                      marginTop: '4px',
+                      marginRight: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      {sourceDisplay} Consolidation
+                    </span>
+                  )}
+
+                  {/* Recurring Badge */}
                   {task.isRecurring && (
                     <span style={{
                       fontSize: '10px',
                       fontWeight: '700',
                       backgroundColor: '#fde047',
                       color: '#854d0e',
-                      padding: '3px 8px',
+                      padding: '2px 6px',
                       borderRadius: '4px',
                       display: 'inline-block',
                       marginTop: '6px',
@@ -1015,7 +1119,8 @@ useEffect(() => {
                     </span>
                   )}
                 </div>
-                <div style={{ 
+                
+                <div style={{
                   textAlign: 'right',
                   marginLeft: '12px',
                   flexShrink: 0
@@ -1023,26 +1128,26 @@ useEffect(() => {
                   <span
                     style={{
                       display: 'inline-block',
-                      padding: '5px 12px', // Reduced padding
+                      padding: '5px 12px',
                       borderRadius: '16px',
-                      fontSize: '12px', // Smaller
+                      fontSize: '12px',
                       fontWeight: '600',
                       textTransform: 'capitalize',
                       border: '2px solid',
                       cursor: 'pointer',
-                      backgroundColor: task.status === "open" 
-                        ? (isDarkMode ? '#2d2d2d' : '#ffffff') 
-                        : task.status === "completed" 
+                      backgroundColor: task.status === "open"
+                        ? (isDarkMode ? '#2d2d2d' : '#ffffff')
+                        : task.status === "completed"
                           ? (isDarkMode ? '#fff' : '#000')
                           : (isDarkMode ? '#3a3a3a' : '#e5e5e5'),
-                      color: task.status === "open" 
+                      color: task.status === "open"
                         ? (isDarkMode ? '#fff' : '#000')
-                        : task.status === "completed" 
+                        : task.status === "completed"
                           ? (isDarkMode ? '#000' : '#fff')
                           : (isDarkMode ? '#fff' : '#1a1a24'),
-                      borderColor: task.status === "open" 
+                      borderColor: task.status === "open"
                         ? (isDarkMode ? '#fff' : '#000')
-                        : task.status === "completed" 
+                        : task.status === "completed"
                           ? (isDarkMode ? '#fff' : '#000')
                           : (isDarkMode ? '#444' : '#6b7280'),
                     }}
@@ -1057,17 +1162,18 @@ useEffect(() => {
                   >
                     {task.status}
                   </span>
-                  <div style={{ 
-                    fontSize: '11px', // Smaller
-                    color: isDarkMode ? '#aaa' : '#6b7280', 
-                    marginTop: '6px', // Reduced margin
-                    fontWeight: '500' 
+                  <div style={{
+                    fontSize: '11px',
+                    color: isDarkMode ? '#aaa' : '#6b7280',
+                    marginTop: '6px',
+                    fontWeight: '500'
                   }}>
                     {formatDate(task.date)}
                   </div>
                 </div>
               </div>
-            ))
+            );
+            })
           )}
         </div>
       </div>
@@ -1088,20 +1194,20 @@ useEffect(() => {
             style={{
               backgroundColor: isDarkMode ? '#1e1e1e' : "#fff",
               color: isDarkMode ? '#fff' : '#1a1a24',
-              padding: "24px", // Reduced padding
+              padding: "24px",
               borderRadius: "16px",
-              width: "90%", // Percentage width for mobile
+              width: "90%",
               maxWidth: "440px",
               boxShadow: isDarkMode ? "0 20px 60px rgba(255,255,255,0.1)" : "0 20px 60px rgba(0,0,0,0.3)",
               display: "flex",
               flexDirection: "column",
-              gap: "16px", // Reduced gap
+              gap: "16px",
               border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
             }}
           >
-            <h2 style={{ 
-              margin: 0, 
-              fontSize: "20px", // Smaller on mobile
+            <h2 style={{
+              margin: 0,
+              fontSize: "20px",
               fontWeight: "700",
               textAlign: 'center'
             }}>
@@ -1114,7 +1220,7 @@ useEffect(() => {
               placeholder="Enter task type name"
               autoFocus
               style={{
-                padding: "12px 14px", // Reduced padding
+                padding: "12px 14px",
                 fontSize: "14px",
                 borderRadius: "10px",
                 border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
@@ -1130,7 +1236,7 @@ useEffect(() => {
                 onClick={createTaskType}
                 disabled={addingTaskType}
                 style={{
-                  padding: "10px 20px", // Reduced padding
+                  padding: "10px 20px",
                   backgroundColor: isDarkMode ? '#fff' : '#000',
                   color: isDarkMode ? '#000' : '#fff',
                   fontWeight: "600",
@@ -1167,23 +1273,26 @@ useEffect(() => {
 
       <Modal isOpen={isModalOpen} onClose={handleClose} isDarkMode={isDarkMode}>
         <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleSubmit}>
-          <h3 style={{ 
-            fontSize: '20px', 
-            fontWeight: 'bold', 
-            color: isDarkMode ? '#fff' : '#1a1a24', 
+          <h3 style={{
+            fontSize: '20px',
+            fontWeight: 'bold',
+            color: isDarkMode ? '#fff' : '#1a1a24',
             margin: 0,
             textAlign: 'center'
           }}>
-            {formType === "call" ? "Call" : "Visit"} Task
+            {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
+              ? "Consolidation Task"
+              : formType === "call" ? "Call Task" : "Visit Task"
+            }
           </h3>
 
           <div>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '6px' 
+            <label style={{
+              display: 'block',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: isDarkMode ? '#fff' : '#1a1a24',
+              marginBottom: '6px'
             }}>
               Task Type
             </label>
@@ -1213,12 +1322,12 @@ useEffect(() => {
           </div>
 
           <div style={{ position: 'relative' }}>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '6px' 
+            <label style={{
+              display: 'block',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: isDarkMode ? '#fff' : '#1a1a24',
+              marginBottom: '6px'
             }}>
               Recipient
             </label>
@@ -1307,7 +1416,10 @@ useEffect(() => {
                 marginBottom: '6px',
               }}
             >
-              Assigned To
+              {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
+                ? "Leader Assigned"
+                : "Assigned To"
+              }
             </label>
             <input
               type="text"
@@ -1319,7 +1431,7 @@ useEffect(() => {
                 fetchAssigned(value);
               }}
               autoComplete="off"
-              disabled
+              disabled={selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task}
               required
               style={{
                 width: '100%',
@@ -1331,9 +1443,13 @@ useEffect(() => {
                 color: isDarkMode ? '#fff' : '#1a1a24',
                 outline: 'none',
               }}
-              placeholder="Enter name to assign task"
+              placeholder={
+                selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
+                  ? "Leader name (read-only)"
+                  : "Enter name to assign task"
+              }
             />
-            {assignedResults.length > 0 && (
+            {assignedResults.length > 0 && !(selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task) && (
               <ul
                 style={{
                   position: 'absolute',
@@ -1382,12 +1498,12 @@ useEffect(() => {
           </div>
 
           <div>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '6px' 
+            <label style={{
+              display: 'block',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: isDarkMode ? '#fff' : '#1a1a24',
+              marginBottom: '6px'
             }}>
               Due Date & Time
             </label>
@@ -1411,12 +1527,12 @@ useEffect(() => {
           </div>
 
           <div>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '13px', 
-              fontWeight: '600', 
-              color: isDarkMode ? '#fff' : '#1a1a24', 
-              marginBottom: '6px' 
+            <label style={{
+              display: 'block',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: isDarkMode ? '#fff' : '#1a1a24',
+              marginBottom: '6px'
             }}>
               Task Stage
             </label>
@@ -1481,15 +1597,14 @@ useEffect(() => {
         </form>
       </Modal>
       <ToastContainer
-  position="top-right"
-  autoClose={3000}
-  hideProgressBar={false}
-  newestOnTop={true}
-  closeOnClick
-  pauseOnHover
-  theme={isDarkMode ? "dark" : "light"}
-/>
-
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={true}
+        closeOnClick
+        pauseOnHover
+        theme={isDarkMode ? "dark" : "light"}
+      />
     </div>
   );
 }
