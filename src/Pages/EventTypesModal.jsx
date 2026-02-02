@@ -333,35 +333,42 @@ const EventTypesModal = ({
               />
             </CardContent>
 
-            <div className="event-setting">
-            <p style={{ marginLeft: "24px", fontWeight: "600", mb: 2 }}>
-              isGlobal Event
-            </p>
+           <Box sx={{ mt: 3 }}>
+  <Typography sx={{ ml: 3, fontWeight: 600 }}>
+    Global Event
+  </Typography>
 
-            <label style={{ marginLeft: "18px" }}>
-              <input
-                type="radio"
-                name="isGlobal"
-                checked={formData.isGlobal === true}
-                onChange={() =>
-                  setFormData(prev => ({ ...prev, isGlobal: true }))
-                }
-              />
-              True
-            </label>
+  <FormControlLabel
+    control={
+      <input
+        type="radio"
+        name="isGlobal"
+        checked={formData.isGlobal === true}
+        onChange={() =>
+          setFormData(prev => ({ ...prev, isGlobal: true }))
+        }
+      />
+    }
+    label="True (Visible to everyone)"
+    sx={{ ml: 3 }}
+  />
 
-            <label style={{ marginLeft: "12px" }}>
-              <input
-                type="radio"
-                name="isGlobal"
-                checked={formData.isGlobal === false}
-                onChange={() =>
-                  setFormData(prev => ({ ...prev, isGlobal: false }))
-                }
-              />
-              False
-            </label>
-          </div>
+  <FormControlLabel
+    control={
+      <input
+        type="radio"
+        name="isGlobal"
+        checked={formData.isGlobal === false}
+        onChange={() =>
+          setFormData(prev => ({ ...prev, isGlobal: false }))
+        }
+      />
+    }
+    label="False (Admin only)"
+    sx={{ ml: 3 }}
+  />
+</Box>
+
 
 
           </Card>
@@ -401,7 +408,7 @@ const EventTypesModal = ({
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
                 />
                   <br></br>
-                { <FormControlLabel
+                {/* { <FormControlLabel
                   control={
                     <Checkbox
                       name="isGlobal"
@@ -421,7 +428,7 @@ const EventTypesModal = ({
                   }
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
                 /> 
-                }
+                } */}
 
                 {/* <FormControlLabel
                   control={

@@ -848,38 +848,25 @@ const Events = () => {
   const [events, setEvents] = useState([]);
   const [user, setUser] = useState(null);
 
-// Filter events for the current user
 const visibleEvents = events.filter(event => {
   if (!user) return false;
 
-  const userRole = user.role?.toLowerCase() || "";
+  const role = userRole?.toLowerCase() || "";
 
-  // Admins see everything
-  if (userRole === "admin") return true;
+  const isAdmin = role.includes("admin");
+  const isLeader144 =
+    role.includes("leader at 144") ||
+    role.includes("leader@144") ||
+    role.includes("leader144");
 
-  // Leader at 12 sees everything
-  const isLeaderAt12 = 
-    userRole.includes("leader at 12") ||
-    userRole.includes("leader@12") ||
-    userRole.includes("leader @12") ||
-    userRole.includes("leader at12") ||
-    userRole === "leader at 12";
-  
-  if (isLeaderAt12) return true;
+  // 🔴 ADMIN: sees everything (global + non-global)
+  if (isAdmin) return true;
 
-  // Leader at 144 sees ONLY global events
-  const isLeader144 = 
-    userRole.includes("leader at 144") ||
-    userRole.includes("leader@144") ||
-    userRole.includes("leader144");
-  
-  if (isLeader144) {
-    return event.isGlobal === true;
-  }
-
-  // Everyone else (regular users, registrants) sees only global events
+  // 🟢 EVERYONE ELSE (Leader 12, Leader 144, registrants):
+  // sees ONLY global events
   return event.isGlobal === true;
 });
+
 
   const [, setActiveFilters] = useState({});
   const [loading, setLoading] = useState(true);
@@ -1035,6 +1022,30 @@ const selectedType = searchParams.get('type')
       ...eventTypes.map((t) => (typeof t === "string" ? t : t.name)),
     ];
   }, [eventTypes]);
+
+ const visibleEventTypes = useMemo(() => {
+  if (!eventTypes || !user) return [];
+
+  const role = userRole?.toLowerCase() || "";
+  const isAdmin = role.includes("admin");
+
+  return eventTypes.filter((type) => {
+    if (isAdmin) return true;
+    
+    // Only show global types that are NOT admin-only
+    if (type.isGlobal === true && type.adminOnly !== true) {
+      return true;
+    }
+    
+    // Or if the type was created by the current user
+    if (type.createdBy === user.email || type.createdBy === user._id) {
+      return true;
+    }
+    
+    return false;
+  });
+}, [eventTypes, user, userRole]);
+
 
 
 
