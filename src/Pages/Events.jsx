@@ -1442,195 +1442,44 @@ ${xmlCols}
     ];
   }, [eventTypes]);
 
-const fetchEvents = useCallback(
-  async (filters = {}, showLoader = true) => {
-    if (showLoader) {
-      setLoading(true);
-      setIsLoading(true);
-    }
 
-    try {
-      // Check token first
-      const token = localStorage.getItem("access_token");
-      if (!token) {
-        console.log("No token found, redirecting to login");
-        logout();
-        window.location.href = "/login";
-        return;
-      }
+  
+const fetchEvents = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await axios.get(`${BACKEND_URL}/events`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    const allEvents = response.data.events || [];
 
-      const params = {
-        page: filters.page || currentPage,
-        limit: filters.limit || rowsPerPage,
-        start_date: filters.start_date || DEFAULT_API_START_DATE,
-      };
+    // Identify the current user
+    const currentUserEmail = user?.email?.toLowerCase();
+    const userRole = user?.role?.toLowerCase();
+    const isAdmin = userRole === 'admin' || userRole === 'leaderat12';
 
-      // Use filters.status if provided, otherwise use selectedStatus from state
-      const statusToUse = filters.status !== undefined ? filters.status : selectedStatus;
-      if (statusToUse && statusToUse !== "all") {
-        params.status = statusToUse;
-      }
+    // Apply the Visibility Shield
+    const visibleEvents = allEvents.filter(event => {
+      // Rule 1: Admins see everything
+      if (isAdmin) return true;
 
-      console.log("📊 fetchEvents called with:", {
-        providedStatus: filters.status,
-        currentSelectedStatus: selectedStatus,
-        finalStatus: params.status,
-      });
+      // Rule 2: If it's Global, everyone sees it
+      if (event.isGlobal === true) return true;
 
-      if (filters.search) params.search = filters.search;
-      if (filters.event_type) params.event_type = filters.event_type;
+      // Rule 3: If it's Private (isGlobal: false), 
+      // ONLY the creator or the assigned leader sees it
+      const isCreator = event.userEmail?.toLowerCase() === currentUserEmail;
+      const isAssignedLeader = event.eventLeaderEmail?.toLowerCase() === currentUserEmail;
 
-      let endpoint;
+      return isCreator || isAssignedLeader;
+    });
 
-      // Handle Endpoint Selection
-      if (
-        filters.event_type === "CELLS" ||
-        filters.event_type === "all" ||
-        !filters.event_type
-      ) {
-        endpoint = `${BACKEND_URL}/events/cells`;
+    setEvents(visibleEvents);
+  } catch (error) {
+    console.error("Error fetching events:", error);
+  }
+};
 
-        console.log("=== FETCH EVENTS DEBUG ===");
-        if (isLeaderAt12) {
-          console.log("LEADER AT 12 MODE ACTIVATED");
-          params.leader_at_12_view = true;
-          params.isLeaderAt12 = true;
-
-          if (viewFilter === "personal") {
-            params.show_personal_cells = true;
-            params.personal = true;
-          } else {
-            params.show_all_authorized = true;
-            params.include_subordinate_cells = true;
-          }
-
-          params.firstName = currentUser?.name || "";
-          params.userSurname = currentUser?.surname || "";
-
-          const userFullName = `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim();
-          if (userFullName) params.userFullName = userFullName;
-          if (currentUserLeaderAt1) params.leader_at_1_identifier = currentUserLeaderAt1;
-
-        } else if (isAdmin) {
-          console.log("ADMIN MODE");
-          if (viewFilter === "personal") params.personal = true;
-        } else {
-          console.log("REGULAR ROLE - Requiring global events");
-          params.personal = true;
-          params.require_global_events = true; 
-        }
-      } else {
-        endpoint = `${BACKEND_URL}/events/other`;
-        console.log("=== FETCH OTHER EVENTS DEBUG ===");
-        
-        if (isAdmin || isLeaderAt12) {
-          params.personal = true;
-        } else {
-          params.personal = true;
-          params.require_global_events = true; 
-        }
-      }
-
-      // Cleanup undefined/empty params
-      Object.keys(params).forEach(
-        (key) => (params[key] === undefined || params[key] === "") && delete params[key]
-      );
-
-      const queryString = new URLSearchParams(params).toString();
-      const fullUrl = `${endpoint}?${queryString}`;
-      
-      const response = await authFetch(fullUrl, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          // await refreshToken();
-          // The authFetch wrapper usually handles the retry, but if not, logic goes here
-          return;
-        }
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const eventsToShow = data.events || [];
-
-      // UPDATED FRONTEND FILTERING LOGIC
-      if (isLeader || isRegistrant || isRegularUser) {
-        console.log("Applying case-insensitive global filter...");
-        try {
-          const eventTypeMapStr = localStorage.getItem("eventTypeMap");
-          const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
-          
-          const filteredEvents = eventsToShow.filter(event => {
-            // Check all possible field names the backend might send
-            const rawName = event.eventTypeName || event.eventType || event.event_type;
-            
-            // If the event has no type name, show it (don't hide data by accident)
-            if (!rawName) return true;
-            
-            // Standardize lookup to lowercase to match the Map keys
-            const typeInfo = eventTypeMap[rawName.toLowerCase()];
-            
-            // If we find the metadata, strictly check isGlobal
-            if (typeInfo) {
-              return typeInfo.isGlobal === true;
-            }
-            
-            // Default to showing if metadata is missing (safety)
-            return true; 
-          });
-          
-          setEvents(filteredEvents);
-        } catch (filterError) {
-          console.error("Filtering error:", filterError);
-          setEvents(eventsToShow);
-        }
-      } else {
-        // Admin and LeaderAt12 see everything
-        setEvents(eventsToShow);
-      }
-      
-      setTotalEvents(data.total_events || 0);
-      setTotalPages(data.total_pages || 1);
-
-    } catch (error) {
-      console.error("Fetch Events Error:", error);
-      if (!error.message.includes("401")) {
-        toast.error(`Failed to load events: ${error.message}`);
-      }
-      setEvents([]);
-    } finally {
-      if (showLoader) {
-        setLoading(false);
-        setIsLoading(false);
-      }
-    }
-  },
-  [
-    currentPage,
-    rowsPerPage,
-    selectedStatus, 
-    authFetch,
-    BACKEND_URL,
-    DEFAULT_API_START_DATE,
-    isLeaderAt12,
-    isAdmin,
-    isRegularUser,
-    isRegistrant,
-    isLeader, 
-    viewFilter,
-    currentUserLeaderAt1,
-    currentUser,
-    userRole,
-    logout,
-    // refreshToken
-  ]
-);
 const fetchEventTypes = useCallback(async () => {
   try {
     const token = localStorage.getItem("access_token");

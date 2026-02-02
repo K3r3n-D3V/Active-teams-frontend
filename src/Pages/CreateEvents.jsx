@@ -476,9 +476,13 @@ useEffect(() => {
     return days[date.getDay()];
   };
 
- const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
   e.preventDefault();
-  if (!validateForm()){return setTimeout(()=>{formAlert.current.scrollIntoView({behavior:"smooth"})},200)};
+  if (!validateForm()){
+    return setTimeout(() => {
+      formAlert.current.scrollIntoView({behavior:"smooth"})
+    }, 200)
+  };
 
   setIsSubmitting(true);
 
@@ -489,30 +493,15 @@ useEffect(() => {
       eventTypeToSend = "CELLS";
     }
 
-    if (!eventTypeToSend) {
-      toast.error("Event type is required");
-      setIsSubmitting(false);
-      return;
-    }
-
-    console.log('Creating event with type:', eventTypeToSend);
-
-    let dayValue = "";
-
-    if (!formData.recurringDays || formData.recurringDays.length === 0) {
-      dayValue = formData.date ? getDayFromDate(formData.date) : "";
-    } else if (formData.recurringDays.length === 1) {
-      dayValue = formData.recurringDays[0];
-    } else {
-      dayValue = "Recurring";
-    }
+    // Capture the flags from the state we set in determineEventType
+    const { isGlobal, isTicketed, hasPersonSteps } = eventTypeFlags;
 
     const payload = {
       UUID: generateUUID(),
       eventTypeName: eventTypeToSend,
       eventName: formData.eventName,
-      isTicketed: !!isTicketedEvent,
-      isGlobal: !!isGlobalEvent,
+      isTicketed: !!isTicketed,
+      isGlobal: !!isGlobal, // CRITICAL: This determines visibility
       hasPersonSteps: !!hasPersonSteps,
       location: formData.location,
       eventLeader: formData.eventLeader,
@@ -521,12 +510,15 @@ useEffect(() => {
       description: formData.description,
       userEmail: user?.email || "",
       recurring_day: formData.recurringDays,
-      day: dayValue,
+      day: formData.recurringDays.length === 0 
+           ? (formData.date ? getDayFromDate(formData.date) : "") 
+           : (formData.recurringDays.length === 1 ? formData.recurringDays[0] : "Recurring"),
       status: "open",
       leader1: formData.leader1 || "",
       leader12: formData.leader12 || "",
     };
 
+    // Date/Time Logic
     if (formData.date && formData.time) {
       const [hoursStr, minutesStr] = formData.time.split(":");
       let hours = Number(hoursStr);
@@ -534,35 +526,18 @@ useEffect(() => {
       if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
       if (formData.timePeriod === "AM" && hours === 12) hours = 0;
 
-      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
-        .toString()
-        .padStart(2, "0")}:00`;
-      
+      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00`;
       payload.time = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
     }
 
-    if (isTicketedEvent && !isGlobalEvent) {
-      if (priceTiers.length > 0) {
-        payload.priceTiers = priceTiers.map((tier) => ({
-          name: tier.name || "",
-          price: parseFloat(tier.price) || 0,
-          ageGroup: tier.ageGroup || "",
-          memberType: tier.memberType || "",
-          paymentMethod: tier.paymentMethod || "",
-        }));
-      } else {
-        payload.priceTiers = [];
-      }
-    } else {
-      payload.priceTiers = [];
-    }
-
-    if (hasPersonSteps && !isGlobalEvent) {
-      payload.leader1 = formData.leader1 || "";
-      payload.leader12 = formData.leader12 || "";
-    }
-
-    console.log('Final Payload:', payload);
+    // Price Tiers Logic
+    payload.priceTiers = (isTicketed && !isGlobal) ? priceTiers.map(tier => ({
+      name: tier.name || "",
+      price: parseFloat(tier.price) || 0,
+      ageGroup: tier.ageGroup || "",
+      memberType: tier.memberType || "",
+      paymentMethod: tier.paymentMethod || "",
+    })) : [];
 
     const token = localStorage.getItem("token");
     const headers = {
@@ -570,61 +545,21 @@ useEffect(() => {
       "Content-Type": "application/json",
     };
 
-    const response = eventId
-      ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
-      : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
+    const url = eventId 
+      ? `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}` 
+      : `${BACKEND_URL.replace(/\/$/, "")}/events`;
+    
+    const response = eventId 
+      ? await axios.put(url, payload, { headers }) 
+      : await axios.post(url, payload, { headers });
 
-    console.log("Response:", response.data);
-
-    toast.success(
-      eventId ? "Event updated successfully!" : "Event created successfully!"
-    );
-
+    toast.success(eventId ? "Event updated!" : "Event created!");
     if (!eventId) resetForm();
-
-    setTimeout(() => {
-      if (isModal && typeof onClose === "function") {
-        onClose(true);
-      } else {
-        navigate("/events", {
-          state: {
-            refresh: true,
-            timestamp: Date.now()
-          }
-        });
-      }
-    }, 1200);
+    if (isModal) onClose(true);
 
   } catch (err) {
-    console.error("Error:", err);
-    console.error("Response:", err?.response?.data);
-
-    let errorMsg = "Failed to submit event";
-
-    if (err?.response?.data) {
-      const errorData = err.response.data;
-
-      if (Array.isArray(errorData.detail)) {
-        errorMsg = "Validation errors: " + errorData.detail.map(errorObj => {
-          if (errorObj.msg) return errorObj.msg;
-          if (errorObj.loc && errorObj.msg) return `${errorObj.loc.join('.')}: ${errorObj.msg}`;
-          return JSON.stringify(errorObj);
-        }).join(', ');
-      }
-      else if (errorData.detail && typeof errorData.detail === 'object') {
-        errorMsg = errorData.detail.msg || JSON.stringify(errorData.detail);
-      }
-      else if (errorData.message) {
-        errorMsg = errorData.message;
-      }
-      else if (errorData.detail) {
-        errorMsg = errorData.detail;
-      }
-    } else if (err?.message) {
-      errorMsg = err.message;
-    }
-
-    toast.error(errorMsg);
+    console.error("Submission Error:", err);
+    toast.error(err.response?.data?.detail || "Failed to submit event");
   } finally {
     setIsSubmitting(false);
   }
