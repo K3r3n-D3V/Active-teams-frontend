@@ -1443,80 +1443,138 @@ ${xmlCols}
   }, [eventTypes]);
 
 
-  
-const fetchEvents = async () => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await axios.get(`${BACKEND_URL}/events`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    const allEvents = response.data.events || [];
+const fetchEvents = useCallback(
+  async (filters = {}, showLoader = true) => {
+    if (showLoader) {
+      setLoading(true);
+      setIsLoading(true);
+    }
 
-    // Identify the current user
-    const currentUserEmail = user?.email?.toLowerCase();
-    const userRole = user?.role?.toLowerCase();
-    const isAdmin = userRole === 'admin' || userRole === 'leaderat12';
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        logout();
+        window.location.href = "/login";
+        return;
+      }
 
-    // Apply the Visibility Shield
-    const visibleEvents = allEvents.filter(event => {
-      // Rule 1: Admins see everything
-      if (isAdmin) return true;
+      const params = {
+        page: filters.page || currentPage,
+        limit: filters.limit || rowsPerPage,
+        start_date: filters.start_date || DEFAULT_API_START_DATE,
+      };
 
-      // Rule 2: If it's Global, everyone sees it
-      if (event.isGlobal === true) return true;
+      if (filters.status && filters.status !== "all") params.status = filters.status;
+      if (filters.search) params.search = filters.search;
+      if (filters.event_type) params.event_type = filters.event_type;
 
-      // Rule 3: If it's Private (isGlobal: false), 
-      // ONLY the creator or the assigned leader sees it
-      const isCreator = event.userEmail?.toLowerCase() === currentUserEmail;
-      const isAssignedLeader = event.eventLeaderEmail?.toLowerCase() === currentUserEmail;
+      // Determine Endpoint
+      const isCellType = !filters.event_type || filters.event_type === "CELLS" || filters.event_type === "all";
+      const endpoint = isCellType ? `${BACKEND_URL}/events/cells` : `${BACKEND_URL}/events/other`;
 
-      return isCreator || isAssignedLeader;
-    });
+      // Role Logic for Params
+      if (isLeaderAt12) {
+        params.leader_at_12_view = true;
+        if (viewFilter === "personal") params.personal = true;
+        else params.include_subordinate_cells = true;
+      } else if (isAdmin) {
+        if (viewFilter === "personal") params.personal = true;
+      } else {
+        params.personal = true;
+      }
 
-    setEvents(visibleEvents);
-  } catch (error) {
-    console.error("Error fetching events:", error);
-  }
-};
+      const queryString = new URLSearchParams(params).toString();
+      const response = await authFetch(`${endpoint}?${queryString}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const data = await response.json();
+      const allEvents = data.events || [];
+
+      // --- THE FIX: VISIBILITY LOGIC ---
+      // isGlobal = true  -> Everyone sees it.
+      // isGlobal = false -> Only Admin, the Creator, or the Event Leader sees it.
+      
+      const currentUserEmail = currentUser?.email?.toLowerCase().trim();
+
+      const filtered = allEvents.filter((event) => {
+        if (isAdmin) return true; // Admins always see everything
+        
+        const isGlobal = event.isGlobal === true;
+        const isCreator = event.userEmail?.toLowerCase().trim() === currentUserEmail;
+        const isAssignedLeader = event.eventLeaderEmail?.toLowerCase().trim() === currentUserEmail;
+
+        return isGlobal || isCreator || isAssignedLeader;
+      });
+
+      setEvents(filtered);
+      setTotalEvents(data.total_events || 0);
+      setTotalPages(data.total_pages || 1);
+
+    } catch (error) {
+      console.error("Fetch error:", error);
+      setEvents([]);
+      if (!error.message.includes("401")) {
+        toast.error("Failed to load events");
+      }
+    } finally {
+      if (showLoader) {
+        setLoading(false);
+        setIsLoading(false);
+      }
+    }
+  },
+  [currentPage, rowsPerPage, authFetch, BACKEND_URL, isLeaderAt12, isAdmin, currentUser, viewFilter]
+);
+
 
 const fetchEventTypes = useCallback(async () => {
   try {
     const token = localStorage.getItem("access_token");
     const response = await authFetch(`${BACKEND_URL}/event-types`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     });
 
-    const data = await response.json();
-    const eventTypesArray = Array.isArray(data) ? data : (data.data || []);
+    if (!response.ok) throw new Error("Failed to fetch event types");
 
-    const eventTypeMap = {};
-    const eventTypeList = [];
-
-    eventTypesArray.forEach((type) => {
-      // Force the key to lowercase so the Grid and Filter can always find it
-      const lowerName = (type.name || "").toLowerCase().trim();
-      if (!lowerName) return;
-
-      const eventTypeObj = {
-        ...type,
-        name: lowerName,
-        isGlobal: type.isGlobal === true
-      };
-
-      eventTypeMap[lowerName] = eventTypeObj;
-      eventTypeList.push(eventTypeObj);
-    });
-
-    // Save standardized lowercase map to storage
-    localStorage.setItem("eventTypeMap", JSON.stringify(eventTypeMap));
-    localStorage.setItem("eventTypes", JSON.stringify(eventTypeList));
+    const eventTypesData = await response.json();
     
-    setEventTypes(eventTypeList);
+    // Normalize role check
+    const role = (currentUser?.role || "").toLowerCase().trim();
+    const isManager = role === 'admin' || role === 'leaderat12';
+
+    const filteredTypes = eventTypesData.filter((type) => {
+      // Admins and leaderat12 see all templates
+      if (isManager) return true;
+
+      // Standard leaders see Global or templates they personally created
+      const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
+      const isOwner = type.userEmail?.toLowerCase() === currentUser?.email?.toLowerCase();
+      
+      return type.isEventType === true && (isGlobalType || isOwner);
+    });
+
+    setEventTypes(filteredTypes);
+    setCustomEventTypes(filteredTypes);
+    setUserCreatedEventTypes(filteredTypes);
+    return filteredTypes;
   } catch (error) {
-    console.error("Failed to fetch event types:", error);
+    console.error("Error fetching event types:", error);
+    return [];
   }
-}, [BACKEND_URL, authFetch]);
+}, [BACKEND_URL, currentUser, authFetch]);
+
+useEffect(() => {
+  if (currentUser || isAdmin) {
+    fetchEventTypes();
+  }
+}, [fetchEventTypes, currentUser, isAdmin]);
 
   useEffect(() => {
     const getUserProfile = () => {
