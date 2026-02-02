@@ -287,50 +287,135 @@ export default function DailyTasks() {
     }
   };
 
-  const fetchPeople = async (q) => {
-    if (!q.trim()) {
-      setSearchResults([]);
-      return;
-    }
+const fetchPeople = async (q) => {
+  if (!q.trim()) {
+    setSearchResults([]);
+    return;
+  }
 
-    const query = q.trim();
-    // We keep original casing for display, but lowercase for comparison
-    const queryLower = query.toLowerCase();
+  const query = q.trim();
+  const queryLower = query.toLowerCase();
+  const queryParts = queryLower.split(/\s+/).filter(Boolean);
 
-    try {
-      // Send the full typed string to the backend
-      // (most APIs can handle searching across both name + surname fields)
-      const res = await authFetch(
-        `${API_URL}/people?name=${encodeURIComponent(query)}`
-      );
+  if (queryParts.length === 0) {
+    setSearchResults([]);
+    return;
+  }
 
-      if (!res.ok) throw new Error("Failed to fetch people");
+  // ── Preparation for matching ─────────────────────────────────
+  const lastPart = queryParts[queryParts.length - 1];
+  const namePartsTyped = queryParts.slice(0, -1);           // might be empty
+  const nameTypedJoined = namePartsTyped.join(" ");         // "la blonde"
 
-      const data = await res.json();
-      const results = data?.results || [];
+  // We consider last part as probable surname if query has ≥ 2 words
+  // and last part isn't too short
+  const looksLikeSurnameSearch = queryParts.length >= 2 && lastPart.length >= 2;
 
-      // ────────────────────────────────────────────────
-      // Client-side filtering that supports compound first names
-      // ────────────────────────────────────────────────
-      const filtered = results.filter((p) => {
-        const fullNameLower =
-          `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
+  try {
+    // Still send only first word (your current backend limitation)
+    const searchTerm = queryParts[0];
+    const res = await authFetch(
+      `${API_URL}/people?name=${encodeURIComponent(searchTerm)}`
+    );
 
-        // Case 1: query appears anywhere in full name
-        if (fullNameLower.includes(queryLower)) return true;
+    if (!res.ok) throw new Error("Failed to fetch people");
 
-        // Case 2: query words all appear (in any order) — helps with typos / partial matches
-        const queryWords = queryLower.split(/\s+/).filter(Boolean);
-        return queryWords.every((word) => fullNameLower.includes(word));
-      });
+    const data = await res.json();
+    let filtered = (data?.results || []).filter((p) => {
+      const dbFirst   = (p.Name    || "").toLowerCase();   // "la blonde"
+      const dbSur     = (p.Surname || "").toLowerCase();   // "ngoyi"
+      const dbFull    = `${dbFirst} ${dbSur}`.trim();
 
-      setSearchResults(filtered);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message || "Failed to search people");
-      setSearchResults([]);
-    }
-  };
+      // Quick win: typed string appears anywhere in full name
+      if (dbFull.includes(queryLower)) return true;
+
+      // ── More intelligent matching for compound names ─────────────
+
+      // Case 1: User typed only name part(s) (no surname yet)
+      if (!looksLikeSurnameSearch) {
+        // Check if what user typed is prefix/substring of the stored Name
+        return dbFirst.includes(queryLower);
+      }
+
+      // Case 2: User probably typed name + surname
+      // Name part must appear in stored Name
+      const nameMatches = nameTypedJoined
+        ? dbFirst.includes(nameTypedJoined)
+        : true; // if no name part typed → ok
+
+      // Surname must appear in stored Surname
+      const surnameMatches = dbSur.includes(lastPart);
+
+      return nameMatches && surnameMatches;
+    });
+
+    // Sort (unchanged)
+    filtered.sort((a, b) => {
+      const nameA = a.Name.toLowerCase();
+      const nameB = b.Name.toLowerCase();
+      const surnameA = (a.Surname || "").toLowerCase();
+      const surnameB = (b.Surname || "").toLowerCase();
+
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      if (surnameA < surnameB) return -1;
+      if (surnameA > surnameB) return 1;
+      return 0;
+    });
+
+    setSearchResults(filtered);
+
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    toast.error(err.message || "Failed to search people");
+    setSearchResults([]);
+  }
+};
+
+  // const fetchPeople = async (q) => {
+  //   if (!q.trim()) {
+  //     setSearchResults([]);
+  //     return;
+  //   }
+
+  //   const query = q.trim();
+  //   // We keep original casing for display, but lowercase for comparison
+  //   const queryLower = query.toLowerCase();
+
+  //   try {
+  //     // Send the full typed string to the backend
+  //     // (most APIs can handle searching across both name + surname fields)
+  //     const res = await authFetch(
+  //       `${API_URL}/people?name=${encodeURIComponent(query)}`
+  //     );
+
+  //     if (!res.ok) throw new Error("Failed to fetch people");
+
+  //     const data = await res.json();
+  //     const results = data?.results || [];
+
+  //     // ────────────────────────────────────────────────
+  //     // Client-side filtering that supports compound first names
+  //     // ────────────────────────────────────────────────
+  //     const filtered = results.filter((p) => {
+  //       const fullNameLower =
+  //         `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
+
+  //       // Case 1: query appears anywhere in full name
+  //       if (fullNameLower.includes(queryLower)) return true;
+
+  //       // Case 2: query words all appear (in any order) — helps with typos / partial matches
+  //       const queryWords = queryLower.split(/\s+/).filter(Boolean);
+  //       return queryWords.every((word) => fullNameLower.includes(word));
+  //     });
+
+  //     setSearchResults(filtered);
+  //   } catch (err) {
+  //     console.error("Error fetching people:", err);
+  //     toast.error(err.message || "Failed to search people");
+  //     setSearchResults([]);
+  //   }
+  // };
 
   const fetchAssigned = async (q) => {
     if (!q.trim()) return setAssignedResults([]);
