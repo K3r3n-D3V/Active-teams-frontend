@@ -2652,8 +2652,26 @@ function s2ab(s) {
       </Grid>
 
       {/* Main Content */}
-      <Box sx={{ minHeight: 400, width: '100%' }}>
-        <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, minHeight: '36px', width: '100%' }}>
+      <Box   sx={{
+    minHeight: 400,
+    width: '100%',
+    maxHeight: { xs: '75vh', md: 'unset' },
+    overflowY: { xs: 'auto', md: 'visible' },
+  }}
+   >
+   <Paper
+  variant="outlined"
+  sx={{
+    mb: 2,
+    boxShadow: 3,
+    minHeight: '36px',
+    width: '100%',
+    maxHeight: '70vh',
+    overflowY: 'auto',
+    px: { xs: 1, sm: 2 },
+  }}
+>
+
           <Tabs
             value={activeTab}
             onChange={(e, newValue) => setActiveTab(newValue)}
