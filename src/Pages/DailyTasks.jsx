@@ -271,8 +271,7 @@ const markTaskComplete = async (taskId) => {
     const queryLower = query.toLowerCase();
 
     try {
-      // Send the full typed string to the backend
-      // (most APIs can handle searching across both name + surname fields)
+
       const res = await authFetch(
         `${API_URL}/people?name=${encodeURIComponent(query)}`
       );
@@ -282,14 +281,11 @@ const markTaskComplete = async (taskId) => {
       const data = await res.json();
       const results = data?.results || [];
 
-      // ────────────────────────────────────────────────
-      // Client-side filtering that supports compound first names
-      // ────────────────────────────────────────────────
+
       const filtered = results.filter((p) => {
         const fullNameLower =
           `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
 
-        // Case 1: query appears anywhere in full name
         if (fullNameLower.includes(queryLower)) return true;
 
         // Case 2: query words all appear (in any order) — helps with typos / partial matches
@@ -376,27 +372,7 @@ const markTaskComplete = async (taskId) => {
     setTaskData({ ...taskData, [name]: value });
   };
 
-  // const updateTask = async (taskId, updatedData) => {
-  //   try {
-  //     const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
-  //       method: "PUT",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify(updatedData),
-  //     });
-  //     const data = await res.json();
-  //     if (!res.ok) throw new Error(data.message || "Failed to update task");
-  //     setTasks((prev) =>
-  //       prev.map((t) =>
-  //         t._id === taskId ? { ...t, ...data.updatedTask, date: data.updatedTask.followup_date } : t
-  //       )
-  //     );
-  //     handleClose();
-  //   } catch (err) {
-  //     console.error("Error updating task:", err.message);
-  //     toast.error("Failed to update task: " + err.message);
-  //   }
-  // };
-  const updateTask = async (taskId, updatedData) => {
+ const updateTask = async (taskId, updatedData) => {
   try {
     // Ensure status and taskStage are synchronized
     const payload = {
@@ -580,11 +556,10 @@ const columnWidths = headers.map(header => {
   formattedTasks.forEach(task => {
     const value = String(task[header] || "");
     if (value.length > maxLength) {
-      maxLength = value.length;  // Takes the longest value
+      maxLength = value.length;  
     }
   });
   
-  // Excel width calculation: characters * 7 + 5 (approximate)
   return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
 });
 
@@ -759,8 +734,8 @@ useEffect(() => {
           <div style={{ 
             display: 'flex', 
             justifyContent: 'center', 
-            gap: '12px', // Reduced gap
-            marginTop: '24px', // Reduced margin
+            gap: '12px', 
+            marginTop: '24px', 
             flexWrap: 'wrap' 
           }}>
             <button
@@ -768,17 +743,17 @@ useEffect(() => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px', // Reduced gap
+                gap: '8px',
                 backgroundColor: isDarkMode ? '#fff' : '#000',
                 color: isDarkMode ? '#000' : '#fff',
                 fontWeight: '600',
-                padding: '12px 20px', // Reduced padding
-                borderRadius: '10px', // Slightly smaller
+                padding: '12px 20px', 
+                borderRadius: '10px', 
                 border: 'none',
                 cursor: 'pointer',
-                fontSize: '14px', // Smaller font
+                fontSize: '14px',
                 boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                width: '140px', // Fixed width for better mobile layout
+                width: '140px',
                 minHeight: '44px'
               }}
               onClick={() => handleOpen("call")}
@@ -837,7 +812,7 @@ useEffect(() => {
           <div style={{ marginTop: '20px' }}>
             <select
               style={{
-                padding: '10px 16px', // Reduced padding
+                padding: '10px 16px', 
                 borderRadius: '10px',
                 border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
@@ -892,27 +867,27 @@ useEffect(() => {
         <div style={{ 
           display: 'flex', 
           justifyContent: 'center', 
-          gap: '8px', // Reduced gap
-          marginTop: '20px', // Reduced margin
+          gap: '8px', 
+          marginTop: '20px', 
           flexWrap: 'wrap',
-          overflowX: 'auto', // Allow horizontal scrolling on mobile
+          overflowX: 'auto', 
           paddingBottom: '8px'
         }}>
           {["all", "call", "visit", "consolidation"].map((type) => (
             <button
               key={type}
               style={{
-                padding: '8px 16px', // Reduced padding
+                padding: '8px 16px', 
                 borderRadius: '20px',
                 border: filterType === type ? 'none' : `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 fontWeight: '600',
                 cursor: 'pointer',
                 backgroundColor: filterType === type ? (isDarkMode ? '#fff' : '#000') : (isDarkMode ? '#2d2d2d' : '#ffffff'),
                 color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
-                fontSize: '13px', // Smaller font
+                fontSize: '13px',
                 boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
-                whiteSpace: 'nowrap', // Prevent text wrapping
-                flexShrink: 0 // Don't shrink buttons
+                whiteSpace: 'nowrap', 
+                flexShrink: 0 
               }}
               onClick={() => setFilterType(type)}
             >
@@ -924,11 +899,11 @@ useEffect(() => {
 
       {/* Task list container - this is the scrollable area */}
       <div style={{ 
-        flex: 1, // Take up remaining space
-        overflowY: 'auto', // Enable vertical scrolling here
+        flex: 1, 
+        overflowY: 'auto',
         maxWidth: '1200px', 
         margin: '0 auto', 
-        padding: '0 16px 16px 16px', // Reduced padding
+        padding: '0 16px 16px 16px', 
         width: '100%',
         boxSizing: 'border-box'
       }}>
@@ -938,7 +913,7 @@ useEffect(() => {
               textAlign: 'center', 
               color: isDarkMode ? '#aaa' : '#6b7280', 
               fontStyle: 'italic', 
-              padding: '20px' // Reduced padding
+              padding: '20px' 
             }}>
               Loading tasks...
             </p>
