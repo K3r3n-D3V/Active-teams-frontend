@@ -500,7 +500,7 @@ export default function DailyTasks() {
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
         type: formType || "call",
-        assignedfor: user.email,
+        assignedfor:  (user ? `${user.name} ${user.surname}` : ""),
       };
 
       if (isConsolidationTask) {
