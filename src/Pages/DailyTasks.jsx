@@ -296,6 +296,7 @@ export default function DailyTasks() {
     const query = q.trim();
     // We keep original casing for display, but lowercase for comparison
     const queryLower = query.toLowerCase();
+    console.log(`queryLower: ${queryLower}`)
 
     try {
       // Send the full typed string to the backend
@@ -307,23 +308,32 @@ export default function DailyTasks() {
       if (!res.ok) throw new Error("Failed to fetch people");
 
       const data = await res.json();
-      const results = data?.results || [];
+      console.log("API Response for people search:", data);
+      const results = data?.results || data?.people || [];
+      console.log("Results after extraction:", results);
 
       // ────────────────────────────────────────────────
       // Client-side filtering that supports compound first names
       // ────────────────────────────────────────────────
       const filtered = results.filter((p) => {
-        const fullNameLower =
-          `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
+        const personNameLower = (p.Name).toLowerCase();
+        console.log(`personNameLower: ${personNameLower}`)
+        const personSurnameLower = (p.Surname).toLowerCase();
+        console.log(`personSurnameLower: ${personSurnameLower}`)
+        const fullNameLower = `${personNameLower} ${personSurnameLower}`.trim();
+        console.log(`fullNameLower: ${fullNameLower}`)
+        console.log(`p: "${p}"`)
+        
 
-        // Case 1: query appears anywhere in full name
-        if (fullNameLower.includes(queryLower)) return true;
+        // Case 1: query appears anywhere in name or surname
+        if (fullNameLower.includes(queryLower) ) return true;
 
         // Case 2: query words all appear (in any order) — helps with typos / partial matches
         const queryWords = queryLower.split(/\s+/).filter(Boolean);
         return queryWords.every((word) => fullNameLower.includes(word));
       });
 
+      console.log("Filtered results:", filtered);
       setSearchResults(filtered);
     } catch (err) {
       console.error("Error fetching people:", err);
