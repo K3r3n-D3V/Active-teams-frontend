@@ -185,12 +185,10 @@ console.log("EditEventModal rendered with event:", fieldMapping);
     params.append('person_name',originalPersonIdentifier)
 
     // Determine the deactivation scope
+    
     if (editScope === 'single' || !isCellEvent) {
-      // Deactivate specific cell by EXACT cell name
       const cellName = formData.eventName || formData['Event Name'];
-      
-      // For OLD format cells: "Cynthia Bebel - Die Fakkel High School - School cell - Thursday"
-      // For NEW format cells: "Gia Home Cell"
+    
       params.append('cell_identifier', cellName);
       params.append('person_name', originalPersonIdentifier);
       
@@ -199,7 +197,6 @@ console.log("EditEventModal rendered with event:", fieldMapping);
         params.append('day_of_week', originalContext.day);
       }
     } else {
-      // Person scope
       if (contextFilter === 'all') {
         // params.append('cell_identifier', originalPersonIdentifier);
       } else if (contextFilter === 'day' && originalContext.day) {
