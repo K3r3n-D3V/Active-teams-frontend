@@ -1647,15 +1647,15 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
   const styles = {
     container: {
       backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
-      borderRadius: "16px",
-      padding: isMobileView ? "1rem" : "1.25rem",
+      borderRadius: "12px", // Reduced from 16px
+      padding: isMobileView ? "0.75rem" : "1rem", // Reduced
       marginBottom: "1rem",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06)", // Reduced shadow
     },
-    searchContainer: { marginBottom: "1rem" },
+    searchContainer: { marginBottom: "0.75rem" }, // Reduced
     searchInput: {
       "& .MuiOutlinedInput-root": {
-        borderRadius: "12px",
+        borderRadius: "8px", // Reduced from 12px
         backgroundColor: isDarkMode ? "rgba(255,255,255,0.05)" : "#fff",
         "& fieldset": { borderColor: isDarkMode ? theme.palette.divider : "#ddd" },
         "&:hover fieldset": { borderColor: "#007bff" },
@@ -1664,26 +1664,26 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
     },
     gridContainer: {
       display: "grid",
-      gridTemplateColumns: isMobileView ? "repeat(auto-fill, minmax(130px, 1fr))" : "repeat(auto-fill, minmax(150px, 1fr))",
-      gap: isMobileView ? "0.5rem" : "0.75rem",
+      gridTemplateColumns: isMobileView ? "repeat(auto-fill, minmax(80px, 1fr))" : "repeat(auto-fill, minmax(100px, 1fr))", // Smaller cards
+      gap: isMobileView ? "0.5rem" : "0.5rem", // Reduced gap
       width: "100%",
     },
     card: {
       backgroundColor: isDarkMode ? theme.palette.background.default : "#fff",
-      borderRadius: "12px",
-      padding: "0.75rem 0.5rem",
+      borderRadius: "8px", // Reduced from 12px
+      padding: "0.5rem", // Already small
       cursor: "pointer",
       border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
       transition: "all 0.3s ease",
       display: "flex",
       flexDirection: "column",
-      alignItems: "center",
       justifyContent: "center",
+      alignItems: "center",
       textAlign: "center",
-      height: isMobileView ? "110px" : "120px",
+      height: isMobileView ? "70px" : "80px", // Much smaller
       "&:hover": {
-        transform: "translateY(-3px)",
-        boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+        transform: "translateY(-2px)",
+        boxShadow: "0 4px 8px rgba(0,0,0,0.08)", // Reduced shadow
         borderColor: "#007bff",
       },
     },
@@ -1691,13 +1691,12 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
       borderColor: "#007bff",
       backgroundColor: isDarkMode ? "rgba(0,123,255,0.1)" : "#e7f3ff",
       transform: "scale(1.02)",
-      boxShadow: "0 4px 12px rgba(0,123,255,0.2)",
+      boxShadow: "0 2px 8px rgba(0,123,255,0.15)", // Reduced shadow
     },
     name: {
-      fontSize: isMobileView ? "12px" : "13px",
+      fontSize: isMobileView ? "11px" : "12px", // Reduced
       fontWeight: 600,
       color: isDarkMode ? theme.palette.text.primary : "#333",
-      marginBottom: "0.25rem",
       lineHeight: 1.2,
       width: "100%",
       overflow: "hidden",
@@ -1707,26 +1706,25 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
       WebkitBoxOrient: "vertical",
     },
     description: {
-      fontSize: isMobileView ? "10px" : "11px",
+      fontSize: isMobileView ? "9px" : "10px", // Reduced
       color: isDarkMode ? theme.palette.text.secondary : "#666",
-      lineHeight: 1.3,
+      lineHeight: 1.2,
       width: "100%",
       overflow: "hidden",
       textOverflow: "ellipsis",
       display: "-webkit-box",
-      WebkitLineClamp: 3,
+      WebkitLineClamp: 2,
       WebkitBoxOrient: "vertical",
     },
     noResults: {
       textAlign: "center",
-      padding: "3rem 1rem",
+      padding: "2rem 1rem", // Reduced
       color: isDarkMode ? theme.palette.text.secondary : "#666",
     },
   };
 
   return (
     <Box sx={styles.container}>
-      {/* SEARCH BAR */}
       <Box sx={styles.searchContainer}>
         <TextField
           fullWidth
@@ -1744,7 +1742,6 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
         />
       </Box>
 
-      {/* GRID */}
       {eventTypes.length === 0 ? (
         <Box sx={styles.noResults}>No event types found</Box>
       ) : (
@@ -1773,7 +1770,6 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
     </Box>
   );
 };
-
 
 
 const ViewToggle = () => (
@@ -4681,160 +4677,154 @@ return (
         )
 ) : viewMode === "grid" ? (
   /* GRID VIEW - Event Types as Cards - CENTERED like search bar */
-  <Box sx={{ 
-    flexGrow: 1, 
-    overflowY: "auto",
+<Box sx={{ 
+  flexGrow: 1, 
+  overflowY: "auto",
+  width: "100%",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center", 
+}}>
+  <Box sx={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", // Changed from 200px to 120px
+    gap: "12px", // Reduced from 20px
     width: "100%",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center", 
+    maxWidth: "600px", // Reduced from 800px
+    margin: "0 auto", 
+    padding: "16px 0", // Reduced from 24px
   }}>
-    <Box sx={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-      gap: "20px",
-      width: "100%",
-      maxWidth: "800px", 
-      margin: "0 auto", 
-      padding: "24px 0",
-    }}>
-      {allEventTypes
-        .filter(type => {
-          const typeName = typeof type === "string" ? type : type.name || type;
-          return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
-        })
-        .map((type) => {
-          const typeName = typeof type === "string" ? type : type.name || type;
-          const isAllCells = typeName === "all";
-          
-          return (
+    {allEventTypes
+      .filter(type => {
+        const typeName = typeof type === "string" ? type : type.name || type;
+        return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
+      })
+      .map((type) => {
+        const typeName = typeof type === "string" ? type : type.name || type;
+        const isAllCells = typeName === "all";
+        
+        return (
+          <Box
+            key={typeName}
+            sx={{
+              backgroundColor: isDarkMode ? theme.palette.background.default : "#fff",
+              borderRadius: "8px", // Reduced from 12px
+              padding: "12px", // Reduced from 20px
+              cursor: "pointer",
+              border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`, // Thinner border
+              transition: "all 0.3s ease",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "90px", // Reduced from 140px
+              textAlign: "center",
+              position: "relative",
+              width: "100%",
+              "&:hover": {
+                transform: "translateY(-2px)", // Reduced from -4px
+                boxShadow: "0 4px 12px rgba(0,0,0,0.08)", // Reduced shadow
+                borderColor: "#007bff",
+              },
+            }}
+          >
             <Box
-              key={typeName}
+              onClick={() => {
+                setSelectedEventTypeFilter(typeName);
+                setShowingEvents(true);
+                setCurrentPage(1);
+                
+                const fetchParams = {
+                  page: 1,
+                  limit: rowsPerPage,
+                  start_date: DEFAULT_API_START_DATE,
+                  event_type: typeName === "all" ? "CELLS" : typeName,
+                };
+                
+                fetchEvents(fetchParams, true);
+              }}
               sx={{
-                backgroundColor: isDarkMode ? theme.palette.background.default : "#fff",
-                borderRadius: "12px",
-                padding: "20px",
-                cursor: "pointer",
-                border: `2px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
-                transition: "all 0.3s ease",
+                width: "100%",
+                height: "100%",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                height: "140px",
-                textAlign: "center",
-                position: "relative",
-                width: "100%",
-                "&:hover": {
-                  transform: "translateY(-4px)",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-                  borderColor: "#007bff",
-                },
               }}
             >
-              <Box
-                onClick={() => {
-                  setSelectedEventTypeFilter(typeName);
-                  setShowingEvents(true);
-                  setCurrentPage(1);
-                  
-                  const fetchParams = {
-                    page: 1,
-                    limit: rowsPerPage,
-                    start_date: DEFAULT_API_START_DATE,
-                    event_type: typeName === "all" ? "CELLS" : typeName,
-                  };
-                  
-                  fetchEvents(fetchParams, true);
+              {/* REMOVED ICONS SECTION COMPLETELY */}
+              <Typography sx={{ 
+                fontSize: "14px", // Reduced from 16px
+                fontWeight: "600",
+                color: isDarkMode ? theme.palette.text.primary : "#333",
+                width: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {typeName === "all" ? "All Events" : typeName}
+              </Typography>
+            </Box>
+
+            {/* EDIT/DELETE MENU */}
+            {isAdmin && !isAllCells && (
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const eventTypeObj = eventTypes.find(et => 
+                    et.name?.toLowerCase() === typeName.toLowerCase()
+                  ) || { name: typeName };
+                  setSelectedTypeForMenu(eventTypeObj);
+                  setMenuAnchor(e.currentTarget);
                 }}
                 sx={{
-                  width: "100%",
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  position: "absolute",
+                  top: "4px", // Reduced from 8px
+                  right: "4px", // Reduced from 8px
+                  width: "24px", // Reduced from 28px
+                  height: "24px", // Reduced from 28px
+                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
+                  "&:hover": {
+                    backgroundColor: isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.08)",
+                  },
+                  color: isDarkMode ? "#fff" : "#000",
+                  fontSize: "16px", // Reduced from 18px
+                  padding: "2px", // Reduced from 4px
+                  minWidth: "auto",
                 }}
               >
-                <Box sx={{ fontSize: "32px", mb: "12px" }}>
-                  {typeName === "all" ? "📊" : 
-                   typeName.includes("CELL") ? "🏠" : 
-                   typeName.includes("Class") ? "🎓" : 
-                   typeName.includes("Service") ? "⛪" : "📅"}
-                </Box>
-                <Typography sx={{ 
-                  fontSize: "16px", 
-                  fontWeight: "600",
-                  color: isDarkMode ? theme.palette.text.primary : "#333",
-                  mb: "4px",
-                  width: "100%",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}>
-                  {typeName === "all" ? "All Cells" : typeName}
-                </Typography>
-              </Box>
-
-              {/* EDIT/DELETE MENU */}
-              {isAdmin && !isAllCells && (
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const eventTypeObj = eventTypes.find(et => 
-                      et.name?.toLowerCase() === typeName.toLowerCase()
-                    ) || { name: typeName };
-                    setSelectedTypeForMenu(eventTypeObj);
-                    setMenuAnchor(e.currentTarget);
-                  }}
-                  sx={{
-                    position: "absolute",
-                    top: "8px",
-                    right: "8px",
-                    width: "28px",
-                    height: "28px",
-                    backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
-                    "&:hover": {
-                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.08)",
-                    },
-                    color: isDarkMode ? "#fff" : "#000",
-                    fontSize: "18px",
-                    padding: "4px",
-                    minWidth: "auto",
-                  }}
-                >
-                  ⋮
-                </IconButton>
-              )}
-            </Box>
-          );
-        })}
-    </Box>
-    
-    {/* NO RESULTS MESSAGE - also centered */}
-    {allEventTypes.filter(type => {
-      const typeName = typeof type === "string" ? type : type.name || type;
-      return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
-    }).length === 0 && (
-      <Box sx={{ 
-        textAlign: "center", 
-        padding: "4rem 1rem",
-        color: isDarkMode ? theme.palette.text.secondary : "#666",
-        width: "100%",
-        maxWidth: "800px",
-        margin: "0 auto",
-      }}>
-        <SearchIcon sx={{ fontSize: 48, color: "#ccc", mb: 2 }} />
-        <Typography variant="h6" gutterBottom>
-          No event types found
-        </Typography>
-        <Typography variant="body2">
-          Try a different search term
-        </Typography>
-      </Box>
-    )}
+                ⋮
+              </IconButton>
+            )}
+          </Box>
+        );
+      })}
   </Box>
+  
+  {/* NO RESULTS MESSAGE - also centered */}
+  {allEventTypes.filter(type => {
+    const typeName = typeof type === "string" ? type : type.name || type;
+    return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
+  }).length === 0 && (
+    <Box sx={{ 
+      textAlign: "center", 
+      padding: "2rem 1rem", // Reduced from 4rem
+      color: isDarkMode ? theme.palette.text.secondary : "#666",
+      width: "100%",
+      maxWidth: "600px", // Reduced from 800px
+      margin: "0 auto",
+    }}>
+      <SearchIcon sx={{ fontSize: 32, color: "#ccc", mb: 1 }} /> {/* Reduced size */}
+      <Typography variant="h6" gutterBottom>
+        No event types found
+      </Typography>
+      <Typography variant="body2">
+        Try a different search term
+      </Typography>
+    </Box>
+  )}
+</Box>
 ) : (
    /* TABLE VIEW - Event Types as Vertical List */
 <Box sx={{ flexGrow: 1, overflowY: "auto", padding: "24px" }}>
