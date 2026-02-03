@@ -408,7 +408,7 @@ const EventTypesModal = ({
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
                 />
                   <br></br>
-                {/* { <FormControlLabel
+                 { <FormControlLabel
                   control={
                     <Checkbox
                       name="isGlobal"
@@ -428,7 +428,7 @@ const EventTypesModal = ({
                   }
                   sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
                 /> 
-                } */}
+                }
 
                 {/* <FormControlLabel
                   control={

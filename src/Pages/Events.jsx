@@ -857,12 +857,14 @@ const visibleEvents = events.filter(event => {
   const isLeader144 =
     role.includes("leader at 144") ||
     role.includes("leader@144") ||
-    role.includes("leader144");
+    role.includes("leader144")||
+    role.includes("leader@1728")||
+    role.includes("leader at 1728");
 
-  // 🔴 ADMIN: sees everything (global + non-global)
+  // ADMIN: sees everything (global + non-global)
   if (isAdmin) return true;
 
-  // 🟢 EVERYONE ELSE (Leader 12, Leader 144, registrants):
+  // EVERYONE ELSE (Leader 12, Leader 144, registrants):
   // sees ONLY global events
   return event.isGlobal === true;
 });
