@@ -12,6 +12,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import Tooltip from "@mui/material/Tooltip";
+// import SearchIcon from '@mui/icons-material/Search';
 import {
   Box,
   useMediaQuery,
@@ -2683,10 +2684,42 @@ ${xmlCols}
     ],
   );
 
-  const handleSearchChange = useCallback((e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-  }, []);
+  const searchTimeoutRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+
+  const handleSearchChange = (e) => {
+  const value = e.target.value;
+  setSearchQuery(value);
+
+  // Clear previous debounce timer
+  if (searchTimeoutRef.current) {
+    clearTimeout(searchTimeoutRef.current);
+  }
+
+  // Start new debounce timer
+  searchTimeoutRef.current = setTimeout(() => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    fetchEvents(
+      {
+        search: value,
+        page: 1,
+        status: selectedStatus, // stays on current tab
+      },
+      false, // prevents loader flicker
+      controller.signal
+    );
+  }, 350); // speed
+};
+
+
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -3732,7 +3765,7 @@ ${xmlCols}
               whiteSpace: "nowrap",
             }}
           >
-            {loading ? "⏳" : "SEARCH"}
+            {loading ? "⏳" : <SearchIcon></SearchIcon>}
           </Button>
 
           <Button
@@ -3750,7 +3783,7 @@ ${xmlCols}
               },
             }}
           >
-            {loading ? "⏳" : "CLEAR ALL"}
+            {loading ? "⏳" : "❌"}
           </Button>
         </Box>
 
