@@ -1387,8 +1387,8 @@ useEffect(() => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("perPage", "100");
-      params.append("page", "1");
+      params.append("perPage", "0");
+      // params.append("page", "1");
 
       const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, {
         headers,
@@ -1426,73 +1426,41 @@ useEffect(() => {
       console.error("Error pre-loading people in AttendanceModal:", err);
     }
   };
-  const fetchPeople = async (q = "") => {
-    if (!q.trim()) {
-      if (preloadedPeople.length > 0) {
-        console.log(" Showing preloaded people list");
-        setPeople(preloadedPeople.slice(0, 50)); 
-      } else {
-        setPeople([]);
-      }
-      return;
+  const fetchPeople = (q = "") => {
+  if (!q.trim()) {
+    // Show first 50 people when no search term
+    if (preloadedPeople.length > 0) {
+      setPeople(preloadedPeople.slice(0, 50));
+    } else {
+      setPeople([]);
     }
+    return;
+  }
 
-    const parts = q.trim().split(/\s+/);
-    const name = parts[0];
-    const surname = parts.slice(1).join(" ");
-
-    try {
-      const token = localStorage.getItem("token");
-      const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error("Failed to fetch people");
-
-      const data = await res.json();
-
-      let filtered = (data?.results || data?.people || []).filter(p =>
-        p.Name.toLowerCase().includes(name.toLowerCase()) &&
-        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
-      );
-
-      // Sort the results
-      filtered.sort((a, b) => {
-        const nameA = (a.Name || "").toLowerCase();
-        const nameB = (b.Name || "").toLowerCase();
-        const surnameA = (a.Surname || "").toLowerCase();
-        const surnameB = (b.Surname || "").toLowerCase();
-
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        if (surnameA < surnameB) return -1;
-        if (surnameA > surnameB) return 1;
-        return 0;
-      });
-
-      // Format the results consistently
-      const formatted = filtered.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
-        phone: p.Number || p.Phone || p.phone || "",
-      }));
-
-      setPeople(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message);
-      if (preloadedPeople.length > 0) {
-        setPeople(preloadedPeople.slice(0, 50));
-      } else {
-        setPeople([]);
-      }
-    }
-  };
-
+  // LOCAL FILTERING ONLY - no API calls
+  const searchTerm = q.toLowerCase().trim();
+  
+  const filtered = preloadedPeople.filter(person => {
+    const fullName = person.fullName.toLowerCase();
+    const email = (person.email || "").toLowerCase();
+    const phone = (person.phone || "").toLowerCase();
+    const leader1 = (person.leader1 || "").toLowerCase();
+    const leader12 = (person.leader12 || "").toLowerCase();
+    const leader144 = (person.leader144 || "").toLowerCase();
+    
+    // Check all fields for matches
+    return fullName.includes(searchTerm) ||
+           email.includes(searchTerm) ||
+           phone.includes(searchTerm) ||
+           leader1.includes(searchTerm) ||
+           leader12.includes(searchTerm) ||
+           leader144.includes(searchTerm);
+  })
+  .sort((a, b) => a.fullName.localeCompare(b.fullName)) // Sort alphabetically
+  .slice(0, 100); // Limit to 100 results
+  
+  setPeople(filtered);
+};
   const fetchCommonAttendees = async (cellId) => {
     try {
       const token = localStorage.getItem("token");
@@ -1611,18 +1579,15 @@ useEffect(() => {
   }, [isOpen]);
 
   useEffect(() => {
-    const delay = setTimeout(() => {
-      if (isOpen && activeTab === 1) {
-        if (associateSearch.trim()) {
-          fetchPeople(associateSearch);
-        } else {
-          fetchPeople(""); 
-        }
-      }
-    }, 300);
+  const delay = setTimeout(() => {
+    if (isOpen && activeTab === 1) {
+      // Use the local filtering version (no API call)
+      fetchPeople(associateSearch);
+    }
+  }, 300);
 
-    return () => clearTimeout(delay);
-  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+  return () => clearTimeout(delay);
+}, [associateSearch, isOpen, activeTab]);
 
   const handleCheckIn = (id) => {
     setCheckedIn(prev => {
@@ -1835,10 +1800,7 @@ const getAllCommonAttendees = () => {
     person.email.toLowerCase().includes(searchName.toLowerCase())
   );
 
-  const filteredPeople = people.filter(person =>
-    person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
-    person.email.toLowerCase().includes(associateSearch.toLowerCase())
-  );
+  const filteredPeople = people; // Already filtered by fetchPeople, so just use it directly
 
 const handleSave = async () => {
   const allPeople = getAllCommonAttendees();

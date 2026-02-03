@@ -230,63 +230,54 @@ useEffect(() => {
     }
   }, [isTicketedEvent]);
 
-  const fetchPeople = async (q) => {
+  // Add to your component state
+const [allPeopleCache, setAllPeopleCache] = useState([]);
+
+// Fetch all people once on component mount
+useEffect(() => {
+  const fetchAllPeople = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BACKEND_URL}/people?perPage=0`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const formatted = (data?.results || []).map((p) => ({
+          id: p._id,
+          fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+          email: p.Email || "",
+          leader1: p["Leader @1"] || "",
+          leader12: p["Leader @12"] || "",
+        }));
+        setAllPeopleCache(formatted);
+      }
+    } catch (err) {
+      console.error("Error caching people:", err);
+    }
+  };
+
+  fetchAllPeople();
+}, []);
+
+// Updated fetchPeople function
+const fetchPeople = (q) => {
   if (!q.trim()) {
     setPeopleData([]);
     return;
   }
 
-  const parts = q.trim().split(/\s+/);
-  const name = parts[0];
-  const surname = parts.slice(1).join(" ");
+  const searchLower = q.toLowerCase().trim();
+  
+  const filtered = allPeopleCache.filter(person => {
+    const fullName = person.fullName.toLowerCase();
+    
+    // Simple: just check if full name contains the search
+    return fullName.includes(searchLower);
+  });
 
-  try {
-    setLoadingPeople(true);
-    const token = localStorage.getItem("token");
-    const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!res.ok) throw new Error("Failed to fetch people");
-
-    const data = await res.json();
-
-    let filtered = (data?.results || data?.people || []).filter(p =>
-      (p.Name && p.Name.toLowerCase().includes(name.toLowerCase())) &&
-      (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
-    );
-
-    // Sort the results
-    filtered.sort((a, b) => {
-      const nameA = (a.Name || "").toLowerCase();
-      const nameB = (b.Name || "").toLowerCase();
-      const surnameA = (a.Surname || "").toLowerCase();
-      const surnameB = (b.Surname || "").toLowerCase();
-
-      if (nameA < nameB) return -1;
-      if (nameA > nameB) return 1;
-      if (surnameA < surnameB) return -1;
-      if (surnameA > surnameB) return 1;
-      return 0;
-    });
-
-    // Format the results consistently
-    const formatted = filtered.map((p) => ({
-      id: p._id,
-      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-      email: p.Email || p.email || "",
-      leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
-      leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-    }));
-
-    setPeopleData(formatted);
-  } catch (err) {
-    console.error("Error fetching people:", err);
-    toast.error(err.message);
-    setPeopleData([]);
-  } finally {
-    setLoadingPeople(false);
-  }
+  setPeopleData(filtered.slice(0, 10));
 };
   useEffect(() => {
     if (!eventId) return;
