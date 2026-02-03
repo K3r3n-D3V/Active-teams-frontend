@@ -2673,118 +2673,118 @@ const EventTypesList = ({
     ],
   );
 
-  const handleSaveEvent = useCallback(
-    async (eventData) => {
-      try {
-        const eventIdentifier = selectedEvent?._id;
+  // const handleSaveEvent = useCallback(
+  //   async (eventData) => {
+  //     try {
+  //       const eventIdentifier = selectedEvent?._id;
 
-        if (!eventIdentifier) {
-          throw new Error("No event identifier found");
-        }
+  //       if (!eventIdentifier) {
+  //         throw new Error("No event identifier found");
+  //       }
 
-        const token = localStorage.getItem("access_token");
-        if (!token) {
-          throw new Error("No authentication token found");
-        }
+  //       const token = localStorage.getItem("access_token");
+  //       if (!token) {
+  //         throw new Error("No authentication token found");
+  //       }
 
-        const cleanPayload = Object.entries(eventData).reduce(
-          (acc, [key, value]) => {
-            if (value !== undefined && value !== null && value !== "") {
-              acc[key] = value;
-            }
-            return acc;
-          },
-          {},
-        );
+  //       const cleanPayload = Object.entries(eventData).reduce(
+  //         (acc, [key, value]) => {
+  //           if (value !== undefined && value !== null && value !== "") {
+  //             acc[key] = value;
+  //           }
+  //           return acc;
+  //         },
+  //         {},
+  //       );
 
-        const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
+  //       const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
 
-        const response = await authFetch(endpoint, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(cleanPayload),
-        });
+  //       const response = await authFetch(endpoint, {
+  //         method: "PUT",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //           Authorization: `Bearer ${token}`,
+  //         },
+  //         body: JSON.stringify(cleanPayload),
+  //       });
 
-        if (!response.ok) {
-          let errorData;
-          let errorMessage;
+  //       if (!response.ok) {
+  //         let errorData;
+  //         let errorMessage;
 
-          try {
-            errorData = await response.json();
+  //         try {
+  //           errorData = await response.json();
 
-            if (typeof errorData === "string") {
-              errorMessage = errorData;
-            } else if (errorData.detail) {
-              errorMessage =
-                typeof errorData.detail === "string"
-                  ? errorData.detail
-                  : JSON.stringify(errorData.detail);
-            } else if (errorData.message) {
-              errorMessage = errorData.message;
-            } else {
-              errorMessage = JSON.stringify(errorData);
-            }
-          } catch {
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-          }
+  //           if (typeof errorData === "string") {
+  //             errorMessage = errorData;
+  //           } else if (errorData.detail) {
+  //             errorMessage =
+  //               typeof errorData.detail === "string"
+  //                 ? errorData.detail
+  //                 : JSON.stringify(errorData.detail);
+  //           } else if (errorData.message) {
+  //             errorMessage = errorData.message;
+  //           } else {
+  //             errorMessage = JSON.stringify(errorData);
+  //           }
+  //         } catch {
+  //           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+  //         }
 
-          throw new Error(errorMessage);
-        }
-        const updatedEvent = await response.json();
+  //         throw new Error(errorMessage);
+  //       }
+  //       const updatedEvent = await response.json();
 
-        clearCache();
+  //       clearCache();
 
-        toast.success("Event updated successfully!");
+  //       toast.success("Event updated successfully!");
 
-        setEditModalOpen(false);
-        setSelectedEvent(null);
+  //       setEditModalOpen(false);
+  //       setSelectedEvent(null);
 
-        setTimeout(() => {
-          const refreshParams = {
-            page: currentPage,
-            limit: rowsPerPage,
-            start_date: DEFAULT_API_START_DATE,
-            _t: Date.now(),
-          };
+  //       setTimeout(() => {
+  //         const refreshParams = {
+  //           page: currentPage,
+  //           limit: rowsPerPage,
+  //           start_date: DEFAULT_API_START_DATE,
+  //           _t: Date.now(),
+  //         };
 
-          if (selectedEventTypeFilter !== "all") {
-            refreshParams.event_type = selectedEventTypeFilter;
-          }
+  //         if (selectedEventTypeFilter !== "all") {
+  //           refreshParams.event_type = selectedEventTypeFilter;
+  //         }
 
-          if (selectedStatus !== "all") {
-            refreshParams.status = selectedStatus;
-          }
+  //         if (selectedStatus !== "all") {
+  //           refreshParams.status = selectedStatus;
+  //         }
 
-          if (searchQuery.trim()) {
-            refreshParams.search = searchQuery.trim();
-          }
+  //         if (searchQuery.trim()) {
+  //           refreshParams.search = searchQuery.trim();
+  //         }
 
-          fetchEvents(refreshParams, true);
-        }, 500);
+  //         fetchEvents(refreshParams, true);
+  //       }, 500);
 
-        return { success: true, event: updatedEvent };
-      } catch (error) {
-        console.error(" Error saving event:", error);
-        toast.error(`Failed to update event: ${error.message}`);
-        throw error;
-      }
-    },
-    [
-      selectedEvent,
-      BACKEND_URL,
-      clearCache,
-      currentPage,
-      rowsPerPage,
-      selectedStatus,
-      selectedEventTypeFilter,
-      searchQuery,
-      fetchEvents,
-      DEFAULT_API_START_DATE,
-    ],
-  );
+  //       return { success: true, event: updatedEvent };
+  //     } catch (error) {
+  //       console.error(" Error saving event:", error);
+  //       toast.error(`Failed to update event: ${error.message}`);
+  //       throw error;
+  //     }
+  //   },
+  //   [
+  //     selectedEvent,
+  //     BACKEND_URL,
+  //     clearCache,
+  //     currentPage,
+  //     rowsPerPage,
+  //     selectedStatus,
+  //     selectedEventTypeFilter,
+  //     searchQuery,
+  //     fetchEvents,
+  //     DEFAULT_API_START_DATE,
+  //   ],
+  // );
 
   const handleCloseEditModal = useCallback(
     async (shouldRefresh = false) => {
@@ -4214,12 +4214,7 @@ return (
   alignItems: "center",
   mb: 2
 }}>
-  {/* <Typography variant="h5" sx={{ 
-    fontWeight: "bold", 
-    color: isDarkMode ? theme.palette.text.primary : "#333",
-  }}>
-    {showingEvents ? "Events" : "Event Types"}
-  </Typography> */}
+
   
   {/* VIEW TOGGLE - GRID/TABLE - ONLY SHOW WHEN NOT VIEWING EVENTS */}
   {!showingEvents && (
@@ -4296,12 +4291,6 @@ return (
           >
             Back
           </Button>
-          {/* <Typography variant="body1" sx={{ 
-            fontWeight: 600,
-            color: isDarkMode ? theme.palette.primary.main : "#007bff",
-          }}>
-            Showing: {selectedEventTypeFilter === "all" ? "ALL CELLS" : selectedEventTypeFilter}
-          </Typography> */}
         </Box>
       )}
       

@@ -797,17 +797,6 @@ const handleSubmit = async (e) => {
               sx={{ mb: 3, ...darkModeStyles.textField }}
               InputProps={{ readOnly: true }}
               disabled
-              helperText={
-                selectedEventTypeObj 
-                  ? `Type: ${selectedEventTypeObj.isGlobal ? 'Global' : 'Local'} ${selectedEventTypeObj.isTicketed ? '| Ticketed' : ''} ${selectedEventTypeObj.hasPersonSteps ? '| Personal Steps' : ''}` 
-                  : hasPersonSteps 
-                    ? "Type: Local | Personal Steps Event (Cell)" 
-                    : isGlobalEvent
-                      ? `Type: Global${isTicketedEvent ? ' | Ticketed' : ''}`
-                      : isTicketedEvent
-                        ? "Type: Local | Ticketed"
-                        : "Event type details"
-              }
             />
 
             <TextField
@@ -1052,106 +1041,7 @@ const handleSubmit = async (e) => {
               }}
             />
 
-            {/* <Box sx={{ mb: 3, position: 'relative' }}>
-              <TextField
-                label="Event Leader *"
-                value={formData.eventLeader}
-                onChange={(e) => {
-                  handleChange("eventLeader", e.target.value);
-                  if (e.target.value.length >= 2) {
-                    fetchPeople(e.target.value);
-                  } else {
-                    setPeopleData([]);
-                  }
-                }}
-                onFocus={() => {
-                  if (formData.eventLeader.length === 0) {
-                    setPeopleData([]);
-                  }
-                }}
-                fullWidth
-                size="small"
-                sx={darkModeStyles.textField}
-                error={!!errors.eventLeader}
-                helperText={errors.eventLeader || (peopleData.length > 0 ? `${peopleData.length} people found` : "Type to search for people")}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <PersonIcon />
-                    </InputAdornment>
-                  ),
-                }}
-                placeholder="Type name to search..."
-              />
-              
-              {peopleData.length > 0 && (
-                <Box sx={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  zIndex: 1000,
-                  backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
-                  border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
-                  borderRadius: '4px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  mt: 0.5,
-                }}>
-                  {peopleData.map((person) => (
-                    <Box
-                      key={person.id || `${person.fullName}-${person.email}`}
-                      sx={{
-                        padding: '12px',
-                        cursor: 'pointer',
-                        borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
-                        '&:hover': {
-                          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
-                        },
-                        '&:last-child': {
-                          borderBottom: 'none',
-                        },
-                      }}
-                      onClick={() => {
-                        const selectedName = person.fullName;
-                        
-                        if (hasPersonSteps && !isGlobalEvent) {
-                          setFormData((prev) => ({
-                            ...prev,
-                            eventLeader: selectedName,
-                            eventName: selectedName,
-                            leader1: person.leader1 || "",
-                            leader12: person.leader12 || "",
-                          }));
-                        } else {
-                          handleChange("eventLeader", selectedName);
-                        }
-                        setPeopleData([]);
-                      }}
-                    >
-                      <Typography variant="body1" fontWeight="500">
-                        {person.fullName}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
-                        {person.email}
-                        {person.leader1 && ` • L@1: ${person.leader1}`}
-                        {person.leader12 && ` • L@12: ${person.leader12}`}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
-              )}
-              
-              {loadingPeople && (
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                  Searching...
-                </Typography>
-              )}
-            </Box> */}
-
-            {/* // Replace the existing Event Leader TextField section with this: */}
-<Box sx={{ mb: 3, position: 'relative' }}>
+           <Box sx={{ mb: 3, position: 'relative' }}>
   <TextField
     label="Event Leader *"
     value={formData.eventLeader}
