@@ -1168,14 +1168,14 @@ const StatsDashboard = () => {
 
       {/* Stat Cards */}
       <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={4}>
+        {/* <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Total Attendance"
             value={stats.overview?.total_attendance || 0}
             icon={<People />}
             color="primary"
           />
-        </Grid>
+        </Grid> */}
         <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Overdue Cells"
