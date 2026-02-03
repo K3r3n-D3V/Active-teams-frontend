@@ -1469,6 +1469,7 @@ ${xmlCols}
   }, [currentPage, rowsPerPage, totalEvents]);
 
   const allEventTypes = useMemo(() => {
+    console.log("TYPES",eventTypes)
     return [
       "all",
       ...eventTypes.map((t) => (typeof t === "string" ? t : t.name)),
@@ -1690,7 +1691,7 @@ ${xmlCols}
       const actualEventTypes = eventTypesData.filter(
         (item) => item.isEventType === true,
       );
-
+      
       setEventTypes(actualEventTypes);
       setCustomEventTypes(actualEventTypes);
       setUserCreatedEventTypes(actualEventTypes);
@@ -3213,6 +3214,7 @@ ${xmlCols}
     const canEditEventTypes = isAdmin;
 
     const handleEventTypeClick = (typeValue) => {
+      console.log("VALUE",typeValue)
       setSelectedEventTypeFilter(typeValue);
       setCurrentPage(1);
 

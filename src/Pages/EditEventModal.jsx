@@ -176,11 +176,14 @@ console.log("EditEventModal rendered with event:", fieldMapping);
       "is_permanent_deact":isPermanent
     });
     console.log("BOOL",isPermanent)
-    
+    console.log("is it?",originalContext)
     if (deactivationReason) {
       params.append('reason', deactivationReason);
     }
-    
+    //sending eventName and event leader name to backend in case below conditions aren't meant
+    params.append('cell_identifier', originalContext.eventName || event?.eventName || "");
+    params.append('person_name',originalPersonIdentifier)
+
     // Determine the deactivation scope
     if (editScope === 'single' || !isCellEvent) {
       // Deactivate specific cell by EXACT cell name
@@ -191,26 +194,29 @@ console.log("EditEventModal rendered with event:", fieldMapping);
       params.append('cell_identifier', cellName);
       params.append('person_name', originalPersonIdentifier);
       
+      
       if (originalContext.day) {
         params.append('day_of_week', originalContext.day);
       }
     } else {
       // Person scope
       if (contextFilter === 'all') {
-        params.append('cell_identifier', originalPersonIdentifier);
+        // params.append('cell_identifier', originalPersonIdentifier);
       } else if (contextFilter === 'day' && originalContext.day) {
-        params.append('cell_identifier', originalPersonIdentifier);
+        // params.append('cell_identifier', originalPersonIdentifier);
         params.append('day_of_week', originalContext.day);
       } else if (contextFilter === 'eventName' && originalContext.eventName) {
         // Deactivate by EXACT cell name
-        params.append('cell_identifier', originalContext.eventName);
         params.append('person_name', originalPersonIdentifier);
       }
     }
     
+    //sending event type to backend to know which event type to deact
+   
+    console.log("The thing",event)
     console.log("Calling endpoint with:", params.toString());
     
-    const response = await fetch(`${BACKEND_URL}/cells/deactivate?${params.toString()}`, {
+    const response = await fetch(`${BACKEND_URL}/events/deactivate?${params.toString()}`, {
       method: 'PUT',
       headers: { 
         'Authorization': `Bearer ${userToken}` 
