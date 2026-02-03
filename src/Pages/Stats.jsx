@@ -16,10 +16,13 @@ import {
 import { toast } from 'react-toastify';
 import * as XLSX from 'xlsx';
 import { AuthContext } from "../contexts/AuthContext";
+import { useTaskUpdate } from '../contexts/TaskUpdateContext';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 const StatsDashboard = () => {
+
+  const { updateCount } = useTaskUpdate();
   console.log(">>> StatsDashboard function body executed — component is alive");
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
@@ -165,34 +168,29 @@ useEffect(() => {
 
     console.log(`← Total cells fetched: ${allEvents.length}`);
    if (allEvents.length > 0) {
-     console.table(allEvents.slice(0, 5));   // first 5 only
+     console.table(allEvents.slice(0, 5));  
    }
 
-    // ────────────────────────────────────────────────
-    // Filter only incomplete / overdue / missed cells
-    // ────────────────────────────────────────────────
 const overdueCells = allEvents.filter(cell => {
-  // 1. Get status safely
+ 
   const status = (cell.status || cell.Status || '').toString().trim().toLowerCase();
 
-  // 2. Check if it's explicitly "Incomplete"
   const isIncomplete = 
     status === 'incomplete' ||
     status.includes('incomplete') ||
     status === 'incomp' ||
     status === 'not completed';
 
-  // 3. Date check – must be valid AND strictly in the past (before today)
   const cellDate = cell.date ? new Date(cell.date) : null;
   const isValidDate = cellDate && !isNaN(cellDate.getTime());
 
-  // Important: compare only the date part (ignore time)
+ 
   const today = new Date();
-  today.setHours(0, 0, 0, 0);           // reset to midnight today
+  today.setHours(0, 0, 0, 0);           
 
-  const isPast = isValidDate && cellDate < today;  // ← strictly before today
+  const isPast = isValidDate && cellDate < today; 
 
-  // Final condition: Incomplete AND date is in the past
+
   return isIncomplete && isPast;
 });
       console.log(`Filtered down to ${overdueCells.length} overdue/incomplete cells (from ${allEvents.length} total)`);
@@ -201,7 +199,7 @@ const overdueCells = allEvents.filter(cell => {
         console.table(overdueCells.slice(0, 5), ['eventName', 'date', 'status', 'eventLeaderName']);
       }
 
-  setCells(overdueCells);   // ← only set the filtered ones
+  setCells(overdueCells);  
   console.log(`Set cells state with ${overdueCells.length} overdue cells`);
 
   } catch (err) {
@@ -242,9 +240,9 @@ const overdueCells = allEvents.filter(cell => {
         error: null
       });
     } catch (err) {
-      // ... fallback logic unchanged
+   
       console.error("Fetch stats error:", err);
-      // Keep your fallback logic here if needed
+     
       setStats(prev => ({ ...prev, loading: false, error: err.message }));
     } finally {
       isFetchingRef.current = false;
@@ -269,14 +267,14 @@ const overdueCells = allEvents.filter(cell => {
     return [...cells].sort((a, b) => {
       const dateA = a.date ? new Date(a.date).getTime() : Number.MAX_SAFE_INTEGER;
       const dateB = b.date ? new Date(b.date).getTime() : Number.MAX_SAFE_INTEGER;
-      return dateB - dateA; // Most recent first
+      return dateB - dateA;
     });
   }, [cells]);
 
   const filteredTasks = useMemo(() => stats.allTasks, [stats.allTasks]);
   const filteredEvents = useMemo(() => stats.events, [stats.events]);
 
-  // Excel Download Function
+
   const downloadFilteredStats = () => {
     try {
       const currentPeriod = getPeriodDisplayText(period);
@@ -432,7 +430,8 @@ const overdueCells = allEvents.filter(cell => {
     }
   };
 
-  // Event types fetch
+
+  
   useEffect(() => {
     const fetchEventTypes = async () => {
       try {
@@ -460,6 +459,23 @@ const overdueCells = allEvents.filter(cell => {
 
     fetchEventTypes();
   }, [authFetch]);
+ 
+useEffect(() => {
+  const handleTaskUpdate = () => {
+    console.log('Task update detected, refreshing stats...');
+    fetchStats(true);
+    fetchOverdueCells(true);
+  };
+
+
+  window.addEventListener('taskUpdated', handleTaskUpdate);
+  
+  return () => {
+    window.removeEventListener('taskUpdated', handleTaskUpdate);
+  };
+}, [fetchStats, fetchOverdueCells]);
+
+
 
   const toggleExpand = useCallback((key) => {
     setExpandedUsers(prev => 
@@ -933,6 +949,18 @@ const overdueCells = allEvents.filter(cell => {
   }
 
   const eventsOnSelectedDate = getEventsForDate(selectedDate);
+  // After fetchStats
+console.log("STATS DASHBOARD - All tasks:", stats.allTasks.length);
+console.log("STATS DASHBOARD - Grouped tasks:", stats.groupedTasks.length);
+stats.groupedTasks.forEach(group => {
+  console.log(`User: ${group.user.fullName}`);
+  console.log(`  Total: ${group.totalCount}, Completed: ${group.completedCount}, Incomplete: ${group.incompleteCount}`);
+  console.log(`  Their tasks:`, group.tasks.map(t => ({
+    name: t.contacted_person?.name,
+    status: t.status,
+    date: t.followup_date
+  })));
+});
   
   return (
     <Container maxWidth="xl" sx={{ p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2.5, xl: 3 }), mt: { xs: 4, md: 6 }}}>
