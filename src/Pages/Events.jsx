@@ -1647,15 +1647,15 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
   const styles = {
     container: {
       backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
-      borderRadius: "12px", // Reduced from 16px
-      padding: isMobileView ? "0.75rem" : "1rem", // Reduced
+      borderRadius: "12px",
+      padding: isMobileView ? "1rem" : "1.25rem",
       marginBottom: "1rem",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.06)", // Reduced shadow
+      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
     },
-    searchContainer: { marginBottom: "0.75rem" }, // Reduced
+    searchContainer: { marginBottom: "1rem" },
     searchInput: {
       "& .MuiOutlinedInput-root": {
-        borderRadius: "8px", // Reduced from 12px
+        borderRadius: "12px",
         backgroundColor: isDarkMode ? "rgba(255,255,255,0.05)" : "#fff",
         "& fieldset": { borderColor: isDarkMode ? theme.palette.divider : "#ddd" },
         "&:hover fieldset": { borderColor: "#007bff" },
@@ -1664,26 +1664,24 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
     },
     gridContainer: {
       display: "grid",
-      gridTemplateColumns: isMobileView ? "repeat(auto-fill, minmax(80px, 1fr))" : "repeat(auto-fill, minmax(100px, 1fr))", // Smaller cards
-      gap: isMobileView ? "0.5rem" : "0.5rem", // Reduced gap
+      gridTemplateColumns: isMobileView ? "repeat(auto-fill, minmax(250px, 1fr))" : "repeat(auto-fill, minmax(280px, 1fr))",
+      gap: "20px",
       width: "100%",
     },
     card: {
       backgroundColor: isDarkMode ? theme.palette.background.default : "#fff",
-      borderRadius: "8px", // Reduced from 12px
-      padding: "0.5rem", // Already small
+      borderRadius: "12px",
+      padding: "20px",
       cursor: "pointer",
-      border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+      border: `2px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
       transition: "all 0.3s ease",
       display: "flex",
       flexDirection: "column",
-      justifyContent: "center",
-      alignItems: "center",
-      textAlign: "center",
-      height: isMobileView ? "70px" : "80px", // Much smaller
+      height: "160px",
+      textAlign: "left",
       "&:hover": {
-        transform: "translateY(-2px)",
-        boxShadow: "0 4px 8px rgba(0,0,0,0.08)", // Reduced shadow
+        transform: "translateY(-4px)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
         borderColor: "#007bff",
       },
     },
@@ -1691,34 +1689,28 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
       borderColor: "#007bff",
       backgroundColor: isDarkMode ? "rgba(0,123,255,0.1)" : "#e7f3ff",
       transform: "scale(1.02)",
-      boxShadow: "0 2px 8px rgba(0,123,255,0.15)", // Reduced shadow
+      boxShadow: "0 4px 12px rgba(0,123,255,0.2)",
     },
     name: {
-      fontSize: isMobileView ? "11px" : "12px", // Reduced
+      fontSize: "18px",
       fontWeight: 600,
       color: isDarkMode ? theme.palette.text.primary : "#333",
-      lineHeight: 1.2,
-      width: "100%",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      display: "-webkit-box",
-      WebkitLineClamp: 2,
-      WebkitBoxOrient: "vertical",
+      mb: "8px",
+      lineHeight: 1.3,
     },
     description: {
-      fontSize: isMobileView ? "9px" : "10px", // Reduced
+      fontSize: "14px",
       color: isDarkMode ? theme.palette.text.secondary : "#666",
-      lineHeight: 1.2,
-      width: "100%",
+      lineHeight: 1.5,
+      flex: 1,
       overflow: "hidden",
-      textOverflow: "ellipsis",
       display: "-webkit-box",
-      WebkitLineClamp: 2,
+      WebkitLineClamp: 3,
       WebkitBoxOrient: "vertical",
     },
     noResults: {
       textAlign: "center",
-      padding: "2rem 1rem", // Reduced
+      padding: "3rem 1rem",
       color: isDarkMode ? theme.palette.text.secondary : "#666",
     },
   };
@@ -1749,6 +1741,14 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
           {eventTypes.map((type) => {
             const typeName = typeof type === "string" ? type : type.name || type;
             const isActive = selectedEventTypeFilter === typeName;
+            
+            // Get description from event type object
+            const eventTypeObj = eventTypes.find(et => 
+              et.name?.toLowerCase() === typeName.toLowerCase()
+            ) || { name: typeName };
+            
+            const description = eventTypeObj.description || 
+                               getEventTypeDescription(typeName);
 
             return (
               <Box
@@ -1760,7 +1760,7 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
                   {typeName === "all" ? "ALL EVENTS" : typeName}
                 </Typography>
                 <Typography sx={styles.description}>
-                  {getEventTypeDescription(typeName)}
+                  {description}
                 </Typography>
               </Box>
             );
@@ -1770,7 +1770,6 @@ const EventTypeGridView = ({ eventTypes, onEventTypeClick, selectedEventTypeFilt
     </Box>
   );
 };
-
 
 const ViewToggle = () => (
   <Box sx={{ 
@@ -1827,11 +1826,28 @@ const ViewToggle = () => (
   </Box>
 );
 
+
 const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType, onBackToGrid }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Function to get color based on event type
+  const getEventTypeColor = (typeName) => {
+    const colors = {
+      'Global Events': '#007bff',
+      'Life Class': '#28a745',
+      'Testing Recurring': '#6f42c1',
+      'Workshop': '#fd7e14',
+      'Conference': '#dc3545',
+      'Service': '#17a2b8',
+      'Testing Recurring Days': '#e83e8c',
+      'All Events': '#6c757d',
+      'All Cells': '#6c757d',
+    };
+    return colors[typeName] || '#007bff';
+  };
 
   const styles = {
     container: {
@@ -1852,50 +1868,73 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
       fontWeight: "bold",
       color: isDarkMode ? theme.palette.text.primary : "#333",
     },
-    searchContainer: { marginBottom: "16px" },
+    searchContainer: { 
+      marginBottom: "16px",
+      position: "relative",
+    },
     searchInput: {
       "& .MuiOutlinedInput-root": {
-        borderRadius: "12px",
+        borderRadius: "8px",
         backgroundColor: isDarkMode ? theme.palette.background.default : "#f8f9fa",
+        paddingLeft: "40px", // Space for search icon
       },
-      "& .MuiInputBase-input": { padding: "12px 14px", fontSize: "14px" },
+      "& .MuiInputBase-input": { 
+        padding: "12px 14px 12px 0", 
+        fontSize: "14px" 
+      },
+    },
+    searchIcon: {
+      position: "absolute",
+      left: "12px",
+      top: "50%",
+      transform: "translateY(-50%)",
+      zIndex: 1,
+      color: isDarkMode ? theme.palette.text.secondary : "#666",
     },
     eventTypesContainer: {
       flex: 1,
       overflowY: "auto",
       display: "flex",
       flexDirection: "column",
-      gap: "10px",
+      gap: "8px", // Reduced gap
     },
     eventTypeItem: {
       display: "flex",
       flexDirection: "column",
-      padding: "12px 14px",
-      borderRadius: "10px",
+      padding: "12px 16px", // Reduced padding
+      borderRadius: "6px", // Smaller border radius
       cursor: "pointer",
       transition: "all 0.2s ease",
       backgroundColor: isDarkMode ? "rgba(255,255,255,0.03)" : "#f8f9fa",
-      border: `1px solid transparent`,
+      border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+      borderLeft: `4px solid #007bff`, // Will be overridden with dynamic color
       "&:hover": {
-        transform: "translateY(-2px)",
-        backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
-        borderColor: "#007bff",
+        transform: "translateX(2px)", // Smaller movement
+        backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.08)" : "#e7f3ff",
+        borderLeftColor: "#0056b3",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
       },
     },
     eventTypeItemActive: {
-      backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.15)" : "#d0e7ff",
+      backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.12)" : "#d0e7ff",
       borderColor: "#007bff",
+      borderLeftColor: "#0056b3",
     },
     eventTypeName: {
-      fontSize: "14px",
+      fontSize: "14px", // Smaller font
       fontWeight: 600,
       color: isDarkMode ? theme.palette.text.primary : "#333",
-      marginBottom: "2px",
+      marginBottom: "4px",
+      lineHeight: 1.4,
     },
     eventTypeDescription: {
-      fontSize: "12px",
+      fontSize: "12px", // Smaller font
       color: isDarkMode ? theme.palette.text.secondary : "#666",
-      lineHeight: 1.3,
+      lineHeight: 1.4,
+      overflow: "hidden",
+      display: "-webkit-box",
+      WebkitLineClamp: 2,
+      WebkitBoxOrient: "vertical",
     },
     noResults: {
       textAlign: "center",
@@ -1913,40 +1952,78 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     <Box sx={styles.container}>
       <Box sx={styles.header}>
         <Typography sx={styles.title}>Select Event Type</Typography>
-        <Button variant="outlined" size="small" onClick={onBackToGrid}>
+        <Button 
+          variant="outlined" 
+          size="small" 
+          onClick={onBackToGrid}
+          sx={{
+            textTransform: 'none',
+            borderRadius: '6px',
+            padding: '6px 12px',
+            fontSize: '13px',
+          }}
+        >
           Back
         </Button>
       </Box>
 
       <Box sx={styles.searchContainer}>
+        <SearchIcon sx={styles.searchIcon} />
         <TextField
           fullWidth
           placeholder="Search event types..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           sx={styles.searchInput}
+          InputProps={{
+            startAdornment: null, // Remove the InputAdornment
+          }}
         />
       </Box>
 
       {filteredEventTypes.length === 0 ? (
-        <Box sx={styles.noResults}>No event types found</Box>
+        <Box sx={styles.noResults}>
+          <SearchIcon sx={{ fontSize: 40, color: "#ccc", mb: 1.5 }} />
+          <Typography variant="h6" gutterBottom sx={{ fontSize: "18px" }}>
+            No event types found
+          </Typography>
+          <Typography variant="body2" sx={{ fontSize: "13px" }}>
+            Try a different search term
+          </Typography>
+        </Box>
       ) : (
         <Box sx={styles.eventTypesContainer}>
           {filteredEventTypes.map((type) => {
             const typeName = typeof type === "string" ? type : type.name || type;
             const isActive = selectedEventTypeFilter === typeName;
+            const color = getEventTypeColor(typeName);
+            
+            // Get description from event type object
+            const eventTypeObj = eventTypes.find(et => 
+              et.name?.toLowerCase() === typeName.toLowerCase()
+            ) || { name: typeName };
+            
+            const description = eventTypeObj.description || 
+                               getEventTypeDescription(typeName);
 
             return (
               <Box
                 key={typeName}
-                sx={{ ...styles.eventTypeItem, ...(isActive ? styles.eventTypeItemActive : {}) }}
+                sx={{ 
+                  ...styles.eventTypeItem, 
+                  borderLeft: `4px solid ${color}`, // Dynamic color for side border
+                  ...(isActive ? { 
+                    ...styles.eventTypeItemActive,
+                    borderLeftColor: color, // Keep same color when active
+                  } : {})
+                }}
                 onClick={() => onSelectEventType(typeName)}
               >
                 <Typography sx={styles.eventTypeName}>
                   {typeName === "all" ? "All Events" : typeName}
                 </Typography>
                 <Typography sx={styles.eventTypeDescription}>
-                  {getEventTypeDescription(typeName)}
+                  {description}
                 </Typography>
               </Box>
             );
@@ -1956,7 +2033,6 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     </Box>
   );
 };
-
 
   const clearAllFilters = useCallback(() => {
     setSearchQuery("");
@@ -4676,7 +4752,6 @@ return (
           </>
         )
 ) : viewMode === "grid" ? (
-  /* GRID VIEW - Event Types as Cards - CENTERED like search bar */
 <Box sx={{ 
   flexGrow: 1, 
   overflowY: "auto",
@@ -4687,12 +4762,12 @@ return (
 }}>
   <Box sx={{
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", // Changed from 200px to 120px
-    gap: "12px", // Reduced from 20px
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+    gap: "16px",
     width: "100%",
-    maxWidth: "600px", // Reduced from 800px
+    maxWidth: "1000px",
     margin: "0 auto", 
-    padding: "16px 0", // Reduced from 24px
+    padding: "16px",
   }}>
     {allEventTypes
       .filter(type => {
@@ -4703,28 +4778,50 @@ return (
         const typeName = typeof type === "string" ? type : type.name || type;
         const isAllCells = typeName === "all";
         
+        // Get the full event type object for description
+        const eventTypeObj = eventTypes.find(et => 
+          et.name?.toLowerCase() === typeName.toLowerCase()
+        ) || { name: typeName };
+        
+        // Get description from the event type object
+        const description = eventTypeObj.description || "";
+        
+        // Function to get color based on event type (like second image)
+        const getEventTypeColor = (type) => {
+          const colors = {
+            'Global Events': '#007bff',
+            'Life Class': '#28a745',
+            'Testing Recurring': '#6f42c1',
+            'Workshop': '#fd7e14',
+            'Conference': '#dc3545',
+            'Service': '#17a2b8',
+            'Testing Recurring Days': '#e83e8c',
+          };
+          return colors[type] || '#007bff'; // Default to blue
+        };
+
         return (
           <Box
             key={typeName}
             sx={{
-              backgroundColor: isDarkMode ? theme.palette.background.default : "#fff",
-              borderRadius: "8px", // Reduced from 12px
-              padding: "12px", // Reduced from 20px
+              backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+              borderRadius: "8px",
+              padding: "12px",
               cursor: "pointer",
-              border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`, // Thinner border
-              transition: "all 0.3s ease",
+              border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+              borderLeft: `4px solid ${getEventTypeColor(typeName)}`, // COLORED SIDE BORDER
+              transition: "all 0.2s ease",
               display: "flex",
               flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "90px", // Reduced from 140px
-              textAlign: "center",
+              height: "110px", // Even smaller height
+              textAlign: "left",
               position: "relative",
               width: "100%",
               "&:hover": {
-                transform: "translateY(-2px)", // Reduced from -4px
-                boxShadow: "0 4px 12px rgba(0,0,0,0.08)", // Reduced shadow
-                borderColor: "#007bff",
+                transform: "translateY(-2px)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                borderColor: isDarkMode ? theme.palette.divider : "#e0e0e0",
+                borderLeftColor: getEventTypeColor(typeName), // Keep colored border on hover
               },
             }}
           >
@@ -4748,50 +4845,81 @@ return (
                 height: "100%",
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
+                justifyContent: "space-between",
               }}
             >
-              {/* REMOVED ICONS SECTION COMPLETELY */}
+              {/* Event Type Name - TOP */}
               <Typography sx={{ 
-                fontSize: "14px", // Reduced from 16px
+                fontSize: "15px", // Slightly smaller
                 fontWeight: "600",
                 color: isDarkMode ? theme.palette.text.primary : "#333",
-                width: "100%",
+                mb: "6px", // Reduced margin
+                lineHeight: 1.3,
+                minHeight: "1.6em",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}>
-                {typeName === "all" ? "All Events" : typeName}
+                {typeName === "all" ? "All Cells" : typeName}
               </Typography>
+              
+              {/* Event Type Description - MIDDLE */}
+              <Box sx={{ 
+                flex: 1, 
+                display: "flex", 
+                alignItems: "flex-start",
+                minHeight: "40px", // Fixed minimum height for description
+              }}>
+                <Typography sx={{ 
+                  fontSize: "12px",
+                  color: isDarkMode ? theme.palette.text.secondary : "#666",
+                  lineHeight: 1.4,
+                  overflow: "hidden",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  maxHeight: "2.8em",
+                  fontStyle: description ? "normal" : "italic",
+                }}>
+                  {description || "No description available"}
+                </Typography>
+              </Box>
+              
+              {/* Optional: Add a subtle color indicator at bottom */}
+              <Box sx={{
+                height: "3px",
+                width: "100%",
+                backgroundColor: getEventTypeColor(typeName),
+                borderRadius: "2px",
+                marginTop: "6px",
+                opacity: 0.5,
+              }} />
             </Box>
 
-            {/* EDIT/DELETE MENU */}
+            {/* EDIT/DELETE MENU - Positioned differently to avoid overlap */}
             {isAdmin && !isAllCells && (
               <IconButton
                 size="small"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const eventTypeObj = eventTypes.find(et => 
-                    et.name?.toLowerCase() === typeName.toLowerCase()
-                  ) || { name: typeName };
                   setSelectedTypeForMenu(eventTypeObj);
                   setMenuAnchor(e.currentTarget);
                 }}
                 sx={{
                   position: "absolute",
-                  top: "4px", // Reduced from 8px
-                  right: "4px", // Reduced from 8px
-                  width: "24px", // Reduced from 28px
-                  height: "24px", // Reduced from 28px
-                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
+                  top: "8px",
+                  right: "8px",
+                  width: "24px",
+                  height: "24px",
+                  backgroundColor: isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
                   "&:hover": {
-                    backgroundColor: isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.08)",
+                    backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
                   },
                   color: isDarkMode ? "#fff" : "#000",
-                  fontSize: "16px", // Reduced from 18px
-                  padding: "2px", // Reduced from 4px
+                  fontSize: "16px",
+                  padding: "2px",
                   minWidth: "auto",
+                  zIndex: 1,
                 }}
               >
                 ⋮
@@ -4802,32 +4930,33 @@ return (
       })}
   </Box>
   
-  {/* NO RESULTS MESSAGE - also centered */}
+  {/* NO RESULTS MESSAGE */}
   {allEventTypes.filter(type => {
     const typeName = typeof type === "string" ? type : type.name || type;
     return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
   }).length === 0 && (
     <Box sx={{ 
       textAlign: "center", 
-      padding: "2rem 1rem", // Reduced from 4rem
+      padding: "3rem 1rem",
       color: isDarkMode ? theme.palette.text.secondary : "#666",
       width: "100%",
-      maxWidth: "600px", // Reduced from 800px
+      maxWidth: "600px",
       margin: "0 auto",
     }}>
-      <SearchIcon sx={{ fontSize: 32, color: "#ccc", mb: 1 }} /> {/* Reduced size */}
-      <Typography variant="h6" gutterBottom>
+      <SearchIcon sx={{ fontSize: 40, color: "#ccc", mb: 1.5 }} />
+      <Typography variant="h6" gutterBottom sx={{ fontSize: "18px" }}>
         No event types found
       </Typography>
-      <Typography variant="body2">
+      <Typography variant="body2" sx={{ fontSize: "13px" }}>
         Try a different search term
       </Typography>
     </Box>
   )}
 </Box>
+
 ) : (
-   /* TABLE VIEW - Event Types as Vertical List */
-<Box sx={{ flexGrow: 1, overflowY: "auto", padding: "24px" }}>
+
+  <Box sx={{ flexGrow: 1, overflowY: "auto", padding: "24px" }}>
   <Box sx={{ maxWidth: "800px", margin: "0 auto" }}>
     {allEventTypes
       .filter(type => {
@@ -4838,8 +4967,31 @@ return (
         const typeName = typeof type === "string" ? type : type.name || type;
         const isAllCells = typeName === "all";
         
-      
+        // Get the full event type object for description
+        const eventTypeObj = eventTypes.find(et => 
+          et.name?.toLowerCase() === typeName.toLowerCase()
+        ) || { name: typeName };
         
+        // Get description from the event type object
+        const description = eventTypeObj.description || "";
+        
+        // Function to get color based on event type
+        const getEventTypeColor = (typeName) => {
+          const colors = {
+            'Global Events': '#007bff',
+            'Life Class': '#28a745',
+            'Testing Recurring': '#6f42c1',
+            'Workshop': '#fd7e14',
+            'Conference': '#dc3545',
+            'Service': '#17a2b8',
+            'Testing Recurring Days': '#e83e8c',
+            'All Cells': '#6c757d',
+          };
+          return colors[typeName] || '#007bff';
+        };
+        
+        const color = getEventTypeColor(typeName);
+
         return (
           <Box
             key={typeName}
@@ -4848,16 +5000,18 @@ return (
               alignItems: "center",
               padding: "16px 20px",
               marginBottom: "12px",
-              borderRadius: "12px",
+              borderRadius: "8px",
               cursor: "pointer",
               backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
               border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+              borderLeft: `4px solid ${color}`, // COLORED SIDE BORDER
               transition: "all 0.2s ease",
               position: "relative",
               "&:hover": {
-                transform: "translateX(4px)",
-                backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.1)" : "#e7f3ff",
-                borderColor: "#007bff",
+                transform: "translateX(2px)",
+                backgroundColor: isDarkMode ? "rgba(0, 123, 255, 0.08)" : "#e7f3ff",
+                borderColor: isDarkMode ? theme.palette.divider : "#e0e0e0",
+                borderLeftColor: color, // Keep same color on hover
               },
             }}
           >
@@ -4883,12 +5037,7 @@ return (
                 flex: 1,
               }}
             >
-              <Box sx={{ fontSize: "24px", mr: "16px", minWidth: "24px" }}>
-                {typeName === "all" ? "📊" : 
-                 typeName.includes("CELL") ? "🏠" : 
-                 typeName.includes("Class") ? "🎓" : 
-                 typeName.includes("Service") ? "⛪" : "📅"}
-              </Box>
+              {/* REMOVED ICON SECTION */}
               <Box sx={{ flex: 1 }}>
                 <Typography sx={{ 
                   fontSize: "16px", 
@@ -4898,12 +5047,14 @@ return (
                 }}>
                   {typeName === "all" ? "All Cells" : typeName}
                 </Typography>
-                {/* SHOW DESCRIPTION INSTEAD OF EVENT COUNT */}
+                {/* SHOW DESCRIPTION */}
                 <Typography sx={{ 
-                  fontSize: "14px", 
+                  fontSize: "13px", 
                   color: isDarkMode ? theme.palette.text.secondary : "#666",
                   lineHeight: 1.4,
+                  fontStyle: description ? "normal" : "italic",
                 }}>
+                  {description || "No description available"}
                 </Typography>
               </Box>
             </Box>
@@ -4914,9 +5065,6 @@ return (
                 size="small"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const eventTypeObj = eventTypes.find(et => 
-                    et.name?.toLowerCase() === typeName.toLowerCase()
-                  ) || { name: typeName };
                   setSelectedTypeForMenu(eventTypeObj);
                   setMenuAnchor(e.currentTarget);
                 }}
