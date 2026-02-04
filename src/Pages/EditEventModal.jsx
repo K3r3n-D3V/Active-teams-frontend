@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography,
   Select, MenuItem, FormControl, InputLabel, Switch, FormControlLabel, Grid, Alert,
@@ -127,7 +127,9 @@ console.log("EditEventModal rendered with event:", fieldMapping);
       });
 
       setFormData(initialData);
-      setIsActiveToggle(initialData.is_active !== undefined ? initialData.is_active : true);
+      console.log("TOGGLE STATE",initialData.is_active === true || initialData.is_active === false ? initialData.is_active : true)
+        // ,initialData.is_active !== undefined ? initialData.is_active : true)
+      setIsActiveToggle(initialData.is_active === true || initialData.is_active === false ? initialData.is_active : true);
 
       const editableFields = Object.keys(initialData).filter(key =>
         !['_id', 'id', '__v', 'UUID', 'created_at', 'updated_at',
@@ -150,6 +152,7 @@ console.log("EditEventModal rendered with event:", fieldMapping);
       });
       setChangedFields(changed);
     }
+    console.log("HEY HEY")
   }, [formData, event]);
 
   const handleChange = (field, value) => {
@@ -161,7 +164,9 @@ console.log("EditEventModal rendered with event:", fieldMapping);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-const handleDeactivateCell = async () => {
+  // const  updateCells = useRef();
+
+  const handleDeactivateCell = async () => {
   try {
     setIsToggling(true);
     const userToken = localStorage.getItem("access_token") || token;
@@ -171,10 +176,15 @@ const handleDeactivateCell = async () => {
       "is_permanent_deact":isPermanent
     });
     console.log("BOOL",isPermanent)
-    
+    console.log("is it?",originalContext)
     if (deactivationReason) {
       params.append('reason', deactivationReason);
     }
+    //sending eventName and event leader name to backend in case below conditions aren't meant
+    params.append('cell_identifier', originalContext.eventName || event?.eventName || "");
+    params.append('person_name',originalPersonIdentifier)
+
+    // Determine the deactivation scope
     
     if (editScope === 'single' || !isCellEvent) {
       const cellName = formData.eventName || formData['Event Name'];
@@ -182,25 +192,28 @@ const handleDeactivateCell = async () => {
       params.append('cell_identifier', cellName);
       params.append('person_name', originalPersonIdentifier);
       
+      
       if (originalContext.day) {
         params.append('day_of_week', originalContext.day);
       }
     } else {
       if (contextFilter === 'all') {
-        params.append('cell_identifier', originalPersonIdentifier);
+        // params.append('cell_identifier', originalPersonIdentifier);
       } else if (contextFilter === 'day' && originalContext.day) {
-        params.append('cell_identifier', originalPersonIdentifier);
+        // params.append('cell_identifier', originalPersonIdentifier);
         params.append('day_of_week', originalContext.day);
       } else if (contextFilter === 'eventName' && originalContext.eventName) {
         // Deactivate by EXACT cell name
-        params.append('cell_identifier', originalContext.eventName);
         params.append('person_name', originalPersonIdentifier);
       }
     }
     
+    //sending event type to backend to know which event type to deact
+   
+    console.log("The thing",event)
     console.log("Calling endpoint with:", params.toString());
     
-    const response = await fetch(`${BACKEND_URL}/cells/deactivate?${params.toString()}`, {
+    const response = await fetch(`${BACKEND_URL}/events/deactivate?${params.toString()}`, {
       method: 'PUT',
       headers: { 
         'Authorization': `Bearer ${userToken}` 
@@ -213,6 +226,7 @@ const handleDeactivateCell = async () => {
     }
     
     const result = await response.json();
+    
     
     // Success message
     toast.success(
@@ -234,11 +248,18 @@ const handleDeactivateCell = async () => {
       deactivation_reason: deactivationReason
     }));
     
+    
     // Close and reset
     setDeactivationDialogOpen(false);
     setDeactivationReason('');
     setDeactivationWeeks(2);
     
+    
+    handleSubmit({is_active: false,
+      deactivation_start: new Date().toISOString(),
+      deactivation_end: result.deactivation_end,
+      deactivation_reason: deactivationReason})
+      
     if (refreshEvents) refreshEvents();
     
   } catch (error) {
@@ -382,11 +403,12 @@ const handleDeactivateCell = async () => {
     return {...cleanData,"is_permanent_deact":isPermanent};
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e,deactivationFields = {}) => {
     try {
+      console.log("FIELDS",changedFields)
+
       setLoading(true);
-      
-      if (changedFields.length === 0) {
+      if (changedFields.length === 0 && !deactivationFields) {
         toast.info("No changes made");
         onClose();
         return;
@@ -398,9 +420,9 @@ const handleDeactivateCell = async () => {
         setLoading(false);
         return;
       }
-
-      const updateData = prepareUpdateData();
-      
+     
+      const updateData = deactivationFields?{...prepareUpdateData(),...deactivationFields}:prepareUpdateData() ;
+      console.log("data",updateData)
       if (Object.keys(updateData).length === 0) {
         toast.info("No valid changes to save");
         setLoading(false);
@@ -1087,6 +1109,7 @@ const handleDeactivateCell = async () => {
                 Cancel
               </Button>
               <Button
+                // ref={updateCells}
                 onClick={handleSubmit}
                 variant="contained"
                 disabled={loading || changedFields.length === 0 || changedFields.some(f => isFieldDisabled(f))}
@@ -1135,9 +1158,14 @@ const handleDeactivateCell = async () => {
               value={deactivationWeeks}
               onChange={(e) =>{ 
                 setDeactivationWeeks(e.target.value);
-                if (e.target.value === -1) setIsPermanent(true)
+                if (e.target.value === -1) {
+                  setIsPermanent(true)
+                } else {
+                  setIsPermanent(false)
+                }
               }}
               label="Deactivation Period"
+            
             >
               <MenuItem value={1}>1 Week</MenuItem>
               <MenuItem value={2}>2 Weeks</MenuItem>
