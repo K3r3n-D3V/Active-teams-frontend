@@ -1459,9 +1459,10 @@ const fetchEvents = useCallback(
         page: filters.page || currentPage,
         limit: filters.limit || rowsPerPage,
         start_date: filters.start_date || DEFAULT_API_START_DATE,
+        // ALWAYS default to "incomplete" status unless specified otherwise
+        status: filters.status || selectedStatus || "incomplete",
       };
 
-      if (filters.status && filters.status !== "all") params.status = filters.status;
       if (filters.search) params.search = filters.search;
       
       // CRITICAL FIX: Ensure event_type is passed correctly
@@ -1470,21 +1471,26 @@ const fetchEvents = useCallback(
       }
 
       // CRITICAL: Determine endpoint based on event_type
-      const isCellType = !filters.event_type || 
-                        filters.event_type === "CELLS" || 
-                        filters.event_type === "all" ||
-                        filters.event_type.toLowerCase() === "cells";
-                        
-      const endpoint = isCellType 
-        ? `${BACKEND_URL}/events/cells` 
-        : `${BACKEND_URL}/events/other`;
-
-      console.log("📍 Using endpoint:", endpoint);
-      console.log("📦 Is Cell Type:", isCellType);
-      console.log("📋 Event Type Param:", params.event_type);
-
-      // Role Logic for Params - Only apply for CELLS endpoint
+      let endpoint = `${BACKEND_URL}/events`;
+      
+      // Check if this is a CELLS type event
+      const eventType = filters.event_type || selectedEventTypeFilter;
+      const isCellType = 
+        !eventType || 
+        eventType === "CELLS" || 
+        eventType === "all" ||
+        eventType.toLowerCase() === "cells" ||
+        (eventType && eventType.toLowerCase().includes("cell"));
+      
+      console.log("📍 Event Type:", eventType);
+      console.log("📍 Is Cell Type:", isCellType);
+      console.log("📍 Status being sent:", params.status);
+      
+      // Use different endpoints for CELLS vs other event types
       if (isCellType) {
+        endpoint = `${BACKEND_URL}/events/cells`;
+        
+        // Apply CELLS-specific role logic
         if (isLeaderAt12) {
           params.leader_at_12_view = true;
           if (viewFilter === "personal") params.personal = true;
@@ -1494,6 +1500,15 @@ const fetchEvents = useCallback(
         } else {
           params.personal = true;
         }
+      } else {
+        endpoint = `${BACKEND_URL}/events/other`;
+        // Remove CELLS-specific params for non-CELLS events
+        delete params.personal;
+        delete params.leader_at_12_view;
+        delete params.include_subordinate_cells;
+        delete params.show_personal_cells;
+        delete params.show_all_authorized;
+        delete params.leader_at_1_identifier;
       }
 
       const queryString = new URLSearchParams(params).toString();
@@ -1511,11 +1526,12 @@ const fetchEvents = useCallback(
 
       const data = await response.json();
       console.log("✅ Received events:", data.events?.length || 0);
-      console.log("📊 Event types in response:", [...new Set(data.events?.map(e => e.eventType || e.eventTypeName))]);
+      console.log("📊 Event statuses in response:", [...new Set(data.events?.map(e => e.status))]);
       
       const allEvents = data.events || [];
       const currentUserEmail = currentUser?.email?.toLowerCase().trim();
 
+      // Filter events based on user role and permissions
       const filtered = allEvents.filter((event) => {
         if (isAdmin) return true;
         
@@ -1545,7 +1561,7 @@ const fetchEvents = useCallback(
       }
     }
   },
-  [currentPage, rowsPerPage, authFetch, BACKEND_URL, isLeaderAt12, isAdmin, currentUser, viewFilter, logout]
+  [currentPage, rowsPerPage, authFetch, BACKEND_URL, isLeaderAt12, isAdmin, currentUser, viewFilter, logout, selectedEventTypeFilter, selectedStatus]
 );
 
 const fetchEventTypes = useCallback(async () => {
@@ -1591,6 +1607,13 @@ useEffect(() => {
     fetchEventTypes();
   }
 }, [fetchEventTypes, currentUser?.email]);
+// Add this useEffect to reset status when event type changes
+useEffect(() => {
+  // When event type filter changes, reset to "incomplete" status
+  if (selectedEventTypeFilter && selectedEventTypeFilter !== "all") {
+    setSelectedStatus("incomplete");
+  }
+}, [selectedEventTypeFilter]);
 
 
   useEffect(() => {
@@ -3211,27 +3234,25 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     }
   }, [customEventTypes]);
 
-
-  useEffect(() => {
+useEffect(() => {
   if (eventTypes.length === 0) {
     return;
   }
 
-  console.log(" Main useEffect triggered - selectedStatus:", selectedStatus);
+  console.log("📊 Main useEffect triggered - selectedStatus:", selectedStatus);
   const fetchParams = {
     page: currentPage,
     limit: rowsPerPage,
     start_date: DEFAULT_API_START_DATE,
+    // ALWAYS include status - default to "incomplete"
+    status: selectedStatus || "incomplete",
   };
-
-  if (selectedStatus && selectedStatus !== "all") {
-    fetchParams.status = selectedStatus;
-  }
 
   if (searchQuery.trim()) {
     fetchParams.search = searchQuery.trim();
   }
 
+  // CRITICAL FIX: Pass the correct event_type parameter
   if (selectedEventTypeFilter === "all") {
     fetchParams.event_type = "CELLS";
   } else if (selectedEventTypeFilter === "CELLS") {
@@ -3240,6 +3261,7 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     fetchParams.event_type = selectedEventTypeFilter;
   }
 
+  // CRITICAL: Only apply CELLS-specific filters for CELLS events
   if (fetchParams.event_type === "CELLS") {
     if (isAdmin) {
       if (viewFilter === "personal") {
@@ -3263,6 +3285,7 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
       }
     }
   } else {
+    // REMOVE all CELLS-specific filters for non-CELLS event types
     delete fetchParams.personal;
     delete fetchParams.leader_at_12_view;
     delete fetchParams.show_personal_cells;
@@ -3275,11 +3298,12 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     (key) => fetchParams[key] === undefined && delete fetchParams[key],
   );
 
-  console.log(" Fetching with params:", fetchParams);
+  console.log("📤 Fetching with params:", fetchParams);
+  console.log("🎯 Event Type Filter:", selectedEventTypeFilter);
   fetchEvents(fetchParams, true);
 }, [
   selectedEventTypeFilter,
-  selectedStatus, 
+  selectedStatus, // Add this dependency
   viewFilter,
   currentPage,
   rowsPerPage,
@@ -3292,6 +3316,8 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
   currentUserLeaderAt1,
   searchQuery,
 ]);
+
+
 const StatusBadges = ({
   selectedStatus,
   setSelectedStatus,
@@ -3326,55 +3352,60 @@ const StatusBadges = ({
     },
   ];
 
-  const handleStatusClick = (statusValue) => {
-    setSelectedStatus(statusValue);
-    setCurrentPage(1);
-    
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage,
-      start_date: DEFAULT_API_START_DATE,
-      status: statusValue,
-      event_type: selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
-      _t: Date.now(),
-    };
+// In your StatusBadges component, update the handleStatusClick function:
+const handleStatusClick = (statusValue) => {
+  setSelectedStatus(statusValue);
+  setCurrentPage(1);
+  
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE,
+    status: statusValue,
+    event_type: selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
+    _t: Date.now(),
+  };
 
-    if (searchQuery.trim()) {
-      fetchParams.search = searchQuery.trim();
-    }
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
 
-    if (selectedEventTypeFilter === "all" || selectedEventTypeFilter === "CELLS") {
-      if (isAdmin) {
-        if (viewFilter === "personal") {
-          fetchParams.personal = true;
-        }
-      } else if (isRegistrant || isRegularUser) {
-        fetchParams.personal = true;
-      } else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
-        fetchParams.include_subordinate_cells = true;
+  const isCellEvent = selectedEventTypeFilter === "all" || 
+                     selectedEventTypeFilter === "CELLS" ||
+                     (selectedEventTypeFilter && selectedEventTypeFilter.toLowerCase().includes("cell"));
 
-        if (viewFilter === "personal") {
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          fetchParams.show_all_authorized = true;
-        }
-      } else if (isLeader) {
+  if (isCellEvent) {
+    if (isAdmin) {
+      if (viewFilter === "personal") {
         fetchParams.personal = true;
       }
-    }
+    } else if (isRegistrant || isRegularUser) {
+      fetchParams.personal = true;
+    } else if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
 
-    if (selectedEventTypeFilter !== "all" && selectedEventTypeFilter !== "CELLS") {
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
+      if (viewFilter === "personal") {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+      }
+    } else if (isLeader) {
+      fetchParams.personal = true;
     }
+  }
 
-    fetchEvents(fetchParams, true);
-  };
+  if (!isCellEvent) {
+    delete fetchParams.personal;
+    delete fetchParams.leader_at_12_view;
+    delete fetchParams.show_personal_cells;
+    delete fetchParams.show_all_authorized;
+    delete fetchParams.include_subordinate_cells;
+  }
+
+  fetchEvents(fetchParams, true);
+};
 
   const canDownload =
     selectedStatus === "complete" || selectedStatus === "did_not_meet";
@@ -3723,14 +3754,14 @@ const StatusBadges = ({
 
 const handleEventTypeClick = (typeValue) => {
   setSelectedEventTypeFilter(typeValue);
-  setSelectedStatus("incomplete"); 
+  setSelectedStatus("incomplete"); // Reset to incomplete
   setCurrentPage(1);
   const fetchParams = {
     page: 1,
     limit: rowsPerPage,
     start_date: DEFAULT_API_START_DATE,
     event_type: typeValue === "all" ? "CELLS" : typeValue,
-    status: "incomplete", 
+    status: "incomplete", // Explicitly set status
     _t: Date.now(), 
   };
 
@@ -3738,7 +3769,10 @@ const handleEventTypeClick = (typeValue) => {
     fetchParams.search = searchQuery.trim();
   }
 
-  if (typeValue === "all" || typeValue === "CELLS") {
+  // CRITICAL: Only apply CELLS-specific logic for CELLS events
+  const isCellEvent = typeValue === "all" || typeValue === "CELLS" || typeValue.toLowerCase().includes("cell");
+  
+  if (isCellEvent) {
     if (isAdmin) {
       if (viewFilter === "personal") {
         fetchParams.personal = true;
@@ -3761,9 +3795,8 @@ const handleEventTypeClick = (typeValue) => {
     else if (isLeader) {
       fetchParams.personal = true;
     }
-  }
-
-  if (typeValue !== "all" && typeValue !== "CELLS") {
+  } else {
+    // Remove CELLS-specific parameters for non-CELLS events
     delete fetchParams.personal;
     delete fetchParams.leader_at_12_view;
     delete fetchParams.show_personal_cells;
@@ -3771,9 +3804,9 @@ const handleEventTypeClick = (typeValue) => {
     delete fetchParams.include_subordinate_cells;
   }
 
+  console.log("🔍 Fetching events for type:", typeValue, "with status:", fetchParams.status);
   fetchEvents(fetchParams, true);
 };
-
 
   const eventTypeStyles = {
     container: {
@@ -5055,25 +5088,42 @@ return (
           >
             {/* CLICKABLE AREA */}
             <Box
-              onClick={() => {
-                setSelectedEventTypeFilter(typeName);
-                setShowingEvents(true);
-                setCurrentPage(1);
-                
-                const fetchParams = {
-                  page: 1,
-                  limit: rowsPerPage,
-                  start_date: DEFAULT_API_START_DATE,
-                  event_type: typeName === "all" ? "CELLS" : typeName,
-                };
-                
-                fetchEvents(fetchParams, true);
-              }}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                flex: 1,
-              }}
+            // In both grid and table view sections, update the onClick handler:
+onClick={() => {
+  setSelectedEventTypeFilter(typeName);
+  setSelectedStatus("incomplete"); // Reset status
+  setShowingEvents(true);
+  setCurrentPage(1);
+  
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE,
+    event_type: typeName === "all" ? "CELLS" : typeName,
+    status: "incomplete", // Explicitly set status
+  };
+  
+  // CRITICAL: Only apply CELLS-specific filters for CELLS events
+  const isCellEvent = typeName === "all" || typeName === "CELLS" || typeName.toLowerCase().includes("cell");
+  
+  if (isCellEvent) {
+    // Apply CELLS-specific logic if needed
+    if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
+      if (viewFilter === "personal") {
+        fetchParams.personal = true;
+      }
+    }
+  } else {
+    // Clear CELLS-specific filters for non-CELLS events
+    delete fetchParams.personal;
+    delete fetchParams.leader_at_12_view;
+    delete fetchParams.include_subordinate_cells;
+  }
+  
+  console.log("🎯 Fetching for event type:", typeName, "with status:", fetchParams.status);
+  fetchEvents(fetchParams, true);
+}}
             >
               {/* REMOVED ICON SECTION */}
               <Box sx={{ flex: 1 }}>

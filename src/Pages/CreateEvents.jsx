@@ -73,6 +73,7 @@ const CreateEvents = ({
     description: "",
     leader1: "",
     leader12: "",
+      // isGlobal: false, 
   });
 
   const [errors, setErrors] = useState({});
@@ -124,23 +125,20 @@ const CreateEvents = ({
           eventType: 'CELLS',
           isGlobal: false,
           isTicketed: false,
-          hasPersonSteps: true, // FIXED: This was the issue - always true for CELLS
+          hasPersonSteps: true, 
         };
       }
       
-      // Try to find the full event type object
-      const foundEventType = eventTypes.find(et => {
-        const etName = et.name || et.displayName || '';
-        const searchName = selectedEventType;
-        
-        return (
-          etName === searchName ||
-          etName.toLowerCase() === searchName.toLowerCase() ||
-          et._id === searchName ||
-          etName.includes(searchName) ||
-          searchName.includes(etName)
-        );
-      });
+   const foundEventType = eventTypes.find(et => {
+  const etName = et.name || et.displayName || '';
+  const searchName = selectedEventType;
+  
+  return (
+    etName === searchName ||
+    etName.toLowerCase() === searchName.toLowerCase() ||
+    et._id === searchName
+  );
+});
       
       if (foundEventType) {
         console.log('Found event type:', foundEventType);
@@ -552,6 +550,7 @@ const handleSubmit = async (e) => {
     const response = eventId 
       ? await axios.put(url, payload, { headers }) 
       : await axios.post(url, payload, { headers });
+      console.log("Submission response:", response);
 
     toast.success(eventId ? "Event updated!" : "Event created!");
     if (!eventId) resetForm();
@@ -810,7 +809,7 @@ const handleSubmit = async (e) => {
               helperText={errors.eventName}
             />
 
-            {isTicketedEvent && !isGlobalEvent && (
+            {isTicketedEvent && (
               <Box sx={{ mb: 3 }}>
                 <Box
                   sx={{
@@ -1144,7 +1143,7 @@ const handleSubmit = async (e) => {
   )}
 </Box>
 
-            {hasPersonSteps && !isGlobalEvent && (
+            {hasPersonSteps  && (
               <>
                 <TextField
                   label="Leader @1 *"
