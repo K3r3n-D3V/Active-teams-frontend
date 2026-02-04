@@ -409,9 +409,8 @@ console.log("EditEventModal rendered with event:", fieldMapping);
   const handleSubmit = async (e,deactivationFields = {}) => {
     try {
       console.log("FIELDS",changedFields)
+
       setLoading(true);
-      
-      console.log("jarr",deactivationFields)
       if (changedFields.length === 0 && !deactivationFields) {
         toast.info("No changes made");
         onClose();
@@ -426,7 +425,7 @@ console.log("EditEventModal rendered with event:", fieldMapping);
       }
      
       const updateData = deactivationFields?{...prepareUpdateData(),...deactivationFields}:prepareUpdateData() ;
-      console.log("datar",updateData)
+      console.log("data",updateData)
       if (Object.keys(updateData).length === 0) {
         toast.info("No valid changes to save");
         setLoading(false);
