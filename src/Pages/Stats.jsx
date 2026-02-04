@@ -184,7 +184,12 @@ useEffect(() => {
     // Filter only incomplete / overdue / missed cells
     // ────────────────────────────────────────────────
       const overdueCells = allEvents.filter(cell => {
-        const status = (cell.status || cell.Status || '').toString().trim().toLowerCase();
+        if ('is_overdue' in cell) {
+          return !!cell.is_overdue;                    // true → show, false/null/undefined → hide
+        }
+
+        const raw = (cell.status || cell.Status || '').trim();
+        const status = raw.toLowerCase();
 
         const isIncomplete = 
           status === 'incomplete' ||
