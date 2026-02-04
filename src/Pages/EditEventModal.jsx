@@ -42,6 +42,51 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+// Timezone helper functions - CORRECTED VERSION
+const convertToSAST = (utcTime) => {
+  if (!utcTime) return '';
+  
+  try {
+    // Handle both "HH:MM" and "HH:MM:SS" formats
+    const timeParts = utcTime.split(':');
+    const hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1] || '0', 10);
+    
+    // Add 2 hours for UTC to SAST conversion
+    let sastHours = hours + 2;
+    if (sastHours >= 24) sastHours -= 24;
+    if (sastHours < 0) sastHours += 24;
+    
+    // Format back to string
+    return `${sastHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  } catch (e) {
+    console.warn('SAST conversion error:', e);
+    return utcTime;
+  }
+};
+
+const convertToUTC = (sastTime) => {
+  if (!sastTime) return '';
+  
+  try {
+    // Handle both "HH:MM" and "HH:MM:SS" formats
+    const timeParts = sastTime.split(':');
+    const hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1] || '0', 10);
+    
+    // Subtract 2 hours for SAST to UTC conversion
+    let utcHours = hours - 2;
+    if (utcHours < 0) utcHours += 24;
+    if (utcHours >= 24) utcHours -= 24;
+    
+    // Format back to string
+    return `${utcHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  } catch (e) {
+    console.warn('UTC conversion error:', e);
+    return sastTime;
+  }
+};
+
   const [loggedInUserRole] = useState(() => {
     try {
       const storedProfile = localStorage.getItem("userProfile");
@@ -122,6 +167,7 @@ console.log("EditEventModal rendered with event:", fieldMapping);
         const systemFields = ['_id', '__v', 'id', 'UUID', 'created_at', 'updated_at',
           'persistent_attendees', 'attendees', 'total_attendance', 'isEventType', 'eventTypeId', 'last_updated'];
         if (!systemFields.includes(key)) {
+          // Value is already in SAST from backend, store as-is
           initialData[key] = cleanEvent[key] ?? '';
         }
       });
@@ -581,6 +627,14 @@ const handleDeactivateCell = async () => {
     const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
     const fl = field.toLowerCase();
 
+    // ADDED: Skip leader1, leader12, "Leader at 12", and "has Personal steps" fields for non-cell events
+    if (!isCellEvent) {
+      if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') || 
+          fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps') {
+        return null;
+      }
+    }
+
     const labelContent = (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {displayName}
@@ -598,13 +652,15 @@ const handleDeactivateCell = async () => {
       return null;
     }
 
+    // DATE FIELD - Fixed to show date properly
     if ((fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) || field === 'date') {
       let dateValue = '';
       if (value) {
         try {
           const date = new Date(value);
           if (!isNaN(date.getTime())) {
-            dateValue = date.toISOString().slice(0, 16);
+            // Format as YYYY-MM-DD for date input
+            dateValue = date.toISOString().split('T')[0];
           }
         } catch (e) {
           console.warn(`Invalid date for ${field}:`, value, e);
@@ -612,22 +668,61 @@ const handleDeactivateCell = async () => {
       }
       
       const content = (
-        <TextField fullWidth margin="normal" label={labelContent} type="datetime-local"
+        <TextField 
+          fullWidth 
+          margin="normal" 
+          label={labelContent} 
+          type="date"
           value={dateValue}
-          onChange={(e) => handleChange(field, e.target.value)}
-          InputLabelProps={{ shrink: true }} error={isChanged}
-          helperText={isChanged ? "Changed" : ""} disabled={isDisabled} />
+          onChange={(e) => {
+            if (e.target.value) {
+              // Store as ISO string
+              const newDate = new Date(e.target.value);
+              handleChange(field, newDate.toISOString());
+            } else {
+              handleChange(field, '');
+            }
+          }}
+          InputLabelProps={{ shrink: true }} 
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""} 
+          disabled={isDisabled} 
+        />
       );
       return isDisabled && disabledReason ? (
         <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
       ) : <Box key={field}>{content}</Box>;
     }
 
+    // TIME FIELD - Fixed to prevent duplicate and show correct time
     if (fl.includes('time') && !fl.includes('datetime')) {
+      // Skip duplicate time fields (show only 'Time' or 'time', not both)
+      if (field === 'time' && availableFields.includes('Time')) {
+        return null;
+      }
+      
+      // Value is already in SAST from backend, display as-is
+      const displayTime = value || '';
+      // const displayTime = value ? convertToSAST(value) : '';
+
+      
       const content = (
-        <TextField fullWidth margin="normal" label={labelContent} type="time" value={value || ''}
-          onChange={(e) => handleChange(field, e.target.value)} InputLabelProps={{ shrink: true }}
-          error={isChanged} helperText={isChanged ? "Changed" : ""} disabled={isDisabled} />
+        <TextField 
+          fullWidth 
+          margin="normal" 
+          label={labelContent} 
+          type="time" 
+          value={displayTime}
+          onChange={(e) => {
+            // Convert to UTC when saving
+            // const newTime = convertToUTC(e.target.value);
+            handleChange(field, e.target.value);
+          }} 
+          InputLabelProps={{ shrink: true }}
+          error={isChanged} 
+          helperText={isChanged ? "Changed (time in SAST)" : "Time shown in SAST (UTC+2)"} 
+          disabled={isDisabled} 
+        />
       );
       return isDisabled && disabledReason ? (
         <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
@@ -820,15 +915,41 @@ const handleDeactivateCell = async () => {
 
   if (!event) return null;
 
-  const personFields = availableFields.filter(f =>
-    ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email',
-      'leader1', 'leader12', 'Leader at 12'].includes(f)
-  );
+  const personFields = availableFields.filter(f => {
+    const basePersonFields = ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email'];
+    
+    // ADDED: For non-cell events, exclude leader1, leader12, and "Leader at 12"
+    if (!isCellEvent) {
+      const fl = f.toLowerCase();
+      if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12')) {
+        return false;
+      }
+    }
+    
+    // For cell events, include all leader fields
+    if (isCellEvent) {
+      return [...basePersonFields, 'leader1', 'leader12', 'Leader at 12'].includes(f);
+    }
+    
+    return basePersonFields.includes(f);
+  });
 
   const eventFields = availableFields.filter(f => {
     const fl = f.toLowerCase();
+    
+    // ADDED: For non-cell events, exclude "has Personal steps"
+    if (!isCellEvent && (fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps')) {
+      return false;
+    }
+    
     const allowed = ['eventname', 'event name', 'event type', 'eventtypename', 'description',
-      'status', 'isticketed', 'isglobal', 'haspersonsteps'];
+      'status', 'isticketed', 'isglobal'];
+    
+    // For cell events, include haspersonsteps
+    if (isCellEvent) {
+      allowed.push('haspersonsteps', 'has personal steps', 'haspersonalsteps');
+    }
+    
     return allowed.includes(fl);
   });
 
@@ -838,6 +959,16 @@ const handleDeactivateCell = async () => {
     const skipFields = ['is_active', 'Display date', 'Display_date', 'display_date', 
                         'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring', 
                         'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue'];
+    
+    // ADDED: For non-cell events, also skip these fields from "other fields"
+    if (!isCellEvent) {
+      const fl = f.toLowerCase();
+      if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') ||
+          fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps') {
+        skipFields.push(f);
+      }
+    }
+    
     return ![...personFields, ...eventFields, ...locationFields, ...timeFields, ...skipFields].includes(f);
   });
   
@@ -1058,7 +1189,7 @@ const handleDeactivateCell = async () => {
                 {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email',
                   'date', 'Date Of Event', 'time', 'Time', 'location', 'Address',
                   'status',
-                  'recurring_day', 'Day', 'description', 'leader1', 'leader12', 'Leader at 12']
+                  'recurring_day', 'Day', 'description']
                   .filter(field => availableFields.includes(field))
                   .map(field => (
                     <Grid item xs={12} md={6} key={field}>
