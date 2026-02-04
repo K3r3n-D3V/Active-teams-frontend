@@ -61,10 +61,13 @@ import {
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import { AuthContext } from "../contexts/AuthContext";
+import { useTaskUpdate } from '../contexts/TaskUpdateContext';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 const StatsDashboard = () => {
+
+  const { updateCount } = useTaskUpdate();
   console.log(">>> StatsDashboard function body executed — component is alive");
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
@@ -575,7 +578,8 @@ const StatsDashboard = () => {
     }
   };
 
-  // Event types fetch
+
+  
   useEffect(() => {
     const fetchEventTypes = async () => {
       try {
@@ -602,6 +606,23 @@ const StatsDashboard = () => {
 
     fetchEventTypes();
   }, [authFetch]);
+ 
+useEffect(() => {
+  const handleTaskUpdate = () => {
+    console.log('Task update detected, refreshing stats...');
+    fetchStats(true);
+    fetchOverdueCells(true);
+  };
+
+
+  window.addEventListener('taskUpdated', handleTaskUpdate);
+  
+  return () => {
+    window.removeEventListener('taskUpdated', handleTaskUpdate);
+  };
+}, [fetchStats, fetchOverdueCells]);
+
+
 
   const toggleExpand = useCallback((key) => {
     setExpandedUsers((prev) =>
