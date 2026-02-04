@@ -359,16 +359,12 @@ const markTaskComplete = async (taskId) => {
         _id: (raw._id || raw.id || "").toString(),
         name: (raw.Name || raw.name || "").toString().trim(),
         surname: (raw.Surname || raw.surname || "").toString().trim(),
-        email: (raw.Email || raw.email || "").toString().trim(),
-        phone: (raw.Number || raw.Phone || "").toString().trim(),
-        location: (raw.Address || raw.address || "").toString().trim(),
       }));
 
       globalPeopleCache = mapped;
       globalCacheTimestamp = Date.now();
       setAllPeople(mapped);
 
-      console.log(`People fetched and cached successfully: ${mapped.length} people`);
     } catch (err) {
       console.error('Fetch people error:', err);
       toast.error(`Failed to load people: ${err?.message}`);
@@ -397,12 +393,6 @@ const markTaskComplete = async (taskId) => {
             surnameLower.includes(searchLower) ||
             fullName.includes(searchLower);
         }
-        case 'email':
-          return person.email.toLowerCase().includes(searchLower);
-        case 'phone':
-          return person.phone.includes(searchValue.trim());
-        case 'location':
-          return person.location.toLowerCase().includes(searchLower);
         default:
           return true;
       }
@@ -875,7 +865,6 @@ useEffect(() => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                gap: '8px',
                 backgroundColor: isDarkMode ? '#fff' : '#000',
                 color: isDarkMode ? '#000' : '#fff',
                 fontWeight: '600',
@@ -884,9 +873,7 @@ useEffect(() => {
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '14px',
-                fontSize: '14px',
                 boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                width: '140px',
                 width: '140px',
                 minHeight: '44px'
               }}
