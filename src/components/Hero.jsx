@@ -1,6 +1,7 @@
 // components/Hero.jsx
 import React, { useState, useEffect } from "react";
 import EventRegistrationForm from '../components/EventRegistrationForm';
+import styles from "../styles/Hero.module.css";
 
 const images = [
   "/bannerswipper.jpg",
@@ -25,11 +26,11 @@ export default function Hero() {
   }, []);
 
   return (
-    <div style={styles.sliderBanner}>
+    <div className={styles.sliderBanner}>
       {images.length > 0 && (
         <div
+          className={styles.slide}
           style={{
-            ...styles.slide,
             backgroundImage: `url(${images[current]})`,
             opacity: fade ? 1 : 0,
             transition: "opacity 0.4s ease-in-out",
@@ -41,12 +42,12 @@ export default function Hero() {
         </div>
       )}
 
-      <div style={styles.indicators}>
+      <div className={styles.indicators}>
         {images.map((_, index) => (
           <span
             key={index}
+            className={styles.dot}
             style={{
-              ...styles.dot,
               opacity: index === current ? 1 : 0.3,
             }}
             onClick={() => {
@@ -64,42 +65,3 @@ export default function Hero() {
     </div>
   );
 }
-
-const styles = {
-  sliderBanner: {
-    height: "50vh",
-    position: "relative",
-    overflow: "hidden",
-    backgroundColor: "#000",
-    color: "#fff",
-    textAlign: "center",
-  },
-  slide: {
-    height: "100%",
-    width: "100%",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    position: "absolute",
-    top: 0,
-    left: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  indicators: {
-    position: "absolute",
-    bottom: "1rem",
-    left: "50%",
-    transform: "translateX(-50%)",
-    display: "flex",
-    gap: "10px",
-    zIndex: 2,
-  },
-  dot: {
-    width: "10px",
-    height: "10px",
-    backgroundColor: "#fff",
-    borderRadius: "50%",
-    cursor: "pointer",
-  },
-};

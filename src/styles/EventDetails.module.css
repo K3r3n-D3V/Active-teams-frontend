@@ -1,0 +1,58 @@
+.container {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background-color: #f9f9f9;
+  color: #333;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.header {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  color: #2c3e50;
+}
+
+.detailsBox {
+  background-color: #fff;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.attendeesHeader {
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+  color: #34495e;
+}
+
+.attendeeList {
+  list-style-type: none;
+  padding: 0;
+}
+
+.attendeeItem {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #ddd;
+  color: #2c3e50;
+  font-size: 1rem;
+}
+
+.backBtn {
+  margin-top: 2rem;
+  padding: 0.7rem 1.8rem;
+  font-size: 1rem;
+  background-color: #4a90e2;
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  cursor: pointer;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}

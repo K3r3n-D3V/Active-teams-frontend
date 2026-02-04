@@ -12,6 +12,7 @@ import {
   Typography,
   useTheme,
   IconButton,
+  Alert
 } from "@mui/material";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PersonIcon from "@mui/icons-material/Person";
@@ -21,6 +22,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
+import { useRef } from "react";
 
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -62,6 +64,7 @@ const CreateEvents = ({
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
     eventName: "",
+    email: "",
     date: "",
     time: "",
     timePeriod: "AM",
@@ -406,6 +409,7 @@ const fetchPeople = (q) => {
     setPriceTiers([]);
     setErrors({});
   };
+  const formAlert = useRef()
 
   const validateForm = () => {
     const newErrors = {};
@@ -415,6 +419,8 @@ const fetchPeople = (q) => {
     if (!formData.location) newErrors.location = "Location is required";
     if (!formData.eventLeader) newErrors.eventLeader = "Event leader is required";
     if (!formData.description) newErrors.description = "Description is required";
+    if (!formData.date) newErrors.date = "Date is required";
+    if (!formData.time) newErrors.time = "Time is required";
 
     if (!isGlobalEvent) {
       if (hasPersonSteps && formData.recurringDays.length === 0) {
@@ -464,7 +470,7 @@ const fetchPeople = (q) => {
 
  const handleSubmit = async (e) => {
   e.preventDefault();
-  if (!validateForm()) return;
+  if (!validateForm()){return setTimeout(()=>{formAlert.current.scrollIntoView({behavior:"smooth"})},200)};
 
   setIsSubmitting(true);
 
@@ -503,7 +509,7 @@ const fetchPeople = (q) => {
       location: formData.location,
       eventLeader: formData.eventLeader,
       eventLeaderName: formData.eventLeader,
-      eventLeaderEmail: user?.email || "",
+      eventLeaderEmail: formData.email || "",
       description: formData.description,
       userEmail: user?.email || "",
       recurring_day: formData.recurringDays,
@@ -823,6 +829,13 @@ const fetchPeople = (q) => {
               {eventId ? "Edit Event" : "Create New Event"}
             </Typography>
           )}
+          { Object.keys(errors).length !== 0 && <Alert
+          ref={formAlert}
+          sx={{
+            marginBottom:"20px"
+          }} severity="error">Please fill In all required fields</Alert>
+          }
+
 
           <form onSubmit={handleSubmit}>
             <TextField
@@ -1263,12 +1276,13 @@ const fetchPeople = (q) => {
           }}
           onClick={() => {
             const selectedName = person.fullName;
+            const selectedEmail = person.email;
             
             if (hasPersonSteps && !isGlobalEvent) {
               setFormData((prev) => ({
                 ...prev,
                 eventLeader: selectedName,
-                eventName: selectedName,
+                email: selectedEmail.toLowerCase(),
                 leader1: person.leader1 || "",
                 leader12: person.leader12 || "",
               }));
@@ -1300,6 +1314,17 @@ const fetchPeople = (q) => {
 
             {hasPersonSteps && !isGlobalEvent && (
               <>
+                <TextField
+                  label="Email *"
+                  value={formData.email || ""}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.email}
+                  helperText={errors.email || "Enter the email for this event"}
+                />
+
                 <TextField
                   label="Leader @1 *"
                   value={formData.leader1 || ""}

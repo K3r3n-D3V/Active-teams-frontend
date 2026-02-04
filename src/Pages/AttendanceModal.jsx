@@ -1,4 +1,4 @@
-import { useState, useEffect,  useContext, useMemo} from "react";
+import { useState, useEffect, useContext, useMemo } from "react";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -13,7 +13,7 @@ import { AuthContext } from "../contexts/AuthContext";
 
 const AddPersonToEvents = ({ isOpen, onClose }) => {
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isDarkMode = theme.palette.mode === "dark";
   console.log("AddPersonToEvents - isDarkMode:", isDarkMode);
   const { authFetch } = useContext(AuthContext);
 
@@ -27,18 +27,18 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     dob: "",
     address: "",
   });
-  
+
   const [peopleList, setPeopleList] = useState([]);
   const [isLoadingPeople, setIsLoadingPeople] = useState(false);
   const [inviterSearchInput, setInviterSearchInput] = useState("");
   const [showInviterDropdown, setShowInviterDropdown] = useState(false);
   const [showLeaderModal, setShowLeaderModal] = useState(false);
-  const [touched, setTouched] = useState({});
+  const [, setTouched] = useState({});
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [autoFilledLeaders, setAutoFilledLeaders] = useState({
     leader1: "",
     leader12: "",
-    leader144: ""
+    leader144: "",
   });
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
@@ -50,12 +50,12 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  // Function to fetch people - SAME AS AddPersonDialog
+  // Function to fetch people 
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
     try {
       const response = await authFetch(`${BACKEND_URL}/cache/people`);
-      
+
       if (response.ok) {
         const data = await response.json();
         const cachedData = data.cached_data || [];
@@ -74,7 +74,9 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const fetchPeopleFallback = async () => {
     try {
-      const response = await authFetch(`${BACKEND_URL}/people/simple?per_page=1000`);
+      const response = await authFetch(
+        `${BACKEND_URL}/people/simple?per_page=1000`,
+      );
       if (response.ok) {
         const data = await response.json();
         const peopleData = data.results || [];
@@ -89,7 +91,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   // Create people options
   const peopleOptions = useMemo(() => {
-    return peopleList.map(person => {
+    return peopleList.map((person) => {
       const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
       return {
         id: person._id,
@@ -100,20 +102,19 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
         leader12: person["Leader @12"] || "",
         leader144: person["Leader @144"] || "",
         leader1728: person["Leader @1728"] || "",
-        searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase()
+        searchText:
+          `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase(),
       };
     });
   }, [peopleList]);
-
   // Filter function
   const filterPeopleOptions = (inputValue) => {
     if (!inputValue) {
       return peopleOptions.slice(0, 30);
     }
-    
     const searchTerm = inputValue.toLowerCase();
     return peopleOptions
-      .filter(option => 
+      .filter(option =>
         option.searchText.includes(searchTerm) ||
         option.fullName.toLowerCase().includes(searchTerm) ||
         option.email.toLowerCase().includes(searchTerm) ||
@@ -128,11 +129,11 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const handleInviterSelect = (person) => {
     console.log("Selected inviter:", person.fullName);
-    
+
     setFormData(prev => ({ ...prev, invitedBy: person.fullName }));
     setInviterSearchInput(person.fullName);
     setShowInviterDropdown(false);
-    setTouched(prev => ({ ...prev, invitedBy: true }));
+    setTouched((prev) => ({ ...prev, invitedBy: true }));
 
     const normalizedFull = (person.fullName || "").trim().toLowerCase();
     const leader1Raw = (person.leader1 || "").trim().toLowerCase();
@@ -150,14 +151,17 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
     let leadersToFill;
     const isLeader144 = leader12Raw && !leader144Raw && !leader1728Raw;
-    const isLeader12 = leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
-    const isLeader1 = (leader1Raw === normalizedFull) || (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
+    const isLeader12 =
+      leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
+    const isLeader1 =
+      leader1Raw === normalizedFull ||
+      (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
 
     console.log("Leadership detection:", {
       isLeader144,
       isLeader12,
       isLeader1,
-      isSelfL1: leader1Raw === normalizedFull
+      isSelfL1: leader1Raw === normalizedFull,
     });
 
     if (isLeader144) {
@@ -167,24 +171,21 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
         leader144: person.fullName || "",
       };
       console.log("DETECTED: Leader @144");
-    }
-    else if (isLeader12) {
+    } else if (isLeader12) {
       leadersToFill = {
         leader1: person.leader1 || "",
         leader12: person.fullName || "",
         leader144: "",
       };
       console.log("DETECTED: Leader @12");
-    }
-    else if (isLeader1) {
+    } else if (isLeader1) {
       leadersToFill = {
         leader1: person.fullName || "",
         leader12: "",
         leader144: "",
       };
       console.log("DETECTED: Leader @1");
-    }
-    else {
+    } else {
       leadersToFill = {
         leader1: person.leader1 || "",
         leader12: person.leader12 || "",
@@ -201,64 +202,64 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     setInviterSearchInput(value);
     setShowInviterDropdown(true);
     setTouched(prev => ({ ...prev, invitedBy: true }));
-    
+
     if (value.trim() === "") {
-      setFormData(prev => ({ ...prev, invitedBy: "" }));
+      setFormData((prev) => ({ ...prev, invitedBy: "" }));
       setAutoFilledLeaders({
         leader1: "",
         leader12: "",
-        leader144: ""
+        leader144: "",
       });
     }
   };
 
-const handleSubmit = async (finalLeaderInfo) => {
-  try {
-    const payload = {
-      invitedBy: formData.invitedBy,
-      name: formData.name,
-      surname: formData.surname,
-      gender: formData.gender,
-      email: formData.email,
-      number: formData.mobile,
-      dob: formData.dob,
-      address: formData.address,
-      leaders: [
-        finalLeaderInfo.leader1 || "",
-        finalLeaderInfo.leader12 || "",
-        finalLeaderInfo.leader144 || "",
-        finalLeaderInfo.leader1728 || ""
-      ].filter(leader => leader.trim() !== ""),
-      stage: "Win",
-    };
+  const handleSubmit = async (finalLeaderInfo) => {
+    try {
+      const payload = {
+        invitedBy: formData.invitedBy,
+        name: formData.name,
+        surname: formData.surname,
+        gender: formData.gender,
+        email: formData.email,
+        number: formData.mobile,
+        dob: formData.dob,
+        address: formData.address,
+        leaders: [
+          finalLeaderInfo.leader1 || "",
+          finalLeaderInfo.leader12 || "",
+          finalLeaderInfo.leader144 || "",
+          finalLeaderInfo.leader1728 || ""
+        ].filter(leader => leader.trim() !== ""),
+        stage: "Win",
+      };
 
-    console.log("Submitting new person:", payload);
-        const response = await authFetch(`${BACKEND_URL}/people`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
+      console.log("Submitting new person:", payload);
+      const response = await authFetch(`${BACKEND_URL}/people`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to create person');
+      }
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Failed to create person');
+      const result = await response.json();
+      console.log("Person created:", result);
+      toast.success("Person created successfully!");
+      await authFetch(`${BACKEND_URL}/cache/refresh`, { method: 'POST' });
+      handleClose();
+
+    } catch (error) {
+      console.error("Error creating person:", error);
+      toast.error(`Error: ${error.message}`);
     }
-
-    const result = await response.json();
-    console.log("Person created:", result);
-    toast.success("Person created successfully!");
-    await authFetch(`${BACKEND_URL}/cache/refresh`, { method: 'POST' });
-     handleClose();
-    
-  } catch (error) {
-    console.error("Error creating person:", error);
-    toast.error(`Error: ${error.message}`);
-  }
-};
+  };
   const isFieldEmpty = (fieldName) => {
-    const value = fieldName === 'invitedBy' ? inviterSearchInput : formData[fieldName];
+    const value =
+      fieldName === "invitedBy" ? inviterSearchInput : formData[fieldName];
     return !value || value.trim() === "";
   };
 
@@ -275,15 +276,17 @@ const handleSubmit = async (finalLeaderInfo) => {
       mobile: formData.mobile?.trim(),
       dob: formData.dob?.trim(),
       address: formData.address?.trim(),
-      invitedBy: formData.invitedBy?.trim() 
+      invitedBy: formData.invitedBy?.trim()
     };
-    
+
     const missingFields = Object.entries(requiredFields)
       .filter(([key, value]) => !value)
       .map(([key]) => key);
 
     if (missingFields.length > 0) {
-      toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      toast.error(
+        `Please fill in all required fields: ${missingFields.join(", ")}`,
+      );
       return false;
     }
 
@@ -314,7 +317,7 @@ const handleSubmit = async (finalLeaderInfo) => {
       address: "",
     });
     setInviterSearchInput("");
-    setPeopleList([]); 
+    setPeopleList([]);
     setShowInviterDropdown(false);
     setShowLeaderModal(false);
     setAttemptedSubmit(false);
@@ -322,7 +325,7 @@ const handleSubmit = async (finalLeaderInfo) => {
     setAutoFilledLeaders({
       leader1: "",
       leader12: "",
-      leader144: ""
+      leader144: "",
     });
     onClose();
   };
@@ -497,23 +500,41 @@ const handleSubmit = async (finalLeaderInfo) => {
         <div style={styles.modal}>
           <h2 style={styles.title}>Create New Person</h2>
           <form style={styles.form} onSubmit={(e) => e.preventDefault()}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '20px',
-              marginBottom: '20px',
-              borderBottom: `1px solid ${theme.palette.divider}`,
-              paddingBottom: '10px'
-            }}>
-              <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>NEW PERSON INFO</div>
-              <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>LEADER INFO</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "20px",
+                marginBottom: "20px",
+                borderBottom: `1px solid ${theme.palette.divider}`,
+                paddingBottom: "10px",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "600",
+                  color: theme.palette.text.secondary,
+                }}
+              >
+                NEW PERSON INFO
+              </div>
+              <div
+                style={{
+                  fontWeight: "600",
+                  color: theme.palette.text.secondary,
+                }}
+              >
+                LEADER INFO
+              </div>
             </div>
 
             {/* Invited By Field - FIXED to match AddPersonDialog */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Invited By
-                {showError('invitedBy') && <span style={styles.required}>Required</span>}
+                {showError("invitedBy") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="text"
@@ -526,14 +547,20 @@ const handleSubmit = async (finalLeaderInfo) => {
                   setTimeout(() => {
                     setShowInviterDropdown(false);
                   }, 200);
-                  setTouched(prev => ({ ...prev, invitedBy: true }));
+                  setTouched((prev) => ({ ...prev, invitedBy: true }));
                 }}
-                style={showError('invitedBy') ? styles.inputError : styles.input}
-                placeholder={isLoadingPeople ? "Loading people..." : "Type to search all people..."}
+                style={
+                  showError("invitedBy") ? styles.inputError : styles.input
+                }
+                placeholder={
+                  isLoadingPeople
+                    ? "Loading people..."
+                    : "Type to search all people..."
+                }
                 autoComplete="off"
                 disabled={isLoadingPeople}
               />
-              
+
               {showInviterDropdown && (
                 <div style={styles.dropdown}>
                   {isLoadingPeople ? (
@@ -544,13 +571,24 @@ const handleSubmit = async (finalLeaderInfo) => {
                         key={person.id}
                         style={styles.dropdownItem}
                         onClick={() => handleInviterSelect(person)}
-                        onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
-                        onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
+                        onMouseEnter={(e) =>
+                          (e.target.style.background =
+                            theme.palette.action.hover)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.target.style.background =
+                            theme.palette.background.paper)
+                        }
                       >
                         <div style={{ fontWeight: "500", marginBottom: "4px" }}>
                           {person.fullName}
                         </div>
-                        <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: theme.palette.text.secondary,
+                          }}
+                        >
                           {person.email || person.phone || "No contact info"}
                           {person.leader1 && (
                             <div style={{ marginTop: "2px", fontSize: "11px" }}>
@@ -562,8 +600,8 @@ const handleSubmit = async (finalLeaderInfo) => {
                     ))
                   ) : inviterSearchInput.trim() === "" ? (
                     <div style={styles.dropdownEmpty}>
-                      {peopleOptions.length > 0 
-                        ? "Start typing to search people..." 
+                      {peopleOptions.length > 0
+                        ? "Start typing to search people..."
                         : "No people data available"}
                     </div>
                   ) : (
@@ -573,9 +611,15 @@ const handleSubmit = async (finalLeaderInfo) => {
                   )}
                 </div>
               )}
-              
+
               {isLoadingPeople && (
-                <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: theme.palette.text.secondary,
+                    marginTop: "4px",
+                  }}
+                >
                   Loading people data...
                 </div>
               )}
@@ -585,28 +629,38 @@ const handleSubmit = async (finalLeaderInfo) => {
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Name
-                {showError('name') && <span style={styles.required}>Required</span>}
+                {showError("name") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, name: true }))}
-                style={showError('name') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                onBlur={() => setTouched((prev) => ({ ...prev, name: true }))}
+                style={showError("name") ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Surname
-                {showError('surname') && <span style={styles.required}>Required</span>}
+                {showError("surname") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="text"
                 value={formData.surname}
-                onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, surname: true }))}
-                style={showError('surname') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, surname: e.target.value })
+                }
+                onBlur={() =>
+                  setTouched((prev) => ({ ...prev, surname: true }))
+                }
+                style={showError("surname") ? styles.inputError : styles.input}
               />
             </div>
 
@@ -619,7 +673,9 @@ const handleSubmit = async (finalLeaderInfo) => {
                     name="gender"
                     value="Male"
                     checked={formData.gender === "Male"}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, gender: e.target.value })
+                    }
                   />
                   Male
                 </label>
@@ -629,7 +685,9 @@ const handleSubmit = async (finalLeaderInfo) => {
                     name="gender"
                     value="Female"
                     checked={formData.gender === "Female"}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, gender: e.target.value })
+                    }
                   />
                   Female
                 </label>
@@ -639,57 +697,75 @@ const handleSubmit = async (finalLeaderInfo) => {
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Email Address
-                {showError('email') && <span style={styles.required}>Required</span>}
+                {showError("email") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, email: true }))}
-                style={showError('email') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
+                style={showError("email") ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Mobile Number
-                {showError('mobile') && <span style={styles.required}>Required</span>}
+                {showError("mobile") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="tel"
                 value={formData.mobile}
                 maxLength={10}
-                onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, mobile: true }))}
-                style={showError('mobile') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, mobile: e.target.value })
+                }
+                onBlur={() => setTouched((prev) => ({ ...prev, mobile: true }))}
+                style={showError("mobile") ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Date Of Birth
-                {showError('dob') && <span style={styles.required}>Required</span>}
+                {showError("dob") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="date"
                 value={formData.dob}
-                onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, dob: true }))}
-                style={showError('dob') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, dob: e.target.value })
+                }
+                onBlur={() => setTouched((prev) => ({ ...prev, dob: true }))}
+                style={showError("dob") ? styles.inputError : styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Home Address
-                {showError('address') && <span style={styles.required}>Required</span>}
+                {showError("address") && (
+                  <span style={styles.required}>Required</span>
+                )}
               </label>
               <input
                 type="text"
                 value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, address: true }))}
-                style={showError('address') ? styles.inputError : styles.input}
+                onChange={(e) =>
+                  setFormData({ ...formData, address: e.target.value })
+                }
+                onBlur={() =>
+                  setTouched((prev) => ({ ...prev, address: true }))
+                }
+                style={showError("address") ? styles.inputError : styles.input}
               />
             </div>
 
@@ -699,8 +775,12 @@ const handleSubmit = async (finalLeaderInfo) => {
                 style={styles.closeBtn}
                 onClick={handleClose}
                 disabled={isLoadingPeople}
-                onMouseEnter={(e) => e.target.style.background = theme.palette.action.hover}
-                onMouseLeave={(e) => e.target.style.background = theme.palette.background.paper}
+                onMouseEnter={(e) =>
+                  (e.target.style.background = theme.palette.action.hover)
+                }
+                onMouseLeave={(e) =>
+                  (e.target.style.background = theme.palette.background.paper)
+                }
               >
                 CANCEL
               </button>
@@ -709,8 +789,12 @@ const handleSubmit = async (finalLeaderInfo) => {
                 style={styles.nextBtn}
                 onClick={handleNext}
                 disabled={isLoadingPeople}
-                onMouseEnter={(e) => e.target.style.background = theme.palette.primary.dark}
-                onMouseLeave={(e) => e.target.style.background = theme.palette.primary.main}
+                onMouseEnter={(e) =>
+                  (e.target.style.background = theme.palette.primary.dark)
+                }
+                onMouseLeave={(e) =>
+                  (e.target.style.background = theme.palette.primary.main)
+                }
               >
                 NEXT
               </button>
@@ -727,7 +811,7 @@ const handleSubmit = async (finalLeaderInfo) => {
           onBack={() => setShowLeaderModal(false)}
           onSubmit={handleSubmit}
           personData={formData}
-          preloadedPeople={peopleOptions} 
+          preloadedPeople={peopleOptions}
           autoFilledLeaders={autoFilledLeaders}
         />
       )}
@@ -735,33 +819,39 @@ const handleSubmit = async (finalLeaderInfo) => {
   );
 };
 
-const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], autoFilledLeaders }) => {
+const LeaderSelectionModal = ({
+  isOpen,
+  onBack,
+  onSubmit,
+  preloadedPeople = [],
+  autoFilledLeaders,
+}) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-    const { authFetch } = useContext(AuthContext);
+  const { authFetch } = useContext(AuthContext);
 
   const [leaderData, setLeaderData] = useState({
     leader1: "",
     leader12: "",
-    leader144: ""
+    leader144: "",
   });
 
   const [leaderSearches, setLeaderSearches] = useState({
     leader1: "",
     leader12: "",
-    leader144: ""
+    leader144: "",
   });
 
-  const [leaderResults, setLeaderResults] = useState({
+  const [, setLeaderResults] = useState({
     leader1: [],
     leader12: [],
-    leader144: []
+    leader144: [],
   });
 
   const [, setShowDropdowns] = useState({
     leader1: false,
     leader12: false,
-    leader144: false
+    leader144: false,
   });
 
   const [, setLoadingLeaders] = useState(false);
@@ -773,7 +863,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       const filledLeaders = {
         leader1: autoFilledLeaders.leader1 || "",
         leader12: autoFilledLeaders.leader12 || "",
-        leader144: autoFilledLeaders.leader144 || ""
+        leader144: autoFilledLeaders.leader144 || "",
       };
 
       setLeaderData(filledLeaders);
@@ -792,7 +882,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       const filteredFromCache = preloadedPeople.filter(
         (person) =>
           person.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          person.email.toLowerCase().includes(searchTerm.toLowerCase())
+          person.email.toLowerCase().includes(searchTerm.toLowerCase()),
       );
 
       if (filteredFromCache.length > 0) {
@@ -808,19 +898,48 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
         params.append("name", searchTerm);
         params.append("perPage", "15");
 
-        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const res = await authFetch(
+          `${BACKEND_URL}/people?${params.toString()}`,
+          { headers },
+        );
         const data = await res.json();
         const peopleArray = data.people || data.results || [];
 
         const formatted = peopleArray.map((p) => {
-          const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "";
-          const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "";
-          const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "";
-          const leader1728 = p["Leader @1728"] || p["Leader @ 1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || (p.leaders && p.leaders[3]) || "";
+          const leader1 =
+            p["Leader @1"] ||
+            p["Leader at 1"] ||
+            p["Leader @ 1"] ||
+            p.leader1 ||
+            (p.leaders && p.leaders[0]) ||
+            "";
+          const leader12 =
+            p["Leader @12"] ||
+            p["Leader at 12"] ||
+            p["Leader @ 12"] ||
+            p.leader12 ||
+            (p.leaders && p.leaders[1]) ||
+            "";
+          const leader144 =
+            p["Leader @144"] ||
+            p["Leader at 144"] ||
+            p["Leader @ 144"] ||
+            p.leader144 ||
+            (p.leaders && p.leaders[2]) ||
+            "";
+          const leader1728 =
+            p["Leader @1728"] ||
+            p["Leader @ 1728"] ||
+            p["Leader at 1728"] ||
+            p["Leader @ 1728"] ||
+            p.leader1728 ||
+            (p.leaders && p.leaders[3]) ||
+            "";
 
           return {
             id: p._id,
-            fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+            fullName:
+              `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
             email: p.Email || p.email || "",
             leader1: leader1,
             leader12: leader12,
@@ -829,7 +948,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
           };
         });
 
-        setLeaderResults(prev => ({ ...prev, [leaderField]: formatted }));
+        setLeaderResults((prev) => ({ ...prev, [leaderField]: formatted }));
       }
     } catch (err) {
       console.error(`Error fetching leaders for ${leaderField}:`, err);
@@ -841,14 +960,14 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   useEffect(() => {
     const delays = {};
 
-    ['leader1', 'leader12', 'leader144'].forEach(field => {
+    ["leader1", "leader12", "leader144"].forEach((field) => {
       const searchTerm = leaderSearches[field];
       if (searchTerm.length >= 1) {
         delays[field] = setTimeout(() => {
           fetchLeaders(searchTerm, field);
         }, 150);
       } else {
-        setLeaderResults(prev => ({ ...prev, [field]: [] }));
+        setLeaderResults((prev) => ({ ...prev, [field]: [] }));
       }
     });
 
@@ -858,20 +977,20 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   }, [leaderSearches, preloadedPeople]);
 
   const handleLeaderSelect = (person, field) => {
-    setLeaderData(prev => ({ ...prev, [field]: person.fullName }));
-    setLeaderSearches(prev => ({ ...prev, [field]: person.fullName }));
-    setShowDropdowns(prev => ({ ...prev, [field]: false }));
+    setLeaderData((prev) => ({ ...prev, [field]: person.fullName }));
+    setLeaderSearches((prev) => ({ ...prev, [field]: person.fullName }));
+    setShowDropdowns((prev) => ({ ...prev, [field]: false }));
   };
 
   const handleSearchChange = (e, field) => {
     const value = e.target.value;
-    setLeaderSearches(prev => ({ ...prev, [field]: value }));
-    setShowDropdowns(prev => ({ ...prev, [field]: true }));
+    setLeaderSearches((prev) => ({ ...prev, [field]: value }));
+    setShowDropdowns((prev) => ({ ...prev, [field]: true }));
   };
 
   const handleClearField = (field) => {
-    setLeaderData(prev => ({ ...prev, [field]: "" }));
-    setLeaderSearches(prev => ({ ...prev, [field]: "" }));
+    setLeaderData((prev) => ({ ...prev, [field]: "" }));
+    setLeaderSearches((prev) => ({ ...prev, [field]: "" }));
   };
 
   const handleSubmitLeaders = () => {
@@ -879,7 +998,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       leader1: leaderData.leader1 || "",
       leader12: leaderData.leader12 || "",
       leader144: leaderData.leader144 || "",
-      leader1728: ""
+      leader1728: "",
     };
     onSubmit(finalLeaderInfo);
   };
@@ -887,7 +1006,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   const leaderLabels = {
     leader1: "Leader @1",
     leader12: "Leader @12",
-    leader144: "Leader @144"
+    leader144: "Leader @144",
   };
 
   const styles = {
@@ -1015,10 +1134,10 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       fontSize: "14px",
       fontWeight: "500",
       flex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "6px",
     },
     submitBtn: {
       backgroundColor: theme.palette.primary.main,
@@ -1030,7 +1149,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
       fontSize: "14px",
       fontWeight: "500",
       flex: 1,
-    }
+    },
   };
 
   if (!isOpen) return null;
@@ -1041,30 +1160,34 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
         <h2 style={styles.title}>Set Leadership</h2>
 
         <div style={styles.leaderGroup}>
-          {['leader1', 'leader12', 'leader144'].map((field) => (
+          {["leader1", "leader12", "leader144"].map((field) => (
             <div key={field} style={styles.inputGroup}>
               <label style={styles.label}>{leaderLabels[field]}</label>
 
               <div style={styles.inputContainer}>
                 <input
                   value={leaderSearches[field]}
-                  onBlur={() => setTimeout(() => setShowDropdowns(prev => ({ ...prev, [field]: false })), 200)}
+                  onBlur={() =>
+                    setTimeout(
+                      () =>
+                        setShowDropdowns((prev) => ({
+                          ...prev,
+                          [field]: false,
+                        })),
+                      200,
+                    )
+                  }
                   style={styles.input}
                   placeholder={`Type to search...`}
                   autoComplete="off"
                 />
-
               </div>
             </div>
           ))}
         </div>
 
         <div style={styles.buttonGroup}>
-          <button
-            type="button"
-            style={styles.backBtn}
-            onClick={onBack}
-          >
+          <button type="button" style={styles.backBtn} onClick={onBack}>
             <ArrowLeft size={16} />
             Back
           </button>
@@ -1090,7 +1213,14 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   );
 };
 
-const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
+const AttendanceModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  event,
+  onAttendanceSubmitted,
+  currentUser,
+}) => {
   const { authFetch } = useContext(AuthContext);
   const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
@@ -1107,14 +1237,15 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading,] = useState(false);
-
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
-  const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
+  const [persistentCommonAttendees, setPersistentCommonAttendees] = useState(
+    [],
+  );
   const [preloadedPeople, setPreloadedPeople] = useState([]);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
@@ -1128,43 +1259,91 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     { value: "first-time", label: "First-time commitment" },
     { value: "re-commitment", label: "Re-commitment" },
   ];
-const [eventStatistics, setEventStatistics] = useState({
-  totalAssociated: 0,
-  lastAttendanceCount: 0,
-  lastHeadcount: 0,
-  lastDecisionsCount: 0,
-  lastAttendanceBreakdown: {
-    first_time: 0,
-    recommitment: 0
-  }
-});
+  const [eventStatistics, setEventStatistics] = useState({
+    totalAssociated: 0,
+    lastAttendanceCount: 0,
+    lastHeadcount: 0,
+    lastDecisionsCount: 0,
+    lastAttendanceBreakdown: {
+      first_time: 0,
+      recommitment: 0
+    }
+  });
 
-  const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
+  const availablePaymentMethods = [
+    ...new Set(eventPriceTiers.map((t) => t.paymentMethod)),
+  ];
+
+  const clearGlobalPeopleCache = () => {
+    try {
+      if (typeof window !== "undefined") {
+        delete window.globalPeopleCache;
+        window.clearGlobalPeopleCache = () => { delete window.globalPeopleCache; };
+      }
+    } catch (err) {
+      console.warn("Failed to clear global people cache", err);
+    }
+  };
 
 const loadEventStatistics = async () => {
   if (!event) return;
-  
+
   try {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
+    const eventDate = event.date;
+    console.log(" Loading stats for:", eventDate);
+
+    const attendanceData = event.attendance || {};
+    console.log(" Full attendance data structure:", attendanceData);
+    let weekAttendance = {};
+    
+    if (attendanceData.status === "complete") {
+      console.log(" Found completed data directly in attendance object");
+      weekAttendance = attendanceData;
+    } else {
+      console.log(" Searching for date key in attendance data...");
+      
+      // Try all possible date formats
+      const possibleKeys = Object.keys(attendanceData).filter(key => 
+        typeof attendanceData[key] === 'object' && attendanceData[key] !== null
+      );
+      
+      console.log("Possible date keys:", possibleKeys);
+      
+      // Try to match the date in any format
+      for (const key of possibleKeys) {
+        const data = attendanceData[key];
+        
+        // Check if this looks like week data
+        if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
+          console.log(` Checking key "${key}":`, {
+            status: data.status,
+            attendees: data.attendees?.length || 0
+          });
+          
+          if (data.status === "complete") {
+            weekAttendance = data;
+            console.log(` Using completed week from key: "${key}"`);
+            break;
+          }
+        }
+      }
     }
 
-    const eventDate = event.date;
-    const attendanceData = event.attendance || {};
-    
-    let weekAttendance = attendanceData;
-    if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
-      weekAttendance = attendanceData[eventDate] || {};
-    }
-    
-    if (weekAttendance && weekAttendance.status) {
-      const stats = weekAttendance.statistics || {};
+    console.log(" Final week attendance data:", {
+      status: weekAttendance?.status,
+      attendeesCount: weekAttendance?.attendees?.length || 0,
+      headcount: weekAttendance?.total_headcounts || 0
+    });
+
+    const isCompleted = weekAttendance?.status === "complete";
+
+    if (isCompleted) {
       const attendees = weekAttendance.attendees || [];
-      
+      console.log(" Loading COMPLETED week with", attendees.length, "attendees");
+
       let firstTimeCount = 0;
       let recommitmentCount = 0;
-      
+
       attendees.forEach(att => {
         const decision = (att.decision || "").toLowerCase();
         if (decision.includes("first")) {
@@ -1173,10 +1352,10 @@ const loadEventStatistics = async () => {
           recommitmentCount++;
         }
       });
-      
+
       setEventStatistics({
-        totalAssociated: weekAttendance.persistent_attendees?.length || 0,
-        lastAttendanceCount: weekAttendance.checked_in_count || attendees.length,
+        totalAssociated: persistentCommonAttendees.length,
+        lastAttendanceCount: attendees.length,
         lastHeadcount: weekAttendance.total_headcounts || 0,
         lastDecisionsCount: firstTimeCount + recommitmentCount,
         lastAttendanceBreakdown: {
@@ -1184,38 +1363,45 @@ const loadEventStatistics = async () => {
           recommitment: recommitmentCount
         }
       });
-      
+
       if (weekAttendance.total_headcounts > 0) {
         setManualHeadcount(weekAttendance.total_headcounts.toString());
+      } else {
+        setManualHeadcount("0");
       }
       
-      return;
-    }
-    
-    const token = localStorage.getItem("token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/statistics`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    if (response.ok) {
-      const data = await response.json();
-      
-      if (data.statistics) {
-        setEventStatistics({
-          totalAssociated: data.statistics.total_associated || 0,
-          lastAttendanceCount: data.statistics.last_attendance_count || 0,
-          lastHeadcount: data.statistics.last_headcount || 0,
-          lastDecisionsCount: data.statistics.last_decisions_count || 0,
-          lastAttendanceBreakdown: data.statistics.last_attendance_breakdown || {
-            first_time: 0,
-            recommitment: 0
-          }
-        });
-      }
+    } else {
+      // For INCOMPLETE weeks or no data found
+      console.log(" No completed week data found, showing zeros");
+      setEventStatistics({
+        totalAssociated: persistentCommonAttendees.length,
+        lastAttendanceCount: 0,
+        lastHeadcount: 0,
+        lastDecisionsCount: 0,
+        lastAttendanceBreakdown: {
+          first_time: 0,
+          recommitment: 0
+        }
+      });
+      setManualHeadcount("0");
     }
   } catch (error) {
     console.error("Error loading event statistics:", error);
+  }
+};
+
+const formatDateToISO = (dateString) => {
+  try {
+    const parts = dateString.match(/\d+/g);
+    if (parts && parts.length === 3) {
+      const day = parts[0].padStart(2, '0');
+      const month = parts[1].padStart(2, '0');
+      const year = parts[2];
+      return `${year}-${month}-${day}`;
+    }
+    return dateString;
+  } catch (e) {
+    return dateString;
   }
 };
 
@@ -1226,151 +1412,130 @@ const loadWeeklyCheckins = () => {
     setDidNotMeet(false);
     return;
   }
-  
+
+  // Reset all states
   setCheckedIn({});
   setDecisions({});
   setDecisionTypes({});
   setPriceTiers({});
   setPaymentMethods({});
   setPaidAmounts({});
-  
-  const eventDate = event.date;
-  
-  if (!eventDate) {
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-    return;
-  }
-  
+  setManualHeadcount("0");
+  setDidNotMeet(false);
+
   const attendanceData = event.attendance || {};
-  let weekAttendance = attendanceData;
+  console.log(" Loading checkins from:", attendanceData);
+
+  // Find completed week data
+  let weekAttendance = {};
   
-  if (attendanceData && typeof attendanceData === 'object' && !attendanceData.status) {
-    weekAttendance = attendanceData[eventDate] || {};
-  }
-  
-  if (!weekAttendance || !weekAttendance.status) {
-    setCheckedIn({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-    return;
-  }
-  
-  const hasAttendees = weekAttendance.attendees && weekAttendance.attendees.length > 0;
-  const hasHeadcount = weekAttendance.total_headcounts > 0;
-  
-  const isActuallyDidNotMeet = (
-    weekAttendance.status === "did_not_meet" && 
-    !hasAttendees && 
-    !hasHeadcount
-  );
-  
-  setDidNotMeet(isActuallyDidNotMeet);
-  
-  if (hasAttendees) {
-    const newCheckedIn = {};
-    const newDecisions = {};
-    const newDecisionTypes = {};
-    const newPriceTiers = {};
-    const newPaymentMethods = {};
-    const newPaidAmounts = {};
-    
-    weekAttendance.attendees.forEach(att => {
-      if (att.id) {
-        newCheckedIn[att.id] = true;
-        
-        if (att.decision) {
-          newDecisions[att.id] = true;
-          newDecisionTypes[att.id] = att.decision;
-        }
-        
-        if (isTicketedEvent) {
-          if (att.priceTier || att.price) {
-            newPriceTiers[att.id] = {
-              name: att.priceTier || "",
-              price: att.price || 0,
-              ageGroup: att.ageGroup || "",
-              memberType: att.memberType || ""
-            };
-          }
-          if (att.paymentMethod) {
-            newPaymentMethods[att.id] = att.paymentMethod;
-          }
-          if (att.paid !== undefined) {
-            newPaidAmounts[att.id] = att.paid;
-          }
-        }
-      }
-    });
-    
-    setCheckedIn(newCheckedIn);
-    setDecisions(newDecisions);
-    setDecisionTypes(newDecisionTypes);
-    setPriceTiers(newPriceTiers);
-    setPaymentMethods(newPaymentMethods);
-    setPaidAmounts(newPaidAmounts);
+  if (attendanceData.status === "complete") {
+    weekAttendance = attendanceData;
+    console.log(" Found checkin data directly");
   } else {
-    setCheckedIn({});
-  }
-  
-  const headcount = weekAttendance.total_headcounts || 0;
-  setManualHeadcount(headcount.toString());
-};
-
-const loadPersistentAttendees = async (eventId) => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      { headers: { Authorization: `Bearer ${token}` } }
+    // Look for completed week in object keys
+    const possibleKeys = Object.keys(attendanceData).filter(key => 
+      typeof attendanceData[key] === 'object'
     );
-
-    if (response.ok) {
-      const data = await response.json();
-      const allAttendees = data.persistent_attendees || [];
-      setPersistentCommonAttendees(allAttendees);
+    
+    for (const key of possibleKeys) {
+      const data = attendanceData[key];
+      if (data && data.status === "complete") {
+        weekAttendance = data;
+        console.log(` Found checkins in key: "${key}"`);
+        break;
+      }
     }
-  } catch (error) {
-    console.error("Error loading attendees:", error);
+  }
+
+  const isCompleted = weekAttendance?.status === "complete";
+
+  if (isCompleted) {
+    console.log(" Loading completed week checkins");
+    
+    const attendees = weekAttendance.attendees || [];
+    
+    if (attendees.length > 0) {
+      const newCheckedIn = {};
+      const newDecisions = {};
+      const newDecisionTypes = {};
+      const newPriceTiers = {};
+      const newPaymentMethods = {};
+      const newPaidAmounts = {};
+      
+      attendees.forEach(att => {
+        if (att.id) {
+          newCheckedIn[att.id] = true;
+
+          if (att.decision) {
+            newDecisions[att.id] = true;
+            newDecisionTypes[att.id] = att.decision;
+          }
+
+          if (isTicketedEvent) {
+            if (att.priceTier || att.price) {
+              newPriceTiers[att.id] = {
+                name: att.priceTier || "",
+                price: att.price || 0,
+                ageGroup: att.ageGroup || "",
+                memberType: att.memberType || ""
+              };
+            }
+            if (att.paymentMethod) {
+              newPaymentMethods[att.id] = att.paymentMethod;
+            }
+            if (att.paid !== undefined) {
+              newPaidAmounts[att.id] = att.paid;
+            }
+          }
+        }
+      });
+
+      console.log("👥 Setting", attendees.length, "checkins");
+      setCheckedIn(newCheckedIn);
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+      setPriceTiers(newPriceTiers);
+      setPaymentMethods(newPaymentMethods);
+      setPaidAmounts(newPaidAmounts);
+    }
+
+    const headcount = weekAttendance.total_headcounts || 0;
+    setManualHeadcount(headcount.toString());
+    
+  } else {
+    console.log(" No checkins to load");
   }
 };
 
+  const loadPersistentAttendees = async (eventId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-useEffect(() => {
-  if (isOpen && event) {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
+      if (response.ok) {
+        const data = await response.json();
+        const allAttendees = data.persistent_attendees || [];
+        setPersistentCommonAttendees(allAttendees);
+      }
+    } catch (error) {
+      console.error("Error loading attendees:", error);
     }
+  };
 
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
-    
-    const loadAllData = async () => {
-      await loadEventStatistics();
-      await loadPersistentAttendees(eventId);
-      loadWeeklyCheckins(); 
-    };
-
-    loadAllData();
-    fetchPeople();
-    
-    const weekAttendance = event.attendance || {};
-    const eventDate = event.date;
-    const thisWeekData = weekAttendance[eventDate] || weekAttendance;
-    
-    setDidNotMeet(thisWeekData?.status === "did_not_meet" || false);
-  }
-}, [isOpen, event]);
-  const loadPreloadedPeople = async () => {
+  const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
 
     if (
-      typeof window.globalPeopleCache !== 'undefined' &&
+      !forceRefresh &&
+      typeof window !== 'undefined' &&
+      window.globalPeopleCache &&
       window.globalPeopleCache.data?.length > 0 &&
       window.globalPeopleCache.timestamp &&
-      now - window.globalPeopleCache.timestamp < window.globalPeopleCache.expiry
+      now - window.globalPeopleCache.timestamp < (window.globalPeopleCache.expiry || 5 * 60 * 1000)
     ) {
       console.log("Using cached people data in AttendanceModal");
       setPreloadedPeople(window.globalPeopleCache.data);
@@ -1381,8 +1546,9 @@ useEffect(() => {
       return;
     }
 
+    // Otherwise fetch fresh people from backend and rebuild cache
     try {
-      console.log("Fetching fresh people data for AttendanceModal cache");
+      console.log(forceRefresh ? "Force-refreshing people cache" : "Fetching fresh people for AttendanceModal cache");
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -1390,9 +1556,12 @@ useEffect(() => {
       params.append("perPage", "0");
       // params.append("page", "1");
 
-      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, {
-        headers,
-      });
+      const res = await authFetch(
+        `${BACKEND_URL}/people?${params.toString()}`,
+        {
+          headers,
+        },
+      );
 
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
@@ -1401,15 +1570,16 @@ useEffect(() => {
 
       const formatted = peopleArray.map((p) => ({
         id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        fullName:
+          `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
         email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || p.leaders?.[0] || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || p.leaders?.[1] || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || p.leaders?.[2] || "",
+        leader1: p["Leader @1"] || p["Leader at 1"] || p.leader1 || p.leaders?.[0] || "",
+        leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || p.leaders?.[1] || "",
+        leader144: p["Leader @144"] || p["Leader at 144"] || p.leader144 || p.leaders?.[2] || "",
         phone: p.Number || p.Phone || p.phone || "",
+        searchText: `${(p.Name || p.name || "")} ${(p.Surname || p.surname || "")} ${(p.Email || p.email || "")}`.toLowerCase()
       }));
 
-      // Update global cache
       window.globalPeopleCache = {
         data: formatted,
         timestamp: now,
@@ -1417,7 +1587,9 @@ useEffect(() => {
       };
 
       setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
+      console.log(
+        `Pre-loaded ${formatted.length} people into AttendanceModal cache`,
+      );
 
       if (activeTab === 1 && !associateSearch.trim()) {
         setPeople(formatted.slice(0, 50));
@@ -1468,15 +1640,16 @@ useEffect(() => {
 
       const res = await authFetch(
         `${BACKEND_URL}/events/cell/${cellId}/common-attendees`,
-        { headers }
+        { headers },
       );
       const data = await res.json();
       const attendeesArray = data.common_attendees || [];
 
       const formatted = attendeesArray.map((p) => ({
         id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""
-          }`.trim(),
+        fullName: `${p.Name || p.name || ""} ${
+          p.Surname || p.surname || ""
+        }`.trim(),
         email: p.Email || p.email || "",
         leader12: p["Leader @12"] || p.leader12 || "",
         leader144: p["Leader @144"] || p.leader144 || "",
@@ -1512,25 +1685,32 @@ useEffect(() => {
         Authorization: `Bearer ${token}`,
       };
 
-      const formattedAttendees = attendees.map(p => ({
-        id: p.id || p._id || "",
-        name: p.fullName || p.name || "",
-        fullName: p.fullName || p.name || "",
-        email: p.email || "",
-        leader12: p.leader12 || "",
-        leader144: p.leader144 || "",
-        phone: p.phone || ""
-      })).filter(p => p.id);
+      const formattedAttendees = attendees
+        .map((p) => ({
+          id: p.id || p._id || "",
+          name: p.fullName || p.name || "",
+          fullName: p.fullName || p.name || "",
+          email: p.email || "",
+          leader12: p.leader12 || "",
+          leader144: p.leader144 || "",
+          phone: p.phone || "",
+        }))
+        .filter((p) => p.id);
 
-      console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
+      console.log(
+        `Saving ${formattedAttendees.length} attendees for event: ${eventId}`,
+      );
 
-      const response = await authFetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify({
-          persistent_attendees: formattedAttendees
-        }),
-      });
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        {
+          method: "PUT",
+          headers: headers,
+          body: JSON.stringify({
+            persistent_attendees: formattedAttendees,
+          }),
+        },
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -1539,7 +1719,6 @@ useEffect(() => {
 
       console.log(" Attendees saved to database");
       return true;
-
     } catch (error) {
       console.error("Error saving:", error);
       toast.error("Failed to save attendees");
@@ -1551,15 +1730,17 @@ useEffect(() => {
     const now = new Date();
     const year = now.getFullYear();
     const week = getWeekNumber(now);
-    return `${year}-W${week.toString().padStart(2, '0')}`;
+    return `${year}-W${week.toString().padStart(2, "0")}`;
   }
 
   function getWeekNumber(date) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const d = new Date(
+      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+    );
     const dayNum = d.getUTCDay() || 7;
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
   }
 
   useEffect(() => {
@@ -1590,14 +1771,14 @@ useEffect(() => {
 }, [associateSearch, isOpen, activeTab]);
 
   const handleCheckIn = (id) => {
-    setCheckedIn(prev => {
+    setCheckedIn((prev) => {
       const isNowChecked = !prev[id];
       const newState = { ...prev, [id]: isNowChecked };
       if (isNowChecked) {
         toast.success("Person checked in for this week");
       } else {
-        setDecisions(prevDec => ({ ...prevDec, [id]: false }));
-        setDecisionTypes(prevTypes => {
+        setDecisions((prevDec) => ({ ...prevDec, [id]: false }));
+        setDecisionTypes((prevTypes) => {
           const updated = { ...prevTypes };
           delete updated[id];
           return updated;
@@ -1633,7 +1814,6 @@ useEffect(() => {
     }));
     setOpenPriceTierDropdown(null);
   };
-
   const handlePaymentMethodSelect = (id, method) => {
     setPaymentMethods((prev) => ({
       ...prev,
@@ -1649,7 +1829,6 @@ useEffect(() => {
       [id]: numValue,
     }));
   };
-
   const calculateOwing = (id) => {
     const price = priceTiers[id]?.price || 0;
     const paid = paidAmounts[id] || 0;
@@ -1676,9 +1855,9 @@ useEffect(() => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            persistent_attendees: attendees
+            persistent_attendees: attendees,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1687,27 +1866,21 @@ useEffect(() => {
 
       console.log(` Saved ${attendees.length} attendees to database`);
       return true;
-
     } catch (error) {
       console.error(" Failed to save:", error);
       toast.error("Failed to save attendees list");
       return false;
     }
   };
-
-
   const handleAssociatePerson = async (person) => {
-    const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
+    const isAlreadyAdded = persistentCommonAttendees.some(
+      (p) => p.id === person.id,
+    );
 
     if (isAlreadyAdded) {
-      if (window.confirm(`Remove ${person.fullName}?`)) {
-        const updated = persistentCommonAttendees.filter(p => p.id !== person.id);
-
-        setPersistentCommonAttendees(updated);
-        await saveAllAttendeesToDatabase(updated);
-
-        toast.success(`${person.fullName} removed from attendees list`);
-      }
+      // In associate tab, we don't remove - just show a message
+      toast.info(`${person.fullName} is already in attendees list`);
+      return;
     } else {
       const updated = [...persistentCommonAttendees, person];
       setPersistentCommonAttendees(updated);
@@ -1718,83 +1891,142 @@ useEffect(() => {
     }
   };
 
-const getAllCommonAttendees = () => {  
-  const persistent = [...(persistentCommonAttendees || [])];
-  let savedAttendees = [];
-  
-  if (event?.attendance?.attendees?.length > 0) {
-    savedAttendees = event.attendance.attendees;
-  }
-  else if (event?.attendees?.length > 0) {
-    savedAttendees = event.attendees;
-  }
-  
-  const combinedMap = new Map();
-  
-  persistent.forEach(att => {
-    if (att && att.id) {
-      const attendeeId = att.id || att._id || "";
-      if (attendeeId) {
-        combinedMap.set(attendeeId, {
-          ...att,
-          id: attendeeId,
-          fullName: att.fullName || att.name || "Unknown Person",
-          email: att.email || "",
-          leader12: att.leader12 || "",
-          leader144: att.leader144 || "",
-          phone: att.phone || "",
-          isPersistent: true
+  const handleRemoveAttendee = async (personId, personName) => {
+    try {
+      const updatedAttendees = persistentCommonAttendees.filter(p => p.id !== personId);
+
+      setCheckedIn(prev => {
+        const newState = { ...prev };
+        delete newState[personId];
+        return newState;
+      });
+
+      // Remove from decisions if exists
+      setDecisions(prev => {
+        const newState = { ...prev };
+        delete newState[personId];
+        return newState;
+      });
+
+      setDecisionTypes(prev => {
+        const newState = { ...prev };
+        delete newState[personId];
+        return newState;
+      });
+
+      // Remove from ticketed event states if exists
+      if (isTicketedEvent) {
+        setPriceTiers(prev => {
+          const newState = { ...prev };
+          delete newState[personId];
+          return newState;
+        });
+
+        setPaymentMethods(prev => {
+          const newState = { ...prev };
+          delete newState[personId];
+          return newState;
+        });
+
+        setPaidAmounts(prev => {
+          const newState = { ...prev };
+          delete newState[personId];
+          return newState;
         });
       }
-    }
-  });
-  
-  savedAttendees.forEach(savedAtt => {
-    if (savedAtt && savedAtt.id) {
-      const attendeeId = savedAtt.id || savedAtt._id || "";
-      if (attendeeId) {
-        const existing = combinedMap.get(attendeeId) || {};
-        combinedMap.set(attendeeId, {
-          ...existing,
-          ...savedAtt,
-          id: attendeeId,
-          fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
-          email: savedAtt.email || existing.email || "",
-          leader12: savedAtt.leader12 || existing.leader12 || "",
-          leader144: savedAtt.leader144 || existing.leader144 || "",
-          phone: savedAtt.phone || existing.phone || "",
-          checked_in: savedAtt.checked_in !== false,
-          decision: savedAtt.decision || existing.decision || "",
-          isPersistent: existing.isPersistent || false
-        });
+
+      // Update state
+      setPersistentCommonAttendees(updatedAttendees);
+
+      // Save to database
+      const success = await saveAllAttendeesToDatabase(updatedAttendees);
+
+      if (success) {
+        toast.success(`${personName} removed from attendees`);
+      } else {
+        toast.error("Failed to remove attendee from database");
       }
+    } catch (error) {
+      console.error("Error removing attendee:", error);
+      toast.error("Error removing attendee");
     }
-  });
-  
-  return Array.from(combinedMap.values());
-};
+  };
+
+  const getAllCommonAttendees = () => {
+    const persistent = [...(persistentCommonAttendees || [])];
+    let savedAttendees = [];
+
+    if (event?.attendance?.attendees?.length > 0) {
+      savedAttendees = event.attendance.attendees;
+    }
+    else if (event?.attendees?.length > 0) {
+      savedAttendees = event.attendees;
+    }
+
+    const combinedMap = new Map();
+
+    persistent.forEach(att => {
+      if (att && att.id) {
+        const attendeeId = att.id || att._id || "";
+        if (attendeeId) {
+          combinedMap.set(attendeeId, {
+            ...att,
+            id: attendeeId,
+            fullName: att.fullName || att.name || "Unknown Person",
+            email: att.email || "",
+            leader12: att.leader12 || "",
+            leader144: att.leader144 || "",
+            phone: att.phone || "",
+            isPersistent: true
+          });
+        }
+      }
+    });
+
+    savedAttendees.forEach(savedAtt => {
+      if (savedAtt && savedAtt.id) {
+        const attendeeId = savedAtt.id || savedAtt._id || "";
+        if (attendeeId) {
+          const existing = combinedMap.get(attendeeId) || {};
+          combinedMap.set(attendeeId, {
+            ...existing,
+            ...savedAtt,
+            id: attendeeId,
+            fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
+            email: savedAtt.email || existing.email || "",
+            leader12: savedAtt.leader12 || existing.leader12 || "",
+            leader144: savedAtt.leader144 || existing.leader144 || "",
+            phone: savedAtt.phone || existing.phone || "",
+            checked_in: savedAtt.checked_in !== false,
+            decision: savedAtt.decision || existing.decision || "",
+            isPersistent: existing.isPersistent || false
+          });
+        }
+      }
+    });
+
+    return Array.from(combinedMap.values());
+  };
 
   const attendeesCount = Object.keys(checkedIn).filter(
-    (id) => checkedIn[id]
+    (id) => checkedIn[id],
   ).length;
   const decisionsCount = Object.keys(decisions).filter(
-    (id) => decisions[id]
+    (id) => decisions[id],
   ).length;
   const firstTimeCount = Object.values(decisionTypes).filter(
-    (type) => type === "first-time"
+    (type) => type === "first-time",
   ).length;
   const reCommitmentCount = Object.values(decisionTypes).filter(
-    (type) => type === "re-commitment"
+    (type) => type === "re-commitment",
   ).length;
-
   const totalPaid = Object.values(paidAmounts).reduce(
     (sum, amount) => sum + amount,
-    0
+    0,
   );
   const totalOwing = Object.keys(checkedIn)
     .filter((id) => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
-
   const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
     person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
     person.email.toLowerCase().includes(searchName.toLowerCase())
@@ -1802,169 +2034,261 @@ const getAllCommonAttendees = () => {
 
   const filteredPeople = people; // Already filtered by fetchPeople, so just use it directly
 
-const handleSave = async () => {
-  const allPeople = getAllCommonAttendees();
-  console.log("[SAVE] All people for save:", allPeople.length);
+  const handleSave = async () => {
+    const allPeople = getAllCommonAttendees();
+    console.log("[SAVE] All people for save:", allPeople.length);
 
-  const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-  console.log("[SAVE] Checked-in attendees:", attendeesList.length, attendeesList);
+    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+    console.log("[SAVE] Checked-in attendees:", attendeesList.length, attendeesList);
 
-  // Get manual headcount from input
-  const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
+    // Get manual headcount from input
+    const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-  console.log("[SAVE] === DEBUG INFO ===");
-  console.log("[SAVE] Did not meet state:", didNotMeet);
-  console.log("[SAVE] Attendees checked in:", attendeesList.length);
-  console.log("[SAVE] Manual headcount:", finalHeadcount);
-  console.log("[SAVE] Decisions count:", decisionsCount);
+    console.log("[SAVE] === DEBUG INFO ===");
+    console.log("[SAVE] Did not meet state:", didNotMeet);
+    console.log("[SAVE] Attendees checked in:", attendeesList.length);
+    console.log("[SAVE] Manual headcount:", finalHeadcount);
+    console.log("[SAVE] Decisions count:", decisionsCount);
 
-  // Get clean event ID
-  let eventId = event?.id || event?._id;
-  if (eventId && eventId.includes("_")) {
-    const parts = eventId.split("_");
-    eventId = parts[0];
-  }
-
-  if (!eventId) {
-    toast.error("Event ID is missing, cannot submit attendance.");
-    return;
-  }
-
-  try {
-    const selectedAttendees = attendeesList.map((id) => {
-      const person = allPeople.find((p) => p && p.id === id);
-
-      if (!person) {
-        console.warn(`[SAVE] Person with id ${id} not found in allPeople`);
-        return null;
-      }
-
-      const attendee = {
-        id: person.id,
-        name: person.fullName || "",
-        email: person.email || "",
-        fullName: person.fullName || "",
-        leader12: person.leader12 || "",
-        leader144: person.leader144 || "",
-        phone: person.phone || "",
-        time: new Date().toISOString(),
-        decision: decisions[id] ? decisionTypes[id] || "" : "",
-        checked_in: true,
-        isPersistent: true
-      };
-
-      if (isTicketedEvent) {
-        attendee.priceTier = priceTiers[id]?.name || "";
-        attendee.price = priceTiers[id]?.price || 0;
-        attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-        attendee.memberType = priceTiers[id]?.memberType || "";
-        attendee.paymentMethod = paymentMethods[id] || "";
-        attendee.paid = paidAmounts[id] || 0;
-        attendee.owing = calculateOwing(id);
-      }
-
-      return attendee;
-    }).filter(attendee => attendee !== null);
-
-    console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
-
-    // FIX: Only mark as "Did Not Meet" if NO attendees AND NO headcount
-    const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
-    
-    console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
-    console.log("[SAVE] Reason - didNotMeet:", didNotMeet);
-    console.log("[SAVE] Reason - attendees:", attendeesList.length);
-    console.log("[SAVE] Reason - headcount:", finalHeadcount);
-
-    const payload = {
-      attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
-      persistent_attendees: allPeople.map(p => ({
-        id: p.id,
-        name: p.fullName,
-        fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone
-      })),
-      leaderEmail: currentUser?.email || "",
-      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-      did_not_meet: shouldMarkAsDidNotMeet, // This will be FALSE if we have attendees
-      isTicketed: isTicketedEvent,
-      week: get_current_week_identifier(),
-      headcount: finalHeadcount  
-    };
-    
-    console.log("[SAVE] Full payload being sent:");
-    console.log("[SAVE] - did_not_meet:", payload.did_not_meet);
-    console.log("[SAVE] - attendees count:", payload.attendees.length);
-    console.log("[SAVE] - headcount:", payload.headcount);
-    console.log("[SAVE] - week:", payload.week);
-
-    let result;
-
-    if (typeof onSubmit === "function") {
-      result = await onSubmit(payload);
-    } else {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[SAVE] Server error response:", errorText);
-        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-      }
-
-      result = await response.json();
+    // Get clean event ID
+    let eventId = event?.id || event?._id;
+    if (eventId && eventId.includes("_")) {
+      const parts = eventId.split("_");
+      eventId = parts[0];
     }
 
-    console.log("[SAVE] Save result:", result);
+    if (!eventId) {
+      toast.error("Event ID is missing, cannot submit attendance.");
+      return;
+    }
 
-if (result && result.success) {
-  await loadEventStatistics();
-  
-  if (typeof onAttendanceSubmitted === "function") {
-    await onAttendanceSubmitted();
-  }
-  
-  if (typeof onClose === "function") {
-    onClose();
-  }
-  if (typeof onAttendanceSubmitted === "function") {
-    console.log("[SAVE] Calling onAttendanceSubmitted to refresh data");
-    await onAttendanceSubmitted();
-  }
-  
-  if (typeof onClose === "function") {
-    onClose();
-  }
-} else {
-  console.error("[SAVE] Save failed:", result);
-  throw new Error(result?.message || "Failed to save attendance");
-}
+    try {
+      const selectedAttendees = attendeesList.map((id) => {
+        const person = allPeople.find((p) => p && p.id === id);
 
-  } catch (error) {
-    console.error("[SAVE] Error saving attendance:", error);
-    toast.error(error.message || "Failed to save attendance. Please try again.");
-  }
-};
+        if (!person) {
+          console.warn(`[SAVE] Person with id ${id} not found in allPeople`);
+          return null;
+        }
 
-  const handleSubmitAttendance = (attendanceData) => {
+        const attendee = {
+          id: person.id,
+          name: person.fullName || "",
+          email: person.email || "",
+          fullName: person.fullName || "",
+          leader12: person.leader12 || "",
+          leader144: person.leader144 || "",
+          phone: person.phone || "",
+          time: new Date().toISOString(),
+          decision: decisions[id] ? decisionTypes[id] || "" : "",
+          checked_in: true,
+          isPersistent: true
+        };
 
-    if (onSubmit) {
-      return onSubmit(attendanceData);
-    } else {
-      console.error("No onSubmit prop provided to AttendanceModal");
-      return Promise.resolve({ success: false, message: "No submit handler" });
+        if (isTicketedEvent) {
+          attendee.priceTier = priceTiers[id]?.name || "";
+          attendee.price = priceTiers[id]?.price || 0;
+          attendee.ageGroup = priceTiers[id]?.ageGroup || "";
+          attendee.memberType = priceTiers[id]?.memberType || "";
+          attendee.paymentMethod = paymentMethods[id] || "";
+          attendee.paid = paidAmounts[id] || 0;
+          attendee.owing = calculateOwing(id);
+        }
+
+        return attendee;
+      }).filter(attendee => attendee !== null);
+
+      console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
+
+      // Only mark as "Did Not Meet" if NO attendees AND NO headcount
+      const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
+
+      console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
+      console.log("[SAVE] Reason - didNotMeet:", didNotMeet);
+
+      const payload = {
+        attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
+        persistent_attendees: allPeople.map(p => ({
+          id: p.id,
+          name: p.fullName,
+          fullName: p.fullName,
+          email: p.email,
+          leader12: p.leader12,
+          leader144: p.leader144,
+          phone: p.phone
+        })),
+        leaderEmail: currentUser?.email || "",
+        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        did_not_meet: shouldMarkAsDidNotMeet, // This will be FALSE if we have attendees
+        isTicketed: isTicketedEvent,
+        week: get_current_week_identifier(),
+        headcount: finalHeadcount
+      };
+
+      console.log("[SAVE] Full payload being sent:");
+      console.log("[SAVE] - did_not_meet:", payload.did_not_meet);
+      console.log("[SAVE] - attendees count:", payload.attendees.length);
+      console.log("[SAVE] - headcount:", payload.headcount);
+      console.log("[SAVE] - week:", payload.week);
+
+      let result;
+
+      if (typeof onSubmit === "function") {
+        result = await onSubmit(payload);
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+        const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+          method: "PUT",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("[SAVE] Server error response:", errorText);
+          throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+        }
+
+        result = await response.json();
+      }
+
+      console.log("[SAVE] Save result:", result);
+
+      if (result && result.success) {
+        await loadEventStatistics();
+
+        if (typeof onAttendanceSubmitted === "function") {
+          await onAttendanceSubmitted();
+        }
+
+        if (typeof onClose === "function") {
+          onClose();
+        }
+        if (typeof onAttendanceSubmitted === "function") {
+          console.log("[SAVE] Calling onAttendanceSubmitted to refresh data");
+          await onAttendanceSubmitted();
+        }
+
+        if (typeof onClose === "function") {
+          onClose();
+        }
+      } else {
+        console.error("[SAVE] Save failed:", result);
+        throw new Error(result?.message || "Failed to save attendance");
+      }
+
+    } catch (error) {
+      console.error("[SAVE] Error saving attendance:", error);
+      toast.error(error.message || "Failed to save attendance. Please try again.");
+    }
+  };
+
+  const downloadCheckedInAttendance = () => {
+    try {
+      const allPeople = getAllCommonAttendees();
+      const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+
+      if (attendeesList.length === 0) {
+        toast.info("No checked-in attendees to export");
+        return;
+      }
+
+      // Build headers and rows
+      const headers = ["Name", "Email", "Leader @12", "Leader @144", "Phone", "Decision", "Checked In"];
+      const formatted = attendeesList.map((id) => {
+        const person = allPeople.find((p) => p && p.id === id) || {};
+        return {
+          Name: person.fullName || "",
+          Email: person.email || "",
+          "Leader @12": person.leader12 || "",
+          "Leader @144": person.leader144 || "",
+          Phone: person.phone || "",
+          Decision: decisionTypes[id] || "",
+          "Checked In": "Yes",
+        };
+      });
+
+      // Column widths for Excel
+      const columnWidths = [200, 220, 160, 160, 120, 140, 80];
+      const xmlCols = columnWidths
+        .map(
+          (w, i) =>
+            `                    <x:Column ss:Index="${i + 1}" ss:AutoFitWidth="0" ss:Width="${w}"/>`,
+        )
+        .join("\n");
+
+      let html = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+          <head>
+            <meta charset="utf-8">
+            <!--[if gte mso 9]>
+            <xml>
+              <x:ExcelWorkbook>
+                <x:ExcelWorksheets>
+                  <x:ExcelWorksheet>
+                    <x:Name>Attendance</x:Name>
+                    <x:WorksheetOptions>
+                      <x:DisplayGridlines/>
+                    </x:WorksheetOptions>
+                    <x:WorksheetColumns>
+${xmlCols}
+                    </x:WorksheetColumns>
+                  </x:ExcelWorksheet>
+                </x:ExcelWorksheets>
+              </x:ExcelWorkbook>
+            </xml>
+            <![endif]-->
+            <style>
+              table { border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; }
+              th { background-color: #a3aca3ff; color: white; font-weight: bold; padding: 12px 8px; text-align: center; border: 1px solid #ddd; font-size: 11pt; white-space: nowrap; }
+              td { padding: 8px; border: 1px solid #ddd; font-size: 10pt; text-align: left; }
+              tr:nth-child(even) { background-color: #f2f2f2; }
+            </style>
+          </head>
+          <body>
+            <table border="1">
+              <thead><tr>
+      `;
+
+      headers.forEach((h) => {
+        html += `                <th>${h}</th>\n`;
+      });
+      html += `              </tr></thead><tbody>\n`;
+
+      formatted.forEach((row) => {
+        html += `              <tr>\n`;
+        headers.forEach((h) => {
+          const val = row[h] || "";
+          html += `                <td>${String(val).replace(/</g, "&lt;").replace(/>/g, "&gt;")}</td>\n`;
+        });
+        html += `              </tr>\n`;
+      });
+
+      html += `            </tbody></table></body></html>`;
+
+      const blob = new Blob([html], {
+        type: "application/vnd.ms-excel;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const safeEventName = (event?.Event_Name || event?.eventName || event?.EventName || "event")
+        .toString()
+        .replace(/\s/g, "_");
+      const fileName = `attendance_${safeEventName}_${new Date().toISOString().split("T")[0]}.xls`;
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+    } catch (err) {
+      console.error("Error exporting attendance:", err);
+      toast.error("Failed to export attendance: " + (err?.message || ""));
     }
   };
   const handleDidNotMeet = () => {
@@ -1972,79 +2296,79 @@ if (result && result.success) {
   };
 
   const confirmDidNotMeet = async () => {
-  setShowDidNotMeetConfirm(false);
-  setDidNotMeet(true);
-  setCheckedIn({});
-  setDecisions({});
-  setManualHeadcount("");
-  setPriceTiers({});
-  setPaymentMethods({});
-  setPaidAmounts({});
+    setShowDidNotMeetConfirm(false);
+    setDidNotMeet(true);
+    setCheckedIn({});
+    setDecisions({});
+    setManualHeadcount("");
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
 
-  try {
-    const eventId = event?.id || event?._id;
-    if (!eventId) {
-      toast.error("Event ID is missing, cannot submit attendance.");
-      return;
-    }
-
-    const allPeople = getAllCommonAttendees();
-    const payload = {
-      attendees: [],
-      persistent_attendees: allPeople.map(p => ({
-        id: p.id,
-        fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone
-      })),
-      leaderEmail: currentUser?.email || "",
-      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-      did_not_meet: true,
-      isTicketed: isTicketedEvent,
-      week: get_current_week_identifier()
-    };
-
-    let result;
-
-    if (typeof onSubmit === "function") {
-      result = await onSubmit(payload);
-    } else {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await authFetch(
-        `${BACKEND_URL}/submit-attendance/${eventId}`,
-        {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(payload),
-        }
-      );
-      result = await response.json();
-      result.success = response.ok;
-    }
-
-    if (result?.success) {
-      if (typeof onAttendanceSubmitted === "function") {
-        onAttendanceSubmitted();
+    try {
+      const eventId = event?.id || event?._id;
+      if (!eventId) {
+        toast.error("Event ID is missing, cannot submit attendance.");
+        return;
       }
 
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    } else {
-      toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+      const allPeople = getAllCommonAttendees();
+      const payload = {
+        attendees: [],
+        persistent_attendees: allPeople.map(p => ({
+          id: p.id,
+          fullName: p.fullName,
+          email: p.email,
+          leader12: p.leader12,
+          leader144: p.leader144,
+          phone: p.phone
+        })),
+        leaderEmail: currentUser?.email || "",
+        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        did_not_meet: true,
+        isTicketed: isTicketedEvent,
+        week: get_current_week_identifier()
+      };
+
+      let result;
+
+      if (typeof onSubmit === "function") {
+        result = await onSubmit(payload);
+      } else {
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        const response = await authFetch(
+          `${BACKEND_URL}/submit-attendance/${eventId}`,
+          {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(payload),
+          }
+        );
+        result = await response.json();
+        result.success = response.ok;
+      }
+
+      if (result?.success) {
+        if (typeof onAttendanceSubmitted === "function") {
+          onAttendanceSubmitted();
+        }
+
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+      } else {
+        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+      }
+    } catch (error) {
+      console.error(" Error marking event as 'Did Not Meet':", error);
+      toast.error("Something went wrong while marking event as 'Did Not Meet'.");
     }
-  } catch (error) {
-    console.error(" Error marking event as 'Did Not Meet':", error);
-    toast.error("Something went wrong while marking event as 'Did Not Meet'.");
-  }
-};
+  };
 
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
@@ -2053,13 +2377,10 @@ if (result && result.success) {
   const handlePersonAdded = (newPerson) => {
     console.log(" New person added:", newPerson);
 
-    if (typeof window.globalPeopleCache !== 'undefined') {
-      window.globalPeopleCache.data = [];
-      window.globalPeopleCache.timestamp = null;
-    }
-
+    // Clear caches and reload fresh people from DB
+    clearGlobalPeopleCache();
+    loadPreloadedPeople(true);
     fetchPeople();
-    loadPreloadedPeople();
 
     if (event && event.eventType === "cell") {
       fetchCommonAttendees(event._id || event.id);
@@ -2068,10 +2389,9 @@ if (result && result.success) {
     toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
   };
 
-
   const renderMobileAttendeeCard = (person) => {
     const isPersistent = persistentCommonAttendees.some(
-      (p) => p.id === person.id
+      (p) => p.id === person.id,
     );
     const isCheckedIn = checkedIn[person.id];
 
@@ -2079,14 +2399,45 @@ if (result && result.success) {
       <div key={person.id} style={styles.mobileAttendeeCard}>
         <div style={styles.mobileCardRow}>
           <div style={styles.mobileCardInfo}>
-  
+            <div style={styles.mobileCardName}>
+              {person.fullName}
+              <button
+                onClick={() => handleRemoveAttendee(person.id, person.fullName)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px",
+                  marginLeft: "8px",
+                  borderRadius: "4px",
+                  color: theme.palette.error.main,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  verticalAlign: "middle",
+                }}
+                title="Remove from attendees"
+              >
+                <X size={16} />
+              </button>
+            </div>
             <div style={styles.mobileCardEmail}>{person.email}</div>
             {!isTicketedEvent && (
               <>
-                <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: theme.palette.text.secondary,
+                  }}
+                >
                   Leader @12: {person.leader12}
                 </div>
-                <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: theme.palette.text.secondary,
+                  }}
+                >
                   Phone: {person.phone}
                 </div>
               </>
@@ -2119,15 +2470,15 @@ if (result && result.success) {
                   style={styles.priceTierButton}
                   onClick={() =>
                     setOpenPriceTierDropdown(
-                      openPriceTierDropdown === person.id ? null : person.id
+                      openPriceTierDropdown === person.id ? null : person.id,
                     )
                   }
                 >
                   <span>
                     {priceTiers[person.id]
                       ? `${priceTiers[person.id].name} (R${priceTiers[
-                        person.id
-                      ].price.toFixed(2)})`
+                          person.id
+                        ].price.toFixed(2)})`
                       : "Select Price Tier"}
                   </span>
                   <ChevronDown size={16} />
@@ -2143,14 +2494,20 @@ if (result && result.success) {
                             handlePriceTierSelect(person.id, index)
                           }
                           onMouseEnter={(e) =>
-                            (e.target.style.background = theme.palette.action.hover)
+                            (e.target.style.background =
+                              theme.palette.action.hover)
                           }
                           onMouseLeave={(e) =>
                             (e.target.style.background = "transparent")
                           }
                         >
                           {tier.name} - R{parseFloat(tier.price).toFixed(2)}
-                          <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: theme.palette.text.secondary,
+                            }}
+                          >
                             {tier.ageGroup} • {tier.memberType}
                           </div>
                         </div>
@@ -2178,7 +2535,7 @@ if (result && result.success) {
                   style={styles.paymentButton}
                   onClick={() =>
                     setOpenPaymentDropdown(
-                      openPaymentDropdown === person.id ? null : person.id
+                      openPaymentDropdown === person.id ? null : person.id,
                     )
                   }
                 >
@@ -2195,7 +2552,8 @@ if (result && result.success) {
                           handlePaymentMethodSelect(person.id, method)
                         }
                         onMouseEnter={(e) =>
-                          (e.target.style.background = theme.palette.action.hover)
+                          (e.target.style.background =
+                            theme.palette.action.hover)
                         }
                         onMouseLeave={(e) =>
                           (e.target.style.background = "transparent")
@@ -2262,15 +2620,15 @@ if (result && result.success) {
                   style={styles.decisionButton}
                   onClick={() =>
                     setOpenDecisionDropdown(
-                      openDecisionDropdown === person.id ? null : person.id
+                      openDecisionDropdown === person.id ? null : person.id,
                     )
                   }
                 >
                   <span>
                     {decisionTypes[person.id]
                       ? decisionOptions.find(
-                        (opt) => opt.value === decisionTypes[person.id]
-                      )?.label
+                          (opt) => opt.value === decisionTypes[person.id],
+                        )?.label
                       : "Select Decision"}
                   </span>
                   <ChevronDown size={16} />
@@ -2285,7 +2643,8 @@ if (result && result.success) {
                           handleDecisionTypeSelect(person.id, option.value)
                         }
                         onMouseEnter={(e) =>
-                          (e.target.style.background = theme.palette.action.hover)
+                          (e.target.style.background =
+                            theme.palette.action.hover)
                         }
                         onMouseLeave={(e) =>
                           (e.target.style.background = "transparent")
@@ -2304,7 +2663,6 @@ if (result && result.success) {
     );
   };
 
-  // Theme-aware styles
   const styles = {
     overlay: {
       position: "fixed",
@@ -2429,8 +2787,6 @@ if (result && result.success) {
       // overflowX: "auto",
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
-      // overflowY: "hidden",
-      // border: "2px solid red",
       paddingBottom: 8,
     },
     table: {
@@ -2506,7 +2862,6 @@ if (result && result.success) {
       minWidth: isMobile ? 140 : 200,
       maxHeight: 300,
       overflowY: "auto",
-      // border: "2px solid blue",
     },
     decisionMenuItem: {
       padding: "10px 12px",
@@ -2515,7 +2870,6 @@ if (result && result.success) {
       color: theme.palette.text.primary,
       transition: "background 0.15s",
     },
-
 
     priceTierButton: {
       display: "flex",
@@ -2757,7 +3111,7 @@ if (result && result.success) {
       fontWeight: 600,
       color: theme.palette.text.primary,
       margin: 0,
-      textAlign: 'center',
+      textAlign: "center",
     },
     confirmBody: {
       marginBottom: 20,
@@ -2809,6 +3163,23 @@ if (result && result.success) {
       marginBottom: 4,
       display: "block",
       fontWeight: 600,
+    },
+    removeButton: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      padding: "4px",
+      borderRadius: "4px",
+      color: theme.palette.error.main,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      margin: "0 auto",
+      transition: "all 0.2s",
+      '&:hover': {
+        background: theme.palette.error.light,
+        color: theme.palette.error.contrastText,
+      }
     },
   };
   if (!isOpen) return null;
@@ -2865,7 +3236,6 @@ if (result && result.success) {
               </>
             )}
           </div>
-
           <div style={styles.contentArea}>
             {activeTab === 0 && (
               <>
@@ -2881,25 +3251,25 @@ if (result && result.success) {
                       padding: "14px 14px 14px 45px",
                       fontSize: 16,
                       borderRadius: 8,
-                      border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`,
-                      backgroundColor: isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper,
-                      color: isDarkMode ? theme.palette.text.primary : '#000',
+                      border: `1px solid ${isDarkMode ? "#555" : "#ccc"}`,
+                      backgroundColor: isDarkMode
+                        ? theme.palette.background.default
+                        : theme.palette.background.paper,
+                      color: isDarkMode ? theme.palette.text.primary : "#000",
                       outline: "none",
                       boxSizing: "border-box",
                     }}
                     onFocus={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.action.hover :
-                        theme.palette.background.default;
-                      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+                      e.target.style.backgroundColor = isDarkMode
+                        ? theme.palette.action.hover
+                        : theme.palette.background.default;
+                      e.target.style.borderColor = isDarkMode ? "#777" : "#999";
                     }}
                     onBlur={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper;
-                      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+                      e.target.style.backgroundColor = isDarkMode
+                        ? theme.palette.background.default
+                        : theme.palette.background.paper;
+                      e.target.style.borderColor = isDarkMode ? "#555" : "#ccc";
                     }}
                   />
                 </div>
@@ -2919,54 +3289,25 @@ if (result && result.success) {
                         <tr>
                           <th style={styles.th}>Attendees Name</th>
                           <th style={styles.th}>Attendees Email</th>
-
-                          {/* Show regular columns for non-ticketed events */}
-                          {!isTicketedEvent && (
-                            <>
-                              <th style={styles.th}>Attendees Leader @12</th>
-                              <th style={styles.th}>Attendees Leader @144</th>
-                              <th style={styles.th}>Attendees Number</th>
-                            </>
-                          )}
-
+                          <th style={styles.th}>Attendees Leader @12</th>
+                          <th style={styles.th}>Attendees Leader @144</th>
+                          <th style={styles.th}>Attendees Number</th>
                           <th style={{ ...styles.th, textAlign: "center" }}>
                             Check In
                           </th>
-
-                          {/* Show ticketed event columns ONLY for ticketed events */}
-                          {isTicketedEvent && (
-                            <>
-                              <th style={{ ...styles.th, textAlign: "center" }}>
-                                Price Tier
-                              </th>
-                              <th style={{ ...styles.th, textAlign: "center" }}>
-                                Payment Method
-                              </th>
-                              <th style={{ ...styles.th, textAlign: "right" }}>
-                                Price
-                              </th>
-                              <th style={{ ...styles.th, textAlign: "right" }}>
-                                Paid
-                              </th>
-                              <th style={{ ...styles.th, textAlign: "right" }}>
-                                Owing
-                              </th>
-                            </>
-                          )}
-
-                          {/* Show decision column ONLY for non-ticketed events */}
-                          {!isTicketedEvent && (
-                            <th style={{ ...styles.th, textAlign: "center" }}>
-                              Decision
-                            </th>
-                          )}
+                          <th style={{ ...styles.th, textAlign: "center" }}>
+                            Decision
+                          </th>
+                          <th style={{ ...styles.th, textAlign: "center", width: "50px" }}>
+                            Remove
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {loading && (
                           <tr>
                             <td
-                              colSpan={isTicketedEvent ? "8" : "7"}
+                              colSpan="8"
                               style={{ ...styles.td, textAlign: "center" }}
                             >
                               Loading...
@@ -2976,7 +3317,7 @@ if (result && result.success) {
                         {!loading && filteredCommonAttendees.length === 0 && (
                           <tr>
                             <td
-                              colSpan={isTicketedEvent ? "8" : "7"}
+                              colSpan="8"
                               style={{ ...styles.td, textAlign: "center" }}
                             >
                               No attendees found.
@@ -2985,23 +3326,22 @@ if (result && result.success) {
                         )}
                         {filteredCommonAttendees.map((person) => {
                           const isPersistent = persistentCommonAttendees.some(
-                            (p) => p.id === person.id
+                            (p) => p.id === person.id,
                           );
 
                           return (
                             <tr key={person.id}>
                               <td style={styles.td}>
-                                {person.fullName}
-                              
+                                {person.fullName || "Unknown Name"}
                               </td>
-                              <td style={styles.td}>{person.email}</td>
-                              {!isTicketedEvent && (
-                                <>
-                                  <td style={styles.td}>{person.leader12}</td>
-                                  <td style={styles.td}>{person.leader144}</td>
-                                  <td style={styles.td}>{person.phone}</td>
-                                </>
-                              )}
+
+                              <td style={styles.td}>{person.email || "No email"}</td>
+
+                              <td style={styles.td}>{person.leader12 || ""}</td>
+
+                              <td style={styles.td}>{person.leader144 || ""}</td>
+
+                              <td style={styles.td}>{person.phone || ""}</td>
 
                               <td style={{ ...styles.td, ...styles.radioCell }}>
                                 <button
@@ -3012,7 +3352,7 @@ if (result && result.success) {
                                       : {}),
                                   }}
                                   onClick={() =>
-                                    handleCheckIn(person.id, person.fullName)
+                                    handleCheckIn(person.id, person.fullName || "Unknown")
                                   }
                                 >
                                   {checkedIn[person.id] && (
@@ -3023,309 +3363,83 @@ if (result && result.success) {
                                 </button>
                               </td>
 
-                              {isTicketedEvent && (
-                                <>
-                                  <td
-                                    style={{
-                                      ...styles.td,
-                                      ...styles.radioCell,
-                                    }}
-                                  >
-                                    {checkedIn[person.id] ? (
-                                      <div
-                                        style={{
-                                          ...styles.decisionDropdown,
-                                          position: "relative",
-                                          zIndex:
-                                            openPriceTierDropdown === person.id
-                                              ? 10001
-                                              : 1,
-                                        }}
-                                      >
-                                        <button
-                                          style={styles.priceTierButton}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setOpenPriceTierDropdown(
-                                              openPriceTierDropdown ===
-                                                person.id
-                                                ? null
-                                                : person.id
-                                            );
-                                          }}
-                                        >
-                                          <span>
-                                            {priceTiers[person.id]
-                                              ? `${priceTiers[person.id].name
-                                              } (R${priceTiers[
-                                                person.id
-                                              ].price.toFixed(2)})`
-                                              : "Select Price Tier"}
-                                          </span>
-                                          <ChevronDown size={16} />
-                                        </button>
-                                        {openPriceTierDropdown ===
-                                          person.id && (
-                                            <div style={styles.decisionMenu}>
-                                              {eventPriceTiers &&
-                                                eventPriceTiers.length > 0 ? (
-                                                eventPriceTiers.map(
-                                                  (tier, index) => (
-                                                    <div
-                                                      key={index}
-                                                      style={
-                                                        styles.decisionMenuItem
-                                                      }
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handlePriceTierSelect(
-                                                          person.id,
-                                                          index
-                                                        );
-                                                      }}
-                                                      onMouseEnter={(e) =>
-                                                      (e.target.style.background =
-                                                        "#f0f0f0")
-                                                      }
-                                                      onMouseLeave={(e) =>
-                                                      (e.target.style.background =
-                                                        "transparent")
-                                                      }
-                                                    >
-                                                      {tier.name} - R
-                                                      {parseFloat(
-                                                        tier.price
-                                                      ).toFixed(2)}
-                                                      <div
-                                                        style={{
-                                                          fontSize: "12px",
-                                                          color: "#666",
-                                                        }}
-                                                      >
-                                                        {tier.ageGroup} •{" "}
-                                                        {tier.memberType}
-                                                      </div>
-                                                    </div>
-                                                  )
-                                                )
-                                              ) : (
-                                                <div
-                                                  style={{
-                                                    padding: "12px",
-                                                    textAlign: "center",
-                                                    color: "#999",
-                                                  }}
-                                                >
-                                                  No price tiers available
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                      </div>
-                                    ) : (
-                                      <button
-                                        style={{
-                                          ...styles.radioButton,
-                                          opacity: 0.3,
-                                          cursor: "not-allowed",
-                                        }}
-                                        disabled
-                                      />
-                                    )}
-                                  </td>
-
-                                  <td
-                                    style={{
-                                      ...styles.td,
-                                      ...styles.radioCell,
-                                    }}
-                                  >
-                                    {checkedIn[person.id] ? (
-                                      <div style={styles.decisionDropdown}>
-                                        <button
-                                          style={styles.paymentButton}
-                                          onClick={() =>
-                                            setOpenPaymentDropdown(
-                                              openPaymentDropdown === person.id
-                                                ? null
-                                                : person.id
-                                            )
-                                          }
-                                        >
-                                          <span>
-                                            {paymentMethods[person.id] ||
-                                              "Select Payment"}
-                                          </span>
-                                          <ChevronDown size={16} />
-                                        </button>
-                                        {openPaymentDropdown === person.id && (
-                                          <div style={styles.decisionMenu}>
-                                            {availablePaymentMethods.map(
-                                              (method, index) => (
-                                                <div
-                                                  key={index}
-                                                  style={
-                                                    styles.decisionMenuItem
-                                                  }
-                                                  onClick={() =>
-                                                    handlePaymentMethodSelect(
-                                                      person.id,
-                                                      method
-                                                    )
-                                                  }
-                                                  onMouseEnter={(e) =>
-                                                  (e.target.style.background =
-                                                    "#f0f0f0")
-                                                  }
-                                                  onMouseLeave={(e) =>
-                                                  (e.target.style.background =
-                                                    "transparent")
-                                                  }
-                                                >
-                                                  {method}
-                                                </div>
-                                              )
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <button
-                                        style={{
-                                          ...styles.radioButton,
-                                          opacity: 0.3,
-                                          cursor: "not-allowed",
-                                        }}
-                                        disabled
-                                      />
-                                    )}
-                                  </td>
-
-                                  <td
-                                    style={{ ...styles.td, textAlign: "right" }}
-                                  >
-                                    {checkedIn[person.id] &&
-                                      priceTiers[person.id] ? (
-                                      <span style={styles.priceInput}>
-                                        R
-                                        {priceTiers[person.id].price.toFixed(2)}
-                                      </span>
-                                    ) : (
-                                      <span style={{ color: "#ccc" }}>-</span>
-                                    )}
-                                  </td>
-
-                                  <td
-                                    style={{ ...styles.td, textAlign: "right" }}
-                                  >
-                                    {checkedIn[person.id] ? (
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={paidAmounts[person.id] || ""}
-                                        onChange={(e) =>
-                                          handlePaidAmountChange(
-                                            person.id,
-                                            e.target.value
-                                          )
-                                        }
-                                        placeholder="0.00"
-                                        style={styles.paidInput}
-                                      />
-                                    ) : (
-                                      <span style={{ color: "#ccc" }}>-</span>
-                                    )}
-                                  </td>
-
-                                  <td
-                                    style={{ ...styles.td, textAlign: "right" }}
-                                  >
-                                    {checkedIn[person.id] &&
-                                      priceTiers[person.id] ? (
-                                      <span
-                                        style={{
-                                          ...styles.owingText,
-                                          ...(calculateOwing(person.id) === 0
-                                            ? styles.owingPositive
-                                            : styles.owingNegative),
-                                        }}
-                                      >
-                                        R{calculateOwing(person.id).toFixed(2)}
-                                      </span>
-                                    ) : (
-                                      <span style={{ color: "#ccc" }}>-</span>
-                                    )}
-                                  </td>
-                                </>
-                              )}
-
-                              {!isTicketedEvent && (
-                                <td
-                                  style={{ ...styles.td, ...styles.radioCell }}
-                                >
-                                  {checkedIn[person.id] ? (
-                                    <div style={styles.decisionDropdown}>
-                                      <button
-                                        style={styles.decisionButton}
-                                        onClick={() =>
-                                          setOpenDecisionDropdown(
-                                            openDecisionDropdown === person.id
-                                              ? null
-                                              : person.id
-                                          )
-                                        }
-                                      >
-                                        <span>
-                                          {decisionTypes[person.id]
-                                            ? decisionOptions.find(
-                                              (opt) =>
-                                                opt.value ===
-                                                decisionTypes[person.id]
-                                            )?.label
-                                            : "Select Decision"}
-                                        </span>
-                                        <ChevronDown size={16} />
-                                      </button>
-                                      {openDecisionDropdown === person.id && (
-                                        <div style={styles.decisionMenu}>
-                                          {decisionOptions.map((option) => (
-                                            <div
-                                              key={option.value}
-                                              style={styles.decisionMenuItem}
-                                              onClick={() =>
-                                                handleDecisionTypeSelect(
-                                                  person.id,
-                                                  option.value
-                                                )
-                                              }
-                                              onMouseEnter={(e) =>
-                                              (e.currentTarget.style.background =
-                                                theme.palette.action.hover)
-                                              }
-                                              onMouseLeave={(e) =>
-                                              (e.target.style.background =
-                                                "transparent")
-                                              }
-                                            >
-                                              {option.label}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
+                              {/* Column 7: Decision */}
+                              <td style={{ ...styles.td, ...styles.radioCell }}>
+                                {checkedIn[person.id] ? (
+                                  <div style={styles.decisionDropdown}>
                                     <button
-                                      style={{
-                                        ...styles.radioButton,
-                                        opacity: 0.3,
-                                        cursor: "not-allowed",
-                                      }}
-                                      disabled
-                                    />
-                                  )}
-                                </td>
-                              )}
+                                      style={styles.decisionButton}
+                                      onClick={() =>
+                                        setOpenDecisionDropdown(
+                                          openDecisionDropdown === person.id
+                                            ? null
+                                            : person.id
+                                        )
+                                      }
+                                    >
+                                      <span>
+                                        {decisionTypes[person.id]
+                                          ? decisionOptions.find(
+                                            (opt) => opt.value === decisionTypes[person.id]
+                                          )?.label
+                                          : "Select Decision"}
+                                      </span>
+                                      <ChevronDown size={16} />
+                                    </button>
+                                    {openDecisionDropdown === person.id && (
+                                      <div style={styles.decisionMenu}>
+                                        {decisionOptions.map((option) => (
+                                          <div
+                                            key={option.value}
+                                            style={styles.decisionMenuItem}
+                                            onClick={() =>
+                                              handleDecisionTypeSelect(person.id, option.value)
+                                            }
+                                            onMouseEnter={(e) =>
+                                              (e.currentTarget.style.background = theme.palette.action.hover)
+                                            }
+                                            onMouseLeave={(e) =>
+                                              (e.target.style.background = "transparent")
+                                            }
+                                          >
+                                            {option.label}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <button
+                                    style={{
+                                      ...styles.radioButton,
+                                      opacity: 0.3,
+                                      cursor: "not-allowed",
+                                    }}
+                                    disabled
+                                  />
+                                )}
+                              </td>
+
+                              <td style={{ ...styles.td, textAlign: "center" }}>
+                                <button
+                                  onClick={() => handleRemoveAttendee(person.id, person.fullName || "Unknown")}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    padding: "4px",
+                                    borderRadius: "4px",
+                                    color: theme.palette.error.main,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    margin: "0 auto",
+                                  }}
+                                  title="Remove from attendees"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </td>
                             </tr>
                           );
                         })}
@@ -3333,71 +3447,72 @@ if (result && result.success) {
                     </table>
                   </div>
                 )}
+                <div style={styles.statsContainer}>
+                  <div style={styles.statBox}>
+                    <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
+                      {persistentCommonAttendees.length}
+                    </div>
+                    <div style={styles.statLabel}>Associated People</div>
+                  </div>
 
-<div style={styles.statsContainer}>
-  <div style={styles.statBox}>
-    <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
-      {persistentCommonAttendees.length}
-    </div>
-    <div style={styles.statLabel}>Associated People</div>
-  </div>
-  
-  <div style={styles.statBox}>
-    <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
-      {eventStatistics.lastAttendanceCount > 0 ? eventStatistics.lastAttendanceCount : attendeesCount}
-    </div>
-    <div style={styles.statLabel}>Attendees</div>
-  </div>
-  
-  <div style={styles.statBoxInput}>
-    <input
-      type="number"
-      value={eventStatistics.lastHeadcount > 0 ? eventStatistics.lastHeadcount.toString() : manualHeadcount}
-      onChange={(e) => setManualHeadcount(e.target.value)}
-      placeholder="0"
-      style={styles.headcountInput}
-      min="0"
-    />
-    <div style={styles.statLabel}>Total Headcounts</div>
-  </div>
-  
-  {!isTicketedEvent && (
-    <div style={styles.statBox}>
-      <div style={{ ...styles.statNumber, color: "#ffc107" }}>
-        {eventStatistics.lastDecisionsCount > 0 ? eventStatistics.lastDecisionsCount : decisionsCount}
-      </div>
-      <div style={styles.statLabel}>Decisions</div>
-      {(eventStatistics.lastDecisionsCount > 0 || decisionsCount > 0) && (
-        <div style={styles.decisionBreakdown}>
-          <span>First-time: {eventStatistics.lastAttendanceBreakdown?.first_time || firstTimeCount}</span>
-          <span>Re-commitment: {eventStatistics.lastAttendanceBreakdown?.recommitment || reCommitmentCount}</span>
-        </div>
-      )}
-    </div>
-  )}
+                  <div style={styles.statBox}>
+                    <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
+                      {/* Show current week's checked-in count only */}
+                      {Object.keys(checkedIn).filter(id => checkedIn[id]).length}
+                    </div>
+                    <div style={styles.statLabel}>Attendees</div>
+                  </div>
 
-  {isTicketedEvent && (
-    <>
-      <div style={styles.statBox}>
-        <div style={{ ...styles.statNumber, color: "#28a745" }}>
-          R{totalPaid.toFixed(2)}
-        </div>
-        <div style={styles.statLabel}>Total Paid</div>
-      </div>
-      <div style={styles.statBox}>
-        <div
-          style={{
-            ...styles.statNumber,
-            color: totalOwing === 0 ? "#28a745" : "#dc3545",
-          }}
-        >
-          R{totalOwing.toFixed(2)}
-        </div>
-        <div style={styles.statLabel}>Total Owing</div>
-      </div>
-    </>
-  )}
-</div>
+                  <div style={styles.statBoxInput}>
+                    <input
+                      type="number"
+                      value={manualHeadcount}
+                      onChange={(e) => setManualHeadcount(e.target.value)}
+                      placeholder="0"
+                      style={styles.headcountInput}
+                      min="0"
+                    />
+                    <div style={styles.statLabel}>Total Headcounts</div>
+                  </div>
+
+                  {!isTicketedEvent && (
+                    <div style={styles.statBox}>
+                      <div style={{ ...styles.statNumber, color: "#ffc107" }}>
+                        {/* Show current week's decisions*/}
+                        {Object.keys(decisions).filter(id => decisions[id]).length}
+                      </div>
+                      <div style={styles.statLabel}>Decisions</div>
+                      {Object.keys(decisions).filter(id => decisions[id]).length > 0 && (
+                        <div style={styles.decisionBreakdown}>
+                          <span>First-time: {Object.values(decisionTypes).filter(type => type === "first-time").length}</span>
+                          <span>Re-commitment: {Object.values(decisionTypes).filter(type => type === "re-commitment").length}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {isTicketedEvent && (
+                    <>
+                      <div style={styles.statBox}>
+                        <div style={{ ...styles.statNumber, color: "#28a745" }}>
+                          R{totalPaid.toFixed(2)}
+                        </div>
+                        <div style={styles.statLabel}>Total Paid</div>
+                      </div>
+                      <div style={styles.statBox}>
+                        <div
+                          style={{
+                            ...styles.statNumber,
+                            color: totalOwing === 0 ? "#28a745" : "#dc3545",
+                          }}
+                        >
+                          R{totalOwing.toFixed(2)}
+                        </div>
+                        <div style={styles.statLabel}>Total Owing</div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </>
             )}
 
@@ -3415,25 +3530,25 @@ if (result && result.success) {
                       padding: "14px 14px 14px 45px",
                       fontSize: 16,
                       borderRadius: 8,
-                      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
-                      backgroundColor: isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper,
-                      color: isDarkMode ? theme.palette.text.primary : '#000',
+                      border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
+                      backgroundColor: isDarkMode
+                        ? theme.palette.background.default
+                        : theme.palette.background.paper,
+                      color: isDarkMode ? theme.palette.text.primary : "#000",
                       outline: "none",
                       boxSizing: "border-box",
                     }}
                     onFocus={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.action.hover :
-                        theme.palette.background.default;
-                      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+                      e.target.style.backgroundColor = isDarkMode
+                        ? theme.palette.action.hover
+                        : theme.palette.background.default;
+                      e.target.style.borderColor = isDarkMode ? "#777" : "#999";
                     }}
                     onBlur={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper;
-                      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+                      e.target.style.backgroundColor = isDarkMode
+                        ? theme.palette.background.default
+                        : theme.palette.background.paper;
+                      e.target.style.borderColor = isDarkMode ? "#555" : "#ccc";
                     }}
                   />
                 </div>
@@ -3457,7 +3572,7 @@ if (result && result.success) {
                     )}
                     {filteredPeople.map((person) => {
                       const isAlreadyAdded = persistentCommonAttendees.some(
-                        (p) => p.id === person.id
+                        (p) => p.id === person.id,
                       );
 
                       return (
@@ -3481,20 +3596,18 @@ if (result && result.success) {
                               style={{
                                 ...styles.iconButton,
                                 color: isAlreadyAdded ? "#dc3545" : "#6366f1",
-                                cursor: "pointer",
+                                cursor: isAlreadyAdded ? "not-allowed" : "pointer",
+                                opacity: isAlreadyAdded ? 0.3 : 1,
                               }}
                               onClick={() => handleAssociatePerson(person)}
+                              disabled={isAlreadyAdded}
                               title={
                                 isAlreadyAdded
-                                  ? "Remove from common attendees"
+                                  ? "Already added"
                                   : "Add to common attendees"
                               }
                             >
-                              {isAlreadyAdded ? (
-                                <X size={20} />
-                              ) : (
-                                <UserPlus size={20} />
-                              )}
+                              <UserPlus size={20} />
                             </button>
                           </div>
                         </div>
@@ -3539,7 +3652,7 @@ if (result && result.success) {
                         )}
                         {filteredPeople.map((person) => {
                           const isAlreadyAdded = persistentCommonAttendees.some(
-                            (p) => p.id === person.id
+                            (p) => p.id === person.id,
                           );
 
                           return (
@@ -3560,13 +3673,17 @@ if (result && result.success) {
                                 <button
                                   style={{
                                     ...styles.iconButton,
+                                    color: isAlreadyAdded ? "#dc3545" : "#6366f1",
+                                    cursor: isAlreadyAdded ? "not-allowed" : "pointer",
                                     opacity: isAlreadyAdded ? 0.3 : 1,
-                                    cursor: isAlreadyAdded
-                                      ? "not-allowed"
-                                      : "pointer",
                                   }}
                                   onClick={() => handleAssociatePerson(person)}
                                   disabled={isAlreadyAdded}
+                                  title={
+                                    isAlreadyAdded
+                                      ? "Already added"
+                                      : "Add to common attendees"
+                                  }
                                 >
                                   <UserPlus size={20} />
                                 </button>
@@ -3584,9 +3701,9 @@ if (result && result.success) {
 
           <div style={styles.footer}>
             <button style={styles.closeBtn} onClick={onClose}>
-
               CLOSE
             </button>
+            
             <div
               style={{
                 display: "flex",
@@ -3595,6 +3712,23 @@ if (result && result.success) {
                 flexWrap: isMobile ? "wrap" : "nowrap",
               }}
             >
+              <button
+              style={{
+                ...styles.saveBtn,
+                background: attendeesCount > 0 ? "#1976d2" : "#757575ff",
+                cursor: attendeesCount > 0 ? "pointer" : "not-allowed",
+                width: 180,
+              }}
+              onClick={downloadCheckedInAttendance}
+              disabled={attendeesCount === 0}
+              title={
+                attendeesCount === 0
+                  ? "Check in at least one person to enable download"
+                  : "Download checked-in attendance (XLS)"
+              }
+            >
+              DOWNLOAD ATTENDANCE(XLS)
+            </button>
               <button style={styles.didNotMeetBtn} onClick={handleDidNotMeet}>
                 DID NOT MEET
               </button>
@@ -3662,8 +3796,6 @@ if (result && result.success) {
 `}
       </style>
     </>
-
   );
-
 };
 export default AttendanceModal;

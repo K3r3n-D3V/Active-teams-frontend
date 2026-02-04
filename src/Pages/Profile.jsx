@@ -850,8 +850,8 @@ export default function Profile() {
         return form[key] !== originalForm[key];
       });
 
-      console.log("🔍 Has profile changes:", hasProfileChanges);
-      console.log("🔍 Has password change:", hasPasswordChange);
+      console.log(" Has profile changes:", hasProfileChanges);
+      console.log(" Has password change:", hasPasswordChange);
 
       let profileUpdated = false;
       let passwordUpdated = false;

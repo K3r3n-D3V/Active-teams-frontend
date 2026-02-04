@@ -35,7 +35,7 @@ const ProtectedProfile = withAuthCheck(Profile, ['admin', 'leader', 'leaderAt12'
 const ProtectedPeople = withAuthCheck(People, ['admin', 'leader', 'leaderAt12']);
 const ProtectedEvents = withAuthCheck(Events, ['admin', 'leader', 'leaderAt12', 'user', 'registrant'], true); 
 const ProtectedStats = withAuthCheck(Stats, ['admin', 'leader', 'leaderAt12']);
-const ProtectedCheckIn = withAuthCheck(ServiceCheckIn, ['admin', 'registrant']);
+const ProtectedCheckIn = withAuthCheck(ServiceCheckIn, ['admin', 'registrant', 'leaderAt12','leader']);
 const ProtectedDailyTasks = withAuthCheck(DailyTasks, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 const ProtectedAdmin = withAuthCheck(Admin, ['admin']);
 const ProtectedCreateEvents = withAuthCheck(CreateEvents, ['admin', 'leader', 'leaderAt12']);
@@ -56,7 +56,7 @@ const { user, loading } = React.useContext(AuthContext);
   const hideLayout = noLayoutRoutes.includes(location.pathname);
 
   useEffect(() => {
-    console.log('🔍 Debug Info:', {
+    console.log(' Debug Info:', {
       user: !!user,
       userRole: user?.role,
       loading,
