@@ -64,6 +64,7 @@ const CreateEvents = ({
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
     eventName: "",
+    email: "",
     date: "",
     time: "",
     timePeriod: "AM",
@@ -517,7 +518,7 @@ useEffect(() => {
       location: formData.location,
       eventLeader: formData.eventLeader,
       eventLeaderName: formData.eventLeader,
-      eventLeaderEmail: user?.email || "",
+      eventLeaderEmail: formData.email || "",
       description: formData.description,
       userEmail: user?.email || "",
       recurring_day: formData.recurringDays,
@@ -1284,12 +1285,13 @@ useEffect(() => {
           }}
           onClick={() => {
             const selectedName = person.fullName;
+            const selectedEmail = person.email;
             
             if (hasPersonSteps && !isGlobalEvent) {
               setFormData((prev) => ({
                 ...prev,
                 eventLeader: selectedName,
-                // eventName: selectedName,
+                email: selectedEmail.toLowerCase(),
                 leader1: person.leader1 || "",
                 leader12: person.leader12 || "",
               }));
@@ -1321,6 +1323,17 @@ useEffect(() => {
 
             {hasPersonSteps && !isGlobalEvent && (
               <>
+                <TextField
+                  label="Email *"
+                  value={formData.email || ""}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.email}
+                  helperText={errors.email || "Enter the email for this event"}
+                />
+
                 <TextField
                   label="Leader @1 *"
                   value={formData.leader1 || ""}
