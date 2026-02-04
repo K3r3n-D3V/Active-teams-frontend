@@ -3121,7 +3121,7 @@ ${xmlCols}
       background: theme.palette.error.main,
       color: theme.palette.error.contrastText || "#fff",
       border: "none",
-      padding: "12px 20px",
+      padding: "8px 20px",
       borderRadius: 6,
       cursor: "pointer",
       fontSize: 16,
