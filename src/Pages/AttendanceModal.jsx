@@ -2483,7 +2483,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     },
     tab: {
       padding: "clamp(10px, 2vw, 16px) clamp(12px, 2vw, 24px)",
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: 600,
       background: "none",
       border: "none",
