@@ -164,7 +164,7 @@ console.log("EditEventModal rendered with event:", fieldMapping);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const  updateCells = useRef();
+  // const  updateCells = useRef();
 
   const handleDeactivateCell = async () => {
   try {
@@ -406,12 +406,13 @@ console.log("EditEventModal rendered with event:", fieldMapping);
     return {...cleanData,"is_permanent_deact":isPermanent};
   };
 
-  const handleSubmit = async (deactivationInfo = {}) => {
+  const handleSubmit = async (e,deactivationFields = {}) => {
     try {
       console.log("FIELDS",changedFields)
       setLoading(true);
       
-      if (changedFields.length === 0 && !deactivationInfo) {
+      console.log("jarr",deactivationFields)
+      if (changedFields.length === 0 && !deactivationFields) {
         toast.info("No changes made");
         onClose();
         return;
@@ -424,8 +425,8 @@ console.log("EditEventModal rendered with event:", fieldMapping);
         return;
       }
      
-      const updateData = deactivationInfo?{...prepareUpdateData(),...deactivationInfo}:prepareUpdateData() ;
-      console.log("data",updateData)
+      const updateData = deactivationFields?{...prepareUpdateData(),...deactivationFields}:prepareUpdateData() ;
+      console.log("datar",updateData)
       if (Object.keys(updateData).length === 0) {
         toast.info("No valid changes to save");
         setLoading(false);
@@ -1112,7 +1113,7 @@ console.log("EditEventModal rendered with event:", fieldMapping);
                 Cancel
               </Button>
               <Button
-                ref={updateCells}
+                // ref={updateCells}
                 onClick={handleSubmit}
                 variant="contained"
                 disabled={loading || changedFields.length === 0 || changedFields.some(f => isFieldDisabled(f))}
