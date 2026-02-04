@@ -1,10 +1,15 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
 import { useTaskUpdate } from '../contexts/TaskUpdateContext';
+
+// Global cache outside component to persist across remounts
+let globalPeopleCache = null;
+let globalCacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -81,6 +86,8 @@ export default function DailyTasks() {
   const [filterType, setFilterType] = useState("all");
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [addingTaskType, setAddingTaskType] = useState(false);
+  // const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
+  
 
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -105,6 +112,8 @@ export default function DailyTasks() {
   const [searchResults, setSearchResults] = useState([]);
   const [assignedResults, setAssignedResults] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
+  const isFetchingRef = useRef(false);
 
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
@@ -326,57 +335,97 @@ const markTaskComplete = async (taskId) => {
     }
   };
 
-  const fetchPeople = async (q) => {
+  // Fetch all people with caching
+  const fetchAllPeople = useCallback(async (forceRefresh = false) => {
+    const now = Date.now();
+    if (!forceRefresh && globalPeopleCache && globalCacheTimestamp && (now - globalCacheTimestamp < CACHE_DURATION)) {
+      console.log('Using cached people data');
+      return;
+    }
+
+    if (isFetchingRef.current) {
+      console.log('People fetch already in progress');
+      return;
+    }
+
+    isFetchingRef.current = true;
+
+    try {
+      const response = await authFetch(`${API_URL}/people?perPage=0`);
+      const data = await response.json();
+      const rawPeople = data?.results || [];
+
+      const mapped = rawPeople.map(raw => ({
+        _id: (raw._id || raw.id || "").toString(),
+        name: (raw.Name || raw.name || "").toString().trim(),
+        surname: (raw.Surname || raw.surname || "").toString().trim(),
+        email: (raw.Email || raw.email || "").toString().trim(),
+        phone: (raw.Number || raw.Phone || "").toString().trim(),
+        location: (raw.Address || raw.address || "").toString().trim(),
+      }));
+
+      globalPeopleCache = mapped;
+      globalCacheTimestamp = Date.now();
+      setAllPeople(mapped);
+
+      console.log(`People fetched and cached successfully: ${mapped.length} people`);
+    } catch (err) {
+      console.error('Fetch people error:', err);
+      toast.error(`Failed to load people: ${err?.message}`);
+      if (!globalPeopleCache) {
+        setAllPeople([]);
+      }
+    } finally {
+      isFetchingRef.current = false;
+    }
+  }, [API_URL, authFetch]);
+
+  // Optimized search function for multiple fields
+  const searchPeople = useCallback((peopleList, searchValue, field = 'name') => {
+    if (!searchValue.trim()) return peopleList;
+
+    const searchLower = searchValue.toLowerCase().trim();
+
+    return peopleList.filter(person => {
+      switch (field) {
+        case 'name': {
+          const nameLower = person.name.toLowerCase();
+          const surnameLower = person.surname.toLowerCase();
+          const fullName = `${nameLower} ${surnameLower}`;
+          
+          return nameLower.includes(searchLower) ||
+            surnameLower.includes(searchLower) ||
+            fullName.includes(searchLower);
+        }
+        case 'email':
+          return person.email.toLowerCase().includes(searchLower);
+        case 'phone':
+          return person.phone.includes(searchValue.trim());
+        case 'location':
+          return person.location.toLowerCase().includes(searchLower);
+        default:
+          return true;
+      }
+    });
+  }, []);
+
+  // Fetch people with instant local search
+  const fetchPeople = useCallback(async (q) => {
     if (!q.trim()) {
       setSearchResults([]);
       return;
     }
 
-    const query = q.trim();
-    // We keep original casing for display, but lowercase for comparison
-    const queryLower = query.toLowerCase();
-    console.log(`queryLower: ${queryLower}`)
-
-    try {
-
-      const res = await authFetch(
-        `${API_URL}/people?name=${encodeURIComponent(query)}`
-      );
-
-      if (!res.ok) throw new Error("Failed to fetch people");
-
-      const data = await res.json();
-      console.log("API Response for people search:", data);
-      const results = data?.results || data?.people || [];
-      console.log("Results after extraction:", results);
-
-
-      const filtered = results.filter((p) => {
-        const personNameLower = (p.Name).toLowerCase();
-        console.log(`personNameLower: ${personNameLower}`)
-        const personSurnameLower = (p.Surname).toLowerCase();
-        console.log(`personSurnameLower: ${personSurnameLower}`)
-        const fullNameLower = `${personNameLower} ${personSurnameLower}`.trim();
-        console.log(`fullNameLower: ${fullNameLower}`)
-        console.log(`p: "${p}"`)
-        
-
-        // Case 1: query appears anywhere in name or surname
-        if (fullNameLower.includes(queryLower) ) return true;
-
-        // Case 2: query words all appear (in any order) — helps with typos / partial matches
-        const queryWords = queryLower.split(/\s+/).filter(Boolean);
-        return queryWords.every((word) => fullNameLower.includes(word));
-      });
-
-      console.log("Filtered results:", filtered);
-      setSearchResults(filtered);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message || "Failed to search people");
-      setSearchResults([]);
+    // First, ensure we have cached data
+    if (!globalPeopleCache || globalPeopleCache.length === 0) {
+      await fetchAllPeople(false);
     }
-  };
+
+    // Perform instant search on cached data
+    const results = searchPeople(allPeople, q, 'name');
+    setSearchResults(results);
+    console.log(`Search results for "${q}":`, results);
+  }, [allPeople, searchPeople, fetchAllPeople, API_URL, authFetch]);
 
   const fetchAssigned = async (q) => {
     if (!q.trim()) return setAssignedResults([]);
@@ -423,8 +472,9 @@ const markTaskComplete = async (taskId) => {
     if (user) {
       fetchUserTasks();
       fetchTaskTypes();
+      fetchAllPeople(false); // Load all people for caching
     }
-  }, [user]);
+  }, [user, fetchAllPeople]);
 
   const handleOpen = (type) => {
     setFormType(type);
@@ -501,9 +551,7 @@ const markTaskComplete = async (taskId) => {
       taskType: task.taskType || "",
       recipient: {
         Name: task.contacted_person?.name?.split(" ")[0] || "",
-        Surname: task.contacted_person?.name?.split(" ")[1] || "",
-        Phone: task.contacted_person?.phone || task.contacted_person?.Number || "",
-        Email: task.contacted_person?.email || "",
+        Surname: task.contacted_person?.name?.split(" ")[1] || ""
       },
       recipientDisplay: task.contacted_person?.name || "",
       assignedTo: task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
@@ -971,7 +1019,6 @@ useEffect(() => {
                 backgroundColor: filterType === type ? (isDarkMode ? '#fff' : '#000') : (isDarkMode ? '#2d2d2d' : '#ffffff'),
                 color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
                 fontSize: '13px',
-                fontSize: '13px',
                 boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
                 whiteSpace: 'nowrap', 
                 flexShrink: 0 
@@ -1370,7 +1417,7 @@ useEffect(() => {
                 margin: '4px 0 0 0',
                 boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
               }}>
-                {searchResults.map((person) => (
+            {searchResults.map((person) => (
                   <li
                     key={person._id}
                     style={{
@@ -1380,22 +1427,19 @@ useEffect(() => {
                       color: isDarkMode ? '#fff' : '#1a1a24',
                     }}
                     onClick={() => {
+                      const fullName = `${person.name} ${person.surname}`.trim();
                       setTaskData({
                         ...taskData,
                         recipient: person,
-                        recipientDisplay: `${person.Name} ${person.Surname}`,
-                        contacted_person: {
-                          name: `${person.Name} ${person.Surname}`,
-                          phone: person.Phone || "",
-                          email: person.Email || "",
-                        },
+                        recipientDisplay: fullName,
+                          name: fullName
                       });
                       setSearchResults([]);
                     }}
                     onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                   >
-                    {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
+                    {person.name} {person.surname}
                   </li>
                 ))}
               </ul>
