@@ -124,20 +124,23 @@ const CreateEvents = ({
           eventType: 'CELLS',
           isGlobal: false,
           isTicketed: false,
-          hasPersonSteps: true, 
+          hasPersonSteps: true, // FIXED: This was the issue - always true for CELLS
         };
       }
       
-   const foundEventType = eventTypes.find(et => {
-  const etName = et.name || et.displayName || '';
-  const searchName = selectedEventType;
-  
-  return (
-    etName === searchName ||
-    etName.toLowerCase() === searchName.toLowerCase() ||
-    et._id === searchName
-  );
-});
+      // Try to find the full event type object
+      const foundEventType = eventTypes.find(et => {
+        const etName = et.name || et.displayName || '';
+        const searchName = selectedEventType;
+        
+        return (
+          etName === searchName ||
+          etName.toLowerCase() === searchName.toLowerCase() ||
+          et._id === searchName ||
+          etName.includes(searchName) ||
+          searchName.includes(etName)
+        );
+      });
       
       if (foundEventType) {
         console.log('Found event type:', foundEventType);
@@ -549,7 +552,6 @@ const handleSubmit = async (e) => {
     const response = eventId 
       ? await axios.put(url, payload, { headers }) 
       : await axios.post(url, payload, { headers });
-      console.log("Submission response:", response);
 
     toast.success(eventId ? "Event updated!" : "Event created!");
     if (!eventId) resetForm();
@@ -808,7 +810,7 @@ const handleSubmit = async (e) => {
               helperText={errors.eventName}
             />
 
-            {isTicketedEvent && (
+            {isTicketedEvent && !isGlobalEvent && (
               <Box sx={{ mb: 3 }}>
                 <Box
                   sx={{
@@ -1142,7 +1144,7 @@ const handleSubmit = async (e) => {
   )}
 </Box>
 
-            {hasPersonSteps  && (
+            {hasPersonSteps && !isGlobalEvent && (
               <>
                 <TextField
                   label="Leader @1 *"

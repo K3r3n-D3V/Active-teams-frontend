@@ -1439,6 +1439,9 @@ ${xmlCols}
 
 const fetchEvents = useCallback(
   async (filters = {}, showLoader = true) => {
+    console.log("🔍 fetchEvents called with filters:", filters);
+    console.log("🎯 event_type being sent:", filters.event_type);
+    
     if (showLoader) {
       setLoading(true);
       setIsLoading(true);
@@ -1460,24 +1463,42 @@ const fetchEvents = useCallback(
 
       if (filters.status && filters.status !== "all") params.status = filters.status;
       if (filters.search) params.search = filters.search;
-      if (filters.event_type) params.event_type = filters.event_type;
+      
+      // CRITICAL FIX: Ensure event_type is passed correctly
+      if (filters.event_type) {
+        params.event_type = filters.event_type;
+      }
 
-      // Determine Endpoint
-      const isCellType = !filters.event_type || filters.event_type === "CELLS" || filters.event_type === "all";
-      const endpoint = isCellType ? `${BACKEND_URL}/events/cells` : `${BACKEND_URL}/events/other`;
+      // CRITICAL: Determine endpoint based on event_type
+      const isCellType = !filters.event_type || 
+                        filters.event_type === "CELLS" || 
+                        filters.event_type === "all" ||
+                        filters.event_type.toLowerCase() === "cells";
+                        
+      const endpoint = isCellType 
+        ? `${BACKEND_URL}/events/cells` 
+        : `${BACKEND_URL}/events/other`;
 
-      // Role Logic for Params
-      if (isLeaderAt12) {
-        params.leader_at_12_view = true;
-        if (viewFilter === "personal") params.personal = true;
-        else params.include_subordinate_cells = true;
-      } else if (isAdmin) {
-        if (viewFilter === "personal") params.personal = true;
-      } else {
-        params.personal = true;
+      console.log("📍 Using endpoint:", endpoint);
+      console.log("📦 Is Cell Type:", isCellType);
+      console.log("📋 Event Type Param:", params.event_type);
+
+      // Role Logic for Params - Only apply for CELLS endpoint
+      if (isCellType) {
+        if (isLeaderAt12) {
+          params.leader_at_12_view = true;
+          if (viewFilter === "personal") params.personal = true;
+          else params.include_subordinate_cells = true;
+        } else if (isAdmin) {
+          if (viewFilter === "personal") params.personal = true;
+        } else {
+          params.personal = true;
+        }
       }
 
       const queryString = new URLSearchParams(params).toString();
+      console.log("🌐 Full URL:", `${endpoint}?${queryString}`);
+      
       const response = await authFetch(`${endpoint}?${queryString}`, {
         method: "GET",
         headers: {
@@ -1489,11 +1510,14 @@ const fetchEvents = useCallback(
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
+      console.log("✅ Received events:", data.events?.length || 0);
+      console.log("📊 Event types in response:", [...new Set(data.events?.map(e => e.eventType || e.eventTypeName))]);
+      
       const allEvents = data.events || [];
       const currentUserEmail = currentUser?.email?.toLowerCase().trim();
 
       const filtered = allEvents.filter((event) => {
-        if (isAdmin) return true; // Admins always see everything
+        if (isAdmin) return true;
         
         const isGlobal = event.isGlobal === true;
         const isCreator = event.userEmail?.toLowerCase().trim() === currentUserEmail;
@@ -1502,12 +1526,14 @@ const fetchEvents = useCallback(
         return isGlobal || isCreator || isAssignedLeader;
       });
 
+      console.log("✅ Filtered events:", filtered.length);
+      
       setEvents(filtered);
       setTotalEvents(data.total_events || 0);
       setTotalPages(data.total_pages || 1);
 
     } catch (error) {
-      console.error("Fetch error:", error);
+      console.error("❌ Fetch error:", error);
       setEvents([]);
       if (!error.message.includes("401")) {
         toast.error("Failed to load events");
@@ -1519,7 +1545,7 @@ const fetchEvents = useCallback(
       }
     }
   },
-  [currentPage, rowsPerPage, authFetch, BACKEND_URL, isLeaderAt12, isAdmin, currentUser, viewFilter]
+  [currentPage, rowsPerPage, authFetch, BACKEND_URL, isLeaderAt12, isAdmin, currentUser, viewFilter, logout]
 );
 
 const fetchEventTypes = useCallback(async () => {

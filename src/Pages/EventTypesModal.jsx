@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+ import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   Box,
@@ -25,17 +25,18 @@ const EventTypesModal = ({
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    isTicketed: false,
-    isGlobal: false,
-    hasPersonSteps: false,
-  });
+const [formData, setFormData] = useState({
+  name: "",
+  description: "",
+  isTicketed: false,
+  isGlobal: false,  
+  hasPersonSteps: false,
+});
 
   const [errors, setErrors] = useState({});
   const nameInputRef = useRef(null);
   const isDarkMode = theme.palette.mode === "dark";
+  console.log("Selected Event Type:", isDarkMode);
 
   useEffect(() => {
     if (open && selectedEventType) {
@@ -43,7 +44,10 @@ const EventTypesModal = ({
         name: selectedEventType.name || "",
         description: selectedEventType.description || "",
         isTicketed: !!selectedEventType.isTicketed,
-        isGlobal: !!selectedEventType.isGlobal, // Simple boolean conversion
+     isGlobal:
+  typeof selectedEventType.isGlobal === "boolean"
+    ? selectedEventType.isGlobal
+    : false, 
         hasPersonSteps: !!selectedEventType.hasPersonSteps,
       });
     } else if (open && !selectedEventType) {
@@ -62,7 +66,7 @@ const EventTypesModal = ({
       name: "",
       description: "",
       isTicketed: false,
-      isGlobal: false, // ✅ MUST MATCH initial state
+      isGlobal: null, // ✅ reset to no selection
       hasPersonSteps: false,
     });
     setErrors({});
@@ -98,11 +102,11 @@ const EventTypesModal = ({
     setLoading(true);
     try {
       const eventTypeData = {
-        name: formData.name.trim(),
-        eventTypeName: formData.name.trim(),
-        description: formData.description.trim(),
+        name: formData.name.trim().toLowerCase(),
+        eventTypeName: formData.name.trim().toLowerCase(),
+        description: formData.description.trim().toLowerCase(),
         isTicketed: formData.isTicketed,
-        isGlobal: formData.isGlobal,
+        isGlobal: formData.isGlobal, // null | true | false
         hasPersonSteps: formData.hasPersonSteps,
         isEventType: true,
       };
@@ -183,17 +187,40 @@ const EventTypesModal = ({
             sx={{ mb: 3 }}
           />
 
-          {/* ✅ Simplified Global Event Checkbox */}
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={formData.isGlobal}
-                onChange={handleCheckboxChange("isGlobal")}
-              />
-            }
-            label="Global Event"
-            sx={{ display: "block", mb: 2 }}
-          />
+          {/* ✅ IsGlobal with NO default tick */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
+            <Typography fontWeight={600}>Is Global Event:</Typography>
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.isGlobal === true}
+                  onChange={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      isGlobal: true,
+                    }))
+                  }
+                />
+              }
+              label="True"
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.isGlobal === false}
+                  onChange={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      isGlobal: false,
+                    }))
+                  }
+                />
+              }
+              label="False"
+            />
+          </Box>
 
           <FormControlLabel
             control={
@@ -203,7 +230,6 @@ const EventTypesModal = ({
               />
             }
             label="Ticketed Event"
-            sx={{ display: "block", mb: 2 }}
           />
 
           <FormControlLabel
@@ -214,7 +240,6 @@ const EventTypesModal = ({
               />
             }
             label="Training"
-            sx={{ display: "block", mb: 2 }}
           />
 
           {errors.submit && (
