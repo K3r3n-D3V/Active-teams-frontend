@@ -5172,99 +5172,109 @@ return (
     </Popover>
 
     {/* FAB BUTTON FOR ADMIN */}
-    {isAdmin && (
+   {/* FAB BUTTON FOR ADMIN - SHOW DIFFERENT BUTTONS BASED ON VIEW */}
+{isAdmin && (
+  <Box
+    sx={{
+      position: "fixed",
+      bottom: "24px",
+      right: "24px",
+      zIndex: 1300,
+    }}
+  >
+    {/* OVERLAY TO CLOSE MENU */}
+    {fabMenuOpen && (
       <Box
         sx={{
           position: "fixed",
-          bottom: "24px",
-          right: "24px",
-          zIndex: 1300,
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1299,
+          backgroundColor: "transparent",
         }}
-      >
-        {fabMenuOpen && (
-          <Box
-            sx={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 1299,
-              backgroundColor: "transparent",
-            }}
-            onClick={() => setFabMenuOpen(false)}
-          />
-        )}
-
-        <Box
-          sx={{
-            ...fabStyles.fabMenu,
-            opacity: fabMenuOpen ? 1 : 0,
-            visibility: fabMenuOpen ? "visible" : "hidden",
-            transform: fabMenuOpen ? "translateY(0)" : "translateY(10px)",
-            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            pointerEvents: fabMenuOpen ? "auto" : "none",
-          }}
-        >
-          <Box
-            sx={fabStyles.fabMenuItem}
-            onClick={() => {
-              setFabMenuOpen(false);
-              setEventTypesModalOpen(true);
-              setEditingEventType(null);
-            }}
-            role="button"
-            tabIndex={fabMenuOpen ? 0 : -1}
-            aria-label="Create Event Type"
-          >
-            <Typography sx={fabStyles.fabMenuLabel}>
-              Create Event Type
-            </Typography>
-            <Box sx={fabStyles.fabMenuIcon}></Box>
-          </Box>
-
-          <Box
-            sx={fabStyles.fabMenuItem}
-            onClick={() => {
-              setFabMenuOpen(false);
-              setCreateEventModalOpen(true);
-            }}
-            role="button"
-            tabIndex={fabMenuOpen ? 0 : -1}
-            aria-label="Create Event"
-          >
-            <Typography sx={fabStyles.fabMenuLabel}>Create Event</Typography>
-            <Box sx={fabStyles.fabMenuIcon}></Box>
-          </Box>
-        </Box>
-
-        <IconButton
-          sx={{
-            backgroundColor: "#007bff",
-            color: "white",
-            width: 56,
-            height: 56,
-            "&:hover": {
-              backgroundColor: "#0056b3",
-              transform: "scale(1.05)",
-            },
-            transform: fabMenuOpen
-              ? "rotate(45deg) scale(1.05)"
-              : "rotate(0deg) scale(1)",
-            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
-            position: "relative",
-            zIndex: 1301,
-          }}
-          onClick={() => setFabMenuOpen(!fabMenuOpen)}
-          aria-label={fabMenuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={fabMenuOpen}
-          aria-haspopup="true"
-        >
-          +
-        </IconButton>
-      </Box>
+        onClick={() => setFabMenuOpen(false)}
+      />
     )}
+
+    {/* FAB MENU OPTIONS */}
+    <Box
+      sx={{
+        ...fabStyles.fabMenu,
+        opacity: fabMenuOpen ? 1 : 0,
+        visibility: fabMenuOpen ? "visible" : "hidden",
+        transform: fabMenuOpen ? "translateY(0)" : "translateY(10px)",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        pointerEvents: fabMenuOpen ? "auto" : "none",
+      }}
+    >
+      {/* WHEN VIEWING EVENT TYPES (GRID/TABLE) - SHOW CREATE EVENT TYPE ONLY */}
+      {!showingEvents && (
+        <Box
+          sx={fabStyles.fabMenuItem}
+          onClick={() => {
+            setFabMenuOpen(false);
+            setEventTypesModalOpen(true);
+            setEditingEventType(null);
+          }}
+          role="button"
+          tabIndex={fabMenuOpen ? 0 : -1}
+          aria-label="Create Event Type"
+        >
+          <Typography sx={fabStyles.fabMenuLabel}>
+            Create Event Type
+          </Typography>
+          <Box sx={fabStyles.fabMenuIcon}></Box>
+        </Box>
+      )}
+
+      {/* WHEN VIEWING EVENTS (TABLE) - SHOW CREATE EVENT ONLY */}
+      {showingEvents && (
+        <Box
+          sx={fabStyles.fabMenuItem}
+          onClick={() => {
+            setFabMenuOpen(false);
+            setCreateEventModalOpen(true);
+          }}
+          role="button"
+          tabIndex={fabMenuOpen ? 0 : -1}
+          aria-label="Create Event Data"
+        >
+          <Typography sx={fabStyles.fabMenuLabel}>Create Event Data</Typography>
+          <Box sx={fabStyles.fabMenuIcon}></Box>
+        </Box>
+      )}
+    </Box>
+
+    {/* MAIN FAB BUTTON (+) */}
+    <IconButton
+      sx={{
+        backgroundColor: "#007bff",
+        color: "white",
+        width: 56,
+        height: 56,
+        "&:hover": {
+          backgroundColor: "#0056b3",
+          transform: "scale(1.05)",
+        },
+        transform: fabMenuOpen
+          ? "rotate(45deg) scale(1.05)"
+          : "rotate(0deg) scale(1)",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+        position: "relative",
+        zIndex: 1301,
+      }}
+      onClick={() => setFabMenuOpen(!fabMenuOpen)}
+      aria-label={fabMenuOpen ? "Close menu" : "Open menu"}
+      aria-expanded={fabMenuOpen}
+      aria-haspopup="true"
+    >
+      +
+    </IconButton>
+  </Box>
+)}
 
     {/* MODALS */}
     <Eventsfilter

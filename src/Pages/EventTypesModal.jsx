@@ -25,12 +25,11 @@ const EventTypesModal = ({
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
 
-  // ✅ isGlobal starts as null (NO default tick)
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     isTicketed: false,
-    isGlobal: null,
+    isGlobal: false,
     hasPersonSteps: false,
   });
 
@@ -44,10 +43,7 @@ const EventTypesModal = ({
         name: selectedEventType.name || "",
         description: selectedEventType.description || "",
         isTicketed: !!selectedEventType.isTicketed,
-        isGlobal:
-          typeof selectedEventType.isGlobal === "boolean"
-            ? selectedEventType.isGlobal
-            : null,
+        isGlobal: !!selectedEventType.isGlobal, // Simple boolean conversion
         hasPersonSteps: !!selectedEventType.hasPersonSteps,
       });
     } else if (open && !selectedEventType) {
@@ -66,7 +62,7 @@ const EventTypesModal = ({
       name: "",
       description: "",
       isTicketed: false,
-      isGlobal: null, // ✅ reset to no selection
+      isGlobal: false, // ✅ MUST MATCH initial state
       hasPersonSteps: false,
     });
     setErrors({});
@@ -102,11 +98,11 @@ const EventTypesModal = ({
     setLoading(true);
     try {
       const eventTypeData = {
-        name: formData.name.trim().toLowerCase(),
-        eventTypeName: formData.name.trim().toLowerCase(),
-        description: formData.description.trim().toLowerCase(),
+        name: formData.name.trim(),
+        eventTypeName: formData.name.trim(),
+        description: formData.description.trim(),
         isTicketed: formData.isTicketed,
-        isGlobal: formData.isGlobal, // null | true | false
+        isGlobal: formData.isGlobal,
         hasPersonSteps: formData.hasPersonSteps,
         isEventType: true,
       };
@@ -187,40 +183,17 @@ const EventTypesModal = ({
             sx={{ mb: 3 }}
           />
 
-          {/* ✅ IsGlobal with NO default tick */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
-            <Typography fontWeight={600}>Is Global Event:</Typography>
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isGlobal === true}
-                  onChange={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      isGlobal: true,
-                    }))
-                  }
-                />
-              }
-              label="True"
-            />
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isGlobal === false}
-                  onChange={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      isGlobal: false,
-                    }))
-                  }
-                />
-              }
-              label="False"
-            />
-          </Box>
+          {/* ✅ Simplified Global Event Checkbox */}
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={formData.isGlobal}
+                onChange={handleCheckboxChange("isGlobal")}
+              />
+            }
+            label="Global Event"
+            sx={{ display: "block", mb: 2 }}
+          />
 
           <FormControlLabel
             control={
@@ -230,6 +203,7 @@ const EventTypesModal = ({
               />
             }
             label="Ticketed Event"
+            sx={{ display: "block", mb: 2 }}
           />
 
           <FormControlLabel
@@ -240,6 +214,7 @@ const EventTypesModal = ({
               />
             }
             label="Training"
+            sx={{ display: "block", mb: 2 }}
           />
 
           {errors.submit && (
