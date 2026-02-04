@@ -2734,13 +2734,16 @@ ${xmlCols}
       fontWeight: 500,
       whiteSpace: "nowrap",
     },
-    tabsContainer: {
-      borderBottom: `1px solid ${theme.palette.divider}`,
-      padding: "0 clamp(12px, 3vw, 30px)",
-      display: "flex",
-      gap: 0,
-      position: "relative",
-    },
+   tabsContainer: {
+  borderBottom: `1px solid ${theme.palette.divider}`,
+  padding: "0 clamp(12px, 2vw, 30px)",
+  display: "flex",
+  position: "relative",
+  alignItems: "center",
+  justifyContent: "flex-start",
+  flexWrap: "wrap",
+},
+
     mobileMenuButton: {
       background: "none",
       border: "none",
