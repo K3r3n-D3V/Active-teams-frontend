@@ -2859,7 +2859,7 @@ ${xmlCols}
   flex: "unset",   
   width: "auto",   
   textAlign: "center",
-  padding: "8px 12px",
+  padding: "23px 12px",
   border: "transparent",
   borderRadius: "4px",
   backgroundColor: "transparent",
