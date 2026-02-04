@@ -3795,12 +3795,21 @@ ${xmlCols}
             <button style={styles.closeBtn} onClick={onClose}>
               CLOSE
             </button>
-            <button
+            
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                flex: isMobile ? "1 1 100%" : "none",
+                flexWrap: isMobile ? "wrap" : "nowrap",
+              }}
+            >
+              <button
               style={{
                 ...styles.saveBtn,
-                background: attendeesCount > 0 ? "#1976d2" : "#ccc",
+                background: attendeesCount > 0 ? "#1976d2" : "#757575ff",
                 cursor: attendeesCount > 0 ? "pointer" : "not-allowed",
-                minWidth: 180,
+                width: 180,
               }}
               onClick={downloadCheckedInAttendance}
               disabled={attendeesCount === 0}
@@ -3810,16 +3819,8 @@ ${xmlCols}
                   : "Download checked-in attendance (XLS)"
               }
             >
-              DOWNLOAD ATTENDANCE (XLS)
+              DOWNLOAD ATTENDANCE(XLS)
             </button>
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                flex: isMobile ? "1 1 100%" : "none",
-                flexWrap: isMobile ? "wrap" : "nowrap",
-              }}
-            >
               <button style={styles.didNotMeetBtn} onClick={handleDidNotMeet}>
                 DID NOT MEET
               </button>
