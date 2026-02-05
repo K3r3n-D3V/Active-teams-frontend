@@ -2870,10 +2870,13 @@ ${xmlCols}
 
 
     tabActive: {
-      // backgroundColor: theme.palette.primary.main,
-      color: "#0f0f0f",
-      borderColor: "transparent",
-    },
+  backgroundColor: "transparent",
+  color: "#4aa3ff", // blue text like screenshot
+  borderColor: "transparent",
+  borderBottom: "3px solid #4aa3ff",
+  borderRadius: 0,
+},
+
     contentArea: {
       flex: 1,
       overflowY: "auto",
@@ -2895,6 +2898,7 @@ ${xmlCols}
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
       paddingBottom: 8,
+       color: theme.palette.error.contrastText || "#fff",
     },
     table: {
       width: "100%",
