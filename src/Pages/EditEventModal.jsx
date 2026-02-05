@@ -55,7 +55,6 @@ const convertToSAST = (utcTime) => {
     // Add 2 hours for UTC to SAST conversion
     let sastHours = hours + 2;
     if (sastHours >= 24) sastHours -= 24;
-    if (sastHours < 0) sastHours += 24;
     
     // Format back to string
     return `${sastHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
@@ -77,7 +76,6 @@ const convertToUTC = (sastTime) => {
     // Subtract 2 hours for SAST to UTC conversion
     let utcHours = hours - 2;
     if (utcHours < 0) utcHours += 24;
-    if (utcHours >= 24) utcHours -= 24;
     
     // Format back to string
     return `${utcHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
@@ -694,40 +692,35 @@ const handleDeactivateCell = async () => {
       ) : <Box key={field}>{content}</Box>;
     }
 
-    // TIME FIELD - Fixed to prevent duplicate and show correct time
-    if (fl.includes('time') && !fl.includes('datetime')) {
-      // Skip duplicate time fields (show only 'Time' or 'time', not both)
-      if (field === 'time' && availableFields.includes('Time')) {
-        return null;
-      }
-      
-      // Value is already in SAST from backend, display as-is
-      const displayTime = value || '';
-      // const displayTime = value ? convertToSAST(value) : '';
-
-      
-      const content = (
-        <TextField 
-          fullWidth 
-          margin="normal" 
-          label={labelContent} 
-          type="time" 
-          value={displayTime}
-          onChange={(e) => {
-            // Convert to UTC when saving
-            // const newTime = convertToUTC(e.target.value);
-            handleChange(field, e.target.value);
-          }} 
-          InputLabelProps={{ shrink: true }}
-          error={isChanged} 
-          helperText={isChanged ? "Changed (time in SAST)" : "Time shown in SAST (UTC+2)"} 
-          disabled={isDisabled} 
-        />
-      );
-      return isDisabled && disabledReason ? (
-        <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
-      ) : <Box key={field}>{content}</Box>;
-    }
+if (fl.includes('time') && !fl.includes('datetime')) {
+  // Skip duplicate time fields
+  if (field === 'time' && availableFields.includes('Time')) {
+    return null;
+  }
+  
+  const displayTime = value || '';
+  
+  const content = (
+    <TextField 
+      fullWidth 
+      margin="normal" 
+      label={labelContent} 
+      type="time" 
+      value={displayTime}
+      onChange={(e) => {
+        // Store SAST time directly (backend will handle UTC conversion on save)
+        handleChange(field, e.target.value);
+      }} 
+      InputLabelProps={{ shrink: true }}
+      error={isChanged} 
+      helperText={isChanged ? "Changed (time in SAST)" : "Time shown in SAST (UTC+2)"} 
+      disabled={isDisabled} 
+    />
+  );
+  return isDisabled && disabledReason ? (
+    <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
+  ) : <Box key={field}>{content}</Box>;
+}
 
     if (fl.includes('email')) {
       const content = (
@@ -1141,25 +1134,53 @@ const handleDeactivateCell = async () => {
                   </Box>
                 )}
 
-                <Grid container spacing={3}>
-                  {locationFields.length > 0 && (
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="subtitle1" gutterBottom>
-                        Location
-                      </Typography>
-                      {locationFields.map(field => renderField(field))}
-                    </Grid>
-                  )}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Time & Location
+                  </Typography>
+                  <Grid container spacing={2}>
+                                        {/* Location field */}
+                    {locationFields.map(field => (
+                      <Grid item xs={12} md={4} key={field}>
+                        {renderField(field)}
+                      </Grid>
+                    ))}
+                    
+                    {/* Date field */}
+                    {timeFields.filter(f => {
+                      const fl = f.toLowerCase();
+                      return (fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) || f === 'date' || f === 'Date Of Event';
+                    }).map(field => (
+                      <Grid item xs={12} md={4} key={field}>
+                        {renderField(field)}
+                      </Grid>
+                    ))}
+                    
+                    {/* Time field */}
+                    {timeFields.filter(f => {
+                      const fl = f.toLowerCase();
+                      return (fl.includes('time') && !fl.includes('datetime')) && (f === 'Time' || f === 'time');
+                    }).map(field => (
+                      <Grid item xs={12} md={4} key={field}>
+                        {renderField(field)}
+                      </Grid>
+                    ))}
+                    
 
-                  {timeFields.length > 0 && (
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="subtitle1" gutterBottom>
-                        Time & Schedule
-                      </Typography>
-                      {timeFields.map(field => renderField(field))}
-                    </Grid>
-                  )}
-                </Grid>
+                    
+                    {/* Other time-related fields (Day, recurring_day) */}
+                    {timeFields.filter(f => {
+                      const fl = f.toLowerCase();
+                      const isDate = (fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) || f === 'date' || f === 'Date Of Event';
+                      const isTime = (fl.includes('time') && !fl.includes('datetime')) && (f === 'Time' || f === 'time');
+                      return !isDate && !isTime;
+                    }).map(field => (
+                      <Grid item xs={12} md={6} key={field}>
+                        {renderField(field)}
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
 
                 {otherFields.length > 0 && (
                   <Box sx={{ mt: 3 }}>
@@ -1186,16 +1207,32 @@ const handleDeactivateCell = async () => {
               </Box>
             ) : (
               <Grid container spacing={2}>
+                {/* Event Name, Leader, Email, Status, Day, Description fields */}
                 {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email',
-                  'date', 'Date Of Event', 'time', 'Time', 'location', 'Address',
-                  'status',
-                  'recurring_day', 'Day', 'description']
+                  'status', 'recurring_day', 'Day', 'description']
                   .filter(field => availableFields.includes(field))
                   .map(field => (
                     <Grid item xs={12} md={6} key={field}>
                       {renderField(field)}
                     </Grid>
                   ))}
+                
+                {/* Date, Time, and Location side by side - each taking 4 columns (1/3 of row) */}
+                {(availableFields.includes('date') || availableFields.includes('Date Of Event')) && (
+                  <Grid item xs={12} md={4}>
+                    {renderField(availableFields.includes('date') ? 'date' : 'Date Of Event')}
+                  </Grid>
+                )}
+                {(availableFields.includes('time') || availableFields.includes('Time')) && (
+                  <Grid item xs={12} md={4}>
+                    {renderField(availableFields.includes('Time') ? 'Time' : 'time')}
+                  </Grid>
+                )}
+                {(availableFields.includes('location') || availableFields.includes('Address')) && (
+                  <Grid item xs={12} md={4}>
+                    {renderField(availableFields.includes('Address') ? 'Address' : 'location')}
+                  </Grid>
+                )}
               </Grid>
             )}
           </Box>
