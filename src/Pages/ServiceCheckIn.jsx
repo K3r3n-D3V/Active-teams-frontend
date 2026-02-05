@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import {
+  // ... your existing imports
+  Checkbox,         // Add this
+  FormControlLabel, // Add this
+  Menu,             // Add this
+  DialogContentText, // Add this
+  ListItemIcon,     // Add this
+  ListItemText, 
+        // Add this
+} from "@mui/material";
+import {
   Box,
   Typography,
   Paper,
@@ -54,6 +64,9 @@ import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
 import EventHistoryModal from "../components/EventHistoryModal";
 import { AuthContext } from "../contexts/AuthContext";
 import * as XLSX from 'xlsx';
+import {
+  DeleteForever as DeleteForeverIcon,
+} from "@mui/icons-material";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -140,7 +153,26 @@ function ServiceCheckIn() {
     if (isLgDown) return lg;
     return xl;
   };
+// Add these after your existing state declarations
+const [removalModal, setRemovalModal] = useState({
+  open: false,
+  type: '', // 'new_person' or 'consolidation'
+  data: null,
+  validation: null,
+  isLoading: false
+});
 
+const [removeOptions, setRemoveOptions] = useState({
+  removeFromAttendees: true,
+  keepInAttendees: true
+});
+
+const [contextMenu, setContextMenu] = useState({
+  mouseX: null,
+  mouseY: null,
+  data: null,
+  type: null
+});
   const containerPadding = getResponsiveValue(0.5, 1, 2, 3, 3);
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(0.5, 1, 1.5, 2, 2);
@@ -349,7 +381,320 @@ function ServiceCheckIn() {
       setIsRefreshing(false);
     }
   };
+// Add these functions after your other handler functions
 
+const handleRemoveNewPerson = async (person) => {
+  if (!currentEventId) {
+    toast.error("Please select an event first");
+    return;
+  }
+
+  try {
+    // First validate the removal
+    const validateResponse = await authFetch(
+      `${BASE_URL}/service-checkin/validate-removal?event_id=${currentEventId}&person_id=${person.id}`
+    );
+    
+    if (validateResponse.ok) {
+      const validation = await validateResponse.json();
+      
+      // Show the removal confirmation modal
+      setRemovalModal({
+        open: true,
+        type: 'new_person',
+        data: person,
+        validation: validation,
+        isLoading: false
+      });
+    }
+  } catch (error) {
+    console.error("Validation error:", error);
+    toast.error("Failed to validate removal");
+  }
+};
+
+const handleRemoveConsolidation = async (consolidation) => {
+  if (!currentEventId) {
+    toast.error("Please select an event first");
+    return;
+  }
+
+  try {
+    const validateResponse = await authFetch(
+      `${BASE_URL}/service-checkin/validate-removal?event_id=${currentEventId}&consolidation_id=${consolidation.id}`
+    );
+    
+    if (validateResponse.ok) {
+      const validation = await validateResponse.json();
+      
+      setRemovalModal({
+        open: true,
+        type: 'consolidation',
+        data: consolidation,
+        validation: validation,
+        isLoading: false
+      });
+    }
+  } catch (error) {
+    console.error("Validation error:", error);
+    toast.error("Failed to validate removal");
+  }
+};
+
+const confirmRemoval = async () => {
+  setRemovalModal(prev => ({ ...prev, isLoading: true }));
+  
+  try {
+    const { type, data } = removalModal;
+    
+    if (type === 'new_person') {
+      // Call backend to remove new person
+      const response = await authFetch(
+        `${BASE_URL}/service-checkin/remove-new-person?event_id=${currentEventId}&person_id=${data.id}&remove_from_attendees=${removeOptions.removeFromAttendees}`,
+        { method: 'DELETE' }
+      );
+      
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message || "New person removed successfully");
+        
+        // Refresh the data
+        const freshData = await fetchRealTimeEventData(currentEventId);
+        if (freshData) {
+          setRealTimeData(freshData);
+        }
+      }
+    } else if (type === 'consolidation') {
+      // Call backend to remove consolidation (which will also delete the task)
+      const response = await authFetch(
+        `${BASE_URL}/service-checkin/remove-consolidation?event_id=${currentEventId}&consolidation_id=${data.id}&keep_person_in_attendees=${removeOptions.keepInAttendees}`,
+        { method: 'DELETE' }
+      );
+      
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message || "Consolidation and associated task removed successfully");
+        
+        // Refresh the data
+        const freshData = await fetchRealTimeEventData(currentEventId);
+        if (freshData) {
+          setRealTimeData(freshData);
+        }
+        
+        // Optional: Refresh tasks in DailyTask.jsx if it's open
+        // You might need to implement event broadcasting or use a context
+      }
+    }
+  } catch (error) {
+    console.error("Removal error:", error);
+    toast.error("Failed to remove. Please try again.");
+  } finally {
+    // Close the modal and reset
+    setRemovalModal({
+      open: false,
+      type: '',
+      data: null,
+      validation: null,
+      isLoading: false
+    });
+    setRemoveOptions({
+      removeFromAttendees: true,
+      keepInAttendees: true
+    });
+  }
+};
+
+// Context menu handlers
+const handleContextMenu = (event, person, type) => {
+  event.preventDefault();
+  setContextMenu({
+    mouseX: event.clientX - 2,
+    mouseY: event.clientY - 4,
+    data: person,
+    type: type // 'new_person' or 'consolidation'
+  });
+};
+
+const handleCloseContextMenu = () => {
+  setContextMenu({
+    mouseX: null,
+    mouseY: null,
+    data: null,
+    type: null
+  });
+};
+
+// Add this function inside ServiceCheckIn, before the return statement
+const EnhancedRemovalConfirmation = () => {
+  const { open, type, data, validation, isLoading } = removalModal;
+  
+  if (!open) return null;
+  
+  const personName = type === 'new_person' 
+    ? `${data?.name || ''} ${data?.surname || ''}`.trim()
+    : `${data?.person_name || ''} ${data?.person_surname || ''}`.trim();
+  
+  return (
+    <Dialog 
+      open={open} 
+      onClose={() => !isLoading && setRemovalModal(prev => ({ ...prev, open: false }))}
+    >
+      <DialogTitle>
+        {type === 'new_person' ? 'Remove New Person' : 'Remove Consolidation'}
+      </DialogTitle>
+      <DialogContent>
+        <DialogContentText>
+          Are you sure you want to remove{" "}
+          <strong>{personName || 'this person'}</strong>?
+          {type === 'new_person' 
+            ? ' They will be removed from the new people list.'
+            : ' This consolidation record will be removed.'
+          }
+        </DialogContentText>
+        
+        {/* ADD THIS SECTION FOR TASK DELETION WARNING */}
+        {type === 'consolidation' && validation?.affected_data?.task && (
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
+            <Typography variant="subtitle2" gutterBottom color="error.dark">
+              ⚠️ Task Will Be Deleted:
+            </Typography>
+            <Typography variant="body2" color="error.dark">
+              This consolidation has an associated task assigned to{" "}
+              <strong>{validation.affected_data.task.assigned_to}</strong>{" "}
+              (Status: {validation.affected_data.task.status}).
+            </Typography>
+            <Typography variant="body2" color="error.dark" sx={{ mt: 1, fontWeight: 'bold' }}>
+              This task will be permanently deleted!
+            </Typography>
+          </Box>
+        )}
+        
+        {validation && validation.warnings && validation.warnings.length > 0 && (
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              ⚠️ Warnings:
+            </Typography>
+            {validation.warnings.map((warning, idx) => (
+              <Typography key={idx} variant="body2" color="warning.dark">
+                • {warning}
+              </Typography>
+            ))}
+          </Box>
+        )}
+        
+        {type === 'new_person' && (
+          <Box sx={{ mt: 2 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={removeOptions.removeFromAttendees}
+                  onChange={(e) => setRemoveOptions(prev => ({
+                    ...prev,
+                    removeFromAttendees: e.target.checked
+                  }))}
+                />
+              }
+              label="Also remove from attendees list"
+            />
+          </Box>
+        )}
+        
+        {type === 'consolidation' && (
+          <Box sx={{ mt: 2 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={removeOptions.keepInAttendees}
+                  onChange={(e) => setRemoveOptions(prev => ({
+                    ...prev,
+                    keepInAttendees: e.target.checked
+                  }))}
+                />
+              }
+              label="Keep person in attendees list"
+            />
+          </Box>
+        )}
+        
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+          This action cannot be undone.
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button 
+          onClick={() => setRemovalModal(prev => ({ ...prev, open: false }))}
+          disabled={isLoading}
+        >
+          Cancel
+        </Button>
+        <Button 
+          onClick={confirmRemoval}
+          color="error"
+          variant="contained"
+          disabled={isLoading}
+          startIcon={<DeleteForeverIcon />}
+        >
+          {isLoading ? 'Removing...' : 
+            type === 'consolidation' && validation?.affected_data?.task 
+              ? 'Delete Consolidation & Task' 
+              : 'Confirm Removal'
+          }
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// Add this right after EnhancedRemovalConfirmation, before the return statement
+const ContextMenu = () => (
+  <Menu
+    open={contextMenu.mouseY !== null}
+    onClose={handleCloseContextMenu}
+    anchorReference="anchorPosition"
+    anchorPosition={
+      contextMenu.mouseY !== null && contextMenu.mouseX !== null
+        ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+        : undefined
+    }
+  >
+    {contextMenu.type === 'new_person' && (
+      <MenuItem 
+        onClick={() => {
+          handleRemoveNewPerson(contextMenu.data);
+          handleCloseContextMenu();
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Remove from New People</ListItemText>
+      </MenuItem>
+    )}
+    
+    {contextMenu.type === 'consolidation' && (
+      <MenuItem 
+        onClick={() => {
+          handleRemoveConsolidation(contextMenu.data);
+          handleCloseContextMenu();
+        }}
+      >
+        <ListItemIcon>
+          <DeleteForeverIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Remove Consolidation</ListItemText>
+      </MenuItem>
+    )}
+    
+    <Divider />
+    
+    <MenuItem onClick={handleCloseContextMenu}>
+      <ListItemIcon>
+        <CloseIcon fontSize="small" />
+      </ListItemIcon>
+      <ListItemText>Cancel</ListItemText>
+    </MenuItem>
+  </Menu>
+);
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
     try {
@@ -2066,45 +2411,57 @@ function s2ab(s) {
   };
 
 
-  const NewPersonCard = ({ person, showNumber, index }) => (
-    <Card
-      variant="outlined"
-      sx={{
-        mb: 1,
-        boxShadow: 2,
-        minHeight: '140px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        "&:last-child": { mb: 0 },
-        border: `2px solid ${theme.palette.success.main}`,
-        backgroundColor: isDarkMode
-          ? theme.palette.success.dark + "1a"
-          : theme.palette.success.light + "0a",
-      }}
-    >
-      <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-          <Box flex={1}>
-            <Typography variant="subtitle2" fontWeight={600}>
-              {showNumber && `${index}. `}{person.name} {person.surname}
-            </Typography>
-            {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
-            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
-            {person.gender && (
-              <Chip
-                label={person.gender}
-                size="small"
-                variant="outlined"
-                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }}
-              />
-            )}
-          </Box>
+  // Update the NewPersonCard component to include remove button
+const NewPersonCard = ({ person, showNumber, index }) => (
+  <Card
+    variant="outlined"
+    sx={{
+      mb: 1,
+      boxShadow: 2,
+      minHeight: '140px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      "&:last-child": { mb: 0 },
+      border: `2px solid ${theme.palette.success.main}`,
+      backgroundColor: isDarkMode
+        ? theme.palette.success.dark + "1a"
+        : theme.palette.success.light + "0a",
+    }}
+    onContextMenu={(e) => handleContextMenu(e, person, 'new_person')}
+  >
+    <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+        <Box flex={1}>
+          <Typography variant="subtitle2" fontWeight={600}>
+            {showNumber && `${index}. `}{person.name} {person.surname}
+          </Typography>
+          {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
+          {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+          {person.gender && (
+            <Chip
+              label={person.gender}
+              size="small"
+              variant="outlined"
+              sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }}
+            />
+          )}
         </Box>
-
-      </CardContent>
-    </Card>
-  );
+        {/* ADD REMOVE BUTTON HERE */}
+        <Tooltip title="Remove from new people">
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => handleRemoveNewPerson(person)}
+            sx={{ ml: 1 }}
+          >
+            <DeleteForeverIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    </CardContent>
+  </Card>
+);
 
 
   const ConsolidatedPersonCard = ({ person, showNumber, index }) => {
@@ -3110,52 +3467,66 @@ function s2ab(s) {
                   )}
                 </Box>
               ) : (
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {newPeoplePaginatedList.map((a, idx) => {
+// In the New People modal table, add a new column for actions:
+<Table size="small" stickyHeader>
+  <TableHead>
+    <TableRow>
+      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
+      {/* ADD THIS NEW COLUMN */}
+      <TableCell sx={{ fontWeight: 600, width: '80px' }}>Actions</TableCell>
+    </TableRow>
+  </TableHead>
+  <TableBody>
+    {newPeoplePaginatedList.map((a, idx) => {
+      const mappedPerson = {
+        ...a,
+        name: a.name || '',
+        surname: a.surname || '',
+        phone: a.phone || '',
+        email: a.email || '',
+        gender: a.gender || '',
+        invitedBy: a.invitedBy || '',
+      };
 
-                      const mappedPerson = {
-                        ...a,
-                        name: a.name || '',
-                        surname: a.surname || '',
-                        phone: a.phone || '',
-                        email: a.email || '',
-                        gender: a.gender || '',
-                        invitedBy: a.invitedBy || '',
-                      };
-
-                      return (
-                        <TableRow key={a.id || a._id} hover>
-                          <TableCell>{newPeoplePage * newPeopleRowsPerPage + idx + 1}</TableCell>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="medium">
-                              {mappedPerson.name} {mappedPerson.surname}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{mappedPerson.phone || "—"}</TableCell>
-                          <TableCell>{mappedPerson.email || "—"}</TableCell>
-                          <TableCell>{mappedPerson.gender || "—"}</TableCell>
-                          <TableCell>{mappedPerson.invitedBy || "—"}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    {newPeoplePaginatedList.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} align="center">No matching people</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+      return (
+        <TableRow 
+          key={a.id || a._id} 
+          hover
+          onContextMenu={(e) => handleContextMenu(e, a, 'new_person')}
+        >
+          <TableCell>{newPeoplePage * newPeopleRowsPerPage + idx + 1}</TableCell>
+          <TableCell>
+            <Typography variant="body2" fontWeight="medium">
+              {mappedPerson.name} {mappedPerson.surname}
+            </Typography>
+          </TableCell>
+          <TableCell>{mappedPerson.phone || "—"}</TableCell>
+          <TableCell>{mappedPerson.email || "—"}</TableCell>
+          <TableCell>{mappedPerson.gender || "—"}</TableCell>
+          <TableCell>{mappedPerson.invitedBy || "—"}</TableCell>
+          {/* ADD THIS CELL WITH REMOVE BUTTON */}
+          <TableCell>
+            <Tooltip title="Remove from new people">
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => handleRemoveNewPerson(a)}
+                sx={{ padding: '4px' }}
+              >
+                <DeleteForeverIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </TableCell>
+        </TableRow>
+      );
+    })}
+  </TableBody>
+</Table>
               )}
 
               <Box mt={1}>
@@ -3236,72 +3607,86 @@ function s2ab(s) {
                   )}
                 </Box>
               ) : (
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {consolidatedPaginatedList.map((person, idx) => {
+               // In the Consolidated modal table, add actions column:
+<Table size="small" stickyHeader>
+  <TableHead>
+    <TableRow>
+      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
+      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+      {/* ADD THIS NEW COLUMN */}
+      <TableCell sx={{ fontWeight: 600, width: '80px' }}>Actions</TableCell>
+    </TableRow>
+  </TableHead>
+  <TableBody>
+    {consolidatedPaginatedList.map((person, idx) => {
+      const mappedPerson = {
+        ...person,
+        person_name: person.person_name || '',
+        person_surname: person.person_surname || '',
+        person_email: person.person_email || '',
+        person_phone: person.person_phone || '',
+        decision_type: person.decision_type || 'Commitment',
+        assigned_to: person.assigned_to || 'Not assigned',
+        created_at: person.created_at || '',
+      };
 
-                      const mappedPerson = {
-                        ...person,
-                        person_name: person.person_name || '',
-                        person_surname: person.person_surname || '',
-                        person_email: person.person_email || '',
-                        person_phone: person.person_phone || '',
-                        decision_type: person.decision_type || 'Commitment',
-                        assigned_to: person.assigned_to || 'Not assigned',
-                        created_at: person.created_at || '',
-                      };
-
-                      return (
-                        <TableRow key={person.id || person._id || idx} hover>
-                          <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="medium">
-                              {mappedPerson.person_name} {mappedPerson.person_surname}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Box>
-                              {mappedPerson.person_email && (
-                                <Typography variant="body2">{mappedPerson.person_email}</Typography>
-                              )}
-                              {mappedPerson.person_phone && (
-                                <Typography variant="body2" color="text.secondary">{mappedPerson.person_phone}</Typography>
-                              )}
-                              {!mappedPerson.person_email && !mappedPerson.person_phone && "—"}
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={mappedPerson.decision_type}
-                              size="small"
-                              color={mappedPerson.decision_type === 'Recommitment' ? 'primary' : 'secondary'}
-                              variant="filled"
-                            />
-                          </TableCell>
-                          <TableCell>{mappedPerson.assigned_to}</TableCell>
-                          <TableCell>
-                            {mappedPerson.created_at ? new Date(mappedPerson.created_at).toLocaleDateString() : '—'}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    {consolidatedPaginatedList.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} align="center">No matching consolidated people</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+      return (
+        <TableRow 
+          key={person.id || person._id || idx} 
+          hover
+          onContextMenu={(e) => handleContextMenu(e, person, 'consolidation')}
+        >
+          <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
+          <TableCell>
+            <Typography variant="body2" fontWeight="medium">
+              {mappedPerson.person_name} {mappedPerson.person_surname}
+            </Typography>
+          </TableCell>
+          <TableCell>
+            <Box>
+              {mappedPerson.person_email && (
+                <Typography variant="body2">{mappedPerson.person_email}</Typography>
+              )}
+              {mappedPerson.person_phone && (
+                <Typography variant="body2" color="text.secondary">{mappedPerson.person_phone}</Typography>
+              )}
+              {!mappedPerson.person_email && !mappedPerson.person_phone && "—"}
+            </Box>
+          </TableCell>
+          <TableCell>
+            <Chip
+              label={mappedPerson.decision_type}
+              size="small"
+              color={mappedPerson.decision_type === 'Recommitment' ? 'primary' : 'secondary'}
+              variant="filled"
+            />
+          </TableCell>
+          <TableCell>{mappedPerson.assigned_to}</TableCell>
+          <TableCell>
+            {mappedPerson.created_at ? new Date(mappedPerson.created_at).toLocaleDateString() : '—'}
+          </TableCell>
+          {/* ADD THIS CELL WITH REMOVE BUTTON */}
+          <TableCell>
+            <Tooltip title="Remove consolidation">
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => handleRemoveConsolidation(person)}
+                sx={{ padding: '4px' }}
+              >
+                <DeleteForeverIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </TableCell>
+        </TableRow>
+      );
+    })}
+  </TableBody>
+</Table>
               )}
 
               <Box mt={1}>
@@ -3340,7 +3725,10 @@ function s2ab(s) {
           </Button>
         </DialogActions>
       </Dialog>
-      <EventHistoryModal
+      <EnhancedRemovalConfirmation />
+    <ContextMenu />
+
+           <EventHistoryModal
         open={eventHistoryModal.open}
         onClose={() => setEventHistoryModal({ open: false, event: null, type: null, data: [] })}
         event={eventHistoryModal.event}
@@ -3356,6 +3744,8 @@ function s2ab(s) {
         consolidatedPeople={filteredConsolidatedPeople}
         currentEventId={currentEventId}
       />
+       <EnhancedRemovalConfirmation />
+      <ContextMenu />
     </Box>
   );
 }
