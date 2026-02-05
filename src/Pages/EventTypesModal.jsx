@@ -1,4 +1,4 @@
- import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   Box,
@@ -9,8 +9,7 @@ import {
   Typography,
   useTheme,
   IconButton,
-  Card,
-  CardContent,
+  Alert,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import CategoryIcon from "@mui/icons-material/Category";
@@ -25,18 +24,16 @@ const EventTypesModal = ({
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
 
-const [formData, setFormData] = useState({
-  name: "",
-  description: "",
-  isTicketed: false,
-  isGlobal: false,  
-  hasPersonSteps: false,
-});
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    isTicketed: false,
+    isGlobal: false,
+  });
 
   const [errors, setErrors] = useState({});
   const nameInputRef = useRef(null);
   const isDarkMode = theme.palette.mode === "dark";
-  console.log("Selected Event Type:", isDarkMode);
 
   useEffect(() => {
     if (open && selectedEventType) {
@@ -44,11 +41,9 @@ const [formData, setFormData] = useState({
         name: selectedEventType.name || "",
         description: selectedEventType.description || "",
         isTicketed: !!selectedEventType.isTicketed,
-     isGlobal:
-  typeof selectedEventType.isGlobal === "boolean"
-    ? selectedEventType.isGlobal
-    : false, 
-        hasPersonSteps: !!selectedEventType.hasPersonSteps,
+        isGlobal: typeof selectedEventType.isGlobal === "boolean" 
+          ? selectedEventType.isGlobal 
+          : false,
       });
     } else if (open && !selectedEventType) {
       resetForm();
@@ -66,8 +61,7 @@ const [formData, setFormData] = useState({
       name: "",
       description: "",
       isTicketed: false,
-      isGlobal: null, // ✅ reset to no selection
-      hasPersonSteps: false,
+      isGlobal: false,
     });
     setErrors({});
   };
@@ -106,8 +100,7 @@ const [formData, setFormData] = useState({
         eventTypeName: formData.name.trim().toLowerCase(),
         description: formData.description.trim().toLowerCase(),
         isTicketed: formData.isTicketed,
-        isGlobal: formData.isGlobal, // null | true | false
-        hasPersonSteps: formData.hasPersonSteps,
+        isGlobal: formData.isGlobal,
         isEventType: true,
       };
 
@@ -129,8 +122,7 @@ const [formData, setFormData] = useState({
       onClose();
     } catch (error) {
       setErrors({
-        submit:
-          error.response?.data?.detail || "Failed to save event type.",
+        submit: error.response?.data?.detail || "Failed to save event type.",
       });
     } finally {
       setLoading(false);
@@ -154,7 +146,6 @@ const [formData, setFormData] = useState({
           my: "10vh",
         }}
       >
-        {/* Header */}
         <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 2 }}>
           <CategoryIcon color="primary" />
           <Typography variant="h6" sx={{ flex: 1 }}>
@@ -174,6 +165,8 @@ const [formData, setFormData] = useState({
             value={formData.name}
             onChange={handleInputChange}
             sx={{ mb: 2 }}
+            error={!!errors.name}
+            helperText={errors.name}
           />
 
           <TextField
@@ -185,62 +178,80 @@ const [formData, setFormData] = useState({
             value={formData.description}
             onChange={handleInputChange}
             sx={{ mb: 3 }}
+            error={!!errors.description}
+            helperText={errors.description}
           />
 
-          {/* ✅ IsGlobal with NO default tick */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
-            <Typography fontWeight={600}>Is Global Event:</Typography>
+          {/* Visibility Settings */}
+          <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,0,0,0.02)", borderRadius: 1 }}>
+            <Typography fontWeight={600} sx={{ mb: 1 }}>
+              Who can see this event type?
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+              True: All users can see this event type
+              False: Only Admin/LeaderAt12 can see this event type
+            </Typography>
+            
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.isGlobal === true}
+                    onChange={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        isGlobal: true,
+                      }))
+                    }
+                  />
+                }
+                label="True"
+              />
 
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.isGlobal === false}
+                    onChange={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        isGlobal: false,
+                      }))
+                    }
+                  />
+                }
+                label="False"
+              />
+            </Box>
+          </Box>
+
+          {/* Form Type Settings */}
+          <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,123,255,0.05)", borderRadius: 1 }}>
+            <Typography fontWeight={600} sx={{ mb: 2 }}>
+              Form Type Settings:
+            </Typography>
+            
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={formData.isGlobal === true}
-                  onChange={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      isGlobal: true,
-                    }))
-                  }
+                  checked={formData.isTicketed}
+                  onChange={handleCheckboxChange("isTicketed")}
                 />
               }
-              label="True"
-            />
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isGlobal === false}
-                  onChange={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      isGlobal: false,
-                    }))
-                  }
-                />
-              }
-              label="False"
+              label="Ticketed Event"
+              sx={{ display: "block" }}
             />
           </Box>
 
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={formData.isTicketed}
-                onChange={handleCheckboxChange("isTicketed")}
-              />
-            }
-            label="Ticketed Event"
-          />
-
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={formData.hasPersonSteps}
-                onChange={handleCheckboxChange("hasPersonSteps")}
-              />
-            }
-            label="Training"
-          />
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              <strong>How this works:</strong>
+              All events show basic fields (Event Name, Date, Location, etc.)
+              Ticketed events add price tiers section
+              Training events show only basic fields (no price tiers)
+              Built-in CELLS events show basic fields + leader @1 and @12 fields
+            </Typography>
+          </Alert>
 
           {errors.submit && (
             <Typography color="error" sx={{ mt: 2 }}>

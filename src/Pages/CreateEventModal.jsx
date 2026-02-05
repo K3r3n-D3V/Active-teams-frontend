@@ -45,6 +45,7 @@ const CreateEventModal = ({ open, onClose, user }) => {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Fetched event types:', data);
         setEventTypes(data || []);
       }
     } catch (error) {
@@ -52,10 +53,12 @@ const CreateEventModal = ({ open, onClose, user }) => {
     }
   };
 
-const handleEventTypeSelect = (eventType) => {
-  setSelectedEventType(eventType);
-  setSelectedEventTypeObj(null);
-};
+  const handleEventTypeSelect = (eventType) => {
+    console.log('Event type selected:', eventType);
+    setSelectedEventType(eventType.name || eventType);
+    setSelectedEventTypeObj(eventType);
+    setShowEventForm(true);
+  };
 
   const handleCreateNewEventType = () => {
     setEventTypeModalOpen(true);
@@ -65,34 +68,35 @@ const handleEventTypeSelect = (eventType) => {
     setEventTypeModalOpen(false);
   };
 
-const handleEventTypeSubmit = async (eventTypeData) => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${BACKEND_URL}/event-types`, {
-      method: 'POST',
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(eventTypeData),
-    });
+  const handleEventTypeSubmit = async (eventTypeData) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${BACKEND_URL}/event-types`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventTypeData),
+      });
 
-    if (response.ok) {
-      const newEventType = await response.json();
-      await fetchEventTypes();
-      
-      // setSelectedEventTypeFilter(newEventType.name);
-      setSelectedEventTypeObj(newEventType);
-      
-      setShowEventForm(true);
-      setEventTypeModalOpen(false);
-      return newEventType;
+      if (response.ok) {
+        const newEventType = await response.json();
+        console.log('New event type created:', newEventType);
+        await fetchEventTypes();
+        
+        setSelectedEventTypeObj(newEventType);
+        setSelectedEventType(newEventType.name);
+        
+        setShowEventForm(true);
+        setEventTypeModalOpen(false);
+        return newEventType;
+      }
+    } catch (error) {
+      console.error('Error creating event type:', error);
+      throw error;
     }
-  } catch (error) {
-    console.error('Error creating event type:', error);
-    throw error;
-  }
-};
+  };
 
   const handleModalClose = () => {
     setSelectedEventType(null);
@@ -179,13 +183,48 @@ const handleEventTypeSubmit = async (eventTypeData) => {
                       }
                     }}
                   >
-                    <Box>
+                    <Box sx={{ width: '100%' }}>
                       <Typography variant="subtitle1" fontWeight="600">
                         {eventType.name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         {eventType.description}
                       </Typography>
+                      <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                        {eventType.isTicketed && (
+                          <Typography variant="caption" sx={{ 
+                            bgcolor: 'warning.main', 
+                            color: 'white', 
+                            px: 1, 
+                            py: 0.25, 
+                            borderRadius: 1 
+                          }}>
+                            Ticketed
+                          </Typography>
+                        )}
+                        {eventType.isGlobal && (
+                          <Typography variant="caption" sx={{ 
+                            bgcolor: 'info.main', 
+                            color: 'white', 
+                            px: 1, 
+                            py: 0.25, 
+                            borderRadius: 1 
+                          }}>
+                            Global
+                          </Typography>
+                        )}
+                        {eventType.hasPersonSteps && (
+                          <Typography variant="caption" sx={{ 
+                            bgcolor: 'secondary.main', 
+                            color: 'white', 
+                            px: 1, 
+                            py: 0.25, 
+                            borderRadius: 1 
+                          }}>
+                            Training
+                          </Typography>
+                        )}
+                      </Box>
                     </Box>
                   </Button>
                 ))}
@@ -207,7 +246,7 @@ const handleEventTypeSubmit = async (eventTypeData) => {
               onClose={handleEventCreateSuccess}
               eventTypes={eventTypes}
               selectedEventType={selectedEventType}
-               selectedEventTypeObj={selectedEventTypeObj}
+              selectedEventTypeObj={selectedEventTypeObj}
             />
           )}
         </DialogContent>

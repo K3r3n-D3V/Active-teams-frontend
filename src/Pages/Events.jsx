@@ -1224,6 +1224,36 @@ ${xmlCols}
     }, 100);
   };
 
+  // Add this function after your useState declarations
+const findEventTypeByName = (typeName) => {
+  if (!typeName || typeName === "all") {
+    return {
+      name: "CELLS",
+      isGlobal: false,
+      isTicketed: false,
+      hasPersonSteps: true
+    };
+  }
+  
+  // Look for the event type in your eventTypes array
+  const found = eventTypes.find(et => {
+    const etName = et.name || et.eventTypeName || et.displayName || "";
+    return etName.toLowerCase() === typeName.toLowerCase();
+  });
+  
+  if (found) {
+    return found;
+  }
+  
+  // Default fallback for unknown event types
+  return {
+    name: typeName,
+    isGlobal: false,
+    isTicketed: false,
+    hasPersonSteps: false
+  };
+};
+
   const normalizeEventAttendance = (event) => {
     if (!event) return [];
     const eventDate = event.date;
@@ -3285,7 +3315,6 @@ useEffect(() => {
       }
     }
   } else {
-    // REMOVE all CELLS-specific filters for non-CELLS event types
     delete fetchParams.personal;
     delete fetchParams.leader_at_12_view;
     delete fetchParams.show_personal_cells;
@@ -3753,8 +3782,14 @@ const handleStatusClick = (statusValue) => {
   }, [eventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser, userRole]);
 
 const handleEventTypeClick = (typeValue) => {
+  const eventTypeObj = eventTypes.find(et => {
+    const etName = et.name || et.eventTypeName || et.displayName || "";
+    return etName.toLowerCase() === typeValue.toLowerCase();
+  }) || { name: typeValue };
+  
+  setSelectedEventTypeObj(eventTypeObj); // Set the full object
   setSelectedEventTypeFilter(typeValue);
-  setSelectedStatus("incomplete"); // Reset to incomplete
+  setSelectedStatus("incomplete");
   setCurrentPage(1);
   const fetchParams = {
     page: 1,
@@ -5209,21 +5244,27 @@ onClick={() => {
         },
       }}
     >
-      <MenuItem 
-        onClick={() => {
-          if (selectedTypeForMenu) {
-            setEditingEventType(selectedTypeForMenu);
-            setEventTypesModalOpen(true);
-          }
-          setMenuAnchor(null);
-        }}
-        sx={{ fontSize: "14px" }}
-      >
-        <ListItemIcon sx={{ minWidth: 36 }}>
-          <EditIcon fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>Edit</ListItemText>
-      </MenuItem>
+<MenuItem 
+  onClick={() => {
+    if (selectedTypeForMenu) {
+      // Get the full event type object
+      const fullEventTypeObj = findEventTypeByName(
+        selectedTypeForMenu.name || 
+        selectedTypeForMenu.eventTypeName || 
+        selectedTypeForMenu
+      );
+      setEditingEventType(fullEventTypeObj);
+      setEventTypesModalOpen(true);
+    }
+    setMenuAnchor(null);
+  }}
+  sx={{ fontSize: "14px" }}
+>
+  <ListItemIcon sx={{ minWidth: 36 }}>
+    <EditIcon fontSize="small" />
+  </ListItemIcon>
+  <ListItemText>Edit</ListItemText>
+</MenuItem>
       <MenuItem
         onClick={() => {
           if (selectedTypeForMenu) {
@@ -5248,7 +5289,6 @@ onClick={() => {
     </Popover>
 
     {/* FAB BUTTON FOR ADMIN */}
-   {/* FAB BUTTON FOR ADMIN - SHOW DIFFERENT BUTTONS BASED ON VIEW */}
 {isAdmin && (
   <Box
     sx={{
@@ -5306,21 +5346,24 @@ onClick={() => {
       )}
 
       {/* WHEN VIEWING EVENTS (TABLE) - SHOW CREATE EVENT ONLY */}
-      {showingEvents && (
-        <Box
-          sx={fabStyles.fabMenuItem}
-          onClick={() => {
-            setFabMenuOpen(false);
-            setCreateEventModalOpen(true);
-          }}
-          role="button"
-          tabIndex={fabMenuOpen ? 0 : -1}
-          aria-label="Create Event Data"
-        >
-          <Typography sx={fabStyles.fabMenuLabel}>Create Event Data</Typography>
-          <Box sx={fabStyles.fabMenuIcon}></Box>
-        </Box>
-      )}
+{showingEvents && (
+  <Box
+    sx={fabStyles.fabMenuItem}
+    onClick={() => {
+      setFabMenuOpen(false);
+      // Get the current event type object
+      const eventTypeObj = findEventTypeByName(selectedEventTypeFilter);
+      setSelectedEventTypeObj(eventTypeObj); // Set the object first
+      setCreateEventModalOpen(true);
+    }}
+    role="button"
+    tabIndex={fabMenuOpen ? 0 : -1}
+    aria-label="Create Event Data"
+  >
+    <Typography sx={fabStyles.fabMenuLabel}>Create Event Data</Typography>
+    <Box sx={fabStyles.fabMenuIcon}></Box>
+  </Box>
+)}
     </Box>
 
     {/* MAIN FAB BUTTON (+) */}
@@ -5386,63 +5429,64 @@ onClick={() => {
       />
     )}
     
-    {createEventModalOpen && (
+ {createEventModalOpen && (
+  <Box
+    sx={styles.modalOverlay}
+    onClick={(e) => {
+      if (e.target === e.currentTarget) {
+        handleCloseCreateEventModal();
+      }
+    }}
+  >
+    <Box
+      sx={{
+        ...styles.modalContent,
+        backgroundColor: isDarkMode
+          ? theme.palette.background.paper
+          : "white",
+      }}
+    >
       <Box
-        sx={styles.modalOverlay}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            handleCloseCreateEventModal();
-          }
+        sx={{
+          ...styles.modalHeader,
+          backgroundColor: isDarkMode
+            ? theme.palette.background.default
+            : "#333",
         }}
       >
-        <Box
-          sx={{
-            ...styles.modalContent,
-            backgroundColor: isDarkMode
-              ? theme.palette.background.paper
-              : "white",
-          }}
+        <Typography sx={styles.modalTitle}>
+          {selectedEventTypeFilter === "CELLS" || selectedEventTypeFilter === "all"
+            ? "Create New Cell"
+            : "Create New Event"}
+        </Typography>
+        <IconButton
+          sx={styles.modalCloseButton}
+          onClick={() => handleCloseCreateEventModal(false)}
         >
-          <Box
-            sx={{
-              ...styles.modalHeader,
-              backgroundColor: isDarkMode
-                ? theme.palette.background.default
-                : "#333",
-            }}
-          >
-            <Typography sx={styles.modalTitle}>
-              {selectedEventTypeObj?.name === "CELLS"
-                ? "Create New Cell"
-                : "Create New Event"}
-            </Typography>
-            <IconButton
-              sx={styles.modalCloseButton}
-              onClick={() => handleCloseCreateEventModal(false)}
-            >
-              ×
-            </IconButton>
-          </Box>
-          <Box
-            sx={{
-              ...styles.modalBody,
-              backgroundColor: isDarkMode
-                ? theme.palette.background.paper
-                : "white",
-            }}
-          >
-            <CreateEvents
-              user={currentUser}
-              isModal={true}
-              onClose={handleCloseCreateEventModal}
-              selectedEventTypeObj={selectedEventTypeObj}
-              selectedEventType={selectedEventTypeFilter}
-              eventTypes={allEventTypes}
-            />
-          </Box>
-        </Box>
+          ×
+        </IconButton>
       </Box>
-    )}
+      <Box
+        sx={{
+          ...styles.modalBody,
+          backgroundColor: isDarkMode
+            ? theme.palette.background.paper
+            : "white",
+        }}
+      >
+<CreateEvents
+  key={selectedEventTypeFilter} // This forces re-render when event type changes
+  user={currentUser}
+  isModal={true}
+  onClose={handleCloseCreateEventModal}
+  selectedEventTypeObj={findEventTypeByName(selectedEventTypeFilter)} // Use the function
+  selectedEventType={selectedEventTypeFilter}
+  eventTypes={eventTypes}
+/>
+      </Box>
+    </Box>
+  </Box>
+)}
     
     <EditEventModal
       isOpen={editModalOpen}
