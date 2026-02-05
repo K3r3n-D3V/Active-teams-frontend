@@ -2734,7 +2734,7 @@ ${xmlCols}
       fontWeight: 500,
       whiteSpace: "nowrap",
     },
-   tabsContainer: {
+   tabccr: {
   borderBottom: `1px solid ${theme.palette.divider}`,
   padding: "0 clamp(12px, 2vw, 30px)",
   display: "flex",
