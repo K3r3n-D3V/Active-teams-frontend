@@ -2826,9 +2826,9 @@ ${xmlCols}
       fontWeight: 500,
       whiteSpace: "nowrap",
     },
-  tabsContainer: {
+   tabsContainer: {
   borderBottom: `1px solid ${theme.palette.divider}`,
-  padding: "0 clamp(12px, 3vw, 30px)",
+  padding: "0 clamp(12px, 2vw, 30px)",
   display: "flex",
   position: "relative",
   alignItems: "center",
