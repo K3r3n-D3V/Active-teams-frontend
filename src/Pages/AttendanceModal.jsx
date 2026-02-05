@@ -1553,8 +1553,8 @@ const loadWeeklyCheckins = () => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("perPage", "0");
-      // params.append("page", "1");
+      params.append("perPage", "100");
+      params.append("page", "1");
 
       const res = await authFetch(
         `${BACKEND_URL}/people?${params.toString()}`,
@@ -1598,41 +1598,126 @@ const loadWeeklyCheckins = () => {
       console.error("Error pre-loading people in AttendanceModal:", err);
     }
   };
-  const fetchPeople = (q = "") => {
-  if (!q.trim()) {
-    // Show first 50 people when no search term
-    if (preloadedPeople.length > 0) {
-      setPeople(preloadedPeople.slice(0, 50));
-    } else {
-      setPeople([]);
+  useEffect(() => {
+  if (isOpen && event) {
+    let eventId = event._id || event.id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
     }
-    return;
-  }
+    console.log(" Opening modal for event:", eventId, "Date:", event.date);
 
-  // LOCAL FILTERING ONLY - no API calls
-  const searchTerm = q.toLowerCase().trim();
-  
-  const filtered = preloadedPeople.filter(person => {
-    const fullName = person.fullName.toLowerCase();
-    const email = (person.email || "").toLowerCase();
-    const phone = (person.phone || "").toLowerCase();
-    const leader1 = (person.leader1 || "").toLowerCase();
-    const leader12 = (person.leader12 || "").toLowerCase();
-    const leader144 = (person.leader144 || "").toLowerCase();
+    // Reset all form states
+    setSearchName("");
+    setAssociateSearch("");
+    setActiveTab(0);
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+
+    const loadAllData = async () => {
+      console.log(" Loading all data...");
+      
+      // Load persistent attendees first
+      await loadPersistentAttendees(eventId);
+      
+      // Then load statistics
+      await loadEventStatistics();
+      
+      // Finally load check-ins
+      loadWeeklyCheckins();
+    };
+
+    loadAllData();
+    fetchPeople();
+
+    // Set "did not meet" status only if this week is marked as such
+    const attendanceData = event.attendance || {};
+    const eventDate = event.date;
+    const weekAttendance = attendanceData[eventDate] || {};
     
-    // Check all fields for matches
-    return fullName.includes(searchTerm) ||
-           email.includes(searchTerm) ||
-           phone.includes(searchTerm) ||
-           leader1.includes(searchTerm) ||
-           leader12.includes(searchTerm) ||
-           leader144.includes(searchTerm);
-  })
-  .sort((a, b) => a.fullName.localeCompare(b.fullName)) // Sort alphabetically
-  .slice(0, 100); // Limit to 100 results
-  
-  setPeople(filtered);
-};
+    setDidNotMeet(weekAttendance?.status === "did_not_meet" || false);
+  }
+}, [isOpen, event]);
+
+  const fetchPeople = async (q) => {
+    if (!q.trim()) {
+      if (preloadedPeople.length > 0) {
+        console.log(" Showing preloaded people list");
+        setPeople(preloadedPeople.slice(0, 50));
+      } else {
+        setPeople([]);
+      }
+      return;
+    }
+
+    const query = q.trim();
+    const queryLower = query.toLowerCase();
+
+    try {
+      const res = await authFetch(
+        `${BACKEND_URL}/people?name=${encodeURIComponent(query)}`
+      );
+
+      if (!res.ok) throw new Error("Failed to fetch people");
+
+      const data = await res.json();
+      const results = data?.results || [];
+      const filtered = results.filter((p) => {
+        const fullNameLower =
+          `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
+
+        if (fullNameLower.includes(queryLower)) return true;
+
+        const queryWords = queryLower.split(/\s+/).filter(Boolean);
+        return queryWords.every((word) => fullNameLower.includes(word));
+      });
+
+      const formatted = filtered.map((p) => ({
+        id: p._id,
+        fullName:
+          `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1:
+          p["Leader @1"] ||
+          p["Leader at 1"] ||
+          p["Leader @ 1"] ||
+          p.leader1 ||
+          (p.leaders && p.leaders[0]) ||
+          "",
+        leader12:
+          p["Leader @12"] ||
+          p["Leader at 12"] ||
+          p["Leader @ 12"] ||
+          p.leader12 ||
+          (p.leaders && p.leaders[1]) ||
+          "",
+        leader144:
+          p["Leader @144"] ||
+          p["Leader at 144"] ||
+          p["Leader @ 144"] ||
+          p.leader144 ||
+          (p.leaders && p.leaders[2]) ||
+          "",
+        phone: p.Number || p.Phone || p.phone || "",
+      }));
+
+      setPeople(formatted);
+    } catch (err) {
+      console.error("Error fetching people:", err);
+      toast.error(err.message);
+      if (preloadedPeople.length > 0) {
+        setPeople(preloadedPeople.slice(0, 50));
+      } else {
+        setPeople([]);
+      }
+    }
+  };
+
   const fetchCommonAttendees = async (cellId) => {
     try {
       const token = localStorage.getItem("token");
@@ -1760,15 +1845,18 @@ const loadWeeklyCheckins = () => {
   }, [isOpen]);
 
   useEffect(() => {
-  const delay = setTimeout(() => {
-    if (isOpen && activeTab === 1) {
-      // Use the local filtering version (no API call)
-      fetchPeople(associateSearch);
-    }
-  }, 300);
+    const delay = setTimeout(() => {
+      if (isOpen && activeTab === 1) {
+        if (associateSearch.trim()) {
+          fetchPeople(associateSearch);
+        } else {
+          fetchPeople("");
+        }
+      }
+    }, 300);
 
-  return () => clearTimeout(delay);
-}, [associateSearch, isOpen, activeTab]);
+    return () => clearTimeout(delay);
+  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
   const handleCheckIn = (id) => {
     setCheckedIn((prev) => {
@@ -2032,7 +2120,11 @@ const loadWeeklyCheckins = () => {
     person.email.toLowerCase().includes(searchName.toLowerCase())
   );
 
-  const filteredPeople = people; // Already filtered by fetchPeople, so just use it directly
+  const filteredPeople = people.filter(
+    (person) =>
+      person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
+      person.email.toLowerCase().includes(associateSearch.toLowerCase()),
+  );
 
   const handleSave = async () => {
     const allPeople = getAllCommonAttendees();
@@ -2734,9 +2826,9 @@ ${xmlCols}
       fontWeight: 500,
       whiteSpace: "nowrap",
     },
-   tabccr: {
+  tabsContainer: {
   borderBottom: `1px solid ${theme.palette.divider}`,
-  padding: "0 clamp(12px, 2vw, 30px)",
+  padding: "0 clamp(12px, 3vw, 30px)",
   display: "flex",
   position: "relative",
   alignItems: "center",
@@ -2745,30 +2837,42 @@ ${xmlCols}
 },
 
     mobileMenuButton: {
-      background: "none",
-      border: "none",
-      padding: 12,
+      minWidth: "40px",
+      padding: "4px",
+      display: "flex",
+      justifyContent: "center",
       cursor: "pointer",
-      color: theme.palette.primary.main,
-      display: isMobile ? "flex" : "none",
-      alignItems: "center",
-    },
-    tab: {
-      padding: "clamp(10px, 2vw, 16px) clamp(12px, 2vw, 24px)",
-      fontSize: 14,
-      fontWeight: 600,
-      background: "none",
+      background: "transparent",
       border: "none",
-      borderBottom: "3px solid transparent",
-      cursor: "pointer",
-      color: theme.palette.text.secondary,
-      transition: "all 0.2s",
-      whiteSpace: "nowrap",
-      flex: isMobile ? "1" : "none",
+      marginRight: "8px",
     },
+  tabsWrapper: {
+  display: "flex",
+  flexDirection: "row",
+  gap: "25px", 
+  width: "auto",
+  marginTop: isMobile ? "8px" : "0",
+  flexWrap: "wrap",
+},
+
+  tab: {
+  flex: "unset",   
+  width: "auto",   
+  textAlign: "center",
+  padding: "23px 12px",
+  border: "transparent",
+  borderRadius: "4px",
+  backgroundColor: "transparent",
+  cursor: "pointer",
+  color: theme.palette.text.primary,
+  minWidth: "unset", 
+},
+
+
     tabActive: {
-      color: theme.palette.primary.main,
-      borderBottom: `3px solid ${theme.palette.primary.main}`,
+      // backgroundColor: theme.palette.primary.main,
+      color: "#0f0f0f",
+      borderColor: "transparent",
     },
     contentArea: {
       flex: 1,
@@ -3017,7 +3121,7 @@ ${xmlCols}
       background: theme.palette.error.main,
       color: theme.palette.error.contrastText || "#fff",
       border: "none",
-      padding: "12px 20px",
+      padding: "8px 20px",
       borderRadius: 6,
       cursor: "pointer",
       fontSize: 16,
