@@ -28,12 +28,14 @@ const EventTypesModal = ({
     name: "",
     description: "",
     isTicketed: false,
+    isTraining: false,  
     isGlobal: false,
   });
 
   const [errors, setErrors] = useState({});
   const nameInputRef = useRef(null);
   const isDarkMode = theme.palette.mode === "dark";
+  console.log("Selected Event Type in Modal:", isDarkMode);
 
   useEffect(() => {
     if (open && selectedEventType) {
@@ -41,8 +43,9 @@ const EventTypesModal = ({
         name: selectedEventType.name || "",
         description: selectedEventType.description || "",
         isTicketed: !!selectedEventType.isTicketed,
-        isGlobal: typeof selectedEventType.isGlobal === "boolean" 
-          ? selectedEventType.isGlobal 
+        isTraining: !!selectedEventType.isTraining, 
+        isGlobal: typeof selectedEventType.isGlobal === "boolean"
+          ? selectedEventType.isGlobal
           : false,
       });
     } else if (open && !selectedEventType) {
@@ -61,6 +64,7 @@ const EventTypesModal = ({
       name: "",
       description: "",
       isTicketed: false,
+      isTraining: false,  
       isGlobal: false,
     });
     setErrors({});
@@ -100,6 +104,7 @@ const EventTypesModal = ({
         eventTypeName: formData.name.trim().toLowerCase(),
         description: formData.description.trim().toLowerCase(),
         isTicketed: formData.isTicketed,
+        isTraining: formData.isTraining,
         isGlobal: formData.isGlobal,
         isEventType: true,
       };
@@ -184,14 +189,10 @@ const EventTypesModal = ({
 
           {/* Visibility Settings */}
           <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,0,0,0.02)", borderRadius: 1 }}>
-            <Typography fontWeight={600} sx={{ mb: 1 }}>
-              Who can see this event type?
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
-              True: All users can see this event type
-              False: Only Admin/LeaderAt12 can see this event type
-            </Typography>
-            
+
+            <Typography fontWeight={600} sx={{ mb: 2 }}>
+
+              isGlobal Event            </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <FormControlLabel
                 control={
@@ -228,9 +229,9 @@ const EventTypesModal = ({
           {/* Form Type Settings */}
           <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,123,255,0.05)", borderRadius: 1 }}>
             <Typography fontWeight={600} sx={{ mb: 2 }}>
-              Form Type Settings:
+              Type Settings:
             </Typography>
-            
+
             <FormControlLabel
               control={
                 <Checkbox
@@ -239,19 +240,21 @@ const EventTypesModal = ({
                 />
               }
               label="Ticketed Event"
-              sx={{ display: "block" }}
+              sx={{ mb: 2, display: 'block' }}
+            />
+
+            {/* ADDED TRAINING CHECKBOX */}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.isTraining}
+                  onChange={handleCheckboxChange("isTraining")}
+                />
+              }
+              label="Training Event"
+              sx={{ display: 'block' }}
             />
           </Box>
-
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <Typography variant="body2">
-              <strong>How this works:</strong>
-              All events show basic fields (Event Name, Date, Location, etc.)
-              Ticketed events add price tiers section
-              Training events show only basic fields (no price tiers)
-              Built-in CELLS events show basic fields + leader @1 and @12 fields
-            </Typography>
-          </Alert>
 
           {errors.submit && (
             <Typography color="error" sx={{ mt: 2 }}>

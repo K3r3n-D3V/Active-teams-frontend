@@ -48,9 +48,11 @@ const CreateEvents = ({
   const [eventTypeFlags, setEventTypeFlags] = useState({
     isGlobal: false,
     isTicketed: false,
+    isTraining: false,
   });
 
-  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent } = eventTypeFlags;
+  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, isTraining } = eventTypeFlags;
+  console.log("Event Type Flags:", isGlobalEvent);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
@@ -58,6 +60,7 @@ const CreateEvents = ({
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isAdmin = user?.role === "admin";
+  console.log("isAdmin:", isAdmin);
 
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
@@ -87,7 +90,6 @@ const CreateEvents = ({
     "Sunday",
   ];
 
-  // Helper function to check if event type is CELLS
   const isCellsEventType = (eventTypeName) => {
     if (!eventTypeName) return false;
     const normalized = eventTypeName.toLowerCase().trim();
@@ -96,13 +98,12 @@ const CreateEvents = ({
 
   useEffect(() => {
     const determineEventType = () => {
-      // Default flags
       const defaultFlags = {
         isGlobal: false,
         isTicketed: false,
+        isTraining: false,
       };
       
-      // If we have a selectedEventTypeObj, use its properties
       if (selectedEventTypeObj) {
         const eventTypeName = selectedEventTypeObj.name || selectedEventTypeObj.displayName || selectedEventTypeObj.eventTypeName || "";
         
@@ -110,17 +111,18 @@ const CreateEvents = ({
           eventType: eventTypeName,
           isGlobal: selectedEventTypeObj.isGlobal === true,
           isTicketed: selectedEventTypeObj.isTicketed === true,
+          isTraining: selectedEventTypeObj.isTraining === true,
         };
       }
       
-      // If we have a selectedEventType string, find the matching object
       if (selectedEventType) {
-        // Handle "all" and convert to "CELLS"
+        // Handle "all" 
         if (selectedEventType === 'all' || selectedEventType.toUpperCase() === 'ALL CELLS') {
           return {
             eventType: 'CELLS',
             isGlobal: false,
             isTicketed: false,
+            isTraining: false,
           };
         }
         
@@ -142,6 +144,7 @@ const CreateEvents = ({
             eventType: eventTypeName,
             isGlobal: foundEventType.isGlobal === true,
             isTicketed: foundEventType.isTicketed === true,
+            isTraining: foundEventType.isTraining === true,
           };
         }
       }
@@ -152,11 +155,12 @@ const CreateEvents = ({
       };
     };
 
-    const { eventType, isGlobal, isTicketed } = determineEventType();
+    const { eventType, isGlobal, isTicketed, isTraining } = determineEventType();
 
     setEventTypeFlags({
       isGlobal,
       isTicketed,
+      isTraining,
     });
 
     setFormData((prev) => ({
@@ -266,6 +270,13 @@ const CreateEvents = ({
           setEventTypeFlags(prev => ({
             ...prev,
             isTicketed: !!data.isTicketed
+          }));
+        }
+
+        if (data.isTraining !== undefined) {
+          setEventTypeFlags(prev => ({
+            ...prev,
+            isTraining: !!data.isTraining
           }));
         }
 
@@ -428,13 +439,14 @@ const CreateEvents = ({
         eventTypeToSend = "CELLS";
       }
 
-      const { isGlobal, isTicketed } = eventTypeFlags;
+      const { isGlobal, isTicketed, isTraining } = eventTypeFlags;
 
       const payload = {
         UUID: generateUUID(),
         eventTypeName: eventTypeToSend,
         eventName: formData.eventName,
         isTicketed: !!isTicketed,
+        isTraining: !!isTraining,
         isGlobal: !!isGlobal,
         hasPersonSteps: isCellsEventType(eventTypeToSend),
         location: formData.location,
@@ -484,6 +496,7 @@ const CreateEvents = ({
       const response = eventId 
         ? await axios.put(url, payload, { headers }) 
         : await axios.post(url, payload, { headers });
+        console.log("API Response:", response);
       
       toast.success(eventId ? "Event updated!" : "Event created!");
       if (!eventId) resetForm();
@@ -1065,9 +1078,9 @@ const CreateEvents = ({
             )}
 
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {isCellsEvent && <Chip label="CELLS Event" color="primary" size="small" />}
+              {isCellsEvent && <Chip label="CELL" color="primary" size="small" />}
               {shouldShowPriceTiers && <Chip label="Ticketed Event" color="warning" size="small" />}
-              {!isCellsEvent && !shouldShowPriceTiers && <Chip label="Training Event" color="info" size="small" />}
+              {isTraining && <Chip label="Training Event" color="info" size="small" />}
             </Box>
 
             <TextField

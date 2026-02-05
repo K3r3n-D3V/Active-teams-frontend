@@ -71,50 +71,50 @@ const formatRecurringDays = (recurringDays) => {
   return `Every ${sorted.join(", ")} & ${last}`;
 };
 
-const getNextOccurrence = (recurringDays, fromDate = new Date()) => {
-  if (!recurringDays || recurringDays.length === 0) {
-    return null;
-  }
+// const getNextOccurrence = (recurringDays, fromDate = new Date()) => {
+//   if (!recurringDays || recurringDays.length === 0) {
+//     return null;
+//   }
 
-  const dayMap = {
-    Sunday: 0,
-    Monday: 1,
-    Tuesday: 2,
-    Wednesday: 3,
-    Thursday: 4,
-    Friday: 5,
-    Saturday: 6,
-  };
+//   const dayMap = {
+//     Sunday: 0,
+//     Monday: 1,
+//     Tuesday: 2,
+//     Wednesday: 3,
+//     Thursday: 4,
+//     Friday: 5,
+//     Saturday: 6,
+//   };
 
-  const targetDays = recurringDays
-    .map((day) => dayMap[day])
-    .filter((d) => d !== undefined)
-    .sort((a, b) => a - b);
+//   const targetDays = recurringDays
+//     .map((day) => dayMap[day])
+//     .filter((d) => d !== undefined)
+//     .sort((a, b) => a - b);
 
-  if (targetDays.length === 0) return null;
+//   if (targetDays.length === 0) return null;
 
-  const today = new Date(fromDate);
-  today.setHours(0, 0, 0, 0);
-  const currentDay = today.getDay();
+//   const today = new Date(fromDate);
+//   today.setHours(0, 0, 0, 0);
+//   const currentDay = today.getDay();
 
-  let daysToAdd = null;
+//   let daysToAdd = null;
 
-  for (const targetDay of targetDays) {
-    if (targetDay > currentDay) {
-      daysToAdd = targetDay - currentDay;
-      break;
-    }
-  }
+//   for (const targetDay of targetDays) {
+//     if (targetDay > currentDay) {
+//       daysToAdd = targetDay - currentDay;
+//       break;
+//     }
+//   }
 
-  if (daysToAdd === null) {
-    daysToAdd = 7 - currentDay + targetDays[0];
-  }
+//   if (daysToAdd === null) {
+//     daysToAdd = 7 - currentDay + targetDays[0];
+//   }
 
-  const nextDate = new Date(today);
-  nextDate.setDate(nextDate.getDate() + daysToAdd);
+//   const nextDate = new Date(today);
+//   nextDate.setDate(nextDate.getDate() + daysToAdd);
 
-  return nextDate;
-};
+//   return nextDate;
+// };
 
 const styles = {
   container: {
@@ -1489,21 +1489,16 @@ const fetchEvents = useCallback(
         page: filters.page || currentPage,
         limit: filters.limit || rowsPerPage,
         start_date: filters.start_date || DEFAULT_API_START_DATE,
-        // ALWAYS default to "incomplete" status unless specified otherwise
+        // ALWAYS default to "incomplete" status
         status: filters.status || selectedStatus || "incomplete",
       };
 
       if (filters.search) params.search = filters.search;
-      
-      // CRITICAL FIX: Ensure event_type is passed correctly
-      if (filters.event_type) {
+            if (filters.event_type) {
         params.event_type = filters.event_type;
       }
-
-      // CRITICAL: Determine endpoint based on event_type
       let endpoint = `${BACKEND_URL}/events`;
       
-      // Check if this is a CELLS type event
       const eventType = filters.event_type || selectedEventTypeFilter;
       const isCellType = 
         !eventType || 
@@ -1511,16 +1506,10 @@ const fetchEvents = useCallback(
         eventType === "all" ||
         eventType.toLowerCase() === "cells" ||
         (eventType && eventType.toLowerCase().includes("cell"));
-      
-      console.log("📍 Event Type:", eventType);
-      console.log("📍 Is Cell Type:", isCellType);
-      console.log("📍 Status being sent:", params.status);
-      
-      // Use different endpoints for CELLS vs other event types
+    
       if (isCellType) {
         endpoint = `${BACKEND_URL}/events/cells`;
         
-        // Apply CELLS-specific role logic
         if (isLeaderAt12) {
           params.leader_at_12_view = true;
           if (viewFilter === "personal") params.personal = true;
@@ -1532,7 +1521,6 @@ const fetchEvents = useCallback(
         }
       } else {
         endpoint = `${BACKEND_URL}/events/other`;
-        // Remove CELLS-specific params for non-CELLS events
         delete params.personal;
         delete params.leader_at_12_view;
         delete params.include_subordinate_cells;
@@ -1542,7 +1530,7 @@ const fetchEvents = useCallback(
       }
 
       const queryString = new URLSearchParams(params).toString();
-      console.log("🌐 Full URL:", `${endpoint}?${queryString}`);
+      console.log(" Full URL:", `${endpoint}?${queryString}`);
       
       const response = await authFetch(`${endpoint}?${queryString}`, {
         method: "GET",
@@ -1555,8 +1543,8 @@ const fetchEvents = useCallback(
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
-      console.log("✅ Received events:", data.events?.length || 0);
-      console.log("📊 Event statuses in response:", [...new Set(data.events?.map(e => e.status))]);
+      console.log(" Received events:", data.events?.length || 0);
+      console.log(" Event statuses in response:", [...new Set(data.events?.map(e => e.status))]);
       
       const allEvents = data.events || [];
       const currentUserEmail = currentUser?.email?.toLowerCase().trim();
@@ -1572,7 +1560,7 @@ const fetchEvents = useCallback(
         return isGlobal || isCreator || isAssignedLeader;
       });
 
-      console.log("✅ Filtered events:", filtered.length);
+      console.log(" Filtered events:", filtered.length);
       
       setEvents(filtered);
       setTotalEvents(data.total_events || 0);
@@ -1593,7 +1581,6 @@ const fetchEvents = useCallback(
   },
   [currentPage, rowsPerPage, authFetch, BACKEND_URL, isLeaderAt12, isAdmin, currentUser, viewFilter, logout, selectedEventTypeFilter, selectedStatus]
 );
-
 const fetchEventTypes = useCallback(async () => {
   try {
     const token = localStorage.getItem("access_token");
@@ -1609,14 +1596,15 @@ const fetchEventTypes = useCallback(async () => {
     const eventTypesData = await response.json();
     const role = (currentUser?.role || "").toLowerCase().trim();
     const email = (currentUser?.email || "").toLowerCase();
-    const isManager = role === "admin" || role === "leaderat12";
+    const isManager = role === "admin" || role === "leaderat12" || role === "registrant";
+    
     const filteredTypes = eventTypesData.filter((type) => {
       if (isManager) return true;
       const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
-      const isOwner =
-        type.userEmail?.toLowerCase() === email;
+      const isOwner = type.userEmail?.toLowerCase() === email;
       return type.isEventType === true && (isGlobalType || isOwner);
     });
+    
     setEventTypes(filteredTypes);
     setCustomEventTypes(filteredTypes);
     setUserCreatedEventTypes(filteredTypes);
@@ -1637,7 +1625,6 @@ useEffect(() => {
     fetchEventTypes();
   }
 }, [fetchEventTypes, currentUser?.email]);
-// Add this useEffect to reset status when event type changes
 useEffect(() => {
   // When event type filter changes, reset to "incomplete" status
   if (selectedEventTypeFilter && selectedEventTypeFilter !== "all") {
@@ -1677,26 +1664,69 @@ useEffect(() => {
 
 const getFilteredEventTypes = (allEventTypes) => {
   if (!allEventTypes || allEventTypes.length === 0) return [];
+    const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+  const userRole = currentUser?.role || "";
+  const normalizedRole = userRole.toLowerCase();
+
+  const isAdmin = normalizedRole === "admin";
+  const isRegistrant = normalizedRole === "registrant";
+  const isRegularUser = normalizedRole === "user";
+  const isLeaderAt12 = 
+    normalizedRole === "leaderat12" ||
+    normalizedRole.includes("leaderat12") ||
+    normalizedRole.includes("leader at 12") ||
+    normalizedRole.includes("leader@12");
+  const isLeader = normalizedRole === "leader" && !isLeaderAt12;
+
   try {
     const eventTypeMapStr = localStorage.getItem("eventTypeMap");
     const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
+    
     
     return allEventTypes.filter(eventType => {
       const typeName = typeof eventType === 'string' ? eventType : eventType.name || eventType;
       const typeInfo = eventTypeMap[typeName];
       
-      if (!typeInfo) return true; 
-      const isGlobalEvent = typeInfo.isGlobal === true;
+      console.log(`Checking event type "${typeName}":`, typeInfo);
       
-      if (isGlobalEvent) {
-        return isAdmin || isLeaderAt12 || isRegistrant || isRegularUser || isLeader;
-      } else {
-        return isAdmin || isLeaderAt12;
+      if (!typeInfo) {
+        console.log(`  -> No type info, showing to authorized users:`, 
+          isAdmin || isLeaderAt12 || isRegistrant || isLeader);
+        return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
       }
+      
+      const isGlobalEvent = typeInfo.isGlobal === true;
+      const isNonGlobal = typeInfo.isGlobal === false;
+      
+      console.log(`  -> isGlobal: ${typeInfo.isGlobal}, isGlobalEvent: ${isGlobalEvent}, isNonGlobal: ${isNonGlobal}`);
+      
+      // Global events: Show to everyone
+      if (isGlobalEvent) {
+        console.log(`  -> Global event, showing to everyone: TRUE`);
+        return true;
+      }
+      
+      // Non-global events (isGlobal = false): Show to Admin, LeaderAt12, AND Registrant
+      if (isNonGlobal) {
+        const showToAuthorized = isAdmin || isLeaderAt12 || isRegistrant;
+        console.log(`  -> Non-global event, showing to Admin/LeaderAt12/Registrant: ${showToAuthorized}`);
+        return showToAuthorized;
+      }
+            
+      // Hide from Regular Users
+      if (isRegularUser) {
+        return false;
+      }
+      
+      const showToAuthorized = isAdmin || isLeaderAt12 || isLeader || isRegistrant;
+      console.log(`  -> Authorized user, SHOWING: ${showToAuthorized}`);
+      return showToAuthorized;
     });
   } catch (error) {
     console.error("Error filtering event types:", error);
-    return allEventTypes;
+    return allEventTypes.filter(eventType => {
+      return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
+    });
   }
 };
 
@@ -3269,12 +3299,11 @@ useEffect(() => {
     return;
   }
 
-  console.log("📊 Main useEffect triggered - selectedStatus:", selectedStatus);
+  console.log(" Main useEffect triggered - selectedStatus:", selectedStatus);
   const fetchParams = {
     page: currentPage,
     limit: rowsPerPage,
     start_date: DEFAULT_API_START_DATE,
-    // ALWAYS include status - default to "incomplete"
     status: selectedStatus || "incomplete",
   };
 
@@ -3282,7 +3311,6 @@ useEffect(() => {
     fetchParams.search = searchQuery.trim();
   }
 
-  // CRITICAL FIX: Pass the correct event_type parameter
   if (selectedEventTypeFilter === "all") {
     fetchParams.event_type = "CELLS";
   } else if (selectedEventTypeFilter === "CELLS") {
@@ -3381,7 +3409,6 @@ const StatusBadges = ({
     },
   ];
 
-// In your StatusBadges component, update the handleStatusClick function:
 const handleStatusClick = (statusValue) => {
   setSelectedStatus(statusValue);
   setCurrentPage(1);
@@ -3484,7 +3511,6 @@ const handleStatusClick = (statusValue) => {
       {/* Period selector + Bulk download: show only when COMPLETE or DID NOT MEET selected */}
       {canDownload && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 6, position: "relative" }}>
-          {/* Dropdown for period selection */}
           <div style={{ position: "relative" }}>
             <button
               onClick={(e) => {
@@ -3590,7 +3616,6 @@ const handleStatusClick = (statusValue) => {
             )}
           </div>
 
-          {/* Bulk download button - also gray */}
           <button
             key="download-bulk"
             onClick={() => downloadEventsByStatus(selectedStatus, period)}
@@ -3728,58 +3753,71 @@ const handleStatusClick = (statusValue) => {
 
   const canEditEventTypes = isAdmin;
 
-  const filteredEventTypes = useMemo(() => {
-    const allTypes = eventTypes
-      .map((t) => t.name || t)
-      .filter((name) => name && name.toLowerCase() !== "all");
+const filteredEventTypes = useMemo(() => {
+  const allTypes = eventTypes
+    .map((t) => t.name || t)
+    .filter((name) => name && name.toLowerCase() !== "all");
+  
+  try {
+    const eventTypeMapStr = localStorage.getItem("eventTypeMap");
+    const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
     
-    try {
-      const eventTypeMapStr = localStorage.getItem("eventTypeMap");
-      const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
+    console.log("=== Event Type Filtering ===");
+    console.log("User Role:", userRole);
+    console.log("isAdmin:", isAdmin);
+    console.log("isLeaderAt12:", isLeaderAt12);
+    console.log("isLeader:", isLeader);
+    console.log("isRegistrant:", isRegistrant);
+    console.log("isRegularUser:", isRegularUser);
+
+    return allTypes.filter(typeName => {
+      const typeInfo = eventTypeMap[typeName.toLowerCase()] || {};
+      const isGlobal = typeInfo.isGlobal === true;
       
-      console.log("=== Event Type Filtering ===");
-      console.log("User Role:", userRole);
-      console.log("isAdmin:", isAdmin);
-      console.log("isLeaderAt12:", isLeaderAt12);
-      console.log("isLeader:", isLeader);
-      console.log("isRegistrant:", isRegistrant);
-      console.log("isRegularUser:", isRegularUser);
-
-      return allTypes.filter(typeName => {
-        const typeInfo = eventTypeMap[typeName.toLowerCase()] || {};
-        const isGlobal = typeInfo.isGlobal === true;
-        
-        console.log(`Checking "${typeName}": isGlobal = ${isGlobal}`);
-        if (isGlobal) {
-          console.log(`  -> Global = true, showing to everyone`);
-          return true;
-        }
-        if (typeInfo.isGlobal === false) {
-          const showToAdminOrLeaderAt12 = isAdmin || isLeaderAt12;
-          console.log(`  -> Global = false, showing only to Admin/LeaderAt12: ${showToAdminOrLeaderAt12}`);
-          return showToAdminOrLeaderAt12;
-        }
-
-        if (isRegularUser || isRegistrant) {
-          console.log(`  -> isGlobal undefined, regular user/registrant -> HIDDEN`);
-          return false;
-        }
-        
-        const showToLeadersAndAbove = isAdmin || isLeaderAt12 || isLeader;
-        console.log(`  -> isGlobal undefined, leader/admin/leaderAt12 -> ${showToLeadersAndAbove}`);
-        return showToLeadersAndAbove;
-      });
-    } catch (error) {
-      console.error("Error filtering event types:", error);
-      if (isAdmin || isLeaderAt12) {
-        return allTypes;
-      } else if (isLeader) {
-        return allTypes;
-      } else {
-        return [];
+      console.log(`Checking "${typeName}": isGlobal = ${isGlobal}`);
+      
+      // Global events: Show to everyone
+      if (isGlobal) {
+        console.log(`  -> Global = true, showing to everyone`);
+        return true;
       }
+      
+      // Non-global events (isGlobal = false):
+      if (typeInfo.isGlobal === false) {
+        // Show to Admin, LeaderAt12, AND Registrant
+        const showToAuthorized = isAdmin || isLeaderAt12 || isRegistrant;
+        console.log(`  -> Global = false, showing to Admin/LeaderAt12/Registrant: ${showToAuthorized}`);
+        return showToAuthorized;
+      }
+
+      // If isGlobal is undefined
+      if (isRegularUser) {
+        console.log(`  -> isGlobal undefined, regular user -> HIDDEN`);
+        return false;
+      }
+      
+      // For registrants, show if isGlobal is undefined (treat as non-global)
+      if (isRegistrant) {
+        console.log(`  -> isGlobal undefined, registrant -> SHOW`);
+        return true;
+      }
+      
+      // For leaders and admins, show if isGlobal is undefined
+      const showToLeadersAndAbove = isAdmin || isLeaderAt12 || isLeader;
+      console.log(`  -> isGlobal undefined, leader/admin/leaderAt12 -> ${showToLeadersAndAbove}`);
+      return showToLeadersAndAbove;
+    });
+  } catch (error) {
+    console.error("Error filtering event types:", error);
+    if (isAdmin || isLeaderAt12 || isRegistrant) {
+      return allTypes;
+    } else if (isLeader) {
+      return allTypes;
+    } else {
+      return [];
     }
-  }, [eventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser, userRole]);
+  }
+}, [eventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser, userRole]);
 
 const handleEventTypeClick = (typeValue) => {
   const eventTypeObj = eventTypes.find(et => {
@@ -3796,7 +3834,7 @@ const handleEventTypeClick = (typeValue) => {
     limit: rowsPerPage,
     start_date: DEFAULT_API_START_DATE,
     event_type: typeValue === "all" ? "CELLS" : typeValue,
-    status: "incomplete", // Explicitly set status
+    status: "incomplete", 
     _t: Date.now(), 
   };
 
@@ -3804,7 +3842,6 @@ const handleEventTypeClick = (typeValue) => {
     fetchParams.search = searchQuery.trim();
   }
 
-  // CRITICAL: Only apply CELLS-specific logic for CELLS events
   const isCellEvent = typeValue === "all" || typeValue === "CELLS" || typeValue.toLowerCase().includes("cell");
   
   if (isCellEvent) {
@@ -3831,7 +3868,6 @@ const handleEventTypeClick = (typeValue) => {
       fetchParams.personal = true;
     }
   } else {
-    // Remove CELLS-specific parameters for non-CELLS events
     delete fetchParams.personal;
     delete fetchParams.leader_at_12_view;
     delete fetchParams.show_personal_cells;
@@ -3923,24 +3959,22 @@ const handleEventTypeClick = (typeValue) => {
     },
   };
 
-  const allTypes = useMemo(() => {
-    const availableTypes = filteredEventTypes;
+const allTypes = useMemo(() => {
+  const availableTypes = filteredEventTypes;
+  
+  console.log("=== FINAL Filtered Types ===");
+  console.log("Available types:", availableTypes);
+  console.log("Total count:", availableTypes.length);
+  
+  // Updated: Registrants should also see "all" option
+  const shouldSeeAll = isAdmin || isLeaderAt12 || isLeader || isRegistrant || isRegularUser;
     
-    console.log("=== FINAL Filtered Types ===");
-    console.log("Available types:", availableTypes);
-    console.log("Total count:", availableTypes.length);
-    
-    const shouldSeeAll = isAdmin || isLeaderAt12 || isLeader || isRegistrant || isRegularUser;
-    
-    console.log("DEBUG - Should see 'all' option:", shouldSeeAll);
-    
-    if (shouldSeeAll) {
-      return ["all", ...availableTypes];
-    } else {
-      return ["all"];
-    }
-  }, [filteredEventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser]);
-
+  if (shouldSeeAll) {
+    return ["all", ...availableTypes];
+  } else {
+    return ["all"];
+  }
+}, [filteredEventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser]);
   const getDisplayName = (type) => {
     if (!type) return "";
     if (type === "all") {
@@ -3994,11 +4028,11 @@ const handleEventTypeClick = (typeValue) => {
     handleMenuClose();
   };
 
-  const shouldShowSelector = isAdmin || isRegistrant || isLeaderAt12 || isLeader || isRegularUser;
+const shouldShowSelector = isAdmin || isRegistrant || isLeaderAt12 || isLeader || isRegularUser;
 
-  if (!shouldShowSelector) {
-    return null;
-  }
+if (!shouldShowSelector) {
+  return null;
+}
 
   return (
     <div style={eventTypeStyles.container}>
@@ -4185,7 +4219,6 @@ return (
            viewMode === "grid" ? "Select Event Type" : "Event Types"}
         </Typography>
         
-        {/* VIEW TOGGLE - GRID/TABLE */}
    <Box sx={{ 
   display: "flex", 
   justifyContent: "space-between", 
@@ -4893,7 +4926,6 @@ return (
         // Get description from the event type object
         const description = eventTypeObj.description || "";
         
-        // Function to get color based on event type (like second image)
         const getEventTypeColor = (type) => {
           const colors = {
             'Global Events': '#007bff',
@@ -4992,7 +5024,6 @@ return (
                 </Typography>
               </Box>
               
-              {/* Optional: Add a subtle color indicator at bottom */}
               <Box sx={{
                 height: "3px",
                 width: "100%",
@@ -5003,7 +5034,7 @@ return (
               }} />
             </Box>
 
-            {/* EDIT/DELETE MENU - Positioned differently to avoid overlap */}
+            {/* EDIT/DELETE MENU - */}
             {isAdmin && !isAllCells && (
               <IconButton
                 size="small"
@@ -5037,7 +5068,6 @@ return (
       })}
   </Box>
   
-  {/* NO RESULTS MESSAGE */}
   {allEventTypes.filter(type => {
     const typeName = typeof type === "string" ? type : type.name || type;
     return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
@@ -5074,7 +5104,6 @@ return (
         const typeName = typeof type === "string" ? type : type.name || type;
         const isAllCells = typeName === "all";
         
-        // Get the full event type object for description
         const eventTypeObj = eventTypes.find(et => 
           et.name?.toLowerCase() === typeName.toLowerCase()
         ) || { name: typeName };
@@ -5082,7 +5111,6 @@ return (
         // Get description from the event type object
         const description = eventTypeObj.description || "";
         
-        // Function to get color based on event type
         const getEventTypeColor = (typeName) => {
           const colors = {
             'Global Events': '#007bff',
@@ -5123,10 +5151,9 @@ return (
           >
             {/* CLICKABLE AREA */}
             <Box
-            // In both grid and table view sections, update the onClick handler:
 onClick={() => {
   setSelectedEventTypeFilter(typeName);
-  setSelectedStatus("incomplete"); // Reset status
+  setSelectedStatus("incomplete");
   setShowingEvents(true);
   setCurrentPage(1);
   
@@ -5135,14 +5162,12 @@ onClick={() => {
     limit: rowsPerPage,
     start_date: DEFAULT_API_START_DATE,
     event_type: typeName === "all" ? "CELLS" : typeName,
-    status: "incomplete", // Explicitly set status
+    status: "incomplete", 
   };
   
-  // CRITICAL: Only apply CELLS-specific filters for CELLS events
   const isCellEvent = typeName === "all" || typeName === "CELLS" || typeName.toLowerCase().includes("cell");
   
   if (isCellEvent) {
-    // Apply CELLS-specific logic if needed
     if (isLeaderAt12) {
       fetchParams.leader_at_12_view = true;
       if (viewFilter === "personal") {
@@ -5150,13 +5175,12 @@ onClick={() => {
       }
     }
   } else {
-    // Clear CELLS-specific filters for non-CELLS events
     delete fetchParams.personal;
     delete fetchParams.leader_at_12_view;
     delete fetchParams.include_subordinate_cells;
   }
   
-  console.log("🎯 Fetching for event type:", typeName, "with status:", fetchParams.status);
+  console.log(" Fetching for event type:", typeName, "with status:", fetchParams.status);
   fetchEvents(fetchParams, true);
 }}
             >
@@ -5247,7 +5271,6 @@ onClick={() => {
 <MenuItem 
   onClick={() => {
     if (selectedTypeForMenu) {
-      // Get the full event type object
       const fullEventTypeObj = findEventTypeByName(
         selectedTypeForMenu.name || 
         selectedTypeForMenu.eventTypeName || 
@@ -5351,9 +5374,8 @@ onClick={() => {
     sx={fabStyles.fabMenuItem}
     onClick={() => {
       setFabMenuOpen(false);
-      // Get the current event type object
       const eventTypeObj = findEventTypeByName(selectedEventTypeFilter);
-      setSelectedEventTypeObj(eventTypeObj); // Set the object first
+      setSelectedEventTypeObj(eventTypeObj); 
       setCreateEventModalOpen(true);
     }}
     role="button"
@@ -5475,11 +5497,11 @@ onClick={() => {
         }}
       >
 <CreateEvents
-  key={selectedEventTypeFilter} // This forces re-render when event type changes
+  key={selectedEventTypeFilter} 
   user={currentUser}
   isModal={true}
   onClose={handleCloseCreateEventModal}
-  selectedEventTypeObj={findEventTypeByName(selectedEventTypeFilter)} // Use the function
+  selectedEventTypeObj={findEventTypeByName(selectedEventTypeFilter)} 
   selectedEventType={selectedEventTypeFilter}
   eventTypes={eventTypes}
 />
