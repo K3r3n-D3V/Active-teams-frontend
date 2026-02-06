@@ -65,6 +65,7 @@ const CreateEvents = ({
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
     eventName: "",
+    email: "",
     date: "",
     time: "",
     timePeriod: "AM",
@@ -75,6 +76,19 @@ const CreateEvents = ({
     leader1: "",
     leader12: "",
   });
+
+  const [isRecurring, setIsRecurring] = useState(false);
+  const handleIsRecurringChange = (e) => {
+  const checked = e.target.checked;
+  setIsRecurring(checked);
+
+  if (!checked) {
+    setFormData((prev) => ({
+     ...prev,
+     recurringDays: [],
+    }));
+  }
+};
 
   const [errors, setErrors] = useState({});
 
@@ -919,6 +933,7 @@ const CreateEvents = ({
                       <Checkbox
                         checked={formData.recurringDays.includes(day)}
                         onChange={() => handleDayChange(day)}
+                        disabled={!isRecurring}
                       />
                     }
                     label={day}
@@ -1053,6 +1068,17 @@ const CreateEvents = ({
 
             {shouldShowLeaderFields && (
               <>
+                <TextField
+                  label="Email *"
+                  value={formData.email || ""}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.email}
+                  helperText={errors.email || "Enter the email for this event"}
+                />
+
                 <TextField
                   label="Leader @1 *"
                   value={formData.leader1 || ""}

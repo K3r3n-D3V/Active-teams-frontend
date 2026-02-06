@@ -1553,8 +1553,8 @@ const loadWeeklyCheckins = () => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("perPage", "100");
-      params.append("page", "1");
+      params.append("perPage", "0");
+      // params.append("page", "1");
 
       const res = await authFetch(
         `${BACKEND_URL}/people?${params.toString()}`,
@@ -1598,11 +1598,13 @@ const loadWeeklyCheckins = () => {
       console.error("Error pre-loading people in AttendanceModal:", err);
     }
   };
-  useEffect(() => {
-  if (isOpen && event) {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
+  const fetchPeople = (q = "") => {
+  if (!q.trim()) {
+    // Show first 50 people when no search term
+    if (preloadedPeople.length > 0) {
+      setPeople(preloadedPeople.slice(0, 50));
+    } else {
+      setPeople([]);
     }
     console.log(" Opening modal for event:", eventId, "Date:", event.date);
 
@@ -1716,6 +1718,30 @@ const fetchPeople = async (q = "") => {  // Add default value for q
   }
 };
 
+  // LOCAL FILTERING ONLY - no API calls
+  const searchTerm = q.toLowerCase().trim();
+  
+  const filtered = preloadedPeople.filter(person => {
+    const fullName = person.fullName.toLowerCase();
+    const email = (person.email || "").toLowerCase();
+    const phone = (person.phone || "").toLowerCase();
+    const leader1 = (person.leader1 || "").toLowerCase();
+    const leader12 = (person.leader12 || "").toLowerCase();
+    const leader144 = (person.leader144 || "").toLowerCase();
+    
+    // Check all fields for matches
+    return fullName.includes(searchTerm) ||
+           email.includes(searchTerm) ||
+           phone.includes(searchTerm) ||
+           leader1.includes(searchTerm) ||
+           leader12.includes(searchTerm) ||
+           leader144.includes(searchTerm);
+  })
+  .sort((a, b) => a.fullName.localeCompare(b.fullName)) // Sort alphabetically
+  .slice(0, 100); // Limit to 100 results
+  
+  setPeople(filtered);
+};
   const fetchCommonAttendees = async (cellId) => {
     try {
       const token = localStorage.getItem("token");
@@ -1843,18 +1869,15 @@ const fetchPeople = async (q = "") => {  // Add default value for q
   }, [isOpen]);
 
   useEffect(() => {
-    const delay = setTimeout(() => {
-      if (isOpen && activeTab === 1) {
-        if (associateSearch.trim()) {
-          fetchPeople(associateSearch);
-        } else {
-          fetchPeople("");
-        }
-      }
-    }, 300);
+  const delay = setTimeout(() => {
+    if (isOpen && activeTab === 1) {
+      // Use the local filtering version (no API call)
+      fetchPeople(associateSearch);
+    }
+  }, 300);
 
-    return () => clearTimeout(delay);
-  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+  return () => clearTimeout(delay);
+}, [associateSearch, isOpen, activeTab]);
 
   const handleCheckIn = (id) => {
     setCheckedIn((prev) => {
@@ -2117,11 +2140,7 @@ const fetchPeople = async (q = "") => {  // Add default value for q
     person.email.toLowerCase().includes(searchName.toLowerCase())
   );
 
-  const filteredPeople = people.filter(
-    (person) =>
-      person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
-      person.email.toLowerCase().includes(associateSearch.toLowerCase()),
-  );
+  const filteredPeople = people; // Already filtered by fetchPeople, so just use it directly
 
   const handleSave = async () => {
     const allPeople = getAllCommonAttendees();
@@ -3792,12 +3811,21 @@ ${xmlCols}
             <button style={styles.closeBtn} onClick={onClose}>
               CLOSE
             </button>
-            <button
+            
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                flex: isMobile ? "1 1 100%" : "none",
+                flexWrap: isMobile ? "wrap" : "nowrap",
+              }}
+            >
+              <button
               style={{
                 ...styles.saveBtn,
-                background: attendeesCount > 0 ? "#1976d2" : "#ccc",
+                background: attendeesCount > 0 ? "#1976d2" : "#757575ff",
                 cursor: attendeesCount > 0 ? "pointer" : "not-allowed",
-                minWidth: 180,
+                width: 180,
               }}
               onClick={downloadCheckedInAttendance}
               disabled={attendeesCount === 0}
@@ -3807,16 +3835,8 @@ ${xmlCols}
                   : "Download checked-in attendance (XLS)"
               }
             >
-              DOWNLOAD ATTENDANCE (XLS)
+              DOWNLOAD ATTENDANCE(XLS)
             </button>
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                flex: isMobile ? "1 1 100%" : "none",
-                flexWrap: isMobile ? "wrap" : "nowrap",
-              }}
-            >
               <button style={styles.didNotMeetBtn} onClick={handleDidNotMeet}>
                 DID NOT MEET
               </button>

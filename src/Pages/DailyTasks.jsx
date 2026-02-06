@@ -65,6 +65,8 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 }
 
 export default function DailyTasks() {
+
+  const { notifyTaskUpdate } = useTaskUpdate();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 

@@ -858,10 +858,10 @@ ${xmlCols}
       "Attendee ID": att.id || att._id || "",
       Name: att.fullName || att.name || "",
       Email: att.email || "",
+      "Event Leader Name ": event.eventLeaderName || event.leaderName || event.eventLeader || event.leader || "",
       "Leader @12": att.leader12 || "",
       "Leader @144": att.leader144 || "",
       Phone: att.phone || "",
-      "Checked In Time": att.time || "",
       Decision: att.decision || "",
       "Price Tier": att.priceTier || att.price_tier || "",
       "Payment Method": att.paymentMethod || "",
@@ -1081,7 +1081,7 @@ const isLeader = normalizedRole === "leader" && !isLeaderAt12;
 
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
   const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState("all");
-  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -1269,16 +1269,14 @@ const findEventTypeByName = (typeName) => {
 
     // map to rows similar to AttendanceModal
     return (attendees || []).map((att) => ({
-      "Event ID": event._id || event.id || "",
       "Event Name": event.eventName || event.Event_Name || event.name || "",
       "Event Date": formatDate(event.date),
-      "Attendee ID": att.id || att._id || "",
       Name: att.fullName || att.name || "",
       Email: att.email || "",
+      "Event Leader Name":event.eventLeaderName || event.leaderName || event.eventLeader || event.leader || "",
       "Leader @12": att.leader12 || "",
       "Leader @144": att.leader144 || "",
       Phone: att.phone || "",
-      "Checked In Time": att.time || "",
       Decision: att.decision || "",
       "Price Tier": att.priceTier || att.price_tier || "",
       "Payment Method": att.paymentMethod || "",
@@ -1419,16 +1417,14 @@ const findEventTypeByName = (typeName) => {
         ) {
           
           allRows.push({
-            "Event ID": ev._id || ev.id || "",
             "Event Name": ev.eventName || ev.Event_Name || ev.name || "",
             "Event Date": formatDate(ev.date),
-            "Attendee ID": "",
             Name: "",
             Email: "",
+            "Event Leader Name ": ev.eventLeaderName || ev.leaderName || ev.eventLeader || ev.leader || "",
             "Leader @12": ev.leader12 || "",
             "Leader @144": ev.leader144 || "",
             Phone: "",
-            "Checked In Time": "",
             Decision: "",
             "Price Tier": "",
             "Payment Method": "",
@@ -1460,6 +1456,7 @@ const findEventTypeByName = (typeName) => {
   }, [currentPage, rowsPerPage, totalEvents]);
 
   const allEventTypes = useMemo(() => {
+    console.log("TYPES",eventTypes)
     return [
       "all",
       ...eventTypes.map((t) => (typeof t === "string" ? t : t.name)),
