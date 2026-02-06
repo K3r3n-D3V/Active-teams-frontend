@@ -1238,7 +1238,7 @@ function ServiceCheckIn() {
     const wbout = XLSX.write(wb, {
       bookType: 'xlsx',
       type: 'binary',
-      compression: true   // ← helps reduce size + can fix some corruptions
+      compression: true   
     });
 
     // Convert binary string → ArrayBuffer
