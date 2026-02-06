@@ -1242,7 +1242,6 @@ function ServiceCheckIn() {
     });
 
     const buf = s2ab(wbout);
-
     const blob = new Blob([buf], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
