@@ -1259,7 +1259,7 @@ const AttendanceModal = ({
     { value: "first-time", label: "First-time commitment" },
     { value: "re-commitment", label: "Re-commitment" },
   ];
-  const [, setEventStatistics] = useState({
+  const [eventStatistics, setEventStatistics] = useState({
     totalAssociated: 0,
     lastAttendanceCount: 0,
     lastHeadcount: 0,
@@ -1606,117 +1606,8 @@ const loadWeeklyCheckins = () => {
     } else {
       setPeople([]);
     }
-    console.log(" Opening modal for event:", eventId, "Date:", event.date);
-
-    // Reset all form states
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
-    setCheckedIn({});
-    setDecisions({});
-    setDecisionTypes({});
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-
-    const loadAllData = async () => {
-      console.log(" Loading all data...");
-      
-      // Load persistent attendees first
-      await loadPersistentAttendees(eventId);
-      
-      // Then load statistics
-      await loadEventStatistics();
-      
-      // Finally load check-ins
-      loadWeeklyCheckins();
-    };
-
-    loadAllData();
-    fetchPeople();
-
-    const attendanceData = event.attendance || {};
-    const eventDate = event.date;
-    const weekAttendance = attendanceData[eventDate] || {};
-    
-    setDidNotMeet(weekAttendance?.status === "did_not_meet" || false);
-  }
-}, [isOpen, event]);
-
-const fetchPeople = async (q = "") => {  // Add default value for q
-  if (!q) {
-    if (preloadedPeople.length > 0) {
-      console.log(" Showing preloaded people list");
-      setPeople(preloadedPeople.slice(0, 50));
-    } else {
-      setPeople([]);
-    }
     return;
   }
-
-  const queryLower = q.toLowerCase();
-
-  try {
-    const res = await authFetch(
-      `${BACKEND_URL}/people?name=${encodeURIComponent(q)}`
-    );
-
-    if (!res.ok) throw new Error("Failed to fetch people");
-
-    const data = await res.json();
-    const results = data?.results || [];
-    const filtered = results.filter((p) => {
-      const fullNameLower =
-        `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
-
-      if (fullNameLower.includes(queryLower)) return true;
-
-      const queryWords = queryLower.split(/\s+/).filter(Boolean);
-      return queryWords.every((word) => fullNameLower.includes(word));
-    });
-
-    const formatted = filtered.map((p) => ({
-      id: p._id,
-      fullName:
-        `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-      email: p.Email || p.email || "",
-      leader1:
-        p["Leader @1"] ||
-        p["Leader at 1"] ||
-        p["Leader @ 1"] ||
-        p.leader1 ||
-        (p.leaders && p.leaders[0]) ||
-        "",
-      leader12:
-        p["Leader @12"] ||
-        p["Leader at 12"] ||
-        p["Leader @ 12"] ||
-        p.leader12 ||
-        (p.leaders && p.leaders[1]) ||
-        "",
-      leader144:
-        p["Leader @144"] ||
-        p["Leader at 144"] ||
-        p["Leader @ 144"] ||
-        p.leader144 ||
-        (p.leaders && p.leaders[2]) ||
-        "",
-      phone: p.Number || p.Phone || p.phone || "",
-    }));
-
-    setPeople(formatted);
-  } catch (err) {
-    console.error("Error fetching people:", err);
-    toast.error(err.message);
-    if (preloadedPeople.length > 0) {
-      setPeople(preloadedPeople.slice(0, 50));
-    } else {
-      setPeople([]);
-    }
-  }
-};
 
   // LOCAL FILTERING ONLY - no API calls
   const searchTerm = q.toLowerCase().trim();
@@ -1987,6 +1878,7 @@ const fetchPeople = async (q = "") => {  // Add default value for q
     );
 
     if (isAlreadyAdded) {
+      // In associate tab, we don't remove - just show a message
       toast.info(`${person.fullName} is already in attendees list`);
       return;
     } else {
