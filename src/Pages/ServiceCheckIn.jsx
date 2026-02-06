@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef, useContext } from "react";
+import React, { useState, useEffect, useRef, useContext} from "react";
 import {
-  // ... your existing imports
-  Checkbox,         // Add this
-  FormControlLabel, // Add this
-  Menu,             // Add this
-  DialogContentText, // Add this
-  ListItemIcon,     // Add this
+ 
+  Checkbox,         
+  FormControlLabel,
+  Menu,            
+  DialogContentText, 
+  ListItemIcon,     
   ListItemText, 
-        // Add this
+       
 } from "@mui/material";
 import {
   Box,
@@ -125,6 +125,14 @@ function ServiceCheckIn() {
     data: []
   });
 
+
+const modalStateRef = useRef({
+  isAnyModalOpen: false,
+  deleteModalOpen: false,
+  addPersonModalOpen: false,
+  consolidationModalOpen: false
+});
+
   const [formData, setFormData] = useState({
     name: "",
     surname: "",
@@ -153,14 +161,6 @@ function ServiceCheckIn() {
     if (isLgDown) return lg;
     return xl;
   };
-// Add these after your existing state declarations
-const [removalModal, setRemovalModal] = useState({
-  open: false,
-  type: '', // 'new_person' or 'consolidation'
-  data: null,
-  validation: null,
-  isLoading: false
-});
 
 const [removeOptions, setRemoveOptions] = useState({
   removeFromAttendees: true,
@@ -381,7 +381,6 @@ const [contextMenu, setContextMenu] = useState({
       setIsRefreshing(false);
     }
   };
-// Add these functions after your other handler functions
 
 const handleRemoveNewPerson = async (person) => {
   if (!currentEventId) {
@@ -389,27 +388,45 @@ const handleRemoveNewPerson = async (person) => {
     return;
   }
 
+ 
+  if (modalStateRef.current.isAnyModalOpen) {
+    return;
+  }
+
+
+  modalStateRef.current = {
+    ...modalStateRef.current,
+    isAnyModalOpen: true,
+    removalModalOpen: true
+  };
+
   try {
-    // First validate the removal
-    const validateResponse = await authFetch(
-      `${BASE_URL}/service-checkin/validate-removal?event_id=${currentEventId}&person_id=${person.id}`
+ 
+    const response = await authFetch(
+      `${BASE_URL}/service-checkin/remove-new-person?event_id=${currentEventId}&person_id=${person.id}&remove_from_attendees=${removeOptions.removeFromAttendees}`,
+      { method: 'DELETE' }
     );
     
-    if (validateResponse.ok) {
-      const validation = await validateResponse.json();
+    if (response.ok) {
+      const result = await response.json();
+      toast.success(result.message || "New person removed successfully");
       
-      // Show the removal confirmation modal
-      setRemovalModal({
-        open: true,
-        type: 'new_person',
-        data: person,
-        validation: validation,
-        isLoading: false
-      });
+   
+      const freshData = await fetchRealTimeEventData(currentEventId);
+      if (freshData) {
+        setRealTimeData(freshData);
+      }
     }
   } catch (error) {
-    console.error("Validation error:", error);
-    toast.error("Failed to validate removal");
+    console.error("Removal error:", error);
+    toast.error("Failed to remove. Please try again.");
+  } finally {
+ 
+    modalStateRef.current = {
+      ...modalStateRef.current,
+      isAnyModalOpen: false,
+      removalModalOpen: false
+    };
   }
 };
 
@@ -419,92 +436,48 @@ const handleRemoveConsolidation = async (consolidation) => {
     return;
   }
 
+ 
+  if (modalStateRef.current.isAnyModalOpen) {
+    return;
+  }
+
+ 
+  modalStateRef.current = {
+    ...modalStateRef.current,
+    isAnyModalOpen: true,
+    removalModalOpen: true
+  };
+
   try {
-    const validateResponse = await authFetch(
-      `${BASE_URL}/service-checkin/validate-removal?event_id=${currentEventId}&consolidation_id=${consolidation.id}`
+   
+    const response = await authFetch(
+      `${BASE_URL}/service-checkin/remove-consolidation?event_id=${currentEventId}&consolidation_id=${consolidation.id}&keep_person_in_attendees=${removeOptions.keepInAttendees}`,
+      { method: 'DELETE' }
     );
     
-    if (validateResponse.ok) {
-      const validation = await validateResponse.json();
+    if (response.ok) {
+      const result = await response.json();
+      toast.success(result.message || "Consolidation and associated task removed successfully");
       
-      setRemovalModal({
-        open: true,
-        type: 'consolidation',
-        data: consolidation,
-        validation: validation,
-        isLoading: false
-      });
-    }
-  } catch (error) {
-    console.error("Validation error:", error);
-    toast.error("Failed to validate removal");
-  }
-};
-
-const confirmRemoval = async () => {
-  setRemovalModal(prev => ({ ...prev, isLoading: true }));
-  
-  try {
-    const { type, data } = removalModal;
     
-    if (type === 'new_person') {
-      // Call backend to remove new person
-      const response = await authFetch(
-        `${BASE_URL}/service-checkin/remove-new-person?event_id=${currentEventId}&person_id=${data.id}&remove_from_attendees=${removeOptions.removeFromAttendees}`,
-        { method: 'DELETE' }
-      );
-      
-      if (response.ok) {
-        const result = await response.json();
-        toast.success(result.message || "New person removed successfully");
-        
-        // Refresh the data
-        const freshData = await fetchRealTimeEventData(currentEventId);
-        if (freshData) {
-          setRealTimeData(freshData);
-        }
-      }
-    } else if (type === 'consolidation') {
-      // Call backend to remove consolidation (which will also delete the task)
-      const response = await authFetch(
-        `${BASE_URL}/service-checkin/remove-consolidation?event_id=${currentEventId}&consolidation_id=${data.id}&keep_person_in_attendees=${removeOptions.keepInAttendees}`,
-        { method: 'DELETE' }
-      );
-      
-      if (response.ok) {
-        const result = await response.json();
-        toast.success(result.message || "Consolidation and associated task removed successfully");
-        
-        // Refresh the data
-        const freshData = await fetchRealTimeEventData(currentEventId);
-        if (freshData) {
-          setRealTimeData(freshData);
-        }
-        
-        // Optional: Refresh tasks in DailyTask.jsx if it's open
-        // You might need to implement event broadcasting or use a context
+      const freshData = await fetchRealTimeEventData(currentEventId);
+      if (freshData) {
+        setRealTimeData(freshData);
       }
     }
   } catch (error) {
     console.error("Removal error:", error);
     toast.error("Failed to remove. Please try again.");
   } finally {
-    // Close the modal and reset
-    setRemovalModal({
-      open: false,
-      type: '',
-      data: null,
-      validation: null,
-      isLoading: false
-    });
-    setRemoveOptions({
-      removeFromAttendees: true,
-      keepInAttendees: true
-    });
+
+    modalStateRef.current = {
+      ...modalStateRef.current,
+      isAnyModalOpen: false,
+      removalModalOpen: false
+    };
   }
 };
 
-// Context menu handlers
 const handleContextMenu = (event, person, type) => {
   event.preventDefault();
   setContextMenu({
@@ -524,128 +497,181 @@ const handleCloseContextMenu = () => {
   });
 };
 
-// Add this function inside ServiceCheckIn, before the return statement
-const EnhancedRemovalConfirmation = () => {
-  const { open, type, data, validation, isLoading } = removalModal;
-  
-  if (!open) return null;
-  
-  const personName = type === 'new_person' 
-    ? `${data?.name || ''} ${data?.surname || ''}`.trim()
-    : `${data?.person_name || ''} ${data?.person_surname || ''}`.trim();
-  
-  return (
-    <Dialog 
-      open={open} 
-      onClose={() => !isLoading && setRemovalModal(prev => ({ ...prev, open: false }))}
-    >
-      <DialogTitle>
-        {type === 'new_person' ? 'Remove New Person' : 'Remove Consolidation'}
-      </DialogTitle>
-      <DialogContent>
-        <DialogContentText>
-          Are you sure you want to remove{" "}
-          <strong>{personName || 'this person'}</strong>?
-          {type === 'new_person' 
-            ? ' They will be removed from the new people list.'
-            : ' This consolidation record will be removed.'
-          }
-        </DialogContentText>
-        
-        {/* ADD THIS SECTION FOR TASK DELETION WARNING */}
-        {type === 'consolidation' && validation?.affected_data?.task && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
-            <Typography variant="subtitle2" gutterBottom color="error.dark">
-              ⚠️ Task Will Be Deleted:
-            </Typography>
-            <Typography variant="body2" color="error.dark">
-              This consolidation has an associated task assigned to{" "}
-              <strong>{validation.affected_data.task.assigned_to}</strong>{" "}
-              (Status: {validation.affected_data.task.status}).
-            </Typography>
-            <Typography variant="body2" color="error.dark" sx={{ mt: 1, fontWeight: 'bold' }}>
-              This task will be permanently deleted!
-            </Typography>
-          </Box>
-        )}
-        
-        {validation && validation.warnings && validation.warnings.length > 0 && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              ⚠️ Warnings:
-            </Typography>
-            {validation.warnings.map((warning, idx) => (
-              <Typography key={idx} variant="body2" color="warning.dark">
-                • {warning}
-              </Typography>
-            ))}
-          </Box>
-        )}
-        
-        {type === 'new_person' && (
-          <Box sx={{ mt: 2 }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={removeOptions.removeFromAttendees}
-                  onChange={(e) => setRemoveOptions(prev => ({
-                    ...prev,
-                    removeFromAttendees: e.target.checked
-                  }))}
-                />
-              }
-              label="Also remove from attendees list"
-            />
-          </Box>
-        )}
-        
-        {type === 'consolidation' && (
-          <Box sx={{ mt: 2 }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={removeOptions.keepInAttendees}
-                  onChange={(e) => setRemoveOptions(prev => ({
-                    ...prev,
-                    keepInAttendees: e.target.checked
-                  }))}
-                />
-              }
-              label="Keep person in attendees list"
-            />
-          </Box>
-        )}
-        
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-          This action cannot be undone.
-        </Typography>
-      </DialogContent>
-      <DialogActions>
-        <Button 
-          onClick={() => setRemovalModal(prev => ({ ...prev, open: false }))}
-          disabled={isLoading}
-        >
-          Cancel
-        </Button>
-        <Button 
-          onClick={confirmRemoval}
-          color="error"
-          variant="contained"
-          disabled={isLoading}
-          startIcon={<DeleteForeverIcon />}
-        >
-          {isLoading ? 'Removing...' : 
-            type === 'consolidation' && validation?.affected_data?.task 
-              ? 'Delete Consolidation & Task' 
-              : 'Confirm Removal'
-          }
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
 
-// Add this right after EnhancedRemovalConfirmation, before the return statement
+// const EnhancedRemovalConfirmation = () => {
+//   const { open, type, data, validation, isLoading } = removalModal;
+  
+//   // Use React.memo to prevent unnecessary re-renders
+//   const memoizedComponent = useMemo(() => {
+//     if (!open) return null;
+    
+//     const personName = type === 'new_person' 
+//       ? `${data?.name || ''} ${data?.surname || ''}`.trim()
+//       : `${data?.person_name || ''} ${data?.person_surname || ''}`.trim();
+    
+//      // Get associated tasks (could be an array from updated backend)
+//       const associatedTasks = validation?.associated_tasks || [];
+    
+//      return (
+//       <Dialog 
+//         open={open}
+//           onClose={() => {
+//     if (!isLoading) {
+//       // Update modal state ref
+//       modalStateRef.current = {
+//         ...modalStateRef.current,
+//         isAnyModalOpen: false,
+//         removalModalOpen: false
+//       };
+//       setRemovalModal(prev => ({ ...prev, open: false }));
+//     }
+//   }}
+//         maxWidth="sm"
+//         fullWidth
+//         disableEscapeKeyDown={isLoading} // Prevent closing while loading
+//         TransitionProps={{
+//           timeout: { enter: 300, exit: 200 }, // Smoother transitions
+//         }}
+//         PaperProps={{
+//           sx: {
+//             position: 'fixed', // Fixed positioning prevents movement
+//             top: '50%',
+//             left: '50%',
+//             transform: 'translate(-50%, -50%)',
+//             maxHeight: '90vh',
+//             overflowY: 'auto',
+//           }
+//         }}
+//       >
+//         <DialogTitle sx={{ 
+//           pb: 1, 
+//           fontWeight: 600,
+//           borderBottom: theme => `1px solid ${theme.palette.divider}`
+//         }}>
+//           {type === 'new_person' ? 'Remove New Person' : 'Remove Consolidation'}
+//         </DialogTitle>
+//         <DialogContent sx={{ mt: 2 }}>
+//           <DialogContentText>
+//             Are you sure you want to remove{" "}
+//             <strong>{personName || 'this person'}</strong>?
+//             {type === 'new_person' 
+//               ? ' They will be removed from the new people list.'
+//               : ' This consolidation record will be removed.'
+//             }
+//           </DialogContentText>
+          
+//           {/* UPDATED: Show all associated tasks */}
+//           {type === 'consolidation' && associatedTasks.length > 0 && (
+//             <Box sx={{ mt: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
+//               <Typography variant="subtitle2" gutterBottom color="error.dark">
+//                 ⚠️ Tasks Will Be Deleted ({associatedTasks.length}):
+//               </Typography>
+//               {associatedTasks.map((task, index) => (
+//                 <Box key={task.task_id || index} sx={{ mb: 1 }}>
+//                   <Typography variant="body2" color="error.dark">
+//                     • Task assigned to <strong>{task.assigned_to}</strong>
+//                     {task.status && ` (Status: ${task.status})`}
+//                   </Typography>
+//                 </Box>
+//               ))}
+//               <Typography variant="body2" color="error.dark" sx={{ mt: 1, fontWeight: 'bold' }}>
+//                 These tasks will be permanently deleted!
+//               </Typography>
+//             </Box>
+//           )}
+          
+//           {validation && validation.warnings && validation.warnings.length > 0 && (
+//             <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
+//               <Typography variant="subtitle2" gutterBottom>
+//                 ⚠️ Warnings:
+//               </Typography>
+//               {validation.warnings.map((warning, idx) => (
+//                 <Typography key={idx} variant="body2" color="warning.dark">
+//                   • {warning}
+//                 </Typography>
+//               ))}
+//             </Box>
+//           )}
+          
+//           {type === 'new_person' && (
+//             <Box sx={{ mt: 2 }}>
+//               <FormControlLabel
+//                 control={
+//                   <Checkbox
+//                     checked={removeOptions.removeFromAttendees}
+//                     onChange={(e) => {
+//                       // Use functional update to ensure correct state
+//                       setRemoveOptions(prev => ({
+//                         ...prev,
+//                         removeFromAttendees: e.target.checked
+//                       }));
+//                     }}
+//                   />
+//                 }
+//                 label="Also remove from attendees list"
+//               />
+//             </Box>
+//           )}
+          
+//           {type === 'consolidation' && (
+//             <Box sx={{ mt: 2 }}>
+//               <FormControlLabel
+//                 control={
+//                   <Checkbox
+//                     checked={removeOptions.keepInAttendees}
+//                     onChange={(e) => {
+//                       setRemoveOptions(prev => ({
+//                         ...prev,
+//                         keepInAttendees: e.target.checked
+//                       }));
+//                     }}
+//                   />
+//                 }
+//                 label="Keep person in attendees list"
+//               />
+//             </Box>
+//           )}
+          
+//           <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+//             This action cannot be undone.
+//           </Typography>
+//         </DialogContent>
+//         <DialogActions sx={{ 
+//           p: 2, 
+//           borderTop: theme => `1px solid ${theme.palette.divider}`,
+//           justifyContent: 'space-between'
+//         }}>
+//           <Button 
+//             onClick={() => setRemovalModal(prev => ({ ...prev, open: false }))}
+//             disabled={isLoading}
+//             variant="outlined"
+//             sx={{ minWidth: 100 }}
+//           >
+//             Cancel
+//           </Button>
+//           <Button 
+//             onClick={confirmRemoval}
+//             color="error"
+//             variant="contained"
+//             disabled={isLoading}
+//             startIcon={<DeleteForeverIcon />}
+//             sx={{ minWidth: 180 }}
+//           >
+//             {isLoading ? 'Removing...' : 
+//               type === 'consolidation' && associatedTasks.length > 0
+//                 ? `Delete (${associatedTasks.length} tasks)` 
+//                 : 'Confirm Removal'
+//             }
+//           </Button>
+//         </DialogActions>
+//       </Dialog>
+//     );
+//   }, [open, type, data, validation, isLoading, removeOptions, theme]);
+
+//   return memoizedComponent;
+// };
+const EnhancedRemovalConfirmation=()=>{}
+
 const ContextMenu = () => (
   <Menu
     open={contextMenu.mouseY !== null}
@@ -1562,7 +1588,6 @@ const ContextMenu = () => (
 
   const ws = XLSX.utils.json_to_sheet(worksheetData, { header: headers });
 
-  // Auto-size columns (optional but nice)
   ws['!cols'] = headers.map((h, i) => {
     let maxw = h.length;
     worksheetData.forEach(row => {
@@ -1583,7 +1608,7 @@ const ContextMenu = () => (
     const wbout = XLSX.write(wb, {
       bookType: 'xlsx',
       type: 'binary',
-      compression: true   // ← helps reduce size + can fix some corruptions
+      compression: true   
     });
 
     // Convert binary string → ArrayBuffer
@@ -1622,13 +1647,25 @@ function s2ab(s) {
   return buf;
 }
 
-  const handleAddPersonClick = () => {
-    if (!currentEventId) {
-      toast.error("Please select an event first before adding people");
-      return;
-    }
-    setOpenDialog(true);
+const handleAddPersonClick = () => {
+  if (!currentEventId) {
+    toast.error("Please select an event first before adding people");
+    return;
+  }
+  
+ 
+  if (modalStateRef.current.isAnyModalOpen) {
+    return;
+  }
+  
+  modalStateRef.current = {
+    ...modalStateRef.current,
+    isAnyModalOpen: true,
+    addPersonModalOpen: true
   };
+  
+  setOpenDialog(true);
+};
 
   const getAttendeesWithPresentStatus = () => {
     const presentAttendeeIds = realTimeData?.present_attendees?.map(a => a.id || a._id) || [];
@@ -2076,15 +2113,27 @@ function s2ab(s) {
                   <IconButton
                     size="medium"
                     color={isDisabled ? "default" : "error"}
-                    onClick={() => {
-                      if (!isDisabled) {
-                        setDeleteConfirmation({
-                          open: true,
-                          personId: params.row._id,
-                          personName: fullName
-                        });
-                      }
-                    }}
+                  onClick={() => {
+    if (!isDisabled) {
+      // Check if any modal is already open
+      if (modalStateRef.current.isAnyModalOpen) {
+        return;
+      }
+      
+     
+      modalStateRef.current = {
+        ...modalStateRef.current,
+        isAnyModalOpen: true,
+        deleteModalOpen: true
+      };
+      
+      setDeleteConfirmation({
+        open: true,
+        personId: params.row._id,
+        personName: fullName
+      });
+    }
+  }}
                     disabled={isDisabled || isCheckInLoading}
                     sx={{
                       padding: isXsDown ? '4px' : (isSmDown ? '6px' : '8px'),
@@ -2722,25 +2771,30 @@ const NewPersonCard = ({ person, showNumber, index }) => (
     }
   }, [currentEventId]);
 
+useEffect(() => {
+  if (!currentEventId) return;
 
-  useEffect(() => {
-    if (!currentEventId) return;
+  const loadData = async () => {
+    // Don't refresh if any modal is open
+    if (modalStateRef.current.isAnyModalOpen) {
+      return;
+    }
+    
+    const data = await fetchRealTimeEventData(currentEventId);
+    if (data) {
+      setRealTimeData(data);
+    }
+  };
 
+  loadData();
 
-    const loadData = async () => {
-      const data = await fetchRealTimeEventData(currentEventId);
-      if (data) {
-        setRealTimeData(data);
-      }
-    };
-
-    loadData();
-
-
+  
+  if (!modalStateRef.current.isAnyModalOpen) {
     const interval = setInterval(loadData, 3000);
-
     return () => clearInterval(interval);
-  }, [currentEventId]);
+  }
+}, [currentEventId]);
+
 
 
   const hasInitialized = useRef(false);
@@ -2808,13 +2862,21 @@ const NewPersonCard = ({ person, showNumber, index }) => (
           zIndex: 9999
         }}
       />
-      <DeleteConfirmationModal
-        open={deleteConfirmation.open}
-        onClose={() => setDeleteConfirmation({ open: false, personId: null, personName: '' })}
-        onConfirm={() => handleDelete(deleteConfirmation.personId, deleteConfirmation.personName)}
-        personName={deleteConfirmation.personName}
-        isLoading={isDeleting}
-      />
+   <DeleteConfirmationModal
+  open={deleteConfirmation.open}
+  onClose={() => {
+    
+    modalStateRef.current = {
+      ...modalStateRef.current,
+      isAnyModalOpen: false,
+      deleteModalOpen: false
+    };
+    setDeleteConfirmation({ open: false, personId: null, personName: '' });
+  }}
+  onConfirm={() => handleDelete(deleteConfirmation.personId, deleteConfirmation.personName)}
+  personName={deleteConfirmation.personName}
+  isLoading={isDeleting}
+/>
 
       {/* Stats Cards */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
@@ -3191,7 +3253,14 @@ const NewPersonCard = ({ person, showNumber, index }) => (
       {/* Add / Edit Dialog */}
       <AddPersonDialog
         open={openDialog}
-        onClose={() => setOpenDialog(false)}
+        onClose={() => {
+    modalStateRef.current = {
+      ...modalStateRef.current,
+      isAnyModalOpen: false,
+      addPersonModalOpen: false
+    };
+    setOpenDialog(false);
+  }}
         onSave={handlePersonSave}
         formData={formData}
         setFormData={setFormData}
@@ -3467,7 +3536,7 @@ const NewPersonCard = ({ person, showNumber, index }) => (
                   )}
                 </Box>
               ) : (
-// In the New People modal table, add a new column for actions:
+
 <Table size="small" stickyHeader>
   <TableHead>
     <TableRow>
@@ -3607,7 +3676,7 @@ const NewPersonCard = ({ person, showNumber, index }) => (
                   )}
                 </Box>
               ) : (
-               // In the Consolidated modal table, add actions column:
+          
 <Table size="small" stickyHeader>
   <TableHead>
     <TableRow>
@@ -3725,27 +3794,25 @@ const NewPersonCard = ({ person, showNumber, index }) => (
           </Button>
         </DialogActions>
       </Dialog>
-      <EnhancedRemovalConfirmation />
+  
     <ContextMenu />
 
-           <EventHistoryModal
-        open={eventHistoryModal.open}
-        onClose={() => setEventHistoryModal({ open: false, event: null, type: null, data: [] })}
-        event={eventHistoryModal.event}
-        type={eventHistoryModal.type}
-        data={eventHistoryModal.data}
-      />
+<EventHistoryModal
+  open={eventHistoryModal.open}
+  onClose={() => setEventHistoryModal({ open: false, event: null, type: null, data: [] })}
+  event={eventHistoryModal.event}
+  type={eventHistoryModal.type}
+  data={eventHistoryModal.data}
+/>
 
-      <ConsolidationModal
-        open={consolidationOpen}
-        onClose={() => setConsolidationOpen(false)}
-        attendeesWithStatus={attendeesWithStatus}
-        onFinish={handleFinishConsolidation}
-        consolidatedPeople={filteredConsolidatedPeople}
-        currentEventId={currentEventId}
-      />
-       <EnhancedRemovalConfirmation />
-      <ContextMenu />
+<ConsolidationModal
+  open={consolidationOpen}
+  onClose={() => setConsolidationOpen(false)}
+  attendeesWithStatus={attendeesWithStatus}
+  onFinish={handleFinishConsolidation}
+  consolidatedPeople={filteredConsolidatedPeople}
+  currentEventId={currentEventId}
+/>
     </Box>
   );
 }
