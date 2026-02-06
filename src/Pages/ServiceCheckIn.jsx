@@ -1241,7 +1241,6 @@ function ServiceCheckIn() {
       compression: true   
     });
 
-    // Convert binary string → ArrayBuffer
     const buf = s2ab(wbout);
 
     const blob = new Blob([buf], {
