@@ -2828,7 +2828,7 @@ ${xmlCols}
     },
   tabsContainer: {
   borderBottom: `1px solid ${theme.palette.divider}`,
-  padding: "0 clamp(12px, 3vw, 30px)",
+  padding: "0 clamp(15px, 3vw, 40px)",
   display: "flex",
   position: "relative",
   alignItems: "center",
@@ -2845,15 +2845,18 @@ ${xmlCols}
       background: "transparent",
       border: "none",
       marginRight: "8px",
+      color: "#fff",
     },
-  tabsWrapper: {
+tabsWrapper: {
   display: "flex",
   flexDirection: "row",
-  gap: "25px", 
+  gap: "25px",
   width: "auto",
   marginTop: isMobile ? "8px" : "0",
-  flexWrap: "wrap",
+  flexWrap: isMobile && window.innerWidth <= 360 ? "nowrap" : "wrap",
 },
+
+
 
   tab: {
   flex: "unset",   
@@ -2869,9 +2872,9 @@ ${xmlCols}
 },
 
 
-    tabActive: {
+  tabActive: {
   backgroundColor: "transparent",
-  color: "#4aa3ff", // blue text like screenshot
+  color: "#4aa3ff", 
   borderColor: "transparent",
   borderBottom: "3px solid #4aa3ff",
   borderRadius: 0,
@@ -3342,7 +3345,7 @@ ${xmlCols}
                   }}
                   onClick={() => setActiveTab(1)}
                 >
-                  ASSOCIATE PERSON
+                  ASSOCIATE 
                 </button>
               </>
             )}
