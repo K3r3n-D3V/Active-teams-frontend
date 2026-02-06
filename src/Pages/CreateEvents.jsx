@@ -76,6 +76,19 @@ const CreateEvents = ({
     leader12: "",
   });
 
+  const [isRecurring, setIsRecurring] = useState(false);
+  const handleIsRecurringChange = (e) => {
+  const checked = e.target.checked;
+  setIsRecurring(checked);
+
+  if (!checked) {
+    setFormData((prev) => ({
+     ...prev,
+     recurringDays: [],
+    }));
+  }
+};
+
   const [errors, setErrors] = useState({});
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -517,6 +530,8 @@ const fetchPeople = (q) => {
       status: "open",
       leader1: formData.leader1 || "",
       leader12: formData.leader12 || "",
+      isRecurring: isRecurring,
+      recurringDays: isRecurring ? formData.recurringDays : [],
     };
 
     if (formData.date && formData.time) {
@@ -848,7 +863,7 @@ const fetchPeople = (q) => {
                   }
                   return displayValue;
                 })()
-              }
+              }Create
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
@@ -1063,6 +1078,23 @@ const fetchPeople = (q) => {
                 mb={1}
                 sx={darkModeStyles.sectionTitle}
               >
+                Is Recurring? {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
+              </Typography>    
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isRecurring}
+                    onChange={handleIsRecurringChange}
+                  />
+                }
+                label="Yes"
+              />
+
+              <Typography
+                fontWeight="bold"
+                mb={1}
+                sx={darkModeStyles.sectionTitle}
+              >
                 Recurring Days {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
               </Typography>
               <Box
@@ -1078,6 +1110,7 @@ const fetchPeople = (q) => {
                       <Checkbox
                         checked={formData.recurringDays.includes(day)}
                         onChange={() => handleDayChange(day)}
+                        disabled={!isRecurring}
                       />
                     }
                     label={day}
