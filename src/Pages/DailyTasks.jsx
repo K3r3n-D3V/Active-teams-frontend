@@ -1,9 +1,15 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
+import { useTaskUpdate } from '../contexts/TaskUpdateContext';
+
+// Global cache outside component to persist across remounts
+let globalPeopleCache = null;
+let globalCacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -62,6 +68,8 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 }
 
 export default function DailyTasks() {
+
+  const { notifyTaskUpdate } = useTaskUpdate();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
@@ -78,6 +86,8 @@ export default function DailyTasks() {
   const [filterType, setFilterType] = useState("all");
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [addingTaskType, setAddingTaskType] = useState(false);
+  // const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
+  
 
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -102,6 +112,8 @@ export default function DailyTasks() {
   const [searchResults, setSearchResults] = useState([]);
   const [assignedResults, setAssignedResults] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
+  const isFetchingRef = useRef(false);
 
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
@@ -160,6 +172,42 @@ export default function DailyTasks() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
+  // Add this function in DailyTasks component
+const markTaskComplete = async (taskId) => {
+  try {
+    const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        status: "completed",
+        taskStage: "Completed" 
+      }),
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to update task");
+    
+    // Update local state
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === taskId ? { 
+          ...t, 
+          status: "completed",
+          ...data.updatedTask 
+        } : t
+      )
+    );
+    
+    toast.success("Task marked as completed!");
+     notifyTaskUpdate()
+    // Trigger a re-fetch for stats (optional)
+    fetchUserTasks(); // This will update the local tasks list
+    
+  } catch (err) {
+    console.error("Error completing task:", err.message);
+    toast.error("Failed to update task: " + err.message);
+  }
+};
   const fetchTaskTypes = async () => {
     try {
       const res = await authFetch(`${API_URL}/tasktypes`);
@@ -237,7 +285,7 @@ export default function DailyTasks() {
           assignedTo = task.leader_name ||
             task.leader_assigned ||
             task.assigned_to ||
-            "";
+            `${user.name || ""} ${user.surname || ""}`.trim() ;
 
           // Debug logging for consolidation tasks
           if (isConsolidation) {
@@ -287,50 +335,87 @@ export default function DailyTasks() {
     }
   };
 
-  const fetchPeople = async (q) => {
+  // Fetch all people with caching
+  const fetchAllPeople = useCallback(async (forceRefresh = false) => {
+    const now = Date.now();
+    if (!forceRefresh && globalPeopleCache && globalCacheTimestamp && (now - globalCacheTimestamp < CACHE_DURATION)) {
+      console.log('Using cached people data');
+      return;
+    }
+
+    if (isFetchingRef.current) {
+      console.log('People fetch already in progress');
+      return;
+    }
+
+    isFetchingRef.current = true;
+
+    try {
+      const response = await authFetch(`${API_URL}/people?perPage=0`);
+      const data = await response.json();
+      const rawPeople = data?.results || [];
+
+      const mapped = rawPeople.map(raw => ({
+        _id: (raw._id || raw.id || "").toString(),
+        name: (raw.Name || raw.name || "").toString().trim(),
+        surname: (raw.Surname || raw.surname || "").toString().trim(),
+      }));
+
+      globalPeopleCache = mapped;
+      globalCacheTimestamp = Date.now();
+      setAllPeople(mapped);
+
+    } catch (err) {
+      console.error('Fetch people error:', err);
+      toast.error(`Failed to load people: ${err?.message}`);
+      if (!globalPeopleCache) {
+        setAllPeople([]);
+      }
+    } finally {
+      isFetchingRef.current = false;
+    }
+  }, [API_URL, authFetch]);
+
+  // Optimized search function for multiple fields
+  const searchPeople = useCallback((peopleList, searchValue, field = 'name') => {
+    if (!searchValue.trim()) return peopleList;
+
+    const searchLower = searchValue.toLowerCase().trim();
+
+    return peopleList.filter(person => {
+      switch (field) {
+        case 'name': {
+          const nameLower = person.name.toLowerCase();
+          const surnameLower = person.surname.toLowerCase();
+          const fullName = `${nameLower} ${surnameLower}`;
+          
+          return nameLower.includes(searchLower) ||
+            surnameLower.includes(searchLower) ||
+            fullName.includes(searchLower);
+        }
+        default:
+          return true;
+      }
+    });
+  }, []);
+
+  // Fetch people with instant local search
+  const fetchPeople = useCallback(async (q) => {
     if (!q.trim()) {
       setSearchResults([]);
       return;
     }
 
-    const query = q.trim();
-    // We keep original casing for display, but lowercase for comparison
-    const queryLower = query.toLowerCase();
-
-    try {
-      // Send the full typed string to the backend
-      // (most APIs can handle searching across both name + surname fields)
-      const res = await authFetch(
-        `${API_URL}/people?name=${encodeURIComponent(query)}`
-      );
-
-      if (!res.ok) throw new Error("Failed to fetch people");
-
-      const data = await res.json();
-      const results = data?.results || [];
-
-      // ────────────────────────────────────────────────
-      // Client-side filtering that supports compound first names
-      // ────────────────────────────────────────────────
-      const filtered = results.filter((p) => {
-        const fullNameLower =
-          `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
-
-        // Case 1: query appears anywhere in full name
-        if (fullNameLower.includes(queryLower)) return true;
-
-        // Case 2: query words all appear (in any order) — helps with typos / partial matches
-        const queryWords = queryLower.split(/\s+/).filter(Boolean);
-        return queryWords.every((word) => fullNameLower.includes(word));
-      });
-
-      setSearchResults(filtered);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message || "Failed to search people");
-      setSearchResults([]);
+    // First, ensure we have cached data
+    if (!globalPeopleCache || globalPeopleCache.length === 0) {
+      await fetchAllPeople(false);
     }
-  };
+
+    // Perform instant search on cached data
+    const results = searchPeople(allPeople, q, 'name');
+    setSearchResults(results);
+    console.log(`Search results for "${q}":`, results);
+  }, [allPeople, searchPeople, fetchAllPeople, API_URL, authFetch]);
 
   const fetchAssigned = async (q) => {
     if (!q.trim()) return setAssignedResults([]);
@@ -377,8 +462,9 @@ export default function DailyTasks() {
     if (user) {
       fetchUserTasks();
       fetchTaskTypes();
+      fetchAllPeople(false); // Load all people for caching
     }
-  }, [user]);
+  }, [user, fetchAllPeople]);
 
   const handleOpen = (type) => {
     setFormType(type);
@@ -403,45 +489,43 @@ export default function DailyTasks() {
     setTaskData({ ...taskData, [name]: value });
   };
 
-  const updateTask = async (taskId, updatedData) => {
-    try {
-      const isConsolidationTask = selectedTask?.taskType === 'consolidation' ||
-        selectedTask?.is_consolidation_task;
-
-      if (isConsolidationTask) {
-        // Preserve the original leader assignment
-        updatedData.name = selectedTask.leader_name || selectedTask.name;
-        updatedData.leader_name = selectedTask.leader_name;
-        updatedData.leader_assigned = selectedTask.leader_assigned;
-      }
-
-      const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedData),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update task");
-
-      setTasks((prev) =>
-        prev.map((t) =>
-          t._id === taskId ? {
-            ...t,
-            ...data.updatedTask,
-            date: data.updatedTask.followup_date,
-            ...(isConsolidationTask && {
-              leader_name: selectedTask.leader_name,
-              leader_assigned: selectedTask.leader_assigned
-            })
-          } : t
-        )
-      );
-      handleClose();
-    } catch (err) {
-      console.error("Error updating task:", err.message);
-      toast.error("Failed to update task: " + err.message);
-    }
-  };
+ const updateTask = async (taskId, updatedData) => {
+  try {
+    // Ensure status and taskStage are synchronized
+    const payload = {
+      ...updatedData,
+      status: updatedData.taskStage || updatedData.status,
+    };
+    
+    const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to update task");
+    
+    // Update with both status fields
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === taskId ? { 
+          ...t, 
+          ...data.updatedTask,
+          status: data.updatedTask.status || data.updatedTask.taskStage,
+          date: data.updatedTask.followup_date 
+        } : t
+      )
+    );
+    
+    handleClose();
+    fetchUserTasks(); // Refresh the task list
+      notifyTaskUpdate();
+  } catch (err) {
+    console.error("Error updating task:", err.message);
+    toast.error("Failed to update task: " + err.message);
+  }
+};
 
   const handleEdit = (task) => {
     if (task.status?.toLowerCase() === "completed") {
@@ -457,9 +541,7 @@ export default function DailyTasks() {
       taskType: task.taskType || "",
       recipient: {
         Name: task.contacted_person?.name?.split(" ")[0] || "",
-        Surname: task.contacted_person?.name?.split(" ")[1] || "",
-        Phone: task.contacted_person?.phone || task.contacted_person?.Number || "",
-        Email: task.contacted_person?.email || "",
+        Surname: task.contacted_person?.name?.split(" ")[1] || ""
       },
       recipientDisplay: task.contacted_person?.name || "",
       assignedTo: task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
@@ -500,7 +582,7 @@ export default function DailyTasks() {
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
         type: formType || "call",
-        assignedfor: user.email,
+        assignedfor:  (user ? `${user.name} ${user.surname}` : ""),
       };
 
       if (isConsolidationTask) {
@@ -593,16 +675,21 @@ export default function DailyTasks() {
 
       const headers = Object.keys(formattedTasks[0]);
 
-      const columnWidths = headers.map(header => {
-        let maxLength = header.length;
-        formattedTasks.forEach(task => {
-          const value = String(task[header] || "");
-          if (value.length > maxLength) {
-            maxLength = value.length;
-          }
-        });
-        return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
-      });
+    // Calculate column widths based on content
+const columnWidths = headers.map(header => {
+  // Start with header length
+  let maxLength = header.length;
+  
+  // Check all values in this column
+  formattedTasks.forEach(task => {
+    const value = String(task[header] || "");
+    if (value.length > maxLength) {
+      maxLength = value.length;  
+    }
+  });
+  
+  return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
+});
 
       let colWidthsXml = columnWidths.map(width =>
         `<x:Width>${width}</x:Width>`
@@ -710,15 +797,13 @@ export default function DailyTasks() {
 
   const [totalCount, setTotalCount] = useState(0);
 
-  useEffect(() => {
-    const count = filteredTasks.filter(
-      (t) =>
-        (t.status || "").toLowerCase() === "completed" ||
-        (t.status || "").toLowerCase() === "awaiting task"
-    ).length;
-
-    setTotalCount(count);
-  }, [filteredTasks]);
+// Update the useEffect for totalCount
+useEffect(() => {
+  const count = filteredTasks.filter(
+    (t) => (t.status || "").toLowerCase() === "completed"
+  ).length;
+  setTotalCount(count);
+}, [filteredTasks]); // Remove updateTask from dependencies
 
   return (
     <div style={{
@@ -767,12 +852,12 @@ export default function DailyTasks() {
             Tasks Complete
           </p>
 
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '12px',
-            marginTop: '24px',
-            flexWrap: 'wrap'
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            gap: '12px', 
+            marginTop: '24px', 
+            flexWrap: 'wrap' 
           }}>
             <button
               style={{
@@ -783,8 +868,8 @@ export default function DailyTasks() {
                 backgroundColor: isDarkMode ? '#fff' : '#000',
                 color: isDarkMode ? '#000' : '#fff',
                 fontWeight: '600',
-                padding: '12px 20px',
-                borderRadius: '10px',
+                padding: '12px 20px', 
+                borderRadius: '10px', 
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '14px',
@@ -848,7 +933,7 @@ export default function DailyTasks() {
           <div style={{ marginTop: '20px' }}>
             <select
               style={{
-                padding: '10px 16px',
+                padding: '10px 16px', 
                 borderRadius: '10px',
                 border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
@@ -900,20 +985,20 @@ export default function DailyTasks() {
           </div>
         </div>
 
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '8px',
-          marginTop: '20px',
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: '8px', 
+          marginTop: '20px', 
           flexWrap: 'wrap',
-          overflowX: 'auto',
+          overflowX: 'auto', 
           paddingBottom: '8px'
         }}>
           {["all", "call", "visit", "consolidation"].map((type) => (
             <button
               key={type}
               style={{
-                padding: '8px 16px',
+                padding: '8px 16px', 
                 borderRadius: '20px',
                 border: filterType === type ? 'none' : `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 fontWeight: '600',
@@ -922,8 +1007,8 @@ export default function DailyTasks() {
                 color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
                 fontSize: '13px',
                 boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
-                whiteSpace: 'nowrap',
-                flexShrink: 0
+                whiteSpace: 'nowrap', 
+                flexShrink: 0 
               }}
               onClick={() => setFilterType(type)}
             >
@@ -933,23 +1018,23 @@ export default function DailyTasks() {
         </div>
       </div>
 
-      {/* Task list container */}
-      <div style={{
-        flex: 1,
+      {/* Task list container - this is the scrollable area */}
+      <div style={{ 
+        flex: 1, 
         overflowY: 'auto',
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '0 16px 16px 16px',
+        maxWidth: '1200px', 
+        margin: '0 auto', 
+        padding: '0 16px 16px 16px', 
         width: '100%',
         boxSizing: 'border-box'
       }}>
         <div style={{ marginTop: '16px' }}>
           {loading ? (
-            <p style={{
-              textAlign: 'center',
-              color: isDarkMode ? '#aaa' : '#6b7280',
-              fontStyle: 'italic',
-              padding: '20px'
+            <p style={{ 
+              textAlign: 'center', 
+              color: isDarkMode ? '#aaa' : '#6b7280', 
+              fontStyle: 'italic', 
+              padding: '20px' 
             }}>
               Loading tasks...
             </p>
@@ -1096,7 +1181,14 @@ export default function DailyTasks() {
                           ? (isDarkMode ? '#fff' : '#000')
                           : (isDarkMode ? '#444' : '#6b7280'),
                     }}
-                    onClick={() => handleEdit(task)}
+                    onClick={(e) => {
+    e.stopPropagation(); // Prevent event bubbling
+    if (task.status === "open") {
+      markTaskComplete(task._id);
+    } else {
+      handleEdit(task);
+    }
+  }}
                   >
                     {task.status}
                   </span>
@@ -1312,7 +1404,7 @@ export default function DailyTasks() {
                 margin: '4px 0 0 0',
                 boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
               }}>
-                {searchResults.map((person) => (
+            {searchResults.map((person) => (
                   <li
                     key={person._id}
                     style={{
@@ -1322,22 +1414,19 @@ export default function DailyTasks() {
                       color: isDarkMode ? '#fff' : '#1a1a24',
                     }}
                     onClick={() => {
+                      const fullName = `${person.name} ${person.surname}`.trim();
                       setTaskData({
                         ...taskData,
                         recipient: person,
-                        recipientDisplay: `${person.Name} ${person.Surname}`,
-                        contacted_person: {
-                          name: `${person.Name} ${person.Surname}`,
-                          phone: person.Phone || "",
-                          email: person.Email || "",
-                        },
+                        recipientDisplay: fullName,
+                          name: fullName
                       });
                       setSearchResults([]);
                     }}
                     onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                   >
-                    {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
+                    {person.name} {person.surname}
                   </li>
                 ))}
               </ul>
