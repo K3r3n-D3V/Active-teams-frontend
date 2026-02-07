@@ -915,37 +915,36 @@ const CreateEvents = ({
                 sx={darkModeStyles.textField}
               />
             </Box>
-
-            <Box mb={3}>
-              <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
-                Recurring Days
-              </Typography>
-              <Box
-                display="flex"
-                flexWrap="wrap"
-                gap={2}
-                sx={darkModeStyles.daysContainer}
-              >
-                {days.map((day) => (
-                  <FormControlLabel
-                    key={day}
-                    control={
-                      <Checkbox
-                        checked={formData.recurringDays.includes(day)}
-                        onChange={() => handleDayChange(day)}
-                        disabled={!isRecurring}
-                      />
-                    }
-                    label={day}
-                  />
-                ))}
-              </Box>
-              {errors.recurringDays && (
-                <Typography variant="caption" sx={darkModeStyles.errorText}>
-                  {errors.recurringDays}
-                </Typography>
-              )}
-            </Box>
+<Box mb={3}>
+  <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
+    Recurring Days
+  </Typography>
+  <Box
+    display="flex"
+    flexWrap="wrap"
+    gap={2}
+    sx={darkModeStyles.daysContainer}
+  >
+    {days.map((day) => (
+      <FormControlLabel
+        key={day}
+        control={
+          <Checkbox
+            checked={formData.recurringDays.includes(day)}
+            onChange={() => handleDayChange(day)}
+            // REMOVE THIS: disabled={!isRecurring}
+          />
+        }
+        label={day}
+      />
+    ))}
+  </Box>
+  {errors.recurringDays && (
+    <Typography variant="caption" sx={darkModeStyles.errorText}>
+      {errors.recurringDays}
+    </Typography>
+  )}
+</Box>
 
             <TextField
               label="Location *"
