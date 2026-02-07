@@ -1896,7 +1896,6 @@ const ViewToggle = () => (
       size="small"
       onClick={() => {
         setViewMode("table");
-        // setShowingEventsForType(false); // Reset when switching to table view
       }}
       sx={{
         minWidth: "auto",
@@ -5089,7 +5088,6 @@ return (
 </Box>
 
 ) : (
-
   <Box sx={{ flexGrow: 1, overflowY: "auto", padding: "24px" }}>
   <Box sx={{ maxWidth: "800px", margin: "0 auto" }}>
     {allEventTypes
@@ -5129,6 +5127,7 @@ return (
             sx={{
               display: "flex",
               alignItems: "center",
+              justifyContent: "space-between", // Add this to space between content and icon
               padding: "16px 20px",
               marginBottom: "12px",
               borderRadius: "8px",
@@ -5146,42 +5145,46 @@ return (
               },
             }}
           >
-            {/* CLICKABLE AREA */}
+            {/* CLICKABLE AREA - Takes up remaining space */}
             <Box
-onClick={() => {
-  setSelectedEventTypeFilter(typeName);
-  setSelectedStatus("incomplete");
-  setShowingEvents(true);
-  setCurrentPage(1);
-  
-  const fetchParams = {
-    page: 1,
-    limit: rowsPerPage,
-    start_date: DEFAULT_API_START_DATE,
-    event_type: typeName === "all" ? "CELLS" : typeName,
-    status: "incomplete", 
-  };
-  
-  const isCellEvent = typeName === "all" || typeName === "CELLS" || typeName.toLowerCase().includes("cell");
-  
-  if (isCellEvent) {
-    if (isLeaderAt12) {
-      fetchParams.leader_at_12_view = true;
-      if (viewFilter === "personal") {
-        fetchParams.personal = true;
-      }
-    }
-  } else {
-    delete fetchParams.personal;
-    delete fetchParams.leader_at_12_view;
-    delete fetchParams.include_subordinate_cells;
-  }
-  
-  console.log(" Fetching for event type:", typeName, "with status:", fetchParams.status);
-  fetchEvents(fetchParams, true);
-}}
+              onClick={() => {
+                setSelectedEventTypeFilter(typeName);
+                setSelectedStatus("incomplete");
+                setShowingEvents(true);
+                setCurrentPage(1);
+                
+                const fetchParams = {
+                  page: 1,
+                  limit: rowsPerPage,
+                  start_date: DEFAULT_API_START_DATE,
+                  event_type: typeName === "all" ? "CELLS" : typeName,
+                  status: "incomplete", 
+                };
+                
+                const isCellEvent = typeName === "all" || typeName === "CELLS" || typeName.toLowerCase().includes("cell");
+                
+                if (isCellEvent) {
+                  if (isLeaderAt12) {
+                    fetchParams.leader_at_12_view = true;
+                    if (viewFilter === "personal") {
+                      fetchParams.personal = true;
+                    }
+                  }
+                } else {
+                  delete fetchParams.personal;
+                  delete fetchParams.leader_at_12_view;
+                  delete fetchParams.include_subordinate_cells;
+                }
+                
+                console.log(" Fetching for event type:", typeName, "with status:", fetchParams.status);
+                fetchEvents(fetchParams, true);
+              }}
+              sx={{
+                flex: 1, // Takes up all available space
+                display: "flex",
+                alignItems: "center",
+              }}
             >
-              {/* REMOVED ICON SECTION */}
               <Box sx={{ flex: 1 }}>
                 <Typography sx={{ 
                   fontSize: "16px", 
@@ -5203,7 +5206,7 @@ onClick={() => {
               </Box>
             </Box>
 
-            {/* EDIT/DELETE MENU */}
+            {/* EDIT/DELETE MENU - Now on the far right */}
             {isAdmin && !isAllCells && (
               <IconButton
                 size="small"
@@ -5213,7 +5216,8 @@ onClick={() => {
                   setMenuAnchor(e.currentTarget);
                 }}
                 sx={{
-                  ml: 2,
+                  marginLeft: "16px", // Add some spacing from content
+                  flexShrink: 0, // Prevent icon from shrinking
                   width: "32px",
                   height: "32px",
                   backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
